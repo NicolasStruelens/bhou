@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>TFE — Déploiement & Sécurisation Réseau Scolaire | Sophos Firewall</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --bg-primary: #080d12;
+  --bg-card: #0d1520;
+  --bg-panel: #111c2a;
+  --green: #00ff88;
+  --green-dim: #00cc6a;
+  --green-dark: #003d22;
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8d9;
+  --red: #ff4757;
+  --orange: #ffa502;
+  --yellow: #ffdd59;
+  --text: #c8d8e8;
+  --text-dim: #5a7a9a;
+  --border: #1a3048;
+  --border-bright: #1e4060;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+  --scanline-opacity: 0.03;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ═══════════════════════════════════════════════
+   REVEAL OVERRIDES
+═══════════════════════════════════════════════ */
+.reveal-viewport, .reveal { background: var(--bg-primary) !important; }
+
+.reveal .slides {
+  font-family: var(--font-mono);
+  color: var(--text);
+  text-align: left;
+}
+
+.reveal .slides section {
+  height: 100%;
+  padding: 0;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Remove default styles */
+.reveal h1,.reveal h2,.reveal h3,.reveal h4 { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; text-shadow: none; }
+.reveal p, .reveal li { font-family: var(--font-mono); }
+.reveal a { color: var(--cyan); }
+.reveal .progress { background: rgba(0,255,136,0.1); }
+.reveal .progress span { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.reveal .controls { color: var(--green); }
+.reveal .controls button { color: var(--green) !important; }
+.reveal .slide-number { font-family: var(--font-mono); color: var(--text-dim); background: transparent; font-size: 0.65em; }
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SCAN EFFECT
+═══════════════════════════════════════════════ */
+.reveal::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
+  pointer-events: none;
+  z-index: 9999;
+  animation: scan 8s linear infinite;
+}
+@keyframes scan {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100%; }
+}
+
+/* ═══════════════════════════════════════════════
+   SHARED COMPONENTS
+═══════════════════════════════════════════════ */
+.slide-wrapper {
+  width: 100%;
+  height: 100%;
+  padding: 2rem 3rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Corner decorations */
+.slide-wrapper::before, .slide-wrapper::after {
+  content: '';
+  position: absolute;
+  width: 24px; height: 24px;
+  border-color: var(--green);
+  border-style: solid;
+  opacity: 0.5;
+}
+.slide-wrapper::before { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
+.slide-wrapper::after  { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
+
+.slide-tag {
+  font-family: var(--font-mono);
+  font-size: 0.55em;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.slide-tag::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.slide-title {
+  font-family: var(--font-display);
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+}
+
+.h-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--green), var(--cyan), transparent);
+  margin: 1rem 0;
+  opacity: 0.4;
+}
+
+/* STATUS BADGE */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0,255,136,0.08);
+  border: 1px solid rgba(0,255,136,0.3);
+  border-radius: 3px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.6em;
+  color: var(--green);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.badge.red { background: rgba(255,71,87,0.08); border-color: rgba(255,71,87,0.3); color: var(--red); }
+.badge.orange { background: rgba(255,165,2,0.08); border-color: rgba(255,165,2,0.3); color: var(--orange); }
+.badge.cyan { background: rgba(0,229,255,0.08); border-color: rgba(0,229,255,0.3); color: var(--cyan); }
+
+/* CARD */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  opacity: 0.6;
+}
+
+/* TERMINAL BLOCK */
+.terminal {
+  background: #050a0f;
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+}
+.terminal-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.terminal-bar span { font-size: 0.8em; color: var(--text-dim); letter-spacing: 0.05em; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot.r { background: #ff5f57; }
+.dot.y { background: #febc2e; }
+.dot.g { background: #28c840; }
+.terminal-body { padding: 0.8rem 1rem; line-height: 1.8; }
+.terminal-body .cmd { color: var(--green); }
+.terminal-body .out { color: var(--text); }
+.terminal-body .err { color: var(--red); }
+.terminal-body .ok  { color: var(--green-dim); }
+.terminal-body .comment { color: var(--text-dim); }
+
+/* GRID LAYOUTS */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8rem; }
+
+/* TOPOLOGY NODE */
+.topo-node {
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  position: relative;
+  transition: all 0.3s;
+}
+.topo-node .icon { font-size: 1.6em; display: block; margin-bottom: 0.3rem; }
+.topo-node .label { color: var(--green); font-weight: 600; display: block; }
+.topo-node .ip { color: var(--text-dim); font-size: 0.85em; }
+
+/* RULE ROW */
+.rule-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 70px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.65em;
+  align-items: center;
+  font-family: var(--font-mono);
+}
+.rule-row.header { color: var(--text-dim); font-size: 0.58em; letter-spacing: 0.08em; text-transform: uppercase; }
+.rule-row:last-child { border-bottom: none; }
+.allow { color: var(--green); }
+.deny  { color: var(--red); }
+
+/* BULLET LIST */
+.bullet-list { list-style: none; padding: 0; }
+.bullet-list li {
+  padding: 0.4rem 0 0.4rem 1.4rem;
+  position: relative;
+  font-size: 0.78em;
+  color: var(--text);
+  line-height: 1.5;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.bullet-list li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--green);
+}
+.bullet-list li strong { color: var(--cyan); }
+
+/* ANIMATED BACKGROUND GRID */
+.bg-grid {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ════════════════════════════════════════════════
+   SLIDE 0 — COVER
+════════════════════════════════════════════════ */
+.cover-wrap {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 3.5rem;
+  overflow: hidden;
+}
+
+.cover-bg-circuit {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(0,255,136,1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,1) 1px, transparent 1px),
+    radial-gradient(circle at 80% 20%, rgba(0,229,255,0.4) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(0,255,136,0.4) 0%, transparent 50%);
+  background-size: 50px 50px, 50px 50px, 100% 100%, 100% 100%;
+  animation: gridDrift 20s linear infinite;
+}
+@keyframes gridDrift { 0%{background-position:0 0,0 0,0 0,0 0} 100%{background-position:50px 50px,50px 50px,0 0,0 0} }
+
+.cover-label {
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: var(--text-dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  z-index: 1;
+}
+.cover-label::before {
+  content: '';
+  display: inline-block;
+  width: 30px; height: 1px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.cover-main-title {
+  font-family: var(--font-display);
+  font-size: 1.8em;
+  font-weight: 900;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+  z-index: 1;
+}
+.cover-main-title span { color: var(--green); }
+
+.cover-subtitle {
+  font-family: var(--font-display);
+  font-size: 1em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2.5rem;
+  z-index: 1;
+}
+
+.cover-meta {
+  display: flex;
+  gap: 1.5rem;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+.cover-meta-item {
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: var(--text-dim);
+}
+.cover-meta-item strong { color: var(--text); display: block; margin-bottom: 0.1rem; }
+
+.cover-sophos-badge {
+  position: absolute;
+  right: 3rem; top: 50%;
+  transform: translateY(-50%);
+  width: 220px; height: 220px;
+  border: 1px solid rgba(0,255,136,0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.cover-sophos-badge::before {
+  content: '';
+  position: absolute;
+  width: 180px; height: 180px;
+  border: 1px solid rgba(0,229,255,0.1);
+  border-radius: 50%;
+  animation: rotateBig 12s linear infinite;
+}
+.cover-sophos-badge::after {
+  content: '';
+  position: absolute;
+  width: 140px; height: 140px;
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 50%;
+  animation: rotateBig 8s linear infinite reverse;
+}
+@keyframes rotateBig { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.cover-sophos-inner {
+  text-align: center;
+  z-index: 2;
+  font-family: var(--font-display);
+}
+.cover-sophos-inner .big { font-size: 3em; }
+.cover-sophos-inner .name { font-size: 0.65em; color: var(--green); letter-spacing: 0.1em; }
+
+.cover-bottom-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--green), var(--cyan), transparent);
+  animation: barPulse 3s ease-in-out infinite;
+}
+@keyframes barPulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+/* ════════════════════════════════════════════════
+   SLIDE 1 — INTRO
+════════════════════════════════════════════════ */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.8rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--green);
+  opacity: 0.5;
+}
+.stat-card .num { font-family: var(--font-display); font-size: 1.8em; color: var(--green); display: block; }
+.stat-card .desc { font-size: 0.6em; color: var(--text-dim); }
+
+/* ════════════════════════════════════════════════
+   SLIDE 2 — RÉSEAU SCOLAIRE
+════════════════════════════════════════════════ */
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+.user-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem 0.6rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.62em;
+  transition: border-color 0.3s;
+}
+.user-card .icon { font-size: 1.8em; display: block; margin-bottom: 0.4rem; }
+.user-card .name { color: var(--cyan); font-weight: 600; }
+.user-card .note { color: var(--text-dim); font-size: 0.85em; margin-top: 0.2rem; }
+.user-card.admin-card { border-color: rgba(0,229,255,0.3); }
+.user-card.eleve-card { border-color: rgba(255,221,89,0.2); }
+.user-card.prof-card { border-color: rgba(0,255,136,0.3); }
+
+/* ════════════════════════════════════════════════
+   SLIDE 3 — ARCHITECTURE
+════════════════════════════════════════════════ */
+.topo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  margin: 0.8rem 0;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  position: relative;
+}
+.topo-arrow {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, var(--green-dim), var(--cyan-dim));
+  position: relative;
+  min-width: 20px;
+}
+.topo-arrow::after {
+  content: '▶';
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6em;
+  color: var(--cyan);
+}
+.topo-box {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.6em;
+  min-width: 80px;
+}
+.topo-box .ticon { font-size: 1.5em; display: block; margin-bottom: 0.2rem; }
+.topo-box .tlabel { color: var(--cyan); font-weight: 600; }
+.topo-box .tip { color: var(--text-dim); font-size: 0.8em; display: block; }
+.firewall-box {
+  border-color: rgba(0,255,136,0.5);
+  background: rgba(0,255,136,0.03);
+  box-shadow: 0 0 16px rgba(0,255,136,0.08);
+}
+.firewall-box .tlabel { color: var(--green); }
+
+/* ════════════════════════════════════════════════
+   SLIDE 4 — SOPHOS CONFIG
+════════════════════════════════════════════════ */
+.config-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+}
+.config-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.62em;
+  color: var(--cyan);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.config-body {
+  padding: 0.6rem 0.8rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+}
+.config-kv {
+  font-family: var(--font-mono);
+  font-size: 0.6em;
+  color: var(--text-dim);
+}
+.config-kv span { color: var(--text); }
+
+/* ════════════════════════════════════════════════
+   SLIDE 5 — SÉCURITÉ
+════════════════════════════════════════════════ */
+.rules-table {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.8rem 0;
+}
+.rules-header {
+  background: var(--bg-panel);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.58em;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ════════════════════════════════════════════════
+   SLIDE 6 — TESTS
+════════════════════════════════════════════════ */
+.test-result {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+}
+.test-result .status { font-size: 1.1em; min-width: 1.5em; }
+.test-result .desc { flex: 1; color: var(--text); }
+.test-result .result { font-size: 0.85em; padding: 0.15rem 0.5rem; border-radius: 3px; }
+.test-result .result.pass { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+.test-result .result.fail { background: rgba(255,71,87,0.1); color: var(--red); border: 1px solid rgba(255,71,87,0.3); }
+.test-result .result.warn { background: rgba(255,165,2,0.1); color: var(--orange); border: 1px solid rgba(255,165,2,0.3); }
+
+/* ════════════════════════════════════════════════
+   SLIDE 7 — CONCLUSION
+════════════════════════════════════════════════ */
+.conclusion-wrap {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2.5rem 3rem;
+  overflow: hidden;
+}
+.learned-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  margin: 0.8rem 0;
+}
+.learned-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--green);
+  border-radius: 0 4px 4px 0;
+  padding: 0.6rem 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: var(--text);
+  line-height: 1.5;
+}
+.learned-item strong { color: var(--green); display: block; margin-bottom: 0.2rem; }
+.limit-item {
+  border-left-color: var(--orange);
+}
+.limit-item strong { color: var(--orange); }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ════════════════════════════════════════════
+     SLIDE 0 — COVER
+════════════════════════════════════════════ -->
+<section>
+  <div class="cover-wrap">
+    <div class="cover-bg-circuit"></div>
+
+    <div class="cover-label">Travail de Fin d'Études · Admin Système &amp; Réseau</div>
+
+    <div class="cover-main-title">
+      Déploiement &amp;<br/>
+      <span>Sécurisation</span>
+    </div>
+    <div class="cover-subtitle">d'un Réseau Scolaire</div>
+
+    <div style="display:flex;gap:0.6rem;margin-bottom:2rem;flex-wrap:wrap;z-index:1;">
+      <div class="badge cyan">🔥 Sophos XG Firewall</div>
+      <div class="badge">🏫 Réseau Scolaire</div>
+      <div class="badge orange">⚡ Lab Prox / Zyxel</div>
+    </div>
+
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <strong>Struelens Nicolas</strong>
+        Étudiant(e)
+      </div>
+      <div class="cover-meta-item">
+        <strong>IFAPME</strong>
+        Année [2025–2026]
+      </div>
+      <div class="cover-meta-item">
+        <strong>Multimedian</strong>
+        [Nom du jury]
+      </div>
+    </div>
+
+    <div class="cover-sophos-badge">
+      <div class="cover-sophos-inner">
+        <div class="big">🛡️</div>
+        <div class="name">SOPHOS XG</div>
+      </div>
+    </div>
+
+    <div class="cover-bottom-bar"></div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 1 — INTRODUCTION
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">01 / Introduction</div>
+      <div class="slide-title" style="font-size:1.3em;">Pourquoi sécuriser<br/>un réseau scolaire ?</div>
+      <div class="h-divider"></div>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <span class="num">73%</span>
+          <span class="desc">des écoles signalent des tentatives d'intrusion réseau par an</span>
+        </div>
+        <div class="stat-card">
+          <span class="num" style="color:var(--red);">↑48%</span>
+          <span class="desc">de cyberattaques dans le secteur éducatif (2022→2023)</span>
+        </div>
+        <div class="stat-card">
+          <span class="num" style="color:var(--cyan);">RGPD</span>
+          <span class="desc">Obligation légale de protéger les données d'élèves mineurs</span>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:0.8rem;">
+        <div class="card">
+          <div style="font-size:0.65em;color:var(--red);font-weight:600;margin-bottom:0.6rem;letter-spacing:0.05em;">⚠️ RISQUES IDENTIFIÉS</div>
+          <ul class="bullet-list">
+            <li>Accès à des <strong>contenus inappropriés</strong></li>
+            <li>Propagation de <strong>malwares / ransomwares</strong></li>
+            <li>Saturation de la bande passante</li>
+            <li>Vol de données personnelles (RGPD)</li>
+            <li>Accès non autorisé au réseau admin</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div style="font-size:0.65em;color:var(--green);font-weight:600;margin-bottom:0.6rem;letter-spacing:0.05em;">🎯 OBJECTIF DU TFE</div>
+          <ul class="bullet-list">
+            <li><strong>Déployer</strong> un firewall Sophos XG</li>
+            <li><strong>Segmenter</strong> le réseau (élèves / admin)</li>
+            <li><strong>Filtrer</strong> le trafic web et les applications</li>
+            <li><strong>Tester</strong> l'efficacité des règles</li>
+            <li>Documenter la solution complète</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 2 — RÉSEAU SCOLAIRE
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">02 / Analyse des Besoins</div>
+      <div class="slide-title" style="font-size:1.3em;">Présentation du<br/>Réseau Scolaire</div>
+      <div class="h-divider"></div>
+
+      <div class="user-grid">
+        <div class="user-card eleve-card">
+          <span class="icon">🎒</span>
+          <span class="name">Élèves</span>
+          <span class="note">Internet limité<br/>Sites filtrés<br/>Pas d'accès admin</span>
+        </div>
+        <div class="user-card prof-card">
+          <span class="icon">📚</span>
+          <span class="name">Professeurs</span>
+          <span class="note">Internet complet<br/>Accès ressources<br/>Wi-Fi dédié</span>
+        </div>
+        <div class="user-card admin-card">
+          <span class="icon">💼</span>
+          <span class="name">Administratif</span>
+          <span class="note">Accès total<br/>Serveurs internes<br/>VLAN isolé</span>
+        </div>
+        <div class="user-card" style="border-color:rgba(255,71,87,0.2)">
+          <span class="icon">📱</span>
+          <span class="name">Visiteurs</span>
+          <span class="note">Wi-Fi guest<br/>Internet seul<br/>Isolé du LAN</span>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:0.5rem;">
+        <div class="card">
+          <div style="font-size:0.6em;color:var(--cyan);font-weight:600;margin-bottom:0.5rem;">📋 BESOINS FONCTIONNELS</div>
+          <ul class="bullet-list">
+            <li>Accès internet selon profil utilisateur</li>
+            <li>Filtrage de contenus (adultes, jeux, réseaux sociaux)</li>
+            <li>QoS : priorité au trafic pédagogique</li>
+            <li>Logs pour audit et conformité RGPD</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div style="font-size:0.6em;color:var(--cyan);font-weight:600;margin-bottom:0.5rem;">🔐 BESOINS SÉCURITÉ</div>
+          <ul class="bullet-list">
+            <li>Isolation réseau administratif / élèves</li>
+            <li>Protection contre les intrusions (IPS)</li>
+            <li>Politique BYOD contrôlée</li>
+            <li>Mise à jour centralisée des règles</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 3 — ARCHITECTURE
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">03 / Architecture Réseau</div>
+      <div class="slide-title" style="font-size:1.3em;">Topologie du Lab<br/>&amp; de la Solution</div>
+      <div class="h-divider"></div>
+
+      <!-- TOPOLOGY DIAGRAM -->
+      <div class="topo-wrap">
+        <div class="topo-box">
+          <span class="ticon">🌐</span>
+          <span class="tlabel">Internet</span>
+          <span class="tip">WAN</span>
+        </div>
+        <div class="topo-arrow"></div>
+        <div class="topo-box">
+          <span class="ticon">📦</span>
+          <span class="tlabel">Box Proximus</span>
+          <span class="tip">192.168.1.1</span>
+        </div>
+        <div class="topo-arrow"></div>
+        <div class="topo-box firewall-box">
+          <span class="ticon">🛡️</span>
+          <span class="tlabel">Sophos XG</span>
+          <span class="tip">WAN: 192.168.1.x<br/>LAN: 192.168.10.1</span>
+        </div>
+        <div class="topo-arrow"></div>
+        <div class="topo-box">
+          <span class="ticon">🔀</span>
+          <span class="tlabel">Switch Zyxel</span>
+          <span class="tip">VLANs</span>
+        </div>
+        <div class="topo-arrow"></div>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;">
+          <div class="topo-box" style="min-width:80px;font-size:0.55em;">
+            <span class="ticon" style="font-size:1.2em;">💻</span>
+            <span class="tlabel">VM Élèves</span>
+            <span class="tip">192.168.10.x</span>
+          </div>
+          <div class="topo-box" style="min-width:80px;font-size:0.55em;border-color:rgba(0,229,255,0.3);">
+            <span class="ticon" style="font-size:1.2em;">🖥️</span>
+            <span class="tlabel">VM Admin</span>
+            <span class="tip">192.168.20.x</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:0.6rem;">
+        <div class="card">
+          <div style="font-size:0.6em;color:var(--green);font-weight:600;margin-bottom:0.5rem;">🖥️ INFRASTRUCTURE LAB</div>
+          <ul class="bullet-list">
+            <li>Hyperviseur : <strong>Proxmox VE</strong></li>
+            <li>Firewall VM : <strong>Sophos XG Home</strong></li>
+            <li>Switch physique : <strong>Zyxel GS1900</strong></li>
+            <li>Clients test : <strong>2x VM Windows</strong></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div style="font-size:0.6em;color:var(--cyan);font-weight:600;margin-bottom:0.5rem;">🗂️ PLAN D'ADRESSAGE</div>
+          <ul class="bullet-list">
+            <li>VLAN 10 — Élèves : <strong>192.168.10.0/24</strong></li>
+            <li>VLAN 20 — Admin : <strong>192.168.20.0/24</strong></li>
+            <li>VLAN 30 — Profs : <strong>192.168.30.0/24</strong></li>
+            <li>VLAN 99 — Guest : <strong>192.168.99.0/24</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 4 — CONFIG SOPHOS
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">04 / Configuration Firewall</div>
+      <div class="slide-title" style="font-size:1.3em;">Mise en Place<br/>du Sophos XG</div>
+      <div class="h-divider"></div>
+
+      <div class="grid-2">
+        <div>
+          <div class="config-section">
+            <div class="config-header">🌐 Interface WAN</div>
+            <div class="config-body">
+              <div class="config-kv">Type: <span>DHCP (Proximus)</span></div>
+              <div class="config-kv">Zone: <span>WAN</span></div>
+              <div class="config-kv">MTU: <span>1500</span></div>
+              <div class="config-kv">NAT: <span>Activé</span></div>
+            </div>
+          </div>
+          <div class="config-section">
+            <div class="config-header">🏠 Interface LAN</div>
+            <div class="config-body">
+              <div class="config-kv">IP: <span>192.168.10.1/24</span></div>
+              <div class="config-kv">Zone: <span>LAN</span></div>
+              <div class="config-kv">DHCP: <span>192.168.10.100–200</span></div>
+              <div class="config-kv">DNS: <span>8.8.8.8 / 1.1.1.1</span></div>
+            </div>
+          </div>
+          <div class="config-section">
+            <div class="config-header">🔄 NAT &amp; Routage</div>
+            <div class="config-body">
+              <div class="config-kv">SNAT: <span>LAN → WAN</span></div>
+              <div class="config-kv">Default GW: <span>192.168.1.1</span></div>
+              <div class="config-kv">DNS Proxy: <span>Activé</span></div>
+              <div class="config-kv">IPv6: <span>Désactivé</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="terminal">
+            <div class="terminal-bar">
+              <div class="dot r"></div>
+              <div class="dot y"></div>
+              <div class="dot g"></div>
+              <span>sophos-xg ~ console</span>
+            </div>
+            <div class="terminal-body">
+              <div class="comment"># Vérification des interfaces</div>
+              <div class="cmd">$ show interface all</div>
+              <div class="out">eth0  WAN    UP   192.168.1.x/24</div>
+              <div class="out">eth1  LAN    UP   192.168.10.1/24</div>
+              <div class="out">eth2  VLAN20 UP   192.168.20.1/24</div>
+              <br/>
+              <div class="comment"># Test connectivité WAN</div>
+              <div class="cmd">$ ping 8.8.8.8 -c 3</div>
+              <div class="ok">64 bytes from 8.8.8.8: time=12ms</div>
+              <div class="ok">64 bytes from 8.8.8.8: time=11ms</div>
+              <div class="ok">64 bytes from 8.8.8.8: time=13ms</div>
+              <br/>
+              <div class="comment"># Vérification DHCP</div>
+              <div class="cmd">$ show dhcp leases</div>
+              <div class="out">PC-Eleve01  192.168.10.101  ✓</div>
+              <div class="out">PC-Admin01  192.168.20.101  ✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 5 — SÉCURISATION
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">05 / Sécurisation</div>
+      <div class="slide-title" style="font-size:1.3em;">Règles Firewall<br/>&amp; Filtrage Web</div>
+      <div class="h-divider"></div>
+
+      <div class="rules-table">
+        <div class="rules-header">
+          <div class="rule-row header">
+            <div>Nom de la règle</div>
+            <div>Source → Destination</div>
+            <div>Service / Port</div>
+            <div>Action</div>
+          </div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Eleves_Internet</div>
+          <div style="color:var(--text-dim);">VLAN10 → WAN</div>
+          <div style="color:var(--text-dim);">HTTP/HTTPS</div>
+          <div class="allow">✅ ALLOW</div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Block_Social</div>
+          <div style="color:var(--text-dim);">VLAN10 → WAN</div>
+          <div style="color:var(--text-dim);">Catégorie: Social</div>
+          <div class="deny">❌ DROP</div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Block_Adultes</div>
+          <div style="color:var(--text-dim);">VLAN10 → WAN</div>
+          <div style="color:var(--text-dim);">Catégorie: Adult</div>
+          <div class="deny">❌ DROP</div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Admin_Full</div>
+          <div style="color:var(--text-dim);">VLAN20 → ANY</div>
+          <div style="color:var(--text-dim);">Tous services</div>
+          <div class="allow">✅ ALLOW</div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Isolate_VLANs</div>
+          <div style="color:var(--text-dim);">VLAN10 → VLAN20</div>
+          <div style="color:var(--text-dim);">Tout</div>
+          <div class="deny">❌ DROP</div>
+        </div>
+        <div class="rule-row">
+          <div style="color:var(--text);">Guest_Internet</div>
+          <div style="color:var(--text-dim);">VLAN99 → WAN</div>
+          <div style="color:var(--text-dim);">HTTP/HTTPS</div>
+          <div class="allow">✅ ALLOW</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:0.6rem;">
+        <div class="card" style="font-size:0.65em;">
+          <div style="color:var(--cyan);font-weight:600;margin-bottom:0.4rem;">🌐 FILTRAGE WEB — Catégories bloquées élèves</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+            <span class="badge red">Adult Content</span>
+            <span class="badge red">Gambling</span>
+            <span class="badge orange">Social Media</span>
+            <span class="badge orange">Gaming</span>
+            <span class="badge orange">Streaming</span>
+            <span class="badge red">Malware Sites</span>
+            <span class="badge red">Phishing</span>
+          </div>
+        </div>
+        <div class="card" style="font-size:0.65em;">
+          <div style="color:var(--green);font-weight:600;margin-bottom:0.4rem;">🛡️ FONCTIONS DE SÉCURITÉ ACTIVÉES</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+            <span class="badge">IPS Engine</span>
+            <span class="badge">Anti-Malware</span>
+            <span class="badge">SSL Inspection</span>
+            <span class="badge cyan">Log &amp; Audit</span>
+            <span class="badge">DNS Filtering</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 6 — TESTS
+════════════════════════════════════════════ -->
+<section>
+  <div class="slide-wrapper">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">06 / Tests &amp; Démonstration</div>
+      <div class="slide-title" style="font-size:1.3em;">Validation<br/>des Règles</div>
+      <div class="h-divider"></div>
+
+      <div class="grid-2">
+        <div>
+          <div style="font-size:0.6em;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">🎒 Profil Élève — VLAN 10</div>
+          <div class="test-result">
+            <span class="status">💻</span>
+            <span class="desc">Accès Google.be (pédagogique)</span>
+            <span class="result pass">✅ AUTORISÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🚫</span>
+            <span class="desc">YouTube.com</span>
+            <span class="result fail">❌ BLOQUÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🚫</span>
+            <span class="desc">Facebook / Instagram</span>
+            <span class="result fail">❌ BLOQUÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🚫</span>
+            <span class="desc">Ping vers VLAN Admin</span>
+            <span class="result fail">❌ ISOLÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">💻</span>
+            <span class="desc">DHCP lease obtenu</span>
+            <span class="result pass">✅ OK</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:0.6em;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">💼 Profil Admin — VLAN 20</div>
+          <div class="test-result">
+            <span class="status">🖥️</span>
+            <span class="desc">Accès tous sites web</span>
+            <span class="result pass">✅ AUTORISÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🖥️</span>
+            <span class="desc">YouTube.com</span>
+            <span class="result pass">✅ AUTORISÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🖥️</span>
+            <span class="desc">Interface admin Sophos</span>
+            <span class="result pass">✅ AUTORISÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">🖥️</span>
+            <span class="desc">Accès serveur interne</span>
+            <span class="result pass">✅ AUTORISÉ</span>
+          </div>
+          <div class="test-result">
+            <span class="status">⚡</span>
+            <span class="desc">Débit mesuré (QoS)</span>
+            <span class="result warn">⚡ 94 Mbps</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:0.7rem;font-size:0.65em;">
+        <div style="color:var(--green);font-weight:600;margin-bottom:0.4rem;">📊 RÉSULTAT GLOBAL — [X/Y] tests réussis</div>
+        <div style="background:var(--bg-primary);border-radius:3px;height:8px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg,var(--green),var(--cyan));height:100%;width:90%;border-radius:3px;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.3rem;color:var(--text-dim);">
+          <span>0%</span>
+          <span style="color:var(--green);">90% de réussite — À adapter selon tes tests réels</span>
+          <span>100%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 7 — CONCLUSION
+════════════════════════════════════════════ -->
+<section>
+  <div class="conclusion-wrap">
+    <div class="bg-grid"></div>
+    <div style="position:relative;z-index:1;">
+      <div class="slide-tag">07 / Conclusion</div>
+      <div class="slide-title" style="font-size:1.3em;">Bilan &amp;<br/>Perspectives</div>
+      <div class="h-divider"></div>
+
+      <div class="grid-2" style="margin-bottom:0.6rem;">
+        <div>
+          <div style="font-size:0.6em;color:var(--green);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">✅ CE QUE J'AI APPRIS</div>
+          <div class="learned-grid">
+            <div class="learned-item">
+              <strong>Firewall Sophos XG</strong>
+              Configuration WAN/LAN, NAT, règles
+            </div>
+            <div class="learned-item">
+              <strong>Segmentation VLAN</strong>
+              Isolation logique des réseaux
+            </div>
+            <div class="learned-item">
+              <strong>Filtrage web</strong>
+              Catégories, politiques par groupe
+            </div>
+            <div class="learned-item">
+              <strong>Tests &amp; validation</strong>
+              Méthodologie de test réseau
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.6em;color:var(--orange);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;">⚠️ LIMITES &amp; PERSPECTIVES</div>
+          <div class="learned-grid">
+            <div class="learned-item limit-item">
+              <strong>Complexité config</strong>
+              Courbe d'apprentissage importante
+            </div>
+            <div class="learned-item limit-item">
+              <strong>Environnement lab</strong>
+              ≠ production (charge réelle)
+            </div>
+            <div class="learned-item" style="border-left-color:var(--cyan);">
+              <strong>Évolution possible</strong>
+              VPN, 802.1X, monitoring SIEM
+            </div>
+            <div class="learned-item" style="border-left-color:var(--cyan);">
+              <strong>Haute disponibilité</strong>
+              Redondance firewall (HA pair)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;padding:1rem;">
+        <div style="font-family:var(--font-display);font-size:0.9em;color:var(--green);letter-spacing:0.05em;margin-bottom:0.3rem;">
+          🛡️ OBJECTIF ATTEINT
+        </div>
+        <div style="font-family:var(--font-mono);font-size:0.65em;color:var(--text-dim);">
+          Le firewall Sophos XG sécurise efficacement le réseau scolaire, 
+          isole les utilisateurs par profil et filtre les contenus inadaptés.
+        </div>
+      </div>
+
+      <div style="margin-top:0.8rem;text-align:center;font-family:var(--font-mono);font-size:0.6em;color:var(--text-dim);">
+        Merci pour votre attention 
+        <span style="color:var(--green);margin:0 0.5rem;">·</span>
+        Questions ? 
+        <span style="color:var(--green);margin:0 0.5rem;">·</span>
+        [ton.email@ecole.be]
+      </div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /slides -->
+</div><!-- /reveal -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  transition: 'none',
+  transitionSpeed: 'fast',
+  backgroundTransition: 'none',
+  controls: true,
+  progress: true,
+  center: false,
+  width: 1280,
+  height: 720,
+  margin: 0,
+  minScale: 0.2,
+  maxScale: 2.0,
+  keyboard: {
+    39: 'next',
+    37: 'prev',
+  }
+});
+
+// Typing effect on cover
+document.addEventListener('DOMContentLoaded', () => {
+  const title = document.querySelector('.cover-main-title');
+  if (title) {
+    title.style.opacity = '0';
+    setTimeout(() => {
+      title.style.transition = 'opacity 0.8s ease';
+      title.style.opacity = '1';
+    }, 300);
+  }
+});
+</script>
+</body>
+</html>
