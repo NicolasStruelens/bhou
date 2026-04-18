@@ -272,6 +272,34 @@
             box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
         }
 
+        /* Measure fields styling - for dimensions in mm */
+        .measure-field {
+            background: rgba(0, 229, 255, 0.03) !important;
+            border: 1px solid rgba(0, 229, 255, 0.2) !important;
+            color: var(--cyan) !important;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .measure-field:focus {
+            border-color: var(--cyan) !important;
+            box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15) !important;
+        }
+
+        /* Quantity field styling */
+        .quantity-field {
+            background: rgba(255, 165, 2, 0.03) !important;
+            border: 1px solid rgba(255, 165, 2, 0.2) !important;
+            color: var(--orange) !important;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .quantity-field:focus {
+            border-color: var(--orange) !important;
+            box-shadow: 0 0 0 3px rgba(255, 165, 2, 0.15) !important;
+        }
+
         /* Custom styled select */
         .form-select {
             appearance: none;
@@ -426,9 +454,27 @@
 
         .item-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 80px;
+            grid-template-columns: 1fr 1fr 1fr 1.5fr;
             gap: 12px;
             margin-bottom: 16px;
+        }
+
+        .price-field {
+            background: var(--bg-panel) !important;
+            border: 2px solid var(--green) !important;
+            border-radius: 8px !important;
+            font-size: 18px !important;
+            font-weight: 700 !important;
+            color: var(--green) !important;
+            text-align: center !important;
+            padding: 12px !important;
+            min-height: 50px !important;
+        }
+
+        .price-field:focus {
+            border-color: #ffd700 !important;
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.2) !important;
+            transform: scale(1.02);
         }
 
         .item-details-grid {
@@ -1331,6 +1377,43 @@
             tente_solaire: { install: 560, tech1: 250, tech2: 250, tools: 60 }
         };
 
+        // Check if any item is tente_solaire and auto-switch installation type
+        function checkTenteSolaire() {
+            const hasTenteSolaire = items.some(item => item.type === 'tente_solaire');
+            const installationTypeSelect = document.getElementById('installationType');
+            
+            if (hasTenteSolaire && installationTypeSelect.value !== 'tente_solaire') {
+                installationTypeSelect.value = 'tente_solaire';
+                showTenteSolaireWarning();
+                updateInstallationPrices();
+                recalculate();
+            } else if (!hasTenteSolaire && installationTypeSelect.value === 'tente_solaire') {
+                installationTypeSelect.value = 'standard';
+                hideTenteSolaireWarning();
+                updateInstallationPrices();
+                recalculate();
+            }
+        }
+
+        function showTenteSolaireWarning() {
+            let warning = document.getElementById('tenteSolaireWarning');
+            if (!warning) {
+                warning = document.createElement('div');
+                warning.id = 'tenteSolaireWarning';
+                warning.className = 'alert alert-warning';
+                warning.style.cssText = 'margin: 16px 0; padding: 12px 16px; background: rgba(255, 193, 7, 0.1); border: 1px solid #ffc107; border-radius: 8px; color: #856404; display: flex; align-items: center; gap: 8px;';
+                warning.innerHTML = '<span>⚠️</span> <strong>Tente solaire détectée !</strong> Tarifs majorés appliqués à tout le devis (560€/installation)';
+                
+                const installationCard = document.querySelector('#installationType').closest('.card');
+                installationCard.appendChild(warning);
+            }
+        }
+
+        function hideTenteSolaireWarning() {
+            const warning = document.getElementById('tenteSolaireWarning');
+            if (warning) warning.remove();
+        }
+
         // Debug function
         function toggleDebug() {
             const debugInfo = document.getElementById('debugInfo');
@@ -1440,10 +1523,14 @@
                 card.innerHTML = `
                     <div class="item-header">
                         <div class="item-number">#${index + 1}</div>
-                        <select class="item-type-select" onchange="updateItem(${item.id}, 'type', this.value)">
+                        <select class="item-type-select" onchange="updateItem(${item.id}, 'type', this.value); checkTenteSolaire();">
                             <option value="screen" ${item.type === 'screen' ? 'selected' : ''}>🏠 Screen</option>
-                            <option value="volet" ${item.type === 'volet' ? 'selected' : ''}>🪟 Volet</option>
-                            <option value="tente_solaire" ${item.type === 'tente_solaire' ? 'selected' : ''}>☀️ Tente solaire</option>
+                            <option value="tente_solaire" ${item.type === 'tente_solaire' ? 'selected' : ''}>☀️ Tente Solaire</option>
+                            <option value="store_vertical" ${item.type === 'store_vertical' ? 'selected' : ''}>📐 Store Vertical</option>
+                            <option value="pergola" ${item.type === 'pergola' ? 'selected' : ''}>🏗️ Pergola</option>
+                            <option value="volet" ${item.type === 'volet' ? 'selected' : ''}>🚪 Volet</option>
+                            <option value="moustiquaire" ${item.type === 'moustiquaire' ? 'selected' : ''}>🦟 Moustiquaire</option>
+                            <option value="tablier_volet" ${item.type === 'tablier_volet' ? 'selected' : ''}>📋 Tablier de Volet</option>
                         </select>
                         <button class="btn-remove-item" onclick="removeItem(${item.id})">
                             🗑️ Supprimer
@@ -1453,23 +1540,23 @@
                     <div class="item-grid">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Largeur (mm)</label>
-                            <input type="number" class="form-input" placeholder="Largeur" value="${item.width}" 
+                            <input type="number" class="form-input measure-field" placeholder="Largeur" value="${item.width}" 
                                    tabindex="1" onchange="updateItem(${item.id}, 'width', this.value)">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Hauteur (mm)</label>
-                            <input type="number" class="form-input" placeholder="Hauteur" value="${item.height}" 
+                            <input type="number" class="form-input measure-field" placeholder="Hauteur" value="${item.height}" 
                                    tabindex="2" onchange="updateItem(${item.id}, 'height', this.value)">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Quantité</label>
-                            <input type="number" class="form-input" value="${item.quantity}" min="1" 
+                            <input type="number" class="form-input quantity-field" value="${item.quantity}" min="1" 
                                    tabindex="3" onchange="updateItem(${item.id}, 'quantity', parseInt(this.value) || 1)">
                         </div>
-                        <div class="form-group" style="margin-bottom: 0; grid-column: span 1;">
-                            <label class="form-label">💰 Prix Unitaire HTVA</label>
-                            <input type="number" class="form-input" value="${item.price}" min="0" step="0.01"
-                                   placeholder="0.00" style="font-size: 16px; font-weight: 600; color: var(--green);" 
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 700; color: var(--green);">💰 PRIX UNITAIRE HTVA</label>
+                            <input type="number" class="form-input price-field" value="${item.price}" min="0" step="0.01"
+                                   placeholder="0,00 €" 
                                    tabindex="4" onchange="updateItem(${item.id}, 'price', parseFloat2(this.value))">
                         </div>
                     </div>
@@ -1536,10 +1623,31 @@
         function updateItem(id, field, value) {
             const item = items.find(i => i.id === id);
             if (item) {
-                item[field] = value;
+                // Ensure proper data types to prevent mixing measures with prices
+                if (field === 'width' || field === 'height') {
+                    item[field] = parseInt(value) || 0; // Dimensions in mm (integers)
+                } else if (field === 'quantity') {
+                    item[field] = parseInt(value) || 1; // Quantity (integer, min 1)
+                } else if (field === 'price') {
+                    item[field] = parseFloat2(value); // Price in euros (float)
+                } else {
+                    item[field] = value; // Other fields (strings)
+                }
+                
                 renderItemsTable();
+                checkTenteSolaire(); // Check if tente solaire detection needed
+                updateInstallationQuantityAuto(); // Auto-update installation quantity
                 recalculate();
                 updateDebugInfo();
+            }
+        }
+
+        // Auto-update installation quantity based on total items
+        function updateInstallationQuantityAuto() {
+            const totalItems = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const installationQtyInput = document.getElementById('installationQty');
+            if (installationQtyInput.value == 0 || installationQtyInput.value == '') {
+                installationQtyInput.value = totalItems;
             }
         }
 
