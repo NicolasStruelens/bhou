@@ -85,7 +85,7 @@
         }
 
         .header-content {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -159,11 +159,11 @@
 
         /* Main Layout */
         .main-container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 32px;
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: 1fr 450px;
             gap: 32px;
         }
 
@@ -329,6 +329,39 @@
             accent-color: var(--green);
         }
 
+        /* Toggle Switch for Discount Type */
+        .discount-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 12px;
+        }
+
+        .toggle-option {
+            flex: 1;
+            padding: 8px 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-option.active {
+            background: var(--green);
+            color: var(--bg-primary);
+        }
+
         /* Items Table */
         .items-table {
             width: 100%;
@@ -411,6 +444,8 @@
             box-shadow: var(--shadow-intense);
             position: relative;
             overflow: hidden;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .summary-card::before {
@@ -429,9 +464,7 @@
             border-bottom: 1px solid var(--border);
         }
 
-        .summary-section:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
+        .summary-section:last-of-type {
             border-bottom: none;
         }
 
@@ -448,7 +481,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 6px 0;
         }
 
         .summary-label {
@@ -460,13 +493,22 @@
             font-family: var(--font-display);
             font-weight: 600;
             color: var(--text);
+            text-align: right;
+        }
+
+        .summary-detail {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
         }
 
         .summary-total {
             background: linear-gradient(135deg, var(--green), var(--cyan));
-            margin: 0 -24px -24px;
+            margin: 0 -24px 0;
             padding: 20px 24px;
             border-radius: 0 0 16px 16px;
+            position: sticky;
+            bottom: 0;
         }
 
         .summary-total .summary-row {
@@ -873,15 +915,18 @@
                     <h2 class="card-title">Remises & Ajustements</h2>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Remise Client (%)</label>
-                        <input type="number" class="form-input" id="clientDiscount" value="0" min="0" max="50" step="0.1" onchange="recalculate()">
+                <div class="form-group">
+                    <label class="form-label">Remise Client</label>
+                    <div class="discount-toggle">
+                        <button type="button" class="toggle-option active" id="discountPercentBtn" onclick="toggleDiscountType('percent')">Pourcentage %</button>
+                        <button type="button" class="toggle-option" id="discountEuroBtn" onclick="toggleDiscountType('euro')">Montant €</button>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Surplus Difficulté (€)</label>
-                        <input type="number" class="form-input" id="surplusDifficulte" value="0" min="0" step="0.01" onchange="recalculate()">
-                    </div>
+                    <input type="number" class="form-input" id="clientDiscount" value="0" min="0" step="0.1" placeholder="0" onchange="recalculate()">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Surplus Difficulté (€)</label>
+                    <input type="number" class="form-input" id="surplusDifficulte" value="0" min="0" step="0.01" placeholder="0.00" onchange="recalculate()">
                 </div>
             </div>
         </div>
@@ -891,7 +936,7 @@
             <div class="summary-card">
                 <div class="card-header">
                     <div class="card-icon">📊</div>
-                    <h3 class="card-title">Récapitulatif</h3>
+                    <h3 class="card-title">Récapitulatif Détaillé</h3>
                 </div>
 
                 <!-- Matériel -->
@@ -902,8 +947,16 @@
                         <span class="summary-value" id="summaryMaterialTotal">0,00 €</span>
                     </div>
                     <div class="summary-row">
-                        <span class="summary-label">Estimation fournisseur</span>
+                        <span class="summary-label">Estimation fournisseur (-23%)</span>
                         <span class="summary-value" id="summarySupplierEstimate">0,00 €</span>
+                    </div>
+                </div>
+
+                <!-- Détail ouvertures -->
+                <div class="summary-section" id="itemsDetailSection">
+                    <div class="summary-title">📋 Détail Ouvertures</div>
+                    <div id="itemsDetailList">
+                        <!-- Items detail will be populated here -->
                     </div>
                 </div>
 
@@ -911,11 +964,11 @@
                 <div class="summary-section">
                     <div class="summary-title">👥 Marges Vendeurs</div>
                     <div class="summary-row">
-                        <span class="summary-label">Nicolas (Brut/Net)</span>
+                        <span class="summary-label">Nicolas</span>
                         <span class="summary-value" id="summaryNicolas">0,00€ / 0,00€</span>
                     </div>
                     <div class="summary-row">
-                        <span class="summary-label">Yannick (Brut/Net)</span>
+                        <span class="summary-label">Yannick</span>
                         <span class="summary-value" id="summaryYannick">0,00€ / 0,00€</span>
                     </div>
                     <div id="remiseMargeInfo" style="display: none;">
@@ -947,6 +1000,14 @@
                     </div>
                 </div>
 
+                <!-- Ajustements -->
+                <div class="summary-section" id="adjustmentsSummarySection" style="display: none;">
+                    <div class="summary-title">💸 Remises & Ajustements</div>
+                    <div id="adjustmentsSummary">
+                        <!-- Adjustments summary here -->
+                    </div>
+                </div>
+
                 <!-- Total -->
                 <div class="summary-total">
                     <div class="summary-row">
@@ -970,6 +1031,7 @@
         let items = [];
         let extras = [];
         let currentVendor = 'nicolas';
+        let discountType = 'percent'; // 'percent' or 'euro'
         let installationPrices = {
             standard: { install: 280, tech1: 125, tech2: 125, tools: 30 },
             tente_solaire: { install: 560, tech1: 250, tech2: 250, tools: 60 }
@@ -990,6 +1052,7 @@
                 <div>Items: ${items.length}</div>
                 <div>Extras: ${extras.length}</div>
                 <div>Vendor: ${currentVendor}</div>
+                <div>Discount Type: ${discountType}</div>
                 <div>Material Total: ${formatEuro(getTotalMaterial())}</div>
                 <div>Calc calls: ${window.calcCalls || 0}</div>
             `;
@@ -1015,6 +1078,27 @@
 
         function getTotalMaterial() {
             return items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+        }
+
+        // Discount type toggle
+        function toggleDiscountType(type) {
+            discountType = type;
+            
+            // Update UI
+            document.getElementById('discountPercentBtn').classList.toggle('active', type === 'percent');
+            document.getElementById('discountEuroBtn').classList.toggle('active', type === 'euro');
+            
+            // Update input attributes
+            const input = document.getElementById('clientDiscount');
+            if (type === 'percent') {
+                input.setAttribute('max', '50');
+                input.setAttribute('placeholder', '0');
+            } else {
+                input.removeAttribute('max');
+                input.setAttribute('placeholder', '0.00');
+            }
+            
+            recalculate();
         }
 
         // Item management
@@ -1238,7 +1322,7 @@
             try {
                 // Get current values
                 const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value) / 100;
-                const clientDiscount = parseFloat2(document.getElementById('clientDiscount').value) / 100;
+                const clientDiscountValue = parseFloat2(document.getElementById('clientDiscount').value);
                 const surplusDifficulte = parseFloat2(document.getElementById('surplusDifficulte').value);
                 const installationQty = parseInt(document.getElementById('installationQty').value) || 0;
                 const installationType = document.getElementById('installationType').value;
@@ -1303,7 +1387,12 @@
                 let clientPriceHT = materialAfterRemiseMarge + installationTotal + extrasTotal;
                 
                 // Apply client discount
-                const clientDiscountAmount = clientPriceHT * clientDiscount;
+                let clientDiscountAmount = 0;
+                if (discountType === 'percent') {
+                    clientDiscountAmount = clientPriceHT * (clientDiscountValue / 100);
+                } else {
+                    clientDiscountAmount = clientDiscountValue;
+                }
                 clientPriceHT -= clientDiscountAmount;
                 
                 // Add surplus
@@ -1318,6 +1407,8 @@
                     yannickGross,
                     installationTotal,
                     extrasTotal,
+                    clientDiscountAmount,
+                    surplusDifficulte,
                     clientPriceTTC
                 });
 
@@ -1336,6 +1427,8 @@
                     tech2Total,
                     tech2Net,
                     extrasTotal,
+                    clientDiscountAmount,
+                    surplusDifficulte,
                     clientPriceTTC
                 });
 
@@ -1351,6 +1444,7 @@
             console.log('Updating summary with:', calc);
             
             try {
+                // Basic values
                 document.getElementById('summaryMaterialTotal').textContent = formatEuro(calc.materialTotal);
                 document.getElementById('summarySupplierEstimate').textContent = formatEuro(calc.supplierEstimate);
                 document.getElementById('summaryNicolas').textContent = `${formatEuro(calc.nicolasGross)} / ${formatEuro(calc.nicolasNet)}`;
@@ -1358,6 +1452,26 @@
                 document.getElementById('summaryInstallation').textContent = formatEuro(calc.installationTotal);
                 document.getElementById('summaryTechs').textContent = `${formatEuro(calc.tech1Total)} / ${formatEuro(calc.tech2Total)}`;
                 document.getElementById('summaryTotal').textContent = formatEuro(calc.clientPriceTTC);
+
+                // Items detail
+                const itemsDetailSection = document.getElementById('itemsDetailSection');
+                const itemsDetailList = document.getElementById('itemsDetailList');
+                if (items.length > 0) {
+                    itemsDetailSection.style.display = 'block';
+                    itemsDetailList.innerHTML = '';
+                    items.forEach((item, index) => {
+                        const subtotal = item.quantity * item.price;
+                        const row = document.createElement('div');
+                        row.className = 'summary-row';
+                        row.innerHTML = `
+                            <span class="summary-label">${item.type} ${item.width}×${item.height} (×${item.quantity})</span>
+                            <span class="summary-value">${formatEuro(subtotal)}</span>
+                        `;
+                        itemsDetailList.appendChild(row);
+                    });
+                } else {
+                    itemsDetailSection.style.display = 'none';
+                }
 
                 // Show/hide remise marge
                 const remiseInfo = document.getElementById('remiseMargeInfo');
@@ -1368,20 +1482,69 @@
                     remiseInfo.style.display = 'none';
                 }
 
-                // Show/hide extras section
+                // Extras section
                 const extrasSection = document.getElementById('extrasSummarySection');
                 const extrasSummary = document.getElementById('extrasSummary');
                 if (calc.extrasTotal > 0) {
-                    extrasSummary.innerHTML = `
-                        <div class="summary-row">
-                            <span class="summary-label">Total extras HT</span>
-                            <span class="summary-value">${formatEuro(calc.extrasTotal)}</span>
-                        </div>
+                    extrasSummary.innerHTML = '';
+                    extras.forEach(extra => {
+                        if (extra.label) {
+                            const subtotal = extra.quantity * extra.unitPrice;
+                            const row = document.createElement('div');
+                            row.className = 'summary-row';
+                            row.innerHTML = `
+                                <span class="summary-label">${extra.label} (×${extra.quantity})</span>
+                                <span class="summary-value">${formatEuro(subtotal)}</span>
+                            `;
+                            extrasSummary.appendChild(row);
+                        }
+                    });
+                    
+                    const totalRow = document.createElement('div');
+                    totalRow.className = 'summary-row';
+                    totalRow.style.fontWeight = '600';
+                    totalRow.style.borderTop = '1px solid var(--border)';
+                    totalRow.style.paddingTop = '8px';
+                    totalRow.innerHTML = `
+                        <span class="summary-label">Total extras HT</span>
+                        <span class="summary-value">${formatEuro(calc.extrasTotal)}</span>
                     `;
+                    extrasSummary.appendChild(totalRow);
+                    
                     extrasSection.style.display = 'block';
                 } else {
                     extrasSection.style.display = 'none';
                 }
+
+                // Adjustments section
+                const adjustmentsSection = document.getElementById('adjustmentsSummarySection');
+                const adjustmentsSummary = document.getElementById('adjustmentsSummary');
+                let hasAdjustments = false;
+                adjustmentsSummary.innerHTML = '';
+
+                if (calc.clientDiscountAmount > 0) {
+                    hasAdjustments = true;
+                    const row = document.createElement('div');
+                    row.className = 'summary-row';
+                    row.innerHTML = `
+                        <span class="summary-label">Remise client (${discountType === 'percent' ? '%' : '€'})</span>
+                        <span class="summary-value" style="color: var(--orange);">-${formatEuro(calc.clientDiscountAmount)}</span>
+                    `;
+                    adjustmentsSummary.appendChild(row);
+                }
+
+                if (calc.surplusDifficulte > 0) {
+                    hasAdjustments = true;
+                    const row = document.createElement('div');
+                    row.className = 'summary-row';
+                    row.innerHTML = `
+                        <span class="summary-label">Surplus difficulté</span>
+                        <span class="summary-value" style="color: var(--green);">+${formatEuro(calc.surplusDifficulte)}</span>
+                    `;
+                    adjustmentsSummary.appendChild(row);
+                }
+
+                adjustmentsSection.style.display = hasAdjustments ? 'block' : 'none';
                 
                 console.log('Summary updated successfully');
                 
