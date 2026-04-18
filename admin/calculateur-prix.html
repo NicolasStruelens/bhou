@@ -269,6 +269,22 @@
             box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
         }
 
+        /* Custom styled select */
+        .form-select {
+            appearance: none;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2300ff88"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+            padding-right: 40px;
+        }
+
+        .form-select option {
+            background: var(--bg-panel);
+            color: var(--text);
+            padding: 8px;
+        }
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -281,9 +297,16 @@
             gap: 16px;
         }
 
+        .form-row-4 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
         @media (max-width: 640px) {
             .form-row,
-            .form-row-3 {
+            .form-row-3,
+            .form-row-4 {
                 grid-template-columns: 1fr;
             }
         }
@@ -311,6 +334,9 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         .items-table th,
@@ -321,7 +347,7 @@
         }
 
         .items-table th {
-            background: var(--bg-panel);
+            background: var(--bg-primary);
             color: var(--text-dim);
             font-size: 12px;
             font-weight: 600;
@@ -329,10 +355,11 @@
             letter-spacing: 0.5px;
         }
 
-        .items-table input {
+        .items-table input,
+        .items-table select {
             width: 100%;
-            padding: 8px;
-            background: var(--bg-primary);
+            padding: 8px 12px;
+            background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 4px;
             color: var(--text);
@@ -340,9 +367,39 @@
             font-size: 13px;
         }
 
+        .items-table select {
+            appearance: none;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2300ff88"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 16px;
+            padding-right: 28px;
+        }
+
         .items-table .price-input {
             text-align: right;
             font-weight: 600;
+        }
+
+        .items-table .subtotal {
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .btn-remove {
+            background: var(--red);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-remove:hover {
+            background: #dc2626;
+            transform: scale(1.05);
         }
 
         /* Summary Panel */
@@ -352,6 +409,8 @@
             border-radius: 16px;
             padding: 24px;
             box-shadow: var(--shadow-intense);
+            position: relative;
+            overflow: hidden;
         }
 
         .summary-card::before {
@@ -575,6 +634,22 @@
             color: var(--yellow);
         }
 
+        /* Debug info */
+        .debug-info {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            background: var(--bg-primary);
+            border: 1px solid var(--green);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 11px;
+            color: var(--green);
+            max-width: 200px;
+            z-index: 1000;
+            display: none;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .header {
@@ -595,31 +670,15 @@
                 padding: 20px;
             }
         }
-
-        /* Loading states and animations */
-        .calculating {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .calculating::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--green), transparent);
-            animation: shimmer 1.5s infinite;
-        }
-
-        @keyframes shimmer {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
     </style>
 </head>
 <body>
+    <!-- Debug Info (can be toggled) -->
+    <div class="debug-info" id="debugInfo">
+        <div><strong>Debug Info:</strong></div>
+        <div id="debugContent"></div>
+    </div>
+
     <!-- Header -->
     <header class="header">
         <div class="header-content">
@@ -634,6 +693,10 @@
             </div>
             
             <div class="header-actions">
+                <button onclick="toggleDebug()" class="btn-back" style="background: var(--bg-primary); border-color: var(--green);">
+                    <span>🐛</span>
+                    Debug
+                </button>
                 <a href="admin-dashboard.html" class="btn-back">
                     <span>←</span>
                     Retour au Dashboard
@@ -658,11 +721,11 @@
                         <label class="form-label">TVA</label>
                         <div class="radio-group">
                             <label class="radio-option">
-                                <input type="radio" name="tva" value="6" checked>
+                                <input type="radio" name="tva" value="6" checked onchange="recalculate()">
                                 <span>6% (résidentiel)</span>
                             </label>
                             <label class="radio-option">
-                                <input type="radio" name="tva" value="21">
+                                <input type="radio" name="tva" value="21" onchange="recalculate()">
                                 <span>21% (commercial)</span>
                             </label>
                         </div>
@@ -670,7 +733,7 @@
                     
                     <div class="form-group">
                         <label class="form-label">Acompte (%)</label>
-                        <input type="number" class="form-input" id="acompte" value="30" min="0" max="100" step="1">
+                        <input type="number" class="form-input" id="acompte" value="30" min="0" max="100" step="1" onchange="recalculate()">
                     </div>
                 </div>
             </div>
@@ -691,13 +754,14 @@
                     <table class="items-table" id="itemsTable">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Type</th>
-                                <th>Dimensions</th>
-                                <th>Qté</th>
-                                <th>Prix Unit. HTVA</th>
-                                <th>Sous-total</th>
-                                <th></th>
+                                <th style="width: 40px;">#</th>
+                                <th style="width: 120px;">Type</th>
+                                <th style="width: 80px;">Largeur (mm)</th>
+                                <th style="width: 80px;">Hauteur (mm)</th>
+                                <th style="width: 60px;">Qté</th>
+                                <th style="width: 120px;">Prix Unit. HTVA</th>
+                                <th style="width: 100px;">Sous-total</th>
+                                <th style="width: 50px;"></th>
                             </tr>
                         </thead>
                         <tbody id="itemsTableBody">
@@ -835,11 +899,11 @@
                     <div class="summary-title">💎 Matériel</div>
                     <div class="summary-row">
                         <span class="summary-label">Catalogue total</span>
-                        <span class="summary-value" id="summaryMaterialTotal">0.00 €</span>
+                        <span class="summary-value" id="summaryMaterialTotal">0,00 €</span>
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Estimation fournisseur</span>
-                        <span class="summary-value" id="summarySupplierEstimate">0.00 €</span>
+                        <span class="summary-value" id="summarySupplierEstimate">0,00 €</span>
                     </div>
                 </div>
 
@@ -848,16 +912,16 @@
                     <div class="summary-title">👥 Marges Vendeurs</div>
                     <div class="summary-row">
                         <span class="summary-label">Nicolas (Brut/Net)</span>
-                        <span class="summary-value" id="summaryNicolas">0.00€ / 0.00€</span>
+                        <span class="summary-value" id="summaryNicolas">0,00€ / 0,00€</span>
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Yannick (Brut/Net)</span>
-                        <span class="summary-value" id="summaryYannick">0.00€ / 0.00€</span>
+                        <span class="summary-value" id="summaryYannick">0,00€ / 0,00€</span>
                     </div>
                     <div id="remiseMargeInfo" style="display: none;">
                         <div class="summary-row">
                             <span class="summary-label">Remise marge client</span>
-                            <span class="summary-value" id="summaryRemiseMarge">0.00€</span>
+                            <span class="summary-value" id="summaryRemiseMarge">0,00€</span>
                         </div>
                     </div>
                 </div>
@@ -867,11 +931,11 @@
                     <div class="summary-title">🔧 Installation</div>
                     <div class="summary-row">
                         <span class="summary-label">Total installation</span>
-                        <span class="summary-value" id="summaryInstallation">0.00 €</span>
+                        <span class="summary-value" id="summaryInstallation">0,00 €</span>
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Tech1 / Tech2</span>
-                        <span class="summary-value" id="summaryTechs">0.00€ / 0.00€</span>
+                        <span class="summary-value" id="summaryTechs">0,00€ / 0,00€</span>
                     </div>
                 </div>
 
@@ -887,7 +951,7 @@
                 <div class="summary-total">
                     <div class="summary-row">
                         <span>💰 Prix Client TTC</span>
-                        <span id="summaryTotal">0.00 €</span>
+                        <span id="summaryTotal">0,00 €</span>
                     </div>
                 </div>
             </div>
@@ -911,6 +975,26 @@
             tente_solaire: { install: 560, tech1: 250, tech2: 250, tools: 60 }
         };
 
+        // Debug function
+        function toggleDebug() {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+            if (debugInfo.style.display === 'block') {
+                updateDebugInfo();
+            }
+        }
+
+        function updateDebugInfo() {
+            const debugContent = document.getElementById('debugContent');
+            debugContent.innerHTML = `
+                <div>Items: ${items.length}</div>
+                <div>Extras: ${extras.length}</div>
+                <div>Vendor: ${currentVendor}</div>
+                <div>Material Total: ${formatEuro(getTotalMaterial())}</div>
+                <div>Calc calls: ${window.calcCalls || 0}</div>
+            `;
+        }
+
         // Helper functions
         function formatEuro(amount) {
             return new Intl.NumberFormat('fr-BE', {
@@ -929,12 +1013,17 @@
             return gross / 2.5;
         }
 
+        function getTotalMaterial() {
+            return items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+        }
+
         // Item management
         function addItem() {
             const item = {
                 id: Date.now(),
                 type: 'screen',
-                dimensions: '',
+                width: '',
+                height: '',
                 quantity: 1,
                 price: 0
             };
@@ -954,7 +1043,7 @@
             tbody.innerHTML = '';
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); font-style: italic;">Aucune ouverture ajoutée</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); font-style: italic; padding: 20px;">Aucune ouverture ajoutée</td></tr>';
                 return;
             }
 
@@ -963,29 +1052,33 @@
                 const subtotal = item.quantity * item.price;
                 
                 row.innerHTML = `
-                    <td style="font-weight: 600;">${index + 1}</td>
+                    <td style="font-weight: 600; color: var(--text-dim);">${index + 1}</td>
                     <td>
-                        <select onchange="updateItem(${item.id}, 'type', this.value)" style="width: 120px;">
+                        <select onchange="updateItem(${item.id}, 'type', this.value)">
                             <option value="screen" ${item.type === 'screen' ? 'selected' : ''}>Screen</option>
                             <option value="volet" ${item.type === 'volet' ? 'selected' : ''}>Volet</option>
                             <option value="tente_solaire" ${item.type === 'tente_solaire' ? 'selected' : ''}>Tente solaire</option>
                         </select>
                     </td>
                     <td>
-                        <input type="text" placeholder="L×H mm" value="${item.dimensions}" 
-                               onchange="updateItem(${item.id}, 'dimensions', this.value)" style="width: 120px;">
+                        <input type="number" placeholder="Largeur" value="${item.width}" 
+                               onchange="updateItem(${item.id}, 'width', this.value)">
+                    </td>
+                    <td>
+                        <input type="number" placeholder="Hauteur" value="${item.height}" 
+                               onchange="updateItem(${item.id}, 'height', this.value)">
                     </td>
                     <td>
                         <input type="number" value="${item.quantity}" min="1" 
-                               onchange="updateItem(${item.id}, 'quantity', parseInt(this.value))" style="width: 60px;">
+                               onchange="updateItem(${item.id}, 'quantity', parseInt(this.value) || 1)">
                     </td>
                     <td>
                         <input type="number" value="${item.price}" min="0" step="0.01" class="price-input"
-                               onchange="updateItem(${item.id}, 'price', parseFloat2(this.value))" style="width: 100px;">
+                               placeholder="0.00" onchange="updateItem(${item.id}, 'price', parseFloat2(this.value))">
                     </td>
-                    <td style="font-weight: 600; color: var(--green);">${formatEuro(subtotal)}</td>
+                    <td class="subtotal">${formatEuro(subtotal)}</td>
                     <td>
-                        <button onclick="removeItem(${item.id})" style="background: var(--red); color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;">×</button>
+                        <button class="btn-remove" onclick="removeItem(${item.id})">×</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -998,6 +1091,7 @@
                 item[field] = value;
                 renderItemsTable();
                 recalculate();
+                updateDebugInfo();
             }
         }
 
@@ -1115,14 +1209,14 @@
                     <div style="width: 80px;">
                         <label class="form-label">Qté</label>
                         <input type="number" class="form-input" value="${extra.quantity}" min="1" 
-                               onchange="updateExtra(${extra.id}, 'quantity', parseInt(this.value))">
+                               onchange="updateExtra(${extra.id}, 'quantity', parseInt(this.value) || 1)">
                     </div>
                     <div style="width: 120px;">
                         <label class="form-label">Prix Unit. HT</label>
                         <input type="number" class="form-input" value="${extra.unitPrice}" min="0" step="0.01" 
                                onchange="updateExtra(${extra.id}, 'unitPrice', parseFloat2(this.value))">
                     </div>
-                    <button onclick="removeExtra(${extra.id})" style="background: var(--red); color: white; border: none; border-radius: 4px; padding: 12px; cursor: pointer;">×</button>
+                    <button class="btn-remove" onclick="removeExtra(${extra.id})">×</button>
                 `;
                 container.appendChild(div);
             });
@@ -1138,126 +1232,161 @@
 
         // Main calculation
         function recalculate() {
-            // Get current values
-            const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value) / 100;
-            const clientDiscount = parseFloat2(document.getElementById('clientDiscount').value) / 100;
-            const surplusDifficulte = parseFloat2(document.getElementById('surplusDifficulte').value);
-            const installationQty = parseInt(document.getElementById('installationQty').value) || 0;
-            const installationType = document.getElementById('installationType').value;
+            window.calcCalls = (window.calcCalls || 0) + 1;
+            console.log(`=== RECALCULATE #${window.calcCalls} ===`);
+            
+            try {
+                // Get current values
+                const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value) / 100;
+                const clientDiscount = parseFloat2(document.getElementById('clientDiscount').value) / 100;
+                const surplusDifficulte = parseFloat2(document.getElementById('surplusDifficulte').value);
+                const installationQty = parseInt(document.getElementById('installationQty').value) || 0;
+                const installationType = document.getElementById('installationType').value;
 
-            // Calculate material total
-            let materialTotal = 0;
-            items.forEach(item => {
-                materialTotal += item.quantity * item.price;
-            });
+                // Calculate material total
+                let materialTotal = getTotalMaterial();
+                console.log('Material total:', materialTotal);
 
-            // Vendor percentages
-            let nicolasPct, yannickPct;
-            if (currentVendor === 'nicolas') {
-                nicolasPct = 18;
-                yannickPct = 5;
-            } else if (currentVendor === 'yannick') {
-                nicolasPct = 5;
-                yannickPct = 18;
-            } else {
-                nicolasPct = parseFloat2(document.getElementById('nicolasPct').value);
-                yannickPct = parseFloat2(document.getElementById('yannickPct').value);
+                // Vendor percentages
+                let nicolasPct, yannickPct;
+                if (currentVendor === 'nicolas') {
+                    nicolasPct = 18;
+                    yannickPct = 5;
+                } else if (currentVendor === 'yannick') {
+                    nicolasPct = 5;
+                    yannickPct = 18;
+                } else {
+                    nicolasPct = parseFloat2(document.getElementById('nicolasPct').value);
+                    yannickPct = parseFloat2(document.getElementById('yannickPct').value);
+                }
+
+                console.log('Vendor %:', { nicolasPct, yannickPct });
+
+                // Calculate vendor margins
+                const nicolasGross = materialTotal * (nicolasPct / 100);
+                const nicolasNet = netFromGross(nicolasGross);
+                const yannickGross = materialTotal * (yannickPct / 100);
+                const yannickNet = netFromGross(yannickGross);
+
+                console.log('Margins:', { nicolasGross, nicolasNet, yannickGross, yannickNet });
+
+                // Remise marge client (if custom vendor and total < 23%)
+                let remiseMargeAmount = 0;
+                const totalVendorPct = nicolasPct + yannickPct;
+                if (currentVendor === 'custom' && totalVendorPct < 23) {
+                    const remiseMargePct = 23 - totalVendorPct;
+                    remiseMargeAmount = materialTotal * (remiseMargePct / 100);
+                }
+
+                // Apply remise marge to material total for client pricing
+                const materialAfterRemiseMarge = materialTotal - remiseMargeAmount;
+
+                // Calculate installation
+                const prices = installationPrices[installationType];
+                const installationTotal = installationQty * prices.install;
+                const tech1Total = installationQty * prices.tech1;
+                const tech2Total = installationQty * prices.tech2;
+                const tech1Net = netFromGross(tech1Total);
+                const tech2Net = netFromGross(tech2Total);
+
+                console.log('Installation:', { installationTotal, tech1Total, tech2Total });
+
+                // Calculate extras
+                let extrasTotal = 0;
+                extras.forEach(extra => {
+                    extrasTotal += extra.quantity * extra.unitPrice;
+                });
+
+                console.log('Extras total:', extrasTotal);
+
+                // Calculate client pricing
+                let clientPriceHT = materialAfterRemiseMarge + installationTotal + extrasTotal;
+                
+                // Apply client discount
+                const clientDiscountAmount = clientPriceHT * clientDiscount;
+                clientPriceHT -= clientDiscountAmount;
+                
+                // Add surplus
+                clientPriceHT += surplusDifficulte;
+                
+                // Calculate TTC
+                const clientPriceTTC = clientPriceHT * (1 + tvaRate);
+
+                console.log('Final calculation:', {
+                    materialTotal,
+                    nicolasGross,
+                    yannickGross,
+                    installationTotal,
+                    extrasTotal,
+                    clientPriceTTC
+                });
+
+                // Update summary
+                updateSummary({
+                    materialTotal,
+                    supplierEstimate: materialTotal * 0.77,
+                    nicolasGross,
+                    nicolasNet,
+                    yannickGross,
+                    yannickNet,
+                    remiseMargeAmount,
+                    installationTotal,
+                    tech1Total,
+                    tech1Net,
+                    tech2Total,
+                    tech2Net,
+                    extrasTotal,
+                    clientPriceTTC
+                });
+
+                // Update debug if visible
+                updateDebugInfo();
+                
+            } catch (error) {
+                console.error('Error in recalculate:', error);
             }
-
-            // Calculate vendor margins
-            const nicolasGross = materialTotal * (nicolasPct / 100);
-            const nicolasNet = netFromGross(nicolasGross);
-            const yannickGross = materialTotal * (yannickPct / 100);
-            const yannickNet = netFromGross(yannickGross);
-
-            // Remise marge client (if custom vendor and total < 23%)
-            let remiseMargeAmount = 0;
-            const totalVendorPct = nicolasPct + yannickPct;
-            if (currentVendor === 'custom' && totalVendorPct < 23) {
-                const remiseMargePct = 23 - totalVendorPct;
-                remiseMargeAmount = materialTotal * (remiseMargePct / 100);
-            }
-
-            // Apply remise marge to material total for client pricing
-            const materialAfterRemiseMarge = materialTotal - remiseMargeAmount;
-
-            // Calculate installation
-            const prices = installationPrices[installationType];
-            const installationTotal = installationQty * prices.install;
-            const tech1Total = installationQty * prices.tech1;
-            const tech2Total = installationQty * prices.tech2;
-            const tech1Net = netFromGross(tech1Total);
-            const tech2Net = netFromGross(tech2Total);
-
-            // Calculate extras
-            let extrasTotal = 0;
-            extras.forEach(extra => {
-                extrasTotal += extra.quantity * extra.unitPrice;
-            });
-
-            // Calculate client pricing
-            let clientPriceHT = materialAfterRemiseMarge + installationTotal + extrasTotal;
-            
-            // Apply client discount
-            const clientDiscountAmount = clientPriceHT * clientDiscount;
-            clientPriceHT -= clientDiscountAmount;
-            
-            // Add surplus
-            clientPriceHT += surplusDifficulte;
-            
-            // Calculate TTC
-            const clientPriceTTC = clientPriceHT * (1 + tvaRate);
-
-            // Update summary
-            updateSummary({
-                materialTotal,
-                supplierEstimate: materialTotal * 0.77,
-                nicolasGross,
-                nicolasNet,
-                yannickGross,
-                yannickNet,
-                remiseMargeAmount,
-                installationTotal,
-                tech1Total,
-                tech1Net,
-                tech2Total,
-                tech2Net,
-                extrasTotal,
-                clientPriceTTC
-            });
         }
 
         function updateSummary(calc) {
-            document.getElementById('summaryMaterialTotal').textContent = formatEuro(calc.materialTotal);
-            document.getElementById('summarySupplierEstimate').textContent = formatEuro(calc.supplierEstimate);
-            document.getElementById('summaryNicolas').textContent = `${formatEuro(calc.nicolasGross)} / ${formatEuro(calc.nicolasNet)}`;
-            document.getElementById('summaryYannick').textContent = `${formatEuro(calc.yannickGross)} / ${formatEuro(calc.yannickNet)}`;
-            document.getElementById('summaryInstallation').textContent = formatEuro(calc.installationTotal);
-            document.getElementById('summaryTechs').textContent = `${formatEuro(calc.tech1Total)} / ${formatEuro(calc.tech2Total)}`;
-            document.getElementById('summaryTotal').textContent = formatEuro(calc.clientPriceTTC);
+            console.log('Updating summary with:', calc);
+            
+            try {
+                document.getElementById('summaryMaterialTotal').textContent = formatEuro(calc.materialTotal);
+                document.getElementById('summarySupplierEstimate').textContent = formatEuro(calc.supplierEstimate);
+                document.getElementById('summaryNicolas').textContent = `${formatEuro(calc.nicolasGross)} / ${formatEuro(calc.nicolasNet)}`;
+                document.getElementById('summaryYannick').textContent = `${formatEuro(calc.yannickGross)} / ${formatEuro(calc.yannickNet)}`;
+                document.getElementById('summaryInstallation').textContent = formatEuro(calc.installationTotal);
+                document.getElementById('summaryTechs').textContent = `${formatEuro(calc.tech1Total)} / ${formatEuro(calc.tech2Total)}`;
+                document.getElementById('summaryTotal').textContent = formatEuro(calc.clientPriceTTC);
 
-            // Show/hide remise marge
-            const remiseInfo = document.getElementById('remiseMargeInfo');
-            if (calc.remiseMargeAmount > 0) {
-                document.getElementById('summaryRemiseMarge').textContent = formatEuro(calc.remiseMargeAmount);
-                remiseInfo.style.display = 'block';
-            } else {
-                remiseInfo.style.display = 'none';
-            }
+                // Show/hide remise marge
+                const remiseInfo = document.getElementById('remiseMargeInfo');
+                if (calc.remiseMargeAmount > 0) {
+                    document.getElementById('summaryRemiseMarge').textContent = formatEuro(calc.remiseMargeAmount);
+                    remiseInfo.style.display = 'block';
+                } else {
+                    remiseInfo.style.display = 'none';
+                }
 
-            // Show/hide extras section
-            const extrasSection = document.getElementById('extrasSummarySection');
-            const extrasSummary = document.getElementById('extrasSummary');
-            if (calc.extrasTotal > 0) {
-                extrasSummary.innerHTML = `
-                    <div class="summary-row">
-                        <span class="summary-label">Total extras HT</span>
-                        <span class="summary-value">${formatEuro(calc.extrasTotal)}</span>
-                    </div>
-                `;
-                extrasSection.style.display = 'block';
-            } else {
-                extrasSection.style.display = 'none';
+                // Show/hide extras section
+                const extrasSection = document.getElementById('extrasSummarySection');
+                const extrasSummary = document.getElementById('extrasSummary');
+                if (calc.extrasTotal > 0) {
+                    extrasSummary.innerHTML = `
+                        <div class="summary-row">
+                            <span class="summary-label">Total extras HT</span>
+                            <span class="summary-value">${formatEuro(calc.extrasTotal)}</span>
+                        </div>
+                    `;
+                    extrasSection.style.display = 'block';
+                } else {
+                    extrasSection.style.display = 'none';
+                }
+                
+                console.log('Summary updated successfully');
+                
+            } catch (error) {
+                console.error('Error in updateSummary:', error);
             }
         }
 
@@ -1266,33 +1395,36 @@
             alert('💾 Calcul sauvegardé !\n\n(Fonction de sauvegarde à implémenter selon votre backend)');
         }
 
+        // Sync installation quantity with total items automatically
+        function syncInstallationQty() {
+            const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+            const installQtyInput = document.getElementById('installationQty');
+            if (totalItems !== parseInt(installQtyInput.value)) {
+                installQtyInput.value = totalItems;
+                recalculate();
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing calculator...');
+            
             // Set up installation prices display
             updateInstallationPrices();
             
             // Add initial item
             addItem();
             
-            // Initial calculation
-            recalculate();
-            
-            // Auto-sync installation quantity with total items
-            setInterval(() => {
-                const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-                const installQtyInput = document.getElementById('installationQty');
-                if (totalItems !== parseInt(installQtyInput.value)) {
-                    installQtyInput.value = totalItems;
-                    recalculate();
-                }
-            }, 1000);
-        });
-
-        // Event listeners for recalculation
-        document.addEventListener('change', function(e) {
-            if (e.target.matches('input[name="tva"], #acompte, #clientDiscount, #surplusDifficulte, #installationQty')) {
+            // Initial calculation after a small delay to ensure DOM is ready
+            setTimeout(() => {
+                console.log('Performing initial calculation...');
                 recalculate();
-            }
+            }, 200);
+            
+            // Auto-sync installation quantity with total items every 3 seconds
+            setInterval(syncInstallationQty, 3000);
+            
+            console.log('✅ Calculator initialized');
         });
     </script>
 </body>
