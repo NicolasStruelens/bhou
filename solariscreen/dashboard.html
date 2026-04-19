@@ -735,9 +735,11 @@ body::before {
 <header class="header">
   <div class="header-content">
     <div class="logo-section">
-      <div class="logo-container">🛡️</div>
+      <div class="logo-container">
+        <img src="assets/logo-solariscreen.png" alt="SolariScreen" style="width: 100%; height: 100%; object-fit: contain; border-radius: 6px;"/>
+      </div>
       <div class="brand-info">
-        <h1>SolariScreen</h1>
+        <h1><a href="index.html" style="color: var(--green); text-decoration: none;">SolariScreen</a></h1>
         <div class="module-badge">📊 Dashboard Devis</div>
       </div>
     </div>
@@ -1035,11 +1037,19 @@ function loadDevisData() {
   // Try to load from localStorage first (saved from calculateur)
   const savedDevis = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
   
-  // Merge with sample data for demonstration
-  devisList = [...sampleDevis, ...savedDevis];
+  // Check if we should show demo data
+  const showDemoData = localStorage.getItem('solariscreen_show_demo') !== 'false';
+  
+  // Only use sample data if no real data exists AND demo is enabled
+  if (savedDevis.length === 0 && showDemoData) {
+    devisList = [...sampleDevis];
+  } else {
+    devisList = [...savedDevis];
+  }
+  
   filteredDevis = [...devisList];
   
-  console.log(`📊 Loaded ${devisList.length} devis`);
+  console.log(`📊 Loaded ${devisList.length} devis (${showDemoData && savedDevis.length === 0 ? 'with demo data' : 'real data only'})`);
 }
 
 // Update statistics
@@ -1788,10 +1798,15 @@ function resetDemoData() {
         localStorage.removeItem('solariscreen_config');
         localStorage.removeItem('solariscreen_settings');
         
+        // Disable demo data for future loads
+        localStorage.setItem('solariscreen_show_demo', 'false');
+        
         // Clear any other related data
         Object.keys(localStorage).forEach(key => {
           if (key.includes('solariscreen') || key.includes('devis')) {
-            localStorage.removeItem(key);
+            if (key !== 'solariscreen_show_demo') { // Keep the demo disable flag
+              localStorage.removeItem(key);
+            }
           }
         });
         
