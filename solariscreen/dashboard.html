@@ -751,9 +751,13 @@ body::before {
         <span>📂</span>
         Import JSON
       </button>
-      <button class="btn" onclick="exportStats()">
-        <span>📊</span>
-        Export Stats
+      <button class="btn" onclick="exportAllData()">
+        <span>💾</span>
+        Export Complet
+      </button>
+      <button class="btn" onclick="resetDemoData()" style="background:rgba(255,71,87,0.1);border-color:#ff4757;color:#ff4757;">
+        <span>🗑️</span>
+        Reset Données
       </button>
     </div>
   </div>
@@ -1773,6 +1777,62 @@ function showPhotoFullscreen(photoSrc) {
 function downloadPDF(id) {
   // Placeholder for PDF generation
   alert('Fonction PDF en cours de développement.\nUtilisez le calculateur pour générer un PDF.');
+}
+
+function resetDemoData() {
+  if (confirm('⚠️ ATTENTION: Supprimer TOUTES les données ?\n\n• Tous les devis seront perdus\n• Action IRRÉVERSIBLE\n• Redémarrage avec base propre\n\nConfirmer la suppression ?')) {
+    if (confirm('🗑️ DERNIÈRE CONFIRMATION\n\nVous êtes sûr de vouloir supprimer TOUTES les données ?')) {
+      try {
+        // Clear all SolariScreen data
+        localStorage.removeItem('solariscreen_devis');
+        localStorage.removeItem('solariscreen_config');
+        localStorage.removeItem('solariscreen_settings');
+        
+        // Clear any other related data
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('solariscreen') || key.includes('devis')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        alert('✅ Données supprimées avec succès !\n\nRedémarrage avec une base propre...');
+        
+        // Reload page to show clean state
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Error clearing data:', error);
+        alert('❌ Erreur lors de la suppression:\n' + error.message);
+      }
+    }
+  }
+}
+
+function exportAllData() {
+  try {
+    const data = {
+      devis: JSON.parse(localStorage.getItem('solariscreen_devis') || '[]'),
+      config: JSON.parse(localStorage.getItem('solariscreen_config') || '{}'),
+      settings: JSON.parse(localStorage.getItem('solariscreen_settings') || '{}'),
+      exportDate: new Date().toISOString(),
+      version: 'SolariScreen v2025.1'
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `solariscreen-export-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    alert('✅ Données exportées avec succès !');
+  } catch (error) {
+    console.error('Export error:', error);
+    alert('❌ Erreur lors de l\'export: ' + error.message);
+  }
 }
 
 // Close modal on Escape key

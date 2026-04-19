@@ -1125,6 +1125,10 @@
             }
         }
     </style>
+    
+    <!-- PDF Generation Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="solariscreen-pdf-system.js"></script>
 </head>
 <body>
     <!-- Debug Info (can be toggled) -->
@@ -1521,6 +1525,10 @@
                     <button class="btn-save" onclick="saveCalculation()">
                         <span>💾</span>
                         Sauvegarder le Devis
+                    </button>
+                    <button class="btn-save" onclick="exportPDF()" style="background: linear-gradient(135deg, #ff7b00, #ff9500); margin-left: 10px;">
+                        <span>📄</span>
+                        Générer PDF
                     </button>
                 </div>
             </div>
@@ -3009,6 +3017,39 @@ ${isUpdate ? 'Les modifications ont été appliquées.' : 'Vous pouvez maintenan
                 installQtyInput.value = totalItems;
                 recalculate();
             }
+        }
+
+        // Gather all devis data for PDF generation
+        function gatherAllData() {
+            return {
+                id: document.getElementById('quoteId').value || generateNewId(),
+                date_creation: document.getElementById('quoteDate').value || new Date().toLocaleDateString('fr-BE'),
+                statut: document.getElementById('quoteStatus').value || 'brouillon',
+                client: {
+                    prenom: document.getElementById('clientPrenom').value,
+                    nom: document.getElementById('clientNom').value,
+                    email: document.getElementById('clientNom').value, // Using nom as email if no separate email field
+                    telephone: document.getElementById('clientTel').value,
+                    type_bien: document.getElementById('clientTypeBien').value,
+                    adresse: {
+                        rue: document.getElementById('clientRue').value,
+                        numero: document.getElementById('clientNumero').value,
+                        code_postal: document.getElementById('clientCP').value,
+                        ville: document.getElementById('clientVille').value
+                    }
+                },
+                items: items,
+                extras: extras,
+                distance_km: parseFloat(document.getElementById('distanceKm').value) || 0,
+                adresse_depart: document.getElementById('adresseBase').value,
+                calculs: {
+                    total_ht: parseFloat(document.getElementById('totalHT').textContent.replace(/[^\d.-]/g, '')) || 0,
+                    total_tva: parseFloat(document.getElementById('totalTVA').textContent.replace(/[^\d.-]/g, '')) || 0,
+                    total_ttc: parseFloat(document.getElementById('totalTTC').textContent.replace(/[^\d.-]/g, '')) || 0,
+                    tva_rate: parseFloat(document.querySelector('input[name="tva"]:checked')?.value || '6'),
+                    acompte_pct: parseFloat(document.getElementById('acompte').value || '30')
+                }
+            };
         }
 
         // Initialize
