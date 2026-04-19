@@ -431,14 +431,31 @@
         }
 
         .item-number {
-            background: linear-gradient(135deg, var(--green), #ffd700);
-            color: var(--bg-primary);
+            background: linear-gradient(135deg, var(--bg-panel), var(--bg-card));
+            border: 2px solid var(--green);
+            color: var(--green);
             font-weight: 700;
-            font-size: 14px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            min-width: 40px;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            min-width: 60px;
             text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0, 255, 136, 0.15);
+            transition: all 0.2s ease;
+        }
+
+        .item-number:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 255, 136, 0.25);
+        }
+
+        .item-number::before {
+            content: '🏠';
+            font-size: 14px;
         }
 
         .item-type-select {
@@ -1022,7 +1039,7 @@
                     <span>🐛</span>
                     Debug
                 </button>
-                <a href="admin-dashboard.html" class="btn-back">
+                <a href="https://www.nicolas-struelens.com/solariscreen" class="btn-back">
                     <span>←</span>
                     Retour au Dashboard
                 </a>
@@ -1522,7 +1539,7 @@
                 
                 card.innerHTML = `
                     <div class="item-header">
-                        <div class="item-number">#${index + 1}</div>
+                        <div class="item-number">Item ${index + 1}</div>
                         <select class="item-type-select" onchange="updateItem(${item.id}, 'type', this.value); checkTenteSolaire();">
                             <option value="screen" ${item.type === 'screen' ? 'selected' : ''}>🏠 Screen</option>
                             <option value="tente_solaire" ${item.type === 'tente_solaire' ? 'selected' : ''}>☀️ Tente Solaire</option>
@@ -1642,11 +1659,16 @@
             }
         }
 
-        // Auto-update installation quantity based on total items
+        // Auto-update installation quantity based on total items (only if currently 0 and we add items)
         function updateInstallationQuantityAuto() {
             const totalItems = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
             const installationQtyInput = document.getElementById('installationQty');
-            if (installationQtyInput.value == 0 || installationQtyInput.value == '') {
+            
+            // Only auto-update if:
+            // 1. Current value is 0 (not manually set)
+            // 2. We have items to install
+            // This allows manual control while providing helpful defaults
+            if (installationQtyInput.value == '0' && totalItems > 0) {
                 installationQtyInput.value = totalItems;
             }
         }
@@ -1792,6 +1814,30 @@
             console.log(`=== RECALCULATE #${window.calcCalls} ===`);
             
             try {
+                // If no items exist, reset to clean state
+                if (items.length === 0) {
+                    updateSummary({
+                        materialTotal: 0,
+                        supplierEstimate: 0,
+                        nicolasGross: 0,
+                        nicolasNet: 0,
+                        yannickGross: 0,
+                        yannickNet: 0,
+                        remiseMargeAmount: 0,
+                        installationTotal: 0,
+                        tech1Total: 0,
+                        tech1Net: 0,
+                        tech2Total: 0,
+                        tech2Net: 0,
+                        extrasTotal: 0,
+                        clientDiscountAmount: 0,
+                        surplusDifficulte: 0,
+                        clientPriceTTC: 0
+                    });
+                    updateDebugInfo();
+                    return;
+                }
+                
                 // Get current values
                 const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value) / 100;
                 const clientDiscountValue = parseFloat2(document.getElementById('clientDiscount').value);
@@ -1923,7 +1969,9 @@
                 document.getElementById('summaryYannick').textContent = `${formatEuro(calc.yannickGross)} / ${formatEuro(calc.yannickNet)}`;
                 document.getElementById('summaryInstallation').textContent = formatEuro(calc.installationTotal);
                 document.getElementById('summaryTechs').textContent = `${formatEuro(calc.tech1Total)} / ${formatEuro(calc.tech2Total)}`;
-                document.getElementById('summaryTotal').textContent = formatEuro(calc.clientPriceTTC);
+                // Update main total - show 0,00€ if no items or no material
+                const displayTTC = (items.length === 0 || calc.materialTotal === 0) ? 0 : calc.clientPriceTTC;
+                document.getElementById('summaryTotal').textContent = formatEuro(displayTTC);
 
                 // Items detail
                 const itemsDetailSection = document.getElementById('itemsDetailSection');
@@ -2138,8 +2186,9 @@ ${clientData.adresse.cp} ${clientData.ville}
             // Set up installation prices display
             updateInstallationPrices();
             
-            // Add initial item
-            addItem();
+            // Start with clean state - no items
+            renderItemsTable();
+            renderExtras();
             
             // Initial calculation after a small delay to ensure DOM is ready
             setTimeout(() => {
