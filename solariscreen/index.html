@@ -1,229 +1,514 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SolariScreen Calculator</title>
-    <style>
-        :root {
-            --bg-primary: #080d12;
-            --green: #00ff88;
-            --cyan: #00e5ff;
-            --text: #c8d8e8;
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            background: var(--bg-primary);
-            color: var(--text);
-            font-family: 'JetBrains Mono', monospace;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0,255,136,0.03) 2px,
-                rgba(0,255,136,0.03) 4px
-            );
-            pointer-events: none;
-            animation: scan 8s linear infinite;
-        }
-        
-        @keyframes scan {
-            0% { background-position: 0 0; }
-            100% { background-position: 0 100%; }
-        }
-        
-        .container {
-            text-align: center;
-            z-index: 1;
-            padding: 2rem;
-            max-width: 600px;
-        }
-        
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, var(--green), var(--cyan));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-weight: bold;
-        }
-        
-        h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            color: var(--green);
-        }
-        
-        p {
-            margin-bottom: 2rem;
-            color: var(--text);
-            font-size: 1.1rem;
-            opacity: 0.8;
-        }
-        
-        .btn {
-            display: inline-block;
-            background: linear-gradient(135deg, var(--green), var(--cyan));
-            color: var(--bg-primary);
-            padding: 1rem 2rem;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 1.1rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            margin: 0.5rem;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(0,255,136,0.3);
-        }
-        
-        .btn-secondary {
-            background: transparent;
-            color: var(--cyan);
-            border: 2px solid var(--cyan);
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(0,229,255,0.1);
-        }
-        
-        .stats {
-            margin-top: 2rem;
-            display: flex;
-            justify-content: space-around;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        .stat {
-            background: rgba(0,255,136,0.05);
-            border: 1px solid rgba(0,255,136,0.2);
-            border-radius: 8px;
-            padding: 1rem;
-            min-width: 120px;
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 1.5rem;
-            color: var(--green);
-            font-weight: bold;
-            margin-bottom: 0.3rem;
-        }
-        
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text);
-            opacity: 0.7;
-        }
-        
-        .footer {
-            position: fixed;
-            bottom: 1rem;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.8rem;
-            color: var(--text);
-            opacity: 0.5;
-        }
-    </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SolariScreen — Système de Devis Professionnel</title>
+<link rel="icon" type="image/x-icon" href="assets/logo-solariscreen.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --bg-primary: #080d12;
+  --bg-card: #0d1520;
+  --bg-panel: #111c2a;
+  --green: #00ff88;
+  --green-dim: #00cc6a;
+  --green-dark: #003d22;
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8d9;
+  --red: #ff4757;
+  --orange: #ffa502;
+  --yellow: #ffdd59;
+  --text: #c8d8e8;
+  --text-dim: #5a7a9a;
+  --border: #1a3048;
+  --border-bright: #1e4060;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+  --scanline-opacity: 0.03;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg-primary);
+  color: var(--text);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+}
+
+/* ── SCANLINES ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
+  pointer-events: none; z-index: 9999;
+  animation: scan 10s linear infinite;
+}
+@keyframes scan { to { background-position: 0 100%; } }
+
+/* ── NAVBAR ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: rgba(8,13,18,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem; height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-logo {
+  font-family: var(--font-display); font-size: 0.85em;
+  color: var(--green); letter-spacing: 0.1em; text-decoration: none;
+}
+.nav-logo span { color: var(--cyan); }
+.nav-links { display: flex; gap: 1.6rem; list-style: none; }
+.nav-links a {
+  color: var(--text-dim); text-decoration: none; font-size: 0.65em;
+  letter-spacing: 0.1em; text-transform: uppercase; transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--green); }
+.nav-right { display: flex; align-items: center; gap: 1rem; }
+.nav-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.6em; color: var(--text-dim); }
+.status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── SECTIONS ── */
+section { min-height: 100vh; padding: 100px 6vw 60px; position: relative; }
+section:nth-child(even) { background: rgba(13,21,32,0.4); }
+section::before, section::after {
+  content: ''; position: absolute;
+  width: 24px; height: 24px; border-color: var(--green); border-style: solid; opacity: 0.25;
+}
+section::before { top: 80px; left: 20px; border-width: 2px 0 0 2px; }
+section::after  { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+/* ── BG GRID ── */
+.bg-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none;
+}
+
+/* ── SECTION HEADER ── */
+.section-tag {
+  font-size: 0.58em; color: var(--text-dim); letter-spacing: 0.15em;
+  text-transform: uppercase; margin-bottom: 0.6rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.section-tag::before {
+  content: ''; width: 6px; height: 6px; background: var(--green);
+  border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite;
+}
+.section-title {
+  font-family: var(--font-display); font-size: clamp(1.8em, 4vw, 3em);
+  color: var(--green); text-transform: uppercase; letter-spacing: 0.05em;
+  line-height: 1.1; margin-bottom: 1.5rem;
+}
+.h-divider {
+  height: 1px; background: linear-gradient(90deg, var(--green), var(--cyan), transparent);
+  opacity: 0.4; margin-bottom: 2rem;
+}
+
+/* ── HERO ── */
+#hero { display: flex; flex-direction: column; justify-content: center; min-height: 100vh; }
+
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 2rem;
+  position: relative; z-index: 1;
+}
+@media(max-width:900px){ .hero-inner { grid-template-columns: 1fr; } }
+
+.hero-logo-wrap {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+@media(max-width:900px){ .hero-logo-wrap { display: none; } }
+
+.hero-logo {
+  width: 260px; height: 260px;
+  border-radius: 8px;
+  border: 2px solid var(--border-bright);
+  filter: saturate(0.9) contrast(1.05);
+  box-shadow: 0 0 40px rgba(0,255,136,0.12), 0 0 0 1px rgba(0,255,136,0.08);
+  transition: box-shadow 0.3s;
+  display: block;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+}
+.hero-logo:hover { box-shadow: 0 0 60px rgba(0,255,136,0.22), 0 0 0 1px rgba(0,255,136,0.25); }
+.hero-logo-wrap::before {
+  content: '';
+  position: absolute; inset: -7px;
+  border-radius: 7px;
+  border: 1px solid rgba(0,255,136,0.1);
+  pointer-events: none;
+}
+.hero-logo-wrap::after {
+  content: '// SolariScreen.v2';
+  position: absolute; bottom: -1.5rem; left: 50%; transform: translateX(-50%);
+  font-size: 0.52em; color: var(--text-dim); letter-spacing: 0.08em;
+}
+
+.hero-pre {
+  font-size: 0.65em; color: var(--text-dim); letter-spacing: 0.2em;
+  text-transform: uppercase; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+}
+.hero-pre::before { content: '>'; color: var(--green); font-size: 1.2em; animation: blink 1s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.hero-name {
+  font-family: var(--font-display); font-size: clamp(2.5em, 8vw, 6em);
+  font-weight: 900; line-height: 1; margin-bottom: 0.3em;
+}
+.hero-name .first { color: var(--text); }
+.hero-name .last  { color: var(--green); text-shadow: 0 0 30px rgba(0,255,136,0.4); }
+
+.hero-title {
+  font-size: clamp(0.75em, 2vw, 1.1em); color: var(--cyan);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2rem; min-height: 1.4em;
+}
+
+.hero-desc {
+  max-width: 560px; font-size: 0.82em; color: var(--text-dim);
+  line-height: 1.8; margin-bottom: 2rem;
+  border-left: 2px solid var(--green); padding-left: 1rem;
+}
+
+.hero-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2.5rem; }
+.htag {
+  font-size: 0.6em; letter-spacing: 0.07em; padding: 0.25rem 0.7rem;
+  border-radius: 3px; border: 1px solid; transition: all 0.2s; cursor: default;
+}
+.htag-green  { border-color: rgba(0,255,136,0.35);  color: var(--green-dim); background: rgba(0,255,136,0.05); }
+.htag-cyan   { border-color: rgba(0,229,255,0.35);  color: var(--cyan-dim);  background: rgba(0,229,255,0.05); }
+.htag-orange { border-color: rgba(255,165,2,0.35);  color: var(--orange);    background: rgba(255,165,2,0.05); }
+.htag:hover  { transform: translateY(-2px); filter: brightness(1.3); }
+
+.hero-btns { display: flex; gap: 1rem; flex-wrap: wrap; }
+.btn {
+  font-family: var(--font-mono); font-size: 0.72em; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 0.7rem 1.5rem; border-radius: 3px;
+  text-decoration: none; cursor: pointer; transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.btn-primary { background: var(--green); color: var(--bg-primary); border: 1px solid var(--green); font-weight: 700; }
+.btn-primary:hover { background: transparent; color: var(--green); box-shadow: 0 0 20px rgba(0,255,136,0.3); }
+.btn-outline { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); }
+.btn-outline:hover { background: rgba(0,229,255,0.08); box-shadow: 0 0 20px rgba(0,229,255,0.2); }
+
+/* ── CARD ── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+  padding: 1.2rem 1.4rem; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s;
+}
+.card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+.card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+}
+
+/* ── STATS ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0; }
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+  padding: 1.2rem; text-align: center; position: relative; overflow: hidden; transition: all 0.2s;
+}
+.stat-card:hover { border-color: var(--green); transform: translateY(-2px); }
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+}
+.stat-number { font-family: var(--font-display); font-size: 1.8em; color: var(--green); display: block; margin-bottom: 0.3rem; }
+.stat-desc { font-size: 0.6em; color: var(--text-dim); }
+
+/* ── MODULES GRID ── */
+.modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.module-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+  padding: 1.5rem; position: relative; overflow: hidden; transition: all 0.3s;
+  cursor: pointer; text-decoration: none; color: inherit;
+}
+.module-card:hover { 
+  border-color: var(--green); transform: translateY(-3px); 
+  box-shadow: 0 8px 32px rgba(0,255,136,0.15);
+}
+.module-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0; transition: opacity 0.3s;
+}
+.module-card:hover::before { opacity: 1; }
+
+.module-icon { font-size: 2rem; margin-bottom: 1rem; display: block; }
+.module-title { font-family: var(--font-display); font-size: 0.9em; color: var(--green); margin-bottom: 0.5rem; }
+.module-desc { font-size: 0.7em; color: var(--text-dim); line-height: 1.6; margin-bottom: 1rem; }
+.module-features { font-size: 0.6em; color: var(--cyan); }
+
+/* ── FOOTER ── */
+footer {
+  background: var(--bg-panel); border-top: 1px solid var(--border);
+  padding: 1.5rem 6vw; display: flex; justify-content: space-between;
+  align-items: center; font-size: 0.6em; color: var(--text-dim); flex-wrap: wrap; gap: 1rem;
+}
+footer span { color: var(--green); }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeUp 0.7s ease 0.15s both; }
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  nav { padding: 0 1rem; }
+  .nav-links { gap: 1rem; }
+  .nav-links li:nth-child(n+4) { display: none; }
+  section { padding: 80px 4vw 40px; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">🧮</div>
-        <h1>SolariScreen Calculator</h1>
-        <p>Système de devis professionnel avec génération PDF automatique</p>
-        
-        <a href="dashboard.html" class="btn" id="dashboardBtn">
-            📊 Accéder au Dashboard
-        </a>
-        <br>
-        <a href="calculateur.html" class="btn btn-secondary">
-            🧮 Calculateur Direct
-        </a>
-        
-        <!-- Live stats -->
-        <div class="stats" id="statsContainer">
-            <div class="stat">
-                <div class="stat-number" id="totalDevis">-</div>
-                <div class="stat-label">Devis Total</div>
-            </div>
-            <div class="stat">
-                <div class="stat-number" id="caTotal">-</div>
-                <div class="stat-label">CA Total</div>
-            </div>
-            <div class="stat">
-                <div class="stat-number" id="enCours">-</div>
-                <div class="stat-label">En Cours</div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="footer">
-        SolariScreen © 2025 - Système de devis nouvelle génération
-    </div>
 
-    <script>
-        // Load and display real-time stats
-        function loadStats() {
-            try {
-                const devisData = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-                const showDemo = localStorage.getItem('solariscreen_show_demo') !== 'false';
-                
-                // Sample demo data for stats when no real data
-                const sampleDevis = [
-                    { statut: 'signe', calculs: { total_ttc: 2416.80 } },
-                    { statut: 'envoye_client', calculs: { total_ttc: 3850.25 } },
-                    { statut: 'brouillon', calculs: { total_ttc: 2850.15 } }
-                ];
-                
-                const allDevis = devisData.length === 0 && showDemo ? sampleDevis : devisData;
-                
-                // Calculate stats
-                const total = allDevis.length;
-                const ca = allDevis
-                    .filter(d => d.statut === 'signe')
-                    .reduce((sum, d) => sum + (d.calculs?.total_ttc || 0), 0);
-                const enCours = allDevis
-                    .filter(d => !['signe', 'refuse', 'annule'].includes(d.statut))
-                    .length;
-                
-                // Update UI
-                document.getElementById('totalDevis').textContent = total || '0';
-                document.getElementById('caTotal').textContent = ca > 0 ? 
-                    ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) : '0 €';
-                document.getElementById('enCours').textContent = enCours || '0';
-                
-            } catch (error) {
-                console.error('Error loading stats:', error);
-                document.getElementById('totalDevis').textContent = '0';
-                document.getElementById('caTotal').textContent = '0 €';
-                document.getElementById('enCours').textContent = '0';
-            }
-        }
+<!-- ═══ NAVBAR ═══ -->
+<nav>
+  <a href="#hero" class="nav-logo">SolariScreen<span>://</span>System</a>
+  <ul class="nav-links">
+    <li><a href="#stats">Statistiques</a></li>
+    <li><a href="#modules">Modules</a></li>
+    <li><a href="#features">Fonctionnalités</a></li>
+    <li><a href="dashboard.html">Dashboard</a></li>
+    <li><a href="calculateur.html">Calculateur</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-status"><div class="status-dot"></div>ONLINE</div>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section id="hero">
+  <div class="bg-grid"></div>
+  <div class="hero-inner">
+    <div>
+      <div class="hero-pre">Système de devis nouvelle génération</div>
+      <div class="hero-name">
+        <div class="first">SOLARI</div>
+        <div class="last">SCREEN</div>
+      </div>
+      <div class="hero-title" id="hero-title">Calculateur Professionnel · PDF Automatique · Gestion Complète</div>
+      <div class="hero-desc">
+        Solution complète pour la création, gestion et suivi de devis professionnels. 
+        Calculs automatiques, génération PDF, workflow intégré.
+      </div>
+      <div class="hero-tags">
+        <span class="htag htag-green">📊 Dashboard Complet</span>
+        <span class="htag htag-cyan">🧮 Calculateur Avancé</span>
+        <span class="htag htag-orange">📄 PDF Automatique</span>
+        <span class="htag htag-green">📸 Gestion Photos</span>
+        <span class="htag htag-cyan">💾 Export/Import</span>
+        <span class="htag htag-orange">🔄 Workflow</span>
+      </div>
+      <div class="hero-btns">
+        <a href="calculateur.html" class="btn btn-primary">▸ Créer un Devis</a>
+        <a href="dashboard.html" class="btn btn-outline">📊 Accéder au Dashboard</a>
+      </div>
+    </div>
+    <div class="hero-logo-wrap">
+      <div class="hero-logo">
+        <img src="assets/logo-solariscreen.png" alt="SolariScreen" style="width: 140px; height: 140px; object-fit: contain;"/>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ STATS ═══ -->
+<section id="stats">
+  <div class="bg-grid"></div>
+  <div style="position:relative;z-index:1;" class="fade-in">
+    <div class="section-tag">01 / Tableau de Bord</div>
+    <div class="section-title">Statistiques temps réel</div>
+    <div class="h-divider"></div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-number" id="totalDevis">0</span>
+        <span class="stat-desc">Devis Total</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" id="caTotal">0 €</span>
+        <span class="stat-desc">Chiffre d'Affaires</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" id="enCours">0</span>
+        <span class="stat-desc">En Cours</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number" id="tauxConversion">0%</span>
+        <span class="stat-desc">Taux de Conversion</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ MODULES ═══ -->
+<section id="modules">
+  <div class="bg-grid"></div>
+  <div style="position:relative;z-index:1;" class="fade-in">
+    <div class="section-tag">02 / Modules</div>
+    <div class="section-title">Outils Professionnels</div>
+    <div class="h-divider"></div>
+
+    <div class="modules-grid">
+      
+      <a href="calculateur.html" class="module-card">
+        <span class="module-icon">🧮</span>
+        <div class="module-title">CALCULATEUR DE PRIX</div>
+        <div class="module-desc">
+          Création de devis avec calculs automatiques, gestion des photos par item, 
+          marges vendeur configurables et génération PDF professionnelle.
+        </div>
+        <div class="module-features">Calculs • Photos • PDF • Export</div>
+      </a>
+
+      <a href="dashboard.html" class="module-card">
+        <span class="module-icon">📊</span>
+        <div class="module-title">DASHBOARD DEVIS</div>
+        <div class="module-desc">
+          Vue d'ensemble complète avec statistiques en temps réel, gestion des statuts,
+          workflow intégré et export massif des données.
+        </div>
+        <div class="module-features">Stats • Workflow • Export • Recherche</div>
+      </a>
+
+      <a href="calculateur.html" class="module-card">
+        <span class="module-icon">📄</span>
+        <div class="module-title">GÉNÉRATION PDF</div>
+        <div class="module-desc">
+          Templates professionnels SolariScreen avec calculs automatiques,
+          intégration photos et mise en page conforme aux standards.
+        </div>
+        <div class="module-features">Templates • Calculs • Photos • Branding</div>
+      </a>
+
+      <a href="dashboard.html" class="module-card">
+        <span class="module-icon">📸</span>
+        <div class="module-title">GESTION PHOTOS</div>
+        <div class="module-desc">
+          Upload et organisation des photos par item avec redimensionnement automatique,
+          compression optimisée et intégration dans les devis.
+        </div>
+        <div class="module-features">Upload • Resize • Compression • Galerie</div>
+      </a>
+
+      <a href="dashboard.html" class="module-card">
+        <span class="module-icon">💾</span>
+        <div class="module-title">IMPORT / EXPORT</div>
+        <div class="module-desc">
+          Sauvegarde et migration des données avec export JSON complet,
+          import de données existantes et synchronisation multi-appareils.
+        </div>
+        <div class="module-features">JSON • Backup • Migration • Sync</div>
+      </a>
+
+      <a href="dashboard.html" class="module-card">
+        <span class="module-icon">🔄</span>
+        <div class="module-title">WORKFLOW AVANCÉ</div>
+        <div class="module-desc">
+          Gestion des statuts de devis avec 12 étapes configurables,
+          suivi client automatique et relances programmées.
+        </div>
+        <div class="module-features">Statuts • Suivi • Relances • Historique</div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section id="features">
+  <div class="bg-grid"></div>
+  <div style="position:relative;z-index:1;" class="fade-in">
+    <div class="section-tag">03 / Fonctionnalités</div>
+    <div class="section-title">Caractéristiques</div>
+    <div class="h-divider"></div>
+
+    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+      <div class="card">
+        <div style="font-size:0.65em;color:var(--green);font-weight:600;margin-bottom:0.6rem;letter-spacing:0.05em;">🧮 CALCULATEUR AVANCÉ</div>
+        <ul style="list-style:none;padding:0;font-size:0.7em;line-height:1.8;color:var(--text-dim);">
+          <li style="position:relative;padding-left:1rem;">▸ Calculs automatiques avec marges vendeur</li>
+          <li style="position:relative;padding-left:1rem;">▸ Gestion TVA 6%, 12%, 21% configurable</li>
+          <li style="position:relative;padding-left:1rem;">▸ Photos par item avec redimensionnement</li>
+          <li style="position:relative;padding-left:1rem;">▸ Export PDF template professionnel</li>
+          <li style="position:relative;padding-left:1rem;">▸ Sauvegarde automatique localStorage</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div style="font-size:0.65em;color:var(--cyan);font-weight:600;margin-bottom:0.6rem;letter-spacing:0.05em;">📊 DASHBOARD PRO</div>
+        <ul style="list-style:none;padding:0;font-size:0.7em;line-height:1.8;color:var(--text-dim);">
+          <li style="position:relative;padding-left:1rem;">▸ Vue d'ensemble temps réel</li>
+          <li style="position:relative;padding-left:1rem;">▸ Statistiques CA et conversion</li>
+          <li style="position:relative;padding-left:1rem;">▸ Gestion workflow 12 statuts</li>
+          <li style="position:relative;padding-left:1rem;">▸ Export/Import données JSON</li>
+          <li style="position:relative;padding-left:1rem;">▸ Recherche et filtres avancés</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div>© 2025 <span>SolariScreen</span> — Système de Devis Professionnel</div>
+  <div style="display:flex;align-items:center;gap:0.5rem;">
+    <div style="width:5px;height:5px;background:var(--green);border-radius:50%;box-shadow:0 0 4px var(--green);animation:pulse 2s infinite;"></div>
+    SolariScreen v2.0 · Développé par <span>Nicolas Struelens</span>
+  </div>
+</footer>
+
+<script>
+// Load and display real-time stats
+function loadStats() {
+    try {
+        const devisData = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
         
-        // Load stats on page load
-        loadStats();
+        // Calculate stats
+        const total = devisData.length;
+        const signes = devisData.filter(d => d.statut === 'signe');
+        const ca = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || 0), 0);
+        const enCours = devisData.filter(d => !['signe', 'refuse', 'annule'].includes(d.statut)).length;
+        const taux = devisData.length > 0 ? Math.round((signes.length / devisData.length) * 100) : 0;
         
-        // Refresh stats every 30 seconds
-        setInterval(loadStats, 30000);
-    </script>
+        // Update UI
+        document.getElementById('totalDevis').textContent = total || '0';
+        document.getElementById('caTotal').textContent = ca > 0 ? 
+            ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) : '0 €';
+        document.getElementById('enCours').textContent = enCours || '0';
+        document.getElementById('tauxConversion').textContent = taux + '%';
+        
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        document.getElementById('totalDevis').textContent = '0';
+        document.getElementById('caTotal').textContent = '0 €';
+        document.getElementById('enCours').textContent = '0';
+        document.getElementById('tauxConversion').textContent = '0%';
+    }
+}
+
+// Load stats on page load
+loadStats();
+
+// Refresh stats every 30 seconds
+setInterval(loadStats, 30000);
+</script>
 </body>
 </html>

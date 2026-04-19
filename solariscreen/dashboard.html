@@ -5,231 +5,207 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolariScreen — Dashboard Devis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Orbitron:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0f1a;
-            --bg-panel: #1a2332;
-            --bg-card: #243347;
-            --bg-modal: rgba(10, 15, 26, 0.95);
+            --bg-primary: #080d12;
+            --bg-card: #0d1520;
+            --bg-panel: #111c2a;
             --green: #00ff88;
-            --green-hover: #00cc6a;
+            --green-dim: #00cc6a;
+            --green-dark: #003d22;
             --cyan: #00e5ff;
-            --blue: #0088ff;
-            --orange: #ff7b00;
+            --cyan-dim: #00b8d9;
             --red: #ff4757;
-            --yellow: #ffd700;
-            --text: #e2e8f0;
-            --text-dim: #94a3b8;
-            --border: #334155;
-            --shadow: rgba(0, 0, 0, 0.3);
+            --orange: #ffa502;
+            --yellow: #ffdd59;
+            --text: #c8d8e8;
+            --text-dim: #5a7a9a;
+            --border: #1a3048;
+            --border-bright: #1e4060;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-display: 'Orbitron', sans-serif;
+            --scanline-opacity: 0.03;
         }
 
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             background: var(--bg-primary);
             color: var(--text);
             line-height: 1.6;
             overflow-x: hidden;
         }
 
-        /* Header */
-        .header {
-            background: var(--bg-panel);
+        /* ── SCANLINES ── */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
+            pointer-events: none; z-index: 9999;
+            animation: scan 10s linear infinite;
+        }
+        @keyframes scan { to { background-position: 0 100%; } }
+
+        /* ── BG GRID ── */
+        .bg-grid {
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── NAVBAR ── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(8,13,18,0.92);
+            backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(10px);
+            padding: 0 2rem; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
         }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .nav-logo {
+            font-family: var(--font-display); font-size: 0.85em;
+            color: var(--green); letter-spacing: 0.1em; text-decoration: none;
         }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
+        .nav-logo span { color: var(--cyan); }
+        .nav-links { display: flex; gap: 1.6rem; list-style: none; }
+        .nav-links a {
+            color: var(--text-dim); text-decoration: none; font-size: 0.65em;
+            letter-spacing: 0.1em; text-transform: uppercase; transition: color 0.2s;
         }
+        .nav-links a:hover { color: var(--green); }
+        .nav-right { display: flex; align-items: center; gap: 1rem; }
+        .nav-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.6em; color: var(--text-dim); }
+        .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-        .logo-container {
-            width: 48px;
-            height: 48px;
-            background: var(--bg-card);
-            border: 1px solid var(--green);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5em;
-            position: relative;
-            overflow: hidden;
+        .btn-nav {
+            font-family: var(--font-mono); font-size: 0.6em; letter-spacing: 0.08em;
+            text-transform: uppercase; padding: 0.4rem 0.85rem;
+            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+            border-radius: 3px; cursor: pointer; transition: all 0.2s; text-decoration: none;
         }
+        .btn-nav:hover { background: rgba(0,229,255,0.08); box-shadow: 0 0 14px rgba(0,229,255,0.2); }
 
-        .logo-container::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--green), var(--cyan));
-        }
-
-        .brand-info h1 {
-            font-size: 1.5rem;
-            color: var(--green);
-            margin-bottom: 0.2rem;
-        }
-
-        .brand-info h1 a {
-            color: var(--green);
-            text-decoration: none;
-        }
-
-        .brand-info h1 a:hover {
-            color: var(--cyan);
-        }
-
-        .module-badge {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            font-weight: normal;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 0.6rem 1.2rem;
-            border: none;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--green), var(--green-hover));
-            color: var(--bg-primary);
-            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
-        }
-
-        .btn-danger {
-            background: var(--red);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #e73c7e;
-            transform: translateY(-2px);
-        }
-
-        /* Main Content */
+        /* ── MAIN CONTENT ── */
         .main-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
+            padding: 100px 6vw 60px;
+            min-height: 100vh;
             position: relative;
-            overflow: hidden;
+            z-index: 1;
         }
 
+        .main-container::before, .main-container::after {
+            content: ''; position: absolute;
+            width: 24px; height: 24px; border-color: var(--green); border-style: solid; opacity: 0.25;
+        }
+        .main-container::before { top: 80px; left: 20px; border-width: 2px 0 0 2px; }
+        .main-container::after  { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+        /* ── SECTION HEADER ── */
+        .section-tag {
+            font-size: 0.58em; color: var(--text-dim); letter-spacing: 0.15em;
+            text-transform: uppercase; margin-bottom: 0.6rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .section-tag::before {
+            content: ''; width: 6px; height: 6px; background: var(--green);
+            border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite;
+        }
+        .section-title {
+            font-family: var(--font-display); font-size: clamp(1.8em, 4vw, 3em);
+            color: var(--green); text-transform: uppercase; letter-spacing: 0.05em;
+            line-height: 1.1; margin-bottom: 1.5rem;
+        }
+        .h-divider {
+            height: 1px; background: linear-gradient(90deg, var(--green), var(--cyan), transparent);
+            opacity: 0.4; margin-bottom: 2rem;
+        }
+
+        /* ── STATS GRID ── */
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1rem; 
+            margin-bottom: 2rem; 
+        }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            padding: 1.2rem; text-align: center; position: relative; overflow: hidden; 
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .stat-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
         .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--green), var(--cyan));
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+        }
+        .stat-number { 
+            font-family: var(--font-display); font-size: 1.8em; color: var(--green); 
+            display: block; margin-bottom: 0.3rem; 
+        }
+        .stat-label { font-size: 0.7em; color: var(--text-dim); }
+        .stat-subtitle { 
+            font-size: 0.6em; color: var(--text-dim); opacity: 0.7; 
+            margin-top: 0.2rem; 
         }
 
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--green);
-            margin-bottom: 0.5rem;
+        /* ── ACTIONS BAR ── */
+        .actions-bar {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            padding: 1rem 1.5rem; margin-bottom: 2rem; position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
         }
-
-        .stat-label {
-            font-size: 0.9rem;
-            color: var(--text-dim);
+        .actions-bar::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
         }
+        .actions-left { display: flex; align-items: center; gap: 0.8rem; }
+        .actions-right { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 
-        .stat-subtitle {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            opacity: 0.7;
-            margin-top: 0.2rem;
+        .btn {
+            font-family: var(--font-mono); font-size: 0.7em; letter-spacing: 0.1em;
+            text-transform: uppercase; padding: 0.6rem 1.2rem; border-radius: 3px;
+            text-decoration: none; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid;
         }
+        .btn-primary { background: var(--green); color: var(--bg-primary); border-color: var(--green); font-weight: 700; }
+        .btn-primary:hover { background: transparent; color: var(--green); box-shadow: 0 0 20px rgba(0,255,136,0.3); }
+        .btn-secondary { background: var(--cyan); color: var(--bg-primary); border-color: var(--cyan); font-weight: 700; }
+        .btn-secondary:hover { background: transparent; color: var(--cyan); box-shadow: 0 0 20px rgba(0,229,255,0.3); }
+        .btn-danger { background: var(--red); color: white; border-color: var(--red); }
+        .btn-danger:hover { background: transparent; color: var(--red); box-shadow: 0 0 20px rgba(255,71,87,0.3); }
+        .btn-outline { background: transparent; color: var(--text-dim); border-color: var(--border); }
+        .btn-outline:hover { color: var(--green); border-color: var(--green); }
 
-        /* Table Container */
+        /* ── TABLE CONTAINER ── */
         .table-container {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            overflow: hidden; position: relative;
+        }
+        .table-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
         }
 
         .table-header {
-            padding: 1rem 1.5rem;
-            background: var(--bg-panel);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;
         }
-
         .table-title {
-            font-size: 1.2rem;
-            color: var(--green);
-            font-weight: 600;
+            font-family: var(--font-display); font-size: 1rem; color: var(--green);
+            letter-spacing: 0.05em; text-transform: uppercase;
         }
 
-        /* Table */
+        /* ── TABLE ── */
         .devis-table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.8em;
         }
 
         .devis-table th,
@@ -243,9 +219,9 @@
             background: var(--bg-panel);
             color: var(--text-dim);
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.7em;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
         }
 
         .devis-table tbody tr {
@@ -260,6 +236,7 @@
         .devis-id {
             color: var(--green);
             font-weight: 600;
+            font-family: var(--font-display);
         }
 
         .devis-client {
@@ -268,32 +245,54 @@
         }
 
         .devis-date {
-            font-size: 0.8rem;
+            font-size: 0.75em;
             color: var(--text-dim);
         }
 
         .devis-amount {
             color: var(--green);
             font-weight: 600;
+            font-family: var(--font-display);
         }
 
-        /* Status badges */
+        /* ── STATUS BADGES ── */
         .status-badge {
             padding: 0.3rem 0.8rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
+            border-radius: 3px;
+            font-size: 0.6em;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
+            border: 1px solid;
         }
 
-        .status-brouillon { background: rgba(148, 163, 184, 0.2); color: var(--text-dim); }
-        .status-signe { background: rgba(0, 255, 136, 0.2); color: var(--green); }
-        .status-envoye_client { background: rgba(0, 136, 255, 0.2); color: var(--blue); }
-        .status-en_attente_validation { background: rgba(255, 123, 0, 0.2); color: var(--orange); }
-        .status-refuse { background: rgba(255, 71, 87, 0.2); color: var(--red); }
+        .status-brouillon { 
+            background: rgba(148, 163, 184, 0.1); 
+            color: var(--text-dim); 
+            border-color: rgba(148, 163, 184, 0.3);
+        }
+        .status-signe { 
+            background: rgba(0, 255, 136, 0.1); 
+            color: var(--green); 
+            border-color: rgba(0, 255, 136, 0.3);
+        }
+        .status-envoye_client { 
+            background: rgba(0, 229, 255, 0.1); 
+            color: var(--cyan); 
+            border-color: rgba(0, 229, 255, 0.3);
+        }
+        .status-en_attente_validation { 
+            background: rgba(255, 165, 2, 0.1); 
+            color: var(--orange); 
+            border-color: rgba(255, 165, 2, 0.3);
+        }
+        .status-refuse { 
+            background: rgba(255, 71, 87, 0.1); 
+            color: var(--red); 
+            border-color: rgba(255, 71, 87, 0.3);
+        }
 
-        /* Empty state */
+        /* ── EMPTY STATE ── */
         .empty-state {
             text-align: center;
             padding: 3rem 2rem;
@@ -307,17 +306,21 @@
         }
 
         .empty-state h3 {
+            font-family: var(--font-display);
             font-size: 1.2rem;
             margin-bottom: 0.5rem;
             color: var(--text);
+            letter-spacing: 0.05em;
         }
 
         .empty-state p {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             line-height: 1.6;
+            max-width: 400px;
+            margin: 0 auto;
         }
 
-        /* Actions */
+        /* ── ACTIONS CELL ── */
         .actions-cell {
             text-align: right;
         }
@@ -328,9 +331,10 @@
             color: var(--text-dim);
             cursor: pointer;
             padding: 0.3rem;
-            border-radius: 4px;
+            border-radius: 3px;
             transition: all 0.2s ease;
-            font-size: 1rem;
+            font-size: 0.9rem;
+            margin-left: 0.2rem;
         }
 
         .action-btn:hover {
@@ -343,369 +347,348 @@
             background: rgba(255, 71, 87, 0.1);
         }
 
-        /* Responsive */
+        /* ── MODAL OVERLAY ── */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 9000;
+            background: rgba(4,8,12,0.94); backdrop-filter: blur(14px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-card); border: 1px solid var(--border-bright);
+            border-radius: 4px; padding: 2.5rem; width: min(420px, 90vw);
+            position: relative; transform: translateY(20px); transition: transform 0.3s;
+        }
+        .modal-overlay.open .modal-box { transform: translateY(0); }
+        .modal-box::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+        .modal-title {
+            font-family: var(--font-display); font-size: 0.95em; color: var(--green);
+            letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem;
+        }
+        .modal-sub { font-size: 0.62em; color: var(--text-dim); margin-bottom: 2rem; }
+        .modal-close {
+            position: absolute; top: 0.9rem; right: 0.9rem;
+            background: none; border: none; color: var(--text-dim); cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.9em; transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--green); }
+
+        /* ── RESPONSIVE ── */
         @media (max-width: 768px) {
             .main-container {
-                padding: 1rem;
-            }
-            
-            .header-content {
-                flex-direction: column;
-                gap: 1rem;
+                padding: 80px 4vw 40px;
             }
             
             .stats-grid {
                 grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 1rem;
+                gap: 0.8rem;
+            }
+            
+            .actions-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .actions-left, .actions-right {
+                justify-content: center;
             }
             
             .devis-table {
-                font-size: 0.8rem;
+                font-size: 0.7rem;
             }
+            
+            .devis-table th,
+            .devis-table td {
+                padding: 0.8rem 0.5rem;
+            }
+        }
+
+        @media(max-width:700px){
+            nav { padding: 0 1rem; }
+            .nav-links { gap: 1rem; }
+            .nav-links li:nth-child(n+4) { display: none; }
         }
     </style>
 </head>
 <body>
+    <div class="bg-grid"></div>
 
-<!-- Header -->
-<header class="header">
-    <div class="header-content">
-        <div class="logo-section">
-            <div class="logo-container">
-                <img src="assets/logo-solariscreen.png" alt="SolariScreen" style="width: 100%; height: 100%; object-fit: contain; border-radius: 6px;"/>
+    <!-- ═══ NAVBAR ═══ -->
+    <nav>
+        <a href="index.html" class="nav-logo">SolariScreen<span>://</span>Dashboard</a>
+        <ul class="nav-links">
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="calculateur.html">Calculateur</a></li>
+            <li><a href="#stats">Statistiques</a></li>
+        </ul>
+        <div class="nav-right">
+            <div class="nav-status"><div class="status-dot"></div>ONLINE</div>
+            <a href="calculateur.html" class="btn-nav">➕ Nouveau</a>
+        </div>
+    </nav>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <div class="main-container">
+        
+        <!-- Section Header -->
+        <div class="section-tag">01 / Dashboard</div>
+        <div class="section-title">Gestion des Devis</div>
+        <div class="h-divider"></div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number" id="statCA">0 €</span>
+                <span class="stat-label">Chiffre d'Affaires</span>
+                <span class="stat-subtitle" id="statCASubtitle">Sur 0 devis signés</span>
             </div>
-            <div class="brand-info">
-                <h1><a href="index.html">SolariScreen</a></h1>
-                <div class="module-badge">📊 Dashboard Devis</div>
+            <div class="stat-card">
+                <span class="stat-number" id="statTotal">0</span>
+                <span class="stat-label">Total Devis</span>
+                <span class="stat-subtitle" id="statTotalSubtitle">Tous statuts confondus</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="statEnCours">0</span>
+                <span class="stat-label">En Cours</span>
+                <span class="stat-subtitle">Brouillons & En attente</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="statTaux">0%</span>
+                <span class="stat-label">Taux de Signature</span>
+                <span class="stat-subtitle">Conversion devis → vente</span>
             </div>
         </div>
-        
-        <div class="header-actions">
-            <a href="calculateur.html" class="btn btn-primary">
-                <span>➕</span>
-                Nouveau Devis
-            </a>
-            <button onclick="importJSON()" class="btn" style="background: var(--blue); color: white;">
-                <span>📂</span>
-                Import JSON
-            </button>
-            <button onclick="exportAllData()" class="btn" style="background: var(--cyan); color: var(--bg-primary);">
-                <span>💾</span>
-                Export Complet
-            </button>
-            <button onclick="resetAllData()" class="btn btn-danger">
-                <span>🗑️</span>
-                Reset Données
-            </button>
+
+        <!-- Actions Bar -->
+        <div class="actions-bar">
+            <div class="actions-left">
+                <span style="font-size: 0.8em; color: var(--text-dim); letter-spacing: 0.05em;">GESTION DEVIS</span>
+            </div>
+            <div class="actions-right">
+                <a href="calculateur.html" class="btn btn-primary">
+                    <span>➕</span>
+                    Nouveau Devis
+                </a>
+                <button onclick="importJSON()" class="btn btn-outline">
+                    <span>📂</span>
+                    Import JSON
+                </button>
+                <button onclick="exportAllData()" class="btn btn-secondary">
+                    <span>💾</span>
+                    Export Complet
+                </button>
+                <button onclick="resetAllData()" class="btn btn-danger">
+                    <span>🗑️</span>
+                    Reset Données
+                </button>
+            </div>
         </div>
-    </div>
-</header>
 
-<!-- Main Content -->
-<div class="main-container">
-    <!-- Statistics -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-number" id="statCA">0 €</div>
-            <div class="stat-label">Chiffre d'Affaires</div>
-            <div class="stat-subtitle" id="statCASubtitle">Sur 0 devis signés</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number" id="statTotal">0</div>
-            <div class="stat-label">Total Devis</div>
-            <div class="stat-subtitle" id="statTotalSubtitle">Tous statuts confondus</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number" id="statEnCours">0</div>
-            <div class="stat-label">En Cours</div>
-            <div class="stat-subtitle">Brouillons & En attente</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number" id="statTaux">0%</div>
-            <div class="stat-label">Taux de Signature</div>
-            <div class="stat-subtitle">Conversion devis → vente</div>
-        </div>
-    </div>
-
-    <!-- Devis Table -->
-    <div class="table-container">
-        <div class="table-header">
-            <h2 class="table-title">📋 Liste des Devis</h2>
-        </div>
-        
-        <table class="devis-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>CLIENT</th>
-                    <th>DATE</th>
-                    <th>STATUT</th>
-                    <th>MONTANT</th>
-                    <th>PHOTOS</th>
-                    <th>ACTIONS</th>
-                </tr>
-            </thead>
-            <tbody id="devisTableBody">
-                <tr>
-                    <td colspan="7" class="empty-state">
-                        <div class="icon">📋</div>
-                        <h3>Aucun devis trouvé</h3>
-                        <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- File Input (hidden) -->
-<input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
-
-<script>
-// Global variables  
-let devisList = [];
-let filteredDevis = [];
-
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Initializing SolariScreen Dashboard (CLEAN VERSION)...');
-    
-    // Load ONLY real data from localStorage
-    loadRealData();
-    
-    // Update stats and render table
-    updateStats();
-    renderTable();
-    
-    console.log('✅ Dashboard initialized with CLEAN data only');
-});
-
-// Load ONLY real data from localStorage (NO DEMO DATA)
-function loadRealData() {
-    try {
-        // Load only saved devis from localStorage
-        const savedDevis = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-        
-        // Use ONLY real data
-        devisList = [...savedDevis];
-        filteredDevis = [...devisList];
-        
-        console.log(`📊 Loaded ${devisList.length} REAL devis (no demo data)`);
-        
-    } catch (error) {
-        console.error('Error loading data:', error);
-        devisList = [];
-        filteredDevis = [];
-    }
-}
-
-// Update statistics
-function updateStats() {
-    const total = devisList.length;
-    const signes = devisList.filter(d => d.statut === 'signe');
-    const envoyes = devisList.filter(d => ['envoye_client', 'relance_1', 'relance_2', 'relance_3'].includes(d.statut));
-    const enCours = devisList.filter(d => ['brouillon', 'a_tarifer', 'en_attente_validation'].includes(d.statut));
-    
-    const totalCA = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || 0), 0);
-    const tauxSignature = envoyes.length > 0 ? Math.round((signes.length / envoyes.length) * 100) : 0;
-    
-    // Update UI
-    document.getElementById('statCA').textContent = formatEuro(totalCA);
-    document.getElementById('statCASubtitle').textContent = `Sur ${signes.length} devis signés`;
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statTotalSubtitle').textContent = `Tous statuts confondus`;
-    document.getElementById('statEnCours').textContent = enCours.length;
-    document.getElementById('statTaux').textContent = `${tauxSignature}%`;
-}
-
-// Render devis table
-function renderTable() {
-    const tbody = document.getElementById('devisTableBody');
-    
-    if (filteredDevis.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="empty-state">
-                    <div class="icon">📋</div>
-                    <h3>Aucun devis trouvé</h3>
-                    <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    tbody.innerHTML = filteredDevis.map(devis => {
-        const clientName = `${devis.client?.prenom || ''} ${devis.client?.nom || ''}`.trim();
-        const statusClass = `status-${devis.statut}`;
-        const statusText = getStatusText(devis.statut);
-        const photosCount = devis.metadata?.photos_count || 0;
-        
-        return `
-            <tr onclick="viewDevis('${devis.id}')" title="Cliquer pour voir le détail">
-                <td class="devis-id">#${devis.id}</td>
-                <td>
-                    <div class="devis-client">${clientName}</div>
-                    <div class="devis-date">${formatDate(devis.date_creation)}</div>
-                </td>
-                <td class="devis-date">${formatDate(devis.date_modification)}</td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td class="devis-amount">${formatEuro(devis.calculs?.total_ttc || 0)}</td>
-                <td style="text-align: center; color: var(--text-dim); font-size: 0.8em;">
-                    ${photosCount > 0 ? `📸 ${photosCount}` : '—'}
-                </td>
-                <td class="actions-cell">
-                    <button onclick="event.stopPropagation(); viewDevis('${devis.id}')" class="action-btn" title="Voir">👁️</button>
-                    <button onclick="event.stopPropagation(); duplicateDevis('${devis.id}')" class="action-btn" title="Dupliquer">📋</button>
-                    <button onclick="event.stopPropagation(); editDevis('${devis.id}')" class="action-btn" title="Éditer">✏️</button>
-                    <button onclick="event.stopPropagation(); exportDevis('${devis.id}')" class="action-btn" title="Exporter">📄</button>
-                    <button onclick="event.stopPropagation(); deleteDevis('${devis.id}')" class="action-btn danger" title="Supprimer">🗑️</button>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
-// Utility functions
-function formatEuro(amount) {
-    return new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: 'EUR'
-    }).format(amount || 0);
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '—';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR');
-}
-
-function getStatusText(statut) {
-    const statusMap = {
-        'brouillon': 'Brouillon',
-        'signe': 'Signé',
-        'envoye_client': 'Envoyé Client',
-        'en_attente_validation': 'En Attente',
-        'refuse': 'Refusé'
-    };
-    return statusMap[statut] || statut;
-}
-
-// Action functions
-function viewDevis(id) {
-    alert(`Voir devis ${id} - Fonctionnalité à implémenter`);
-}
-
-function editDevis(id) {
-    // Redirect to calculator with devis data
-    window.location.href = `calculateur.html?edit=${id}`;
-}
-
-function duplicateDevis(id) {
-    const devis = devisList.find(d => d.id === id);
-    if (!devis) return;
-    
-    // Create new ID
-    const newId = Date.now().toString();
-    const newDevis = {
-        ...devis,
-        id: newId,
-        date_creation: new Date().toISOString().split('T')[0],
-        date_modification: new Date().toISOString(),
-        statut: 'brouillon'
-    };
-    
-    // Add to list
-    devisList.unshift(newDevis);
-    filteredDevis = [...devisList];
-    
-    // Save to localStorage
-    localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
-    
-    updateStats();
-    renderTable();
-    
-    alert(`Devis ${id} dupliqué avec succès ! Nouvel ID: ${newId}`);
-}
-
-function deleteDevis(id) {
-    if (!confirm(`Supprimer le devis ${id} ?\n\nCette action est irréversible.`)) return;
-    
-    devisList = devisList.filter(d => d.id !== id);
-    filteredDevis = filteredDevis.filter(d => d.id !== id);
-    
-    // Update localStorage
-    localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
-    
-    updateStats();
-    renderTable();
-    
-    alert('Devis supprimé avec succès');
-}
-
-function exportDevis(id) {
-    const devis = devisList.find(d => d.id === id);
-    if (!devis) return;
-    
-    const dataStr = JSON.stringify(devis, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(dataBlob);
-    link.download = `devis_${id}.json`;
-    link.click();
-}
-
-// Export & Import functions
-function exportAllData() {
-    if (devisList.length === 0) {
-        alert('Aucune donnée à exporter');
-        return;
-    }
-    
-    const exportData = {
-        export_date: new Date().toISOString(),
-        version: '2.0',
-        total_devis: devisList.length,
-        data: devisList
-    };
-    
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(dataBlob);
-    link.download = `solariscreen_export_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    
-    console.log('✅ Export completed');
-}
-
-function importJSON() {
-    document.getElementById('fileInput').click();
-}
-
-function handleFileImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const jsonData = JSON.parse(e.target.result);
+        <!-- Devis Table -->
+        <div class="table-container">
+            <div class="table-header">
+                <h2 class="table-title">📋 Liste des Devis</h2>
+                <span style="font-size: 0.7em; color: var(--text-dim);" id="tableCounter">0 devis</span>
+            </div>
             
-            // Handle different import formats
-            let importedData;
-            if (Array.isArray(jsonData)) {
-                importedData = jsonData;
-            } else if (jsonData.data && Array.isArray(jsonData.data)) {
-                importedData = jsonData.data;
-            } else {
-                importedData = [jsonData];
+            <table class="devis-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>CLIENT</th>
+                        <th>DATE</th>
+                        <th>STATUT</th>
+                        <th>MONTANT</th>
+                        <th>PHOTOS</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="devisTableBody">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>Aucun devis trouvé</h3>
+                            <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
+                            <div style="margin-top: 1rem;">
+                                <a href="calculateur.html" class="btn btn-primary">▸ Créer un Devis</a>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- File Input (hidden) -->
+    <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+
+    <script>
+        // Global variables  
+        let devisList = [];
+        let filteredDevis = [];
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing SolariScreen Dashboard (Matrix Style)...');
+            
+            // Load ONLY real data from localStorage
+            loadRealData();
+            
+            // Update stats and render table
+            updateStats();
+            renderTable();
+            
+            console.log('✅ Dashboard initialized');
+        });
+
+        // Load ONLY real data from localStorage (NO DEMO DATA)
+        function loadRealData() {
+            try {
+                // Load only saved devis from localStorage
+                const savedDevis = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+                
+                // Use ONLY real data
+                devisList = [...savedDevis];
+                filteredDevis = [...devisList];
+                
+                console.log(`📊 Loaded ${devisList.length} real devis (no demo data)`);
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                devisList = [];
+                filteredDevis = [];
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = devisList.length;
+            const signes = devisList.filter(d => d.statut === 'signe');
+            const envoyes = devisList.filter(d => ['envoye_client', 'relance_1', 'relance_2', 'relance_3'].includes(d.statut));
+            const enCours = devisList.filter(d => ['brouillon', 'a_tarifer', 'en_attente_validation'].includes(d.statut));
+            
+            const totalCA = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || 0), 0);
+            const tauxSignature = envoyes.length > 0 ? Math.round((signes.length / envoyes.length) * 100) : 0;
+            
+            // Update UI
+            document.getElementById('statCA').textContent = formatEuro(totalCA);
+            document.getElementById('statCASubtitle').textContent = `Sur ${signes.length} devis signés`;
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statTotalSubtitle').textContent = `Tous statuts confondus`;
+            document.getElementById('statEnCours').textContent = enCours.length;
+            document.getElementById('statTaux').textContent = `${tauxSignature}%`;
+            
+            // Update table counter
+            document.getElementById('tableCounter').textContent = `${total} devis`;
+        }
+
+        // Render devis table
+        function renderTable() {
+            const tbody = document.getElementById('devisTableBody');
+            
+            if (filteredDevis.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>Aucun devis trouvé</h3>
+                            <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
+                            <div style="margin-top: 1rem;">
+                                <a href="calculateur.html" class="btn btn-primary">▸ Créer un Devis</a>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
             }
             
-            // Add to existing data
-            devisList = [...devisList, ...importedData];
+            tbody.innerHTML = filteredDevis.map(devis => {
+                const clientName = `${devis.client?.prenom || ''} ${devis.client?.nom || ''}`.trim();
+                const statusClass = `status-${devis.statut}`;
+                const statusText = getStatusText(devis.statut);
+                const photosCount = devis.metadata?.photos_count || 0;
+                
+                return `
+                    <tr onclick="viewDevis('${devis.id}')" title="Cliquer pour voir le détail">
+                        <td class="devis-id">#${devis.id}</td>
+                        <td>
+                            <div class="devis-client">${clientName}</div>
+                            <div class="devis-date">${formatDate(devis.date_creation)}</div>
+                        </td>
+                        <td class="devis-date">${formatDate(devis.date_modification)}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td class="devis-amount">${formatEuro(devis.calculs?.total_ttc || 0)}</td>
+                        <td style="text-align: center; color: var(--text-dim); font-size: 0.8em;">
+                            ${photosCount > 0 ? `📸 ${photosCount}` : '—'}
+                        </td>
+                        <td class="actions-cell">
+                            <button onclick="event.stopPropagation(); viewDevis('${devis.id}')" class="action-btn" title="Voir">👁️</button>
+                            <button onclick="event.stopPropagation(); duplicateDevis('${devis.id}')" class="action-btn" title="Dupliquer">📋</button>
+                            <button onclick="event.stopPropagation(); editDevis('${devis.id}')" class="action-btn" title="Éditer">✏️</button>
+                            <button onclick="event.stopPropagation(); exportDevis('${devis.id}')" class="action-btn" title="Exporter">📄</button>
+                            <button onclick="event.stopPropagation(); deleteDevis('${devis.id}')" class="action-btn danger" title="Supprimer">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Utility functions
+        function formatEuro(amount) {
+            return new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(amount || 0);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('fr-FR');
+        }
+
+        function getStatusText(statut) {
+            const statusMap = {
+                'brouillon': 'Brouillon',
+                'signe': 'Signé',
+                'envoye_client': 'Envoyé Client',
+                'en_attente_validation': 'En Attente',
+                'refuse': 'Refusé'
+            };
+            return statusMap[statut] || statut;
+        }
+
+        // Action functions
+        function viewDevis(id) {
+            alert(`Voir devis ${id} - Fonctionnalité à implémenter`);
+        }
+
+        function editDevis(id) {
+            // Redirect to calculator with devis data
+            window.location.href = `calculateur.html?edit=${id}`;
+        }
+
+        function duplicateDevis(id) {
+            const devis = devisList.find(d => d.id === id);
+            if (!devis) return;
+            
+            // Create new ID
+            const newId = Date.now().toString();
+            const newDevis = {
+                ...devis,
+                id: newId,
+                date_creation: new Date().toISOString().split('T')[0],
+                date_modification: new Date().toISOString(),
+                statut: 'brouillon'
+            };
+            
+            // Add to list
+            devisList.unshift(newDevis);
             filteredDevis = [...devisList];
             
             // Save to localStorage
@@ -714,47 +697,135 @@ function handleFileImport(event) {
             updateStats();
             renderTable();
             
-            alert(`Import réussi ! ${importedData.length} devis importés.`);
-            
-        } catch (error) {
-            alert('Erreur lors de l\'import : ' + error.message);
+            alert(`Devis ${id} dupliqué avec succès ! Nouvel ID: ${newId}`);
         }
-    };
-    reader.readAsText(file);
-}
 
-function resetAllData() {
-    if (!confirm('⚠️ ATTENTION: Supprimer TOUTES les données ?\n\n• Tous les devis seront perdus\n• Action IRRÉVERSIBLE\n\nConfirmer la suppression ?')) return;
-    
-    if (!confirm('🗑️ DERNIÈRE CONFIRMATION\n\nVous êtes sûr de vouloir supprimer TOUTES les données ?')) return;
-    
-    try {
-        // Clear ALL SolariScreen data from localStorage
-        Object.keys(localStorage).forEach(key => {
-            if (key.includes('solariscreen') || key.includes('devis')) {
-                localStorage.removeItem(key);
+        function deleteDevis(id) {
+            if (!confirm(`Supprimer le devis ${id} ?\n\nCette action est irréversible.`)) return;
+            
+            devisList = devisList.filter(d => d.id !== id);
+            filteredDevis = filteredDevis.filter(d => d.id !== id);
+            
+            // Update localStorage
+            localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
+            
+            updateStats();
+            renderTable();
+            
+            alert('Devis supprimé avec succès');
+        }
+
+        function exportDevis(id) {
+            const devis = devisList.find(d => d.id === id);
+            if (!devis) return;
+            
+            const dataStr = JSON.stringify(devis, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `devis_${id}.json`;
+            link.click();
+        }
+
+        // Export & Import functions
+        function exportAllData() {
+            if (devisList.length === 0) {
+                alert('Aucune donnée à exporter');
+                return;
             }
-        });
-        
-        // Clear arrays
-        devisList = [];
-        filteredDevis = [];
-        
-        alert('✅ TOUTES les données ont été supprimées !\n\nBase complètement propre.');
-        
-        // Update UI
-        updateStats();
-        renderTable();
-        
-        console.log('🗑️ All data cleared - clean slate');
-        
-    } catch (error) {
-        console.error('Error clearing data:', error);
-        alert('❌ Erreur lors de la suppression:\n' + error.message);
-    }
-}
+            
+            const exportData = {
+                export_date: new Date().toISOString(),
+                version: '2.0',
+                total_devis: devisList.length,
+                data: devisList
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `solariscreen_export_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            console.log('✅ Export completed');
+        }
 
-</script>
+        function importJSON() {
+            document.getElementById('fileInput').click();
+        }
 
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    
+                    // Handle different import formats
+                    let importedData;
+                    if (Array.isArray(jsonData)) {
+                        importedData = jsonData;
+                    } else if (jsonData.data && Array.isArray(jsonData.data)) {
+                        importedData = jsonData.data;
+                    } else {
+                        importedData = [jsonData];
+                    }
+                    
+                    // Add to existing data
+                    devisList = [...devisList, ...importedData];
+                    filteredDevis = [...devisList];
+                    
+                    // Save to localStorage
+                    localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
+                    
+                    updateStats();
+                    renderTable();
+                    
+                    alert(`Import réussi ! ${importedData.length} devis importés.`);
+                    
+                } catch (error) {
+                    alert('Erreur lors de l\'import : ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function resetAllData() {
+            if (!confirm('⚠️ ATTENTION: Supprimer TOUTES les données ?\n\n• Tous les devis seront perdus\n• Action IRRÉVERSIBLE\n\nConfirmer la suppression ?')) return;
+            
+            if (!confirm('🗑️ DERNIÈRE CONFIRMATION\n\nVous êtes sûr de vouloir supprimer TOUTES les données ?')) return;
+            
+            try {
+                // Clear ALL SolariScreen data from localStorage
+                Object.keys(localStorage).forEach(key => {
+                    if (key.includes('solariscreen') || key.includes('devis')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                
+                // Clear arrays
+                devisList = [];
+                filteredDevis = [];
+                
+                alert('✅ TOUTES les données ont été supprimées !\n\nBase complètement propre.');
+                
+                // Update UI
+                updateStats();
+                renderTable();
+                
+                console.log('🗑️ All data cleared - clean slate');
+                
+            } catch (error) {
+                console.error('Error clearing data:', error);
+                alert('❌ Erreur lors de la suppression:\n' + error.message);
+            }
+        }
+
+    </script>
 </body>
 </html>
