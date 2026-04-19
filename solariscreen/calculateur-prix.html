@@ -295,9 +295,99 @@
             font-weight: 600;
         }
 
-        .quantity-field:focus {
-            border-color: var(--orange) !important;
-            box-shadow: 0 0 0 3px rgba(255, 165, 2, 0.15) !important;
+        /* Photo upload styles */
+        .photo-upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: var(--bg-panel);
+            cursor: pointer;
+        }
+
+        .photo-upload-zone:hover {
+            border-color: var(--green);
+            background: rgba(0, 255, 136, 0.03);
+        }
+
+        .photo-upload-zone.dragover {
+            border-color: var(--green);
+            background: rgba(0, 255, 136, 0.08);
+            box-shadow: 0 0 0 4px rgba(0, 255, 136, 0.1);
+        }
+
+        .photo-upload-text {
+            color: var(--text-dim);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .photo-upload-text strong {
+            color: var(--green);
+        }
+
+        .photo-input {
+            display: none;
+        }
+
+        .photo-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+            margin-top: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .photo-preview-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
+
+        .photo-preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.2s;
+        }
+
+        .photo-preview-img:hover {
+            transform: scale(1.05);
+        }
+
+        .photo-remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .photo-remove-btn:hover {
+            background: var(--red);
+            transform: scale(1.1);
+        }
+
+        .photo-count {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
         }
 
         /* Custom styled select */
@@ -1039,7 +1129,7 @@
                     <span>🐛</span>
                     Debug
                 </button>
-                <a href="https://www.nicolas-struelens.com/solariscreen" class="btn-back">
+                <a href="admin-dashboard.html" class="btn-back">
                     <span>←</span>
                     Retour au Dashboard
                 </a>
@@ -1509,7 +1599,8 @@
                 pose: 'sur_chassis',
                 moteur: 'Somfy IO',
                 notes: '',
-                price: 0
+                price: 0,
+                photos: [] // Array to store base64 photos
             };
             items.push(item);
             renderItemsTable();
@@ -1634,6 +1725,38 @@
                             <div class="item-subtotal">${formatEuro(subtotal)}</div>
                         </div>
                     </div>
+
+                    <!-- Photo Upload Section -->
+                    <div class="photo-section">
+                        <div class="photo-upload-zone" onclick="document.getElementById('photo-input-${item.id}').click()" 
+                             ondrop="handlePhotoDrop(event, ${item.id})" 
+                             ondragover="handleDragOver(event)" 
+                             ondragenter="handleDragEnter(event)" 
+                             ondragleave="handleDragLeave(event)">
+                            <div class="photo-upload-text">
+                                <strong>📸 Ajouter des photos</strong><br>
+                                Cliquez ou glissez-déposez vos images ici
+                            </div>
+                            <input type="file" 
+                                   id="photo-input-${item.id}" 
+                                   class="photo-input" 
+                                   multiple 
+                                   accept="image/*" 
+                                   onchange="handlePhotoSelect(event, ${item.id})">
+                        </div>
+                        
+                        ${item.photos && item.photos.length > 0 ? `
+                            <div class="photo-preview-grid">
+                                ${item.photos.map((photo, photoIndex) => `
+                                    <div class="photo-preview-item">
+                                        <img src="${photo}" alt="Photo ${photoIndex + 1}" class="photo-preview-img" onclick="viewPhotoFullscreen('${photo}')">
+                                        <button class="photo-remove-btn" onclick="removePhoto(${item.id}, ${photoIndex})" title="Supprimer cette photo">×</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="photo-count">${item.photos.length} photo(s)</div>
+                        ` : ''}
+                    </div>
                 `;
                 
                 container.appendChild(card);
@@ -1674,6 +1797,169 @@
             if (installationQtyInput.value == '0' && totalItems > 0) {
                 installationQtyInput.value = totalItems;
             }
+        }
+
+        // Photo management functions
+        function handlePhotoSelect(event, itemId) {
+            const files = Array.from(event.target.files);
+            processPhotoFiles(files, itemId);
+        }
+
+        function handlePhotoDrop(event, itemId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const uploadZone = event.target.closest('.photo-upload-zone');
+            uploadZone.classList.remove('dragover');
+            
+            const files = Array.from(event.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            processPhotoFiles(files, itemId);
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        function handleDragEnter(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.target.closest('.photo-upload-zone').classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            // Only remove dragover if we're actually leaving the drop zone
+            if (!event.target.closest('.photo-upload-zone').contains(event.relatedTarget)) {
+                event.target.closest('.photo-upload-zone').classList.remove('dragover');
+            }
+        }
+
+        function processPhotoFiles(files, itemId) {
+            const item = items.find(i => i.id === itemId);
+            if (!item) return;
+
+            // Initialize photos array if needed
+            if (!item.photos) item.photos = [];
+
+            let processedCount = 0;
+            
+            files.forEach(file => {
+                // Limit file size to 5MB
+                if (file.size > 5 * 1024 * 1024) {
+                    alert(`La photo "${file.name}" est trop volumineuse (max 5MB)`);
+                    return;
+                }
+
+                // Convert to base64
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Resize image if needed
+                    resizeImage(e.target.result, 800, 600, (resizedImage) => {
+                        item.photos.push(resizedImage);
+                        processedCount++;
+                        
+                        // Re-render when all photos are processed
+                        if (processedCount === files.length) {
+                            renderItemsTable();
+                            
+                            // Clear the file input to allow re-upload of same files
+                            const fileInput = document.getElementById(`photo-input-${itemId}`);
+                            if (fileInput) fileInput.value = '';
+                        }
+                        
+                        console.log(`Photo ajoutée à l'item ${itemId}. Total photos: ${item.photos.length}`);
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function resizeImage(base64Image, maxWidth, maxHeight, callback) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = function() {
+                // Calculate new dimensions
+                let { width, height } = img;
+                
+                if (width > maxWidth || height > maxHeight) {
+                    if (width > height) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    } else {
+                        width = (width * maxHeight) / height;
+                        height = maxHeight;
+                    }
+                }
+                
+                // Set canvas size and draw
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Get resized base64
+                const resizedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                callback(resizedBase64);
+            };
+            
+            img.src = base64Image;
+        }
+
+        function removePhoto(itemId, photoIndex) {
+            const item = items.find(i => i.id === itemId);
+            if (!item || !item.photos) return;
+
+            if (confirm('Supprimer cette photo ?')) {
+                item.photos.splice(photoIndex, 1);
+                renderItemsTable();
+                
+                console.log(`Photo supprimée de l'item ${itemId}. Photos restantes: ${item.photos.length}`);
+            }
+        }
+
+        function viewPhotoFullscreen(photoBase64) {
+            // Create fullscreen overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                cursor: pointer;
+            `;
+            
+            const img = document.createElement('img');
+            img.src = photoBase64;
+            img.style.cssText = `
+                max-width: 95vw;
+                max-height: 95vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            `;
+            
+            overlay.appendChild(img);
+            document.body.appendChild(overlay);
+            
+            // Close on click
+            overlay.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+            });
+            
+            // Close on escape key
+            const handleKeydown = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(overlay);
+                    document.removeEventListener('keydown', handleKeydown);
+                }
+            };
+            document.addEventListener('keydown', handleKeydown);
         }
 
         // Vendor selection
