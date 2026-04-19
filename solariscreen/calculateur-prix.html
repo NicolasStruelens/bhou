@@ -1239,6 +1239,38 @@
                         <input type="number" class="form-input" id="distanceKm" placeholder="0.0" step="0.1" min="0" tabindex="110">
                     </div>
                 </div>
+
+                <!-- Quote Metadata Section -->
+                <div style="margin-top: 20px; padding: 16px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;">
+                    <div class="form-label" style="margin-bottom: 12px; color: var(--green); font-weight: 600;">🆔 Métadonnées du Devis</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">ID Devis</label>
+                            <input type="text" class="form-input" id="quoteId" readonly style="background: var(--bg-card); color: var(--green); font-weight: 600; font-family: var(--font-mono);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Date création</label>
+                            <input type="text" class="form-input" id="quoteDate" readonly style="background: var(--bg-card); font-family: var(--font-mono);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Statut</label>
+                            <select class="form-select" id="quoteStatus">
+                                <option value="brouillon">📝 Brouillon</option>
+                                <option value="a_tarifer">💰 À tarifer</option>
+                                <option value="en_attente_validation">⏳ En attente validation</option>
+                                <option value="envoye_client">📧 Envoyé client</option>
+                                <option value="relance_1">🔔 Relance 1</option>
+                                <option value="relance_2">🔔 Relance 2</option>
+                                <option value="relance_3">🔔 Relance 3</option>
+                                <option value="signe">✅ Signé</option>
+                                <option value="refuse">❌ Refusé</option>
+                                <option value="archive">📦 Archivé</option>
+                                <option value="annule">🚫 Annulé</option>
+                                <option value="en_production">🏭 En production</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Ouvertures -->
@@ -2403,59 +2435,240 @@
             };
         }
 
-        function saveCalculation() {
-            // Collect all data
+        // Save calculation with complete JSON structure
+        async function saveCalculation() {
+            // Validate required fields
             const clientData = getClientData();
-            const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value);
-            const acompte = parseFloat2(document.getElementById('acompte').value);
+            if (!clientData.prenom.trim() || !clientData.nom.trim()) {
+                alert('⚠️ Veuillez renseigner au minimum le prénom et nom du client');
+                return;
+            }
+
+            if (items.length === 0) {
+                alert('⚠️ Veuillez ajouter au moins une ouverture');
+                return;
+            }
+
+            // Show loading
+            const saveBtn = document.querySelector('[onclick="saveCalculation()"]');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<span>⏳</span>Sauvegarde...';
+            saveBtn.disabled = true;
+
+            try {
+                // Generate complete quote data according to specification
+                const quoteData = generateCompleteQuoteJSON();
+                
+                // Create filename: YYYYXXX_CLIENT_NAME.json
+                const clientName = `${clientData.prenom}_${clientData.nom}`;
+                const fileName = `${quoteData.id}_${clientName.toUpperCase().replace(/\s+/g, '_')}.json`;
+                
+                // Save to file
+                downloadQuoteJSON(quoteData, fileName);
+                
+                // Show success summary
+                showSaveSummary(quoteData, fileName);
+                
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde:', error);
+                alert('❌ Erreur lors de la sauvegarde: ' + error.message);
+            } finally {
+                // Reset button
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
+        }
+
+        function generateCompleteQuoteJSON() {
+            const currentDate = new Date();
+            const quoteId = document.getElementById('quoteId').value;
+            const clientData = getClientData();
             
-            const calculationData = {
-                client: clientData,
-                items: items,
-                extras: extras,
-                vendor: currentVendor,
-                customVendors: currentVendor === 'custom' ? {
-                    nicolas: parseFloat2(document.getElementById('nicolasPct').value),
-                    yannick: parseFloat2(document.getElementById('yannickPct').value)
-                } : null,
-                tva: tvaRate,
-                acompte: acompte,
-                discountType: discountType,
-                clientDiscount: parseFloat2(document.getElementById('clientDiscount').value),
-                surplus: parseFloat2(document.getElementById('surplusDifficulte').value),
+            // Calculate all pricing according to specification
+            const calculations = performFullCalculation();
+            
+            // Items with photos
+            const itemsData = items.map(item => ({
+                id: item.id,
+                type: item.type,
+                dimensions: {
+                    largeur: item.width || 0,
+                    hauteur: item.height || 0
+                },
+                quantite: item.quantity || 1,
+                prix_unitaire_htva: item.price || 0,
+                details: {
+                    emplacement: item.emplacement || '',
+                    orientation: item.orientation || 'S',
+                    etage: item.etage || 'RDC',
+                    type_pose: item.pose || 'sur_chassis',
+                    moteur: item.moteur || 'Somfy IO',
+                    notes: item.notes || ''
+                },
+                photos: item.photos || [],
+                sous_total: (item.quantity || 1) * (item.price || 0)
+            }));
+
+            // Complete quote structure according to specification
+            const quoteData = {
+                // Metadata
+                id: quoteId,
+                version: "2.0",
+                date_creation: currentDate.toISOString().split('T')[0],
+                date_modification: currentDate.toISOString(),
+                statut: document.getElementById('quoteStatus').value,
+                
+                // Client
+                client: {
+                    prenom: clientData.prenom,
+                    nom: clientData.nom,
+                    email: '', // Field not in current form
+                    telephone: clientData.telephone,
+                    adresse: {
+                        rue: clientData.adresse.rue,
+                        numero: clientData.adresse.numero,
+                        code_postal: clientData.adresse.cp,
+                        ville: clientData.adresse.ville
+                    },
+                    type_bien: clientData.typeBien || 'maison'
+                },
+                
+                // Technical data
+                items: itemsData,
+                extras: extras.map(extra => ({
+                    id: extra.id,
+                    nom: extra.name,
+                    prix_htva: extra.price || 0,
+                    quantite: extra.quantity || 1
+                })),
+                
+                // Installation
                 installation: {
                     type: document.getElementById('installationType').value,
-                    qty: parseInt(document.getElementById('installationQty').value) || 0
+                    quantite: parseInt(document.getElementById('installationQty').value) || 0,
+                    prix_unitaire: installationPrices[document.getElementById('installationType').value].install,
+                    total: (parseInt(document.getElementById('installationQty').value) || 0) * installationPrices[document.getElementById('installationType').value].install
                 },
-                timestamp: new Date().toISOString()
+                
+                // Financial calculations
+                calculs: {
+                    total_materiel: calculations.totalMaterial,
+                    marge_vendeur: calculations.vendorMargin,
+                    repartition_vendeur: calculations.vendorSplit,
+                    remise_marge_client: calculations.marginDiscount,
+                    remise_client: calculations.clientDiscount,
+                    surplus_difficulte: parseFloat2(document.getElementById('surplusDifficulte').value),
+                    sous_total_ht: calculations.subTotalHT,
+                    tva_rate: calculations.tvaRate,
+                    tva_amount: calculations.tvaAmount,
+                    total_ttc: calculations.totalTTC,
+                    acompte_pct: parseInt(document.getElementById('acompte').value),
+                    acompte_amount: calculations.acompteAmount
+                },
+                
+                // Geographic data  
+                distance_km: parseFloat2(document.getElementById('distanceKm').value),
+                adresse_depart: document.getElementById('adresseBase').value.trim(),
+                
+                // System metadata
+                metadata: {
+                    created_by: "calculateur-prix-v2.0",
+                    user_agent: navigator.userAgent,
+                    screen_resolution: `${screen.width}x${screen.height}`,
+                    timestamp_unix: Math.floor(Date.now() / 1000),
+                    photos_count: items.reduce((sum, item) => sum + (item.photos ? item.photos.length : 0), 0),
+                    total_items: items.length,
+                    total_extras: extras.length
+                }
             };
+
+            return quoteData;
+        }
+
+        function performFullCalculation() {
+            // Perform all calculations according to specification
+            const totalMaterial = getTotalMaterial();
+            const tvaRate = parseInt(document.querySelector('input[name="tva"]:checked').value);
+            const vendorConfig = getVendorConfig();
+            const vendorMargin = totalMaterial * 0.23; // 23% fixed margin
+            const vendorSplit = calculateVendorSplit(vendorMargin, vendorConfig);
+            const marginDiscount = calculateMarginDiscount(vendorConfig);
+            const clientDiscountAmount = calculateClientDiscount();
+            const surplus = parseFloat2(document.getElementById('surplusDifficulte').value);
+            const installationTotal = (parseInt(document.getElementById('installationQty').value) || 0) * 
+                                    installationPrices[document.getElementById('installationType').value].install;
             
-            console.log('💾 Données à sauvegarder:', calculationData);
+            const subTotalHT = totalMaterial + vendorMargin + installationTotal + surplus - clientDiscountAmount - marginDiscount;
+            const tvaAmount = subTotalHT * (parseFloat(tvaRate) / 100);
+            const totalTTC = subTotalHT + tvaAmount;
+            const acompteAmount = totalTTC * (parseInt(document.getElementById('acompte').value) / 100);
+
+            return {
+                totalMaterial,
+                vendorMargin,
+                vendorSplit,
+                marginDiscount,
+                clientDiscount: clientDiscountAmount,
+                subTotalHT,
+                tvaRate: parseFloat(tvaRate),
+                tvaAmount,
+                totalTTC,
+                acompteAmount
+            };
+        }
+
+        function downloadQuoteJSON(data, fileName) {
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
             
-            // Show data in a nice format
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showSaveSummary(quoteData, fileName) {
             const summary = `
-🧾 RÉSUMÉ DU DEVIS
-━━━━━━━━━━━━━━━━━━━━
+✅ DEVIS SAUVEGARDÉ AVEC SUCCÈS !
 
-👤 CLIENT:
-${clientData.prenom} ${clientData.nom}
-${clientData.adresse.rue} ${clientData.adresse.numero}
-${clientData.adresse.cp} ${clientData.ville}
+🆔 ID: ${quoteData.id}
+👤 Client: ${quoteData.client.prenom} ${quoteData.client.nom}
+📐 Items: ${quoteData.items.length} ouverture(s)
+📸 Photos: ${quoteData.metadata.photos_count} photo(s)
+💰 Total TTC: ${formatEuro(quoteData.calculs.total_ttc)}
+📄 Fichier: ${fileName}
 
-📐 OUVERTURES: ${items.length} article(s)
-➕ EXTRAS: ${extras.length} extra(s)  
-💰 TOTAL: ${document.getElementById('summaryTotal').textContent}
-
-💾 Prêt pour l'enregistrement !
+Le fichier JSON a été téléchargé dans vos Téléchargements.
+Vous pouvez maintenant l'importer dans le dashboard ou l'envoyer au client.
             `;
             
             alert(summary);
+        }
+
+        // Generate automatic quote ID
+        function generateQuoteId() {
+            const currentYear = new Date().getFullYear();
+            const timestamp = Date.now();
+            const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             
-            // Here you would send to your backend:
-            // await fetch('/api/save-calculation', { 
-            //   method: 'POST', 
-            //   body: JSON.stringify(calculationData) 
-            // });
+            // Format: YYYY + timestamp last 3 digits + random 3 digits
+            const id = `${currentYear}${timestamp.toString().slice(-3)}${randomSuffix}`;
+            return id;
+        }
+
+        // Initialize quote metadata
+        function initializeQuoteMetadata() {
+            const quoteId = generateQuoteId();
+            const currentDate = new Date();
+            
+            document.getElementById('quoteId').value = quoteId;
+            document.getElementById('quoteDate').value = currentDate.toLocaleDateString('fr-BE');
+            
+            console.log(`📋 Nouveau devis initialisé: ${quoteId}`);
         }
 
         // Sync installation quantity with total items automatically
@@ -2471,6 +2684,9 @@ ${clientData.adresse.cp} ${clientData.ville}
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Initializing calculator...');
+            
+            // Initialize quote metadata (ID, date, status)
+            initializeQuoteMetadata();
             
             // Set up installation prices display
             updateInstallationPrices();
