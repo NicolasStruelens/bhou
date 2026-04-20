@@ -665,12 +665,65 @@
 
         // Action functions
         function viewDevis(id) {
-            alert(`Voir devis ${id} - Fonctionnalité à implémenter`);
+            const devis = devisList.find(d => d.id === id);
+            if (!devis) return;
+            const c = devis.client || {};
+            const calc = devis.calculs || {};
+            const p2 = devis.pricing_v2 || {};
+            const items = devis.items || [];
+            const nom = `${c.prenom || ''} ${c.nom || ''}`.trim() || '—';
+            const adresse = c.adresse ? `${c.adresse.rue || ''} ${c.adresse.numero || ''}, ${c.adresse.code_postal || ''} ${c.adresse.ville || ''}`.trim() : '—';
+            const tva = calc.tva_pct || p2.tva_pct || '—';
+            const itemsHTML = items.map((it, i) => {
+                const typeLabel = { screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet' }[it.type] || it.type || '—';
+                return `<tr>
+                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);color:var(--text-dim);">${i+1}</td>
+                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);">${typeLabel}</td>
+                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);color:var(--text-dim);">${it.modele||''} ${it.emplacement ? '· '+it.emplacement : ''}</td>
+                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);text-align:center;">${it.quantite||1}</td>
+                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);text-align:right;color:var(--cyan);">${formatEuro(it.prix_catalogue_ht||0)}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('viewModalContent').innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 1.5rem;margin-bottom:1.2rem;font-size:0.75em;">
+                    <div><span style="color:var(--text-dim);">Client :</span> <strong>${nom}</strong></div>
+                    <div><span style="color:var(--text-dim);">ID :</span> <span style="color:var(--green);font-family:var(--font-display);font-size:0.85em;">#${id}</span></div>
+                    <div><span style="color:var(--text-dim);">Adresse :</span> ${adresse}</div>
+                    <div><span style="color:var(--text-dim);">Date :</span> ${formatDate(devis.date_creation)}</div>
+                    <div><span style="color:var(--text-dim);">Tél :</span> ${c.telephone||'—'}</div>
+                    <div><span style="color:var(--text-dim);">Email :</span> ${c.email||'—'}</div>
+                </div>
+                <div style="font-size:0.65em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Ouvertures</div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.75em;margin-bottom:1.2rem;">
+                    <thead><tr style="background:var(--bg-panel);">
+                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">#</th>
+                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">Type</th>
+                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">Modèle / Emplacement</th>
+                        <th style="padding:0.4rem 0.5rem;text-align:center;color:var(--text-dim);">Qté</th>
+                        <th style="padding:0.4rem 0.5rem;text-align:right;color:var(--text-dim);">Prix HT</th>
+                    </tr></thead>
+                    <tbody>${itemsHTML || '<tr><td colspan="5" style="padding:0.8rem;color:var(--text-dim);text-align:center;">Aucune ouverture</td></tr>'}</tbody>
+                </table>
+                <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;padding:0.8rem;font-size:0.78em;display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;">
+                    <div><span style="color:var(--text-dim);">Total HT :</span> ${formatEuro(calc.total_ht||0)}</div>
+                    <div><span style="color:var(--text-dim);">TVA (${tva}%) :</span> ${formatEuro(calc.total_tva||0)}</div>
+                    <div><span style="color:var(--text-dim);">Installation HT :</span> ${formatEuro(calc.total_installation_ht||0)}</div>
+                    <div style="color:var(--green);font-weight:700;"><span style="color:var(--text-dim);">TOTAL TTC :</span> ${formatEuro(calc.total_ttc||0)}</div>
+                </div>
+                <div style="display:flex;gap:0.6rem;margin-top:1.2rem;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeViewModal()" style="font-size:0.7em;">✕ Fermer</button>
+                    <button class="btn btn-primary" onclick="closeViewModal();editDevis('${id}')" style="font-size:0.7em;">✏️ Modifier</button>
+                </div>
+            `;
+            document.getElementById('viewModal').classList.add('open');
+        }
+
+        function closeViewModal() {
+            document.getElementById('viewModal').classList.remove('open');
         }
 
         function editDevis(id) {
-            // Redirect to calculator with devis data
-            window.location.href = `calculateur.html?edit=${id}`;
+            window.location.href = `calculateur.html?id=${id}`;
         }
 
         function duplicateDevis(id) {
@@ -828,4 +881,28 @@
 
     </script>
 </body>
-</html>
+</html><!-- INJECTED: Modal viewDevis + Toast -->
+<div class="modal-overlay" id="viewModal" onclick="if(event.target===this)closeViewModal()">
+    <div class="modal-box" style="width:min(680px,94vw);max-height:88vh;overflow-y:auto;">
+        <button class="modal-close" onclick="closeViewModal()">✕</button>
+        <div class="modal-title">📋 Détail du Devis</div>
+        <div class="modal-sub">Récapitulatif complet · données locales</div>
+        <div id="viewModalContent"></div>
+    </div>
+</div>
+<div id="toast" style="position:fixed;bottom:2rem;right:2rem;z-index:9999;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:0.8rem 1.4rem;font-family:var(--font-mono);font-size:0.78rem;color:var(--green);box-shadow:0 0 20px rgba(0,255,136,0.25);display:none;align-items:center;gap:0.6rem;"></div>
+<script>
+// Toast auto-show si ?saved=ID en URL
+(function(){
+    const p = new URLSearchParams(window.location.search);
+    const sid = p.get('saved');
+    if (sid) {
+        const toast = document.getElementById('toast');
+        toast.innerHTML = '✅ Devis <strong style="color:var(--cyan);font-family:var(--font-display);font-size:0.85em;">#' + sid + '</strong> sauvegardé avec succès';
+        toast.style.display = 'flex';
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.style.display = 'none', 500); }, 3500);
+        // Nettoyer l'URL
+        history.replaceState({}, '', 'dashboard.html');
+    }
+})();
+</script>
