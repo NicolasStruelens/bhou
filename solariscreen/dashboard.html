@@ -412,6 +412,46 @@
             .nav-links { gap: 1rem; }
             .nav-links li:nth-child(n+4) { display: none; }
         }
+
+        /* ── STATUS DROPDOWN ── */
+        .status-badge { cursor: pointer; user-select: none; }
+        .status-badge:hover { opacity: 0.8; transform: scale(1.04); transition: all 0.15s; }
+        .status-dropdown {
+            position: fixed; z-index: 9000;
+            background: var(--bg-card); border: 1px solid var(--border-bright);
+            border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            min-width: 200px; overflow: hidden;
+        }
+        .status-dropdown::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+        .status-dropdown-header {
+            padding: 0.5rem 0.9rem;
+            font-size: 0.58em; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 0.1em; border-bottom: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
+        .status-option {
+            display: block; width: 100%; padding: 0.5rem 0.9rem;
+            background: none; border: none; text-align: left; cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.72em; color: var(--text);
+            transition: background 0.15s; border-bottom: 1px solid var(--border);
+        }
+        .status-option:last-child { border-bottom: none; }
+        .status-option:hover { background: rgba(0,255,136,0.08); color: var(--green); }
+        .status-option.active { color: var(--green); font-weight: 600; }
+        .status-option .s-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 0.5rem; }
+        /* status colors */
+        .status-brouillon { background:rgba(148,163,184,0.1); color:var(--text-dim); border-color:rgba(148,163,184,0.3); }
+        .status-signe { background:rgba(0,255,136,0.1); color:var(--green); border-color:rgba(0,255,136,0.3); }
+        .status-envoye_client { background:rgba(0,229,255,0.1); color:var(--cyan); border-color:rgba(0,229,255,0.3); }
+        .status-en_attente_validation { background:rgba(255,165,2,0.1); color:var(--orange); border-color:rgba(255,165,2,0.3); }
+        .status-refuse { background:rgba(255,71,87,0.1); color:var(--red); border-color:rgba(255,71,87,0.3); }
+        .status-annule { background:rgba(255,71,87,0.07); color:#ff6b7a; border-color:rgba(255,71,87,0.2); }
+        .status-termine { background:rgba(0,255,136,0.15); color:var(--green); border-color:rgba(0,255,136,0.5); }
+        .status-travaux_planifies { background:rgba(165,94,234,0.1); color:#a55eea; border-color:rgba(165,94,234,0.3); }
+        .status-a_tarifer { background:rgba(255,221,89,0.1); color:#ffdd59; border-color:rgba(255,221,89,0.3); }
     </style>
 </head>
 <body>
@@ -535,14 +575,15 @@
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Initializing SolariScreen Dashboard (Matrix Style)...');
-            
-            // Load ONLY real data from localStorage
             loadRealData();
-            
-            // Update stats and render table
             updateStats();
             renderTable();
-            
+            // Fermer dropdown statut au clic ailleurs
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.status-badge') && !e.target.closest('.status-dropdown')) {
+                    closeStatusDropdown();
+                }
+            });
             console.log('✅ Dashboard initialized');
         });
 
@@ -621,16 +662,16 @@
                             <div class="devis-date">${formatDate(devis.date_creation)}</div>
                         </td>
                         <td class="devis-date">${formatDate(devis.date_modification)}</td>
-                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td><span class="status-badge ${statusClass}" onclick="event.stopPropagation(); openStatusDropdown('${devis.id}', event)" title="Cliquer pour changer le statut">${statusText}</span></td>
                         <td class="devis-amount">${formatEuro(devis.calculs?.total_ttc || 0)}</td>
                         <td style="text-align: center; color: var(--text-dim); font-size: 0.8em;">
                             ${photosCount > 0 ? `📸 ${photosCount}` : '—'}
                         </td>
                         <td class="actions-cell">
-                            <button onclick="event.stopPropagation(); viewDevis('${devis.id}')" class="action-btn" title="Voir">👁️</button>
+                            <button onclick="event.stopPropagation(); viewDevis('${devis.id}')" class="action-btn" title="Voir le détail">👁️</button>
                             <button onclick="event.stopPropagation(); duplicateDevis('${devis.id}')" class="action-btn" title="Dupliquer">📋</button>
-                            <button onclick="event.stopPropagation(); editDevis('${devis.id}')" class="action-btn" title="Éditer">✏️</button>
-                            <button onclick="event.stopPropagation(); exportDevis('${devis.id}')" class="action-btn" title="Exporter">📄</button>
+                            <button onclick="event.stopPropagation(); editDevis('${devis.id}')" class="action-btn" title="Modifier">✏️</button>
+                            <button onclick="event.stopPropagation(); exportDevis('${devis.id}')" class="action-btn" title="Exporter JSON">📄</button>
                             <button onclick="event.stopPropagation(); deleteDevis('${devis.id}')" class="action-btn danger" title="Supprimer">🗑️</button>
                         </td>
                     </tr>
@@ -653,73 +694,86 @@
         }
 
         function getStatusText(statut) {
-            const statusMap = {
-                'brouillon': 'Brouillon',
-                'signe': 'Signé',
-                'envoye_client': 'Envoyé Client',
-                'en_attente_validation': 'En Attente',
-                'refuse': 'Refusé'
-            };
-            return statusMap[statut] || statut;
+            return STATUSES[statut] || statut || 'Brouillon';
         }
 
         // Action functions
+        const STATUSES = {
+            brouillon:'Brouillon', a_tarifer:'À tarifer', tarife:'Tarifé',
+            envoye_client:'Envoyé client', relance_1:'Relance 1', relance_2:'Relance 2',
+            en_attente_validation:'En attente', signe:'Signé',
+            refuse:'Refusé', annule:'Annulé',
+            travaux_planifies:'Travaux planifiés', travaux_en_cours:'Travaux en cours', termine:'Terminé'
+        };
+        const STATUS_COLORS = {
+            brouillon:'#5a7a9a', a_tarifer:'#ffdd59', tarife:'#ffdd59',
+            envoye_client:'#00e5ff', relance_1:'#ffa502', relance_2:'#ffa502',
+            en_attente_validation:'#ffa502', signe:'#00ff88',
+            refuse:'#ff4757', annule:'#ff6b7a',
+            travaux_planifies:'#a55eea', travaux_en_cours:'#a55eea', termine:'#00ff88'
+        };
+
         function viewDevis(id) {
-            const devis = devisList.find(d => d.id === id);
-            if (!devis) return;
-            const c = devis.client || {};
-            const calc = devis.calculs || {};
-            const p2 = devis.pricing_v2 || {};
-            const items = devis.items || [];
-            const nom = `${c.prenom || ''} ${c.nom || ''}`.trim() || '—';
-            const adresse = c.adresse ? `${c.adresse.rue || ''} ${c.adresse.numero || ''}, ${c.adresse.code_postal || ''} ${c.adresse.ville || ''}`.trim() : '—';
-            const tva = calc.tva_pct || p2.tva_pct || '—';
-            const itemsHTML = items.map((it, i) => {
-                const typeLabel = { screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet' }[it.type] || it.type || '—';
-                return `<tr>
-                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);color:var(--text-dim);">${i+1}</td>
-                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);">${typeLabel}</td>
-                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);color:var(--text-dim);">${it.modele||''} ${it.emplacement ? '· '+it.emplacement : ''}</td>
-                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);text-align:center;">${it.quantite||1}</td>
-                    <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);text-align:right;color:var(--cyan);">${formatEuro(it.prix_catalogue_ht||0)}</td>
-                </tr>`;
-            }).join('');
-            document.getElementById('viewModalContent').innerHTML = `
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 1.5rem;margin-bottom:1.2rem;font-size:0.75em;">
-                    <div><span style="color:var(--text-dim);">Client :</span> <strong>${nom}</strong></div>
-                    <div><span style="color:var(--text-dim);">ID :</span> <span style="color:var(--green);font-family:var(--font-display);font-size:0.85em;">#${id}</span></div>
-                    <div><span style="color:var(--text-dim);">Adresse :</span> ${adresse}</div>
-                    <div><span style="color:var(--text-dim);">Date :</span> ${formatDate(devis.date_creation)}</div>
-                    <div><span style="color:var(--text-dim);">Tél :</span> ${c.telephone||'—'}</div>
-                    <div><span style="color:var(--text-dim);">Email :</span> ${c.email||'—'}</div>
-                </div>
-                <div style="font-size:0.65em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Ouvertures</div>
-                <table style="width:100%;border-collapse:collapse;font-size:0.75em;margin-bottom:1.2rem;">
-                    <thead><tr style="background:var(--bg-panel);">
-                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">#</th>
-                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">Type</th>
-                        <th style="padding:0.4rem 0.5rem;text-align:left;color:var(--text-dim);">Modèle / Emplacement</th>
-                        <th style="padding:0.4rem 0.5rem;text-align:center;color:var(--text-dim);">Qté</th>
-                        <th style="padding:0.4rem 0.5rem;text-align:right;color:var(--text-dim);">Prix HT</th>
-                    </tr></thead>
-                    <tbody>${itemsHTML || '<tr><td colspan="5" style="padding:0.8rem;color:var(--text-dim);text-align:center;">Aucune ouverture</td></tr>'}</tbody>
-                </table>
-                <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;padding:0.8rem;font-size:0.78em;display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;">
-                    <div><span style="color:var(--text-dim);">Total HT :</span> ${formatEuro(calc.total_ht||0)}</div>
-                    <div><span style="color:var(--text-dim);">TVA (${tva}%) :</span> ${formatEuro(calc.total_tva||0)}</div>
-                    <div><span style="color:var(--text-dim);">Installation HT :</span> ${formatEuro(calc.total_installation_ht||0)}</div>
-                    <div style="color:var(--green);font-weight:700;"><span style="color:var(--text-dim);">TOTAL TTC :</span> ${formatEuro(calc.total_ttc||0)}</div>
-                </div>
-                <div style="display:flex;gap:0.6rem;margin-top:1.2rem;justify-content:flex-end;">
-                    <button class="btn btn-outline" onclick="closeViewModal()" style="font-size:0.7em;">✕ Fermer</button>
-                    <button class="btn btn-primary" onclick="closeViewModal();editDevis('${id}')" style="font-size:0.7em;">✏️ Modifier</button>
-                </div>
-            `;
-            document.getElementById('viewModal').classList.add('open');
+            window.location.href = `show.html?id=${id}`;
         }
 
-        function closeViewModal() {
-            document.getElementById('viewModal').classList.remove('open');
+        let _activeDropdownId = null;
+
+        function openStatusDropdown(id, event) {
+            // Fermer si déjà ouvert sur le même
+            closeStatusDropdown();
+            _activeDropdownId = id;
+
+            const devis = devisList.find(d => d.id === id);
+            const currentStatus = devis?.statut || 'brouillon';
+
+            const rect = event.target.getBoundingClientRect();
+            const dropdown = document.createElement('div');
+            dropdown.className = 'status-dropdown';
+            dropdown.id = 'statusDropdown';
+
+            let optionsHTML = '<div class="status-dropdown-header">Changer le statut</div>';
+            Object.entries(STATUSES).forEach(([key, label]) => {
+                const isActive = key === currentStatus;
+                const color = STATUS_COLORS[key] || '#5a7a9a';
+                optionsHTML += `<button class="status-option${isActive?' active':''}" onclick="changeStatus('${id}','${key}')">
+                    <span class="s-dot" style="background:${color};box-shadow:0 0 4px ${color};"></span>${label}${isActive?' ✓':''}
+                </button>`;
+            });
+            dropdown.innerHTML = optionsHTML;
+
+            document.body.appendChild(dropdown);
+
+            // Positionner
+            const top = rect.bottom + 4;
+            const left = Math.min(rect.left, window.innerWidth - 210);
+            dropdown.style.top = top + 'px';
+            dropdown.style.left = left + 'px';
+        }
+
+        function closeStatusDropdown() {
+            const el = document.getElementById('statusDropdown');
+            if (el) el.remove();
+            _activeDropdownId = null;
+        }
+
+        function changeStatus(id, newStatus) {
+            closeStatusDropdown();
+            const idx = devisList.findIndex(d => d.id === id);
+            if (idx === -1) return;
+            devisList[idx].statut = newStatus;
+            devisList[idx].date_modification = new Date().toISOString();
+            filteredDevis = [...devisList];
+            localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
+            updateStats();
+            renderTable();
+            // Toast
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '✅ Statut → <strong style="color:var(--cyan);">' + STATUSES[newStatus] + '</strong>';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
         }
 
         function editDevis(id) {

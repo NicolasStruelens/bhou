@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Détail Devis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary:#080d12; --bg-card:#0d1520; --bg-panel:#111c2a;
+      --green:#00ff88; --green-dim:#00cc6a; --cyan:#00e5ff; --cyan-dim:#00b8d9;
+      --red:#ff4757; --orange:#ffa502; --yellow:#ffdd59; --purple:#a55eea;
+      --text:#c8d8e8; --text-dim:#5a7a9a; --border:#1a3048; --border-bright:#1e4060;
+      --font-mono:'JetBrains Mono',monospace; --font-display:'Orbitron',sans-serif;
+      --scanline-opacity:0.03;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:var(--font-mono);background:var(--bg-primary);color:var(--text);line-height:1.6;overflow-x:hidden;}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,var(--scanline-opacity)) 2px,rgba(0,255,136,var(--scanline-opacity)) 4px);pointer-events:none;z-index:9999;animation:scan 10s linear infinite;}
+    @keyframes scan{to{background-position:0 100%;}}
+    .bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,136,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+    /* NAV */
+    nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(8,13,18,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 2rem;height:56px;display:flex;align-items:center;justify-content:space-between;}
+    .nav-logo{font-family:var(--font-display);font-size:0.85em;color:var(--green);letter-spacing:0.1em;text-decoration:none;}
+    .nav-logo span{color:var(--cyan);}
+    .nav-right{display:flex;align-items:center;gap:0.8rem;}
+    .btn-nav{font-family:var(--font-mono);font-size:0.6em;letter-spacing:0.08em;text-transform:uppercase;padding:0.4rem 0.85rem;background:transparent;border:1px solid;border-radius:3px;cursor:pointer;transition:all 0.2s;text-decoration:none;}
+    .btn-nav-back{color:var(--text-dim);border-color:var(--border);}
+    .btn-nav-back:hover{color:var(--green);border-color:var(--green);}
+    .btn-nav-edit{color:var(--cyan);border-color:var(--cyan);}
+    .btn-nav-edit:hover{background:rgba(0,229,255,0.1);box-shadow:0 0 14px rgba(0,229,255,0.2);}
+    .devis-id-tag{font-family:var(--font-display);font-size:0.7em;color:var(--green);background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);padding:0.3rem 0.7rem;border-radius:3px;}
+
+    /* MAIN */
+    .container{max-width:1100px;margin:0 auto;padding:80px 2rem 4rem;position:relative;z-index:1;}
+
+    /* HERO HEADER */
+    .page-header{margin-bottom:2rem;}
+    .page-tag{font-size:0.58em;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;}
+    .page-tag::before{content:'';width:6px;height:6px;background:var(--green);border-radius:50%;box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+    .page-title{font-family:var(--font-display);font-size:clamp(1.4em,3vw,2.2em);color:var(--green);text-transform:uppercase;letter-spacing:0.05em;line-height:1.1;margin-bottom:0.3rem;}
+    .page-subtitle{font-size:0.75em;color:var(--text-dim);}
+    .h-divider{height:1px;background:linear-gradient(90deg,var(--green),var(--cyan),transparent);opacity:0.4;margin:1rem 0 2rem;}
+
+    /* STATUS */
+    .status-badge{padding:0.3rem 0.9rem;border-radius:3px;font-size:0.65em;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border:1px solid;display:inline-block;}
+    .status-brouillon{background:rgba(148,163,184,0.1);color:var(--text-dim);border-color:rgba(148,163,184,0.3);}
+    .status-signe{background:rgba(0,255,136,0.1);color:var(--green);border-color:rgba(0,255,136,0.3);}
+    .status-envoye_client{background:rgba(0,229,255,0.1);color:var(--cyan);border-color:rgba(0,229,255,0.3);}
+    .status-en_attente_validation{background:rgba(255,165,2,0.1);color:var(--orange);border-color:rgba(255,165,2,0.3);}
+    .status-refuse{background:rgba(255,71,87,0.1);color:var(--red);border-color:rgba(255,71,87,0.3);}
+    .status-annule{background:rgba(255,71,87,0.07);color:#ff6b7a;border-color:rgba(255,71,87,0.2);}
+    .status-termine{background:rgba(0,255,136,0.15);color:var(--green);border-color:rgba(0,255,136,0.5);}
+    .status-travaux_planifies{background:rgba(165,94,234,0.1);color:var(--purple);border-color:rgba(165,94,234,0.3);}
+    .status-a_tarifer{background:rgba(255,221,89,0.1);color:var(--yellow);border-color:rgba(255,221,89,0.3);}
+
+    /* CARDS */
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:1.5rem;position:relative;}
+    .card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),var(--cyan));opacity:0.6;}
+    .card.cyan::before{background:linear-gradient(90deg,var(--cyan),var(--green));}
+    .card.orange::before{background:linear-gradient(90deg,var(--orange),var(--yellow));}
+    .card.purple::before{background:linear-gradient(90deg,var(--purple),var(--cyan));}
+    .card-header{background:var(--bg-panel);border-bottom:1px solid var(--border);padding:0.9rem 1.5rem;display:flex;align-items:center;gap:0.8rem;}
+    .card-title{font-family:var(--font-display);font-size:0.85rem;color:var(--green);letter-spacing:0.05em;text-transform:uppercase;}
+    .card.cyan .card-title{color:var(--cyan);}
+    .card.orange .card-title{color:var(--orange);}
+    .card.purple .card-title{color:var(--purple);}
+    .card-subtitle{font-size:0.65rem;color:var(--text-dim);margin-left:auto;}
+    .card-body{padding:1.5rem;}
+
+    /* GRID INFO */
+    .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.8rem;}
+    .info-row{display:flex;flex-direction:column;gap:0.2rem;}
+    .info-label{font-size:0.62em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;}
+    .info-value{font-size:0.82em;color:var(--text);font-weight:600;}
+    .info-value.green{color:var(--green);}
+    .info-value.cyan{color:var(--cyan);}
+
+    /* ITEM CARD */
+    .item-card{background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:1.2rem;margin-bottom:1rem;position:relative;}
+    .item-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),var(--cyan));opacity:0.4;}
+    .item-card:last-child{margin-bottom:0;}
+    .item-number{font-family:var(--font-display);font-size:0.75em;color:var(--green);font-weight:700;margin-bottom:0.8rem;}
+    .item-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.6rem;margin-bottom:1rem;}
+    .item-price-box{background:var(--bg-card);border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;}
+    .item-price-label{font-size:0.68em;color:var(--text-dim);}
+    .item-price-val{font-size:0.88em;font-weight:700;color:var(--cyan);font-family:var(--font-mono);}
+
+    /* PHOTOS */
+    .photos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.8rem;margin-top:0.8rem;}
+    .photo-thumb{aspect-ratio:1;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:pointer;transition:all 0.2s;}
+    .photo-thumb:hover{border-color:var(--green);transform:scale(1.03);box-shadow:0 0 14px rgba(0,255,136,0.2);}
+    .photo-thumb img{width:100%;height:100%;object-fit:cover;}
+    .no-photos{font-size:0.75em;color:var(--text-dim);font-style:italic;padding:0.5rem 0;}
+
+    /* SUMMARY TABLE */
+    .summary-table{width:100%;border-collapse:collapse;font-size:0.8em;}
+    .summary-table td{padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);}
+    .summary-table tr:last-child td{border-bottom:none;}
+    .summary-table .label{color:var(--text-dim);}
+    .summary-table .val{text-align:right;font-family:var(--font-mono);}
+    .summary-table .total-row td{font-size:1em;font-weight:700;color:var(--green);border-top:2px solid var(--green-dim);padding-top:0.8rem;}
+    .acompte-band{background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:0.8rem 1rem;margin-top:0.8rem;display:flex;justify-content:space-between;align-items:center;}
+    .acompte-band .a-lbl{font-size:0.72em;color:var(--cyan);}
+    .acompte-band .a-val{font-size:1em;font-weight:700;color:var(--cyan);font-family:var(--font-mono);}
+
+    /* NOTES */
+    .note-box{background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:1rem;font-size:0.8em;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;}
+
+    /* LIGHTBOX */
+    .lightbox{position:fixed;inset:0;z-index:9998;background:rgba(4,8,12,0.97);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+    .lightbox.open{opacity:1;pointer-events:all;}
+    .lightbox img{max-width:90vw;max-height:88vh;object-fit:contain;border:1px solid var(--border);border-radius:4px;}
+    .lightbox-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-dim);font-size:1.4rem;cursor:pointer;font-family:var(--font-mono);transition:color 0.2s;}
+    .lightbox-close:hover{color:var(--green);}
+
+    /* ACTIONS */
+    .actions-strip{display:flex;gap:0.8rem;flex-wrap:wrap;margin-bottom:2rem;}
+    .btn{font-family:var(--font-mono);font-size:0.75em;letter-spacing:0.08em;text-transform:uppercase;padding:0.7rem 1.3rem;border-radius:3px;text-decoration:none;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem;border:1px solid;}
+    .btn-primary{background:var(--green);color:var(--bg-primary);border-color:var(--green);font-weight:700;}
+    .btn-primary:hover{background:transparent;color:var(--green);box-shadow:0 0 20px rgba(0,255,136,0.3);}
+    .btn-outline{background:transparent;color:var(--text-dim);border-color:var(--border);}
+    .btn-outline:hover{color:var(--green);border-color:var(--green);}
+    .btn-cyan{background:var(--cyan);color:var(--bg-primary);border-color:var(--cyan);font-weight:700;}
+    .btn-cyan:hover{background:transparent;color:var(--cyan);box-shadow:0 0 20px rgba(0,229,255,0.3);}
+
+    /* ERROR */
+    .error-state{text-align:center;padding:4rem 2rem;color:var(--text-dim);}
+    .error-state h2{font-family:var(--font-display);font-size:1.5em;color:var(--red);margin-bottom:1rem;}
+
+    @media(max-width:700px){
+      nav{padding:0 1rem;}
+      .container{padding:72px 1rem 3rem;}
+      .photos-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));}
+      .info-grid{grid-template-columns:1fr 1fr;}
+    }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<nav>
+  <a href="dashboard.html" class="nav-logo">SolariScreen<span>://</span>Devis</a>
+  <div class="nav-right">
+    <span class="devis-id-tag" id="navDevisId">—</span>
+    <a href="dashboard.html" class="btn-nav btn-nav-back">← Dashboard</a>
+    <a href="#" class="btn-nav btn-nav-edit" id="btnModifier">✏️ Modifier</a>
+  </div>
+</nav>
+
+<div class="container" id="mainContainer">
+  <div class="error-state" id="errorState" style="display:none;">
+    <h2>Devis introuvable</h2>
+    <p>Ce devis n'existe pas ou a été supprimé.</p>
+    <a href="dashboard.html" class="btn btn-outline" style="margin-top:1rem;">← Retour Dashboard</a>
+  </div>
+  <div id="devisContent"></div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script>
+const STATUSES = {
+  brouillon:'Brouillon', a_tarifer:'À tarifer', tarife:'Tarifé',
+  envoye_client:'Envoyé client', relance_1:'Relance 1', relance_2:'Relance 2',
+  en_attente_validation:'En attente', signe:'Signé',
+  refuse:'Refusé', annule:'Annulé',
+  travaux_planifies:'Travaux planifiés', travaux_en_cours:'Travaux en cours', termine:'Terminé'
+};
+
+function getStatusLabel(s){ return STATUSES[s] || s || 'Brouillon'; }
+function fmt(n){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(n||0); }
+function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('fr-BE',{day:'2-digit',month:'long',year:'numeric'}); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) { showError(); return; }
+
+  const all = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+  const devis = all.find(d => d.id === id);
+  if (!devis) { showError(); return; }
+
+  document.title = `Devis #${id} — SolariScreen`;
+  document.getElementById('navDevisId').textContent = '#' + id;
+  document.getElementById('btnModifier').href = `calculateur.html?id=${id}`;
+
+  renderDevis(devis);
+});
+
+function showError(){
+  document.getElementById('errorState').style.display = 'block';
+}
+
+function renderDevis(d) {
+  const c = d.client || {};
+  const a = c.adresse || {};
+  const calc = d.calculs || {};
+  const p2 = d.pricing_v2 || {};
+  const items = d.items || [];
+  const statut = d.statut || 'brouillon';
+  const clientName = `${c.prenom||''} ${c.nom||''}`.trim() || '—';
+  const adresse = [a.rue, a.numero, a.code_postal, a.ville].filter(Boolean).join(' ').trim() || '—';
+
+  // Count photos across all items
+  const totalPhotos = items.reduce((s,i)=> s + ((i.photos||[]).length), 0);
+
+  let html = `
+    <div class="page-header">
+      <div class="page-tag">Devis</div>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+        <div class="page-title">${clientName}</div>
+        <span class="status-badge status-${statut}">${getStatusLabel(statut)}</span>
+      </div>
+      <div class="page-subtitle">#${d.id} · Créé le ${fmtDate(d.date_creation)} · Modifié le ${fmtDate(d.date_modification)}</div>
+      <div class="h-divider"></div>
+    </div>
+
+    <div class="actions-strip">
+      <a href="calculateur.html?id=${d.id}" class="btn btn-primary">✏️ Modifier ce devis</a>
+      <a href="dashboard.html" class="btn btn-outline">← Dashboard</a>
+    </div>
+
+    <!-- CLIENT -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">👤 Client</span>
+        <span class="card-subtitle">${adresse}</span>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-row"><div class="info-label">Nom complet</div><div class="info-value">${clientName}</div></div>
+          <div class="info-row"><div class="info-label">Téléphone</div><div class="info-value">${c.telephone||'—'}</div></div>
+          <div class="info-row"><div class="info-label">Email</div><div class="info-value">${c.email||'—'}</div></div>
+          <div class="info-row"><div class="info-label">Adresse chantier</div><div class="info-value">${adresse}</div></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ITEMS
+  html += `
+    <div class="card cyan">
+      <div class="card-header">
+        <span class="card-title">📦 Ouvertures</span>
+        <span class="card-subtitle">${items.length} ouverture(s) · ${totalPhotos} photo(s)</span>
+      </div>
+      <div class="card-body">
+  `;
+
+  if (items.length === 0) {
+    html += `<div style="color:var(--text-dim);font-size:0.8em;">Aucune ouverture enregistrée.</div>`;
+  } else {
+    items.forEach((item, idx) => {
+      const typeLabel = {screen:'Screen',tente_solaire:'Tente solaire',tablier_volet:'Tablier de volet'}[item.type] || item.type || '—';
+      const larg = item.largeur || 0;
+      const haut = item.hauteur || 0;
+      const surf = larg>0 && haut>0 ? ((larg/1000)*(haut/1000)).toFixed(2)+' m²' : '—';
+      const photos = item.photos || [];
+      const qty = item.quantite || 1;
+      const sub = (item.prix_catalogue_ht||0) * qty;
+
+      html += `
+        <div class="item-card">
+          <div class="item-number">Ouverture ${idx+1} — ${typeLabel} · ${item.emplacement||'Sans emplacement'}${item.etage?' · '+item.etage:''}</div>
+          <div class="item-meta-grid">
+            <div class="info-row"><div class="info-label">Modèle</div><div class="info-value">${item.modele||'—'}</div></div>
+            <div class="info-row"><div class="info-label">Moteur</div><div class="info-value">${item.moteur||'—'}</div></div>
+            <div class="info-row"><div class="info-label">Dimensions</div><div class="info-value">${larg} × ${haut} mm <span style="color:var(--text-dim);font-size:0.85em;">(${surf})</span></div></div>
+            <div class="info-row"><div class="info-label">Quantité</div><div class="info-value">${qty}</div></div>
+            ${item.etage ? `<div class="info-row"><div class="info-label">Étage</div><div class="info-value">${item.etage}</div></div>` : ''}
+            ${item.notes ? `<div class="info-row"><div class="info-label">Notes</div><div class="info-value" style="color:var(--text-dim);">${item.notes}</div></div>` : ''}
+          </div>
+          <div class="item-price-box">
+            <div><span class="item-price-label">Prix catalogue HT :</span> <span class="item-price-val">${fmt(item.prix_catalogue_ht||0)}</span></div>
+            <div><span class="item-price-label">Sous-total :</span> <span class="item-price-val">${fmt(sub)}</span></div>
+          </div>
+      `;
+
+      if (photos.length > 0) {
+        html += `<div style="margin-top:0.8rem;">
+          <div style="font-size:0.62em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">📸 Photos (${photos.length})</div>
+          <div class="photos-grid">`;
+        photos.forEach(p => {
+          if (p.data) {
+            html += `<div class="photo-thumb" onclick="openLightbox('${p.data.replace(/'/g,'\\\'')}')" title="${p.name||'Photo'}"><img src="${p.data}" alt="${p.name||'Photo'}" loading="lazy"></div>`;
+          }
+        });
+        html += `</div></div>`;
+      } else {
+        html += `<div class="no-photos" style="margin-top:0.6rem;">📷 Aucune photo pour cette ouverture</div>`;
+      }
+
+      html += `</div>`; // item-card
+    });
+  }
+
+  html += `</div></div>`; // card-body + card
+
+  // PRICING SUMMARY
+  const tvaPct = calc.tva_pct || p2.tva_pct || 6;
+  const acomptePct = calc.acompte_pct || p2.acompte_pct || 30;
+  const extras = p2.extras || [];
+  const extrasTotal = calc.total_extras_ht || extras.reduce((s,e)=>s+(e.total_ht||0),0);
+  const note = p2.note || '';
+
+  html += `
+    <div class="card orange">
+      <div class="card-header">
+        <span class="card-title">💰 Récapitulatif Prix Client</span>
+        <span class="card-subtitle">TVA ${tvaPct}%</span>
+      </div>
+      <div class="card-body">
+        <table class="summary-table">
+          <tr><td class="label">Total Catalogue HT</td><td class="val">${fmt(calc.total_catalog_ht||0)}</td></tr>
+          <tr><td class="label">Installation HT</td><td class="val">${fmt(calc.total_installation_ht||0)}</td></tr>
+  `;
+  if (extrasTotal > 0) html += `<tr><td class="label">Postes spéciaux HT</td><td class="val">${fmt(extrasTotal)}</td></tr>`;
+  if ((calc.surplus_difficulte||0) > 0) html += `<tr><td class="label">Surplus difficulté HT</td><td class="val">${fmt(calc.surplus_difficulte||0)}</td></tr>`;
+  html += `
+          <tr><td class="label">Total HT</td><td class="val">${fmt(calc.total_ht||0)}</td></tr>
+          <tr><td class="label">TVA (${tvaPct}%)</td><td class="val">${fmt(calc.total_tva||0)}</td></tr>
+          <tr class="total-row"><td class="label">TOTAL TTC</td><td class="val">${fmt(calc.total_ttc||0)}</td></tr>
+        </table>
+        <div class="acompte-band">
+          <span class="a-lbl">Acompte à la commande (${acomptePct}%)</span>
+          <span class="a-val">${fmt(calc.acompte_montant||0)}</span>
+        </div>
+  `;
+
+  // Extras detail
+  if (extras.length > 0) {
+    html += `<div style="margin-top:1rem;"><div style="font-size:0.62em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Postes spéciaux</div>`;
+    extras.forEach(e => {
+      html += `<div style="display:flex;justify-content:space-between;font-size:0.78em;padding:0.3rem 0;border-bottom:1px solid var(--border);">
+        <span>${e.label} <span style="color:var(--text-dim);">× ${e.qty}</span></span>
+        <span style="color:var(--cyan);">${fmt(e.total_ht||0)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div></div>`;
+
+  // NOTES
+  if (note) {
+    html += `
+      <div class="card">
+        <div class="card-header"><span class="card-title">📝 Notes</span></div>
+        <div class="card-body"><div class="note-box">${note}</div></div>
+      </div>
+    `;
+  }
+
+  // BOTTOM ACTIONS
+  html += `
+    <div class="actions-strip" style="margin-top:0.5rem;">
+      <a href="calculateur.html?id=${d.id}" class="btn btn-primary">✏️ Modifier ce devis</a>
+      <a href="dashboard.html" class="btn btn-outline">← Retour Dashboard</a>
+    </div>
+  `;
+
+  document.getElementById('devisContent').innerHTML = html;
+}
+
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightboxImg').src = '';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeLightbox(); });
+</script>
+</body>
+</html>
