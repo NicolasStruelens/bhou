@@ -1,1107 +1,1487 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SolariScreen — Calculateur de Prix</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Orbitron:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            --bg-primary: #080d12;
-            --bg-card: #0d1520;
-            --bg-panel: #111c2a;
-            --green: #00ff88;
-            --green-dim: #00cc6a;
-            --green-dark: #003d22;
-            --cyan: #00e5ff;
-            --cyan-dim: #00b8d9;
-            --red: #ff4757;
-            --orange: #ffa502;
-            --yellow: #ffdd59;
-            --text: #c8d8e8;
-            --text-dim: #5a7a9a;
-            --border: #1a3048;
-            --border-bright: #1e4060;
-            --font-mono: 'JetBrains Mono', monospace;
-            --font-display: 'Orbitron', sans-serif;
-            --scanline-opacity: 0.03;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: var(--font-mono);
-            background: var(--bg-primary);
-            color: var(--text);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* ── SCANLINES ── */
-        body::before {
-            content: '';
-            position: fixed; inset: 0;
-            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
-            pointer-events: none; z-index: 9999;
-            animation: scan 10s linear infinite;
-        }
-        @keyframes scan { to { background-position: 0 100%; } }
-
-        /* ── BG GRID ── */
-        .bg-grid {
-            position: fixed; inset: 0;
-            background-image:
-                linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* Header */
-        .header {
-            background: rgba(8,13,18,0.92);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-            padding: 0 2rem;
-            height: 56px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .header-content {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .logo-container {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--green);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        .brand-info h1 {
-            font-family: var(--font-display);
-            font-size: 1.2rem;
-            color: var(--green);
-            letter-spacing: 0.05em;
-            margin-bottom: 0.1rem;
-        }
-
-        .brand-info h1 a {
-            color: var(--green);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .brand-info h1 a:hover { color: var(--cyan); }
-
-        .module-badge {
-            font-size: 0.6rem;
-            color: var(--text-dim);
-            letter-spacing: 0.05em;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .btn-back {
-            background: transparent;
-            color: var(--text-dim);
-            border: 1px solid var(--border);
-            padding: 0.4rem 0.8rem;
-            border-radius: 4px;
-            font-family: var(--font-mono);
-            font-size: 0.7rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .btn-back:hover {
-            color: var(--green);
-            border-color: var(--green);
-            box-shadow: 0 0 10px rgba(0,255,136,0.2);
-        }
-
-        /* Main Container */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Section */
-        .section {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            margin-bottom: 2rem;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .section::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--green), var(--cyan));
-            opacity: 0.7;
-        }
-
-        .section-header {
-            background: var(--bg-panel);
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        }
-
-        .section-title {
-            font-family: var(--font-display);
-            font-size: 1rem;
-            color: var(--green);
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-        }
-
-        .section-subtitle {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            margin-left: auto;
-        }
-
-        .section-body {
-            padding: 1.5rem;
-        }
-
-        /* Form Grid */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .form-group {
-            position: relative;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-
-        .form-label.required::after {
-            content: ' *';
-            color: var(--red);
-        }
-
-        .form-input, .form-select, .form-textarea {
-            width: 100%;
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 0.8rem 1rem;
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            color: var(--text);
-            transition: all 0.3s ease;
-            outline: none;
-        }
-
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            border-color: var(--green);
-            box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1), 0 0 20px rgba(0, 255, 136, 0.1);
-            transform: translateY(-1px);
-        }
-
-        .form-input::placeholder, .form-textarea::placeholder {
-            color: var(--text-dim);
-            opacity: 0.7;
-        }
-
-        .form-select {
-            cursor: pointer;
-            appearance: none;
-            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2300ff88"><path d="M7 10l5 5 5-5z"/></svg>');
-            background-repeat: no-repeat;
-            background-position: right 0.8rem center;
-            background-size: 1.2rem;
-            padding-right: 2.5rem;
-        }
-
-        .form-textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        /* Input with Unit */
-        .input-with-unit {
-            position: relative;
-        }
-
-        .input-with-unit .unit {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            pointer-events: none;
-        }
-
-        .input-with-unit .form-input {
-            padding-right: 3rem;
-        }
-
-        /* Button Groups */
-        .btn-group {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 0.8rem 1.5rem;
-            border-radius: 4px;
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            letter-spacing: 0.05em;
-        }
-
-        .btn-primary {
-            background: var(--green);
-            border-color: var(--green);
-            color: var(--bg-primary);
-            font-weight: 600;
-        }
-
-        .btn-primary:hover {
-            background: transparent;
-            color: var(--green);
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: var(--cyan);
-            border-color: var(--cyan);
-            color: var(--bg-primary);
-            font-weight: 600;
-        }
-
-        .btn-secondary:hover {
-            background: transparent;
-            color: var(--cyan);
-            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn:hover {
-            border-color: var(--green);
-            color: var(--green);
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
-        }
-
-        /* Items Grid */
-        .items-container {
-            margin-top: 2rem;
-        }
-
-        .items-grid {
-            display: grid;
-            gap: 1rem;
-        }
-
-        .item-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 1.2rem;
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .item-card:hover {
-            border-color: var(--border-bright);
-            transform: translateY(-2px);
-        }
-
-        .item-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--green), var(--cyan));
-            opacity: 0.5;
-        }
-
-        .item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .item-number {
-            font-family: var(--font-display);
-            font-size: 0.8rem;
-            color: var(--green);
-            font-weight: 600;
-        }
-
-        .item-delete {
-            background: var(--red);
-            border: none;
-            color: white;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-
-        .item-delete:hover {
-            background: #e73c7e;
-            transform: scale(1.1);
-        }
-
-        /* Photo Upload */
-        .photo-upload {
-            border: 2px dashed var(--border);
-            border-radius: 6px;
-            padding: 2rem;
-            text-align: center;
-            background: var(--bg-primary);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .photo-upload:hover {
-            border-color: var(--green);
-            background: rgba(0, 255, 136, 0.05);
-        }
-
-        .photo-upload.dragover {
-            border-color: var(--cyan);
-            background: rgba(0, 229, 255, 0.1);
-        }
-
-        .photo-upload-text {
-            color: var(--text-dim);
-            font-size: 0.8rem;
-        }
-
-        .photo-preview {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-
-        .photo-item {
-            position: relative;
-            aspect-ratio: 1;
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        .photo-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .photo-remove {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            background: var(--red);
-            border: none;
-            color: white;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 0.7rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Summary Card */
-        .summary-card {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-bright);
-            border-radius: 8px;
-            padding: 1.5rem;
-            position: sticky;
-            top: 80px;
-        }
-
-        .summary-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--green), var(--cyan));
-        }
-
-        .summary-title {
-            font-family: var(--font-display);
-            font-size: 1rem;
-            color: var(--green);
-            margin-bottom: 1rem;
-            letter-spacing: 0.05em;
-        }
-
-        .summary-line {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            font-size: 0.8rem;
-        }
-
-        .summary-line:last-child {
-            border-bottom: none;
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: var(--green);
-            margin-top: 0.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border);
-        }
-
-        .summary-label {
-            color: var(--text-dim);
-        }
-
-        .summary-value {
-            color: var(--text);
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .header {
-                padding: 0 1rem;
-            }
-            
-            .header-content {
-                flex-direction: column;
-                gap: 1rem;
-                padding: 0.5rem 0;
-            }
-            
-            .btn-group {
-                flex-direction: column;
-            }
-        }
-
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Calculateur de Prix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #080d12;
+      --bg-card: #0d1520;
+      --bg-panel: #111c2a;
+      --green: #00ff88;
+      --green-dim: #00cc6a;
+      --green-dark: #003d22;
+      --cyan: #00e5ff;
+      --cyan-dim: #00b8d9;
+      --red: #ff4757;
+      --orange: #ffa502;
+      --yellow: #ffdd59;
+      --purple: #a55eea;
+      --text: #c8d8e8;
+      --text-dim: #5a7a9a;
+      --border: #1a3048;
+      --border-bright: #1e4060;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-display: 'Orbitron', sans-serif;
+      --scanline-opacity: 0.03;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: var(--font-mono);
+      background: var(--bg-primary);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
+      pointer-events: none; z-index: 9999;
+      animation: scan 10s linear infinite;
+    }
+    @keyframes scan { to { background-position: 0 100%; } }
+    .bg-grid {
+      position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: rgba(8,13,18,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem; height: 56px;
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo-section { display:flex; align-items:center; gap:1rem; }
+    .logo-container { width:36px; height:36px; border:1px solid var(--green); border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .brand-info h1 { font-family:var(--font-display); font-size:1.1rem; color:var(--green); }
+    .brand-info h1 a { color:var(--green); text-decoration:none; }
+    .module-badge { font-size:0.6rem; color:var(--text-dim); letter-spacing:0.05em; }
+    .header-actions { display:flex; gap:0.8rem; align-items:center; }
+    .btn-back {
+      background:transparent; color:var(--text-dim); border:1px solid var(--border);
+      padding:0.4rem 0.8rem; border-radius:4px; font-family:var(--font-mono); font-size:0.7rem;
+      cursor:pointer; transition:all 0.2s; text-decoration:none; display:flex; align-items:center; gap:0.4rem;
+    }
+    .btn-back:hover { color:var(--green); border-color:var(--green); box-shadow:0 0 10px rgba(0,255,136,0.2); }
+    .devis-id-badge { font-size:0.65rem; color:var(--cyan); font-family:var(--font-mono); background:rgba(0,229,255,0.1); border:1px solid rgba(0,229,255,0.3); padding:0.3rem 0.6rem; border-radius:4px; }
+
+    /* ── CONTAINER ── */
+    .container { max-width:1200px; margin:0 auto; padding:2rem; position:relative; z-index:1; }
+
+    /* ── SECTIONS ── */
+    .section {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:8px; margin-bottom:1.5rem; overflow:hidden; position:relative;
+    }
+    .section::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+      background:linear-gradient(90deg, var(--green), var(--cyan)); opacity:0.7;
+    }
+    .section.internal::before { background:linear-gradient(90deg, var(--purple), var(--orange)); }
+    .section.installation-section::before { background:linear-gradient(90deg, var(--cyan), var(--green)); }
+    .section-header {
+      background:var(--bg-panel); border-bottom:1px solid var(--border);
+      padding:0.9rem 1.5rem; display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;
+    }
+    .section-title { font-family:var(--font-display); font-size:0.9rem; color:var(--green); letter-spacing:0.05em; text-transform:uppercase; }
+    .section.internal .section-title { color:var(--purple); }
+    .section.installation-section .section-title { color:var(--cyan); }
+    .section-subtitle { font-size:0.65rem; color:var(--text-dim); margin-left:auto; }
+    .internal-badge { font-size:0.6rem; background:rgba(165,94,234,0.2); color:var(--purple); border:1px solid rgba(165,94,234,0.4); padding:0.2rem 0.5rem; border-radius:3px; letter-spacing:0.05em; }
+    .section-body { padding:1.5rem; }
+
+    /* ── FORMS ── */
+    .form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem; margin-bottom:1rem; }
+    .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
+    .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; margin-bottom:1rem; }
+    .form-grid-4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:1rem; margin-bottom:1rem; }
+    .form-group { position:relative; }
+    .form-group.full { grid-column:1/-1; }
+    .form-label {
+      display:block; font-size:0.68rem; color:var(--text-dim); text-transform:uppercase;
+      letter-spacing:0.1em; margin-bottom:0.4rem; font-weight:600;
+    }
+    .form-label.required::after { content:' *'; color:var(--red); }
+    .form-input, .form-select, .form-textarea {
+      width:100%; background:var(--bg-primary); border:1px solid var(--border);
+      border-radius:4px; padding:0.7rem 1rem; font-family:var(--font-mono);
+      font-size:0.8rem; color:var(--text); transition:all 0.2s; outline:none;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color:var(--green);
+      box-shadow:0 0 0 2px rgba(0,255,136,0.1), 0 0 20px rgba(0,255,136,0.1);
+    }
+    .form-input::placeholder, .form-textarea::placeholder { color:var(--text-dim); opacity:0.7; }
+    .form-select {
+      cursor:pointer; appearance:none;
+      background-image:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2300ff88"><path d="M7 10l5 5 5-5z"/></svg>');
+      background-repeat:no-repeat; background-position:right 0.8rem center; background-size:1.2rem; padding-right:2.5rem;
+    }
+    .form-textarea { min-height:80px; resize:vertical; }
+    .input-with-unit { position:relative; }
+    .input-with-unit .unit { position:absolute; right:1rem; top:50%; transform:translateY(-50%); font-size:0.7rem; color:var(--text-dim); pointer-events:none; }
+    .input-with-unit .form-input { padding-right:3rem; }
+
+    /* ── TVA RADIO ── */
+    .tva-group { display:flex; gap:1rem; flex-wrap:wrap; }
+    .tva-radio { display:none; }
+    .tva-label {
+      padding:0.5rem 1.2rem; border:1px solid var(--border); border-radius:4px;
+      cursor:pointer; font-size:0.8rem; color:var(--text-dim); transition:all 0.2s; font-family:var(--font-mono);
+    }
+    .tva-radio:checked + .tva-label { border-color:var(--green); color:var(--green); background:rgba(0,255,136,0.1); }
+
+    /* ── BUTTONS ── */
+    .btn-group { display:flex; gap:0.8rem; margin-top:1.5rem; flex-wrap:wrap; }
+    .btn {
+      background:transparent; border:1px solid var(--border); color:var(--text);
+      padding:0.7rem 1.3rem; border-radius:4px; font-family:var(--font-mono); font-size:0.78rem;
+      cursor:pointer; transition:all 0.3s; text-decoration:none; display:inline-flex; align-items:center; gap:0.5rem;
+    }
+    .btn-primary { background:var(--green); border-color:var(--green); color:var(--bg-primary); font-weight:600; }
+    .btn-primary:hover { background:transparent; color:var(--green); box-shadow:0 0 20px rgba(0,255,136,0.3); }
+    .btn-secondary { background:var(--cyan); border-color:var(--cyan); color:var(--bg-primary); font-weight:600; }
+    .btn-secondary:hover { background:transparent; color:var(--cyan); box-shadow:0 0 20px rgba(0,229,255,0.3); }
+    .btn-purple { background:var(--purple); border-color:var(--purple); color:white; font-weight:600; }
+    .btn-purple:hover { background:transparent; color:var(--purple); }
+    .btn:hover { border-color:var(--green); color:var(--green); box-shadow:0 0 15px rgba(0,255,136,0.2); }
+    .btn-danger { color:var(--red); border-color:var(--red); }
+    .btn-danger:hover { background:var(--red); color:white; border-color:var(--red); box-shadow:0 0 15px rgba(255,71,87,0.3); }
+
+    /* ── ITEMS ── */
+    .item-card {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:6px; padding:1.2rem; margin-bottom:1rem; position:relative;
+    }
+    .item-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg, var(--green), var(--cyan)); opacity:0.5;
+    }
+    .item-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+    .item-number { font-family:var(--font-display); font-size:0.8rem; color:var(--green); font-weight:600; }
+    .item-surface { font-size:0.7rem; color:var(--text-dim); }
+    .item-delete {
+      background:transparent; border:1px solid var(--red); color:var(--red);
+      width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:0.75rem; transition:all 0.2s;
+    }
+    .item-delete:hover { background:var(--red); color:white; }
+    .tente-warning {
+      background:rgba(255,165,2,0.1); border:1px solid rgba(255,165,2,0.3);
+      border-radius:4px; padding:0.4rem 0.8rem; font-size:0.7rem; color:var(--orange);
+      margin-bottom:0.8rem; display:none;
+    }
+
+    /* ── PHOTOS ── */
+    .photo-upload {
+      border:2px dashed var(--border); border-radius:6px; padding:1.5rem;
+      text-align:center; background:var(--bg-primary); cursor:pointer; transition:all 0.3s;
+    }
+    .photo-upload:hover { border-color:var(--green); background:rgba(0,255,136,0.05); }
+    .photo-upload-text { color:var(--text-dim); font-size:0.75rem; }
+    .photo-preview { display:grid; grid-template-columns:repeat(auto-fill, minmax(90px,1fr)); gap:0.5rem; margin-top:0.8rem; }
+    .photo-item { position:relative; aspect-ratio:1; background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+    .photo-item img { width:100%; height:100%; object-fit:cover; }
+    .photo-remove { position:absolute; top:3px; right:3px; background:var(--red); border:none; color:white; width:20px; height:20px; border-radius:50%; cursor:pointer; font-size:0.65rem; display:flex; align-items:center; justify-content:center; }
+
+    /* ── COMMISSION PANELS ── */
+    .commission-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem; }
+    .commission-panel {
+      background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; padding:1rem;
+    }
+    .commission-panel.nicolas { border-color:rgba(0,255,136,0.3); }
+    .commission-panel.yannick { border-color:rgba(0,229,255,0.3); }
+    .commission-panel .name { font-size:0.8rem; font-weight:600; color:var(--text); margin-bottom:0.5rem; }
+    .commission-panel .pct { font-size:0.7rem; color:var(--text-dim); }
+    .commission-row { display:flex; justify-content:space-between; font-size:0.75rem; padding:0.2rem 0; }
+    .commission-gross { color:var(--text); }
+    .commission-net { color:var(--green); font-weight:600; }
+    .remise-info { background:rgba(0,255,136,0.08); border:1px solid rgba(0,255,136,0.3); border-radius:6px; padding:0.8rem 1rem; margin-top:0.8rem; display:none; }
+    .remise-info .remise-title { font-size:0.7rem; color:var(--green); font-weight:600; margin-bottom:0.3rem; }
+    .remise-info .remise-amount { font-size:0.9rem; color:var(--green); font-weight:700; }
+    .custom-split { display:none; margin-top:1rem; padding:1rem; background:rgba(165,94,234,0.08); border:1px solid rgba(165,94,234,0.3); border-radius:6px; }
+    .supplier-info { background:rgba(255,165,2,0.08); border:1px solid rgba(255,165,2,0.2); border-radius:6px; padding:0.6rem 1rem; font-size:0.75rem; color:var(--orange); margin-top:1rem; }
+
+    /* ── INSTALLATION ── */
+    .install-alert {
+      background:rgba(255,165,2,0.1); border:1px solid rgba(255,165,2,0.4); border-radius:6px;
+      padding:0.7rem 1rem; font-size:0.75rem; color:var(--orange); margin-bottom:1rem; display:none;
+    }
+    .qty-highlight { border:2px solid rgba(0,229,255,0.5) !important; text-align:center; font-weight:700; font-size:0.9rem; color:var(--cyan) !important; }
+    .install-results { display:grid; grid-template-columns:repeat(4,1fr); gap:0.8rem; margin-top:1rem; }
+    .install-panel { background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; padding:0.8rem; text-align:center; }
+    .install-panel .i-label { font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem; }
+    .install-panel .i-gross { font-size:0.9rem; font-weight:700; color:var(--text); }
+    .install-panel .i-net { font-size:0.7rem; color:var(--green); margin-top:0.2rem; }
+    .install-sync-hint { font-size:0.65rem; color:var(--text-dim); margin-top:0.5rem; }
+    .install-balance-warn { background:rgba(255,71,87,0.1); border:1px solid rgba(255,71,87,0.3); border-radius:4px; padding:0.5rem 0.8rem; font-size:0.7rem; color:var(--red); margin-top:0.5rem; display:none; }
+
+    /* ── EXTRAS ── */
+    .extra-row { display:grid; grid-template-columns:1fr 80px 120px 36px; gap:0.6rem; align-items:end; margin-bottom:0.6rem; }
+    .extra-row:last-child { margin-bottom:0; }
+
+    /* ── SUMMARY ── */
+    .summary-layout { display:grid; grid-template-columns:1fr 340px; gap:1.5rem; }
+    .summary-card { background:var(--bg-panel); border:1px solid var(--border-bright); border-radius:8px; padding:1.5rem; position:sticky; top:72px; }
+    .summary-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg, var(--green), var(--cyan)); }
+    .summary-title { font-family:var(--font-display); font-size:0.9rem; color:var(--green); margin-bottom:1rem; letter-spacing:0.05em; }
+    .summary-line { display:flex; justify-content:space-between; align-items:center; padding:0.45rem 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.78rem; }
+    .summary-line.total { border-bottom:none; font-weight:700; font-size:0.95rem; color:var(--green); margin-top:0.5rem; padding-top:1rem; border-top:2px solid var(--green-dim); }
+    .summary-line.internal { opacity:0.7; }
+    .summary-label { color:var(--text-dim); }
+    .summary-value { color:var(--text); font-family:var(--font-mono); }
+    .summary-value.green { color:var(--green); }
+    .summary-divider { border:none; border-top:1px solid var(--border); margin:0.8rem 0; }
+    .acompte-box { background:rgba(0,229,255,0.08); border:1px solid rgba(0,229,255,0.3); border-radius:6px; padding:0.8rem; margin-top:1rem; text-align:center; }
+    .acompte-box .a-label { font-size:0.65rem; color:var(--cyan); text-transform:uppercase; letter-spacing:0.05em; }
+    .acompte-box .a-value { font-size:1.2rem; font-weight:700; color:var(--cyan); font-family:var(--font-mono); }
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:900px) {
+      .summary-layout { grid-template-columns:1fr; }
+      .install-results { grid-template-columns:1fr 1fr; }
+      .commission-grid { grid-template-columns:1fr; }
+      .form-grid-4 { grid-template-columns:1fr 1fr; }
+      .form-grid-3 { grid-template-columns:1fr 1fr; }
+      .extra-row { grid-template-columns:1fr 70px 100px 32px; }
+    }
+    @media(max-width:600px) {
+      .container { padding:1rem; }
+      .form-grid { grid-template-columns:1fr; }
+      .form-grid-2 { grid-template-columns:1fr; }
+      .form-grid-3 { grid-template-columns:1fr; }
+      .form-grid-4 { grid-template-columns:1fr 1fr; }
+      .install-results { grid-template-columns:1fr 1fr; }
+      .extra-row { grid-template-columns:1fr 60px 90px 32px; }
+    }
+  </style>
 </head>
 <body>
-    <div class="bg-grid"></div>
+<div class="bg-grid"></div>
 
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="logo-section">
-                <div class="logo-container">
-                    <img src="assets/logo-solariscreen.png" alt="SolariScreen" style="width: 100%; height: 100%; object-fit: contain;"/>
-                </div>
-                <div class="brand-info">
-                    <h1><a href="index.html">SolariScreen</a></h1>
-                    <div class="module-badge">🧮 Calculateur Prix</div>
-                </div>
-            </div>
-            
-            <div class="header-actions">
-                <a href="dashboard.html" class="btn-back">
-                    <span>←</span>
-                    Retour au Dashboard
-                </a>
-            </div>
-        </div>
-    </header>
+<!-- HEADER -->
+<header class="header">
+  <div class="logo-section">
+    <div class="logo-container">
+      <img src="assets/logo-solariscreen.png" alt="SS" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.display='none';this.parentNode.innerHTML='<span style=\'font-family:var(--font-display);font-size:0.7rem;color:var(--green)\'>SS</span>'">
+    </div>
+    <div class="brand-info">
+      <h1><a href="index.html">SolariScreen</a></h1>
+      <div class="module-badge">🧮 Calculateur Prix Professionnel</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="devis-id-badge" id="headerDevisId">—</span>
+    <a href="dashboard.html" class="btn-back">← Dashboard</a>
+  </div>
+</header>
 
-    <div class="container">
-        <!-- Client Information -->
-        <div class="section">
-            <div class="section-header">
-                <span class="section-title">👤 Informations Client</span>
-                <span class="section-subtitle">Coordonnées et contact</span>
-            </div>
-            <div class="section-body">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label required">Prénom</label>
-                        <input type="text" class="form-input" id="clientPrenom" placeholder="ex: Jean">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label required">Nom</label>
-                        <input type="text" class="form-input" id="clientNom" placeholder="ex: Dupont">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Téléphone</label>
-                        <input type="tel" class="form-input" id="clientTelephone" placeholder="ex: +32 475 123 456">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-input" id="clientEmail" placeholder="ex: jean.dupont@email.com">
-                    </div>
+<div class="container">
+
+  <!-- ═══════════════════════════════════════
+       1. CLIENT
+  ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">👤 Informations Client</span>
+      <span class="section-subtitle">Coordonnées & chantier</span>
+    </div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label required">Prénom</label>
+          <input type="text" class="form-input" id="clientPrenom" placeholder="ex: Jean">
+        </div>
+        <div class="form-group">
+          <label class="form-label required">Nom</label>
+          <input type="text" class="form-input" id="clientNom" placeholder="ex: Dupont">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Téléphone</label>
+          <input type="tel" class="form-input" id="clientTelephone" placeholder="ex: +32 475 123 456">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" id="clientEmail" placeholder="ex: jean.dupont@email.com">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Rue</label>
+          <input type="text" class="form-input" id="clientRue" placeholder="ex: Rue de la Paix">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Numéro</label>
+          <input type="text" class="form-input" id="clientNumero" placeholder="25A">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Code Postal</label>
+          <input type="text" class="form-input" id="clientCodePostal" placeholder="1400">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ville</label>
+          <input type="text" class="form-input" id="clientVille" placeholder="Nivelles">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       2. CONFIGURATION
+  ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">⚙️ Configuration Devis</span>
+      <span class="section-subtitle">TVA · Acompte · Conditions</span>
+    </div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">TVA applicable</label>
+          <div class="tva-group" style="margin-top:0.4rem;">
+            <input type="radio" name="tva_pct" id="tva6" value="6" class="tva-radio" checked onchange="recalc()">
+            <label for="tva6" class="tva-label">6% — Rénovation</label>
+            <input type="radio" name="tva_pct" id="tva21" value="21" class="tva-radio" onchange="recalc()">
+            <label for="tva21" class="tva-label">21% — Standard</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acompte à la commande</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="acomptePct" value="30" min="0" max="100" step="1" oninput="recalc()">
+            <span class="unit">%</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Surplus difficulté (HT)</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="surplusDifficulte" value="0" min="0" step="0.01" oninput="recalc()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes internes</label>
+        <textarea class="form-textarea" id="noteInterne" placeholder="Notes sur le chantier, conditions particulières..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       3. OUVERTURES / ITEMS
+  ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">📦 Ouvertures</span>
+      <span class="section-subtitle" id="itemsCount">0 ouverture(s) · 0.00 m²</span>
+    </div>
+    <div class="section-body">
+      <div id="itemsContainer"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="addItem()">➕ Ajouter une ouverture</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       4. COMMISSIONS — INTERNE
+  ═══════════════════════════════════════ -->
+  <div class="section internal">
+    <div class="section-header">
+      <span class="section-title">💼 Vente Matériel — Répartition Marge</span>
+      <span class="internal-badge">🔒 INTERNE</span>
+      <span class="section-subtitle">23% du catalogue · Net = Brut ÷ 2.5</span>
+    </div>
+    <div class="section-body">
+      <div class="form-grid-2">
+        <div>
+          <div class="form-group" style="margin-bottom:0.8rem;">
+            <label class="form-label">Vendeur principal</label>
+            <select class="form-select" id="sellerPrincipal" onchange="onSellerChange()">
+              <option value="nicolas">Nicolas (18% auto)</option>
+              <option value="yannick">Yannick (18% auto)</option>
+              <option value="autre">Répartition personnalisée</option>
+            </select>
+          </div>
+          <div class="custom-split" id="customSplit">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Nicolas (%)</label>
+                <div class="input-with-unit">
+                  <input type="number" class="form-input" id="nicolasPct" value="5" min="0" max="23" step="0.1" oninput="recalc()">
+                  <span class="unit">%</span>
                 </div>
-                
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Rue</label>
-                        <input type="text" class="form-input" id="clientRue" placeholder="ex: Rue de la Paix">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Numéro</label>
-                        <input type="text" class="form-input" id="clientNumero" placeholder="ex: 25">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Code Postal</label>
-                        <input type="text" class="form-input" id="clientCodePostal" placeholder="ex: 1400">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Ville</label>
-                        <input type="text" class="form-input" id="clientVille" placeholder="ex: Nivelles">
-                    </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Yannick (%)</label>
+                <div class="input-with-unit">
+                  <input type="number" class="form-input" id="yannickPct" value="5" min="0" max="23" step="0.1" oninput="recalc()">
+                  <span class="unit">%</span>
                 </div>
+              </div>
             </div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.5rem;">
+              💡 Si la somme &lt; 23%, la différence devient une <strong style="color:var(--green)">remise client</strong>
+            </div>
+          </div>
+          <div class="supplier-info" id="supplierInfo">
+            📦 Estimation achat fournisseur : <strong id="supplierEstimate">0.00 €</strong> <span style="opacity:0.7;">(77% du catalogue)</span>
+          </div>
+          <div class="remise-info" id="remiseInfo">
+            <div class="remise-title">🎁 Remise client générée</div>
+            <div class="remise-amount"><span id="remisePctDisplay">0</span>% = <span id="remiseAmountDisplay">0.00 €</span></div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.3rem;">Cette remise est déduite du prix catalogue</div>
+          </div>
+        </div>
+        <div>
+          <div class="commission-grid">
+            <div class="commission-panel nicolas">
+              <div class="name">Nicolas</div>
+              <div class="pct"><span id="nicolasPctDisplay">18.0</span>%</div>
+              <div class="commission-row"><span class="summary-label">Brut :</span><span class="commission-gross" id="nicolasGross">0.00 €</span></div>
+              <div class="commission-row"><span class="summary-label">Net :</span><span class="commission-net" id="nicolasNet">0.00 €</span></div>
+            </div>
+            <div class="commission-panel yannick">
+              <div class="name">Yannick</div>
+              <div class="pct"><span id="yannickPctDisplay">5.0</span>%</div>
+              <div class="commission-row"><span class="summary-label">Brut :</span><span class="commission-gross" id="yannickGross">0.00 €</span></div>
+              <div class="commission-row"><span class="summary-label">Net :</span><span class="commission-net" id="yannickNet">0.00 €</span></div>
+            </div>
+          </div>
+          <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:0.8rem;margin-top:0.8rem;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;font-weight:600;">Total matériel (23%)</span>
+            <span style="font-size:0.9rem;font-weight:700;color:var(--purple);" id="totalMaterialGross">0.00 €</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       5. INSTALLATION
+  ═══════════════════════════════════════ -->
+  <div class="section installation-section">
+    <div class="section-header">
+      <span class="section-title">🔧 Installation</span>
+      <span class="internal-badge" style="background:rgba(0,229,255,0.15);color:var(--cyan);border-color:rgba(0,229,255,0.4);">Tarifs par ouverture</span>
+      <span class="section-subtitle" id="totalOpeningsDisplay">0 ouverture(s)</span>
+    </div>
+    <div class="section-body">
+      <div class="install-alert" id="tenteSolaireAlert">
+        ⚠️ Tente(s) solaire détectée(s) — tarifs majorés automatiquement (560€ install. au lieu de 280€)
+      </div>
+      <div style="margin-bottom:1rem;padding:0.7rem 1rem;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:6px;font-size:0.75rem;">
+        💡 Nombre total d'ouvertures dans le devis : <strong style="color:var(--cyan);font-size:0.9rem;" id="openingsCountDisplay">0</strong>
+        — Vous pouvez facturer moins que le total
+      </div>
+
+      <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;font-weight:600;">Tarifs unitaires HTVA (€)</div>
+      <div class="form-grid-4" style="margin-bottom:1.2rem;">
+        <div class="form-group">
+          <label class="form-label">Installation brut</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="installGross" value="280" min="0" step="0.01" oninput="recalc()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tech1 brut</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="tech1Gross" value="125" min="0" step="0.01" oninput="recalc()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tech2 brut</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="tech2Gross" value="125" min="0" step="0.01" oninput="recalc()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Outillage brut</label>
+          <div class="input-with-unit">
+            <input type="number" class="form-input" id="toolsGross" value="30" min="0" step="0.01" oninput="recalc()">
+            <span class="unit">€</span>
+          </div>
+        </div>
+      </div>
+      <div class="install-balance-warn" id="installBalanceWarn">
+        ⚠️ Attention : Tech1 + Tech2 + Outillage ≠ Installation. L'outillage sera ajusté automatiquement à la sauvegarde.
+      </div>
+
+      <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;font-weight:600;">Quantités à facturer (modifiables)</div>
+      <div class="form-grid-4" style="margin-bottom:0.5rem;">
+        <div class="form-group">
+          <label class="form-label">Installation × combien ?</label>
+          <input type="number" class="form-input qty-highlight" id="installQty" value="0" min="0" step="1" oninput="syncQty(); recalc();">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tech1 × combien ?</label>
+          <input type="number" class="form-input qty-highlight" id="tech1Qty" value="0" min="0" step="1" oninput="recalc()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tech2 × combien ?</label>
+          <input type="number" class="form-input qty-highlight" id="tech2Qty" value="0" min="0" step="1" oninput="recalc()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Outillage × combien ?</label>
+          <input type="number" class="form-input qty-highlight" id="toolsQty" value="0" min="0" step="1" oninput="recalc()">
+        </div>
+      </div>
+      <div class="install-sync-hint">💡 Modifier "Installation" met à jour les 3 autres quantités automatiquement</div>
+
+      <div class="install-results" style="margin-top:1rem;">
+        <div class="install-panel"><div class="i-label">Tech1 Total</div><div class="i-gross" id="iTech1Gross">0.00 €</div><div class="i-net">Net : <span id="iTech1Net">0.00 €</span></div></div>
+        <div class="install-panel"><div class="i-label">Tech2 Total</div><div class="i-gross" id="iTech2Gross">0.00 €</div><div class="i-net">Net : <span id="iTech2Net">0.00 €</span></div></div>
+        <div class="install-panel"><div class="i-label">Outillage Total</div><div class="i-gross" id="iToolsGross">0.00 €</div><div class="i-net">Net : <span id="iToolsNet">0.00 €</span></div></div>
+        <div class="install-panel" style="border-color:var(--cyan);background:rgba(0,229,255,0.05);">
+          <div class="i-label" style="color:var(--cyan);">Installation Client</div>
+          <div class="i-gross" style="color:var(--cyan);" id="iInstallGross">0.00 €</div>
+          <div class="i-net">Net : <span id="iInstallNet">0.00 €</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       6. POSTES SPÉCIAUX
+  ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">➕ Postes Spéciaux</span>
+      <span class="section-subtitle">Options, accessoires, frais supplémentaires</span>
+    </div>
+    <div class="section-body">
+      <div style="display:grid;grid-template-columns:1fr 80px 120px 36px;gap:0.6rem;margin-bottom:0.5rem;padding:0 0.2rem;">
+        <div style="font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;">Libellé</div>
+        <div style="font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;">Qté</div>
+        <div style="font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;">Prix unit. HT</div>
+        <div></div>
+      </div>
+      <div id="extrasContainer"></div>
+      <button class="btn" style="margin-top:0.8rem;border-style:dashed;font-size:0.75rem;" onclick="addExtra()">
+        ➕ Ajouter un poste spécial
+      </button>
+      <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.5rem;">
+        💡 Ex: Capteur vent Eolis 3D, Nacelle, Vis spéciales, Déplacement…
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       7. RÉCAPITULATIF + ACTIONS
+  ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">💰 Récapitulatif &amp; Actions</span>
+    </div>
+    <div class="section-body">
+      <div class="summary-layout">
+        <div>
+          <!-- Tableau catalogue -->
+          <div style="margin-bottom:1.5rem;">
+            <div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;font-weight:600;">Détail prix catalogue par ouverture</div>
+            <div id="catalogTable" style="font-size:0.78rem;"></div>
+          </div>
+
+          <!-- Actions -->
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="saveDevis()">💾 Sauvegarder</button>
+            <button class="btn btn-secondary" onclick="generatePDF()">📄 Générer PDF</button>
+            <button class="btn" onclick="exportJSON()">📤 Export JSON</button>
+            <button class="btn" onclick="newDevis()">🆕 Nouveau Devis</button>
+          </div>
         </div>
 
-        <!-- Configuration -->
-        <div class="section">
-            <div class="section-header">
-                <span class="section-title">⚙️ Configuration Devis</span>
-                <span class="section-subtitle">Paramètres généraux</span>
+        <!-- Summary card sticky -->
+        <div>
+          <div class="summary-card">
+            <div class="summary-title">TOTAL DEVIS — CLIENT</div>
+            <div class="summary-line">
+              <span class="summary-label">Total Catalogue HT</span>
+              <span class="summary-value" id="sTotalCatalog">0.00 €</span>
             </div>
-            <div class="section-body">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Vendeur</label>
-                        <select class="form-select" id="vendeur">
-                            <option value="nicolas">Nicolas (23% marge)</option>
-                            <option value="stephanie">Stéphanie (23% marge)</option>
-                            <option value="autre">Autre vendeur (23% marge)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Taux TVA</label>
-                        <select class="form-select" id="tvaTaux">
-                            <option value="6">6% - Rénovation</option>
-                            <option value="12">12% - Social</option>
-                            <option value="21">21% - Standard</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Acompte</label>
-                        <div class="input-with-unit">
-                            <input type="number" class="form-input" id="acompte" value="30" min="0" max="100">
-                            <span class="unit">%</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Prix Installation</label>
-                        <div class="input-with-unit">
-                            <input type="number" class="form-input" id="prixInstallation" value="0" min="0" step="0.01">
-                            <span class="unit">€</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="summary-line">
+              <span class="summary-label">Installation HT</span>
+              <span class="summary-value" id="sTotalInstall">0.00 €</span>
             </div>
+            <div class="summary-line">
+              <span class="summary-label">Postes spéciaux HT</span>
+              <span class="summary-value" id="sTotalExtras">0.00 €</span>
+            </div>
+            <div class="summary-line">
+              <span class="summary-label">Surplus difficulté HT</span>
+              <span class="summary-value" id="sSurplus">0.00 €</span>
+            </div>
+            <hr class="summary-divider">
+            <div class="summary-line">
+              <span class="summary-label">Total HT</span>
+              <span class="summary-value" id="sTotalHT">0.00 €</span>
+            </div>
+            <div class="summary-line">
+              <span class="summary-label">TVA (<span id="sTvaRate">6</span>%)</span>
+              <span class="summary-value" id="sTotalTVA">0.00 €</span>
+            </div>
+            <div class="summary-line total">
+              <span>TOTAL TTC</span>
+              <span id="sTotalTTC">0.00 €</span>
+            </div>
+            <div class="acompte-box">
+              <div class="a-label">Acompte à la commande (<span id="sAcomptePct">30</span>%)</div>
+              <div class="a-value" id="sAcompte">0.00 €</div>
+            </div>
+            <hr class="summary-divider" style="margin-top:1rem;">
+            <div style="font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Interne</div>
+            <div class="summary-line internal">
+              <span class="summary-label">Estimation fournisseur</span>
+              <span class="summary-value" id="sSupplier">0.00 €</span>
+            </div>
+            <div class="summary-line internal">
+              <span class="summary-label">Tech1+Tech2+Outils</span>
+              <span class="summary-value" id="sTechCosts">0.00 €</span>
+            </div>
+          </div>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <!-- Items -->
-        <div class="section">
-            <div class="section-header">
-                <span class="section-title">📦 Items du Devis</span>
-                <span class="section-subtitle">Produits et services</span>
-            </div>
-            <div class="section-body">
-                <div class="items-container">
-                    <div class="items-grid" id="itemsContainer">
-                        <!-- Items will be added here -->
-                    </div>
-                    
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="addItem()">
-                            <span>➕</span>
-                            Ajouter un Item
-                        </button>
-                        <button class="btn" onclick="saveDevis()">
-                            <span>💾</span>
-                            Sauvegarder
-                        </button>
-                        <button class="btn btn-secondary" onclick="generatePDF()">
-                            <span>📄</span>
-                            Générer PDF
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+</div><!-- /container -->
 
-        <!-- Summary -->
-        <div class="section">
-            <div class="section-header">
-                <span class="section-title">💰 Récapitulatif Financier</span>
-                <span class="section-subtitle">Calculs automatiques</span>
-            </div>
-            <div class="section-body">
-                <div class="summary-card">
-                    <div class="summary-title">TOTAL DEVIS</div>
-                    <div class="summary-line">
-                        <span class="summary-label">Total Matériel HT</span>
-                        <span class="summary-value" id="totalMaterielHT">0,00 €</span>
-                    </div>
-                    <div class="summary-line">
-                        <span class="summary-label">Installation HT</span>
-                        <span class="summary-value" id="totalInstallationHT">0,00 €</span>
-                    </div>
-                    <div class="summary-line">
-                        <span class="summary-label">Total HT</span>
-                        <span class="summary-value" id="totalHT">0,00 €</span>
-                    </div>
-                    <div class="summary-line">
-                        <span class="summary-label">TVA (<span id="tvaDisplay">6</span>%)</span>
-                        <span class="summary-value" id="totalTVA">0,00 €</span>
-                    </div>
-                    <div class="summary-line">
-                        <span class="summary-label">TOTAL TTC</span>
-                        <span class="summary-value" id="totalTTC">0,00 €</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- File input caché -->
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════════
+let currentItemId = 0;
+let devisData = createEmptyDevis();
+
+function createEmptyDevis() {
+  return {
+    id: generateId(),
+    version: '2.0',
+    date_creation: new Date().toISOString().split('T')[0],
+    date_modification: new Date().toISOString(),
+    client: { prenom:'', nom:'', telephone:'', email:'', adresse:{ rue:'', numero:'', code_postal:'', ville:'' } },
+    items: [],
+    pricing_v2: {
+      tva_pct: 6,
+      acompte_pct: 30,
+      surplus_difficulte: 0,
+      note: '',
+      items_catalog: [],
+      material: { sellers: { mode:'fixed', principal:'nicolas', nicolas_pct:18, yannick_pct:5 } },
+      installation: {
+        per_opening: { install_gross:280, tech1_gross:125, tech2_gross:125, tools_gross:30 },
+        install_qty:0, tech1_qty:0, tech2_qty:0, tools_qty:0
+      },
+      extras: []
+    },
+    calculs: {}
+  };
+}
+
+function generateId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  const t = String(Date.now()).slice(-4);
+  return `${y}${m}${d}${t}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INITIALISATION
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  updateHeaderId();
+
+  // Charger si ID en URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const loadId = urlParams.get('id');
+  if (loadId) {
+    loadDevisById(loadId);
+  } else {
+    addItem();
+  }
+
+  bindClientEvents();
+  bindConfigEvents();
+  recalc();
+});
+
+function updateHeaderId() {
+  document.getElementById('headerDevisId').textContent = devisData.id;
+}
+
+function bindClientEvents() {
+  ['clientPrenom','clientNom','clientTelephone','clientEmail','clientRue','clientNumero','clientCodePostal','clientVille'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', collectClientData);
+  });
+}
+
+function bindConfigEvents() {
+  document.querySelectorAll('input[name="tva_pct"]').forEach(r => r.addEventListener('change', recalc));
+  ['acomptePct','surplusDifficulte','noteInterne'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', recalc);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// ITEMS / OUVERTURES
+// ═══════════════════════════════════════════════════════════
+function addItem(data) {
+  currentItemId++;
+  const id = currentItemId;
+
+  const card = document.createElement('div');
+  card.className = 'item-card';
+  card.id = `item-${id}`;
+
+  const modele = data?.modele || 'Harol';
+  const moteur = data?.moteur || 'Somfy IO';
+  const type = data?.type || 'screen';
+  const qty = data?.quantite || 1;
+  const larg = data?.largeur || '';
+  const haut = data?.hauteur || '';
+  const empl = data?.emplacement || '';
+  const etg = data?.etage || '';
+  const notes = data?.notes || '';
+  const prix = data?.prix_catalogue_ht || '';
+
+  card.innerHTML = `
+    <div class="item-header">
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <span class="item-number">Ouverture ${id}</span>
+        <span class="item-surface" id="surface-${id}">—</span>
+      </div>
+      <button class="item-delete" onclick="removeItem(${id})">✕</button>
+    </div>
+    <div class="tente-warning" id="tenteWarn-${id}">🌞 Tente solaire — tarifs installation majorés</div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Type de produit</label>
+        <select class="form-select" id="type-${id}" onchange="onTypeChange(${id})">
+          <option value="screen" ${type==='screen'?'selected':''}>Screen</option>
+          <option value="tente_solaire" ${type==='tente_solaire'?'selected':''}>Tente solaire</option>
+          <option value="tablier_volet" ${type==='tablier_volet'?'selected':''}>Tablier de volet</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Modèle / Gamme</label>
+        <select class="form-select" id="modele-${id}" onchange="collectItemData(${id})">
+          <option value="Harol CoolScreen8" ${modele.includes('CoolScreen8')?'selected':''}>Harol CoolScreen8</option>
+          <option value="Harol Sunfly IQ" ${modele.includes('Sunfly')?'selected':''}>Harol Sunfly IQ</option>
+          <option value="Harol" ${modele==='Harol'?'selected':''}>Harol (standard)</option>
+          <option value="Somfy" ${modele==='Somfy'?'selected':''}>Somfy</option>
+          <option value="Autre" ${modele==='Autre'?'selected':''}>Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Moteur / Commande</label>
+        <select class="form-select" id="moteur-${id}" onchange="collectItemData(${id})">
+          <option value="Somfy IO" ${moteur==='Somfy IO'?'selected':''}>Somfy IO</option>
+          <option value="Somfy RTS" ${moteur==='Somfy RTS'?'selected':''}>Somfy RTS</option>
+          <option value="Manuel" ${moteur==='Manuel'?'selected':''}>Manuel</option>
+          <option value="Autre" ${moteur==='Autre'?'selected':''}>Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantité</label>
+        <input type="number" class="form-input" id="quantite-${id}" value="${qty}" min="1" oninput="collectItemData(${id})">
+      </div>
     </div>
 
-    <!-- Hidden file input for photos -->
-    <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label required">Largeur</label>
+        <div class="input-with-unit">
+          <input type="number" class="form-input" id="largeur-${id}" value="${larg}" min="0" step="1" placeholder="ex: 2400" oninput="collectItemData(${id})">
+          <span class="unit">mm</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label required">Hauteur</label>
+        <div class="input-with-unit">
+          <input type="number" class="form-input" id="hauteur-${id}" value="${haut}" min="0" step="1" placeholder="ex: 2500" oninput="collectItemData(${id})">
+          <span class="unit">mm</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label required">Emplacement</label>
+        <input type="text" class="form-input" id="emplacement-${id}" value="${empl}" placeholder="ex: Salon, Terrasse, Chambre..." oninput="collectItemData(${id})">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Étage</label>
+        <input type="text" class="form-input" id="etage-${id}" value="${etg}" placeholder="ex: RDC, 1er, 2ème..." oninput="collectItemData(${id})">
+      </div>
+    </div>
 
-    <script>
-        // Global variables
-        let currentItemId = 0;
-        let devisData = {
-            id: generateDevisId(),
-            version: "2.0",
-            date_creation: new Date().toISOString().split('T')[0],
-            date_modification: new Date().toISOString(),
-            client: {},
-            config: {},
-            items: [],
-            calculs: {},
-            metadata: { photos_count: 0 }
-        };
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label required">Prix catalogue HTVA</label>
+        <div class="input-with-unit">
+          <input type="number" class="form-input" id="prixCatalog-${id}" value="${prix}" min="0" step="0.01" placeholder="ex: 850.00" oninput="collectItemData(${id}); recalc();" style="border-color:rgba(0,229,255,0.4);">
+          <span class="unit">€</span>
+        </div>
+      </div>
+      <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end;">
+        <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;padding:0.7rem 1rem;font-size:0.75rem;">
+          Sous-total : <strong style="color:var(--cyan);" id="subTotal-${id}">0.00 €</strong>
+          <div style="font-size:0.65rem;color:var(--text-dim);margin-top:0.2rem;">Surface : <span id="surfaceLabel-${id}">—</span></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes ouverture</label>
+        <input type="text" class="form-input" id="notes-${id}" value="${notes}" placeholder="Remarques spécifiques..." oninput="collectItemData(${id})">
+      </div>
+    </div>
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            addItem(); // Add first item by default
-            updateCalculations();
-            
-            // Bind events
-            bindEvents();
-        });
+    <div class="form-group" style="margin-top:0.5rem;">
+      <label class="form-label">Photos</label>
+      <div class="photo-upload" onclick="selectPhotos(${id})">
+        <div class="photo-upload-text">📸 Cliquer ou glisser des photos ici<br><small>JPG, PNG — max 5 Mo par image</small></div>
+      </div>
+      <div class="photo-preview" id="photos-${id}"></div>
+    </div>
+  `;
 
-        function generateDevisId() {
-            return '2025' + String(Date.now()).slice(-6);
-        }
+  document.getElementById('itemsContainer').appendChild(card);
 
-        function bindEvents() {
-            // Client form changes
-            ['clientPrenom', 'clientNom', 'clientTelephone', 'clientEmail', 'clientRue', 'clientNumero', 'clientCodePostal', 'clientVille'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('input', updateClientData);
-                }
-            });
+  // Initialiser les données
+  if (!devisData.items.find(i => i._uid === id)) {
+    devisData.items.push({
+      _uid: id,
+      type: type,
+      modele: modele,
+      moteur: moteur,
+      quantite: qty,
+      largeur: larg ? parseInt(larg) : 0,
+      hauteur: haut ? parseInt(haut) : 0,
+      emplacement: empl,
+      etage: etg,
+      notes: notes,
+      prix_catalogue_ht: prix ? parseFloat(prix) : 0,
+      photos: [],
+      photos_urls: []
+    });
+  }
 
-            // Config changes
-            ['vendeur', 'tvaTaux', 'acompte', 'prixInstallation'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', updateConfigData);
-                }
-            });
-        }
+  collectItemData(id);
+}
 
-        function updateClientData() {
-            devisData.client = {
-                prenom: document.getElementById('clientPrenom').value,
-                nom: document.getElementById('clientNom').value,
-                telephone: document.getElementById('clientTelephone').value,
-                email: document.getElementById('clientEmail').value,
-                adresse: {
-                    rue: document.getElementById('clientRue').value,
-                    numero: document.getElementById('clientNumero').value,
-                    code_postal: document.getElementById('clientCodePostal').value,
-                    ville: document.getElementById('clientVille').value
-                }
-            };
-        }
+function removeItem(id) {
+  if (!confirm('Supprimer cette ouverture ?')) return;
+  document.getElementById(`item-${id}`).remove();
+  devisData.items = devisData.items.filter(i => i._uid !== id);
+  recalc();
+}
 
-        function updateConfigData() {
-            devisData.config = {
-                vendeur: document.getElementById('vendeur').value,
-                tva_taux: parseInt(document.getElementById('tvaTaux').value),
-                acompte_pct: parseInt(document.getElementById('acompte').value),
-                prix_installation: parseFloat(document.getElementById('prixInstallation').value) || 0
-            };
-            
-            document.getElementById('tvaDisplay').textContent = devisData.config.tva_taux;
-            updateCalculations();
-        }
+function onTypeChange(id) {
+  collectItemData(id);
+  // Si tente solaire detectée, changer les defaults installation
+  checkTenteSolaire();
+}
 
-        function addItem() {
-            currentItemId++;
-            const itemId = currentItemId;
-            
-            const itemCard = document.createElement('div');
-            itemCard.className = 'item-card';
-            itemCard.id = `item-${itemId}`;
-            
-            itemCard.innerHTML = `
-                <div class="item-header">
-                    <span class="item-number">Item ${itemId}</span>
-                    <button class="item-delete" onclick="removeItem(${itemId})">✕</button>
-                </div>
-                
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Type de Produit</label>
-                        <select class="form-select" id="type-${itemId}" onchange="updateItemData(${itemId})">
-                            <option value="screen">Screen</option>
-                            <option value="volet">Volet</option>
-                            <option value="store">Store</option>
-                            <option value="autre">Autre</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Gamme</label>
-                        <select class="form-select" id="gamme-${itemId}" onchange="updateItemData(${itemId})">
-                            <option value="Sunfly IQ">Sunfly IQ</option>
-                            <option value="CoolScreen8">CoolScreen8</option>
-                            <option value="Standard">Standard</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Emplacement</label>
-                        <input type="text" class="form-input" id="emplacement-${itemId}" placeholder="ex: Salon, Terrasse..." onchange="updateItemData(${itemId})">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Quantité</label>
-                        <input type="number" class="form-input" id="quantity-${itemId}" value="1" min="1" onchange="updateItemData(${itemId})">
-                    </div>
-                </div>
-                
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Largeur</label>
-                        <div class="input-with-unit">
-                            <input type="number" class="form-input" id="largeur-${itemId}" min="0" step="1" onchange="updateItemData(${itemId})">
-                            <span class="unit">mm</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Hauteur</label>
-                        <div class="input-with-unit">
-                            <input type="number" class="form-input" id="hauteur-${itemId}" min="0" step="1" onchange="updateItemData(${itemId})">
-                            <span class="unit">mm</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Prix Unitaire HT</label>
-                        <div class="input-with-unit">
-                            <input type="number" class="form-input" id="prixUnitaire-${itemId}" min="0" step="0.01" onchange="updateItemData(${itemId})">
-                            <span class="unit">€</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Sous-total</label>
-                        <div class="input-with-unit">
-                            <input type="text" class="form-input" id="sousTotal-${itemId}" readonly style="background: var(--bg-panel); color: var(--green);">
-                            <span class="unit">€</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Photos</label>
-                    <div class="photo-upload" onclick="selectPhotos(${itemId})">
-                        <div class="photo-upload-text">
-                            📸 Cliquer ou glisser des photos ici<br>
-                            <small>Formats acceptés: JPG, PNG (max 5MB par image)</small>
-                        </div>
-                    </div>
-                    <div class="photo-preview" id="photos-${itemId}"></div>
-                </div>
-            `;
-            
-            document.getElementById('itemsContainer').appendChild(itemCard);
-            
-            // Initialize item data
-            if (!devisData.items[itemId - 1]) {
-                devisData.items[itemId - 1] = {
-                    id: itemId,
-                    type: 'screen',
-                    gamme: 'Sunfly IQ',
-                    emplacement: '',
-                    quantity: 1,
-                    largeur: 0,
-                    hauteur: 0,
-                    prix_unitaire_ht: 0,
-                    photos: []
-                };
-            }
-        }
+function checkTenteSolaire() {
+  const hasTente = devisData.items.some(i => i.type === 'tente_solaire');
+  const alert = document.getElementById('tenteSolaireAlert');
+  if (alert) alert.style.display = hasTente ? 'block' : 'none';
 
-        function removeItem(itemId) {
-            if (confirm('Supprimer cet item ?')) {
-                document.getElementById(`item-${itemId}`).remove();
-                devisData.items = devisData.items.filter(item => item.id !== itemId);
-                updateCalculations();
-            }
-        }
+  // Ajuster les tarifs par défaut si tente solaire
+  if (hasTente) {
+    const ig = document.getElementById('installGross');
+    const t1 = document.getElementById('tech1Gross');
+    const t2 = document.getElementById('tech2Gross');
+    const tl = document.getElementById('toolsGross');
+    // Ne modifier que si encore sur les valeurs screen par défaut
+    if (parseFloat(ig.value) === 280) { ig.value = 560; t1.value = 250; t2.value = 250; tl.value = 60; }
+  }
+}
 
-        function updateItemData(itemId) {
-            const type = document.getElementById(`type-${itemId}`).value;
-            const gamme = document.getElementById(`gamme-${itemId}`).value;
-            const emplacement = document.getElementById(`emplacement-${itemId}`).value;
-            const quantity = parseInt(document.getElementById(`quantity-${itemId}`).value) || 1;
-            const largeur = parseInt(document.getElementById(`largeur-${itemId}`).value) || 0;
-            const hauteur = parseInt(document.getElementById(`hauteur-${itemId}`).value) || 0;
-            const prixUnitaire = parseFloat(document.getElementById(`prixUnitaire-${itemId}`).value) || 0;
-            
-            const itemIndex = devisData.items.findIndex(item => item.id === itemId);
-            if (itemIndex !== -1) {
-                devisData.items[itemIndex] = {
-                    ...devisData.items[itemIndex],
-                    type, gamme, emplacement, quantity, largeur, hauteur,
-                    prix_unitaire_ht: prixUnitaire
-                };
-            }
-            
-            // Calculate subtotal
-            const sousTotal = quantity * prixUnitaire;
-            document.getElementById(`sousTotal-${itemId}`).value = sousTotal.toFixed(2);
-            
-            updateCalculations();
-        }
+function collectItemData(id) {
+  const idx = devisData.items.findIndex(i => i._uid === id);
+  if (idx === -1) return;
 
-        function updateCalculations() {
-            updateClientData();
-            updateConfigData();
-            
-            // Calculate totals
-            let totalMateriel = 0;
-            devisData.items.forEach(item => {
-                if (item.prix_unitaire_ht && item.quantity) {
-                    totalMateriel += item.prix_unitaire_ht * item.quantity;
-                }
-            });
-            
-            const installation = devisData.config?.prix_installation || 0;
-            const totalHT = totalMateriel + installation;
-            const tvaRate = devisData.config?.tva_taux || 6;
-            const totalTVA = totalHT * (tvaRate / 100);
-            const totalTTC = totalHT + totalTVA;
-            
-            // Update display
-            document.getElementById('totalMaterielHT').textContent = formatEuro(totalMateriel);
-            document.getElementById('totalInstallationHT').textContent = formatEuro(installation);
-            document.getElementById('totalHT').textContent = formatEuro(totalHT);
-            document.getElementById('totalTVA').textContent = formatEuro(totalTVA);
-            document.getElementById('totalTTC').textContent = formatEuro(totalTTC);
-            
-            // Update devis data
-            devisData.calculs = {
-                total_materiel_ht: totalMateriel,
-                total_installation_ht: installation,
-                total_ht: totalHT,
-                total_tva: totalTVA,
-                total_ttc: totalTTC,
-                tva_rate: tvaRate,
-                acompte_pct: devisData.config?.acompte_pct || 30
-            };
-        }
+  const type = document.getElementById(`type-${id}`)?.value || 'screen';
+  const modele = document.getElementById(`modele-${id}`)?.value || '';
+  const moteur = document.getElementById(`moteur-${id}`)?.value || '';
+  const quantite = parseInt(document.getElementById(`quantite-${id}`)?.value) || 1;
+  const largeur = parseInt(document.getElementById(`largeur-${id}`)?.value) || 0;
+  const hauteur = parseInt(document.getElementById(`hauteur-${id}`)?.value) || 0;
+  const emplacement = document.getElementById(`emplacement-${id}`)?.value || '';
+  const etage = document.getElementById(`etage-${id}`)?.value || '';
+  const notes = document.getElementById(`notes-${id}`)?.value || '';
+  const prix = parseFloat(document.getElementById(`prixCatalog-${id}`)?.value) || 0;
 
-        function formatEuro(amount) {
-            return new Intl.NumberFormat('fr-FR', {
-                style: 'currency',
-                currency: 'EUR'
-            }).format(amount || 0);
-        }
+  devisData.items[idx] = { ...devisData.items[idx], type, modele, moteur, quantite, largeur, hauteur, emplacement, etage, notes, prix_catalogue_ht: prix };
 
-        function selectPhotos(itemId) {
-            document.getElementById('fileInput').setAttribute('data-item-id', itemId);
-            document.getElementById('fileInput').click();
-        }
+  // Surface
+  const surface = (largeur / 1000) * (hauteur / 1000) * quantite;
+  const surfStr = surface > 0 ? surface.toFixed(2) + ' m²' : '—';
+  const el = document.getElementById(`surface-${id}`);
+  const el2 = document.getElementById(`surfaceLabel-${id}`);
+  if (el) el.textContent = surfStr;
+  if (el2) el2.textContent = surfStr;
 
-        // Handle file selection
-        document.getElementById('fileInput').addEventListener('change', function(e) {
-            const itemId = parseInt(this.getAttribute('data-item-id'));
-            const files = Array.from(e.target.files);
-            
-            files.forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    addPhotoToItem(itemId, file);
-                }
-            });
-            
-            this.value = ''; // Reset input
-        });
+  // Sous-total
+  const sub = prix * quantite;
+  const stEl = document.getElementById(`subTotal-${id}`);
+  if (stEl) stEl.textContent = fmt(sub);
 
-        function addPhotoToItem(itemId, file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const photoData = {
-                    id: Date.now(),
-                    name: file.name,
-                    data: e.target.result
-                };
-                
-                // Add to item data
-                const itemIndex = devisData.items.findIndex(item => item.id === itemId);
-                if (itemIndex !== -1) {
-                    if (!devisData.items[itemIndex].photos) {
-                        devisData.items[itemIndex].photos = [];
-                    }
-                    devisData.items[itemIndex].photos.push(photoData);
-                }
-                
-                // Update preview
-                updatePhotoPreview(itemId);
-            };
-            reader.readAsDataURL(file);
-        }
+  // Tente warning
+  const tenteWarn = document.getElementById(`tenteWarn-${id}`);
+  if (tenteWarn) tenteWarn.style.display = type === 'tente_solaire' ? 'block' : 'none';
 
-        function updatePhotoPreview(itemId) {
-            const container = document.getElementById(`photos-${itemId}`);
-            const itemIndex = devisData.items.findIndex(item => item.id === itemId);
-            
-            if (itemIndex === -1) return;
-            
-            const photos = devisData.items[itemIndex].photos || [];
-            
-            container.innerHTML = photos.map(photo => `
-                <div class="photo-item">
-                    <img src="${photo.data}" alt="${photo.name}">
-                    <button class="photo-remove" onclick="removePhoto(${itemId}, ${photo.id})">✕</button>
-                </div>
-            `).join('');
-        }
+  recalc();
+}
 
-        function removePhoto(itemId, photoId) {
-            const itemIndex = devisData.items.findIndex(item => item.id === itemId);
-            if (itemIndex !== -1) {
-                devisData.items[itemIndex].photos = devisData.items[itemIndex].photos.filter(p => p.id !== photoId);
-                updatePhotoPreview(itemId);
-            }
-        }
+// ═══════════════════════════════════════════════════════════
+// VENDEUR / COMMISSIONS
+// ═══════════════════════════════════════════════════════════
+function onSellerChange() {
+  const principal = document.getElementById('sellerPrincipal').value;
+  const customDiv = document.getElementById('customSplit');
+  customDiv.style.display = principal === 'autre' ? 'block' : 'none';
+  recalc();
+}
 
-        function saveDevis() {
-            if (!devisData.client.prenom || !devisData.client.nom) {
-                alert('Veuillez renseigner au minimum le prénom et nom du client.');
-                return;
-            }
-            
-            if (devisData.items.length === 0) {
-                alert('Veuillez ajouter au moins un item.');
-                return;
-            }
-            
-            // Update metadata
-            devisData.date_modification = new Date().toISOString();
-            devisData.statut = 'brouillon';
-            
-            try {
-                // Save to localStorage
-                const existingData = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-                const existingIndex = existingData.findIndex(d => d.id === devisData.id);
-                
-                if (existingIndex !== -1) {
-                    existingData[existingIndex] = devisData;
-                } else {
-                    existingData.unshift(devisData);
-                }
-                
-                localStorage.setItem('solariscreen_devis', JSON.stringify(existingData));
-                
-                alert(`Devis ${devisData.id} sauvegardé avec succès !`);
-                
-            } catch (error) {
-                alert('Erreur lors de la sauvegarde : ' + error.message);
-            }
-        }
+// ═══════════════════════════════════════════════════════════
+// INSTALLATION — SYNC QTY
+// ═══════════════════════════════════════════════════════════
+function syncQty() {
+  const val = document.getElementById('installQty').value;
+  document.getElementById('tech1Qty').value = val;
+  document.getElementById('tech2Qty').value = val;
+  document.getElementById('toolsQty').value = val;
+}
 
-        function generatePDF() {
-            alert('Génération PDF en cours de développement...');
-        }
+// ═══════════════════════════════════════════════════════════
+// EXTRAS
+// ═══════════════════════════════════════════════════════════
+let extraCount = 0;
+function addExtra(data) {
+  extraCount++;
+  const ec = extraCount;
+  const cont = document.getElementById('extrasContainer');
+  const div = document.createElement('div');
+  div.className = 'extra-row';
+  div.id = `extra-${ec}`;
+  div.innerHTML = `
+    <input type="text" class="form-input" id="extraLabel-${ec}" placeholder="Ex: Capteur vent Eolis 3D" value="${data?.label||''}" oninput="recalc()">
+    <input type="number" class="form-input" id="extraQty-${ec}" value="${data?.qty||1}" min="1" step="1" oninput="recalc()" style="text-align:center;">
+    <div class="input-with-unit">
+      <input type="number" class="form-input" id="extraPrice-${ec}" value="${data?.unit_price_ht||''}" min="0" step="0.01" placeholder="0.00" oninput="recalc()">
+      <span class="unit">€</span>
+    </div>
+    <button class="btn btn-danger" onclick="removeExtra(${ec})" style="padding:0.5rem;width:36px;justify-content:center;">✕</button>
+  `;
+  cont.appendChild(div);
+}
 
-    </script>
+function removeExtra(ec) {
+  const el = document.getElementById(`extra-${ec}`);
+  if (el) el.remove();
+  recalc();
+}
+
+function collectExtras() {
+  const extras = [];
+  document.querySelectorAll('[id^="extraLabel-"]').forEach(el => {
+    const ec = el.id.split('-')[1];
+    const label = el.value.trim();
+    const qty = parseInt(document.getElementById(`extraQty-${ec}`)?.value) || 1;
+    const price = parseFloat(document.getElementById(`extraPrice-${ec}`)?.value) || 0;
+    if (label && price > 0) {
+      extras.push({ label, qty, unit_price_ht: price, total_ht: qty * price });
+    }
+  });
+  return extras;
+}
+
+// ═══════════════════════════════════════════════════════════
+// COLLECT DATA
+// ═══════════════════════════════════════════════════════════
+function collectClientData() {
+  devisData.client = {
+    prenom: document.getElementById('clientPrenom').value,
+    nom: document.getElementById('clientNom').value,
+    telephone: document.getElementById('clientTelephone').value,
+    email: document.getElementById('clientEmail').value,
+    adresse: {
+      rue: document.getElementById('clientRue').value,
+      numero: document.getElementById('clientNumero').value,
+      code_postal: document.getElementById('clientCodePostal').value,
+      ville: document.getElementById('clientVille').value
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// RECALC — CŒUR DU SYSTÈME
+// ═══════════════════════════════════════════════════════════
+function recalc() {
+  collectClientData();
+
+  // ── Config ──
+  const tvaPct = parseInt(document.querySelector('input[name="tva_pct"]:checked')?.value || 6);
+  const acomptePct = parseFloat(document.getElementById('acomptePct')?.value) || 30;
+  const surplus = parseFloat(document.getElementById('surplusDifficulte')?.value) || 0;
+
+  // ── Catalogue ──
+  let totalCatalog = 0;
+  let totalOpenings = 0;
+  const catalogTable = document.getElementById('catalogTable');
+  let tableHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+    <thead><tr style="background:var(--bg-panel);">
+      <th style="padding:0.5rem;text-align:left;border:1px solid var(--border);color:var(--text-dim);">#</th>
+      <th style="padding:0.5rem;text-align:left;border:1px solid var(--border);color:var(--text-dim);">Type</th>
+      <th style="padding:0.5rem;text-align:left;border:1px solid var(--border);color:var(--text-dim);">Modèle</th>
+      <th style="padding:0.5rem;text-align:left;border:1px solid var(--border);color:var(--text-dim);">Dimensions</th>
+      <th style="padding:0.5rem;text-align:center;border:1px solid var(--border);color:var(--text-dim);">Qté</th>
+      <th style="padding:0.5rem;text-align:right;border:1px solid var(--border);color:var(--text-dim);">Prix unit. HT</th>
+      <th style="padding:0.5rem;text-align:right;border:1px solid var(--border);color:var(--text-dim);">Sous-total</th>
+    </tr></thead><tbody>`;
+
+  devisData.items.forEach((item, idx) => {
+    const qty = item.quantite || 1;
+    totalOpenings += qty;
+    const prix = item.prix_catalogue_ht || 0;
+    const sub = prix * qty;
+    totalCatalog += sub;
+    const larg = item.largeur || 0;
+    const haut = item.hauteur || 0;
+    const surf = larg > 0 && haut > 0 ? ((larg/1000)*(haut/1000)).toFixed(2)+' m²' : '—';
+    const typeLabel = { screen:'Screen', tente_solaire:'Tente solaire', tablier_volet:'Tablier volet' }[item.type] || item.type;
+    tableHTML += `<tr>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${idx+1}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${typeLabel}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${item.modele||''}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${larg}×${haut} mm<br><span style="color:var(--text-dim);font-size:0.65rem;">${surf}</span></td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);text-align:center;">${qty}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);text-align:right;">${fmt(prix)}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);text-align:right;color:var(--cyan);">${fmt(sub)}</td>
+    </tr>`;
+  });
+
+  tableHTML += `</tbody><tfoot><tr style="background:var(--bg-panel);font-weight:700;">
+    <td colspan="6" style="padding:0.5rem;border:1px solid var(--border);text-align:right;">TOTAL CATALOGUE HTVA</td>
+    <td style="padding:0.5rem;border:1px solid var(--border);text-align:right;color:var(--cyan);">${fmt(totalCatalog)}</td>
+  </tr></tfoot></table></div>`;
+  if (catalogTable) catalogTable.innerHTML = tableHTML;
+
+  // Supplier estimate
+  const supplierEstimate = totalCatalog * 0.77;
+  setText('supplierEstimate', fmt(supplierEstimate));
+
+  // ── Commissions ──
+  const principal = document.getElementById('sellerPrincipal')?.value || 'nicolas';
+  let nicolasPct, yannickPct;
+  if (principal === 'nicolas') { nicolasPct = 18; yannickPct = 5; }
+  else if (principal === 'yannick') { nicolasPct = 5; yannickPct = 18; }
+  else {
+    nicolasPct = parseFloat(document.getElementById('nicolasPct')?.value) || 0;
+    yannickPct = parseFloat(document.getElementById('yannickPct')?.value) || 0;
+  }
+
+  const nicolasGross = totalCatalog * (nicolasPct / 100);
+  const nicolasNet = nicolasGross / 2.5;
+  const yannickGross = totalCatalog * (yannickPct / 100);
+  const yannickNet = yannickGross / 2.5;
+  const totalMaterialGross = totalCatalog * 0.23;
+
+  setText('nicolasPctDisplay', nicolasPct.toFixed(1));
+  setText('yannickPctDisplay', yannickPct.toFixed(1));
+  setText('nicolasGross', fmt(nicolasGross));
+  setText('nicolasNet', fmt(nicolasNet));
+  setText('yannickGross', fmt(yannickGross));
+  setText('yannickNet', fmt(yannickNet));
+  setText('totalMaterialGross', fmt(totalMaterialGross));
+
+  // Remise client si mode=autre et total < 23%
+  const remiseDiv = document.getElementById('remiseInfo');
+  if (principal === 'autre') {
+    const total = nicolasPct + yannickPct;
+    if (total < 23) {
+      const remisePct = 23 - total;
+      const remiseAmount = totalCatalog * (remisePct / 100);
+      setText('remisePctDisplay', remisePct.toFixed(1));
+      setText('remiseAmountDisplay', fmt(remiseAmount));
+      if (remiseDiv) remiseDiv.style.display = 'block';
+    } else {
+      if (remiseDiv) remiseDiv.style.display = 'none';
+    }
+  } else {
+    if (remiseDiv) remiseDiv.style.display = 'none';
+  }
+
+  // ── Installation ──
+  const installGross = parseFloat(document.getElementById('installGross')?.value) || 0;
+  const tech1Gross = parseFloat(document.getElementById('tech1Gross')?.value) || 0;
+  const tech2Gross = parseFloat(document.getElementById('tech2Gross')?.value) || 0;
+  const toolsGross = parseFloat(document.getElementById('toolsGross')?.value) || 0;
+  const installQty = parseInt(document.getElementById('installQty')?.value) || 0;
+  const tech1Qty = parseInt(document.getElementById('tech1Qty')?.value) || 0;
+  const tech2Qty = parseInt(document.getElementById('tech2Qty')?.value) || 0;
+  const toolsQty = parseInt(document.getElementById('toolsQty')?.value) || 0;
+
+  const installTotal = installGross * installQty;
+  const tech1Total = tech1Gross * tech1Qty;
+  const tech2Total = tech2Gross * tech2Qty;
+  const toolsTotal = toolsGross * toolsQty;
+
+  setText('iInstallGross', fmt(installTotal));
+  setText('iInstallNet', fmt(installTotal / 2.5));
+  setText('iTech1Gross', fmt(tech1Total));
+  setText('iTech1Net', fmt(tech1Total / 2.5));
+  setText('iTech2Gross', fmt(tech2Total));
+  setText('iTech2Net', fmt(tech2Total / 2.5));
+  setText('iToolsGross', fmt(toolsTotal));
+  setText('iToolsNet', fmt(toolsTotal / 2.5));
+
+  // Balance check
+  const balanceWarn = document.getElementById('installBalanceWarn');
+  if (balanceWarn && installGross > 0) {
+    const diff = Math.abs(tech1Gross + tech2Gross + toolsGross - installGross);
+    balanceWarn.style.display = diff > 0.02 ? 'block' : 'none';
+  }
+
+  // ── Extras ──
+  const extras = collectExtras();
+  const totalExtras = extras.reduce((s, e) => s + e.total_ht, 0);
+
+  // ── Totaux client ──
+  const totalHT = totalCatalog + installTotal + totalExtras + surplus;
+  const totalTVA = totalHT * (tvaPct / 100);
+  const totalTTC = totalHT + totalTVA;
+  const acompteMontant = totalTTC * (acomptePct / 100);
+
+  // Update UI summary
+  setText('sTotalCatalog', fmt(totalCatalog));
+  setText('sTotalInstall', fmt(installTotal));
+  setText('sTotalExtras', fmt(totalExtras));
+  setText('sSurplus', fmt(surplus));
+  setText('sTotalHT', fmt(totalHT));
+  setText('sTvaRate', tvaPct);
+  setText('sTotalTVA', fmt(totalTVA));
+  setText('sTotalTTC', fmt(totalTTC));
+  setText('sAcomptePct', acomptePct);
+  setText('sAcompte', fmt(acompteMontant));
+  setText('sSupplier', fmt(supplierEstimate));
+  setText('sTechCosts', fmt(tech1Total + tech2Total + toolsTotal));
+
+  // Items count & surface
+  const totalSurface = devisData.items.reduce((s, i) => s + ((i.largeur/1000)*(i.hauteur/1000)*(i.quantite||1)), 0);
+  setText('itemsCount', `${devisData.items.length} ouverture(s) · ${totalSurface.toFixed(2)} m²`);
+  setText('totalOpeningsDisplay', `${totalOpenings} ouverture(s) au total`);
+  setText('openingsCountDisplay', totalOpenings);
+
+  // Sync install qty default
+  const iqEl = document.getElementById('installQty');
+  if (iqEl && parseInt(iqEl.value) === 0 && totalOpenings > 0) {
+    iqEl.value = totalOpenings;
+    document.getElementById('tech1Qty').value = totalOpenings;
+    document.getElementById('tech2Qty').value = totalOpenings;
+    document.getElementById('toolsQty').value = totalOpenings;
+    // Recalc again with new qty
+    recalcInstallOnly(installGross, tech1Gross, tech2Gross, toolsGross, totalOpenings, totalOpenings, totalOpenings, totalOpenings);
+  }
+
+  // Store calculs
+  devisData.calculs = {
+    total_catalog_ht: r2(totalCatalog),
+    total_installation_ht: r2(installTotal),
+    total_extras_ht: r2(totalExtras),
+    surplus_difficulte: r2(surplus),
+    total_ht: r2(totalHT),
+    total_tva: r2(totalTVA),
+    total_ttc: r2(totalTTC),
+    tva_pct: tvaPct,
+    acompte_pct: acomptePct,
+    acompte_montant: r2(acompteMontant),
+    supplier_estimate: r2(supplierEstimate),
+    nicolas_gross: r2(nicolasGross),
+    nicolas_net: r2(nicolasNet),
+    yannick_gross: r2(yannickGross),
+    yannick_net: r2(yannickNet),
+    tech1_total: r2(tech1Total),
+    tech2_total: r2(tech2Total),
+    tools_total: r2(toolsTotal)
+  };
+
+  // Store pricing_v2
+  devisData.pricing_v2 = {
+    tva_pct: tvaPct,
+    acompte_pct: acomptePct,
+    surplus_difficulte: surplus,
+    note: document.getElementById('noteInterne')?.value || '',
+    items_catalog: devisData.items.map(i => i.prix_catalogue_ht || 0),
+    material: {
+      sellers: {
+        mode: principal === 'autre' ? 'autre' : 'fixed',
+        principal,
+        nicolas_pct: nicolasPct,
+        yannick_pct: yannickPct
+      }
+    },
+    installation: {
+      per_opening: { install_gross: installGross, tech1_gross: tech1Gross, tech2_gross: tech2Gross, tools_gross: toolsGross },
+      install_qty: parseInt(document.getElementById('installQty')?.value) || 0,
+      tech1_qty: parseInt(document.getElementById('tech1Qty')?.value) || 0,
+      tech2_qty: parseInt(document.getElementById('tech2Qty')?.value) || 0,
+      tools_qty: parseInt(document.getElementById('toolsQty')?.value) || 0
+    },
+    extras
+  };
+}
+
+function recalcInstallOnly(ig, t1, t2, tl, iq, t1q, t2q, tlq) {
+  setText('iInstallGross', fmt(ig * iq));
+  setText('iInstallNet', fmt((ig * iq) / 2.5));
+  setText('iTech1Gross', fmt(t1 * t1q));
+  setText('iTech1Net', fmt((t1 * t1q) / 2.5));
+  setText('iTech2Gross', fmt(t2 * t2q));
+  setText('iTech2Net', fmt((t2 * t2q) / 2.5));
+  setText('iToolsGross', fmt(tl * tlq));
+  setText('iToolsNet', fmt((tl * tlq) / 2.5));
+}
+
+// ═══════════════════════════════════════════════════════════
+// SAUVEGARDE
+// ═══════════════════════════════════════════════════════════
+function saveDevis() {
+  if (!devisData.client.nom || !devisData.client.prenom) {
+    alert('⚠️ Veuillez renseigner le prénom et le nom du client.');
+    return;
+  }
+  if (devisData.items.length === 0) {
+    alert('⚠️ Ajoutez au moins une ouverture.');
+    return;
+  }
+
+  devisData.date_modification = new Date().toISOString();
+  devisData.statut = devisData.statut || 'brouillon';
+
+  // Nettoyer items pour compatibilité PHP (retirer _uid)
+  const cleanItems = devisData.items.map(({ _uid, ...item }) => item);
+
+  const toSave = { ...devisData, items: cleanItems };
+
+  try {
+    const existing = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+    const idx = existing.findIndex(d => d.id === devisData.id);
+    if (idx !== -1) existing[idx] = toSave;
+    else existing.unshift(toSave);
+    localStorage.setItem('solariscreen_devis', JSON.stringify(existing));
+    alert(`✅ Devis ${devisData.id} sauvegardé avec succès !`);
+  } catch (e) {
+    alert('❌ Erreur sauvegarde : ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PDF
+// ═══════════════════════════════════════════════════════════
+function generatePDF() {
+  alert('📄 Génération PDF — en développement.\n\nSauvegarder le devis puis utiliser le module PDF du Dashboard.');
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT JSON
+// ═══════════════════════════════════════════════════════════
+function exportJSON() {
+  const cleanItems = devisData.items.map(({ _uid, ...item }) => item);
+  const toExport = { ...devisData, items: cleanItems };
+  const blob = new Blob([JSON.stringify(toExport, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `devis_${devisData.id}_${(devisData.client.nom||'client').replace(/\s+/g,'_')}.json`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// NOUVEAU DEVIS
+// ═══════════════════════════════════════════════════════════
+function newDevis() {
+  if (!confirm('Créer un nouveau devis ? Les données non sauvegardées seront perdues.')) return;
+  currentItemId = 0;
+  extraCount = 0;
+  devisData = createEmptyDevis();
+  document.getElementById('itemsContainer').innerHTML = '';
+  document.getElementById('extrasContainer').innerHTML = '';
+  // Reset form fields
+  ['clientPrenom','clientNom','clientTelephone','clientEmail','clientRue','clientNumero','clientCodePostal','clientVille'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.querySelector('input[value="6"]').checked = true;
+  document.getElementById('acomptePct').value = 30;
+  document.getElementById('surplusDifficulte').value = 0;
+  document.getElementById('noteInterne').value = '';
+  document.getElementById('sellerPrincipal').value = 'nicolas';
+  document.getElementById('customSplit').style.display = 'none';
+  document.getElementById('installGross').value = 280;
+  document.getElementById('tech1Gross').value = 125;
+  document.getElementById('tech2Gross').value = 125;
+  document.getElementById('toolsGross').value = 30;
+  document.getElementById('installQty').value = 0;
+  document.getElementById('tech1Qty').value = 0;
+  document.getElementById('tech2Qty').value = 0;
+  document.getElementById('toolsQty').value = 0;
+  updateHeaderId();
+  addItem();
+  recalc();
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHARGER UN DEVIS EXISTANT
+// ═══════════════════════════════════════════════════════════
+function loadDevisById(id) {
+  try {
+    const all = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+    const found = all.find(d => d.id === id);
+    if (!found) { alert(`Devis ${id} introuvable.`); addItem(); return; }
+    loadDevisData(found);
+  } catch(e) {
+    console.error(e);
+    addItem();
+  }
+}
+
+function loadDevisData(d) {
+  devisData = { ...createEmptyDevis(), ...d };
+  updateHeaderId();
+
+  // Client
+  const c = d.client || {};
+  const a = c.adresse || {};
+  setValue('clientPrenom', c.prenom);
+  setValue('clientNom', c.nom);
+  setValue('clientTelephone', c.telephone);
+  setValue('clientEmail', c.email);
+  setValue('clientRue', a.rue);
+  setValue('clientNumero', a.numero);
+  setValue('clientCodePostal', a.code_postal);
+  setValue('clientVille', a.ville);
+
+  // Config
+  const p2 = d.pricing_v2 || {};
+  const tva = p2.tva_pct || 6;
+  const tvaEl = document.querySelector(`input[value="${tva}"]`);
+  if (tvaEl) tvaEl.checked = true;
+  setValue('acomptePct', p2.acompte_pct || 30);
+  setValue('surplusDifficulte', p2.surplus_difficulte || 0);
+  setValue('noteInterne', p2.note || '');
+
+  // Vendeur
+  const sellers = p2.material?.sellers || {};
+  const principal = sellers.principal || 'nicolas';
+  setValue('sellerPrincipal', principal);
+  if (principal === 'autre') {
+    document.getElementById('customSplit').style.display = 'block';
+    setValue('nicolasPct', sellers.nicolas_pct || 5);
+    setValue('yannickPct', sellers.yannick_pct || 5);
+  }
+
+  // Installation
+  const per = p2.installation?.per_opening || {};
+  setValue('installGross', per.install_gross || 280);
+  setValue('tech1Gross', per.tech1_gross || 125);
+  setValue('tech2Gross', per.tech2_gross || 125);
+  setValue('toolsGross', per.tools_gross || 30);
+  setValue('installQty', p2.installation?.install_qty || 0);
+  setValue('tech1Qty', p2.installation?.tech1_qty || 0);
+  setValue('tech2Qty', p2.installation?.tech2_qty || 0);
+  setValue('toolsQty', p2.installation?.tools_qty || 0);
+
+  // Items
+  document.getElementById('itemsContainer').innerHTML = '';
+  devisData.items = [];
+  (d.items || []).forEach(item => addItem(item));
+
+  // Extras
+  document.getElementById('extrasContainer').innerHTML = '';
+  extraCount = 0;
+  (p2.extras || []).forEach(e => addExtra(e));
+
+  recalc();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PHOTOS
+// ═══════════════════════════════════════════════════════════
+function selectPhotos(itemId) {
+  const fi = document.getElementById('fileInput');
+  fi.setAttribute('data-item-id', itemId);
+  fi.click();
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const itemId = parseInt(this.getAttribute('data-item-id'));
+  Array.from(e.target.files).forEach(file => {
+    if (file.type.startsWith('image/')) addPhotoToItem(itemId, file);
+  });
+  this.value = '';
+});
+
+function addPhotoToItem(itemId, file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const photo = { id: Date.now() + Math.random(), name: file.name, data: e.target.result };
+    const idx = devisData.items.findIndex(i => i._uid === itemId);
+    if (idx !== -1) {
+      if (!devisData.items[idx].photos) devisData.items[idx].photos = [];
+      devisData.items[idx].photos.push(photo);
+    }
+    renderPhotos(itemId);
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderPhotos(itemId) {
+  const cont = document.getElementById(`photos-${itemId}`);
+  if (!cont) return;
+  const idx = devisData.items.findIndex(i => i._uid === itemId);
+  if (idx === -1) return;
+  const photos = devisData.items[idx].photos || [];
+  cont.innerHTML = photos.map(p => `
+    <div class="photo-item">
+      <img src="${p.data}" alt="${p.name}">
+      <button class="photo-remove" onclick="removePhoto(${itemId},'${p.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function removePhoto(itemId, photoId) {
+  const idx = devisData.items.findIndex(i => i._uid === itemId);
+  if (idx !== -1) {
+    devisData.items[idx].photos = (devisData.items[idx].photos || []).filter(p => String(p.id) !== String(photoId));
+    renderPhotos(itemId);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILITAIRES
+// ═══════════════════════════════════════════════════════════
+function fmt(n) {
+  return new Intl.NumberFormat('fr-FR', { style:'currency', currency:'EUR', minimumFractionDigits:2 }).format(n || 0);
+}
+function r2(n) { return Math.round((parseFloat(n)||0)*100)/100; }
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function setValue(id, val) { const el = document.getElementById(id); if (el) el.value = val ?? ''; }
+</script>
 </body>
 </html>
