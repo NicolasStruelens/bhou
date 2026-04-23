@@ -77,8 +77,28 @@
 // ═══════════════════════════════════════════════════════════
 // UTILITAIRES
 // ═══════════════════════════════════════════════════════════
+// Formatage monétaire SAFE pour jsPDF (pas de € Unicode, pas d'espace insécable)
 function fmtEur(n) {
-  return new Intl.NumberFormat('fr-BE', { minimumFractionDigits:2, maximumFractionDigits:2 }).format(n||0) + ' €';
+  const abs = Math.abs(n || 0);
+  const parts = abs.toFixed(2).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return parts.join(',') + ' EUR';
+}
+// Sanitizer : remplace tous les caractères hors Latin-1 printable
+function safe(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\u00D7/g, ' x ')   // ×
+    .replace(/\u00B2/g, '2')     // ²
+    .replace(/\u00B1/g, '+/-')   // ±
+    .replace(/\u2022/g, '-')     // •
+    .replace(/\u2192/g, '->')    // →
+    .replace(/\u00A0/g, ' ')     // espace insécable
+    .replace(/\u202F/g, ' ')     // espace fine insécable
+    .replace(/\u2013/g, '-')     // –
+    .replace(/\u2014/g, '-')     // —
+    .replace(/\u20AC/g, 'EUR')   // €
+    .replace(/[^\x20-\xFF]/g, '?'); // tout le reste hors Latin-1
 }
 function fmtDate(d) {
   if (!d) return new Date().toLocaleDateString('fr-BE');
@@ -165,7 +185,7 @@ async function generatePDF(devis) {
   function setFont(style='normal', size=10, color=[0,0,0]) {
     doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color);
   }
-  function text(t, x, yy, opts={}) { doc.text(String(t), x, yy, opts); }
+  function text(t, x, yy, opts={}) { doc.text(safe(String(t)), x, yy, opts); }
 
   // ══════════════════════════════════════
   // EN-TÊTE
@@ -288,8 +308,8 @@ async function generatePDF(devis) {
     const empl     = item.emplacement || '';
     const prix     = item.prix_catalogue_ht || 0;
 
-    let ligneBase = `•  ${typeL} - ${larg} × ${haut} mm (${surf} m²)`;
-    if (qty > 1)    ligneBase += ` × ${qty}`;
+    let ligneBase = `-  ${typeL} - ${larg} x ${haut} mm (${surf} m2)`;
+    if (qty > 1)    ligneBase += ` x ${qty}`;
     if (moteur)     ligneBase += ` - Moteur ${moteur}`;
     if (empl)       ligneBase += ` - Emplacement : ${empl}`;
     if (item.etage) ligneBase += ` - ${item.etage}`;
@@ -306,7 +326,7 @@ async function generatePDF(devis) {
     if (item.notes) {
       checkPageBreak(6);
       setFont('italic', 8.5, [100,100,100]);
-      text(`    → ${item.notes}`, ML + 4, y);
+      text(`    Note : ${item.notes}`, ML + 4, y);
       setFont('normal', 9.5, [30,30,30]);
       y += 4.5;
     }
@@ -401,7 +421,7 @@ async function generatePDF(devis) {
 
   const conditions = [
     '- Offre valable 2 mois',
-    '- Délais de livraison selon disponibilité Harol (± 4 semaines)',
+    '- Delais de livraison selon disponibilite Harol (+/- 4 semaines)',
     `- Paiement : acompte de ${acomptePct} % à la commande, solde à la livraison`,
     '- Installation prévue par SolariScreen'
   ];
