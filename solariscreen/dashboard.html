@@ -517,6 +517,10 @@
                     <span>📂</span>
                     Import JSON
                 </button>
+                <button onclick="migrateLocalStorage()" class="btn btn-outline" style="border-color:#a55eea;color:#a55eea;" title="Migrer les données locales vers la base partagée">
+                    <span>🔄</span>
+                    Migrer Local
+                </button>
                 <button onclick="exportAllData()" class="btn btn-secondary">
                     <span>💾</span>
                     Export Complet
@@ -566,16 +570,16 @@
 
     <!-- File Input (hidden) -->
     <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
-
+    <script src="assets/api.js"></script>
     <script>
         // Global variables  
         let devisList = [];
         let filteredDevis = [];
 
         // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Initializing SolariScreen Dashboard (Matrix Style)...');
-            loadRealData();
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Initializing SolariScreen Dashboard...');
+            await loadRealData();
             updateStats();
             renderTable();
             // Fermer dropdown statut au clic ailleurs
@@ -587,22 +591,15 @@
             console.log('✅ Dashboard initialized');
         });
 
-        // Load ONLY real data from localStorage (NO DEMO DATA)
-        function loadRealData() {
+        // Chargement via API (fallback localStorage auto dans api.js)
+        async function loadRealData() {
             try {
-                // Load only saved devis from localStorage
-                const savedDevis = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-                
-                // Use ONLY real data
-                devisList = [...savedDevis];
+                devisList = await SS_API.listDevis();
                 filteredDevis = [...devisList];
-                
-                console.log(`📊 Loaded ${devisList.length} real devis (no demo data)`);
-                
-            } catch (error) {
-                console.error('Error loading data:', error);
-                devisList = [];
-                filteredDevis = [];
+                console.log(`📊 ${devisList.length} devis chargés`);
+            } catch(e) {
+                console.error('loadRealData error:', e);
+                devisList = []; filteredDevis = [];
             }
         }
 
@@ -758,17 +755,16 @@
             _activeDropdownId = null;
         }
 
-        function changeStatus(id, newStatus) {
+        async function changeStatus(id, newStatus) {
             closeStatusDropdown();
             const idx = devisList.findIndex(d => d.id === id);
             if (idx === -1) return;
             devisList[idx].statut = newStatus;
             devisList[idx].date_modification = new Date().toISOString();
             filteredDevis = [...devisList];
-            localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
+            await SS_API.updateStatus(id, newStatus);
             updateStats();
             renderTable();
-            // Toast
             const toast = document.getElementById('toast');
             if (toast) {
                 toast.innerHTML = '✅ Statut → <strong style="color:var(--cyan);">' + STATUSES[newStatus] + '</strong>';
@@ -781,46 +777,43 @@
             window.location.href = `calculateur.html?id=${id}`;
         }
 
-        function duplicateDevis(id) {
-            const devis = devisList.find(d => d.id === id);
-            if (!devis) return;
-            
-            // Create new ID
-            const newId = Date.now().toString();
+        async function duplicateDevis(id) {
+            const original = await SS_API.getDevis(id);
+            if (!original) return;
+            const now = new Date();
+            const newId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(Date.now()).slice(-4)}`;
             const newDevis = {
-                ...devis,
-                id: newId,
-                date_creation: new Date().toISOString().split('T')[0],
-                date_modification: new Date().toISOString(),
+                ...original, id: newId,
+                date_creation: now.toISOString().split('T')[0],
+                date_modification: now.toISOString(),
                 statut: 'brouillon'
             };
-            
-            // Add to list
+            await SS_API.saveDevis(newDevis);
             devisList.unshift(newDevis);
             filteredDevis = [...devisList];
-            
-            // Save to localStorage
-            localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
-            
             updateStats();
             renderTable();
-            
-            alert(`Devis ${id} dupliqué avec succès ! Nouvel ID: ${newId}`);
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '📋 Devis dupliqué → <strong style="color:var(--cyan);">#' + newId + '</strong>';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
         }
 
-        function deleteDevis(id) {
+        async function deleteDevis(id) {
             if (!confirm(`Supprimer le devis ${id} ?\n\nCette action est irréversible.`)) return;
-            
+            await SS_API.deleteDevis(id);
             devisList = devisList.filter(d => d.id !== id);
             filteredDevis = filteredDevis.filter(d => d.id !== id);
-            
-            // Update localStorage
-            localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
-            
             updateStats();
             renderTable();
-            
-            alert('Devis supprimé avec succès');
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '🗑️ Devis <strong style="color:var(--red);">#' + id + '</strong> supprimé';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
         }
 
         function exportDevis(id) {
@@ -865,73 +858,53 @@
             document.getElementById('fileInput').click();
         }
 
-        function handleFileImport(event) {
+        async function handleFileImport(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const jsonData = JSON.parse(e.target.result);
-                    
-                    // Handle different import formats
-                    let importedData;
-                    if (Array.isArray(jsonData)) {
-                        importedData = jsonData;
-                    } else if (jsonData.data && Array.isArray(jsonData.data)) {
-                        importedData = jsonData.data;
-                    } else {
-                        importedData = [jsonData];
+                    let importedData = Array.isArray(jsonData) ? jsonData
+                        : jsonData.data ? jsonData.data : [jsonData];
+                    for (const devis of importedData) {
+                        await SS_API.saveDevis(devis);
                     }
-                    
-                    // Add to existing data
-                    devisList = [...devisList, ...importedData];
-                    filteredDevis = [...devisList];
-                    
-                    // Save to localStorage
-                    localStorage.setItem('solariscreen_devis', JSON.stringify(devisList));
-                    
-                    updateStats();
-                    renderTable();
-                    
-                    alert(`Import réussi ! ${importedData.length} devis importés.`);
-                    
-                } catch (error) {
-                    alert('Erreur lors de l\'import : ' + error.message);
-                }
+                    await loadRealData();
+                    updateStats(); renderTable();
+                    const toast = document.getElementById('toast');
+                    if (toast) {
+                        toast.innerHTML = `✅ ${importedData.length} devis importés`;
+                        toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                        setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 3000);
+                    }
+                } catch (error) { alert('Erreur import : ' + error.message); }
             };
             reader.readAsText(file);
         }
 
-        function resetAllData() {
-            if (!confirm('⚠️ ATTENTION: Supprimer TOUTES les données ?\n\n• Tous les devis seront perdus\n• Action IRRÉVERSIBLE\n\nConfirmer la suppression ?')) return;
-            
-            if (!confirm('🗑️ DERNIÈRE CONFIRMATION\n\nVous êtes sûr de vouloir supprimer TOUTES les données ?')) return;
-            
+        async function resetAllData() {
+            if (!confirm('⚠️ Supprimer TOUS les devis ?\n\nAction IRRÉVERSIBLE.')) return;
+            if (!confirm('🗑️ DERNIÈRE CONFIRMATION — Supprimer toutes les données ?')) return;
             try {
-                // Clear ALL SolariScreen data from localStorage
-                Object.keys(localStorage).forEach(key => {
-                    if (key.includes('solariscreen') || key.includes('devis')) {
-                        localStorage.removeItem(key);
-                    }
-                });
-                
-                // Clear arrays
-                devisList = [];
-                filteredDevis = [];
-                
-                alert('✅ TOUTES les données ont été supprimées !\n\nBase complètement propre.');
-                
-                // Update UI
-                updateStats();
-                renderTable();
-                
-                console.log('🗑️ All data cleared - clean slate');
-                
-            } catch (error) {
-                console.error('Error clearing data:', error);
-                alert('❌ Erreur lors de la suppression:\n' + error.message);
-            }
+                for (const d of devisList) { await SS_API.deleteDevis(d.id); }
+                localStorage.removeItem('solariscreen_devis');
+                devisList = []; filteredDevis = [];
+                updateStats(); renderTable();
+                alert('✅ Toutes les données supprimées.');
+            } catch (error) { alert('❌ Erreur : ' + error.message); }
+        }
+
+        // ── Migration localStorage → API (une seule fois) ──
+        async function migrateLocalStorage() {
+            const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+            if (local.length === 0) { alert('Aucune donnée locale à migrer.'); return; }
+            if (!confirm(`Migrer ${local.length} devis locaux vers la base de données partagée ?`)) return;
+            const res = await SS_API.migrateFromLocalStorage((done, total) => {
+                console.log(`Migration : ${done}/${total}`);
+            });
+            alert(`✅ Migration terminée : ${res.migrated}/${res.total} devis migrés.${res.errors>0?' ⚠️ '+res.errors+' erreurs.':''}`);
+            await loadRealData(); updateStats(); renderTable();
         }
 
     </script>
