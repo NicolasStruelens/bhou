@@ -659,7 +659,7 @@
 
 <!-- File input caché -->
 <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
-
+<script src="assets/api.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // ÉTAT GLOBAL
@@ -1263,7 +1263,7 @@ function recalcInstallOnly(ig, t1, t2, tl, iq, t1q, t2q, tlq) {
 // ═══════════════════════════════════════════════════════════
 // SAUVEGARDE
 // ═══════════════════════════════════════════════════════════
-function saveDevis() {
+async function saveDevis() {
   if (!devisData.client.nom || !devisData.client.prenom) {
     alert('⚠️ Veuillez renseigner le prénom et le nom du client.');
     return;
@@ -1276,17 +1276,11 @@ function saveDevis() {
   devisData.date_modification = new Date().toISOString();
   devisData.statut = devisData.statut || 'brouillon';
 
-  // Nettoyer items pour compatibilité PHP (retirer _uid)
   const cleanItems = devisData.items.map(({ _uid, ...item }) => item);
-
   const toSave = { ...devisData, items: cleanItems };
 
   try {
-    const existing = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-    const idx = existing.findIndex(d => d.id === devisData.id);
-    if (idx !== -1) existing[idx] = toSave;
-    else existing.unshift(toSave);
-    localStorage.setItem('solariscreen_devis', JSON.stringify(existing));
+    await SS_API.saveDevis(toSave);
     window.location.href = `dashboard.html?saved=${devisData.id}`;
   } catch (e) {
     alert('❌ Erreur sauvegarde : ' + e.message);
@@ -1349,10 +1343,9 @@ function newDevis() {
 // ═══════════════════════════════════════════════════════════
 // CHARGER UN DEVIS EXISTANT
 // ═══════════════════════════════════════════════════════════
-function loadDevisById(id) {
+async function loadDevisById(id) {
   try {
-    const all = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-    const found = all.find(d => d.id === id);
+    const found = await SS_API.getDevis(id);
     if (!found) { alert(`Devis ${id} introuvable.`); addItem(); return; }
     loadDevisData(found);
   } catch(e) {
