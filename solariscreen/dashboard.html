@@ -594,7 +594,17 @@
         // Chargement via API (fallback localStorage auto dans api.js)
         async function loadRealData() {
             try {
-                devisList = await SS_API.listDevis();
+                const raw = await SS_API.listDevis();
+                // Normaliser format API plat → format dashboard attendu
+                devisList = raw.map(d => ({
+                    ...d,
+                    client: d.client || {
+                        nom:    d.client_nom    || '',
+                        prenom: d.client_prenom || ''
+                    },
+                    calculs: d.calculs || { total_ttc: d.total_ttc || 0 },
+                    metadata: d.metadata || { photos_count: 0 }
+                }));
                 filteredDevis = [...devisList];
                 console.log(`📊 ${devisList.length} devis chargés`);
             } catch(e) {
