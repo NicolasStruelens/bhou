@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Statistiques</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-primary:#080d12;--bg-card:#0d1520;--bg-panel:#111c2a;
+      --green:#00ff88;--green-dim:#00cc6a;--cyan:#00e5ff;--red:#ff4757;
+      --orange:#ffa502;--yellow:#ffdd59;--purple:#a55eea;--blue:#1e90ff;
+      --text:#c8d8e8;--text-dim:#5a7a9a;--border:#1a3048;--border-bright:#1e4060;
+      --font-mono:'JetBrains Mono',monospace;--font-display:'Orbitron',sans-serif;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:var(--font-mono);background:var(--bg-primary);color:var(--text);min-height:100vh;overflow-x:hidden;}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.03) 2px,rgba(0,255,136,0.03) 4px);pointer-events:none;z-index:9999;animation:scan 10s linear infinite;}
+    @keyframes scan{to{background-position:0 100%;}}
+    .bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,136,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+    /* ── NAV ── */
+    nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(8,13,18,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;}
+    .nav-brand{font-family:var(--font-display);font-size:0.85rem;color:var(--green);text-decoration:none;letter-spacing:0.1em;}
+    .nav-brand span{color:var(--cyan);}
+    .nav-links{display:flex;align-items:center;gap:1.5rem;list-style:none;}
+    .nav-links a{font-size:0.65rem;color:var(--text-dim);text-decoration:none;letter-spacing:0.1em;text-transform:uppercase;transition:color 0.2s;}
+    .nav-links a:hover,.nav-links a.active{color:var(--green);}
+    .nav-status{display:flex;align-items:center;gap:0.5rem;font-size:0.6rem;color:var(--text-dim);}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+    /* ── LAYOUT ── */
+    .container{max-width:1400px;margin:0 auto;padding:80px 2rem 3rem;position:relative;z-index:1;}
+    .page-header{margin-bottom:2rem;}
+    .page-tag{font-size:0.58rem;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.4rem;}
+    .page-title{font-family:var(--font-display);font-size:clamp(1.4rem,3vw,2rem);color:var(--green);text-transform:uppercase;letter-spacing:0.05em;}
+    .page-sub{font-size:0.7rem;color:var(--text-dim);margin-top:0.3rem;}
+    .divider{height:1px;background:linear-gradient(90deg,var(--green),var(--cyan),transparent);opacity:0.4;margin:1rem 0 2rem;}
+
+    /* ── PERIOD SELECTOR ── */
+    .period-bar{display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+    .period-btn{font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;padding:0.4rem 0.9rem;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer;transition:all 0.2s;}
+    .period-btn:hover{border-color:var(--green);color:var(--green);}
+    .period-btn.active{background:rgba(0,255,136,0.1);border-color:var(--green);color:var(--green);}
+
+    /* ── KPI CARDS ── */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem;}
+    .kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:1.2rem;position:relative;overflow:hidden;transition:border-color 0.2s;}
+    .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+    .kpi-card.green::before{background:linear-gradient(90deg,var(--green),var(--cyan));}
+    .kpi-card.cyan::before{background:linear-gradient(90deg,var(--cyan),var(--blue));}
+    .kpi-card.orange::before{background:linear-gradient(90deg,var(--orange),var(--yellow));}
+    .kpi-card.purple::before{background:linear-gradient(90deg,var(--purple),var(--cyan));}
+    .kpi-card.red::before{background:linear-gradient(90deg,var(--red),var(--orange));}
+    .kpi-label{font-size:0.62rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;}
+    .kpi-value{font-family:var(--font-display);font-size:1.4rem;font-weight:700;line-height:1.1;}
+    .kpi-value.green{color:var(--green);}
+    .kpi-value.cyan{color:var(--cyan);}
+    .kpi-value.orange{color:var(--orange);}
+    .kpi-value.purple{color:var(--purple);}
+    .kpi-value.red{color:var(--red);}
+    .kpi-sub{font-size:0.62rem;color:var(--text-dim);margin-top:0.3rem;}
+    .kpi-delta{font-size:0.65rem;margin-top:0.4rem;}
+    .kpi-delta.pos{color:var(--green);}
+    .kpi-delta.neg{color:var(--red);}
+
+    /* ── SECTIONS ── */
+    .section{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-bottom:1.5rem;overflow:hidden;position:relative;}
+    .section::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+    .section.green::before{background:linear-gradient(90deg,var(--green),var(--cyan));opacity:0.7;}
+    .section.cyan::before{background:linear-gradient(90deg,var(--cyan),var(--blue));opacity:0.7;}
+    .section.purple::before{background:linear-gradient(90deg,var(--purple),var(--cyan));opacity:0.7;}
+    .section.orange::before{background:linear-gradient(90deg,var(--orange),var(--yellow));opacity:0.7;}
+    .section-header{background:var(--bg-panel);border-bottom:1px solid var(--border);padding:0.9rem 1.5rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;}
+    .section-title{font-family:var(--font-display);font-size:0.85rem;letter-spacing:0.05em;text-transform:uppercase;}
+    .section.green .section-title{color:var(--green);}
+    .section.cyan .section-title{color:var(--cyan);}
+    .section.purple .section-title{color:var(--purple);}
+    .section.orange .section-title{color:var(--orange);}
+    .section-sub{font-size:0.62rem;color:var(--text-dim);margin-left:auto;}
+    .section-body{padding:1.5rem;}
+
+    /* ── GRIDS ── */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;}
+
+    /* ── CHART WRAPPER ── */
+    .chart-wrap{position:relative;height:260px;}
+    .chart-wrap.tall{height:320px;}
+
+    /* ── VENDEURS ── */
+    .vendeur-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
+    .vendeur-card{background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:1.2rem;position:relative;}
+    .vendeur-card.nicolas{border-color:rgba(0,255,136,0.3);}
+    .vendeur-card.yannick{border-color:rgba(0,229,255,0.3);}
+    .vendeur-name{font-family:var(--font-display);font-size:0.9rem;font-weight:700;margin-bottom:1rem;}
+    .vendeur-card.nicolas .vendeur-name{color:var(--green);}
+    .vendeur-card.yannick .vendeur-name{color:var(--cyan);}
+    .vendeur-stat{display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.78rem;}
+    .vendeur-stat:last-child{border-bottom:none;}
+    .vs-label{color:var(--text-dim);}
+    .vs-value{font-weight:600;font-family:var(--font-mono);}
+    .vendeur-card.nicolas .vs-value.main{color:var(--green);}
+    .vendeur-card.yannick .vs-value.main{color:var(--cyan);}
+    .net-badge{display:inline-block;padding:0.2rem 0.5rem;border-radius:3px;font-size:0.65rem;font-weight:700;}
+    .vendeur-card.nicolas .net-badge{background:rgba(0,255,136,0.15);color:var(--green);border:1px solid rgba(0,255,136,0.3);}
+    .vendeur-card.yannick .net-badge{background:rgba(0,229,255,0.15);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);}
+    .vendeur-bar-wrap{margin-top:1rem;}
+    .vendeur-bar-label{font-size:0.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.3rem;}
+    .vendeur-bar-track{height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+    .vendeur-bar-fill{height:100%;border-radius:3px;transition:width 0.8s ease;}
+    .vendeur-card.nicolas .vendeur-bar-fill{background:linear-gradient(90deg,var(--green),var(--cyan));}
+    .vendeur-card.yannick .vendeur-bar-fill{background:linear-gradient(90deg,var(--cyan),var(--blue));}
+
+    /* ── PIPELINE TABLE ── */
+    .pipeline-row{display:flex;align-items:center;gap:1rem;padding:0.7rem 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .pipeline-row:last-child{border-bottom:none;}
+    .pipeline-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .pipeline-label{font-size:0.78rem;flex:1;}
+    .pipeline-count{font-size:0.78rem;color:var(--text-dim);min-width:30px;text-align:center;}
+    .pipeline-bar-wrap{flex:2;}
+    .pipeline-bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+    .pipeline-bar-fill{height:100%;border-radius:2px;transition:width 0.8s ease;}
+    .pipeline-amount{font-size:0.72rem;color:var(--text-dim);min-width:90px;text-align:right;font-family:var(--font-mono);}
+
+    /* ── RENTABILITÉ ── */
+    .rentab-row{display:grid;grid-template-columns:1fr auto auto;gap:1rem;align-items:center;padding:0.6rem 0.8rem;border-radius:4px;margin-bottom:0.4rem;font-size:0.78rem;}
+    .rentab-row:hover{background:rgba(255,255,255,0.02);}
+    .rentab-label{color:var(--text-dim);}
+    .rentab-val{font-family:var(--font-mono);text-align:right;}
+    .rentab-pct{font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:2px;text-align:right;}
+    .rentab-row.total{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);font-weight:700;}
+    .rentab-row.total .rentab-label{color:var(--text);}
+    .rentab-row.total .rentab-val{color:var(--green);}
+    .rentab-row.cost .rentab-val{color:var(--red);}
+
+    /* ── LOADING ── */
+    .loading{display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:1rem;}
+    .loading-spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .loading-text{font-size:0.7rem;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;}
+
+    /* ── EMPTY ── */
+    .empty-state{text-align:center;padding:3rem;color:var(--text-dim);}
+    .empty-state h3{font-family:var(--font-display);font-size:1rem;color:var(--text-dim);margin-bottom:0.5rem;}
+
+    @media(max-width:900px){
+      .grid-2,.grid-3,.vendeur-grid{grid-template-columns:1fr;}
+      .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    }
+    @media(max-width:500px){
+      .kpi-grid{grid-template-columns:1fr 1fr;}
+      .container{padding:72px 1rem 2rem;}
+    }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<nav>
+  <a href="dashboard.html" class="nav-brand">SolariScreen<span>://</span>Stats</a>
+  <ul class="nav-links">
+    <li><a href="dashboard.html">Dashboard</a></li>
+    <li><a href="calculateur.html">Calculateur</a></li>
+    <li><a href="stats.html" class="active">Statistiques</a></li>
+  </ul>
+  <div class="nav-status">
+    <div class="status-dot"></div>
+    <span id="navStatus">Chargement…</span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="page-header">
+    <div class="page-tag">● Analytics</div>
+    <div class="page-title">Statistiques Avancées</div>
+    <div class="page-sub" id="pageSubtitle">Chargement des données…</div>
+    <div class="divider"></div>
+  </div>
+
+  <!-- PÉRIODE -->
+  <div class="period-bar" id="periodBar">
+    <button class="period-btn active" data-period="all" onclick="setPeriod('all')">Tout</button>
+    <button class="period-btn" data-period="12" onclick="setPeriod('12')">12 mois</button>
+    <button class="period-btn" data-period="6" onclick="setPeriod('6')">6 mois</button>
+    <button class="period-btn" data-period="3" onclick="setPeriod('3')">3 mois</button>
+    <button class="period-btn" data-period="1" onclick="setPeriod('1')">Ce mois</button>
+  </div>
+
+  <!-- KPIs GLOBAUX -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="loading"><div class="loading-spinner"></div><div class="loading-text">Chargement…</div></div>
+  </div>
+
+  <!-- ROW 1 : CA mensuel + Pipeline -->
+  <div class="grid-2" style="margin-bottom:1.5rem;">
+
+    <div class="section green">
+      <div class="section-header">
+        <span class="section-title">📈 CA Mensuel</span>
+        <span class="section-sub" id="caMonthSub">—</span>
+      </div>
+      <div class="section-body">
+        <div class="chart-wrap tall"><canvas id="chartCA"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section cyan">
+      <div class="section-header">
+        <span class="section-title">🔄 Pipeline Statuts</span>
+        <span class="section-sub" id="pipelineSub">—</span>
+      </div>
+      <div class="section-body">
+        <div id="pipelineList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- VENDEURS -->
+  <div class="section purple" style="margin-bottom:1.5rem;">
+    <div class="section-header">
+      <span class="section-title">💼 Répartition Vendeurs</span>
+      <span class="section-sub">🔒 Interne — Commissions & Performance</span>
+    </div>
+    <div class="section-body">
+      <div class="vendeur-grid" id="vendeurGrid">
+        <div class="loading"><div class="loading-spinner"></div></div>
+      </div>
+      <div class="grid-2" style="margin-top:1.5rem;gap:1.5rem;">
+        <div>
+          <div style="font-size:0.62rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.8rem;">Devis par vendeur principal</div>
+          <div class="chart-wrap"><canvas id="chartVendeurs"></canvas></div>
+        </div>
+        <div>
+          <div style="font-size:0.62rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.8rem;">Commissions brut vs net</div>
+          <div class="chart-wrap"><canvas id="chartCommissions"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RENTABILITÉ -->
+  <div class="grid-2" style="margin-bottom:1.5rem;">
+
+    <div class="section orange">
+      <div class="section-header">
+        <span class="section-title">💰 Rentabilité Matériel</span>
+        <span class="section-sub">🔒 Interne</span>
+      </div>
+      <div class="section-body">
+        <div id="rentabTable"></div>
+      </div>
+    </div>
+
+    <div class="section green">
+      <div class="section-header">
+        <span class="section-title">🥧 Répartition Revenus</span>
+        <span class="section-sub">Matériel vs Installation vs Extras</span>
+      </div>
+      <div class="section-body">
+        <div class="chart-wrap"><canvas id="chartRepartition"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /container -->
+
+<script src="assets/api.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// ÉTAT
+// ═══════════════════════════════════════════════════════════
+let rawStats = null;
+let currentPeriod = 'all';
+const charts = {};
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadStats();
+});
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/stats');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    rawStats = data.data;
+    document.getElementById('navStatus').textContent = `${rawStats.total} devis`;
+    renderAll();
+  } catch(e) {
+    document.getElementById('kpiGrid').innerHTML = `<div class="empty-state"><h3>Erreur chargement</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function setPeriod(p) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+  renderAll();
+}
+
+function filterByPeriod(byMonth) {
+  if (currentPeriod === 'all') return byMonth;
+  const months = parseInt(currentPeriod) || 999;
+  const keys = Object.keys(byMonth).sort();
+  return Object.fromEntries(keys.slice(-months).map(k => [k, byMonth[k]]));
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════════════════════
+function renderAll() {
+  if (!rawStats) return;
+  const s = rawStats;
+  const filtered = filterByPeriod(s.by_month || {});
+
+  // Sous-titre page
+  const dateRange = Object.keys(filtered).sort();
+  document.getElementById('pageSubtitle').textContent =
+    dateRange.length > 0
+      ? `${fmtMonth(dateRange[0])} → ${fmtMonth(dateRange[dateRange.length-1])} · ${s.total} devis · ${fmt(s.ca_total_ttc)} CA total`
+      : `${s.total} devis`;
+
+  renderKPIs(s, filtered);
+  renderCAChart(filtered);
+  renderPipeline(s);
+  renderVendeurs(s);
+  renderVendeursCharts(s);
+  renderRentabilite(s);
+  renderRepartition(s);
+}
+
+// ═══════════════════════════════════════════════════════════
+// KPIs
+// ═══════════════════════════════════════════════════════════
+function renderKPIs(s, filtered) {
+  const caFiltered = Object.values(filtered).reduce((a,m) => a + m.ca_ttc, 0);
+  const signesFiltered = Object.values(filtered).reduce((a,m) => a + m.signes, 0);
+  const countFiltered  = Object.values(filtered).reduce((a,m) => a + m.count, 0);
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card green">
+      <div class="kpi-label">CA Total TTC</div>
+      <div class="kpi-value green">${fmtShort(caFiltered)}</div>
+      <div class="kpi-sub">${countFiltered} devis sur la période</div>
+    </div>
+    <div class="kpi-card cyan">
+      <div class="kpi-label">CA Signé TTC</div>
+      <div class="kpi-value cyan">${fmtShort(s.ca_signe_ttc)}</div>
+      <div class="kpi-sub">${s.signes} devis signés</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Taux Conversion</div>
+      <div class="kpi-value orange">${s.taux_conversion}%</div>
+      <div class="kpi-sub">Envoyés → Signés</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">CA Moyen / Devis</div>
+      <div class="kpi-value green">${fmt(s.ca_moyen)}</div>
+      <div class="kpi-sub">Tous statuts</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Commission Nicolas</div>
+      <div class="kpi-value purple">${fmt(s.nicolas.net)}</div>
+      <div class="kpi-sub">Net · Brut : ${fmt(s.nicolas.gross)}</div>
+    </div>
+    <div class="kpi-card cyan">
+      <div class="kpi-label">Commission Yannick</div>
+      <div class="kpi-value cyan">${fmt(s.yannick.net)}</div>
+      <div class="kpi-sub">Net · Brut : ${fmt(s.yannick.gross)}</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Bénéfice Net Estimé</div>
+      <div class="kpi-value orange">${fmt(s.benefice_net_estime)}</div>
+      <div class="kpi-sub">Nicolas + Yannick net</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">En Cours</div>
+      <div class="kpi-value red">${s.total - s.signes - s.refuses}</div>
+      <div class="kpi-sub">${s.refuses} refusés · ${s.envoyes} envoyés</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CA MENSUEL
+// ═══════════════════════════════════════════════════════════
+function renderCAChart(filtered) {
+  const keys   = Object.keys(filtered).sort();
+  const values = keys.map(k => Math.round(filtered[k].ca_ttc));
+  const counts = keys.map(k => filtered[k].count);
+
+  document.getElementById('caMonthSub').textContent =
+    keys.length > 0 ? `${keys.length} mois affichés` : 'Aucune donnée';
+
+  if (charts.ca) charts.ca.destroy();
+  charts.ca = new Chart(document.getElementById('chartCA'), {
+    type: 'bar',
+    data: {
+      labels: keys.map(fmtMonth),
+      datasets: [{
+        label: 'CA TTC (€)',
+        data: values,
+        backgroundColor: 'rgba(0,255,136,0.25)',
+        borderColor: '#00ff88',
+        borderWidth: 1.5,
+        borderRadius: 3,
+      }, {
+        label: 'Nb devis',
+        data: counts,
+        type: 'line',
+        yAxisID: 'y2',
+        borderColor: '#00e5ff',
+        backgroundColor: 'rgba(0,229,255,0.1)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: '#00e5ff',
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#5a7a9a', font: { family: 'JetBrains Mono', size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#5a7a9a', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#5a7a9a', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y2: { position: 'right', ticks: { color: '#00e5ff', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// PIPELINE
+// ═══════════════════════════════════════════════════════════
+const STATUS_CONFIG = {
+  brouillon:             { label:'Brouillon',          color:'#5a7a9a' },
+  a_tarifer:             { label:'À tarifer',          color:'#ffdd59' },
+  tarife:                { label:'Tarifé',             color:'#ffdd59' },
+  envoye_client:         { label:'Envoyé client',      color:'#00e5ff' },
+  relance_1:             { label:'Relance 1',          color:'#ffa502' },
+  relance_2:             { label:'Relance 2',          color:'#ffa502' },
+  en_attente_validation: { label:'En attente',         color:'#ffa502' },
+  signe:                 { label:'Signé',              color:'#00ff88' },
+  refuse:                { label:'Refusé',             color:'#ff4757' },
+  annule:                { label:'Annulé',             color:'#ff6b7a' },
+  travaux_planifies:     { label:'Travaux planifiés',  color:'#a55eea' },
+  travaux_en_cours:      { label:'Travaux en cours',   color:'#a55eea' },
+  termine:               { label:'Terminé',            color:'#00ff88' },
+};
+
+function renderPipeline(s) {
+  const byStatus = s.by_status || {};
+  const total    = s.total || 1;
+  document.getElementById('pipelineSub').textContent = `${s.total} devis`;
+
+  const sorted = Object.entries(byStatus).sort((a,b) => b[1]-a[1]);
+  document.getElementById('pipelineList').innerHTML = sorted.map(([key, count]) => {
+    const cfg = STATUS_CONFIG[key] || { label: key, color: '#5a7a9a' };
+    const pct = Math.round((count / total) * 100);
+    return `<div class="pipeline-row">
+      <div class="pipeline-dot" style="background:${cfg.color};box-shadow:0 0 4px ${cfg.color};"></div>
+      <div class="pipeline-label">${cfg.label}</div>
+      <div class="pipeline-count">${count}</div>
+      <div class="pipeline-bar-wrap">
+        <div class="pipeline-bar-track">
+          <div class="pipeline-bar-fill" style="width:${pct}%;background:${cfg.color};"></div>
+        </div>
+      </div>
+      <div class="pipeline-amount">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// VENDEURS
+// ═══════════════════════════════════════════════════════════
+function renderVendeurs(s) {
+  const totalNet = (s.nicolas.net + s.yannick.net) || 1;
+  const nicoBarPct  = Math.round((s.nicolas.net / totalNet) * 100);
+  const yannBarPct  = Math.round((s.yannick.net / totalNet) * 100);
+
+  document.getElementById('vendeurGrid').innerHTML = `
+    <div class="vendeur-card nicolas">
+      <div class="vendeur-name">👤 Nicolas</div>
+      <div class="vendeur-stat"><span class="vs-label">Devis vendus</span><span class="vs-value main">${s.nicolas.count}</span></div>
+      <div class="vendeur-stat"><span class="vs-label">CA généré TTC</span><span class="vs-value main">${fmt(s.nicolas.ca_ttc)}</span></div>
+      <div class="vendeur-stat"><span class="vs-label">Commission brute</span><span class="vs-value">${fmt(s.nicolas.gross)}</span></div>
+      <div class="vendeur-stat">
+        <span class="vs-label">Commission nette</span>
+        <span class="vs-value"><span class="net-badge">${fmt(s.nicolas.net)}</span></span>
+      </div>
+      <div class="vendeur-stat"><span class="vs-label">Ratio brut/net</span><span class="vs-value" style="color:var(--text-dim);">÷ 2.5</span></div>
+      <div class="vendeur-bar-wrap">
+        <div class="vendeur-bar-label">Part du bénéfice net total</div>
+        <div class="vendeur-bar-track"><div class="vendeur-bar-fill" style="width:${nicoBarPct}%;"></div></div>
+        <div style="font-size:0.62rem;color:var(--green);margin-top:0.3rem;">${nicoBarPct}%</div>
+      </div>
+    </div>
+
+    <div class="vendeur-card yannick">
+      <div class="vendeur-name">👤 Yannick</div>
+      <div class="vendeur-stat"><span class="vs-label">Devis vendus</span><span class="vs-value main">${s.yannick.count}</span></div>
+      <div class="vendeur-stat"><span class="vs-label">CA généré TTC</span><span class="vs-value main">${fmt(s.yannick.ca_ttc)}</span></div>
+      <div class="vendeur-stat"><span class="vs-label">Commission brute</span><span class="vs-value">${fmt(s.yannick.gross)}</span></div>
+      <div class="vendeur-stat">
+        <span class="vs-label">Commission nette</span>
+        <span class="vs-value"><span class="net-badge">${fmt(s.yannick.net)}</span></span>
+      </div>
+      <div class="vendeur-stat"><span class="vs-label">Ratio brut/net</span><span class="vs-value" style="color:var(--text-dim);">÷ 2.5</span></div>
+      <div class="vendeur-bar-wrap">
+        <div class="vendeur-bar-label">Part du bénéfice net total</div>
+        <div class="vendeur-bar-track"><div class="vendeur-bar-fill" style="width:${yannBarPct}%;"></div></div>
+        <div style="font-size:0.62rem;color:var(--cyan);margin-top:0.3rem;">${yannBarPct}%</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderVendeursCharts(s) {
+  // Donut devis
+  if (charts.vendeurs) charts.vendeurs.destroy();
+  const reste = s.total - s.nicolas.count - s.yannick.count;
+  charts.vendeurs = new Chart(document.getElementById('chartVendeurs'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Nicolas', 'Yannick', 'Partagé'],
+      datasets: [{ data: [s.nicolas.count, s.yannick.count, reste], backgroundColor: ['rgba(0,255,136,0.7)','rgba(0,229,255,0.7)','rgba(90,122,154,0.5)'], borderColor: ['#00ff88','#00e5ff','#5a7a9a'], borderWidth: 1.5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#5a7a9a', font: { family: 'JetBrains Mono', size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label} : ${ctx.raw} devis` } }
+      }
+    }
+  });
+
+  // Bar commissions brut vs net
+  if (charts.commissions) charts.commissions.destroy();
+  charts.commissions = new Chart(document.getElementById('chartCommissions'), {
+    type: 'bar',
+    data: {
+      labels: ['Nicolas', 'Yannick'],
+      datasets: [
+        { label: 'Brut', data: [s.nicolas.gross, s.yannick.gross], backgroundColor: ['rgba(0,255,136,0.3)','rgba(0,229,255,0.3)'], borderColor: ['#00ff88','#00e5ff'], borderWidth: 1.5 },
+        { label: 'Net', data: [s.nicolas.net, s.yannick.net], backgroundColor: ['rgba(0,255,136,0.7)','rgba(0,229,255,0.7)'], borderColor: ['#00ff88','#00e5ff'], borderWidth: 1.5 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#5a7a9a', font: { family: 'JetBrains Mono', size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#5a7a9a' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#5a7a9a', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENTABILITÉ
+// ═══════════════════════════════════════════════════════════
+function renderRentabilite(s) {
+  const totalHT       = s.total_material_ht + s.total_install_ht + s.total_extras_ht;
+  const margeMat      = s.total_material_ht * 0.23;
+  const coutsFourniss = s.total_supplier;
+  const coutsInstall  = s.total_tech;
+  const coutsTotaux   = coutsFourniss + coutsInstall;
+  const benefice      = margeMat - coutsInstall;
+  const margeGlobale  = totalHT > 0 ? Math.round((benefice / totalHT) * 100) : 0;
+
+  function pctBadge(val, ref, inverse=false) {
+    if (!ref) return '';
+    const p = Math.round(Math.abs(val/ref)*100);
+    const color = inverse ? '#ff4757' : '#00ff88';
+    return `<span class="rentab-pct" style="background:${color}22;color:${color};border:1px solid ${color}44;">${p}%</span>`;
+  }
+
+  document.getElementById('rentabTable').innerHTML = `
+    <div class="rentab-row"><span class="rentab-label">CA Total HT</span><span class="rentab-val" style="color:var(--text);">${fmt(totalHT)}</span>${pctBadge(totalHT,totalHT)}</div>
+    <div class="rentab-row cost"><span class="rentab-label">— Coût fournisseur (77%)</span><span class="rentab-val">${fmt(coutsFourniss)}</span>${pctBadge(coutsFourniss,totalHT,true)}</div>
+    <div class="rentab-row cost"><span class="rentab-label">— Coûts techniciens terrain</span><span class="rentab-val">${fmt(coutsInstall)}</span>${pctBadge(coutsInstall,totalHT,true)}</div>
+    <div class="rentab-row total"><span class="rentab-label">= Marge brute estimée</span><span class="rentab-val">${fmt(margeMat)}</span>${pctBadge(margeMat,totalHT)}</div>
+    <div style="height:0.8rem;"></div>
+    <div class="rentab-row"><span class="rentab-label">Nicolas net</span><span class="rentab-val" style="color:var(--green);">${fmt(s.nicolas.net)}</span><span></span></div>
+    <div class="rentab-row"><span class="rentab-label">Yannick net</span><span class="rentab-val" style="color:var(--cyan);">${fmt(s.yannick.net)}</span><span></span></div>
+    <div class="rentab-row total" style="margin-top:0.4rem;"><span class="rentab-label">= Bénéfice net commissions</span><span class="rentab-val">${fmt(s.nicolas.net + s.yannick.net)}</span><span></span></div>
+    <div style="height:0.8rem;border-top:1px solid var(--border);padding-top:0.8rem;margin-top:0.4rem;font-size:0.65rem;color:var(--text-dim);">
+      Estimation — hors charges fixes, frais généraux, fiscal
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RÉPARTITION REVENUS
+// ═══════════════════════════════════════════════════════════
+function renderRepartition(s) {
+  if (charts.repartition) charts.repartition.destroy();
+  const mat   = s.total_material_ht   || 0;
+  const inst  = s.total_install_ht    || 0;
+  const extra = s.total_extras_ht     || 0;
+  if (mat + inst + extra === 0) return;
+
+  charts.repartition = new Chart(document.getElementById('chartRepartition'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Matériel', 'Installation', 'Extras'],
+      datasets: [{ data: [mat, inst, extra], backgroundColor: ['rgba(0,255,136,0.6)','rgba(0,229,255,0.6)','rgba(255,165,2,0.6)'], borderColor: ['#00ff88','#00e5ff','#ffa502'], borderWidth: 1.5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'bottom', labels:{ color:'#5a7a9a', font:{ family:'JetBrains Mono', size:11 }, padding:12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label} : ${fmt(ctx.raw)} HT (${Math.round(ctx.raw/(mat+inst+extra)*100)}%)` } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILITAIRES
+// ═══════════════════════════════════════════════════════════
+function fmt(n) {
+  return new Intl.NumberFormat('fr-BE', { style:'currency', currency:'EUR', maximumFractionDigits:2 }).format(n||0);
+}
+function fmtShort(n) {
+  if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(1) + 'M€';
+  if (Math.abs(n) >= 1000)    return (n/1000).toFixed(1) + 'k€';
+  return fmt(n);
+}
+function fmtMonth(str) {
+  if (!str || str.length < 7) return str;
+  const [y, m] = str.split('-');
+  const months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  return `${months[parseInt(m)-1]} ${y}`;
+}
+
+// Chart.js global config
+Chart.defaults.color = '#5a7a9a';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = 'JetBrains Mono';
+</script>
+</body>
+</html>
