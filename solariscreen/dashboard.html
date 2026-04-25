@@ -498,7 +498,7 @@
             <div class="stat-card">
                 <span class="stat-number" id="statEnCours">0</span>
                 <span class="stat-label">En Cours</span>
-                <span class="stat-subtitle">Brouillons & En attente</span>
+                <span class="stat-subtitle" id="statEnCoursSubtitle">Hors signés / refusés / annulés</span>
             </div>
             <div class="stat-card">
                 <span class="stat-number" id="statTaux">0%</span>
@@ -520,10 +520,6 @@
                 <button onclick="importJSON()" class="btn btn-outline">
                     <span>📂</span>
                     Import JSON
-                </button>
-                <button onclick="migrateLocalStorage()" class="btn btn-outline" style="border-color:#a55eea;color:#a55eea;" title="Migrer les données locales vers la base partagée">
-                    <span>🔄</span>
-                    Migrer Local
                 </button>
                 <button onclick="exportAllData()" class="btn btn-secondary">
                     <span>💾</span>
@@ -607,7 +603,7 @@
                         prenom: d.client_prenom || ''
                     },
                     calculs: d.calculs || { total_ttc: d.total_ttc || 0 },
-                    metadata: d.metadata || { photos_count: 0 }
+                    metadata: { photos_count: d.photos_count || 0 }
                 }));
                 filteredDevis = [...devisList];
                 console.log(`📊 ${devisList.length} devis chargés`);
@@ -620,21 +616,26 @@
         // Update statistics
         function updateStats() {
             const total = devisList.length;
-            const signes = devisList.filter(d => d.statut === 'signe');
-            const envoyes = devisList.filter(d => ['envoye_client', 'relance_1', 'relance_2', 'relance_3'].includes(d.statut));
-            const enCours = devisList.filter(d => ['brouillon', 'a_tarifer', 'en_attente_validation'].includes(d.statut));
-            
-            const totalCA = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || 0), 0);
+            // Statuts terminaux (ne comptent plus dans "en cours")
+            const TERMINAL = ['signe', 'refuse', 'annule', 'termine'];
+            // Signés = signe + termine — aligné sur la logique Worker
+            const signes  = devisList.filter(d => d.statut === 'signe' || d.statut === 'termine');
+            // Envoyés = devis actuellement dans la phase d'envoi/relance
+            const envoyes = devisList.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
+            // En cours = tout ce qui n'est pas dans un statut terminal
+            const enCours = devisList.filter(d => !TERMINAL.includes(d.statut));
+
+            const totalCA = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || d.total_ttc || 0), 0);
             const tauxSignature = envoyes.length > 0 ? Math.round((signes.length / envoyes.length) * 100) : 0;
-            
+
             // Update UI
             document.getElementById('statCA').textContent = formatEuro(totalCA);
-            document.getElementById('statCASubtitle').textContent = `Sur ${signes.length} devis signés`;
+            document.getElementById('statCASubtitle').textContent = `Sur ${signes.length} signé(s) / terminé(s)`;
             document.getElementById('statTotal').textContent = total;
             document.getElementById('statTotalSubtitle').textContent = `Tous statuts confondus`;
             document.getElementById('statEnCours').textContent = enCours.length;
             document.getElementById('statTaux').textContent = `${tauxSignature}%`;
-            
+
             // Update table counter
             document.getElementById('tableCounter').textContent = `${total} devis`;
         }
@@ -756,8 +757,12 @@
 
             document.body.appendChild(dropdown);
 
-            // Positionner
-            const top = rect.bottom + 4;
+            // Positionner — ouvre vers le haut si pas assez de place en bas
+            const estimatedH = 40 + Object.keys(STATUSES).length * 35;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const top = spaceBelow >= estimatedH + 8
+                ? rect.bottom + 4
+                : Math.max(8, rect.top - estimatedH - 4);
             const left = Math.min(rect.left, window.innerWidth - 210);
             dropdown.style.top = top + 'px';
             dropdown.style.left = left + 'px';
@@ -830,16 +835,14 @@
             }
         }
 
-        function exportDevis(id) {
-            const devis = devisList.find(d => d.id === id);
-            if (!devis) return;
-            
+        async function exportDevis(id) {
+            const devis = await SS_API.getDevis(id);
+            if (!devis) { alert('Impossible de charger les données complètes du devis.'); return; }
             const dataStr = JSON.stringify(devis, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            
             const link = document.createElement('a');
             link.href = URL.createObjectURL(dataBlob);
-            link.download = `devis_${id}.json`;
+            link.download = `devis_${id}_complet.json`;
             link.click();
         }
 
