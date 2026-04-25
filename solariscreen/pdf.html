@@ -73,6 +73,7 @@
   <div class="btn-group" id="btnGroup" style="display:none;"></div>
 </div>
 
+<script src="assets/api.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // UTILITAIRES
@@ -486,10 +487,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await sleep(200);
 
-  const all = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-  const devis = all.find(d => d.id === id);
+  // Chargement via SS_API (D1 en priorité, fallback localStorage automatique)
+  let devis;
+  try {
+    devis = await SS_API.getDevis(id);
+  } catch(e) {
+    showError(`Erreur lors du chargement du devis <strong>#${id}</strong> : ${e.message}`);
+    return;
+  }
 
-  if (!devis) { showError(`Devis <strong>#${id}</strong> introuvable dans les données locales.`); return; }
+  if (!devis) { showError(`Devis <strong>#${id}</strong> introuvable.`); return; }
 
   // Afficher les infos
   const c = devis.client || {};
@@ -523,21 +530,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const fileName = `Devis_SolariScreen_${id}_${(c.nom||'client').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
 
-    if (autoDownload) {
-      doc.save(fileName);
-    }
+    // Stocker doc dans window AVANT le rendu du bouton (le onclick en a besoin)
+    window[`doc_${id.replace(/\W/g,'')}`] = doc;
 
     document.getElementById('btnGroup').innerHTML = `
-      <button class="btn btn-primary" onclick="doc_${id.replace(/\W/g,'')}.save('${fileName}')">⬇️ Télécharger PDF</button>
+      <button class="btn btn-primary" onclick="doc_${id.replace(/\W/g,'')}.save('${fileName}')">⬇️ Re-télécharger PDF</button>
       <a href="show.html?id=${id}" class="btn btn-outline">← Voir le devis</a>
       <a href="dashboard.html" class="btn btn-outline">Dashboard</a>
     `;
     document.getElementById('btnGroup').style.display = 'flex';
 
-    // Stocker doc dans window pour le bouton
-    window[`doc_${id.replace(/\W/g,'')}`] = doc;
-
-    // Toujours télécharger aussi
+    // Téléchargement automatique unique à l'ouverture de la page
     doc.save(fileName);
 
   } catch(err) {
