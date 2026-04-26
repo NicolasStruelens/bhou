@@ -6,7 +6,7 @@
 
 const SS_API = (() => {
 
-  const BASE = '/api';
+  const BASE = 'https://solariscreen-api.nicolas-struelens.workers.dev/api';
 
   // ── Helper fetch JSON ──
   async function req(path, options = {}) {
@@ -128,8 +128,8 @@ const SS_API = (() => {
     // Vérifier si l'API est disponible
     async isOnline() {
       try {
-        await fetch('/api/health');
-        return true;
+        const r = await fetch(BASE + '/health');
+        return r.ok;
       } catch { return false; }
     },
 
@@ -175,24 +175,36 @@ const SS_API = (() => {
     // ══════════════════════════════════════
     async migrateFromLocalStorage(onProgress) {
       const local = localList();
-      if (local.length === 0) return { migrated: 0, total: 0 };
+      if (local.length === 0) return { migrated: 0, errors: 0, total: 0, errorDetails: [] };
 
       let migrated = 0, errors = 0;
+      const errorDetails = [];
+
       for (const devis of local) {
         try {
-          await req('/devis', {
+          const r = await fetch('/api/devis', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(devis)
           });
-          migrated++;
-          if (onProgress) onProgress(migrated, local.length, devis);
+          // Essayer de parser la réponse même en cas d'erreur HTTP
+          let data;
+          try { data = await r.json(); } catch { data = { ok: false, error: `HTTP ${r.status} — réponse non-JSON` }; }
+
+          if (data.ok) {
+            migrated++;
+          } else {
+            errors++;
+            errorDetails.push({ id: devis.id, error: data.error || `HTTP ${r.status}` });
+          }
         } catch(e) {
           errors++;
-          console.error('[MIGRATION] Échec pour', devis.id, e.message);
+          errorDetails.push({ id: devis.id, error: e.message });
         }
+        if (onProgress) onProgress(migrated + errors, local.length, devis);
       }
 
-      return { migrated, errors, total: local.length };
+      return { migrated, errors, total: local.length, errorDetails };
     }
   };
 })();
