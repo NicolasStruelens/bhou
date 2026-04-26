@@ -6,7 +6,7 @@
 
 const SS_API = (() => {
 
-  const BASE = '/api';
+  const BASE = 'https://solariscreen-api.nicolas-struelens.workers.dev/api';
 
   // ── Helper fetch JSON ──
   async function req(path, options = {}) {
@@ -23,10 +23,15 @@ const SS_API = (() => {
   function localList()       { return JSON.parse(localStorage.getItem('solariscreen_devis') || '[]'); }
   function localGet(id)      { return localList().find(d => d.id === id) || null; }
   function localSave(devis)  {
-    const all = localList();
-    const idx = all.findIndex(d => d.id === devis.id);
-    if (idx !== -1) all[idx] = devis; else all.unshift(devis);
-    localStorage.setItem('solariscreen_devis', JSON.stringify(all));
+    try {
+      const all = localList();
+      const idx = all.findIndex(d => d.id === devis.id);
+      if (idx !== -1) all[idx] = devis; else all.unshift(devis);
+      localStorage.setItem('solariscreen_devis', JSON.stringify(all));
+    } catch(e) {
+      // QuotaExceededError fréquent si les photos (base64) sont volumineuses — on ignore silencieusement
+      console.warn('[SS_API] localSave ignoré (localStorage plein?):', e.message);
+    }
   }
   function localDelete(id)   {
     localStorage.setItem('solariscreen_devis',
@@ -129,29 +134,77 @@ const SS_API = (() => {
     },
 
     // ══════════════════════════════════════
+    // COMMENTAIRES — ajouter / supprimer
+    // ══════════════════════════════════════
+    async addComment(id, { author, text, type }) {
+      try {
+        const devis = await this.getDevis(id);
+        if (!devis) throw new Error('Devis introuvable');
+        if (!devis.comments) devis.comments = [];
+        devis.comments.push({
+          id:     Date.now(),
+          author: author || 'nicolas',
+          text:   (text  || '').trim(),
+          type:   type   || 'note',
+          date:   new Date().toISOString()
+        });
+        devis.date_modification = new Date().toISOString();
+        return await this.saveDevis(devis);
+      } catch(e) {
+        console.error('[SS_API] addComment error:', e.message);
+        return { ok: false, error: e.message };
+      }
+    },
+
+    async deleteComment(devisId, commentId) {
+      try {
+        const devis = await this.getDevis(devisId);
+        if (!devis) throw new Error('Devis introuvable');
+        devis.comments = (devis.comments || []).filter(c => String(c.id) !== String(commentId));
+        devis.date_modification = new Date().toISOString();
+        return await this.saveDevis(devis);
+      } catch(e) {
+        console.error('[SS_API] deleteComment error:', e.message);
+        return { ok: false, error: e.message };
+      }
+    },
+
+    // ══════════════════════════════════════
     // MIGRATION localStorage → API
     // Appeler une seule fois depuis le dashboard
     // ══════════════════════════════════════
     async migrateFromLocalStorage(onProgress) {
       const local = localList();
-      if (local.length === 0) return { migrated: 0, total: 0 };
+      if (local.length === 0) return { migrated: 0, errors: 0, total: 0, errorDetails: [] };
 
       let migrated = 0, errors = 0;
+      const errorDetails = [];
+
       for (const devis of local) {
         try {
-          await req('/devis', {
+          const r = await fetch('/api/devis', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(devis)
           });
-          migrated++;
-          if (onProgress) onProgress(migrated, local.length, devis);
+          // Essayer de parser la réponse même en cas d'erreur HTTP
+          let data;
+          try { data = await r.json(); } catch { data = { ok: false, error: `HTTP ${r.status} — réponse non-JSON` }; }
+
+          if (data.ok) {
+            migrated++;
+          } else {
+            errors++;
+            errorDetails.push({ id: devis.id, error: data.error || `HTTP ${r.status}` });
+          }
         } catch(e) {
           errors++;
-          console.error('[MIGRATION] Échec pour', devis.id, e.message);
+          errorDetails.push({ id: devis.id, error: e.message });
         }
+        if (onProgress) onProgress(migrated + errors, local.length, devis);
       }
 
-      return { migrated, errors, total: local.length };
+      return { migrated, errors, total: local.length, errorDetails };
     }
   };
 })();
