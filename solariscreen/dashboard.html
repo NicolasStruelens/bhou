@@ -567,6 +567,13 @@
         <div class="section-title">Gestion des Devis</div>
         <div class="h-divider"></div>
 
+        <!-- Sync Status -->
+        <div id="syncStatus" style="margin-bottom:1.2rem;padding:0.65rem 1rem;border-radius:4px;font-size:0.65rem;letter-spacing:0.05em;display:flex;align-items:center;gap:0.7rem;border:1px solid var(--border);background:var(--bg-card);color:var(--text-dim);flex-wrap:wrap;">
+            <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></span>
+            <span id="syncMsg">⟳ Vérification de la connexion à Cloudflare D1…</span>
+            <button id="syncMigrateBtn" onclick="migrateLocalStorage()" style="display:none;margin-left:auto;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.06em;padding:0.3rem 0.8rem;background:transparent;border:1px solid rgba(255,165,2,0.5);color:var(--orange);border-radius:3px;cursor:pointer;">🔄 Migrer données locales → D1</button>
+        </div>
+
         <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
@@ -666,6 +673,7 @@
             await loadRealData();
             updateStats();
             renderTable();
+            checkApiStatus(); // vérifier D1 en arrière-plan, sans bloquer l'affichage
             // Fermer dropdown statut au clic ailleurs
             document.addEventListener('click', function(e) {
                 if (!e.target.closest('.status-badge') && !e.target.closest('.status-dropdown')) {
@@ -674,6 +682,43 @@
             });
             console.log('✅ Dashboard initialized');
         });
+
+        // ── Vérification connexion D1 ──
+        async function checkApiStatus() {
+            const dot  = document.getElementById('syncDot');
+            const msg  = document.getElementById('syncMsg');
+            const mBtn = document.getElementById('syncMigrateBtn');
+            try {
+                const r = await fetch('/api/health');
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                let parsed;
+                try { parsed = await r.json(); } catch { throw new Error('Réponse non-JSON — Worker non déployé'); }
+                if (!parsed.ok) throw new Error(parsed.error);
+
+                // ✅ D1 accessible
+                const n = parsed.devis_count ?? '?';
+                dot.style.background = 'var(--green)';
+                dot.style.boxShadow  = '0 0 6px var(--green)';
+                msg.textContent = `✅ Cloudflare D1 connectée — ${n} devis en base`;
+                msg.style.color  = 'var(--green)';
+
+                // Proposer migration si localStorage contient des données non-synchro
+                const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+                if (local.length > 0 && local.length > parseInt(n)) {
+                    mBtn.style.display = 'inline-flex';
+                    msg.textContent += ` · ${local.length - n} devis locaux non synchronisés`;
+                }
+            } catch(e) {
+                // ⚠ Worker inaccessible
+                dot.style.background = 'var(--orange)';
+                dot.style.boxShadow  = '0 0 6px var(--orange)';
+                msg.innerHTML = `<strong style="color:var(--orange);">⚠ Worker non déployé</strong> — Données en localStorage uniquement (invisibles sur autres navigateurs). Exécutez <code style="background:var(--bg-panel);padding:1px 5px;border-radius:3px;">wrangler deploy</code> depuis votre machine.`;
+                // Toujours proposer la migration pour quand l'API sera up
+                const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+                if (local.length > 0) mBtn.style.display = 'inline-flex';
+                console.warn('[Sync]', e.message);
+            }
+        }
 
         // Chargement via API (fallback localStorage auto dans api.js)
         async function loadRealData() {
@@ -936,28 +981,45 @@
         }
 
         // Export & Import functions
-        function exportAllData() {
-            if (devisList.length === 0) {
-                alert('Aucune donnée à exporter');
-                return;
+        async function exportAllData() {
+            if (devisList.length === 0) { alert('Aucune donnée à exporter'); return; }
+
+            // Trouver le bouton pour feedback visuel
+            const btn = document.querySelector('[onclick="exportAllData()"]');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span>⟳</span> Export…'; }
+
+            try {
+                // Charger le JSON COMPLET de chaque devis (items, photos, calculs, commentaires…)
+                const fullDevis = [];
+                for (const d of devisList) {
+                    const full = await SS_API.getDevis(d.id);
+                    if (full) fullDevis.push(full);
+                }
+
+                const exportData = {
+                    export_date:  new Date().toISOString(),
+                    version:      '2.0',
+                    total_devis:  fullDevis.length,
+                    data:         fullDevis
+                };
+
+                const dataBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const link = document.createElement('a');
+                link.href     = URL.createObjectURL(dataBlob);
+                link.download = `solariscreen_backup_${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+
+                const toast = document.getElementById('toast');
+                if (toast) {
+                    toast.innerHTML = `✅ Backup complet — <strong style="color:var(--cyan);">${fullDevis.length} devis</strong> exportés avec toutes les données`;
+                    toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 4000);
+                }
+            } catch(e) {
+                alert('Erreur export : ' + e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<span>💾</span> Export Complet'; }
             }
-            
-            const exportData = {
-                export_date: new Date().toISOString(),
-                version: '2.0',
-                total_devis: devisList.length,
-                data: devisList
-            };
-            
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(dataBlob);
-            link.download = `solariscreen_export_${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            
-            console.log('✅ Export completed');
         }
 
         function importJSON() {
