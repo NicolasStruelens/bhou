@@ -23,10 +23,15 @@ const SS_API = (() => {
   function localList()       { return JSON.parse(localStorage.getItem('solariscreen_devis') || '[]'); }
   function localGet(id)      { return localList().find(d => d.id === id) || null; }
   function localSave(devis)  {
-    const all = localList();
-    const idx = all.findIndex(d => d.id === devis.id);
-    if (idx !== -1) all[idx] = devis; else all.unshift(devis);
-    localStorage.setItem('solariscreen_devis', JSON.stringify(all));
+    try {
+      const all = localList();
+      const idx = all.findIndex(d => d.id === devis.id);
+      if (idx !== -1) all[idx] = devis; else all.unshift(devis);
+      localStorage.setItem('solariscreen_devis', JSON.stringify(all));
+    } catch(e) {
+      // QuotaExceededError fréquent si les photos (base64) sont volumineuses — on ignore silencieusement
+      console.warn('[SS_API] localSave ignoré (localStorage plein?):', e.message);
+    }
   }
   function localDelete(id)   {
     localStorage.setItem('solariscreen_devis',

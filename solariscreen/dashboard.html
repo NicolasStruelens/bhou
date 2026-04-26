@@ -1071,27 +1071,34 @@
             if (!text || !_commentDevisId) return;
             const btn = document.getElementById('commentSubmit');
             btn.disabled = true; btn.textContent = '⟳ Envoi...';
-            const res = await SS_API.addComment(_commentDevisId, {
-                author: document.getElementById('commentAuthor').value,
-                text,
-                type:   document.getElementById('commentType').value
-            });
-            if (res.ok) {
-                document.getElementById('commentText').value = '';
-                _commentDevisData = await SS_API.getDevis(_commentDevisId);
-                renderCommentThread();
-                // Mettre à jour le badge dans la table
-                const idx = devisList.findIndex(d => d.id === _commentDevisId);
-                if (idx !== -1) {
-                    const cnt = (_commentDevisData?.comments || []).length;
-                    devisList[idx].metadata = { ...devisList[idx].metadata, comments_count: cnt };
-                    filteredDevis = [...devisList];
-                    renderTable();
+            try {
+                const res = await SS_API.addComment(_commentDevisId, {
+                    author: document.getElementById('commentAuthor').value,
+                    text,
+                    type:   document.getElementById('commentType').value
+                });
+                if (res.ok) {
+                    document.getElementById('commentText').value = '';
+                    _commentDevisData = await SS_API.getDevis(_commentDevisId);
+                    renderCommentThread();
+                    // Mettre à jour le badge dans la table sans bloquer
+                    const idx = devisList.findIndex(d => d.id === _commentDevisId);
+                    if (idx !== -1) {
+                        const cnt = (_commentDevisData?.comments || []).length;
+                        devisList[idx].metadata = { ...devisList[idx].metadata, comments_count: cnt };
+                        filteredDevis = [...devisList];
+                        renderTable();
+                    }
+                } else {
+                    alert('Erreur : ' + (res.error || 'Impossible d\'envoyer.'));
                 }
-            } else {
-                alert('Erreur : ' + (res.error || 'Impossible d\'envoyer.'));
+            } catch(e) {
+                console.error('[submitComment]', e);
+                alert('Erreur inattendue : ' + e.message);
+            } finally {
+                // Toujours réinitialiser le bouton, quoi qu'il arrive
+                btn.disabled = false; btn.textContent = '▸ Ajouter le commentaire';
             }
-            btn.disabled = false; btn.textContent = '▸ Ajouter le commentaire';
         }
 
         async function deleteCommentItem(commentId) {
