@@ -616,10 +616,6 @@
                     <span>💾</span>
                     Export Complet
                 </button>
-                <button onclick="resetAllData()" class="btn btn-danger">
-                    <span>🗑️</span>
-                    Reset Données
-                </button>
             </div>
         </div>
 
@@ -689,31 +685,50 @@
             const msg  = document.getElementById('syncMsg');
             const mBtn = document.getElementById('syncMigrateBtn');
             try {
-                const r = await fetch('/api/health');
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                let parsed;
-                try { parsed = await r.json(); } catch { throw new Error('Réponse non-JSON — Worker non déployé'); }
-                if (!parsed.ok) throw new Error(parsed.error);
+                let r, parsed;
+                try {
+                    r = await fetch('/api/health');
+                } catch(netErr) {
+                    throw new Error('Réseau — Worker inaccessible : ' + netErr.message);
+                }
+
+                try { parsed = await r.json(); }
+                catch { throw new Error(`HTTP ${r.status} — Réponse non-JSON. Cloudflare Pages intercepte peut-être /api/* avant le Worker.`); }
+
+                if (!parsed.ok) {
+                    if (parsed.needsSchema) {
+                        // Cas le plus fréquent : table D1 inexistante
+                        dot.style.background = '#e74c3c';
+                        dot.style.boxShadow  = '0 0 6px #e74c3c';
+                        msg.innerHTML = `<strong style="color:#e74c3c;">⛔ Table D1 manquante</strong> — Le Worker tourne mais la table n'existe pas encore.<br>
+                        <span style="color:var(--cyan);font-size:0.6rem;">Exécutez dans votre terminal :</span>
+                        <code style="display:block;margin-top:4px;padding:6px 10px;background:var(--bg-panel);border-radius:4px;color:var(--green);font-size:0.62rem;letter-spacing:0.04em;">wrangler d1 execute solariscreen-db --file=schema.sql --remote</code>`;
+                        return;
+                    }
+                    throw new Error(parsed.error || 'Worker retourne ok:false');
+                }
 
                 // ✅ D1 accessible
-                const n = parsed.devis_count ?? '?';
+                const n = parsed.devis_count ?? 0;
                 dot.style.background = 'var(--green)';
                 dot.style.boxShadow  = '0 0 6px var(--green)';
-                msg.textContent = `✅ Cloudflare D1 connectée — ${n} devis en base`;
                 msg.style.color  = 'var(--green)';
+                msg.textContent = `✅ Cloudflare D1 connectée — ${n} devis en base`;
 
                 // Proposer migration si localStorage contient des données non-synchro
                 const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
-                if (local.length > 0 && local.length > parseInt(n)) {
+                if (local.length > 0 && local.length > n) {
                     mBtn.style.display = 'inline-flex';
                     msg.textContent += ` · ${local.length - n} devis locaux non synchronisés`;
+                } else if (local.length > 0 && n === 0) {
+                    mBtn.style.display = 'inline-flex';
+                    msg.textContent += ` · ${local.length} devis locaux à migrer`;
                 }
+
             } catch(e) {
-                // ⚠ Worker inaccessible
                 dot.style.background = 'var(--orange)';
                 dot.style.boxShadow  = '0 0 6px var(--orange)';
-                msg.innerHTML = `<strong style="color:var(--orange);">⚠ Worker non déployé</strong> — Données en localStorage uniquement (invisibles sur autres navigateurs). Exécutez <code style="background:var(--bg-panel);padding:1px 5px;border-radius:3px;">wrangler deploy</code> depuis votre machine.`;
-                // Toujours proposer la migration pour quand l'API sera up
+                msg.innerHTML = `<strong style="color:var(--orange);">⚠ Worker non joignable</strong> — ${e.message}`;
                 const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
                 if (local.length > 0) mBtn.style.display = 'inline-flex';
                 console.warn('[Sync]', e.message);
@@ -1184,12 +1199,25 @@
         async function migrateLocalStorage() {
             const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
             if (local.length === 0) { alert('Aucune donnée locale à migrer.'); return; }
-            if (!confirm(`Migrer ${local.length} devis locaux vers la base de données partagée ?`)) return;
+            if (!confirm(`Migrer ${local.length} devis locaux vers Cloudflare D1 ?`)) return;
+
+            const btn = document.getElementById('syncMigrateBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⟳ Migration...'; }
+
             const res = await SS_API.migrateFromLocalStorage((done, total) => {
-                console.log(`Migration : ${done}/${total}`);
+                if (btn) btn.textContent = `⟳ ${done}/${total}...`;
             });
-            alert(`✅ Migration terminée : ${res.migrated}/${res.total} devis migrés.${res.errors>0?' ⚠️ '+res.errors+' erreurs.':''}`);
+
+            let msg = `✅ Migration terminée : ${res.migrated}/${res.total} devis migrés vers D1.`;
+            if (res.errors > 0) {
+                msg += `\n\n⚠ ${res.errors} erreur(s) :`;
+                res.errorDetails.forEach(e => { msg += `\n• ${e.id} : ${e.error}`; });
+            }
+            alert(msg);
+
+            if (btn) { btn.disabled = false; btn.textContent = '🔄 Migrer données locales → D1'; }
             await loadRealData(); updateStats(); renderTable();
+            checkApiStatus(); // Rafraîchir le bandeau
         }
 
     </script>
