@@ -624,7 +624,7 @@
   color: var(--cyan);
 }
 
-/* ═══ VM SHOWCASE (cross-fade animation) ═══ */
+/* ═══ VM SHOWCASE (cross-fade animation, total 5s) ═══ */
 .vm-showcase {
   position: relative;
   width: 100%; height: 100%;
@@ -634,7 +634,7 @@
 }
 .vm-showcase .bg-grid { z-index: 0; opacity: 0.4; }
 
-/* Persistent tag at top */
+/* Persistent tag at top-left */
 .vm-tag {
   position: absolute;
   top: 2.2rem; left: 2.6rem;
@@ -670,8 +670,8 @@
   top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center;
   opacity: 0;
-  /* Total cycle: 13.5s = 3 slides × 4.5s each (3.5s visible + 1s cross-fade) */
-  animation: vmCrossFade 13.5s ease-in-out forwards;
+  /* Each VM: 1.85s animation duration. Cycle: VM1 @ 0s, VM2 @ 1.6s, VM3 @ 3.2s. Total = 5s. */
+  animation: vmCrossFade 1.85s ease-in-out forwards;
 }
 .vm-slide img {
   max-width: 100%;
@@ -683,55 +683,53 @@
   box-shadow: 0 0 40px rgba(0,255,136,0.15), 0 10px 40px rgba(0,0,0,0.5);
 }
 .vm-1 { animation-delay: 0s; }
-.vm-2 { animation-delay: 4.25s; }
-.vm-3 { animation-delay: 8.5s; }
+.vm-2 { animation-delay: 1.6s; }
+/* VM3 (last) stays visible until slide change */
+.vm-3 {
+  animation: vmCrossFadeLast 1.85s ease-in-out forwards;
+  animation-delay: 3.2s;
+}
 
 @keyframes vmCrossFade {
-  0%   { opacity: 0; transform: scale(0.98); }
-  8%   { opacity: 1; transform: scale(1); }
-  30%  { opacity: 1; transform: scale(1); }
-  37%  { opacity: 0; transform: scale(1.02); }
-  100% { opacity: 0; }
-}
-/* The last VM stays visible until slide change */
-.vm-3 {
-  animation: vmCrossFadeLast 5s ease-in-out forwards;
-  animation-delay: 8.5s;
+  0%   { opacity: 0; transform: scale(0.99); }
+  18%  { opacity: 1; transform: scale(1); }
+  78%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.005); }
 }
 @keyframes vmCrossFadeLast {
-  0%   { opacity: 0; transform: scale(0.98); }
-  20%  { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: scale(0.99); }
+  18%  { opacity: 1; transform: scale(1); }
   100% { opacity: 1; transform: scale(1); }
 }
 
-/* Synchronized labels (bottom) */
+/* Dynamic VM label — TOP LEFT, just below the persistent tag, OUTSIDE the VM screen area */
 .vm-labels {
   position: absolute;
-  bottom: 3.2rem;
-  left: 50%; transform: translateX(-50%);
-  z-index: 10;
+  top: 5rem;            /* sits directly under .vm-tag */
+  left: 2.6rem;
+  z-index: 11;
+  pointer-events: none;
 }
 .vm-label {
   position: absolute;
-  bottom: 0;
-  left: 50%; transform: translateX(-50%);
+  top: 0; left: 0;
   font-family: var(--font-mono);
-  font-size: 0.8em;
+  font-size: 0.72em;
   color: var(--text);
   white-space: nowrap;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   background: rgba(8,13,18,0.85);
-  padding: 0.6rem 1.4rem;
+  padding: 0.5rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: 4px;
   backdrop-filter: blur(6px);
   opacity: 0;
 }
-.vm-1-lbl { animation: vmCrossFade 13.5s ease-in-out forwards; animation-delay: 0s; }
-.vm-2-lbl { animation: vmCrossFade 13.5s ease-in-out forwards; animation-delay: 4.25s; }
-.vm-3-lbl { animation: vmCrossFadeLast 5s ease-in-out forwards; animation-delay: 8.5s; }
+.vm-1-lbl { animation: vmCrossFade 1.85s ease-in-out forwards; animation-delay: 0s; }
+.vm-2-lbl { animation: vmCrossFade 1.85s ease-in-out forwards; animation-delay: 1.6s; }
+.vm-3-lbl { animation: vmCrossFadeLast 1.85s ease-in-out forwards; animation-delay: 3.2s; }
 
-/* Progress dots */
+/* Progress dots (bottom-center) */
 .vm-progress {
   position: absolute;
   bottom: 1.4rem;
@@ -753,11 +751,11 @@
   width: 0; height: 100%;
   background: var(--green);
   box-shadow: 0 0 8px var(--green);
-  animation: vmProgFill 4.25s linear forwards;
+  animation: vmProgFill 1.7s linear forwards;
 }
 .vm-prog-1::after { animation-delay: 0s; }
-.vm-prog-2::after { animation-delay: 4.25s; }
-.vm-prog-3::after { animation-delay: 8.5s; animation-duration: 5s; }
+.vm-prog-2::after { animation-delay: 1.6s; }
+.vm-prog-3::after { animation-delay: 3.2s; animation-duration: 1.8s; }
 @keyframes vmProgFill {
   to { width: 100%; }
 }
@@ -1830,7 +1828,7 @@
 </section>
 
 <!-- ════════════ SLIDE 13C — LES 3 VMs (FONDU) ════════════ -->
-<section data-autoslide="13500" data-background-color="#080d12">
+<section data-autoslide="5000" data-background-color="#080d12">
   <div class="vm-showcase">
     <div class="bg-grid"></div>
 
@@ -2175,6 +2173,24 @@ Reveal.initialize({
   keyboard: {
     39: 'next',
     37: 'prev',
+  }
+});
+
+// Re-trigger VM cross-fade animations whenever user arrives on the VM showcase slide.
+// Without this, CSS animations play once on page load and remain in their final state
+// by the time the user reaches the slide.
+Reveal.on('slidechanged', function(event) {
+  var slide = event.currentSlide;
+  if (slide && slide.querySelector('.vm-showcase')) {
+    var animated = slide.querySelectorAll('.vm-slide, .vm-label, .vm-prog');
+    animated.forEach(function(el) {
+      // Remove the animation, force a reflow, then restore it.
+      // This resets the @keyframes timer and replays from the beginning.
+      var anim = window.getComputedStyle(el).animation;
+      el.style.animation = 'none';
+      void el.offsetWidth; /* force reflow */
+      el.style.animation = '';
+    });
   }
 });
 </script>
