@@ -749,19 +749,26 @@ function bindConfigEvents() {
 // Configuration produit : modèles + gammes moteur disponibles par type.
 // Marque toujours Harol (modèles) et Somfy (moteurs) → préfixés à l'affichage devis.
 const PRODUCT_CONFIG = {
-  screen:        { modeles: ['CoolScreen 8'], moteurs: ['Solar','IO','RTS'], allowAD: false, adOnly: false },
-  tente_solaire: { modeles: ['BX270','LUX'],  moteurs: ['IO','RTS'],         allowAD: false, adOnly: false },
-  volet:         { modeles: ['VR150'],        moteurs: ['Solar','IO','RTS'], allowAD: true,  adOnly: false },
-  tablier_volet: { modeles: [],               moteurs: ['Solar','IO','RTS'], allowAD: false, adOnly: true  }
+  screen:        { modeles: ['CoolScreen 8'], moteurs: ['Solar','IO','RTS'], adField: false, adOnly: false },
+  tente_solaire: { modeles: ['BX270','LUX'],  moteurs: ['IO','RTS'],         adField: false, adOnly: false },
+  volet:         { modeles: ['VR150'],        moteurs: ['Solar','IO','RTS'], adField: true,  adOnly: false },
+  tablier_volet: { modeles: [],               moteurs: ['Solar','IO','RTS'], adField: false, adOnly: true  }
 };
 
 function escAttr(s) { return String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function escHtml(s) { return String(s ?? '').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// Badge "AD" réutilisable
+function adBadge() {
+  return `<span style="background:var(--cyan);color:#001018;font-weight:700;font-size:0.7rem;padding:0.45rem 0.65rem;border-radius:4px;letter-spacing:0.05em;flex-shrink:0;">AD</span>`;
+}
+
 // Affichage compact du modèle (avec réf AD si applicable) — vue interne calculateur
 function itemModeleDisplay(item) {
   if (item.modele === 'AD') return 'AD' + (item.modele_ref ? ' ' + item.modele_ref : '');
-  return item.modele || '';
+  let m = item.modele || '';
+  if (item.modele_ref) m += (m ? ' — ' : '') + 'AD ' + item.modele_ref;
+  return m;
 }
 
 // Rendu du champ Modèle selon le type
@@ -771,20 +778,25 @@ function renderModeleInner(id, type, modele, modeleRef) {
   // Tablier de volet : pas de liste, badge AD + référence libre
   if (cfg.adOnly) {
     return `<div style="display:flex;gap:0.5rem;align-items:center;">
-      <span style="background:var(--cyan);color:#001018;font-weight:700;font-size:0.7rem;padding:0.45rem 0.65rem;border-radius:4px;letter-spacing:0.05em;flex-shrink:0;">AD</span>
+      ${adBadge()}
       <input type="text" class="form-input" id="modeleRef-${id}" value="${escAttr(modeleRef)}" placeholder="Référence…" oninput="collectItemData(${id})">
     </div>`;
   }
 
-  // Liste déroulante normale (+ option AD pour les volets)
-  const inList = cfg.modeles.includes(modele) || modele === 'AD';
+  // Liste déroulante modèle (préserve une valeur ancienne hors liste)
+  const inList = cfg.modeles.includes(modele);
   let opts = '';
   if (modele && !inList) opts += `<option value="${escAttr(modele)}" selected>${escHtml(modele)} (actuel)</option>`;
   opts += cfg.modeles.map(m => `<option value="${m}" ${modele===m?'selected':''}>${m}</option>`).join('');
-  if (cfg.allowAD) opts += `<option value="AD" ${modele==='AD'?'selected':''}>AD (autre réf.)</option>`;
+  let html = `<select class="form-select" id="modele-${id}" onchange="collectItemData(${id})">${opts}</select>`;
 
-  let html = `<select class="form-select" id="modele-${id}" onchange="onModeleChange(${id})">${opts}</select>`;
-  html += `<input type="text" class="form-input" id="modeleRef-${id}" value="${escAttr(modeleRef)}" placeholder="Référence AD…" oninput="collectItemData(${id})" style="margin-top:0.45rem;display:${modele==='AD'?'block':'none'};">`;
+  // Volet : champ AD toujours visible à côté du modèle (référence à saisir soi-même)
+  if (cfg.adField) {
+    html += `<div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.45rem;">
+      ${adBadge()}
+      <input type="text" class="form-input" id="modeleRef-${id}" value="${escAttr(modeleRef)}" placeholder="Type AD (réf.)…" oninput="collectItemData(${id})">
+    </div>`;
+  }
   return html;
 }
 
@@ -969,14 +981,6 @@ function onTypeChange(id) {
   collectItemData(id);
   // Si tente solaire detectée, changer les defaults installation
   checkTenteSolaire();
-}
-
-// Volet : afficher / masquer le champ référence libre quand "AD" est choisi
-function onModeleChange(id) {
-  const sel = document.getElementById(`modele-${id}`);
-  const ref = document.getElementById(`modeleRef-${id}`);
-  if (sel && ref) ref.style.display = sel.value === 'AD' ? 'block' : 'none';
-  collectItemData(id);
 }
 
 function checkTenteSolaire() {
