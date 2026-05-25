@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SolariScreen — Détail Devis</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="icon" type="image/png" href="assets/logo-solariscreen.png">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -143,9 +144,13 @@
 <div class="bg-grid"></div>
 
 <nav>
-  <a href="dashboard.html" class="nav-logo">SolariScreen<span>://</span>Devis</a>
+  <a href="dashboard.html" class="nav-logo" style="display:flex;align-items:center;gap:0.6rem;">
+    <img src="assets/logo-solariscreen.png" alt="SS" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">
+    SolariScreen<span>://</span>Devis
+  </a>
   <div class="nav-right">
     <span class="devis-id-tag" id="navDevisId">—</span>
+    <a href="stats.html" class="btn-nav btn-nav-back">📊 Stats</a>
     <a href="dashboard.html" class="btn-nav btn-nav-back">← Dashboard</a>
     <a href="#" class="btn-nav btn-nav-edit" id="btnModifier">✏️ Modifier</a>
   </div>
@@ -177,6 +182,20 @@ const STATUSES = {
 
 function getStatusLabel(s){ return STATUSES[s] || s || 'Brouillon'; }
 function fmt(n){ return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(n||0); }
+
+// Affichage modèle (marque Harol) + réf AD éventuelle. Préserve les anciens devis (ne re-préfixe pas).
+function modeleLabel(item){
+  let m = item.modele === 'AD' ? ('AD' + (item.modele_ref ? ' ' + item.modele_ref : '')) : (item.modele || '');
+  if (!m) return '—';
+  return /harol/i.test(m) ? m : 'Harol ' + m;
+}
+// Affichage moteur (marque Somfy). Préserve "Somfy IO"/"Manuel"/"Autre" des anciens devis.
+function moteurLabel(moteur){
+  const m = moteur || '';
+  if (!m) return '—';
+  if (/somfy/i.test(m) || m === 'Manuel' || m === 'Autre') return m;
+  return 'Somfy ' + m;
+}
 function fmtDate(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('fr-BE',{day:'2-digit',month:'long',year:'numeric'}); }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -260,7 +279,7 @@ function renderDevis(d) {
     html += `<div style="color:var(--text-dim);font-size:0.8em;">Aucune ouverture enregistrée.</div>`;
   } else {
     items.forEach((item, idx) => {
-      const typeLabel = {screen:'Screen',tente_solaire:'Tente solaire',tablier_volet:'Tablier de volet'}[item.type] || item.type || '—';
+      const typeLabel = {screen:'Screen',tente_solaire:'Tente solaire',volet:'Volet',tablier_volet:'Tablier de volet'}[item.type] || item.type || '—';
       const larg = item.largeur || 0;
       const haut = item.hauteur || 0;
       const surf = larg>0 && haut>0 ? ((larg/1000)*(haut/1000)).toFixed(2)+' m²' : '—';
@@ -272,8 +291,8 @@ function renderDevis(d) {
         <div class="item-card">
           <div class="item-number">Ouverture ${idx+1} — ${typeLabel} · ${item.emplacement||'Sans emplacement'}${item.etage?' · '+item.etage:''}</div>
           <div class="item-meta-grid">
-            <div class="info-row"><div class="info-label">Modèle</div><div class="info-value">${item.modele||'—'}</div></div>
-            <div class="info-row"><div class="info-label">Moteur</div><div class="info-value">${item.moteur||'—'}</div></div>
+            <div class="info-row"><div class="info-label">Modèle</div><div class="info-value">${modeleLabel(item)}</div></div>
+            <div class="info-row"><div class="info-label">Moteur</div><div class="info-value">${moteurLabel(item.moteur)}</div></div>
             <div class="info-row"><div class="info-label">Dimensions</div><div class="info-value">${larg} × ${haut} mm <span style="color:var(--text-dim);font-size:0.85em;">(${surf})</span></div></div>
             <div class="info-row"><div class="info-label">Quantité</div><div class="info-value">${qty}</div></div>
             ${item.etage ? `<div class="info-row"><div class="info-label">Étage</div><div class="info-value">${item.etage}</div></div>` : ''}

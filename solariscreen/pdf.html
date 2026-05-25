@@ -117,7 +117,41 @@ function showError(msg) {
   document.getElementById('btnGroup').style.display = 'flex';
 }
 function getTypeLabel(t) {
-  return {screen:'Screen',tente_solaire:'Tente solaire',tablier_volet:'Tablier de volet'}[t]||'Screen';
+  return {screen:'Screen',tente_solaire:'Tente solaire',volet:'Volet',tablier_volet:'Tablier de volet'}[t]||'Screen';
+}
+// Modèle (marque Harol) + réf AD. Ne re-préfixe pas les anciens devis déjà "Harol …".
+function modeleLabelPDF(item) {
+  let m = item.modele === 'AD' ? ('AD' + (item.modele_ref ? ' ' + item.modele_ref : '')) : (item.modele || '');
+  if (!m) return '';
+  return /harol/i.test(m) ? m : 'Harol ' + m;
+}
+// Moteur (marque Somfy). Exclut Manuel ; préserve les anciens "Somfy …".
+function moteurLabelPDF(moteur) {
+  const m = moteur || '';
+  if (!m || m === 'Manuel') return '';
+  return /somfy/i.test(m) ? m : 'Somfy ' + m;
+}
+// Titre adaptatif : 1 seul type → spécifique avec modèle Harol ; mélange → générique.
+function buildTitle(items) {
+  const types = [...new Set(items.map(i => i.type || 'screen'))];
+  const labels = { screen:'de screen', tente_solaire:'de tente(s) solaire', volet:'de volet(s)', tablier_volet:'de tablier(s) de volet' };
+  let titre = 'Devis \u2013 Fourniture et installation';
+  if (types.length === 1) {
+    const ty = types[0];
+    titre += ' ' + (labels[ty] || 'de fournitures');
+    if (ty !== 'tablier_volet') {
+      const models = [...new Set(items.map(i => i.modele).filter(Boolean))];
+      if (models.length === 1 && models[0] !== 'AD') {
+        const m = models[0];
+        titre += /harol/i.test(m) ? ' ' + m : ' Harol ' + m;
+      } else {
+        titre += ' Harol';
+      }
+    }
+  } else {
+    titre += ' de fournitures Harol';
+  }
+  return titre;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -224,12 +258,8 @@ async function generatePDF(devis) {
   // TITRE
   // ══════════════════════════════════════
   setFont('bold', 12, [20,20,20]);
-  // Titre adapté selon type d'item
-  const hasScreeen = items.some(i => i.type === 'screen' || !i.type);
-  const hasTente   = items.some(i => i.type === 'tente_solaire');
-  let titre = 'Devis \u2013 Fourniture et installation';
-  if (hasTente && !hasScreeen) titre += ' de tente(s) solaire';
-  else titre += ' de screen Harol CoolScreen8';
+  // Titre adapté selon le(s) type(s) d'item
+  const titre = buildTitle(items);
   text(titre, ML, y);
   y += 7;
 
@@ -288,12 +318,15 @@ async function generatePDF(devis) {
     const haut     = item.hauteur  || 0;
     const surf     = larg>0&&haut>0 ? ((larg/1000)*(haut/1000)).toFixed(2) : '?';
     const typeL    = getTypeLabel(item.type);
-    const moteur   = item.moteur && item.moteur !== 'Manuel' ? item.moteur : '';
+    const modeleL  = modeleLabelPDF(item);
+    const moteur   = moteurLabelPDF(item.moteur);
     const empl     = item.emplacement || '';
     const prix     = item.prix_catalogue_ht || 0;
 
     // Puce unicode " • " au lieu de "-"
-    let ligneBase = `\u2022  ${typeL} - ${larg} \u00D7 ${haut} mm (${surf} m\u00B2)`;
+    let ligneBase = `\u2022  ${typeL}`;
+    if (modeleL)    ligneBase += ` ${modeleL}`;
+    ligneBase += ` - ${larg} \u00D7 ${haut} mm (${surf} m\u00B2)`;
     if (qty > 1)    ligneBase += ` \u00D7 ${qty}`;
     if (moteur)     ligneBase += ` - Moteur ${moteur}`;
     if (empl)       ligneBase += ` - Emplacement : ${empl}`;

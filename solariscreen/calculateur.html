@@ -745,6 +745,62 @@ function bindConfigEvents() {
 // ═══════════════════════════════════════════════════════════
 // ITEMS / OUVERTURES
 // ═══════════════════════════════════════════════════════════
+
+// Configuration produit : modèles + gammes moteur disponibles par type.
+// Marque toujours Harol (modèles) et Somfy (moteurs) → préfixés à l'affichage devis.
+const PRODUCT_CONFIG = {
+  screen:        { modeles: ['CoolScreen 8'], moteurs: ['Solar','IO','RTS'], allowAD: false, adOnly: false },
+  tente_solaire: { modeles: ['BX270','LUX'],  moteurs: ['IO','RTS'],         allowAD: false, adOnly: false },
+  volet:         { modeles: ['VR150'],        moteurs: ['Solar','IO','RTS'], allowAD: true,  adOnly: false },
+  tablier_volet: { modeles: [],               moteurs: ['Solar','IO','RTS'], allowAD: false, adOnly: true  }
+};
+
+function escAttr(s) { return String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escHtml(s) { return String(s ?? '').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Affichage compact du modèle (avec réf AD si applicable) — vue interne calculateur
+function itemModeleDisplay(item) {
+  if (item.modele === 'AD') return 'AD' + (item.modele_ref ? ' ' + item.modele_ref : '');
+  return item.modele || '';
+}
+
+// Rendu du champ Modèle selon le type
+function renderModeleInner(id, type, modele, modeleRef) {
+  const cfg = PRODUCT_CONFIG[type] || PRODUCT_CONFIG.screen;
+
+  // Tablier de volet : pas de liste, badge AD + référence libre
+  if (cfg.adOnly) {
+    return `<div style="display:flex;gap:0.5rem;align-items:center;">
+      <span style="background:var(--cyan);color:#001018;font-weight:700;font-size:0.7rem;padding:0.45rem 0.65rem;border-radius:4px;letter-spacing:0.05em;flex-shrink:0;">AD</span>
+      <input type="text" class="form-input" id="modeleRef-${id}" value="${escAttr(modeleRef)}" placeholder="Référence…" oninput="collectItemData(${id})">
+    </div>`;
+  }
+
+  // Liste déroulante normale (+ option AD pour les volets)
+  const inList = cfg.modeles.includes(modele) || modele === 'AD';
+  let opts = '';
+  if (modele && !inList) opts += `<option value="${escAttr(modele)}" selected>${escHtml(modele)} (actuel)</option>`;
+  opts += cfg.modeles.map(m => `<option value="${m}" ${modele===m?'selected':''}>${m}</option>`).join('');
+  if (cfg.allowAD) opts += `<option value="AD" ${modele==='AD'?'selected':''}>AD (autre réf.)</option>`;
+
+  let html = `<select class="form-select" id="modele-${id}" onchange="onModeleChange(${id})">${opts}</select>`;
+  html += `<input type="text" class="form-input" id="modeleRef-${id}" value="${escAttr(modeleRef)}" placeholder="Référence AD…" oninput="collectItemData(${id})" style="margin-top:0.45rem;display:${modele==='AD'?'block':'none'};">`;
+  return html;
+}
+
+// Rendu du champ Moteur selon le type
+function renderMoteurInner(id, type, moteur) {
+  const cfg = PRODUCT_CONFIG[type] || PRODUCT_CONFIG.screen;
+  const norm = moteur || '';
+  let opts = '';
+  // Préserver une valeur ancienne / hors liste (ex: "Somfy IO", "Manuel") sans la perdre
+  if (norm && !cfg.moteurs.includes(norm)) {
+    opts += `<option value="${escAttr(norm)}" selected>${escHtml(norm)} (actuel)</option>`;
+  }
+  opts += cfg.moteurs.map(m => `<option value="${m}" ${norm===m?'selected':''}>Somfy ${m}</option>`).join('');
+  return `<select class="form-select" id="moteur-${id}" onchange="collectItemData(${id})">${opts}</select>`;
+}
+
 function addItem(data) {
   currentItemId++;
   const id = currentItemId;
@@ -753,9 +809,11 @@ function addItem(data) {
   card.className = 'item-card';
   card.id = `item-${id}`;
 
-  const modele = data?.modele || 'Harol';
-  const moteur = data?.moteur || 'Somfy IO';
   const type = data?.type || 'screen';
+  const cfgInit = PRODUCT_CONFIG[type] || PRODUCT_CONFIG.screen;
+  const modele = data?.modele || (cfgInit.adOnly ? 'AD' : (cfgInit.modeles[0] || ''));
+  const moteur = data?.moteur || (cfgInit.moteurs[0] || '');
+  const modeleRef = data?.modele_ref || '';
   const qty = data?.quantite || 1;
   const larg = data?.largeur || '';
   const haut = data?.hauteur || '';
@@ -780,27 +838,17 @@ function addItem(data) {
         <select class="form-select" id="type-${id}" onchange="onTypeChange(${id})">
           <option value="screen" ${type==='screen'?'selected':''}>Screen</option>
           <option value="tente_solaire" ${type==='tente_solaire'?'selected':''}>Tente solaire</option>
+          <option value="volet" ${type==='volet'?'selected':''}>Volet</option>
           <option value="tablier_volet" ${type==='tablier_volet'?'selected':''}>Tablier de volet</option>
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Modèle / Gamme</label>
-        <select class="form-select" id="modele-${id}" onchange="collectItemData(${id})">
-          <option value="Harol CoolScreen8" ${modele.includes('CoolScreen8')?'selected':''}>Harol CoolScreen8</option>
-          <option value="Harol Sunfly IQ" ${modele.includes('Sunfly')?'selected':''}>Harol Sunfly IQ</option>
-          <option value="Harol" ${modele==='Harol'?'selected':''}>Harol (standard)</option>
-          <option value="Somfy" ${modele==='Somfy'?'selected':''}>Somfy</option>
-          <option value="Autre" ${modele==='Autre'?'selected':''}>Autre</option>
-        </select>
+        <div id="modeleField-${id}">${renderModeleInner(id, type, modele, modeleRef)}</div>
       </div>
       <div class="form-group">
         <label class="form-label">Moteur / Commande</label>
-        <select class="form-select" id="moteur-${id}" onchange="collectItemData(${id})">
-          <option value="Somfy IO" ${moteur==='Somfy IO'?'selected':''}>Somfy IO</option>
-          <option value="Somfy RTS" ${moteur==='Somfy RTS'?'selected':''}>Somfy RTS</option>
-          <option value="Manuel" ${moteur==='Manuel'?'selected':''}>Manuel</option>
-          <option value="Autre" ${moteur==='Autre'?'selected':''}>Autre</option>
-        </select>
+        <div id="moteurField-${id}">${renderMoteurInner(id, type, moteur)}</div>
       </div>
       <div class="form-group">
         <label class="form-label">Quantité</label>
@@ -870,6 +918,7 @@ function addItem(data) {
       _uid: id,
       type: type,
       modele: modele,
+      modele_ref: modeleRef,
       moteur: moteur,
       quantite: qty,
       largeur: larg ? parseInt(larg) : 0,
@@ -897,9 +946,37 @@ function removeItem(id) {
 }
 
 function onTypeChange(id) {
+  const type = document.getElementById(`type-${id}`)?.value || 'screen';
+  const cfg = PRODUCT_CONFIG[type] || PRODUCT_CONFIG.screen;
+
+  // Nouveaux défauts pour le type choisi (les modèles/moteurs diffèrent par type)
+  const newModele = cfg.adOnly ? 'AD' : (cfg.modeles[0] || '');
+  const newMoteur = cfg.moteurs[0] || '';
+
+  const idx = devisData.items.findIndex(i => i._uid === id);
+  if (idx !== -1) {
+    devisData.items[idx].modele = newModele;
+    devisData.items[idx].modele_ref = '';
+    devisData.items[idx].moteur = newMoteur;
+  }
+
+  // Re-rendu des champs Modèle + Moteur
+  const mf = document.getElementById(`modeleField-${id}`);
+  const tf = document.getElementById(`moteurField-${id}`);
+  if (mf) mf.innerHTML = renderModeleInner(id, type, newModele, '');
+  if (tf) tf.innerHTML = renderMoteurInner(id, type, newMoteur);
+
   collectItemData(id);
   // Si tente solaire detectée, changer les defaults installation
   checkTenteSolaire();
+}
+
+// Volet : afficher / masquer le champ référence libre quand "AD" est choisi
+function onModeleChange(id) {
+  const sel = document.getElementById(`modele-${id}`);
+  const ref = document.getElementById(`modeleRef-${id}`);
+  if (sel && ref) ref.style.display = sel.value === 'AD' ? 'block' : 'none';
+  collectItemData(id);
 }
 
 function checkTenteSolaire() {
@@ -923,7 +1000,9 @@ function collectItemData(id) {
   if (idx === -1) return;
 
   const type = document.getElementById(`type-${id}`)?.value || 'screen';
-  const modele = document.getElementById(`modele-${id}`)?.value || '';
+  const cfg = PRODUCT_CONFIG[type] || PRODUCT_CONFIG.screen;
+  const modele = cfg.adOnly ? 'AD' : (document.getElementById(`modele-${id}`)?.value || '');
+  const modele_ref = document.getElementById(`modeleRef-${id}`)?.value || '';
   const moteur = document.getElementById(`moteur-${id}`)?.value || '';
   const quantite = parseInt(document.getElementById(`quantite-${id}`)?.value) || 1;
   const largeur = parseInt(document.getElementById(`largeur-${id}`)?.value) || 0;
@@ -933,7 +1012,7 @@ function collectItemData(id) {
   const notes = document.getElementById(`notes-${id}`)?.value || '';
   const prix = parseFloat(document.getElementById(`prixCatalog-${id}`)?.value) || 0;
 
-  devisData.items[idx] = { ...devisData.items[idx], type, modele, moteur, quantite, largeur, hauteur, emplacement, etage, notes, prix_catalogue_ht: prix };
+  devisData.items[idx] = { ...devisData.items[idx], type, modele, modele_ref, moteur, quantite, largeur, hauteur, emplacement, etage, notes, prix_catalogue_ht: prix };
 
   // Surface
   const surface = (largeur / 1000) * (hauteur / 1000) * quantite;
@@ -1071,11 +1150,11 @@ function recalc() {
     const larg = item.largeur || 0;
     const haut = item.hauteur || 0;
     const surf = larg > 0 && haut > 0 ? ((larg/1000)*(haut/1000)).toFixed(2)+' m²' : '—';
-    const typeLabel = { screen:'Screen', tente_solaire:'Tente solaire', tablier_volet:'Tablier volet' }[item.type] || item.type;
+    const typeLabel = { screen:'Screen', tente_solaire:'Tente solaire', volet:'Volet', tablier_volet:'Tablier volet' }[item.type] || item.type;
     tableHTML += `<tr>
       <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${idx+1}</td>
       <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${typeLabel}</td>
-      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${item.modele||''}</td>
+      <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${itemModeleDisplay(item)||''}</td>
       <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);">${larg}×${haut} mm<br><span style="color:var(--text-dim);font-size:0.65rem;">${surf}</span></td>
       <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);text-align:center;">${qty}</td>
       <td style="padding:0.4rem 0.5rem;border:1px solid var(--border);text-align:right;">${fmt(prix)}</td>
