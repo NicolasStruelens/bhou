@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Tableau de bord</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5); }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+    .kpi::after { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent); opacity: 0.8; }
+    .kpi.gold::after { background: var(--accent-2); }
+    .kpi.ok::after { background: var(--ok); }
+    .kpi .kpi-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+    .kpi .kpi-value { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: 700; color: var(--text); margin-top: 0.2rem; line-height: 1.1; }
+    .kpi .kpi-sub { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.2rem; }
+    .kpi.accent .kpi-value { color: var(--accent); }
+    .kpi.gold .kpi-value { color: var(--accent-2); }
+
+    .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .toolbar .search { flex: 1; min-width: 220px; position: relative; }
+    .toolbar .search input { padding-left: 2.2rem; }
+    .toolbar .search::before { content: '🔍'; position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); font-size: 0.85rem; opacity: 0.6; }
+    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .chip { font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+    .status-select { font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 600; padding: 0.3rem 0.5rem; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
+
+    td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
+    .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    .empty .big { font-size: 2.5rem; margin-bottom: var(--sp-3); }
+
+    .client-cell { display: flex; flex-direction: column; }
+    .client-cell .name { font-weight: 600; color: var(--text); }
+    .client-cell .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .count-pill { font-size: var(--fs-2xs); color: var(--text-muted); font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Tableau de bord</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="badge" id="apiBadge" title="État de la connexion">…</span>
+      <a class="btn btn-ghost btn-sm" href="clients.html">👥 Clients</a>
+      <a class="btn btn-ghost btn-sm" href="factures.html">🧾 Factures</a>
+      <span id="themeToggle"></span>
+      <a class="btn btn-primary btn-sm" href="simulateur.html">+ Nouveau devis</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- KPIs -->
+    <div class="kpis" id="kpis"></div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search"><input class="input" id="search" placeholder="Rechercher un client, un n° de devis…" oninput="render()"></div>
+      <select class="select" id="sort" style="max-width:200px;" onchange="render()">
+        <option value="modif">Tri : récents d'abord</option>
+        <option value="montant">Tri : montant ↓</option>
+        <option value="nom">Tri : nom A→Z</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde">⬇ Export</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer">⬆ Import</button>
+      <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
+    </div>
+    <div class="filters" id="filters"></div>
+
+    <!-- Table -->
+    <section class="section" style="margin-top: var(--sp-4);">
+      <div class="section-head">
+        <span class="section-title">📋 Devis</span>
+        <span class="section-sub" id="resultCount">—</span>
+      </div>
+      <div id="tableHost"></div>
+    </section>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, fmtDate, el, setText, toast } = window.SSUI;
+
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const STATUSES = {
+      brouillon:     { label: 'Brouillon',  cls: 'badge' },
+      envoye_client: { label: 'Envoyé',     cls: 'badge-cyan' },
+      relance_1:     { label: 'Relance 1',  cls: 'badge-warn' },
+      relance_2:     { label: 'Relance 2',  cls: 'badge-warn' },
+      signe:         { label: 'Signé',      cls: 'badge-ok' },
+      termine:       { label: 'Terminé',    cls: 'badge-accent' },
+      refuse:        { label: 'Refusé',     cls: 'badge-danger' },
+      annule:        { label: 'Annulé',     cls: 'badge' },
+    };
+
+    let DEVIS = [];
+    let activeFilter = 'tous';
+
+    // Normalise les 2 formes possibles (résumé API / devis complet en cache local)
+    function norm(d) {
+      return {
+        id: d.id,
+        nom: d.client_nom || (d.client && d.client.nom) || '',
+        prenom: d.client_prenom || (d.client && d.client.prenom) || '',
+        statut: d.statut || 'brouillon',
+        ttc: d.total_ttc || (d.calculs && d.calculs.total_ttc) || 0,
+        date_creation: d.date_creation || '',
+        date_modification: d.date_modification || d.date_creation || '',
+        photos: d.photos_count || (d.metadata && d.metadata.photos_count) || 0,
+        comments: d.comments_count || (d.comments && d.comments.length) || 0,
+      };
+    }
+
+    function renderFilters() {
+      const counts = { tous: DEVIS.length };
+      DEVIS.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
+      const chips = [['tous', 'Tous']].concat(Object.entries(STATUSES).map(([k, v]) => [k, v.label]));
+      el('filters').innerHTML = chips
+        .filter(([k]) => k === 'tous' || counts[k])
+        .map(([k, label]) => `<button class="chip ${activeFilter === k ? 'active' : ''}" onclick="setFilter('${k}')">${label} <span style="opacity:.6">${counts[k] || 0}</span></button>`)
+        .join('');
+    }
+    window.setFilter = (k) => { activeFilter = k; render(); };
+
+    function renderKPIs() {
+      const total = DEVIS.length;
+      const signes = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
+      const envoyes = DEVIS.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
+      const caTotal = DEVIS.reduce((s, d) => s + d.ttc, 0);
+      const caSigne = signes.reduce((s, d) => s + d.ttc, 0);
+      const conv = envoyes.length + signes.length > 0 ? Math.round((signes.length / (envoyes.length + signes.length)) * 100) : 0;
+      el('kpis').innerHTML = `
+        <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value">${total}</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
+        <div class="kpi gold"><div class="kpi-label">CA total (TVAC)</div><div class="kpi-value">${fmtEur(caTotal)}</div><div class="kpi-sub">tous statuts</div></div>
+        <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value">${signes.length}</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
+        <div class="kpi"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
+    }
+
+    function render() {
+      renderKPIs();
+      renderFilters();
+      const q = el('search').value.trim().toLowerCase();
+      const sort = el('sort').value;
+      let rows = DEVIS.slice();
+      if (activeFilter !== 'tous') rows = rows.filter(d => d.statut === activeFilter);
+      if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id}`).toLowerCase().includes(q));
+      rows.sort((a, b) => {
+        if (sort === 'montant') return b.ttc - a.ttc;
+        if (sort === 'nom') return (a.nom || '').localeCompare(b.nom || '');
+        return (b.date_modification || '').localeCompare(a.date_modification || '');
+      });
+
+      setText('resultCount', `${rows.length} devis`);
+
+      if (rows.length === 0) {
+        el('tableHost').innerHTML = `<div class="empty"><div class="big">🪟</div>${DEVIS.length === 0 ? "Aucun devis pour l'instant.<br>Clique sur <strong>+ Nouveau devis</strong> pour commencer." : "Aucun devis ne correspond à ta recherche."}</div>`;
+        return;
+      }
+
+      const statusOpts = (cur) => Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v.label}</option>`).join('');
+      el('tableHost').innerHTML = `
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table class="data">
+            <thead><tr>
+              <th>Client</th><th>Statut</th><th>Modifié</th>
+              <th class="num">Montant TVAC</th><th>Médias</th><th style="text-align:right;">Actions</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(d => `
+                <tr>
+                  <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}</span><span class="id">#${d.id}</span></div></td>
+                  <td><select class="status-select" onchange="changeStatus('${d.id}', this.value)">${statusOpts(d.statut)}</select></td>
+                  <td class="text-muted">${fmtDate(d.date_modification)}</td>
+                  <td class="num text-accent">${fmtEur(d.ttc)}</td>
+                  <td class="count-pill">${d.photos ? '📷 ' + d.photos : ''} ${d.comments ? '💬 ' + d.comments : ''}</td>
+                  <td><div class="actions">
+                    <button class="icon-btn" title="Éditer" onclick="location.href='simulateur.html?id=${d.id}'">✏️</button>
+                    <button class="icon-btn" title="Dupliquer" onclick="duplicate('${d.id}')">📑</button>
+                    <button class="icon-btn" title="Devis / PDF" onclick="location.href='devis.html?id=${d.id}'">📄</button>
+                    <button class="icon-btn danger" title="Supprimer" onclick="del('${d.id}')">🗑️</button>
+                  </div></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    // ── Actions ──
+    window.changeStatus = async (id, statut) => {
+      await SS.updateStatus(id, statut);
+      const d = DEVIS.find(x => x.id === id); if (d) d.statut = statut;
+      toast('Statut mis à jour', 'ok');
+      render();
+    };
+    window.del = async (id) => {
+      if (!confirm('Supprimer définitivement ce devis ?')) return;
+      await SS.deleteDevis(id);
+      DEVIS = DEVIS.filter(d => d.id !== id);
+      toast('Devis supprimé', 'warn');
+      render();
+    };
+    window.duplicate = async (id) => {
+      const full = await SS.getDevis(id);
+      if (!full) { toast('Devis introuvable', 'error'); return; }
+      const copy = JSON.parse(JSON.stringify(full));
+      copy.id = window.SSUI.generateDevisId();
+      copy.statut = 'brouillon';
+      copy.date_creation = new Date().toISOString().slice(0, 10);
+      copy.date_modification = new Date().toISOString();
+      if (copy.client) copy.client.nom = (copy.client.nom || '') + ' (copie)';
+      await SS.saveDevis(copy);
+      toast('Devis dupliqué', 'ok');
+      location.href = 'simulateur.html?id=' + copy.id;
+    };
+
+    // ── Gadgets : export / import JSON ──
+    window.exportJSON = async () => {
+      const all = await Promise.all(DEVIS.map(d => SS.getDevis(d.id)));
+      const blob = new Blob([JSON.stringify({ export_date: new Date().toISOString(), version: '3.0', total_devis: all.length, data: all.filter(Boolean) }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'solariscreen_export_' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+      toast('Export téléchargé', 'ok');
+    };
+    window.importJSON = (input) => {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          const list = Array.isArray(json) ? json : (json.data || []);
+          let n = 0;
+          for (const d of list) { if (d && d.id) { await SS.saveDevis(d); n++; } }
+          toast(`${n} devis importé(s)`, 'ok');
+          await load();
+        } catch (err) { toast('Fichier JSON invalide', 'error'); }
+      };
+      reader.readAsText(file);
+      input.value = '';
+    };
+
+    // ── Chargement ──
+    async function load() {
+      const raw = await SS.listDevis();
+      DEVIS = (raw || []).map(norm);
+      render();
+    }
+    SS.isOnline().then(on => {
+      const b = el('apiBadge');
+      b.textContent = on ? '● En ligne' : '● Hors-ligne';
+      b.className = 'badge ' + (on ? 'badge-ok' : 'badge-warn');
+    });
+    load();
+  </script>
+</body>
+</html>

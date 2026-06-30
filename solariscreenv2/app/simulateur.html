@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Simulateur de devis</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <!-- thème appliqué tôt pour éviter le flash -->
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    /* Layout spécifique simulateur */
+    .sim-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-5); align-items: start; }
+    .sim-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
+    @media (max-width: 1040px) { .sim-layout { grid-template-columns: 1fr; } .sim-aside { position: static; } }
+
+    .item-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding: var(--sp-4); margin-bottom: var(--sp-4); }
+    .item-card-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+    .item-no { font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: var(--fs-md); }
+    .item-sub { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+
+    .photos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .photo-thumb { position: relative; width: 64px; height: 64px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-strong); }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-thumb button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border: none; border-radius: 50%; background: var(--danger); color: #fff; font-size: 11px; cursor: pointer; line-height: 1; }
+
+    .summary-card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); overflow: hidden; }
+    .summary-card .sc-head { padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--surface-2); }
+    .summary-card .sc-head h2 { font-family: var(--font-display); font-size: var(--fs-sm); color: var(--accent); letter-spacing: 0.05em; text-transform: uppercase; }
+    .sc-body { padding: var(--sp-4) var(--sp-5); }
+    .sc-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0.3rem 0; font-size: var(--fs-sm); }
+    .sc-line .k { color: var(--text-muted); }
+    .sc-line .v { font-family: var(--font-mono); }
+    .sc-line.sep { border-top: 1px dashed var(--border); margin-top: 0.4rem; padding-top: 0.6rem; }
+    .sc-ttc { display: flex; justify-content: space-between; align-items: baseline; margin-top: var(--sp-2); padding-top: var(--sp-3); border-top: 1px solid var(--border-strong); }
+    .sc-ttc .k { font-family: var(--font-display); text-transform: uppercase; font-size: var(--fs-xs); color: var(--text); letter-spacing: 0.05em; }
+    .sc-ttc .v { font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 700; color: var(--accent); }
+    .sc-acompte { text-align: right; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.2rem; }
+
+    .commission-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+    .commission-box { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    .commission-box h4 { font-size: var(--fs-xs); color: var(--accent-3); margin-bottom: var(--sp-2); display: flex; justify-content: space-between; }
+    .commission-box .cb-row { display: flex; justify-content: space-between; font-size: var(--fs-2xs); color: var(--text-muted); font-family: var(--font-mono); }
+    .commission-box .cb-row .gross { color: var(--text); } .commission-box .cb-row .net { color: var(--accent-2); }
+
+    .install-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+    .install-panel { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); text-align: center; }
+    .install-panel .ip-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
+    .install-panel .ip-gross { font-family: var(--font-mono); font-size: var(--fs-md); color: var(--text); margin-top: 0.2rem; }
+    .install-panel .ip-net { font-size: var(--fs-2xs); color: var(--accent-2); font-family: var(--font-mono); }
+
+    .warn-box { display: none; margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); font-size: var(--fs-xs); }
+    .info-box { margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); background: color-mix(in srgb, var(--accent-2) 10%, transparent); color: var(--accent-2); font-size: var(--fs-xs); }
+
+    .extra-row { display: grid; grid-template-columns: 1fr 80px 130px 38px; gap: var(--sp-2); margin-bottom: var(--sp-2); align-items: center; }
+    @media (max-width: 520px){ .extra-row { grid-template-columns: 1fr 60px 100px 36px; } }
+
+    .id-badge { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 35%, transparent); padding: 0.3rem 0.6rem; border-radius: var(--r-sm); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Simulateur de devis</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="id-badge" id="devisIdBadge">—</span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html">← Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container sim-layout">
+    <!-- ════════ COLONNE PRINCIPALE ════════ -->
+    <div class="sim-main">
+
+      <!-- CLIENT -->
+      <section class="section">
+        <div class="section-head"><span class="section-title">👤 Client</span></div>
+        <div class="section-body">
+          <div class="grid grid-2">
+            <div class="field"><label class="label required">Prénom</label><input class="input" id="clientPrenom" oninput="ui_recalc()"></div>
+            <div class="field"><label class="label required">Nom</label><input class="input" id="clientNom" oninput="ui_recalc()"></div>
+            <div class="field"><label class="label">Téléphone</label><input class="input" id="clientTelephone" placeholder="+32 …"></div>
+            <div class="field"><label class="label">Email</label><input class="input" id="clientEmail" type="email"></div>
+          </div>
+          <div class="grid grid-4 mt-4">
+            <div class="field col-full" style="grid-column: span 2;"><label class="label">Rue</label><input class="input" id="clientRue"></div>
+            <div class="field"><label class="label">N°</label><input class="input" id="clientNumero"></div>
+            <div class="field"><label class="label">Code postal</label><input class="input" id="clientCodePostal"></div>
+            <div class="field col-full"><label class="label">Ville</label><input class="input" id="clientVille"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- OUVERTURES -->
+      <section class="section">
+        <div class="section-head">
+          <span class="section-title">🪟 Ouvertures</span>
+          <span class="section-sub" id="itemsCount">0 ouverture · 0,00 m²</span>
+        </div>
+        <div class="section-body">
+          <div id="itemsContainer"></div>
+          <button class="btn btn-ghost" onclick="addItem()">+ Ajouter une ouverture</button>
+        </div>
+      </section>
+
+      <!-- INTERNE : COMMISSIONS -->
+      <section class="section is-internal">
+        <div class="section-head">
+          <span class="section-title">🔒 Marges & commissions</span>
+          <span class="badge badge-purple">Interne</span>
+          <span class="section-sub">Achat fournisseur estimé : <strong id="supplierEstimate" class="text-mono">0,00 €</strong></span>
+        </div>
+        <div class="section-body">
+          <div class="grid grid-3">
+            <div class="field">
+              <label class="label">Vendeur principal</label>
+              <select class="select" id="sellerPrincipal" onchange="onSellerChange()">
+                <option value="nicolas">Nicolas (18% / 5%)</option>
+                <option value="yannick">Yannick (5% / 18%)</option>
+                <option value="autre">Répartition personnalisée</option>
+              </select>
+            </div>
+            <div class="field hidden" id="fieldNicolasPct"><label class="label">% Nicolas</label><input class="input input-num" id="nicolasPct" type="number" min="0" step="0.5" value="18" oninput="ui_recalc()"></div>
+            <div class="field hidden" id="fieldYannickPct"><label class="label">% Yannick</label><input class="input input-num" id="yannickPct" type="number" min="0" step="0.5" value="5" oninput="ui_recalc()"></div>
+          </div>
+
+          <div class="commission-grid mt-4">
+            <div class="commission-box">
+              <h4>Nicolas <span class="text-mono" id="nicolasPctDisplay">18%</span></h4>
+              <div class="cb-row"><span>Brut</span><span class="gross" id="nicolasGross">0,00 €</span></div>
+              <div class="cb-row"><span>Net</span><span class="net" id="nicolasNet">0,00 €</span></div>
+            </div>
+            <div class="commission-box">
+              <h4>Yannick <span class="text-mono" id="yannickPctDisplay">5%</span></h4>
+              <div class="cb-row"><span>Brut</span><span class="gross" id="yannickGross">0,00 €</span></div>
+              <div class="cb-row"><span>Net</span><span class="net" id="yannickNet">0,00 €</span></div>
+            </div>
+          </div>
+          <div class="info-box" id="remiseInfo">Marge restante pour remise client : <strong id="remiseAmountDisplay">0,00 €</strong> (<span id="remisePctDisplay">0</span>%)</div>
+          <div class="sc-line mt-4" style="border-top:1px dashed var(--border);padding-top:0.6rem;"><span class="k">Marge matériel brute (23%)</span><span class="v" id="totalMaterialGross">0,00 €</span></div>
+        </div>
+      </section>
+
+      <!-- INSTALLATION -->
+      <section class="section is-install">
+        <div class="section-head"><span class="section-title">🛠️ Installation</span><span class="badge badge-cyan">Net = Brut ÷ 2,5</span></div>
+        <div class="section-body">
+          <div class="grid grid-4">
+            <div class="field"><label class="label">Pose / ouverture</label><div class="input-unit"><input class="input input-num" id="installGross" type="number" min="0" step="0.01" value="280" oninput="ui_recalc()"><span class="unit">€</span></div></div>
+            <div class="field"><label class="label">Tech 1 / ouv.</label><div class="input-unit"><input class="input input-num" id="tech1Gross" type="number" min="0" step="0.01" value="125" oninput="ui_recalc()"><span class="unit">€</span></div></div>
+            <div class="field"><label class="label">Tech 2 / ouv.</label><div class="input-unit"><input class="input input-num" id="tech2Gross" type="number" min="0" step="0.01" value="125" oninput="ui_recalc()"><span class="unit">€</span></div></div>
+            <div class="field"><label class="label">Outillage / ouv.</label><div class="input-unit"><input class="input input-num" id="toolsGross" type="number" min="0" step="0.01" value="30" oninput="ui_recalc()"><span class="unit">€</span></div></div>
+          </div>
+          <div class="grid grid-4 mt-4">
+            <div class="field"><label class="label">Qté pose</label><input class="input input-num" id="installQty" type="number" min="0" step="1" value="0" oninput="syncQty(); ui_recalc()"></div>
+            <div class="field"><label class="label">Qté tech 1</label><input class="input input-num" id="tech1Qty" type="number" min="0" step="1" value="0" oninput="ui_recalc()"></div>
+            <div class="field"><label class="label">Qté tech 2</label><input class="input input-num" id="tech2Qty" type="number" min="0" step="1" value="0" oninput="ui_recalc()"></div>
+            <div class="field"><label class="label">Qté outillage</label><input class="input input-num" id="toolsQty" type="number" min="0" step="1" value="0" oninput="ui_recalc()"></div>
+          </div>
+          <div class="warn-box" id="installBalanceWarn">⚠️ Le prix de pose par ouverture ne correspond pas à la somme Tech 1 + Tech 2 + Outillage.</div>
+          <div class="install-panels">
+            <div class="install-panel"><div class="ip-label">Pose</div><div class="ip-gross" id="iInstallGross">0,00 €</div><div class="ip-net">net <span id="iInstallNet">0,00 €</span></div></div>
+            <div class="install-panel"><div class="ip-label">Tech 1</div><div class="ip-gross" id="iTech1Gross">0,00 €</div><div class="ip-net">net <span id="iTech1Net">0,00 €</span></div></div>
+            <div class="install-panel"><div class="ip-label">Tech 2</div><div class="ip-gross" id="iTech2Gross">0,00 €</div><div class="ip-net">net <span id="iTech2Net">0,00 €</span></div></div>
+            <div class="install-panel"><div class="ip-label">Outillage</div><div class="ip-gross" id="iToolsGross">0,00 €</div><div class="ip-net">net <span id="iToolsNet">0,00 €</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXTRAS -->
+      <section class="section">
+        <div class="section-head"><span class="section-title">➕ Suppléments</span></div>
+        <div class="section-body">
+          <div id="extrasContainer"></div>
+          <button class="btn btn-ghost" onclick="addExtra()">+ Ajouter un supplément</button>
+        </div>
+      </section>
+
+      <!-- CONFIG -->
+      <section class="section">
+        <div class="section-head"><span class="section-title">⚙️ Paramètres</span></div>
+        <div class="section-body">
+          <div class="grid grid-3">
+            <div class="field">
+              <label class="label">TVA</label>
+              <div class="segmented">
+                <input type="radio" name="tva_pct" id="tva6" value="6" checked onchange="ui_recalc()"><label for="tva6">6 % (rénovation)</label>
+                <input type="radio" name="tva_pct" id="tva21" value="21" onchange="ui_recalc()"><label for="tva21">21 %</label>
+              </div>
+            </div>
+            <div class="field"><label class="label">Acompte</label><div class="input-unit"><input class="input input-num" id="acomptePct" type="number" min="0" max="100" step="1" value="30" oninput="ui_recalc()"><span class="unit">%</span></div></div>
+            <div class="field"><label class="label">Supplément difficulté</label><div class="input-unit"><input class="input input-num" id="surplusDifficulte" type="number" min="0" step="0.01" value="0" oninput="ui_recalc()"><span class="unit">€</span></div></div>
+          </div>
+          <div class="field mt-4"><label class="label">Note interne</label><textarea class="textarea" id="noteInterne" placeholder="Visible uniquement en interne…"></textarea></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ════════ COLONNE RÉCAP (sticky) ════════ -->
+    <aside class="sim-aside">
+      <div class="summary-card">
+        <div class="sc-head"><h2>💶 Récapitulatif</h2></div>
+        <div class="sc-body">
+          <div class="sc-line"><span class="k">Catalogue HTVA</span><span class="v" id="sTotalCatalog">0,00 €</span></div>
+          <div class="sc-line"><span class="k">Installation</span><span class="v" id="sTotalInstall">0,00 €</span></div>
+          <div class="sc-line"><span class="k">Suppléments</span><span class="v" id="sTotalExtras">0,00 €</span></div>
+          <div class="sc-line"><span class="k">Difficulté</span><span class="v" id="sSurplus">0,00 €</span></div>
+          <div class="sc-line sep"><span class="k">Total HTVA</span><span class="v" id="sTotalHT">0,00 €</span></div>
+          <div class="sc-line"><span class="k">TVA <span id="sTvaRate">6</span>%</span><span class="v" id="sTotalTVA">0,00 €</span></div>
+          <div class="sc-ttc"><span class="k">Total TVAC</span><span class="v" id="sTotalTTC">0,00 €</span></div>
+          <div class="sc-acompte">Acompte <span id="sAcomptePct">30</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:0.85rem;" onclick="saveDevis()">💾 Enregistrer le devis</button>
+      <button class="btn btn-ghost" style="width:100%;" id="btnPdf" onclick="goPdf()">📄 Générer le PDF</button>
+    </aside>
+  </main>
+
+  <!-- ════════ LOGIQUE ════════ -->
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const { computeDevis, totalSurface } = window.SSCalc;
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp } = window.SSUI;
+
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const ITEM_TYPES = { screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola' };
+    const MOTEURS = ['', 'Manuel', 'Somfy IO', 'Somfy RTS', 'Somfy Solaire', 'Filaire'];
+
+    const state = {
+      id: qp('id') || generateDevisId(),
+      version: '3.0',
+      date_creation: new Date().toISOString().slice(0, 10),
+      statut: 'brouillon',
+      items: [],
+      isExisting: false,
+    };
+    setText('devisIdBadge', state.id);
+
+    // ── ITEMS ──
+    function itemTemplate(item, idx) {
+      const opt = (o, val, lbl) => `<option value="${val}" ${o===val?'selected':''}>${lbl}</option>`;
+      const typeOpts = Object.entries(ITEM_TYPES).map(([v, l]) => opt(item.type, v, l)).join('');
+      const motOpts  = MOTEURS.map(m => opt(item.moteur || '', m, m || '—')).join('');
+      const photos = (item.photos || []).map((p, pi) =>
+        `<div class="photo-thumb"><img src="${p}" alt=""><button title="Retirer" onclick="removePhoto('${item._id}',${pi})">✕</button></div>`).join('');
+      return `
+      <div class="item-card" data-id="${item._id}">
+        <div class="item-card-head">
+          <span class="item-no">#${idx + 1}</span>
+          <span class="item-sub" data-sub></span>
+          <button class="btn btn-danger btn-sm" onclick="removeItem('${item._id}')">✕ Retirer</button>
+        </div>
+        <div class="grid grid-4">
+          <div class="field"><label class="label">Type</label><select class="select" data-f="type">${typeOpts}</select></div>
+          <div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Ex: Harol R40"></div>
+          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>
+          <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
+        </div>
+        <div class="grid grid-4 mt-4">
+          <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="largeur" value="${item.largeur || ''}"></div>
+          <div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>
+          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
+          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" value="${item.etage || ''}" placeholder="RDC"></div>
+        </div>
+        <div class="grid grid-2 mt-4">
+          <div class="field"><label class="label">💶 Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
+          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${item.notes || ''}"></div>
+        </div>
+        <div class="field mt-4">
+          <label class="label">📸 Photos</label>
+          <div class="photos">${photos}<label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Photo<input type="file" accept="image/*" multiple hidden onchange="addPhotos('${item._id}', this)"></label></div>
+        </div>
+      </div>`;
+    }
+
+    let _uid = 0;
+    window.addItem = (data = {}) => {
+      const item = { _id: 'it' + (++_uid), type: 'screen', quantite: 1, photos: [], ...data };
+      if (!item.photos) item.photos = [];
+      state.items.push(item);
+      renderItems();
+      ui_recalc();
+    };
+    window.removeItem = (id) => { state.items = state.items.filter(i => i._id !== id); renderItems(); ui_recalc(); };
+    window.removePhoto = (id, pi) => { const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
+    window.addPhotos = (id, input) => {
+      const it = state.items.find(i => i._id === id); if (!it) return;
+      [...input.files].forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => { it.photos.push(e.target.result); renderItems(); };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    function renderItems() {
+      const c = el('itemsContainer');
+      c.innerHTML = state.items.map((it, i) => itemTemplate(it, i)).join('');
+      // brancher les champs
+      state.items.forEach(it => {
+        const card = c.querySelector(`[data-id="${it._id}"]`);
+        card.querySelectorAll('[data-f]').forEach(input => {
+          if (input.dataset.f === 'type' || input.dataset.f === 'moteur') input.value = it[input.dataset.f] || (input.dataset.f === 'type' ? 'screen' : '');
+          input.addEventListener('input', () => { collectItem(it, card); ui_recalc(); });
+          input.addEventListener('change', () => { collectItem(it, card); ui_recalc(); });
+        });
+      });
+    }
+
+    function collectItem(it, card) {
+      card.querySelectorAll('[data-f]').forEach(input => {
+        const f = input.dataset.f;
+        if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht'].includes(f)) it[f] = parseFloat(input.value) || 0;
+        else it[f] = input.value;
+      });
+      // sous-titre live
+      const surf = it.largeur > 0 && it.hauteur > 0 ? ((it.largeur/1000)*(it.hauteur/1000)).toFixed(2) + ' m²' : '—';
+      const sub = card.querySelector('[data-sub]');
+      if (sub) sub.textContent = `${ITEM_TYPES[it.type] || it.type} · ${surf} · ${fmtEur((it.prix_catalogue_ht||0)*(it.quantite||1))}`;
+    }
+
+    // ── EXTRAS ──
+    let _ex = 0;
+    window.addExtra = (data = {}) => {
+      _ex++;
+      const row = document.createElement('div');
+      row.className = 'extra-row';
+      row.innerHTML = `
+        <input class="input" placeholder="Ex: Capteur vent Eolis 3D" data-ex="label" value="${data.label || ''}" oninput="ui_recalc()">
+        <input class="input input-num" type="number" min="1" step="1" data-ex="qty" value="${data.qty || 1}" oninput="ui_recalc()">
+        <div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-ex="unit_price_ht" value="${data.unit_price_ht || ''}" placeholder="0.00" oninput="ui_recalc()"><span class="unit">€</span></div>
+        <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove(); ui_recalc();">✕</button>`;
+      el('extrasContainer').appendChild(row);
+    };
+    function collectExtras() {
+      return [...document.querySelectorAll('.extra-row')].map(r => ({
+        label: r.querySelector('[data-ex="label"]').value.trim(),
+        qty: parseInt(r.querySelector('[data-ex="qty"]').value) || 1,
+        unit_price_ht: parseFloat(r.querySelector('[data-ex="unit_price_ht"]').value) || 0,
+      }));
+    }
+
+    // ── SELLERS ──
+    window.onSellerChange = () => {
+      const isCustom = getVal('sellerPrincipal') === 'autre';
+      el('fieldNicolasPct').classList.toggle('hidden', !isCustom);
+      el('fieldYannickPct').classList.toggle('hidden', !isCustom);
+      ui_recalc();
+    };
+    window.syncQty = () => {
+      const v = getVal('installQty');
+      setVal('tech1Qty', v); setVal('tech2Qty', v); setVal('toolsQty', v);
+    };
+
+    // ── COLLECTE → CALC INPUT ──
+    function buildInput() {
+      const principal = getVal('sellerPrincipal');
+      return {
+        items: state.items.map(i => ({ quantite: i.quantite, prix_catalogue_ht: i.prix_catalogue_ht, largeur: i.largeur, hauteur: i.hauteur })),
+        sellers: { principal, nicolas_pct: getNum('nicolasPct'), yannick_pct: getNum('yannickPct') },
+        installation: {
+          install_gross: getNum('installGross'), tech1_gross: getNum('tech1Gross'), tech2_gross: getNum('tech2Gross'), tools_gross: getNum('toolsGross'),
+          install_qty: getInt('installQty'), tech1_qty: getInt('tech1Qty'), tech2_qty: getInt('tech2Qty'), tools_qty: getInt('toolsQty'),
+        },
+        extras: collectExtras(),
+        tva_pct: parseInt(document.querySelector('input[name="tva_pct"]:checked')?.value || 6),
+        acompte_pct: getNum('acomptePct'),
+        surplus_difficulte: getNum('surplusDifficulte'),
+      };
+    }
+
+    let _lastResult = null, _autoQtyDone = false;
+    window.ui_recalc = function ui_recalc() {
+      const input = buildInput();
+
+      // auto-remplir les quantités install au nombre d'ouvertures (une seule fois)
+      const openings = input.items.reduce((s, i) => s + (i.quantite || 1), 0);
+      if (!_autoQtyDone && getInt('installQty') === 0 && openings > 0) {
+        setVal('installQty', openings); setVal('tech1Qty', openings); setVal('tech2Qty', openings); setVal('toolsQty', openings);
+        _autoQtyDone = true;
+        input.installation.install_qty = input.installation.tech1_qty = input.installation.tech2_qty = input.installation.tools_qty = openings;
+      }
+
+      const c = computeDevis(input);
+      _lastResult = c;
+
+      // catalogue / commissions
+      setText('supplierEstimate', fmtEur(c.supplier_estimate));
+      setText('nicolasPctDisplay', c.nicolas_pct + '%');
+      setText('yannickPctDisplay', c.yannick_pct + '%');
+      setText('nicolasGross', fmtEur(c.nicolas_gross)); setText('nicolasNet', fmtEur(c.nicolas_net));
+      setText('yannickGross', fmtEur(c.yannick_gross)); setText('yannickNet', fmtEur(c.yannick_net));
+      setText('totalMaterialGross', fmtEur(c.total_material_gross));
+      el('remiseInfo').style.display = c.remise.applicable ? 'block' : 'none';
+      if (c.remise.applicable) { setText('remiseAmountDisplay', fmtEur(c.remise.amount)); setText('remisePctDisplay', c.remise.pct); }
+
+      // installation
+      const ig = input.installation;
+      setText('iInstallGross', fmtEur(c.install_total)); setText('iInstallNet', fmtEur(c.install_total / 2.5));
+      setText('iTech1Gross', fmtEur(c.tech1_total)); setText('iTech1Net', fmtEur(c.tech1_total / 2.5));
+      setText('iTech2Gross', fmtEur(c.tech2_total)); setText('iTech2Net', fmtEur(c.tech2_total / 2.5));
+      setText('iToolsGross', fmtEur(c.tools_total)); setText('iToolsNet', fmtEur(c.tools_total / 2.5));
+      el('installBalanceWarn').style.display = (ig.install_gross > 0 && !c.install_balance_ok) ? 'block' : 'none';
+
+      // récap
+      setText('sTotalCatalog', fmtEur(c.total_catalog_ht));
+      setText('sTotalInstall', fmtEur(c.total_installation_ht));
+      setText('sTotalExtras', fmtEur(c.total_extras_ht));
+      setText('sSurplus', fmtEur(input.surplus_difficulte));
+      setText('sTotalHT', fmtEur(c.total_ht));
+      setText('sTvaRate', c.tva_pct);
+      setText('sTotalTVA', fmtEur(c.total_tva));
+      setText('sTotalTTC', fmtEur(c.total_ttc));
+      setText('sAcomptePct', c.acompte_pct);
+      setText('sAcompte', fmtEur(c.acompte_montant));
+
+      // compteur ouvertures
+      setText('itemsCount', `${openings} ouverture(s) · ${totalSurface(state.items).toFixed(2)} m²`);
+
+      // sous-titres items
+      document.querySelectorAll('.item-card').forEach(card => {
+        const it = state.items.find(i => i._id === card.dataset.id); if (it) collectItem(it, card);
+      });
+    };
+
+    // ── CLIENT ──
+    function collectClient() {
+      return {
+        prenom: getVal('clientPrenom'), nom: getVal('clientNom'),
+        telephone: getVal('clientTelephone'), email: getVal('clientEmail'),
+        adresse: { rue: getVal('clientRue'), numero: getVal('clientNumero'), code_postal: getVal('clientCodePostal'), ville: getVal('clientVille') },
+      };
+    }
+
+    // ── SAVE ──
+    window.saveDevis = async () => {
+      const client = collectClient();
+      if (!client.prenom || !client.nom) { toast('Renseigne le prénom et le nom du client.', 'warn'); return; }
+      if (state.items.length === 0) { toast('Ajoute au moins une ouverture.', 'warn'); return; }
+      const input = buildInput();
+      const c = computeDevis(input);
+      const devis = {
+        id: state.id, version: state.version,
+        date_creation: state.date_creation,
+        date_modification: new Date().toISOString(),
+        statut: state.statut,
+        client,
+        items: state.items.map(({ _id, ...rest }) => rest),
+        calculs: c,
+        pricing_v2: {
+          tva_pct: input.tva_pct, acompte_pct: input.acompte_pct, surplus_difficulte: input.surplus_difficulte,
+          note: getVal('noteInterne'),
+          material: { sellers: { mode: input.sellers.principal === 'autre' ? 'autre' : 'fixed', principal: input.sellers.principal, nicolas_pct: c.nicolas_pct, yannick_pct: c.yannick_pct } },
+          installation: { per_opening: input.installation, install_qty: input.installation.install_qty, tech1_qty: input.installation.tech1_qty, tech2_qty: input.installation.tech2_qty, tools_qty: input.installation.tools_qty },
+          extras: c.extra_lines,
+        },
+      };
+      const res = await SS.saveDevis(devis);
+      toast(res.offline ? 'Enregistré hors-ligne (cache local).' : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok');
+      state.isExisting = true;
+    };
+
+    window.goPdf = () => { window.location.href = `devis.html?id=${state.id}`; };
+
+    // ── LOAD (édition) ──
+    async function loadExisting(id) {
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable, nouveau devis créé.', 'warn'); return; }
+      state.isExisting = true;
+      state.date_creation = d.date_creation || state.date_creation;
+      state.statut = d.statut || 'brouillon';
+      // client
+      const cl = d.client || {};
+      setVal('clientPrenom', cl.prenom); setVal('clientNom', cl.nom);
+      setVal('clientTelephone', cl.telephone); setVal('clientEmail', cl.email);
+      setVal('clientRue', cl.adresse?.rue); setVal('clientNumero', cl.adresse?.numero);
+      setVal('clientCodePostal', cl.adresse?.code_postal); setVal('clientVille', cl.adresse?.ville);
+      // items
+      state.items = (d.items || []).map(it => ({ _id: 'it' + (++_uid), photos: [], ...it }));
+      renderItems();
+      // pricing
+      const p = d.pricing_v2 || {};
+      const sellers = p.material?.sellers || {};
+      setVal('sellerPrincipal', ['nicolas', 'yannick'].includes(sellers.principal) ? sellers.principal : (sellers.principal ? 'autre' : 'nicolas'));
+      if (getVal('sellerPrincipal') === 'autre') { setVal('nicolasPct', sellers.nicolas_pct); setVal('yannickPct', sellers.yannick_pct); }
+      const po = p.installation?.per_opening || {};
+      setVal('installGross', po.install_gross ?? 280); setVal('tech1Gross', po.tech1_gross ?? 125);
+      setVal('tech2Gross', po.tech2_gross ?? 125); setVal('toolsGross', po.tools_gross ?? 30);
+      setVal('installQty', p.installation?.install_qty ?? 0); setVal('tech1Qty', p.installation?.tech1_qty ?? 0);
+      setVal('tech2Qty', p.installation?.tech2_qty ?? 0); setVal('toolsQty', p.installation?.tools_qty ?? 0);
+      _autoQtyDone = true;
+      (p.extras || []).forEach(e => addExtra({ label: e.label, qty: e.qty, unit_price_ht: e.unit_price_ht }));
+      const tva = p.tva_pct || d.calculs?.tva_pct || 6;
+      (document.getElementById(tva === 21 ? 'tva21' : 'tva6')).checked = true;
+      setVal('acomptePct', p.acompte_pct ?? 30); setVal('surplusDifficulte', p.surplus_difficulte ?? 0);
+      setVal('noteInterne', p.note || '');
+      onSellerChange();
+    }
+
+    // ── INIT ──
+    function applyPrefillClient() {
+      try {
+        const raw = sessionStorage.getItem('ss_prefill_client');
+        if (!raw) return;
+        sessionStorage.removeItem('ss_prefill_client');
+        const cl = JSON.parse(raw); const a = cl.adresse || {};
+        setVal('clientPrenom', cl.prenom); setVal('clientNom', cl.nom);
+        setVal('clientTelephone', cl.telephone); setVal('clientEmail', cl.email);
+        setVal('clientRue', a.rue); setVal('clientNumero', a.numero);
+        setVal('clientCodePostal', a.code_postal); setVal('clientVille', a.ville);
+        toast('Client pré-rempli depuis sa fiche', 'ok');
+      } catch (e) {}
+    }
+    (async () => {
+      if (qp('id')) await loadExisting(qp('id'));
+      else applyPrefillClient();
+      if (state.items.length === 0) addItem();
+      onSellerChange();
+      ui_recalc();
+    })();
+  </script>
+</body>
+</html>

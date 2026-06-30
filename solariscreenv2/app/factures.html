@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Facturation</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5); }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+    .kpi::after { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent); opacity: 0.8; }
+    .kpi.gold::after { background: var(--accent-2); } .kpi.ok::after { background: var(--ok); } .kpi.danger::after { background: var(--danger); }
+    .kpi .kpi-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+    .kpi .kpi-value { font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 700; margin-top: 0.2rem; }
+    .kpi.gold .kpi-value { color: var(--accent-2); } .kpi.ok .kpi-value { color: var(--ok); } .kpi.danger .kpi-value { color: var(--danger); }
+    .toolbar2 { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .toolbar2 .search { flex: 1; min-width: 200px; }
+    td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
+    .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); } .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+    .empty { text-align: center; padding: var(--sp-7); color: var(--text-muted); }
+
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 480px; max-width: 100%; max-height: 90vh; overflow: auto; }
+    .modal h3 { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); }
+    .modal .mbody { padding: var(--sp-5); }
+    .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: var(--sp-2); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div><h1><a href="../index.html">SOLARISCREEN</a></h1><div class="module">Facturation</div></div>
+    </div>
+    <div class="header-actions">
+      <a class="btn btn-ghost btn-sm" href="dashboard.html">📋 Dashboard</a>
+      <span id="themeToggle"></span>
+      <button class="btn btn-primary btn-sm" onclick="openNew()">+ Nouvelle facture</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+    <div class="toolbar2">
+      <div class="search"><input class="input" id="search" placeholder="🔍 Rechercher (n°, client)…" oninput="render()"></div>
+      <select class="select" id="filter" style="max-width:200px;" onchange="render()">
+        <option value="tous">Toutes</option>
+        <option value="impayee">À payer</option>
+        <option value="partielle">Partielles</option>
+        <option value="payee">Payées</option>
+        <option value="retard">En retard</option>
+      </select>
+    </div>
+    <section class="section">
+      <div class="section-head"><span class="section-title">🧾 Factures</span><span class="section-sub" id="count">—</span></div>
+      <div id="tableHost"></div>
+    </section>
+  </main>
+
+  <!-- Modal nouvelle facture -->
+  <div class="modal-bg" id="modalNew">
+    <div class="modal">
+      <h3>Nouvelle facture</h3>
+      <div class="mbody">
+        <div class="field"><label class="label">Devis source</label><select class="select" id="mDevis" onchange="onDevisPick()"></select></div>
+        <div class="field mt-4"><label class="label">Type de facture</label>
+          <select class="select" id="mType" onchange="onTypePick()">
+            <option value="acompte">Facture d'acompte</option>
+            <option value="solde">Facture de solde</option>
+            <option value="totale">Facture totale</option>
+          </select>
+        </div>
+        <div class="field mt-4" id="mPctField"><label class="label">Pourcentage d'acompte</label><div class="input-unit"><input class="input input-num" id="mPct" type="number" min="1" max="100" value="30"><span class="unit">%</span></div></div>
+        <div class="field mt-4"><label class="label">Échéance (jours)</label><input class="input input-num" id="mEcheance" type="number" min="0" value="15"></div>
+        <div class="mt-4" id="mPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalNew')">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="createFacture()">Générer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal paiement -->
+  <div class="modal-bg" id="modalPay">
+    <div class="modal">
+      <h3>Enregistrer un paiement</h3>
+      <div class="mbody">
+        <div id="payInfo" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-4);"></div>
+        <div class="grid grid-2">
+          <div class="field"><label class="label">Montant</label><div class="input-unit"><input class="input input-num" id="payMontant" type="number" step="0.01"><span class="unit">€</span></div></div>
+          <div class="field"><label class="label">Date</label><input class="input" id="payDate" type="date"></div>
+          <div class="field col-full"><label class="label">Moyen</label>
+            <select class="select" id="payMoyen"><option>Virement</option><option>Bancontact</option><option>Espèces</option><option>Autre</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalPay')">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="savePayment()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, fmtDate, el, toast } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const today = () => new Date().toISOString().slice(0, 10);
+    const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+
+    let FACTURES = [], DEVIS = [], payTarget = null;
+
+    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    function statutOf(f) {
+      const p = paidSum(f);
+      if (p >= (f.total_ttc || 0) - 0.005) return 'payee';
+      if (p > 0) return 'partielle';
+      return 'impayee';
+    }
+    const isOverdue = f => statutOf(f) !== 'payee' && f.echeance && f.echeance < today();
+    function badgeFor(f) {
+      const st = statutOf(f);
+      if (st === 'payee') return '<span class="badge badge-ok">Payée</span>';
+      if (st === 'partielle') return '<span class="badge badge-warn">Partielle</span>';
+      return isOverdue(f) ? '<span class="badge badge-danger">En retard</span>' : '<span class="badge badge-cyan">À payer</span>';
+    }
+
+    function normDevis(d) {
+      return {
+        id: d.id, statut: d.statut || 'brouillon',
+        nom: d.client_nom || (d.client && d.client.nom) || '',
+        prenom: d.client_prenom || (d.client && d.client.prenom) || '',
+        ttc: d.total_ttc || (d.calculs && d.calculs.total_ttc) || 0,
+      };
+    }
+
+    async function load() {
+      FACTURES = (await SS.listFactures()) || [];
+      DEVIS = ((await SS.listDevis()) || []).map(normDevis);
+      renderKPIs(); render();
+    }
+
+    function renderKPIs() {
+      const totalTTC = FACTURES.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const encaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
+      const reste = totalTTC - encaisse;
+      const retard = FACTURES.filter(isOverdue);
+      const resteRetard = retard.reduce((s, f) => s + ((f.total_ttc || 0) - paidSum(f)), 0);
+      el('kpis').innerHTML = `
+        <div class="kpi gold"><div class="kpi-label">Total facturé</div><div class="kpi-value">${fmtEur(totalTTC)}</div></div>
+        <div class="kpi ok"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(encaisse)}</div></div>
+        <div class="kpi"><div class="kpi-label">Restant dû</div><div class="kpi-value">${fmtEur(reste)}</div></div>
+        <div class="kpi danger"><div class="kpi-label">En retard (${retard.length})</div><div class="kpi-value">${fmtEur(resteRetard)}</div></div>`;
+    }
+
+    function render() {
+      const q = el('search').value.trim().toLowerCase();
+      const filter = el('filter').value;
+      let rows = FACTURES.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (filter === 'retard') rows = rows.filter(isOverdue);
+      else if (filter !== 'tous') rows = rows.filter(f => statutOf(f) === filter);
+      if (q) rows = rows.filter(f => (`${f.id} ${f.client && f.client.prenom} ${f.client && f.client.nom}`).toLowerCase().includes(q));
+      el('count').textContent = `${rows.length} facture(s)`;
+
+      if (!rows.length) { el('tableHost').innerHTML = `<div class="empty">🧾 ${FACTURES.length ? 'Aucune facture ne correspond.' : 'Aucune facture. Clique sur <strong>+ Nouvelle facture</strong>.'}</div>`; return; }
+
+      el('tableHost').innerHTML = `
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table class="data">
+            <thead><tr><th>N°</th><th>Client</th><th>Type</th><th>Date</th><th>Échéance</th><th class="num">Montant</th><th class="num">Payé</th><th>Statut</th><th style="text-align:right;">Actions</th></tr></thead>
+            <tbody>${rows.map(f => `
+              <tr>
+                <td class="text-mono">${esc(f.id)}</td>
+                <td>${esc((f.client && f.client.prenom) || '')} ${esc((f.client && f.client.nom) || '')}</td>
+                <td class="text-muted" style="font-size:var(--fs-2xs)">${f.type === 'acompte' ? 'Acompte' : (f.type === 'solde' ? 'Solde' : 'Totale')}</td>
+                <td class="text-muted">${fmtDate(f.date)}</td>
+                <td class="${isOverdue(f) ? 'text-mono' : 'text-muted'}" ${isOverdue(f) ? 'style="color:var(--danger)"' : ''}>${fmtDate(f.echeance)}</td>
+                <td class="num text-accent">${fmtEur(f.total_ttc)}</td>
+                <td class="num text-muted">${fmtEur(paidSum(f))}</td>
+                <td>${badgeFor(f)}</td>
+                <td><div class="actions">
+                  <button class="icon-btn" title="Voir / PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">📄</button>
+                  <button class="icon-btn" title="Paiement" onclick="openPay('${encodeURIComponent(f.id)}')">💶</button>
+                  <button class="icon-btn danger" title="Supprimer" onclick="delFacture('${encodeURIComponent(f.id)}')">🗑️</button>
+                </div></td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    }
+
+    // ── Modal commun ──
+    window.closeModal = id => el(id).classList.remove('open');
+
+    // ── Nouvelle facture ──
+    window.openNew = () => {
+      if (!DEVIS.length) { toast('Crée d\'abord un devis.', 'warn'); return; }
+      const opts = DEVIS.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})${['signe','termine'].includes(d.statut) ? ' ✓' : ''}</option>`).join('');
+      el('mDevis').innerHTML = opts;
+      el('mEcheance').value = 15; el('mPct').value = 30; el('mType').value = 'acompte';
+      onTypePick(); onDevisPick();
+      el('modalNew').classList.add('open');
+    };
+    window.onTypePick = () => { el('mPctField').style.display = el('mType').value === 'acompte' ? 'block' : 'none'; updatePreview(); };
+    window.onDevisPick = () => updatePreview();
+
+    async function computeAmounts(devisId, type, pct) {
+      const d = await SS.getDevis(devisId);
+      const c = (d && d.calculs) || {};
+      const ttc = c.total_ttc || 0, ht = c.total_ht || 0, tva = c.total_tva || 0, tvaPct = c.tva_pct || 6;
+      let factor = 1;
+      if (type === 'acompte') factor = (Number(pct) || 0) / 100;
+      else if (type === 'solde') {
+        const already = FACTURES.filter(f => f.devis_id === devisId).reduce((s, f) => s + (f.total_ttc || 0), 0);
+        factor = ttc > 0 ? Math.max(0, (ttc - already)) / ttc : 0;
+      }
+      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor, tva_pct: tvaPct, factor };
+    }
+
+    async function updatePreview() {
+      const id = el('mDevis').value, type = el('mType').value, pct = el('mPct').value;
+      if (!id) return;
+      const a = await computeAmounts(id, type, pct);
+      el('mPreview').innerHTML = `Montant de la facture : <strong style="color:var(--accent-2)">${fmtEur(a.total_ttc)}</strong> TVAC (HT ${fmtEur(a.total_ht)} + TVA ${fmtEur(a.total_tva)})`;
+    }
+
+    function nextNumber() {
+      const year = new Date().getFullYear();
+      const n = FACTURES.filter(f => (f.id || '').includes('F' + year)).length + 1;
+      return 'F' + year + '-' + String(n).padStart(3, '0');
+    }
+
+    function buildLines(devis, type, amounts, pct) {
+      if (type === 'totale') {
+        const lines = (devis.items || []).map(it => ({
+          desc: ({ screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola' }[it.type] || it.type) + (it.modele ? ' — ' + it.modele : ''),
+          sub: [it.moteur, it.emplacement].filter(Boolean).join(' · '),
+          dims: (it.largeur && it.hauteur) ? it.largeur + ' × ' + it.hauteur + ' mm' : '—',
+          qty: it.quantite || 1, pu: it.prix_catalogue_ht || 0, total: (it.prix_catalogue_ht || 0) * (it.quantite || 1),
+        }));
+        const c = devis.calculs || {};
+        if (c.total_installation_ht > 0) lines.push({ desc: 'Installation et pose', qty: 1, pu: c.total_installation_ht, total: c.total_installation_ht });
+        (c.extra_lines || []).forEach(e => lines.push({ desc: e.label, qty: e.qty, pu: e.unit_price_ht, total: e.total_ht }));
+        const surplus = devis.pricing_v2 && devis.pricing_v2.surplus_difficulte;
+        if (surplus > 0) lines.push({ desc: 'Supplément accès difficile', qty: 1, pu: surplus, total: surplus });
+        return lines;
+      }
+      const label = type === 'acompte' ? `Acompte de ${pct} % sur devis N° ${devis.id}` : `Solde sur devis N° ${devis.id}`;
+      return [{ desc: label, qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
+    }
+
+    window.createFacture = async () => {
+      const id = el('mDevis').value, type = el('mType').value, pct = Number(el('mPct').value) || 30;
+      const a = await computeAmounts(id, type, pct);
+      if (!a.devis) { toast('Devis introuvable', 'error'); return; }
+      if (a.total_ttc <= 0) { toast('Montant nul (solde déjà facturé ?)', 'warn'); return; }
+      const num = nextNumber();
+      const facture = {
+        id: num, type, devis_id: id,
+        date: today(), echeance: addDays(Number(el('mEcheance').value) || 15),
+        client: a.devis.client || {},
+        lines: buildLines(a.devis, type, a, pct),
+        total_ht: Math.round(a.total_ht * 100) / 100, total_tva: Math.round(a.total_tva * 100) / 100,
+        total_ttc: Math.round(a.total_ttc * 100) / 100, tva_pct: a.tva_pct, devis_ttc: a.devis.calculs && a.devis.calculs.total_ttc,
+        paiements: [], date_creation: new Date().toISOString(),
+      };
+      await SS.saveFacture(facture);
+      closeModal('modalNew');
+      toast('Facture ' + num + ' créée ✓', 'ok');
+      await load();
+      location.href = 'facture.html?id=' + encodeURIComponent(num);
+    };
+
+    // ── Paiement ──
+    window.openPay = async (encId) => {
+      const id = decodeURIComponent(encId);
+      payTarget = FACTURES.find(f => f.id === id);
+      if (!payTarget) return;
+      const reste = (payTarget.total_ttc || 0) - paidSum(payTarget);
+      el('payInfo').innerHTML = `Facture <strong>${esc(id)}</strong> — total ${fmtEur(payTarget.total_ttc)}, déjà payé ${fmtEur(paidSum(payTarget))}.<br>Reste dû : <strong style="color:var(--accent-2)">${fmtEur(reste)}</strong>`;
+      el('payMontant').value = (Math.round(reste * 100) / 100) || '';
+      el('payDate').value = today();
+      el('modalPay').classList.add('open');
+    };
+    window.savePayment = async () => {
+      if (!payTarget) return;
+      const montant = Number(el('payMontant').value) || 0;
+      if (montant <= 0) { toast('Montant invalide', 'warn'); return; }
+      payTarget.paiements = payTarget.paiements || [];
+      payTarget.paiements.push({ date: el('payDate').value || today(), montant, moyen: el('payMoyen').value });
+      payTarget.date_modification = new Date().toISOString();
+      await SS.saveFacture(payTarget);
+      closeModal('modalPay');
+      toast('Paiement enregistré ✓', 'ok');
+      await load();
+    };
+
+    window.delFacture = async (encId) => {
+      if (!confirm('Supprimer cette facture ?')) return;
+      await SS.deleteFacture(decodeURIComponent(encId));
+      toast('Facture supprimée', 'warn');
+      await load();
+    };
+
+    load();
+  </script>
+</body>
+</html>
