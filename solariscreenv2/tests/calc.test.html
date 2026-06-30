@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — moteur de calcul</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:720px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests moteur calc.js</h1>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/calc.js"></script>
+  <script>
+    const { computeDevis } = window.SSCalc;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(name, got, expected) {
+      const ok = Math.abs(Number(got) - Number(expected)) < 0.005;
+      ok ? pass++ : fail++;
+      rows.push(`<tr><td>${name}</td><td class="num">${got}</td><td class="num">${expected}</td><td class="${ok?'pass':'fail'}">${ok?'OK':'ÉCHEC'}</td></tr>`);
+    }
+
+    // ── Cas 1 : vendeur principal Nicolas ──
+    const r1 = computeDevis({
+      items: [
+        { quantite: 2, prix_catalogue_ht: 850 },
+        { quantite: 1, prix_catalogue_ht: 2450 },
+      ],
+      sellers: { principal: 'nicolas' },
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30,
+                      install_qty: 3, tech1_qty: 3, tech2_qty: 3, tools_qty: 3 },
+      extras: [{ label: 'Capteur vent', qty: 1, unit_price_ht: 150 }],
+      tva_pct: 6, acompte_pct: 30, surplus_difficulte: 0,
+    });
+    check('C1 total_catalog_ht', r1.total_catalog_ht, 4150);
+    check('C1 total_openings', r1.total_openings, 3);
+    check('C1 supplier_estimate', r1.supplier_estimate, 3195.5);
+    check('C1 total_material_gross', r1.total_material_gross, 954.5);
+    check('C1 nicolas_gross', r1.nicolas_gross, 747);
+    check('C1 nicolas_net', r1.nicolas_net, 298.8);
+    check('C1 yannick_gross', r1.yannick_gross, 207.5);
+    check('C1 yannick_net', r1.yannick_net, 83);
+    check('C1 install_total', r1.install_total, 840);
+    check('C1 install_balance_ok', r1.install_balance_ok ? 1 : 0, 1);
+    check('C1 total_extras_ht', r1.total_extras_ht, 150);
+    check('C1 total_ht', r1.total_ht, 5140);
+    check('C1 total_tva', r1.total_tva, 308.4);
+    check('C1 total_ttc', r1.total_ttc, 5448.4);
+    check('C1 acompte_montant', r1.acompte_montant, 1634.52);
+
+    // ── Cas 2 : vendeur "autre" avec remise indicative + TVA 21 ──
+    const r2 = computeDevis({
+      items: [{ quantite: 1, prix_catalogue_ht: 1000 }],
+      sellers: { principal: 'autre', nicolas_pct: 10, yannick_pct: 8 },
+      installation: {},
+      extras: [],
+      tva_pct: 21, acompte_pct: 30, surplus_difficulte: 0,
+    });
+    check('C2 remise_applicable', r2.remise.applicable ? 1 : 0, 1);
+    check('C2 remise_pct', r2.remise.pct, 5);
+    check('C2 remise_amount', r2.remise.amount, 50);
+    check('C2 nicolas_net', r2.nicolas_net, 40);
+    check('C2 total_ttc', r2.total_ttc, 1210);
+    check('C2 acompte_montant', r2.acompte_montant, 363);
+
+    document.getElementById('out').innerHTML =
+      `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    const s = document.getElementById('summary');
+    s.innerHTML = fail === 0
+      ? `<span class="pass">✅ ${pass}/${pass} tests OK — moteur conforme</span>`
+      : `<span class="fail">❌ ${fail} échec(s) sur ${pass + fail}</span>`;
+    s.dataset.result = fail === 0 ? 'PASS' : 'FAIL';
+  </script>
+</body>
+</html>
