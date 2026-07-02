@@ -8,7 +8,7 @@
   const MATERIAL_MARGIN = 0.23; // marge matériel brute = 23% du catalogue
   const NET_DIVISOR     = 2.5;  // net = brut / 2.5
   const DEFAULT_TVA     = 6;
-  const DEFAULT_ACOMPTE = 30;
+  const DEFAULT_ACOMPTE = 50; // CGV Solariscreen : acompte standard 50% à la commande
 
   const SELLER_SPLITS = {
     nicolas: { nicolas_pct: 18, yannick_pct: 5 },
