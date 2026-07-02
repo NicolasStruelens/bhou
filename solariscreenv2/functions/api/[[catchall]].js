@@ -37,10 +37,17 @@ export async function onRequest(context) {
       const { results } = await env.DB.prepare(`
         SELECT id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification,
                IFNULL(CAST(json_extract(data, '$.photos_count')   AS INTEGER), 0) AS photos_count,
-               IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER), 0) AS comments_count
+               IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER), 0) AS comments_count,
+               json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
-      return json({ ok: true, data: results });
+      // client_json → objet client (coordonnées complètes pour le CRM)
+      const data = results.map(r => {
+        const client = safeParse(r.client_json);
+        delete r.client_json;
+        return { ...r, client };
+      });
+      return json({ ok: true, data });
     }
     if (path === '/api/devis' && method === 'POST') {
       const devis = await request.json();
