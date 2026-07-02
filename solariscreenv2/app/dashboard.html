@@ -23,7 +23,35 @@
     .chip:hover { border-color: var(--accent); color: var(--accent); }
     .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-    .status-select { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.3rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
+    /* ── Pastilles de statut colorées (menu custom) ── */
+    table.data tbody tr { cursor: pointer; }
+    .price { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-sm); color: var(--accent-2); letter-spacing: 0.01em; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
+      letter-spacing: 0.03em; text-transform: uppercase;
+      padding: 0.32rem 0.6rem; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-fast);
+      border: 1px solid color-mix(in srgb, var(--st, var(--border-strong)) 45%, transparent);
+      color: var(--st, var(--text-muted));
+      background: color-mix(in srgb, var(--st, var(--border-strong)) 10%, transparent);
+      white-space: nowrap;
+    }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--st, var(--text-muted)); box-shadow: 0 0 6px color-mix(in srgb, var(--st, transparent) 60%, transparent); }
+    .status-pill svg { opacity: 0.55; }
+    .status-pill:hover { box-shadow: var(--glow-soft); }
+    .status-menu {
+      position: fixed; z-index: 5000; display: none; min-width: 175px; padding: 4px;
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
+    }
+    .status-menu.open { display: block; }
+    .status-menu button {
+      display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left;
+      background: none; border: none; border-radius: var(--r-sm); padding: 0.45rem 0.6rem;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--text-muted); cursor: pointer;
+    }
+    .status-menu button:hover { background: var(--surface-2); color: var(--text); }
+    .status-menu .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
@@ -169,14 +197,14 @@
     mountThemeToggle(document.getElementById('themeToggle'));
 
     const STATUSES = {
-      brouillon:     { label: 'Brouillon',  cls: 'badge' },
-      envoye_client: { label: 'Envoyé',     cls: 'badge-cyan' },
-      relance_1:     { label: 'Relance 1',  cls: 'badge-warn' },
-      relance_2:     { label: 'Relance 2',  cls: 'badge-warn' },
-      signe:         { label: 'Signé',      cls: 'badge-ok' },
-      termine:       { label: 'Terminé',    cls: 'badge-accent' },
-      refuse:        { label: 'Refusé',     cls: 'badge-danger' },
-      annule:        { label: 'Annulé',     cls: 'badge' },
+      brouillon:     { label: 'Brouillon',  color: 'var(--text-subtle)' },
+      envoye_client: { label: 'Envoyé',     color: 'var(--accent)' },
+      relance_1:     { label: 'Relance 1',  color: 'var(--warn)' },
+      relance_2:     { label: 'Relance 2',  color: 'var(--warn)' },
+      signe:         { label: 'Signé',      color: 'var(--ok)' },
+      termine:       { label: 'Terminé',    color: 'var(--accent-2)' },
+      refuse:        { label: 'Refusé',     color: 'var(--danger)' },
+      annule:        { label: 'Annulé',     color: 'var(--text-subtle)' },
     };
 
     let DEVIS = [];
@@ -228,7 +256,10 @@
         return;
       }
 
-      const statusOpts = (cur) => Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${v.label}</option>`).join('');
+      const pill = (d) => {
+        const s = STATUSES[d.statut] || STATUSES.brouillon;
+        return `<button class="status-pill" style="--st:${s.color}" onclick="openStatusMenu(event,'${d.id}')" aria-label="Changer le statut du devis ${d.id}"><span class="dot"></span>${s.label} ${icon('chevrondown', 10)}</button>`;
+      };
       el('tableHost').innerHTML = `
         <div class="table-wrap" style="border:none;border-radius:0;">
           <table class="data">
@@ -238,11 +269,11 @@
             </tr></thead>
             <tbody>
               ${rows.map(d => `
-                <tr>
+                <tr data-id="${d.id}" title="Ouvrir la fiche du devis">
                   <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}</span><span class="id">#${d.id}</span></div></td>
-                  <td><select class="status-select" onchange="changeStatus('${d.id}', this.value)">${statusOpts(d.statut)}</select></td>
+                  <td>${pill(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
-                  <td class="num text-accent">${fmtEur(d.ttc)}</td>
+                  <td class="num"><span class="price">${fmtEur(d.ttc)}</span></td>
                   <td class="count-pill">
                     ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
                     ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
@@ -269,6 +300,43 @@
       toast('Statut mis à jour', 'ok');
       render();
     };
+
+    // ── Menu de statut (pastilles colorées) ──
+    let stMenuEl = null, stTarget = null;
+    function ensureStatusMenu() {
+      if (stMenuEl) return;
+      stMenuEl = document.createElement('div');
+      stMenuEl.className = 'status-menu';
+      document.body.appendChild(stMenuEl);
+      document.addEventListener('click', (e) => {
+        if (stMenuEl.classList.contains('open') && !stMenuEl.contains(e.target) && !e.target.closest('.status-pill')) stMenuEl.classList.remove('open');
+      }, true);
+      window.addEventListener('scroll', () => stMenuEl.classList.remove('open'), true);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') stMenuEl.classList.remove('open'); });
+    }
+    window.openStatusMenu = (e, id) => {
+      e.stopPropagation();
+      ensureStatusMenu();
+      stTarget = id;
+      stMenuEl.innerHTML = Object.entries(STATUSES).map(([k, v]) =>
+        `<button onclick="pickStatus('${k}')"><span class="dot" style="background:${v.color}"></span>${v.label}</button>`).join('');
+      const r = e.currentTarget.getBoundingClientRect();
+      stMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 195)) + 'px';
+      stMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 320) + 'px';
+      stMenuEl.classList.add('open');
+    };
+    window.pickStatus = async (st) => {
+      stMenuEl.classList.remove('open');
+      if (stTarget) await changeStatus(stTarget, st);
+    };
+
+    // ── Clic sur une ligne → fiche de visualisation du devis ──
+    el('tableHost').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      if (e.target.closest('button, select, a, input')) return; // ne pas voler les clics des contrôles
+      location.href = 'vue.html?id=' + tr.dataset.id;
+    });
     window.del = async (id) => {
       if (!confirm('Supprimer définitivement ce devis ?')) return;
       await SS.deleteDevis(id);
@@ -348,8 +416,8 @@
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('cmText').value = '';
       toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée', res.offline ? 'warn' : 'ok');
-      await renderComments();
       const d = DEVIS.find(x => x.id === cmDevisId); if (d) d.comments = (d.comments || 0) + 1;
+      closeComments(); // la fenêtre se ferme dès l'envoi
       render();
     };
 
