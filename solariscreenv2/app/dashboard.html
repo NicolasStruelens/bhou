@@ -14,27 +14,16 @@
   <link rel="stylesheet" href="../assets/css/theme-light.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5); }
-    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
-    .kpi::after { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent); opacity: 0.8; }
-    .kpi.gold::after { background: var(--accent-2); }
-    .kpi.ok::after { background: var(--ok); }
-    .kpi .kpi-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
-    .kpi .kpi-value { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: 700; color: var(--text); margin-top: 0.2rem; line-height: 1.1; }
-    .kpi .kpi-sub { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.2rem; }
-    .kpi.accent .kpi-value { color: var(--accent); }
-    .kpi.gold .kpi-value { color: var(--accent-2); }
-
     .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
     .toolbar .search { flex: 1; min-width: 220px; position: relative; }
     .toolbar .search input { padding-left: 2.2rem; }
-    .toolbar .search::before { content: '🔍'; position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); font-size: 0.85rem; opacity: 0.6; }
+    .toolbar .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
     .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .chip { font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
+    .chip { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
     .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-    .status-select { font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 600; padding: 0.3rem 0.5rem; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
+    .status-select { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.3rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; }
 
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
@@ -42,12 +31,40 @@
     .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 
     .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
-    .empty .big { font-size: 2.5rem; margin-bottom: var(--sp-3); }
+    .empty .big { display: flex; justify-content: center; margin-bottom: var(--sp-3); color: var(--text-subtle); }
 
     .client-cell { display: flex; flex-direction: column; }
     .client-cell .name { font-weight: 600; color: var(--text); }
     .client-cell .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     .count-pill { font-size: var(--fs-2xs); color: var(--text-muted); font-family: var(--font-mono); }
+
+    /* ── Modale commentaires internes ── */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
+    .modal .mhead { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; gap: var(--sp-2); }
+    .modal .mhead .mid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
+    .modal .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; min-height: 120px; }
+    .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); }
+
+    .comment { display: flex; gap: var(--sp-3); padding: var(--sp-3) 0; border-bottom: 1px dashed var(--border); }
+    .comment:last-child { border-bottom: none; }
+    .comment .c-avatar { width: 32px; height: 32px; flex: none; border-radius: var(--r-round); display: grid; place-items: center; font-weight: 700; font-size: var(--fs-2xs); }
+    .comment .c-avatar.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+    .comment .c-avatar.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
+    .comment .c-main { flex: 1; min-width: 0; }
+    .comment .c-meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+    .comment .c-author { font-weight: 700; font-size: var(--fs-xs); text-transform: capitalize; }
+    .comment .c-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .comment .c-text { font-size: var(--fs-sm); color: var(--text); margin-top: 0.25rem; white-space: pre-wrap; word-break: break-word; }
+    .comment.is-important { border-left: 2px solid var(--warn); padding-left: var(--sp-3); }
+    .comment .c-del { margin-left: auto; background: none; border: none; color: var(--text-subtle); cursor: pointer; padding: 2px; }
+    .comment .c-del:hover { color: var(--danger); }
+    .empty-comments { text-align: center; color: var(--text-muted); padding: var(--sp-5); font-size: var(--fs-sm); }
+
+    .comment-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+    .comment-form textarea { grid-column: 1 / -1; min-height: 64px; }
+    .comment-form .send-row { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: var(--sp-2); }
   </style>
 </head>
 <body>
@@ -63,10 +80,10 @@
     </div>
     <div class="header-actions">
       <span class="badge" id="apiBadge" title="État de la connexion">…</span>
-      <a class="btn btn-ghost btn-sm" href="clients.html">👥 Clients</a>
-      <a class="btn btn-ghost btn-sm" href="factures.html">🧾 Factures</a>
+      <a class="btn btn-ghost btn-sm" href="clients.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Clients</a>
+      <a class="btn btn-ghost btn-sm" href="factures.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Factures</a>
       <span id="themeToggle"></span>
-      <a class="btn btn-primary btn-sm" href="simulateur.html">+ Nouveau devis</a>
+      <a class="btn btn-primary btn-sm" href="simulateur.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau devis</a>
     </div>
   </header>
 
@@ -76,14 +93,18 @@
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <div class="search"><input class="input" id="search" placeholder="Rechercher un client, un n° de devis…" oninput="render()"></div>
-      <select class="select" id="sort" style="max-width:200px;" onchange="render()">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <label for="search" class="sr-only">Rechercher un devis</label>
+        <input class="input" id="search" placeholder="Rechercher un client, un n° de devis…" oninput="render()">
+      </div>
+      <select class="select" id="sort" style="max-width:200px;" onchange="render()" aria-label="Trier les devis">
         <option value="modif">Tri : récents d'abord</option>
         <option value="montant">Tri : montant ↓</option>
         <option value="nom">Tri : nom A→Z</option>
       </select>
-      <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde">⬇ Export</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer">⬆ Import</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
     </div>
     <div class="filters" id="filters"></div>
@@ -91,19 +112,59 @@
     <!-- Table -->
     <section class="section" style="margin-top: var(--sp-4);">
       <div class="section-head">
-        <span class="section-title">📋 Devis</span>
+        <span class="section-title">Devis</span>
+        <span class="section-code">SS // DASH</span>
         <span class="section-sub" id="resultCount">—</span>
       </div>
       <div id="tableHost"></div>
     </section>
   </main>
 
+  <!-- Modale commentaires internes -->
+  <div class="modal-bg" id="modalComments">
+    <div class="modal ticked">
+      <div class="mhead">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Notes internes
+        <span class="mid" id="cmDevisId">—</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeComments()" aria-label="Fermer" style="margin-left:var(--sp-2);">✕</button>
+      </div>
+      <div class="mbody" id="cmList"><div class="empty-comments">Chargement…</div></div>
+      <div class="mfoot">
+        <div class="comment-form">
+          <div class="field">
+            <label class="label" for="cmAuthor">Auteur</label>
+            <select class="select" id="cmAuthor">
+              <option value="nicolas">Nicolas</option>
+              <option value="yannick">Yannick</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="cmType">Type</label>
+            <select class="select" id="cmType">
+              <option value="note">Note</option>
+              <option value="question">Question</option>
+              <option value="important">Important</option>
+            </select>
+          </div>
+          <textarea class="textarea" id="cmText" placeholder="Info chantier, question pour l'autre, rappel…"></textarea>
+          <div class="send-row">
+            <button class="btn btn-primary btn-sm" onclick="sendComment()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Ajouter la note
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/api.js"></script>
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, toast } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, normDevis, icon } = window.SSUI;
 
     mountThemeToggle(document.getElementById('themeToggle'));
 
@@ -120,21 +181,6 @@
 
     let DEVIS = [];
     let activeFilter = 'tous';
-
-    // Normalise les 2 formes possibles (résumé API / devis complet en cache local)
-    function norm(d) {
-      return {
-        id: d.id,
-        nom: d.client_nom || (d.client && d.client.nom) || '',
-        prenom: d.client_prenom || (d.client && d.client.prenom) || '',
-        statut: d.statut || 'brouillon',
-        ttc: d.total_ttc || (d.calculs && d.calculs.total_ttc) || 0,
-        date_creation: d.date_creation || '',
-        date_modification: d.date_modification || d.date_creation || '',
-        photos: d.photos_count || (d.metadata && d.metadata.photos_count) || 0,
-        comments: d.comments_count || (d.comments && d.comments.length) || 0,
-      };
-    }
 
     function renderFilters() {
       const counts = { tous: DEVIS.length };
@@ -178,7 +224,7 @@
       setText('resultCount', `${rows.length} devis`);
 
       if (rows.length === 0) {
-        el('tableHost').innerHTML = `<div class="empty"><div class="big">🪟</div>${DEVIS.length === 0 ? "Aucun devis pour l'instant.<br>Clique sur <strong>+ Nouveau devis</strong> pour commencer." : "Aucun devis ne correspond à ta recherche."}</div>`;
+        el('tableHost').innerHTML = `<div class="empty"><div class="big">${icon('window', 40)}</div>${DEVIS.length === 0 ? "Aucun devis pour l'instant.<br>Clique sur <strong>+ Nouveau devis</strong> pour commencer." : "Aucun devis ne correspond à ta recherche."}</div>`;
         return;
       }
 
@@ -197,12 +243,16 @@
                   <td><select class="status-select" onchange="changeStatus('${d.id}', this.value)">${statusOpts(d.statut)}</select></td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
                   <td class="num text-accent">${fmtEur(d.ttc)}</td>
-                  <td class="count-pill">${d.photos ? '📷 ' + d.photos : ''} ${d.comments ? '💬 ' + d.comments : ''}</td>
+                  <td class="count-pill">
+                    ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
+                    ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
+                  </td>
                   <td><div class="actions">
-                    <button class="icon-btn" title="Éditer" onclick="location.href='simulateur.html?id=${d.id}'">✏️</button>
-                    <button class="icon-btn" title="Dupliquer" onclick="duplicate('${d.id}')">📑</button>
-                    <button class="icon-btn" title="Devis / PDF" onclick="location.href='devis.html?id=${d.id}'">📄</button>
-                    <button class="icon-btn danger" title="Supprimer" onclick="del('${d.id}')">🗑️</button>
+                    <button class="icon-btn" title="Notes internes" aria-label="Notes internes du devis ${d.id}" onclick="openComments('${d.id}')" style="${d.comments ? 'color:var(--accent-2);border-color:color-mix(in srgb, var(--accent-2) 45%, transparent);' : ''}">${icon('message', 15)}</button>
+                    <button class="icon-btn" title="Éditer" aria-label="Éditer le devis ${d.id}" onclick="location.href='simulateur.html?id=${d.id}'">${icon('edit', 15)}</button>
+                    <button class="icon-btn" title="Dupliquer" aria-label="Dupliquer le devis ${d.id}" onclick="duplicate('${d.id}')">${icon('copy', 15)}</button>
+                    <button class="icon-btn" title="Devis / PDF" aria-label="Voir le devis ${d.id} en PDF" onclick="location.href='devis.html?id=${d.id}'">${icon('filetext', 15)}</button>
+                    <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer le devis ${d.id}" onclick="del('${d.id}')">${icon('trash', 15)}</button>
                   </div></td>
                 </tr>`).join('')}
             </tbody>
@@ -240,6 +290,80 @@
       location.href = 'simulateur.html?id=' + copy.id;
     };
 
+    // ── Commentaires internes (fil Nicolas / Yannick) ──
+    const CTYPE = {
+      note:      { label: 'Note',      cls: 'badge' },
+      question:  { label: 'Question',  cls: 'badge-cyan' },
+      important: { label: 'Important', cls: 'badge-warn' },
+    };
+    let cmDevisId = null;
+
+    window.openComments = async (id) => {
+      cmDevisId = id;
+      setText('cmDevisId', '#' + id);
+      el('cmList').innerHTML = '<div class="empty-comments">Chargement…</div>';
+      el('modalComments').classList.add('open');
+      // mémorise le dernier auteur choisi (pratique : chacun garde son identité)
+      const lastAuthor = localStorage.getItem('ss_comment_author');
+      if (lastAuthor) el('cmAuthor').value = lastAuthor;
+      await renderComments();
+      el('cmText').focus();
+    };
+    window.closeComments = () => { el('modalComments').classList.remove('open'); cmDevisId = null; };
+
+    async function renderComments() {
+      const devis = await SS.getDevis(cmDevisId);
+      const comments = (devis && devis.comments) || [];
+      if (!comments.length) {
+        el('cmList').innerHTML = '<div class="empty-comments">Aucune note pour ce devis.<br>Écris la première ci-dessous — Yannick la verra ici aussi.</div>';
+        return;
+      }
+      el('cmList').innerHTML = comments
+        .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        .map(c => {
+          const t = CTYPE[c.type] || CTYPE.note;
+          const author = (c.author || 'nicolas').toLowerCase();
+          return `<div class="comment ${c.type === 'important' ? 'is-important' : ''}">
+            <div class="c-avatar ${author === 'yannick' ? 'yannick' : 'nicolas'}">${author === 'yannick' ? 'YA' : 'NI'}</div>
+            <div class="c-main">
+              <div class="c-meta">
+                <span class="c-author">${author}</span>
+                <span class="badge ${t.cls}">${t.label}</span>
+                <span class="c-date">${fmtDate(c.date)}</span>
+                <button class="c-del" title="Supprimer cette note" aria-label="Supprimer cette note" onclick="removeComment('${c.id}')">${icon('trash', 13)}</button>
+              </div>
+              <div class="c-text">${esc(c.text)}</div>
+            </div>
+          </div>`;
+        }).join('');
+      el('cmList').scrollTop = el('cmList').scrollHeight;
+    }
+
+    window.sendComment = async () => {
+      const text = el('cmText').value.trim();
+      if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
+      const author = el('cmAuthor').value;
+      localStorage.setItem('ss_comment_author', author);
+      const res = await SS.addComment(cmDevisId, { author, text, type: el('cmType').value });
+      if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
+      el('cmText').value = '';
+      toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée', res.offline ? 'warn' : 'ok');
+      await renderComments();
+      const d = DEVIS.find(x => x.id === cmDevisId); if (d) d.comments = (d.comments || 0) + 1;
+      render();
+    };
+
+    window.removeComment = async (commentId) => {
+      if (!confirm('Supprimer cette note ?')) return;
+      await SS.deleteComment(cmDevisId, commentId);
+      await renderComments();
+      const d = DEVIS.find(x => x.id === cmDevisId); if (d && d.comments > 0) d.comments--;
+      render();
+    };
+
+    // fermer la modale au clic sur le fond
+    el('modalComments').addEventListener('click', (e) => { if (e.target === el('modalComments')) closeComments(); });
+
     // ── Gadgets : export / import JSON ──
     window.exportJSON = async () => {
       const all = await Promise.all(DEVIS.map(d => SS.getDevis(d.id)));
@@ -270,7 +394,7 @@
     // ── Chargement ──
     async function load() {
       const raw = await SS.listDevis();
-      DEVIS = (raw || []).map(norm);
+      DEVIS = (raw || []).map(normDevis);
       render();
     }
     SS.isOnline().then(on => {
