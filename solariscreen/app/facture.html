@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Facture</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/document.css">
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <div class="toolbar">
+    <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    <a class="btn btn-ghost btn-sm" href="factures.html">Factures</a>
+    <div class="spacer"></div>
+    <span id="themeToggle"></span>
+    <button class="btn btn-primary btn-sm" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
+  </div>
+
+  <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const COMPANY = window.SS_COMPANY;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, fmtDate, el, qp } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const TYPE_TITLE = { acompte: "FACTURE D'ACOMPTE", solde: 'FACTURE DE SOLDE', totale: 'FACTURE' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function paidSum(f) { return (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0); }
+    function statutOf(f) {
+      const paid = paidSum(f);
+      if (paid >= (f.total_ttc || 0) - 0.005) return 'payee';
+      if (paid > 0) return 'partielle';
+      return 'impayee';
+    }
+
+    function render(f) {
+      const cl = f.client || {}, adr = cl.adresse || {};
+      const paid = paidSum(f), reste = (f.total_ttc || 0) - paid;
+      const st = statutOf(f);
+      const overdue = st !== 'payee' && f.echeance && f.echeance < new Date().toISOString().slice(0, 10);
+      const statusCls = st === 'payee' ? 'paid' : (st === 'partielle' ? 'partial' : 'due');
+      const statusTxt = st === 'payee' ? '✓ PAYÉE' : (st === 'partielle' ? '◐ PARTIELLEMENT PAYÉE' : (overdue ? '▲ ÉCHUE' : '● À PAYER'));
+
+      let wm = '';
+      if (st === 'payee') wm = '<div class="watermark paid">PAYÉE</div>';
+      else if (overdue) wm = '<div class="watermark due">IMPAYÉE</div>';
+
+      const rows = (f.lines || []).map((l, i) => `<tr>
+        <td class="num">${i + 1}</td>
+        <td class="desc"><strong>${esc(l.desc)}</strong>${l.sub ? '<small>' + esc(l.sub) + '</small>' : ''}</td>
+        <td>${esc(l.dims || '—')}</td>
+        <td class="num">${l.qty != null ? l.qty : '—'}</td>
+        <td class="num">${fmtEur(l.pu)}</td>
+        <td class="num">${fmtEur(l.total)}</td>
+      </tr>`).join('');
+
+      const paiements = (f.paiements || []).length
+        ? `<div class="terms"><h4>Paiements reçus</h4>${f.paiements.map(p => `${fmtDate(p.date)} — ${fmtEur(p.montant)}${p.moyen ? ' (' + esc(p.moyen) + ')' : ''}`).join('<br>')}<br><strong>Reste dû : ${fmtEur(reste)}</strong></div>`
+        : '';
+
+      el('paper').innerHTML = `
+        ${wm}
+        <div class="doc-head">
+          <div class="brand-block">
+            <div class="logo"><img src="../assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
+            <div><div class="co-name"><span class="b">SOLARI</span><span class="g">SCREEN</span></div><div class="co-tag">${esc(COMPANY.tagline)}</div></div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-title" style="font-size:1.4rem;">${TYPE_TITLE[f.type] || 'FACTURE'}</div>
+            <div class="doc-num">N° ${esc(f.id)}</div>
+            <div class="doc-dates">
+              Date : ${fmtDate(f.date)}<br>
+              Échéance : ${fmtDate(f.echeance)}${f.devis_id ? '<br>Réf. devis N° ' + esc(f.devis_id) : ''}
+            </div>
+            <div style="margin-top:0.5rem;"><span class="pay-status ${statusCls}">${statusTxt}</span></div>
+          </div>
+        </div>
+
+        <div class="parties">
+          <div class="party">
+            <h4>Émetteur</h4>
+            <div class="pname">${esc(COMPANY.name)}</div>
+            <div class="pline">${COMPANY.legal ? esc(COMPANY.legal) + '<br>' : ''}${esc(COMPANY.address)}<br>TVA : ${esc(COMPANY.tva)}<br>${esc(COMPANY.email)}</div>
+          </div>
+          <div class="party">
+            <h4>Facturé à</h4>
+            <div class="pname">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
+            <div class="pline">
+              ${(adr.rue || adr.numero) ? esc(adr.rue) + ' ' + esc(adr.numero) + '<br>' : ''}
+              ${(adr.code_postal || adr.ville) ? esc(adr.code_postal) + ' ' + esc(adr.ville) + '<br>' : ''}
+              ${cl.telephone ? esc(cl.telephone) + '<br>' : ''}${cl.email ? esc(cl.email) : ''}
+            </div>
+          </div>
+        </div>
+
+        <table class="doc-table">
+          <thead><tr><th class="num">#</th><th>Désignation</th><th>Dimensions</th><th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+
+        <div class="totals"><div class="box">
+          <div class="t-row"><span>Total HTVA</span><span class="v">${fmtEur(f.total_ht)}</span></div>
+          <div class="t-row t-sub"><span>TVA ${f.tva_pct} %</span><span class="v">${fmtEur(f.total_tva)}</span></div>
+          <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(f.total_ttc)}</span></div>
+        </div></div>
+
+        <div class="pay-note">
+          À payer pour le <strong>${fmtDate(f.echeance)}</strong> sur le compte <strong>${esc(COMPANY.iban)}</strong>.
+          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Communication structurée / libre : facture ${esc(f.id)}.</span>
+        </div>
+        ${paiements}
+
+        <div class="terms">
+          <h4>Conditions de paiement</h4>
+          Facture payable à ${fmtDate(f.echeance) !== '—' ? 'la date d\'échéance indiquée' : '30 jours'}. À défaut de paiement à l'échéance, le montant sera majoré de plein droit et sans mise en demeure d'un intérêt de retard de 1 % par mois entamé, ainsi que d'une indemnité forfaitaire de 10 % (minimum 40 €). Tout litige relève des tribunaux de l'arrondissement du siège de ${esc(COMPANY.name)}. TVA appliquée au taux indiqué (6 % rénovation > 10 ans / 21 %).
+        </div>
+
+        <div class="partners">
+          <span class="lbl">Partenaires</span>
+          <span class="partner-chip"><img src="../assets/img/logo-harol.png" alt="Harol"></span>
+          <span class="partner-chip"><img src="../assets/img/logo-somfy.png" alt="Somfy"></span>
+        </div>
+
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
+      `;
+    }
+
+    (async () => {
+      const id = qp('id');
+      if (!id) { el('paper').innerHTML = '<p style="color:var(--text-muted);">Aucune facture spécifiée.</p>'; return; }
+      const f = await SS.getFacture(id);
+      if (!f) { el('paper').innerHTML = '<p style="color:var(--danger);">Facture introuvable (' + esc(id) + ').</p>'; return; }
+      render(f);
+    })();
+  </script>
+</body>
+</html>
