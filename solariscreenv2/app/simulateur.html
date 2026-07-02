@@ -115,6 +115,10 @@
         <div class="section-body">
           <div id="itemsContainer"></div>
           <button class="btn btn-ghost" onclick="addItem()">+ Ajouter une ouverture</button>
+          <!-- Autocomplétion (champs libres, ces listes ne sont que des suggestions) -->
+          <datalist id="dl-modeles"></datalist>
+          <datalist id="dl-couleurs"></datalist>
+          <datalist id="dl-toiles"></datalist>
         </div>
       </section>
 
@@ -203,7 +207,7 @@
                 <input type="radio" name="tva_pct" id="tva21" value="21" onchange="ui_recalc()"><label for="tva21">21 %</label>
               </div>
             </div>
-            <div class="field"><label class="label" for="acomptePct">Acompte</label><div class="input-unit"><input class="input input-num" id="acomptePct" type="number" min="0" max="100" step="1" value="30" oninput="ui_recalc()"><span class="unit">%</span></div></div>
+            <div class="field"><label class="label" for="acomptePct">Acompte</label><div class="input-unit"><input class="input input-num" id="acomptePct" type="number" min="0" max="100" step="1" value="50" oninput="ui_recalc()"><span class="unit">%</span></div></div>
             <div class="field"><label class="label" for="surplusDifficulte">Supplément difficulté</label><div class="input-unit"><input class="input input-num" id="surplusDifficulte" type="number" min="0" step="0.01" value="0" oninput="ui_recalc()"><span class="unit">€</span></div></div>
           </div>
           <div class="field mt-4"><label class="label" for="noteInterne">Note interne</label><textarea class="textarea" id="noteInterne" placeholder="Visible uniquement en interne…"></textarea></div>
@@ -243,8 +247,29 @@
 
     mountThemeToggle(document.getElementById('themeToggle'));
 
-    const ITEM_TYPES = { screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola' };
+    const ITEM_TYPES = {
+      screen: 'Screen', volet_roulant: 'Volet roulant', store_banne: 'Store banne',
+      tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola',
+    };
     const MOTEURS = ['', 'Manuel', 'Somfy IO', 'Somfy RTS', 'Somfy Solaire', 'Filaire'];
+    // Références réelles du catalogue Harol (autocomplétion — champ libre, pas une liste fermée)
+    const MODELES_CATALOGUE = [
+      'Coolscreen 8', 'Coolscreen 8 Plus', 'Coolscreen 8 Led', 'Coolscreen 8 Solar',
+      'VR150', 'VR150 Solar', 'VR150 Blackout', 'VR150 Blackout Solar',
+      'BX270', 'BX260', 'LUX', 'CADIZ', 'TUCAN', 'PRAIA',
+    ];
+    // Coloris RAL les plus demandés (nuancier Harol 2026) — champ libre, autres RAL possibles
+    const COULEURS_RAL = [
+      '9016 — Blanc trafic', '9010 — Blanc pur', '9006 — Aluminium blanc', '9001 — Blanc crème',
+      '9005 — Noir signalisation', '9004 — Noir signalisation (mat)', '7016 — Gris anthracite',
+      '7021 — Noir goudron', '7039 — Gris quartz', '8019 — Brun gris',
+      '6009 — Vert sapin', '5011 — Bleu acier',
+    ];
+    // Toiles standard (screens & stores bannes)
+    const TOILES_CATALOGUE = [
+      'Soltis Horizon 86', 'Soltis Perform 92', 'Soltis Opaque B92', 'Sergé 600', 'Sergé 1%',
+      'Dickson Orchestra', 'Sattler Urban Design', 'Swela', 'Sattler', 'Dickson',
+    ];
 
     const state = {
       id: qp('id') || generateDevisId(),
@@ -272,7 +297,7 @@
         </div>
         <div class="grid grid-4">
           <div class="field"><label class="label">Type</label><select class="select" data-f="type">${typeOpts}</select></div>
-          <div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Ex: Harol R40"></div>
+          <div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" list="dl-modeles" value="${item.modele || ''}" placeholder="Ex: Coolscreen 8 Solar"></div>
           <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>
           <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
         </div>
@@ -281,6 +306,10 @@
           <div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" value="${item.etage || ''}" placeholder="RDC"></div>
+        </div>
+        <div class="grid grid-auto mt-4">
+          <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris anthracite"></div>
+          <div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>
         </div>
         <div class="grid grid-2 mt-4">
           <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
@@ -515,7 +544,7 @@
       (p.extras || []).forEach(e => addExtra({ label: e.label, qty: e.qty, unit_price_ht: e.unit_price_ht }));
       const tva = p.tva_pct || d.calculs?.tva_pct || 6;
       (document.getElementById(tva === 21 ? 'tva21' : 'tva6')).checked = true;
-      setVal('acomptePct', p.acompte_pct ?? 30); setVal('surplusDifficulte', p.surplus_difficulte ?? 0);
+      setVal('acomptePct', p.acompte_pct ?? 50); setVal('surplusDifficulte', p.surplus_difficulte ?? 0);
       setVal('noteInterne', p.note || '');
       onSellerChange();
     }
@@ -534,6 +563,13 @@
         toast('Client pré-rempli depuis sa fiche', 'ok');
       } catch (e) {}
     }
+    function fillDatalist(id, values) {
+      el(id).innerHTML = values.map(v => `<option value="${v.replace(/"/g, '&quot;')}">`).join('');
+    }
+    fillDatalist('dl-modeles', MODELES_CATALOGUE);
+    fillDatalist('dl-couleurs', COULEURS_RAL);
+    fillDatalist('dl-toiles', TOILES_CATALOGUE);
+
     (async () => {
       if (qp('id')) await loadExisting(qp('id'));
       else applyPrefillClient();

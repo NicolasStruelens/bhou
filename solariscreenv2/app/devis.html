@@ -80,6 +80,7 @@
       const d = DEVIS, c = CALC;
       const cl = d.client || {};
       const adr = cl.adresse || {};
+      const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
       const draft = !['signe', 'termine', 'envoye_client'].includes(d.statut);
 
       // Lignes fournitures
@@ -88,7 +89,7 @@
         const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
-        const meta = [it.moteur, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        const meta = [it.moteur, it.couleur, it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
@@ -179,11 +180,20 @@
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
 
+        ${c.tva_pct === 6 ? `
+        <div class="pay-note" style="border-color:color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 10%, transparent);">
+          <strong style="color:var(--accent);">Attestation TVA 6 %</strong> — Le client soussigné, ${esc(cl.prenom)} ${esc(cl.nom)}${adresseComplete ? ', propriétaire ou locataire du bien situé ' + esc(adresseComplete) : ''},
+          déclare que ce bâtiment est principalement affecté au logement privé et achevé depuis plus de 10 ans, et que les travaux commandés relèvent de la rénovation, transformation, amélioration, réparation ou entretien de ce bâtiment,
+          ouvrant droit au taux réduit de TVA à 6 % conformément à la législation belge en vigueur. Cette déclaration est confirmée par la signature du client ci-dessous.
+        </div>` : ''}
+
         <div class="terms">
-          <h4>Conditions</h4>
-          Devis valable ${VALIDITE_JOURS} jours. Prix en euros, TVA comprise au taux indiqué (6 % sous conditions de rénovation d'habitation de plus de 10 ans, 21 % sinon).
-          Commande ferme à réception de l'acompte. Délai de fabrication communiqué après prise de mesures définitive.
-          Garantie selon conditions des fabricants Harol et Somfy. Les dimensions seront confirmées lors du métré technique avant fabrication.
+          <h4>Conditions générales de vente (extrait)</h4>
+          <strong>Commande</strong> — Devis valable ${VALIDITE_JOURS} jours. Commande ferme à réception de l'acompte (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.<br>
+          <strong>Prix et paiement</strong> — Prix en euros TVA comprise. Acompte de ${c.acompte_pct} % à la commande, solde payable le jour de l'installation (virement instantané ou carte). Tout retard de paiement entraîne de plein droit des intérêts au taux légal majoré de 10 %, ainsi qu'une indemnité forfaitaire de 15 % du montant dû (minimum 150 €).<br>
+          <strong>Garantie</strong> — Produits Harol : 5 ans · Moteurs RTS &amp; IO : 5 ans · Moteurs solaires et batteries Somfy : 7 ans · Autres moteurs solaires et batteries : 5 ans. La garantie ne couvre pas une mauvaise utilisation, l'absence d'entretien, ni les dommages causés par un tiers ou une catastrophe naturelle.<br>
+          <strong>Annulation</strong> — Nos produits étant fabriqués sur mesure, toute annulation après confirmation de commande donne lieu à une indemnité forfaitaire : 10 % du montant TTC avant commande des marchandises auprès du fournisseur, ou 100 % du prix TTC des marchandises sur mesure déjà commandées. Les acomptes versés restent acquis à titre de minimum forfaitaire.<br>
+          <strong>Litiges</strong> — Droit belge, tribunaux de ${esc(COMPANY.court)}. Conditions générales complètes disponibles sur demande.
         </div>
 
         <div class="partners">
