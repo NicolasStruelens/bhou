@@ -98,6 +98,30 @@
       return this.saveDevis(devis);
     },
 
+    // ── COMMENTAIRES INTERNES (fil de discussion Nicolas / Yannick sur un devis) ──
+    async addComment(id, opts) {
+      opts = opts || {};
+      const devis = await this.getDevis(id);
+      if (!devis) return { ok: false, error: 'Devis introuvable' };
+      devis.comments = devis.comments || [];
+      devis.comments.push({
+        id: Date.now(),
+        author: opts.author || 'nicolas',
+        text: (opts.text || '').trim(),
+        type: opts.type || 'note',
+        date: new Date().toISOString(),
+      });
+      devis.date_modification = new Date().toISOString();
+      return this.saveDevis(devis);
+    },
+    async deleteComment(devisId, commentId) {
+      const devis = await this.getDevis(devisId);
+      if (!devis) return { ok: false, error: 'Devis introuvable' };
+      devis.comments = (devis.comments || []).filter(function (c) { return String(c.id) !== String(commentId); });
+      devis.date_modification = new Date().toISOString();
+      return this.saveDevis(devis);
+    },
+
     // ── CLIENTS (fiches d'enrichissement : contact, notes, tags) ──
     async listClients() {
       try { return (await req('/clients')).data; }
