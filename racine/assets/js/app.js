@@ -8,6 +8,8 @@
     filterPinned: false,
     searchTerm: '',
     dragId: null,
+    lastAddedId: null,
+    collapsed: new Set(),
   };
 
   // ---------- garde-fou session ----------
@@ -88,19 +90,51 @@
     pinToggle.classList.toggle('active', state.pinned);
   });
 
-  captureInput.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' || !captureInput.value.trim()) return;
+  var captureBar = document.getElementById('captureBar');
+  var captureDetails = document.getElementById('captureDetails');
+  var detailToggle = document.getElementById('detailToggle');
+  var captureAdd = document.getElementById('captureAdd');
+
+  detailToggle.addEventListener('click', function () {
+    var open = captureDetails.classList.toggle('open');
+    detailToggle.classList.toggle('active', open);
+    detailToggle.textContent = open ? '− masquer les détails' : '+ ajouter des détails';
+    if (open) captureDetails.focus();
+  });
+
+  captureInput.addEventListener('input', function () {
+    captureBar.classList.toggle('has-value', !!captureInput.value.trim());
+  });
+
+  function submitCapture() {
+    var title = captureInput.value.trim();
+    if (!title) { captureInput.focus(); return; }
     RA.createNote({
-      title: captureInput.value.trim(),
+      title: title,
+      content: captureDetails.value.trim(),
       kind: state.kind,
       pinned: state.pinned,
-    }).then(function () {
+    }).then(function (res) {
       captureInput.value = '';
+      captureDetails.value = '';
+      captureDetails.classList.remove('open');
+      detailToggle.classList.remove('active');
+      detailToggle.textContent = '+ ajouter des détails';
       state.pinned = false;
       pinToggle.classList.remove('active');
+      captureBar.classList.remove('has-value');
+      state.lastAddedId = res.id;
       loadNotes();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
+  }
+
+  captureInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') submitCapture();
   });
+  captureDetails.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitCapture();
+  });
+  captureAdd.addEventListener('click', submitCapture);
 
   // ---------- recherche / filtre ----------
   var searchInput = document.getElementById('searchInput');
@@ -153,7 +187,7 @@
 
   // ---------- glisser-déposer ----------
   function clearDragClasses() {
-    document.querySelectorAll('.node').forEach(function (n) {
+    document.querySelectorAll('.node, .root-card, .branch-row').forEach(function (n) {
       n.classList.remove('drag-before', 'drag-after', 'drag-nest', 'dragging');
     });
   }
@@ -196,15 +230,10 @@
     }
   }
 
-  function renderNode(n, depth, container, skipChildren) {
-    var el = document.createElement('div');
-    el.className = 'node depth-' + Math.min(depth, 3);
-    el.dataset.kind = n.kind;
-    el.dataset.id = n.id;
-    el.draggable = true;
-    if (n.pinned) el.classList.add('pinned');
-    if (n.done) el.classList.add('done');
+  var CHEVRON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
+  function attachDnD(el, n) {
+    el.draggable = true;
     el.addEventListener('dragstart', function (e) {
       state.dragId = n.id;
       el.classList.add('dragging');
@@ -233,11 +262,9 @@
       handleDrop(state.dragId, n, mode);
       clearDragClasses();
     });
+  }
 
-    var dot = document.createElement('div');
-    dot.className = 'node-dot';
-    el.appendChild(dot);
-
+  function buildBody(n) {
     var body = document.createElement('div');
     body.className = 'node-body';
 
@@ -258,8 +285,10 @@
     meta.textContent = (n.pinned ? '★ à ne pas oublier · ' : '') + noteMeta(n);
     body.appendChild(meta);
 
-    el.appendChild(body);
+    return body;
+  }
 
+  function buildActions(n) {
     var actions = document.createElement('div');
     actions.className = 'node-actions';
 
@@ -290,7 +319,11 @@
     addChildBtn.addEventListener('click', function () {
       var title = prompt('Nouvelle branche sous « ' + n.title + ' » :');
       if (!title || !title.trim()) return;
-      RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(loadNotes);
+      state.collapsed.delete(n.id);
+      RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(function (res) {
+        state.lastAddedId = res.id;
+        loadNotes();
+      });
     });
     actions.appendChild(addChildBtn);
 
@@ -304,11 +337,115 @@
     });
     actions.appendChild(delBtn);
 
-    el.appendChild(actions);
-    container.appendChild(el);
+    return actions;
+  }
 
-    if (!skipChildren) {
-      n._children.forEach(function (child) { renderNode(child, depth + 1, container); });
+  // mode liste plate (recherche/filtre actif) : cartes autonomes, sans hiérarchie
+  function renderFlatNode(n, container) {
+    var el = document.createElement('div');
+    el.className = 'node depth-0';
+    el.dataset.kind = n.kind;
+    el.dataset.id = n.id;
+    if (n.pinned) el.classList.add('pinned');
+    if (n.done) el.classList.add('done');
+    attachDnD(el, n);
+    el.appendChild((function () { var d = document.createElement('div'); d.className = 'node-dot'; return d; })());
+    el.appendChild(buildBody(n));
+    el.appendChild(buildActions(n));
+    container.appendChild(el);
+  }
+
+  function childSummary(children) {
+    var todos = children.filter(function (c) { return c.kind === 'todo'; });
+    if (todos.length) return { text: todos.filter(function (c) { return c.done; }).length + '/' + todos.length, done: todos.every(function (c) { return c.done; }) };
+    return { text: String(children.length), done: false };
+  }
+
+  // mode arborescence : note racine = carte, enfants imbriqués visuellement dedans
+  function renderRootCard(n, container) {
+    var card = document.createElement('div');
+    card.className = 'root-card';
+    card.dataset.kind = n.kind;
+    card.dataset.id = n.id;
+    if (n.pinned) card.classList.add('pinned');
+    if (n.done) card.classList.add('done');
+    if (state.collapsed.has(n.id)) card.classList.add('collapsed');
+
+    var header = document.createElement('div');
+    header.className = 'root-card-header';
+    attachDnD(header, n);
+
+    if (n._children.length) {
+      var collapseBtn = document.createElement('button');
+      collapseBtn.className = 'collapse-btn';
+      collapseBtn.innerHTML = CHEVRON_SVG;
+      collapseBtn.title = 'Replier / déplier';
+      collapseBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (state.collapsed.has(n.id)) state.collapsed.delete(n.id);
+        else state.collapsed.add(n.id);
+        card.classList.toggle('collapsed');
+      });
+      header.appendChild(collapseBtn);
+    } else {
+      var spacer = document.createElement('div');
+      spacer.className = 'collapse-spacer';
+      header.appendChild(spacer);
+    }
+
+    var dot = document.createElement('div');
+    dot.className = 'node-dot-lg';
+    header.appendChild(dot);
+
+    header.appendChild(buildBody(n));
+
+    if (n._children.length) {
+      var summary = childSummary(n._children);
+      var badge = document.createElement('div');
+      badge.className = 'child-badge' + (summary.done ? ' all-done' : '');
+      badge.textContent = summary.text;
+      header.appendChild(badge);
+    }
+
+    header.appendChild(buildActions(n));
+    card.appendChild(header);
+
+    if (n._children.length) {
+      var branches = document.createElement('div');
+      branches.className = 'branches';
+      n._children.forEach(function (child) { renderBranchRow(child, branches); });
+      card.appendChild(branches);
+    }
+
+    container.appendChild(card);
+  }
+
+  function renderBranchRow(n, container) {
+    var row = document.createElement('div');
+    row.className = 'branch-row';
+    row.dataset.kind = n.kind;
+    row.dataset.id = n.id;
+    if (n.pinned) row.classList.add('pinned');
+    if (n.done) row.classList.add('done');
+    attachDnD(row, n);
+
+    var main = document.createElement('div');
+    main.className = 'branch-row-main';
+
+    var dot = document.createElement('div');
+    dot.className = 'node-dot';
+    main.appendChild(dot);
+
+    main.appendChild(buildBody(n));
+    main.appendChild(buildActions(n));
+    row.appendChild(main);
+    container.appendChild(row);
+
+    if (n._children.length) {
+      var branches = document.createElement('div');
+      branches.className = 'branches';
+      n._children.forEach(function (child) { renderBranchRow(child, branches); });
+      row.appendChild(branches);
     }
   }
 
@@ -319,11 +456,19 @@
     if (active) {
       var filtered = state.notes.filter(matchesFilter);
       document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
-      filtered.forEach(function (n) { renderNode(n, 0, treeEl, true); });
+      filtered.forEach(function (n) { renderFlatNode(n, treeEl); });
     } else {
       document.getElementById('emptyState').style.display = state.notes.length ? 'none' : 'block';
       var roots = buildTree(state.notes);
-      roots.forEach(function (n) { renderNode(n, 0, treeEl); });
+      roots.forEach(function (n) { renderRootCard(n, treeEl); });
+    }
+    if (state.lastAddedId) {
+      var added = treeEl.querySelector('[data-id="' + state.lastAddedId + '"]');
+      if (added) {
+        added.classList.add('just-added');
+        setTimeout(function () { added.classList.remove('just-added'); }, 900);
+      }
+      state.lastAddedId = null;
     }
   }
 
