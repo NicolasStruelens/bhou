@@ -9,6 +9,23 @@
   // ---------- garde-fou session ----------
   RA.me().catch(function () { location.href = 'login.html'; });
 
+  // ---------- thème jour/nuit ----------
+  var themeToggle = document.getElementById('themeToggle');
+  function applyThemeIcon() {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    themeToggle.textContent = isLight ? '☀️' : '🌙';
+  }
+  applyThemeIcon();
+  themeToggle.addEventListener('click', function () {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var next = isLight ? 'dark' : 'light';
+    if (next === 'dark') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('racine_theme', next === 'dark' ? '' : 'light');
+    applyThemeIcon();
+    if (window.RAStarfield) window.RAStarfield.setTheme(next);
+  });
+
   // ---------- toast ----------
   var toastEl = document.getElementById('toast');
   var toastTimer;

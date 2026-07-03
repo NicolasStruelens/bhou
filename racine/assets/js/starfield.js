@@ -1,5 +1,11 @@
 // Racine — fond "constellation" : particules qui dérivent + lignes entre voisins proches
-(function () {
+window.RAStarfield = (function () {
+  var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  var colors = {
+    dark: { line: '124,108,255', dot: '232,236,255', lineAlpha: 0.12, dotAlpha: 0.5 },
+    light: { line: '124,108,255', dot: '90,80,180', lineAlpha: 0.1, dotAlpha: 0.35 },
+  };
+
   function init() {
     var canvas = document.getElementById('starfield');
     if (!canvas) return;
@@ -34,6 +40,7 @@
     }
 
     function step() {
+      var c = colors[theme];
       ctx.clearRect(0, 0, w, h);
       for (var i = 0; i < points.length; i++) {
         var p = points[i];
@@ -48,7 +55,7 @@
           var dx = a.x - b.x, dy = a.y - b.y;
           var dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < LINK_DIST) {
-            ctx.strokeStyle = 'rgba(124,108,255,' + (0.12 * (1 - dist / LINK_DIST)) + ')';
+            ctx.strokeStyle = 'rgba(' + c.line + ',' + (c.lineAlpha * (1 - dist / LINK_DIST)) + ')';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -61,7 +68,7 @@
         var p = points[i];
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(232,236,255,0.5)';
+        ctx.fillStyle = 'rgba(' + c.dot + ',' + c.dotAlpha + ')';
         ctx.fill();
       }
       requestAnimationFrame(step);
@@ -81,4 +88,8 @@
   } else {
     init();
   }
+
+  return {
+    setTheme: function (t) { theme = t === 'light' ? 'light' : 'dark'; },
+  };
 })();
