@@ -51,6 +51,31 @@
 
   const qp = (key) => new URLSearchParams(location.search).get(key);
 
+  // ── Copier-coller rapide (nom/tél/email/adresse/prix depuis les fiches) ──
+  function legacyCopy(value, done, fail) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = value; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok ? done() : fail();
+    } catch (e) { fail(); }
+  }
+  function copyText(text, label) {
+    const value = String(text == null ? '' : text).trim();
+    if (!value) return;
+    const done = () => toast((label ? label + ' copié' : 'Copié') + ' ✓', 'ok', 1800);
+    const fail = () => toast('Impossible de copier — sélectionne le texte manuellement.', 'warn');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(done).catch(() => legacyCopy(value, done, fail));
+    } else {
+      legacyCopy(value, done, fail);
+    }
+  }
+  // Encode une valeur pour l'injecter en toute sécurité dans un attribut onclick="..." inline
+  function jsAttr(v) { return JSON.stringify(String(v == null ? '' : v)).replace(/"/g, '&quot;'); }
+
   // Redimensionne/compresse une photo avant stockage (les devis sont sauvés en JSON
   // dans D1 — une photo de téléphone non compressée (plusieurs Mo) peut à elle seule
   // faire dépasser la taille max d'une ligne et faire échouer l'enregistrement serveur).
@@ -93,6 +118,8 @@
       archive: !!d.archive,
       informatif: !!d.informatif,
       portfolio: !!d.portfolio,
+      nicolas_net: Number(d.nicolas_net) || (d.calculs && Number(d.calculs.nicolas_net)) || 0,
+      yannick_net: Number(d.yannick_net) || (d.calculs && Number(d.calculs.yannick_net)) || 0,
     };
   }
 
@@ -125,6 +152,8 @@
     warning:    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
     star:       '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
     image:      '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    phone:      '<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
+    grid9:      '<circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="19" r="1.5"/><circle cx="19" cy="19" r="1.5"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -139,5 +168,8 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, icon: icon, compressImage: compressImage,
+    copyText: copyText, jsAttr: jsAttr,
   };
+  // Raccourci global utilisable directement dans les attributs onclick="..." inline
+  window.ssCopy = function (text, label) { copyText(text, label); };
 })();
