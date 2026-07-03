@@ -21,6 +21,22 @@ function accessOk(request, env) {
   return !!request.headers.get('Cf-Access-Jwt-Assertion');
 }
 
+// Extrait l'email authentifié depuis le JWT injecté par Cloudflare Access.
+// Lecture seule pour affichage (ex: "connecté en tant que Nicolas") — jamais utilisée
+// pour une décision de sécurité, donc pas besoin de vérifier la signature du JWT ici
+// (la vérification/l'application réelle se fait par la politique Access sur le domaine).
+function parseAccessEmail(request) {
+  const jwt = request.headers.get('Cf-Access-Jwt-Assertion');
+  if (!jwt) return null;
+  try {
+    const payload = jwt.split('.')[1];
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const claims = JSON.parse(atob(padded));
+    return claims.email || null;
+  } catch (e) { return null; }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
