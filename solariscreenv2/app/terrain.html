@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SolariScreen — Mode Terrain</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <!-- Ajout à l'écran d'accueil iPhone : ouverture en plein écran, sans barre Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SS Terrain">
+  <meta name="theme-color" content="#070b18">
+  <link rel="apple-touch-icon" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    .container { max-width: 640px; }
+
+    /* Champs ≥16px : évite le zoom auto de Safari iOS au focus d'un input */
+    .wiz-screen .input, .wiz-screen .select, .wiz-screen .textarea { font-size: 16px; }
+
+    /* ── Fil d'étapes ── */
+    .wiz-steps { display: flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; margin-bottom: var(--sp-5); }
+    .wiz-step { flex: 1; text-align: center; padding: 0.6rem 0.3rem; font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-subtle); background: var(--surface-2); cursor: pointer; border-right: 1px solid var(--border); }
+    .wiz-step:last-child { border-right: none; }
+    .wiz-step .n { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid currentColor; margin-right: 0.3rem; font-size: 9px; }
+    .wiz-step.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+    .wiz-step.done { color: var(--ok); }
+
+    .wiz-screen { display: none; }
+    .wiz-screen.active { display: block; }
+
+    /* ── Barre d'action fixe (bas d'écran, pouce) ── */
+    .wiz-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 200; display: flex; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--border); }
+    .wiz-bar .btn { flex: 1; padding: 0.85rem; font-size: var(--fs-sm); }
+    .wiz-bar .btn.grow2 { flex: 2; }
+
+    /* ── Sélecteur de type — grosses tuiles tactiles ── */
+    .type-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); }
+    .type-tile { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: var(--sp-4) var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); color: var(--text-muted); cursor: pointer; --tick-color: var(--border-strong); user-select: none; }
+    .type-tile svg { width: 24px; height: 24px; }
+    .type-tile span { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.03em; text-align: center; }
+    .type-tile.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); box-shadow: var(--glow-soft); --tick-color: var(--accent); }
+
+    /* ── Nav ouvertures ── */
+    .item-nav { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+    .item-nav button { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); cursor: pointer; }
+    .item-nav button:disabled { opacity: 0.3; }
+    .item-nav .item-title { flex: 1; text-align: center; font-family: var(--font-display); color: var(--accent); font-size: var(--fs-md); }
+    .item-dots { display: flex; justify-content: center; gap: 0.4rem; margin: 0 0 var(--sp-5); flex-wrap: wrap; }
+    .item-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: var(--fs-2xs); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-muted); cursor: pointer; }
+    .item-dot.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .item-dot.add { color: var(--accent-2); border-color: var(--accent-2); border-style: dashed; }
+
+    .field-check-mobile { display: flex; align-items: center; gap: 0.6rem; font-size: var(--fs-sm); color: var(--text-muted); padding: 0.5rem 0; }
+    .field-check-mobile input { width: 19px; height: 19px; flex: none; }
+
+    /* ── Bouton photo géant ── */
+    .photo-cta { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; padding: var(--sp-5); border: 1px dashed var(--border-strong); border-radius: var(--r-md); background: var(--surface-2); color: var(--text-muted); text-align: center; }
+    .photo-cta svg { color: var(--accent-2); }
+    .photo-cta span { font-family: var(--font-mono); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; }
+    .photo-grid { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .photo-thumb { position: relative; width: 74px; height: 74px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-strong); }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-thumb button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border: none; border-radius: 50%; background: var(--danger); color: #fff; font-size: 12px; line-height: 1; }
+
+    /* ── Recherche / sélection client ── */
+    .client-hit { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: var(--sp-2); cursor: pointer; }
+    .client-hit:active { background: var(--surface-2); }
+    .client-hit .avatar { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: var(--fs-xs); background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+    .client-hit .ci-main { min-width: 0; flex: 1; }
+    .client-hit .ci-name { font-weight: 600; }
+    .client-hit .ci-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); }
+
+    .success-hero { text-align: center; padding: var(--sp-7) var(--sp-4); }
+    .success-hero .ico { width: 64px; height: 64px; margin: 0 auto var(--sp-4); border-radius: 50%; border: 1px solid var(--ok); color: var(--ok); display: grid; place-items: center; box-shadow: 0 0 24px color-mix(in srgb, var(--ok) 40%, transparent); }
+    .success-hero h2 { font-family: var(--font-display); color: var(--text); margin-bottom: var(--sp-2); }
+
+    /* Réutilise le style du configurateur Coolscreen 8 du simulateur desktop */
+    .cs8-block { border: 1px dashed var(--accent-3); border-radius: var(--r-md); padding: var(--sp-4); background: color-mix(in srgb, var(--accent-3) 6%, transparent); }
+    .cs8-head { font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-3); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2); }
+    .field-readonly { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1>SOLARISCREEN</h1>
+        <div class="module">Mode Terrain</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html" aria-label="Retour au dashboard" title="Dashboard">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="wiz-steps">
+      <div class="wiz-step" data-goto="client" onclick="goStep('client')"><span class="n">1</span>Client</div>
+      <div class="wiz-step" data-goto="items" onclick="goStep('items')"><span class="n">2</span>Ouvertures</div>
+      <div class="wiz-step" data-goto="recap" onclick="goStep('recap')"><span class="n">3</span>Récap</div>
+    </div>
+
+    <!-- ═══ ÉTAPE 1 : CLIENT ═══ -->
+    <div class="wiz-screen" data-step="client">
+      <section class="section ticked">
+        <div class="section-head"><span class="section-title">Client</span></div>
+        <div class="section-body">
+          <div class="field">
+            <label class="label" for="clientSearch">Rechercher un client existant</label>
+            <input class="input" id="clientSearch" placeholder="Nom, prénom, téléphone…" oninput="renderClientHits()" autocomplete="off">
+          </div>
+          <div id="clientHits" class="mt-2"></div>
+
+          <div class="grid grid-2 mt-4">
+            <div class="field"><label class="label required" for="tPrenom">Prénom</label><input class="input" id="tPrenom"></div>
+            <div class="field"><label class="label required" for="tNom">Nom</label><input class="input" id="tNom"></div>
+            <div class="field"><label class="label" for="tTel">Téléphone</label><input class="input" id="tTel" type="tel"></div>
+            <div class="field"><label class="label" for="tEmail">Email</label><input class="input" id="tEmail" type="email"></div>
+          </div>
+          <div class="grid grid-2 mt-4">
+            <div class="field col-full"><label class="label" for="tRue">Rue & numéro</label><input class="input" id="tRue" placeholder="Rue"></div>
+            <div class="field"><label class="label" for="tNumero">N°</label><input class="input" id="tNumero"></div>
+            <div class="field"><label class="label" for="tCp">Code postal</label><input class="input" id="tCp"></div>
+            <div class="field col-full"><label class="label" for="tVille">Ville</label><input class="input" id="tVille"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ═══ ÉTAPE 2 : OUVERTURES ═══ -->
+    <div class="wiz-screen" data-step="items" id="itemsBody"></div>
+
+    <!-- ═══ ÉTAPE 3 : RÉCAP ═══ -->
+    <div class="wiz-screen" data-step="recap">
+      <section class="section ticked" style="--tick-color:var(--accent-2);">
+        <div class="section-head"><span class="section-title">Récapitulatif</span></div>
+        <div class="section-body">
+          <div class="field">
+            <label class="label" id="tvaGroupLabelT">TVA</label>
+            <div class="segmented" role="radiogroup" aria-labelledby="tvaGroupLabelT">
+              <input type="radio" name="tva_pct_t" id="terrTva6" value="6" checked onchange="recalcRecap()"><label for="terrTva6">6 % (rénovation)</label>
+              <input type="radio" name="tva_pct_t" id="terrTva21" value="21" onchange="recalcRecap()"><label for="terrTva21">21 %</label>
+            </div>
+          </div>
+          <div class="grid grid-2 mt-4">
+            <div class="field"><label class="label" for="terrAcompte">Acompte</label><div class="input-unit"><input class="input input-num" id="terrAcompte" type="number" min="0" max="100" value="50" oninput="recalcRecap()"><span class="unit">%</span></div></div>
+            <div class="field"><label class="label" for="terrSurplus">Supplément difficulté</label><div class="input-unit"><input class="input input-num" id="terrSurplus" type="number" min="0" step="0.01" value="0" oninput="recalcRecap()"><span class="unit">€</span></div></div>
+          </div>
+
+          <div class="sc-line sep mt-4" style="display:flex;justify-content:space-between;padding-top:0.6rem;border-top:1px dashed var(--border);"><span class="text-muted">Catalogue HTVA</span><span class="text-mono" id="trTotalCatalog">0,00 €</span></div>
+          <div class="sc-line" style="display:flex;justify-content:space-between;padding:0.3rem 0;"><span class="text-muted">Installation</span><span class="text-mono" id="trTotalInstall">0,00 €</span></div>
+          <div class="sc-line" style="display:flex;justify-content:space-between;padding:0.3rem 0;border-top:1px dashed var(--border);margin-top:0.4rem;padding-top:0.6rem;"><span class="text-muted">Total HTVA</span><span class="text-mono" id="trTotalHT">0,00 €</span></div>
+          <div class="sc-line" style="display:flex;justify-content:space-between;padding:0.3rem 0;"><span class="text-muted">TVA <span id="trTvaRate">6</span>%</span><span class="text-mono" id="trTotalTVA">0,00 €</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:var(--sp-2);padding-top:var(--sp-3);border-top:1px solid var(--border-strong);">
+            <span style="font-family:var(--font-display);text-transform:uppercase;font-size:var(--fs-xs);">Total TVAC</span>
+            <span class="text-mono" id="trTotalTTC" style="font-size:var(--fs-xl);font-weight:700;color:var(--accent);text-shadow:var(--glow-hero);">0,00 €</span>
+          </div>
+          <div style="text-align:right;font-size:var(--fs-xs);color:var(--text-muted);margin-top:0.2rem;">Acompte <span id="trAcomptePct">50</span>% : <strong class="text-mono" id="trAcompte">0,00 €</strong></div>
+
+          <p class="text-muted mt-4" style="font-size:var(--fs-2xs);">Marges, commissions et détail installation restent aux valeurs standard — ajustables sur le simulateur au bureau si besoin.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ═══ ÉCRAN FINAL ═══ -->
+    <div class="wiz-screen" data-step="done">
+      <div class="success-hero">
+        <div class="ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2>Devis enregistré</h2>
+        <p class="text-muted" id="doneSummary">—</p>
+        <div class="stack mt-5" style="max-width:320px;margin:0 auto;">
+          <button class="btn btn-primary" onclick="location.href='vue.html?id='+state.savedId">Voir la fiche</button>
+          <button class="btn btn-ghost" onclick="resetWizard()">+ Nouveau devis (autre client)</button>
+          <a class="btn btn-ghost" href="dashboard.html">Retour au dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <datalist id="dl-couleurs"></datalist>
+    <datalist id="dl-toiles"></datalist>
+    <datalist id="dl-caisson-forme"></datalist>
+  </main>
+
+  <div class="wiz-bar" id="wizBar"></div>
+
+  <!-- ════════ LOGIQUE ════════ -->
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const { computeDevis } = window.SSCalc;
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, el, setText, setVal, getVal, getNum, toast, generateDevisId, qp, icon } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const {
+      ITEM_TYPES, MOTEURS, COULEURS_RAL, TOILES_CATALOGUE,
+      CS8_VARIANTES, CS8_COMBINAISONS, CS8_COLLECTIONS, CS8_MOTEURS,
+      CS8_CAISSON_FORMES, CS8_COLMATAGE, caissonMesuresFor,
+    } = window.SSProducts;
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const keyOf = (prenom, nom) => (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
+
+    const state = {
+      id: qp('id') || generateDevisId(),
+      version: '3.0',
+      date_creation: new Date().toISOString().slice(0, 10),
+      statut: 'brouillon',
+      items: [],
+      savedId: null,
+    };
+
+    const STEPS = ['client', 'items', 'recap'];
+    let step = 'client';
+    let currentItemIdx = 0;
+    let _uid = 0;
+    let DIRECTORY = [];
+
+    // ── RÉPERTOIRE CLIENT (fiches CRM + clients déjà présents sur d'anciens devis) ──
+    async function buildClientDirectory() {
+      const [clients, devisList] = await Promise.all([SS.listClients(), SS.listDevis()]);
+      const map = new Map();
+      (devisList || []).forEach(d => {
+        const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
+        const nom = d.client_nom || (d.client && d.client.nom) || '';
+        if (!prenom && !nom) return;
+        const key = keyOf(prenom, nom);
+        if (!map.has(key)) map.set(key, { key, prenom, nom, telephone: '', email: '', adresse: {} });
+        const e = map.get(key);
+        const c = d.client || {};
+        if (c.telephone && !e.telephone) e.telephone = c.telephone;
+        if (c.email && !e.email) e.email = c.email;
+        if (c.adresse && !e.adresse.rue && !e.adresse.ville && (c.adresse.rue || c.adresse.ville)) e.adresse = c.adresse;
+      });
+      (clients || []).forEach(o => {
+        const e = map.get(o.key) || { key: o.key, prenom: o.prenom, nom: o.nom, telephone: '', email: '', adresse: {} };
+        e.prenom = o.prenom || e.prenom; e.nom = o.nom || e.nom;
+        e.telephone = o.telephone || e.telephone; e.email = o.email || e.email;
+        if (o.adresse && (o.adresse.rue || o.adresse.ville)) e.adresse = o.adresse;
+        map.set(o.key, e);
+      });
+      return [...map.values()];
+    }
+
+    window.renderClientHits = function () {
+      const q = getVal('clientSearch').trim().toLowerCase();
+      const host = el('clientHits');
+      if (!q) { host.innerHTML = ''; return; }
+      const rows = DIRECTORY.filter(c => `${c.prenom} ${c.nom} ${c.telephone} ${c.email}`.toLowerCase().includes(q)).slice(0, 6);
+      host.innerHTML = rows.length ? rows.map(c => `
+        <div class="client-hit" onclick="pickClient('${encodeURIComponent(c.key)}')">
+          <div class="avatar">${esc(((c.prenom[0] || '') + (c.nom[0] || '')).toUpperCase())}</div>
+          <div class="ci-main"><div class="ci-name">${esc(c.prenom)} ${esc(c.nom)}</div><div class="ci-sub">${esc(c.telephone || c.email || '—')}</div></div>
+        </div>`).join('') : '<div class="text-muted" style="padding:0.4rem 0;font-size:var(--fs-xs);">Aucun résultat — remplis les champs ci-dessous pour un nouveau client.</div>';
+    };
+    window.pickClient = function (encKey) {
+      const key = decodeURIComponent(encKey);
+      const c = DIRECTORY.find(x => x.key === key); if (!c) return;
+      setVal('tPrenom', c.prenom); setVal('tNom', c.nom);
+      setVal('tTel', c.telephone); setVal('tEmail', c.email);
+      setVal('tRue', c.adresse && c.adresse.rue); setVal('tNumero', c.adresse && c.adresse.numero);
+      setVal('tCp', c.adresse && c.adresse.code_postal); setVal('tVille', c.adresse && c.adresse.ville);
+      setVal('clientSearch', ''); el('clientHits').innerHTML = '';
+      toast('Client pré-rempli ✓', 'ok');
+    };
+    function collectClientFields() {
+      return {
+        prenom: getVal('tPrenom').trim(), nom: getVal('tNom').trim(),
+        telephone: getVal('tTel').trim(), email: getVal('tEmail').trim(),
+        adresse: { rue: getVal('tRue').trim(), numero: getVal('tNumero').trim(), code_postal: getVal('tCp').trim(), ville: getVal('tVille').trim() },
+      };
+    }
+
+    // ── OUVERTURES (une carte plein écran à la fois) ──
+    function modeleFieldHtml(item) {
+      if (item.type === 'screen') return `<div class="field"><label class="label">Modèle</label><input class="input field-readonly" data-f="modele" value="Coolscreen 8" readonly></div>`;
+      if (item.type === 'volet_roulant') return `<div class="field"><label class="label">Modèle</label><input class="input field-readonly" data-f="modele" value="VR150" readonly></div>`;
+      if (item.type === 'tente_solaire') {
+        const opts = ['BX270', 'LUX'].map(m => `<option value="${m}" ${item.modele === m ? 'selected' : ''}>${m}</option>`).join('');
+        return `<div class="field"><label class="label">Modèle</label><select class="select" data-f="modele"><option value="">—</option>${opts}</select></div>`;
+      }
+      return `<div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Référence du tablier"></div>`;
+    }
+    function moteurFieldHtml(item) {
+      if (item.type === 'screen') return '';
+      const opt = (o, val, lbl) => `<option value="${val}" ${o === val ? 'selected' : ''}>${lbl}</option>`;
+      const motOpts = MOTEURS.map(m => opt(item.moteur || '', m, m || '—')).join('');
+      return `<div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>`;
+    }
+    function coolscreenBlockHtml(item) {
+      if (item.type !== 'screen') return '';
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      const combiOpts = CS8_COMBINAISONS.map(c => `<option value="${c.v}" ${item.combinaison === c.v ? 'selected' : ''}>${c.l}</option>`).join('');
+      const mesureOpts = opt(caissonMesuresFor(item.variante), item.caisson_mesure);
+      return `
+      <div class="cs8-block mt-4">
+        <div class="cs8-head">${icon('sliders', 14)} Configuration Coolscreen 8</div>
+        <div class="grid grid-2">
+          <div class="field"><label class="label">Variante</label><select class="select" data-f="variante" onchange="onCS8VarianteChange('${item._id}')"><option value="">—</option>${opt(CS8_VARIANTES, item.variante)}</select></div>
+          <div class="field"><label class="label">Combinaison</label><select class="select" data-f="combinaison">${combiOpts}</select></div>
+          <div class="field"><label class="label">Latéralité</label><select class="select" data-f="lateralite">
+            <option value="Gauche" ${item.lateralite === 'Gauche' ? 'selected' : ''}>1 : Gauche</option>
+            <option value="Droite" ${item.lateralite === 'Droite' ? 'selected' : ''}>2 : Droite</option>
+          </select></div>
+          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur_ref"><option value="">—</option>${opt(CS8_MOTEURS, item.moteur_ref)}</select></div>
+          <div class="field col-full"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(CS8_COLLECTIONS, item.collection)}</select></div>
+          <div class="field"><label class="label">N° de toile</label><input class="input" data-f="toile_num" value="${item.toile_num || ''}" placeholder="Ex: 0101"></div>
+          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: grey / grey"></div>
+          <div class="field"><label class="label">Caisson — forme</label><input class="input" data-f="caisson_forme" list="dl-caisson-forme" value="${item.caisson_forme || ''}" placeholder="Ex: Carré"></div>
+          <div class="field"><label class="label">Caisson — mesure</label><select class="select" data-f="caisson_mesure" id="cms-${item._id}"><option value="">—</option>${mesureOpts}</select></div>
+          <div class="field"><label class="label">Couleur caisson (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris nuit"></div>
+          <div class="field"><label class="label">Couleur lame finale (RAL)</label><input class="input" data-f="couleur_lame" list="dl-couleurs" value="${item.couleur_lame || ''}" placeholder="Ex: 7021 — Gris anthracite foncé"></div>
+          <div class="field"><label class="label">Colmatage</label><select class="select" data-f="colmatage"><option value="">—</option>${opt(CS8_COLMATAGE, item.colmatage)}</select></div>
+        </div>
+        <div class="stack" style="gap:0;margin-top:var(--sp-2);">
+          <label class="field-check-mobile"><input type="checkbox" data-f="emetteur" ${item.emetteur ? 'checked' : ''}> Émetteur inclus</label>
+          <label class="field-check-mobile"><input type="checkbox" data-f="panneau_solaire_separe" ${item.panneau_solaire_separe ? 'checked' : ''}> Panneau solaire séparé</label>
+          <label class="field-check-mobile"><input type="checkbox" data-f="allongement_caisson" ${item.allongement_caisson ? 'checked' : ''}> Allongement caisson</label>
+        </div>
+      </div>`;
+    }
+    window.onCS8VarianteChange = function (id) {
+      const sel = el('cms-' + id); if (!sel) return;
+      const variante = document.querySelector(`[data-id="${id}"] [data-f="variante"]`)?.value;
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      sel.innerHTML = '<option value="">—</option>' + opt(caissonMesuresFor(variante), sel.value);
+    };
+
+    const TYPE_ICONS = { screen: 'window', volet_roulant: 'list', tablier_volet: 'grid', tente_solaire: 'sliders' };
+    function itemCardHtml(item) {
+      const tiles = Object.entries(ITEM_TYPES).map(([v, l]) => `
+        <div class="type-tile ticked ${item.type === v ? 'active' : ''}" onclick="setItemType('${item._id}','${v}')">
+          ${icon(TYPE_ICONS[v] || 'grid', 22)}<span>${l}</span>
+        </div>`).join('');
+      const photos = (item.photos || []).map((p, pi) => `<div class="photo-thumb"><img src="${p}" alt=""><button onclick="removePhoto('${item._id}',${pi})">✕</button></div>`).join('');
+      return `
+      <div class="item-card ticked" data-id="${item._id}" style="border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);padding:var(--sp-4);">
+        <div class="field"><label class="label">Type d'ouverture</label><div class="type-tiles">${tiles}</div></div>
+        <div class="grid grid-2 mt-4">${modeleFieldHtml(item)}${moteurFieldHtml(item)}</div>
+        <div class="grid grid-2 mt-3">
+          <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" inputmode="numeric" data-f="largeur" value="${item.largeur || ''}"></div>
+          <div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" inputmode="numeric" data-f="hauteur" value="${item.hauteur || ''}"></div>
+          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
+          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" value="${item.etage || ''}" placeholder="RDC"></div>
+        </div>
+        ${item.type !== 'screen' ? `
+        <div class="grid grid-2 mt-3">
+          <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016"></div>
+          <div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>
+        </div>` : ''}
+        ${coolscreenBlockHtml(item)}
+        <div class="grid grid-2 mt-3">
+          <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
+          <div class="field"><label class="label">Prix catalogue HTVA</label><div class="input-unit"><input class="input input-num" inputmode="decimal" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
+        </div>
+        <div class="field mt-3"><label class="label">Notes</label><input class="input" data-f="notes" value="${item.notes || ''}" placeholder="Détail utile pour le bureau…"></div>
+        <div class="field mt-4">
+          <label class="label">Photos</label>
+          <div class="photo-grid">${photos}</div>
+          <label class="photo-cta mt-3" style="cursor:pointer;display:flex;">
+            ${icon('camera', 26)}<span>Prendre une photo</span>
+            <input type="file" accept="image/*" capture="environment" multiple hidden onchange="addPhotos('${item._id}', this)">
+          </label>
+        </div>
+        <button class="btn btn-danger mt-4" style="width:100%;" onclick="removeCurrentItem()">${icon('trash', 14)} Retirer cette ouverture</button>
+      </div>`;
+    }
+
+    function addItemSilent(data = {}) {
+      const item = { _id: 'it' + (++_uid), type: 'screen', quantite: 1, photos: [], ...data };
+      if (!item.photos) item.photos = [];
+      state.items.push(item);
+      return item;
+    }
+    window.setItemType = function (id, type) {
+      const it = state.items.find(i => i._id === id); if (!it) return;
+      it.type = type; it.modele = '';
+      renderItemsStep();
+    };
+    window.goToItem = function (i) { if (i < 0 || i >= state.items.length) return; currentItemIdx = i; renderItemsStep(); };
+    window.addItemAndGo = function () { addItemSilent(); currentItemIdx = state.items.length - 1; renderItemsStep(); };
+    window.removeCurrentItem = function () {
+      if (state.items.length <= 1) { toast('Il faut au moins une ouverture.', 'warn'); return; }
+      state.items.splice(currentItemIdx, 1);
+      if (currentItemIdx > 0) currentItemIdx--;
+      renderItemsStep();
+    };
+    window.addPhotos = function (id, input) {
+      const it = state.items.find(i => i._id === id); if (!it) return;
+      [...input.files].forEach(file => {
+        window.SSUI.compressImage(file).then(dataUrl => { it.photos.push(dataUrl); renderItemsStep(); })
+          .catch(() => toast('Photo illisible, réessaie.', 'warn'));
+      });
+    };
+    window.removePhoto = function (id, pi) { const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItemsStep(); } };
+
+    function collectItem(it, root) {
+      root.querySelectorAll('[data-f]').forEach(input => {
+        const f = input.dataset.f;
+        if (input.type === 'checkbox') it[f] = input.checked;
+        else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht'].includes(f)) it[f] = parseFloat(input.value) || 0;
+        else it[f] = input.value;
+      });
+    }
+    function bindItemCard(item, root) {
+      root.querySelectorAll('[data-f]').forEach(input => {
+        input.addEventListener('input', () => collectItem(item, root));
+        input.addEventListener('change', () => collectItem(item, root));
+      });
+    }
+
+    function renderItemsStep() {
+      if (state.items.length === 0) addItemSilent();
+      if (currentItemIdx >= state.items.length) currentItemIdx = state.items.length - 1;
+      const item = state.items[currentItemIdx];
+      const c = el('itemsBody');
+      const dots = state.items.map((it, i) => `<div class="item-dot ${i === currentItemIdx ? 'active' : ''}" onclick="goToItem(${i})">${i + 1}</div>`).join('')
+        + `<div class="item-dot add" onclick="addItemAndGo()">${icon('plus', 13)}</div>`;
+      c.innerHTML = `
+        <div class="item-nav">
+          <button onclick="goToItem(${currentItemIdx - 1})" ${currentItemIdx === 0 ? 'disabled' : ''} aria-label="Ouverture précédente">${icon('arrowleft', 16)}</button>
+          <div class="item-title">Ouverture ${currentItemIdx + 1} / ${state.items.length}</div>
+          <button onclick="goToItem(${currentItemIdx + 1})" ${currentItemIdx === state.items.length - 1 ? 'disabled' : ''} aria-label="Ouverture suivante" style="transform:scaleX(-1);">${icon('arrowleft', 16)}</button>
+        </div>
+        <div class="item-dots">${dots}</div>
+        ${itemCardHtml(item)}`;
+      bindItemCard(item, c);
+    }
+
+    // ── RÉCAP ──
+    function openingsCount() { return state.items.reduce((s, i) => s + (i.quantite || 1), 0); }
+    function buildInput() {
+      const n = openingsCount();
+      return {
+        items: state.items.map(i => ({ quantite: i.quantite, prix_catalogue_ht: i.prix_catalogue_ht, largeur: i.largeur, hauteur: i.hauteur })),
+        sellers: { principal: 'nicolas', nicolas_pct: 18, yannick_pct: 5 },
+        installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: n, tech1_qty: n, tech2_qty: n, tools_qty: n },
+        extras: [],
+        tva_pct: parseInt(document.querySelector('input[name="tva_pct_t"]:checked')?.value || 6),
+        acompte_pct: getNum('terrAcompte', 50),
+        surplus_difficulte: getNum('terrSurplus', 0),
+      };
+    }
+    window.recalcRecap = function () {
+      const input = buildInput();
+      const c = computeDevis(input);
+      setText('trTotalCatalog', fmtEur(c.total_catalog_ht));
+      setText('trTotalInstall', fmtEur(c.total_installation_ht));
+      setText('trTotalHT', fmtEur(c.total_ht));
+      setText('trTvaRate', c.tva_pct);
+      setText('trTotalTVA', fmtEur(c.total_tva));
+      setText('trTotalTTC', fmtEur(c.total_ttc));
+      setText('trAcomptePct', c.acompte_pct);
+      setText('trAcompte', fmtEur(c.acompte_montant));
+      return c;
+    };
+
+    // ── ÉTAPES ──
+    function renderBar() {
+      const bar = el('wizBar');
+      if (step === 'client') {
+        bar.innerHTML = `<button class="btn btn-primary grow2" onclick="goStep('items')">Continuer → Ouvertures</button>`;
+      } else if (step === 'items') {
+        bar.innerHTML = `<button class="btn btn-ghost" onclick="goStep('client')">${icon('arrowleft', 14)} Client</button><button class="btn btn-primary grow2" onclick="goStep('recap')">Voir le récap →</button>`;
+      } else if (step === 'recap') {
+        bar.innerHTML = `<button class="btn btn-ghost" onclick="goStep('items')">${icon('arrowleft', 14)} Ouvertures</button><button class="btn btn-primary grow2" onclick="finalizeSave()">${icon('save', 14)} Enregistrer</button>`;
+      } else {
+        bar.innerHTML = '';
+      }
+    }
+    window.goStep = function (s) {
+      if (!STEPS.includes(s)) s = 'done';
+      step = s;
+      document.querySelectorAll('.wiz-screen').forEach(sc => sc.classList.toggle('active', sc.dataset.step === s));
+      document.querySelectorAll('.wiz-step').forEach(t => {
+        t.classList.toggle('active', t.dataset.goto === s);
+        t.classList.toggle('done', STEPS.indexOf(t.dataset.goto) < STEPS.indexOf(s));
+      });
+      if (s === 'items') renderItemsStep();
+      if (s === 'recap') recalcRecap();
+      renderBar();
+      window.scrollTo(0, 0);
+    };
+
+    // ── ENREGISTREMENT ──
+    window.finalizeSave = async function () {
+      const client = collectClientFields();
+      if (!client.prenom || !client.nom) { toast('Renseigne le prénom et le nom du client.', 'warn'); goStep('client'); return; }
+      if (state.items.length === 0) { toast('Ajoute au moins une ouverture.', 'warn'); goStep('items'); return; }
+      const input = buildInput();
+      const c = computeDevis(input);
+      const devis = {
+        id: state.id, version: state.version,
+        date_creation: state.date_creation,
+        date_modification: new Date().toISOString(),
+        statut: state.statut,
+        client,
+        items: state.items.map(({ _id, ...rest }) => rest),
+        calculs: c,
+        pricing_v2: {
+          tva_pct: input.tva_pct, acompte_pct: input.acompte_pct, surplus_difficulte: input.surplus_difficulte,
+          note: 'Créé via Mode Terrain',
+          material: { sellers: { mode: 'fixed', principal: 'nicolas', nicolas_pct: c.nicolas_pct, yannick_pct: c.yannick_pct } },
+          installation: { per_opening: input.installation, install_qty: input.installation.install_qty, tech1_qty: input.installation.tech1_qty, tech2_qty: input.installation.tech2_qty, tools_qty: input.installation.tools_qty },
+          extras: c.extra_lines,
+        },
+      };
+      const res = await SS.saveDevis(devis);
+
+      // Fiche CRM : mise à jour des coordonnées sans écraser notes/tags existants
+      const key = keyOf(client.prenom, client.nom);
+      let existing = null;
+      try { existing = await SS.getClient(key); } catch (e) {}
+      await SS.saveClient({
+        key, prenom: client.prenom, nom: client.nom,
+        telephone: client.telephone, email: client.email, adresse: client.adresse,
+        type_bien: (existing && existing.type_bien) || '', tags: (existing && existing.tags) || [], notes: (existing && existing.notes) || '',
+        date_creation: (existing && existing.date_creation) || new Date().toISOString(),
+        date_modification: new Date().toISOString(),
+      });
+
+      toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
+      state.savedId = state.id;
+      setText('doneSummary', `${client.prenom} ${client.nom} · ${state.items.length} ouverture(s) · ${fmtEur(c.total_ttc)}`);
+      goStep('done');
+    };
+
+    window.resetWizard = function () {
+      state.id = generateDevisId(); state.date_creation = new Date().toISOString().slice(0, 10);
+      state.statut = 'brouillon'; state.items = []; state.savedId = null;
+      ['tPrenom', 'tNom', 'tTel', 'tEmail', 'tRue', 'tNumero', 'tCp', 'tVille'].forEach(id => setVal(id, ''));
+      currentItemIdx = 0;
+      goStep('client');
+    };
+
+    // ── CHARGEMENT D'UN DEVIS EXISTANT (?id=) ──
+    async function loadExisting(id) {
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable, nouveau devis créé.', 'warn'); return; }
+      state.statut = d.statut || 'brouillon';
+      state.date_creation = d.date_creation || state.date_creation;
+      const cl = d.client || {};
+      setVal('tPrenom', cl.prenom); setVal('tNom', cl.nom);
+      setVal('tTel', cl.telephone); setVal('tEmail', cl.email);
+      setVal('tRue', cl.adresse && cl.adresse.rue); setVal('tNumero', cl.adresse && cl.adresse.numero);
+      setVal('tCp', cl.adresse && cl.adresse.code_postal); setVal('tVille', cl.adresse && cl.adresse.ville);
+      state.items = (d.items || []).map(it => ({ _id: 'it' + (++_uid), photos: [], ...it }));
+      const p = d.pricing_v2 || {};
+      const tva = p.tva_pct || (d.calculs && d.calculs.tva_pct) || 6;
+      el(tva === 21 ? 'terrTva21' : 'terrTva6').checked = true;
+      setVal('terrAcompte', p.acompte_pct ?? 50);
+      setVal('terrSurplus', p.surplus_difficulte ?? 0);
+    }
+
+    function fillDatalist(id, values) { el(id).innerHTML = values.map(v => `<option value="${v.replace(/"/g, '&quot;')}">`).join(''); }
+
+    (async () => {
+      fillDatalist('dl-couleurs', COULEURS_RAL);
+      fillDatalist('dl-toiles', TOILES_CATALOGUE);
+      fillDatalist('dl-caisson-forme', CS8_CAISSON_FORMES);
+      DIRECTORY = await buildClientDirectory();
+      if (qp('id')) await loadExisting(qp('id'));
+      goStep('client');
+    })();
+  </script>
+</body>
+</html>
