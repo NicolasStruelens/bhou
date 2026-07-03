@@ -51,6 +51,32 @@
 
   const qp = (key) => new URLSearchParams(location.search).get(key);
 
+  // Redimensionne/compresse une photo avant stockage (les devis sont sauvés en JSON
+  // dans D1 — une photo de téléphone non compressée (plusieurs Mo) peut à elle seule
+  // faire dépasser la taille max d'une ligne et faire échouer l'enregistrement serveur).
+  function compressImage(file, maxDim, quality) {
+    maxDim = maxDim || 1600; quality = quality || 0.72;
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onerror = function () { reject(reader.error || new Error('Lecture impossible')); };
+      reader.onload = function () {
+        const img = new Image();
+        img.onerror = function () { reject(new Error('Image invalide')); };
+        img.onload = function () {
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   // ── Normalisation d'un devis (résumé API ou cache local complet) ──
   // Centralisé ici : évite de dupliquer cette fonction dans chaque page.
   function normDevis(d) {
@@ -107,6 +133,6 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
-    normDevis: normDevis, icon: icon,
+    normDevis: normDevis, icon: icon, compressImage: compressImage,
   };
 })();

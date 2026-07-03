@@ -83,7 +83,7 @@
     async saveDevis(devis) {
       local.save(devis);
       try { return await req('/devis', { method: 'POST', body: JSON.stringify(devis) }); }
-      catch (e) { console.warn('[SS] saveDevis hors-ligne:', e.message); return { ok: true, id: devis.id, offline: true }; }
+      catch (e) { console.warn('[SS] saveDevis hors-ligne:', e.message); return { ok: true, id: devis.id, offline: true, error: e.message }; }
     },
     async deleteDevis(id) {
       local.delete(id);
