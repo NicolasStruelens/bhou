@@ -113,8 +113,8 @@ async function createNote(request, env) {
   const id = newId();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -123,6 +123,7 @@ async function createNote(request, env) {
     ['idee', 'todo', 'note'].includes(body.kind) ? body.kind : 'idee',
     body.pinned ? 1 : 0,
     body.position || 0,
+    String(body.space || 'Général').trim().slice(0, 60) || 'Général',
     now,
     now
   ).run();
@@ -144,6 +145,7 @@ async function updateNote(id, request, env) {
     done: (v) => (v ? 1 : 0),
     parent_id: (v) => v || null,
     position: (v) => Number(v) || 0,
+    space: (v) => String(v || 'Général').trim().slice(0, 60) || 'Général',
   };
   for (const key of Object.keys(map)) {
     if (key in body) {
@@ -185,8 +187,11 @@ async function deleteNote(id, env) {
 }
 
 async function restoreNote(id, env) {
-  await env.DB.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ?').bind(id).run();
-  return json({ ok: true });
+  // restaure la note et ses descendants ensemble (miroir de la mise à la corbeille)
+  const ids = await collectDescendants(id, env);
+  const placeholders = ids.map(() => '?').join(',');
+  await env.DB.prepare(`UPDATE notes SET deleted_at = NULL WHERE id IN (${placeholders})`).bind(...ids).run();
+  return json({ ok: true, restored: ids.length });
 }
 
 async function purgeNote(id, env) {
