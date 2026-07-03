@@ -22,6 +22,7 @@
     .chip { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
     .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .chip-archive { margin-left: var(--sp-3); padding-left: calc(var(--sp-3) + 1px); border-left: 1px dashed var(--border-strong); color: var(--text-subtle); }
 
     /* ── Pastilles de statut colorées (menu custom) ── */
     table.data tbody tr { cursor: pointer; }
@@ -227,17 +228,47 @@
       annule:        { label: 'Annulé',     color: 'var(--text-subtle)' },
     };
 
-    let DEVIS = [];
+    let DEVIS = [], FACTURES = [];
     let activeFilter = 'tous';
 
+    // ── Paiement (acompte/solde) — lu depuis les factures liées au devis ──
+    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    function paymentInfo(d) {
+      const facs = FACTURES.filter(f => f.devis_id === d.id);
+      if (!facs.length) return '';
+      const totalFact = facs.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
+      const today = new Date().toISOString().slice(0, 10);
+      const overdue = facs.some(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
+      if (totalPaid > 0 && totalPaid >= d.ttc - 0.005) return `<span class="badge badge-ok" title="Encaissé : ${fmtEur(totalPaid)}">${icon('coin', 10)} Soldé</span>`;
+      if (overdue) return `<span class="badge badge-danger" title="Facturé ${fmtEur(totalFact)}, payé ${fmtEur(totalPaid)}">${icon('warning', 10)} Retard paiement</span>`;
+      if (totalPaid > 0) return `<span class="badge badge-warn" title="Payé ${fmtEur(totalPaid)} sur ${fmtEur(totalFact)} facturé">${icon('coin', 10)} Acompte payé</span>`;
+      return `<span class="badge" title="Facturé ${fmtEur(totalFact)}, en attente de paiement">${icon('coin', 10)} À encaisser</span>`;
+    }
+
+    // ── Archivage (masquer proprement les devis refusés, réversible) ──
+    window.archiveDevis = async (id, val) => {
+      const full = await SS.getDevis(id);
+      if (!full) { toast('Devis introuvable', 'error'); return; }
+      full.archive = val;
+      full.date_modification = new Date().toISOString();
+      await SS.saveDevis(full);
+      const d = DEVIS.find(x => x.id === id); if (d) d.archive = val;
+      toast(val ? 'Devis archivé' : 'Devis désarchivé', 'ok');
+      render();
+    };
+
     function renderFilters() {
-      const counts = { tous: DEVIS.length };
-      DEVIS.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
+      const visible = DEVIS.filter(d => !d.archive);
+      const counts = { tous: visible.length };
+      visible.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
+      const archivedCount = DEVIS.filter(d => d.archive).length;
       const chips = [['tous', 'Tous']].concat(Object.entries(STATUSES).map(([k, v]) => [k, v.label]));
       el('filters').innerHTML = chips
         .filter(([k]) => k === 'tous' || counts[k])
         .map(([k, label]) => `<button class="chip ${activeFilter === k ? 'active' : ''}" onclick="setFilter('${k}')">${label} <span style="opacity:.6">${counts[k] || 0}</span></button>`)
-        .join('');
+        .join('')
+        + (archivedCount ? `<button class="chip chip-archive ${activeFilter === 'archives' ? 'active' : ''}" onclick="setFilter('archives')">Archivés <span style="opacity:.6">${archivedCount}</span></button>` : '');
     }
     window.setFilter = (k) => { activeFilter = k; render(); };
 
@@ -260,8 +291,8 @@
       renderFilters();
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
-      let rows = DEVIS.slice();
-      if (activeFilter !== 'tous') rows = rows.filter(d => d.statut === activeFilter);
+      let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
+      if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
       if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id}`).toLowerCase().includes(q));
       rows.sort((a, b) => {
         if (sort === 'montant') return b.ttc - a.ttc;
@@ -272,7 +303,8 @@
       setText('resultCount', `${rows.length} devis`);
 
       if (rows.length === 0) {
-        el('tableHost').innerHTML = `<div class="empty"><div class="big">${icon('window', 40)}</div>${DEVIS.length === 0 ? "Aucun devis pour l'instant.<br>Clique sur <strong>+ Nouveau devis</strong> pour commencer." : "Aucun devis ne correspond à ta recherche."}</div>`;
+        const msg = activeFilter === 'archives' ? 'Aucun devis archivé.' : (DEVIS.length === 0 ? "Aucun devis pour l'instant.<br>Clique sur <strong>+ Nouveau devis</strong> pour commencer." : "Aucun devis ne correspond à ta recherche.");
+        el('tableHost').innerHTML = `<div class="empty"><div class="big">${icon('window', 40)}</div>${msg}</div>`;
         return;
       }
 
@@ -293,7 +325,7 @@
                   <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}</span><span class="id">#${d.id}</span></div></td>
                   <td>${pill(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
-                  <td class="num"><span class="price">${fmtEur(d.ttc)}</span></td>
+                  <td class="num"><span class="price">${fmtEur(d.ttc)}</span><div class="mt-1">${paymentInfo(d)}</div></td>
                   <td class="count-pill">
                     ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
                     ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
@@ -303,6 +335,9 @@
                     <button class="icon-btn" title="Éditer" aria-label="Éditer le devis ${d.id}" onclick="location.href='simulateur.html?id=${d.id}'">${icon('edit', 15)}</button>
                     <button class="icon-btn" title="Dupliquer" aria-label="Dupliquer le devis ${d.id}" onclick="duplicate('${d.id}')">${icon('copy', 15)}</button>
                     <button class="icon-btn" title="Devis / PDF" aria-label="Voir le devis ${d.id} en PDF" onclick="location.href='devis.html?id=${d.id}'">${icon('filetext', 15)}</button>
+                    ${['signe', 'termine'].includes(d.statut) ? `<button class="icon-btn" title="Liste de pose" aria-label="Liste de pose du devis ${d.id}" onclick="location.href='picking.html?id=${d.id}'">${icon('list', 15)}</button>` : ''}
+                    ${d.statut === 'refuse' && !d.archive ? `<button class="icon-btn" title="Archiver" aria-label="Archiver le devis ${d.id}" onclick="archiveDevis('${d.id}', true)">${icon('download', 15)}</button>` : ''}
+                    ${d.archive ? `<button class="icon-btn" title="Désarchiver" aria-label="Désarchiver le devis ${d.id}" onclick="archiveDevis('${d.id}', false)">${icon('upload', 15)}</button>` : ''}
                     <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer le devis ${d.id}" onclick="del('${d.id}')">${icon('trash', 15)}</button>
                   </div></td>
                 </tr>`).join('')}
@@ -481,8 +516,9 @@
 
     // ── Chargement ──
     async function load() {
-      const raw = await SS.listDevis();
+      const [raw, facs] = await Promise.all([SS.listDevis(), SS.listFactures()]);
       DEVIS = (raw || []).map(normDevis);
+      FACTURES = facs || [];
       render();
     }
     SS.isOnline().then(on => {

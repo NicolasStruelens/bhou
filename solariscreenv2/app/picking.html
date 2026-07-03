@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Liste de pose</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/document.css">
+  <style>
+    .pick-table td.details { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.5; }
+    .pick-table td.details strong { color: var(--text); }
+    .pick-box { display: inline-block; width: 20px; height: 20px; border: 1.5px solid var(--text-muted); border-radius: 3px; }
+    .pick-table td.chk { text-align: center; }
+    .pick-notes { margin-top: var(--sp-6); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); min-height: 90px; }
+    .pick-notes h4 { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+    .pick-meta { display: flex; gap: var(--sp-6); flex-wrap: wrap; margin-top: var(--sp-4); font-size: var(--fs-sm); }
+    .pick-meta .pm-k { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+    .pick-meta .pm-v { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <div class="toolbar">
+    <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    <a class="btn btn-ghost btn-sm" id="backLink" href="#"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Fiche du devis</a>
+    <div class="spacer"></div>
+    <span id="themeToggle"></span>
+    <button class="btn btn-primary btn-sm" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
+  </div>
+
+  <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, qp } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const COMPANY = window.SS_COMPANY;
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier volet', tente_solaire: 'Tente solaire', pergola: 'Pergola' };
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    // Champs techniques génériques — tout champ présent sur l'ouverture est listé automatiquement,
+    // quel que soit le type de produit (reste en phase avec le simulateur sans logique dupliquée).
+    const FIELD_LABELS = [
+      ['variante', 'Variante'], ['combinaison', 'Combinaison'], ['lateralite', 'Latéralité'],
+      ['moteur', 'Moteur'], ['moteur_ref', 'Moteur'],
+      ['collection', 'Collection toile'], ['toile_num', 'N° toile'], ['toile_couleur', 'Couleur toile'],
+      ['caisson_forme', 'Caisson forme'], ['caisson_mesure', 'Caisson mesure'],
+      ['couleur', 'Couleur RAL'], ['couleur_lame', 'Couleur lame'], ['colmatage', 'Colmatage'],
+      ['toile', 'Toile'], ['projection', 'Projection (mm)'], ['eclairage_led', 'Éclairage LED'],
+    ];
+    const FIELD_BOOLS = [
+      ['emetteur', 'Émetteur inclus'], ['panneau_solaire_separe', 'Panneau solaire séparé'],
+      ['allongement_caisson', 'Allongement caisson'], ['couple', 'Couplé (≤12 m)'],
+      ['lambrequin_fixe', 'Lambrequin fixe'], ['lambrequin_vario', 'Lambrequin Vario'],
+      ['detecteur', 'Détecteur soleil/vent/pluie'], ['spots_storelight', 'Spots Storelight'],
+      ['chauffage_storelight', 'Chauffage Storelight'], ['borstels', 'Brosses (au lieu de joints)'],
+    ];
+    function technicalDetails(it) {
+      const parts = [];
+      FIELD_LABELS.forEach(([k, l]) => { if (it[k]) parts.push(`<strong>${esc(l)}:</strong> ${esc(it[k])}`); });
+      FIELD_BOOLS.forEach(([k, l]) => { if (it[k]) parts.push(esc(l)); });
+      if (it.emplacement) parts.push(`<strong>Emplacement:</strong> ${esc(it.emplacement)}`);
+      if (it.etage) parts.push(`<strong>Étage:</strong> ${esc(it.etage)}`);
+      if (it.notes) parts.push(`<strong>Note:</strong> ${esc(it.notes)}`);
+      return parts.join(' · ') || '—';
+    }
+
+    function render(d) {
+      const cl = d.client || {}, adr = cl.adresse || {};
+      const adresse = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const totalOuvertures = (d.items || []).reduce((s, i) => s + (i.quantite || 1), 0);
+
+      const rows = (d.items || []).map((it, i) => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
+        return `<tr>
+          <td class="num">${i + 1}</td>
+          <td><strong>${esc(TYPE_LABEL[it.type] || it.type)}</strong>${it.modele ? ' — ' + esc(it.modele) : ''}</td>
+          <td class="details">${technicalDetails(it)}</td>
+          <td>${dims}</td>
+          <td class="num">${it.quantite || 1}</td>
+          <td class="chk"><span class="pick-box"></span></td>
+        </tr>`;
+      }).join('');
+
+      el('paper').innerHTML = `
+        <div class="doc-head">
+          <div class="brand-block">
+            <div class="logo"><img src="../assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
+            <div>
+              <div class="co-name"><span class="b">SOLARI</span><span class="g">SCREEN</span></div>
+              <div class="co-tag">Liste de chargement / pose — usage interne</div>
+            </div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-title">POSE</div>
+            <div class="doc-num">Devis N° ${esc(d.id)}</div>
+            <div class="doc-dates">Généré le ${fmtDate(new Date().toISOString())}</div>
+          </div>
+        </div>
+
+        <div class="pick-meta">
+          <div><div class="pm-k">Client</div><div class="pm-v">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div></div>
+          <div><div class="pm-k">Adresse</div><div class="pm-v">${esc(adresse) || '—'}</div></div>
+          <div><div class="pm-k">Téléphone</div><div class="pm-v">${esc(cl.telephone) || '—'}</div></div>
+          <div><div class="pm-k">Ouvertures</div><div class="pm-v">${totalOuvertures}</div></div>
+        </div>
+
+        <table class="doc-table pick-table" style="margin-top:var(--sp-5);">
+          <thead><tr>
+            <th class="num">#</th><th>Produit</th><th>Détail technique</th><th>Dimensions</th>
+            <th class="num">Qté</th><th class="chk">Chargé</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Aucune ouverture sur ce devis.</td></tr>'}</tbody>
+        </table>
+
+        <div class="pick-notes">
+          <h4>Outillage / notes complémentaires</h4>
+        </div>
+
+        <div class="doc-foot">${esc(COMPANY.name)} · Document interne — ne pas transmettre au client</div>
+      `;
+    }
+
+    (async () => {
+      const id = qp('id');
+      if (!id) { el('paper').innerHTML = '<p style="color:var(--text-muted);">Aucun devis spécifié.</p>'; return; }
+      el('backLink').href = 'vue.html?id=' + id;
+      const d = await SS.getDevis(id);
+      if (!d) { el('paper').innerHTML = '<p style="color:var(--danger);">Devis introuvable (#' + esc(id) + ').</p>'; return; }
+      render(d);
+    })();
+  </script>
+</body>
+</html>

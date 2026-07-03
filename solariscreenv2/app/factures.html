@@ -119,7 +119,7 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, toast, normDevis, icon } = window.SSUI;
+    const { fmtEur, fmtDate, el, toast, normDevis, icon, qp } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -204,16 +204,31 @@
     window.closeModal = id => el(id).classList.remove('open');
 
     // ── Nouvelle facture ──
-    window.openNew = () => {
+    window.openNew = (preselectId, preselectType) => {
       if (!DEVIS.length) { toast('Crée d\'abord un devis.', 'warn'); return; }
       const opts = DEVIS.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})${['signe','termine'].includes(d.statut) ? ' ✓' : ''}</option>`).join('');
       el('mDevis').innerHTML = opts;
       el('mEcheance').value = 15; el('mPct').value = 30; el('mType').value = 'acompte';
+      if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
+      if (preselectType) el('mType').value = preselectType;
       onTypePick(); onDevisPick();
       el('modalNew').classList.add('open');
     };
-    window.onTypePick = () => { el('mPctField').style.display = el('mType').value === 'acompte' ? 'block' : 'none'; updatePreview(); };
-    window.onDevisPick = () => updatePreview();
+    window.onTypePick = () => { el('mPctField').style.display = el('mType').value === 'acompte' ? 'block' : 'none'; onDevisPick(); };
+    // Pré-remplit le % d'acompte avec la valeur réelle déjà validée sur le devis
+    // (au lieu du 30% par défaut du formulaire) — évite un montant de facture qui ne
+    // correspond pas à celui affiché sur le devis du client.
+    window.onDevisPick = async () => {
+      const id = el('mDevis').value;
+      if (id && el('mType').value === 'acompte') {
+        const d = await SS.getDevis(id);
+        if (d) {
+          const p = d.pricing_v2 || {}, c = d.calculs || {};
+          el('mPct').value = p.acompte_pct != null ? p.acompte_pct : (c.acompte_pct != null ? c.acompte_pct : 30);
+        }
+      }
+      updatePreview();
+    };
 
     async function computeAmounts(devisId, type, pct) {
       const d = await SS.getDevis(devisId);
@@ -313,7 +328,11 @@
       await load();
     };
 
-    load();
+    (async () => {
+      await load();
+      const devisId = qp('devis');
+      if (devisId) openNew(devisId, qp('type'));
+    })();
   </script>
 </body>
 </html>

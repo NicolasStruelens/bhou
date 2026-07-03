@@ -14,6 +14,13 @@
   <link rel="stylesheet" href="../assets/css/theme-light.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <link rel="stylesheet" href="../assets/css/document.css">
+  <style>
+    .sign-wrap { width: 210mm; max-width: 100%; margin: 0 auto var(--sp-5); }
+    #sigCanvas { width: 100%; max-width: 500px; height: 160px; display: block; background: #fff; border: 1px solid var(--border-strong); border-radius: var(--r-sm); touch-action: none; cursor: crosshair; }
+    .sig-accept { display: flex; gap: 0.6rem; align-items: flex-start; font-size: var(--fs-sm); color: var(--text-muted); }
+    .sig-accept input { margin-top: 0.25rem; flex: none; width: 18px; height: 18px; }
+    @media print { .sign-wrap { display: none !important; } }
+  </style>
 </head>
 <body>
   <div class="fx-grid"></div>
@@ -30,6 +37,30 @@
   </div>
 
   <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
+
+  <div class="sign-wrap">
+    <section class="section ticked" id="signBlock">
+      <div class="section-head"><span class="section-title">Signature client</span></div>
+      <div class="section-body">
+        <p class="text-muted" style="font-size:var(--fs-xs);margin-bottom:var(--sp-3);">À faire signer par le client en votre présence (tablette, ordinateur ou Mode Terrain). Le tracé et l'horodatage sont enregistrés avec le devis.</p>
+        <canvas id="sigCanvas" width="500" height="160"></canvas>
+        <button class="btn btn-ghost btn-sm mt-2" onclick="clearSignature()">Effacer</button>
+        <label class="sig-accept mt-4">
+          <input type="checkbox" id="sigAccept" onchange="updateConfirmState()">
+          <span>Je soussigné(e) <strong id="sigClientName">—</strong> certifie avoir pris connaissance du devis ci-dessus et de ses Conditions Générales de Vente (voir annexe), et donne mon accord — mention « Lu et approuvé ».</span>
+        </label>
+        <button class="btn btn-primary mt-4" id="btnConfirmSig" onclick="confirmSignature()" disabled>Confirmer la signature</button>
+      </div>
+    </section>
+    <section class="section ticked hidden" id="signedBlock" style="--tick-color:var(--ok);">
+      <div class="section-head"><span class="section-title" style="color:var(--ok);">✓ Devis signé</span></div>
+      <div class="section-body">
+        <p class="text-muted">Signé le <strong id="signedDate" class="text-mono"></strong>.</p>
+        <img id="signedImg" alt="Signature du client" style="max-width:280px;max-height:90px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fff;margin-top:var(--sp-2);">
+      </div>
+    </section>
+  </div>
+
   <div class="annex" id="annex"></div>
 
   <script src="../assets/js/company.js"></script>
@@ -40,7 +71,7 @@
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
     const { computeDevis } = window.SSCalc;
-    const { fmtEur, fmtDate, el, toast, qp, generateDevisId } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, qp, generateDevisId } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
 
     const COMPANY = window.SS_COMPANY; // coordonnées dans assets/js/company.js
@@ -86,7 +117,7 @@
       // Lignes fournitures
       let rows = '';
       (d.items || []).forEach((it, i) => {
-        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm${it.projection ? ' · proj. ' + it.projection + ' mm' : ''}` : '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
         const meta = [it.variante, it.moteur || it.moteur_ref, it.couleur, it.toile || it.collection, it.emplacement, it.etage].filter(Boolean).join(' · ');
@@ -189,7 +220,12 @@
         </div>
 
         <div class="signatures">
-          <div class="sig-box"><h4>Bon pour accord — le client</h4><div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div></div>
+          <div class="sig-box">
+            <h4>Bon pour accord — le client</h4>
+            ${d.signature && d.signature.image
+              ? `<img src="${d.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(d.signature.date)} — « Lu et approuvé »</div>`
+              : `<div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div>`}
+          </div>
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
         </div>
 
@@ -268,6 +304,68 @@
       annex.innerHTML = cgvPaper() + tvaPaper() + photosPaper;
     };
 
+    // ── Signature client (capture sur place — tablette/ordinateur en présence du client) ──
+    let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null;
+    function initSignatureCanvas() {
+      const canvas = el('sigCanvas'); if (!canvas) return;
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
+      sigCtx = canvas.getContext('2d');
+      sigCtx.scale(ratio, ratio);
+      sigCtx.lineWidth = 2.2; sigCtx.lineCap = 'round'; sigCtx.strokeStyle = '#1a2238';
+      sigHasInk = false;
+      const pos = (e) => { const r = canvas.getBoundingClientRect(); const p = e.touches ? e.touches[0] : e; return { x: p.clientX - r.left, y: p.clientY - r.top }; };
+      const start = (e) => { sigDrawing = true; sigLast = pos(e); e.preventDefault(); };
+      const move = (e) => {
+        if (!sigDrawing) return;
+        const p = pos(e);
+        sigCtx.beginPath(); sigCtx.moveTo(sigLast.x, sigLast.y); sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
+        sigLast = p; sigHasInk = true; updateConfirmState();
+        e.preventDefault();
+      };
+      const end = () => { sigDrawing = false; };
+      canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+      canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', end);
+    }
+    window.updateConfirmState = function () {
+      const accept = el('sigAccept'), btn = el('btnConfirmSig');
+      if (!accept || !btn) return;
+      btn.disabled = !(accept.checked && sigHasInk);
+    };
+    window.clearSignature = function () {
+      const canvas = el('sigCanvas'); if (!canvas || !sigCtx) return;
+      sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+      sigHasInk = false; updateConfirmState();
+    };
+    window.confirmSignature = async function () {
+      const canvas = el('sigCanvas'); if (!canvas) return;
+      DEVIS.signature = { accepted_terms: true, image: canvas.toDataURL('image/png'), date: new Date().toISOString() };
+      DEVIS.statut = 'signe';
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Signature enregistrée hors-ligne.' : 'Devis signé ✓', res.offline ? 'warn' : 'ok');
+      renderPaper();
+      renderSignatureUI();
+    };
+    function renderSignatureUI() {
+      const signBlock = el('signBlock'), signedBlock = el('signedBlock');
+      if (!signBlock || !signedBlock) return;
+      if (DEVIS.signature && DEVIS.signature.image) {
+        signBlock.classList.add('hidden');
+        signedBlock.classList.remove('hidden');
+        const d = new Date(DEVIS.signature.date);
+        setText('signedDate', fmtDate(DEVIS.signature.date) + (isNaN(d) ? '' : ' à ' + d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })));
+        el('signedImg').src = DEVIS.signature.image;
+      } else {
+        signBlock.classList.remove('hidden');
+        signedBlock.classList.add('hidden');
+        const cl = DEVIS.client || {};
+        setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
+        initSignatureCanvas();
+      }
+    }
+
     // ── Chargement ──
     (async () => {
       const id = qp('id');
@@ -278,6 +376,7 @@
       CALC = getCalc(DEVIS);
       renderPaper();
       renderPhotos(); // affiche aussi les annexes CGV / attestation TVA dès le chargement
+      renderSignatureUI();
     })();
   </script>
 </body>

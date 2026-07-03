@@ -214,6 +214,8 @@
       ITEM_TYPES, MOTEURS, COULEURS_RAL, TOILES_CATALOGUE,
       CS8_VARIANTES, CS8_COMBINAISONS, CS8_COLLECTIONS, CS8_MOTEURS,
       CS8_CAISSON_FORMES, CS8_COLMATAGE, caissonMesuresFor,
+      TS_SPECS, tsMoteursFor, tsEclairageFor,
+      VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
     } = window.SSProducts;
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -295,12 +297,12 @@
       if (item.type === 'volet_roulant') return `<div class="field"><label class="label">Modèle</label><input class="input field-readonly" data-f="modele" value="VR150" readonly></div>`;
       if (item.type === 'tente_solaire') {
         const opts = ['BX270', 'LUX'].map(m => `<option value="${m}" ${item.modele === m ? 'selected' : ''}>${m}</option>`).join('');
-        return `<div class="field"><label class="label">Modèle</label><select class="select" data-f="modele"><option value="">—</option>${opts}</select></div>`;
+        return `<div class="field"><label class="label">Modèle</label><select class="select" data-f="modele" onchange="onTSModeleChange('${item._id}')"><option value="">—</option>${opts}</select></div>`;
       }
       return `<div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Référence du tablier"></div>`;
     }
     function moteurFieldHtml(item) {
-      if (item.type === 'screen') return '';
+      if (item.type === 'screen' || item.type === 'tente_solaire' || item.type === 'volet_roulant') return '';
       const opt = (o, val, lbl) => `<option value="${val}" ${o === val ? 'selected' : ''}>${lbl}</option>`;
       const motOpts = MOTEURS.map(m => opt(item.moteur || '', m, m || '—')).join('');
       return `<div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>`;
@@ -337,6 +339,63 @@
         </div>
       </div>`;
     }
+    // Bloc de configuration détaillé Tente solaire (fiches produit Harol BX270/LUX, réf. 03/2026)
+    function tenteSolaireBlockHtml(item) {
+      if (item.type !== 'tente_solaire') return '';
+      const modele = item.modele;
+      const specs = TS_SPECS[modele] || {};
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      const moteurOpts = opt(tsMoteursFor(modele), item.moteur);
+      const eclairageOpts = opt(tsEclairageFor(modele), item.eclairage_led);
+      const maxNote = specs.largeur_max ? `<span class="text-muted" style="font-size:var(--fs-2xs);">Max ${specs.largeur_max / 1000} × ${specs.projection_max / 1000} m — inclinaison ${specs.inclinaison}</span>` : '';
+      return `
+      <div class="cs8-block mt-4">
+        <div class="cs8-head">${icon('sliders', 14)} Configuration ${modele || 'Tente solaire'}</div>
+        ${maxNote}
+        <div class="grid grid-2 mt-3">
+          <div class="field"><label class="label">Commande / Moteur</label><select class="select" data-f="moteur"><option value="">—</option>${moteurOpts}</select></div>
+          <div class="field"><label class="label">Projection (mm)</label><input class="input input-num" inputmode="numeric" data-f="projection" value="${item.projection || ''}" placeholder="${specs.projection_max ? 'Max ' + specs.projection_max : ''}"></div>
+          <div class="field col-full"><label class="label">Éclairage LED</label><select class="select" data-f="eclairage_led"><option value="">—</option>${eclairageOpts}</select></div>
+        </div>
+        <div class="stack" style="gap:0;margin-top:var(--sp-2);">
+          <label class="field-check-mobile"><input type="checkbox" data-f="couple" ${item.couple ? 'checked' : ''}> Couplé (raccord jusqu'à 12 m)</label>
+          <label class="field-check-mobile"><input type="checkbox" data-f="lambrequin_fixe" ${item.lambrequin_fixe ? 'checked' : ''}> Lambrequin fixe</label>
+          ${specs.lambrequin_vario ? `<label class="field-check-mobile"><input type="checkbox" data-f="lambrequin_vario" ${item.lambrequin_vario ? 'checked' : ''}> Lambrequin Vario (moteur io)</label>` : ''}
+          <label class="field-check-mobile"><input type="checkbox" data-f="detecteur" ${item.detecteur ? 'checked' : ''}> Détecteur soleil/vent/pluie</label>
+          <label class="field-check-mobile"><input type="checkbox" data-f="spots_storelight" ${item.spots_storelight ? 'checked' : ''}> Spots LED Storelight</label>
+          <label class="field-check-mobile"><input type="checkbox" data-f="chauffage_storelight" ${item.chauffage_storelight ? 'checked' : ''}> Chauffage Storelight</label>
+        </div>
+      </div>`;
+    }
+    window.onTSModeleChange = function (id) {
+      const it = state.items.find(i => i._id === id);
+      const card = document.querySelector(`[data-id="${id}"]`);
+      if (!it || !card) return;
+      collectItem(it, card);
+      renderItemsStep();
+    };
+
+    // Bloc de configuration détaillé VR150 Pure (fiche prix Harol 06/2026)
+    function voletBlockHtml(item) {
+      if (item.type !== 'volet_roulant') return '';
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      const caissonOpts = VR_CAISSONS.map(c => `<option value="${c.taille}" ${item.caisson_mesure === c.taille ? 'selected' : ''}>${c.taille} mm (max. ${c.hauteur_max} mm)</option>`).join('');
+      const hmax = vrHauteurMaxFor(item.caisson_mesure);
+      return `
+      <div class="cs8-block mt-4">
+        <div class="cs8-head">${icon('sliders', 14)} Configuration VR150 Pure</div>
+        <div class="grid grid-2 mt-3">
+          <div class="field"><label class="label">Caisson (mm)</label><select class="select" data-f="caisson_mesure"><option value="">—</option>${caissonOpts}</select></div>
+          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur"><option value="">—</option>${opt(VR_MOTEURS, item.moteur)}</select></div>
+          <div class="field col-full"><label class="label">Couleur lames (RAL)</label><select class="select" data-f="couleur_lame"><option value="">—</option>${opt(VR_COULEURS_LAMES, item.couleur_lame)}</select></div>
+        </div>
+        <div class="stack" style="gap:0;margin-top:var(--sp-2);">
+          <label class="field-check-mobile"><input type="checkbox" data-f="borstels" ${item.borstels ? 'checked' : ''}> Brosses (au lieu de joints)</label>
+        </div>
+        ${hmax ? `<p class="text-muted mt-2" style="font-size:var(--fs-2xs);">Hauteur max. (axe Ø60 mm) : ${hmax} mm — largeur max. 4000 mm.</p>` : ''}
+      </div>`;
+    }
+
     window.onCS8VarianteChange = function (id) {
       const sel = el('cms-' + id); if (!sel) return;
       const variante = document.querySelector(`[data-id="${id}"] [data-f="variante"]`)?.value;
@@ -364,9 +423,11 @@
         ${item.type !== 'screen' ? `
         <div class="grid grid-2 mt-3">
           <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016"></div>
-          <div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>
+          ${item.type !== 'volet_roulant' ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
         </div>` : ''}
         ${coolscreenBlockHtml(item)}
+        ${tenteSolaireBlockHtml(item)}
+        ${voletBlockHtml(item)}
         <div class="grid grid-2 mt-3">
           <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
           <div class="field"><label class="label">Prix catalogue HTVA</label><div class="input-unit"><input class="input input-num" inputmode="decimal" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
@@ -416,7 +477,7 @@
       root.querySelectorAll('[data-f]').forEach(input => {
         const f = input.dataset.f;
         if (input.type === 'checkbox') it[f] = input.checked;
-        else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht'].includes(f)) it[f] = parseFloat(input.value) || 0;
+        else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht', 'projection'].includes(f)) it[f] = parseFloat(input.value) || 0;
         else it[f] = input.value;
       });
     }
