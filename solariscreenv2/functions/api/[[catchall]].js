@@ -38,6 +38,7 @@ export async function onRequest(context) {
         SELECT id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification,
                IFNULL(CAST(json_extract(data, '$.photos_count')   AS INTEGER), 0) AS photos_count,
                IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER), 0) AS comments_count,
+               IFNULL(CAST(json_extract(data, '$.archive')        AS INTEGER), 0) AS archive,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
@@ -52,6 +53,7 @@ export async function onRequest(context) {
     if (path === '/api/devis' && method === 'POST') {
       const devis = await request.json();
       if (!devis.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      stampSignatureIp(devis, request);
       await upsertDevis(env.DB, devis);
       return json({ ok: true, id: devis.id });
     }
@@ -63,7 +65,7 @@ export async function onRequest(context) {
         if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
         return json({ ok: true, data: JSON.parse(row.data) });
       }
-      if (method === 'PUT') { const d = await request.json(); await upsertDevis(env.DB, { ...d, id }); return json({ ok: true }); }
+      if (method === 'PUT') { const d = await request.json(); stampSignatureIp(d, request); await upsertDevis(env.DB, { ...d, id }); return json({ ok: true }); }
       if (method === 'DELETE') {
         const ex = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(id).first();
         if (!ex) return json({ ok: false, error: 'Devis introuvable' }, 404);
@@ -177,6 +179,15 @@ export async function onRequest(context) {
 }
 
 function safeParse(s) { try { return JSON.parse(s); } catch { return null; } }
+
+// Horodatage IP côté serveur (preuve d'acceptation) : impossible à falsifier depuis le
+// navigateur puisque Cloudflare fournit l'IP réelle à l'edge, indépendamment de ce que
+// le client envoie. Ne tamponne qu'une fois — une signature existante garde son IP d'origine.
+function stampSignatureIp(devis, request) {
+  if (devis.signature && devis.signature.image && !devis.signature.ip) {
+    devis.signature.ip = request.headers.get('CF-Connecting-IP') || '';
+  }
+}
 
 async function upsertDevis(db, devis) {
   const { id, client, statut, calculs, date_creation, date_modification } = devis;
