@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS notes (
   done INTEGER DEFAULT 0,          -- pour les todo
   position INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
 );
 CREATE INDEX IF NOT EXISTS idx_notes_parent ON notes(parent_id);
 
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS clips (
   mime TEXT,
   device TEXT DEFAULT '',
   created_at INTEGER NOT NULL,
-  expires_at INTEGER               -- NULL = jamais
+  expires_at INTEGER,              -- NULL = jamais (expiration dure, purge immédiate)
+  deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
 );
 CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at);
