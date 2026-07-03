@@ -237,7 +237,12 @@
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Suppléments</span></div>
         <div class="section-body">
           <div id="extrasContainer"></div>
-          <button class="btn btn-ghost" onclick="addExtra()">+ Ajouter un supplément</button>
+          <div class="row wrap" style="gap:var(--sp-2);">
+            <button class="btn btn-ghost" onclick="addExtra()">+ Ajouter un supplément (libre)</button>
+            <select class="select" id="catalogOptionPick" style="max-width:280px;" onchange="pickCatalogOption()" aria-label="Ajouter depuis le catalogue Harol">
+              <option value="">+ Depuis le catalogue Harol…</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -306,6 +311,7 @@
       CS8_CAISSON_FORMES, CS8_COLMATAGE, caissonMesuresFor,
       TS_SPECS, tsMoteursFor, tsEclairageFor,
       VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
+      CATALOG_OPTIONS,
     } = window.SSProducts;
 
     const state = {
@@ -558,6 +564,24 @@
         <button class="btn btn-danger btn-sm" aria-label="Retirer ce supplément" onclick="this.parentElement.remove(); ui_recalc();">✕</button>`;
       el('extrasContainer').appendChild(row);
     };
+
+    // Catalogue d'accessoires Harol à prix connu — ajoute un supplément pré-rempli
+    // (label + prix), toujours modifiable ensuite comme un supplément libre.
+    function fillCatalogOptionsSelect() {
+      const byCat = {};
+      CATALOG_OPTIONS.forEach(o => { (byCat[o.cat] = byCat[o.cat] || []).push(o); });
+      const groups = Object.entries(byCat).map(([cat, opts]) => `<optgroup label="${cat}">${opts.map(o =>
+        `<option value="${o.label.replace(/"/g, '&quot;')}" data-price="${o.price}">${o.label} — ${fmtEur(o.price)}</option>`).join('')}</optgroup>`).join('');
+      el('catalogOptionPick').innerHTML = '<option value="">+ Depuis le catalogue Harol…</option>' + groups;
+    }
+    window.pickCatalogOption = () => {
+      const sel = el('catalogOptionPick');
+      const opt = sel.selectedOptions[0];
+      if (!opt || !opt.value) return;
+      addExtra({ label: opt.value, qty: 1, unit_price_ht: parseFloat(opt.dataset.price) || 0 });
+      sel.value = '';
+      ui_recalc();
+    };
     function collectExtras() {
       return [...document.querySelectorAll('.extra-row')].map(r => ({
         label: r.querySelector('[data-ex="label"]').value.trim(),
@@ -767,6 +791,7 @@
     fillDatalist('dl-couleurs', COULEURS_RAL);
     fillDatalist('dl-toiles', TOILES_CATALOGUE);
     fillDatalist('dl-caisson-forme', CS8_CAISSON_FORMES);
+    fillCatalogOptionsSelect();
 
     (async () => {
       if (qp('id')) await loadExisting(qp('id'));

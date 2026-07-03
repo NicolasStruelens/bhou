@@ -24,6 +24,11 @@
     .pick-meta { display: flex; gap: var(--sp-6); flex-wrap: wrap; margin-top: var(--sp-4); font-size: var(--fs-sm); }
     .pick-meta .pm-k { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
     .pick-meta .pm-v { font-weight: 600; }
+    .materiel-row { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-2); align-items: center; }
+    .materiel-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0; }
+    .materiel-item .pick-box { width: 16px; height: 16px; flex: none; }
+    .materiel-item .lbl { flex: 1; }
+    @media print { .no-print { display: none !important; } }
   </style>
 </head>
 <body>
@@ -37,6 +42,16 @@
     <button class="btn btn-primary btn-sm" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
   </div>
 
+  <div class="container no-print" style="padding-bottom:0;">
+    <section class="section ticked" style="--tick-color:var(--accent-2);">
+      <div class="section-head"><span class="section-title">Matériel à avoir / acheter / apporter</span></div>
+      <div class="section-body">
+        <div id="materielList"></div>
+        <button class="btn btn-ghost" onclick="addMateriel()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter un article</button>
+      </div>
+    </section>
+  </div>
+
   <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
 
   <script src="../assets/js/company.js"></script>
@@ -45,11 +60,12 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, qp } = window.SSUI;
+    const { fmtDate, el, qp, toast, icon } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
 
     const COMPANY = window.SS_COMPANY;
-    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier volet', tente_solaire: 'Tente solaire', pergola: 'Pergola' };
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier volet', tente_solaire: 'Tente solaire', pergola: 'Pergola', store_banne: 'Store banne' };
+    let DEVIS = null, MATERIEL = [];
 
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
@@ -97,6 +113,16 @@
         </tr>`;
       }).join('');
 
+      const extraLines = (d.calculs && d.calculs.extra_lines) || [];
+      const extraRows = extraLines.length ? `<tr class="cat-row"><td colspan="6">Options &amp; accessoires</td></tr>` + extraLines.map(e => `<tr>
+        <td class="num">—</td>
+        <td><strong>${esc(e.label)}</strong></td>
+        <td class="details">—</td>
+        <td>—</td>
+        <td class="num">${e.qty || 1}</td>
+        <td class="chk"><span class="pick-box"></span></td>
+      </tr>`).join('') : '';
+
       el('paper').innerHTML = `
         <div class="doc-head">
           <div class="brand-block">
@@ -125,16 +151,49 @@
             <th class="num">#</th><th>Produit</th><th>Détail technique</th><th>Dimensions</th>
             <th class="num">Qté</th><th class="chk">Chargé</th>
           </tr></thead>
-          <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Aucune ouverture sur ce devis.</td></tr>'}</tbody>
+          <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Aucune ouverture sur ce devis.</td></tr>'}${extraRows}</tbody>
         </table>
 
         <div class="pick-notes">
-          <h4>Outillage / notes complémentaires</h4>
+          <h4>Matériel à avoir / acheter / apporter</h4>
+          <div id="paperMateriel"></div>
         </div>
 
         <div class="doc-foot">${esc(COMPANY.name)} · Document interne — ne pas transmettre au client</div>
       `;
+      renderPaperMateriel();
     }
+
+    function renderPaperMateriel() {
+      const host = el('paperMateriel');
+      if (!host) return;
+      const rows = MATERIEL.filter(m => m.label && m.label.trim()).map(m =>
+        `<div class="materiel-item"><span class="pick-box"></span><span class="lbl">${esc(m.label)}</span><span class="text-mono">× ${m.qty || 1}</span></div>`).join('');
+      host.innerHTML = rows || '<span class="text-muted" style="font-size:var(--fs-xs);">Aucun article ajouté.</span>';
+    }
+
+    function renderMaterielEditor() {
+      const host = el('materielList');
+      host.innerHTML = MATERIEL.map((m, i) => `
+        <div class="materiel-row">
+          <input class="input" style="flex:1;" placeholder="Ex : silicone, vis inox 6×80, échelle 3 m…" value="${esc(m.label)}" oninput="updateMateriel(${i}, 'label', this.value)">
+          <input class="input input-num" type="number" min="1" step="1" style="width:70px;" value="${m.qty || 1}" oninput="updateMateriel(${i}, 'qty', this.value)">
+          <button class="btn btn-danger btn-sm" aria-label="Retirer cet article" onclick="removeMateriel(${i})">✕</button>
+        </div>`).join('') || '<p class="text-muted" style="font-size:var(--fs-sm);">Aucun article pour l\'instant.</p>';
+    }
+
+    async function saveMateriel(showToast) {
+      if (!DEVIS) return;
+      DEVIS.picking_items = MATERIEL;
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (showToast) toast(res.offline ? 'Enregistré hors-ligne' : 'Liste enregistrée ✓', res.offline ? 'warn' : 'ok', 1600);
+    }
+    let _saveTimer = null;
+    function scheduleSaveMateriel() { clearTimeout(_saveTimer); _saveTimer = setTimeout(() => saveMateriel(false), 600); }
+    window.addMateriel = () => { MATERIEL.push({ label: '', qty: 1 }); renderMaterielEditor(); renderPaperMateriel(); saveMateriel(true); };
+    window.updateMateriel = (i, field, val) => { MATERIEL[i][field] = field === 'qty' ? (parseInt(val) || 1) : val; renderPaperMateriel(); scheduleSaveMateriel(); };
+    window.removeMateriel = (i) => { MATERIEL.splice(i, 1); renderMaterielEditor(); renderPaperMateriel(); saveMateriel(true); };
 
     (async () => {
       const id = qp('id');
@@ -142,7 +201,10 @@
       el('backLink').href = 'vue.html?id=' + id;
       const d = await SS.getDevis(id);
       if (!d) { el('paper').innerHTML = '<p style="color:var(--danger);">Devis introuvable (#' + esc(id) + ').</p>'; return; }
+      DEVIS = d;
+      MATERIEL = (d.picking_items || []).map(m => ({ label: m.label || '', qty: m.qty || 1 }));
       render(d);
+      renderMaterielEditor();
     })();
   </script>
 </body>
