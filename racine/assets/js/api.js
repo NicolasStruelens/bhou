@@ -24,13 +24,21 @@ window.RA = (function () {
     me: function () { return req('/me'); },
 
     listNotes: function () { return req('/notes'); },
+    trashNotes: function () { return req('/notes/trash'); },
     createNote: function (note) { return req('/notes', { method: 'POST', body: note }); },
     updateNote: function (id, patch) { return req('/notes/' + id, { method: 'PUT', body: patch }); },
     deleteNote: function (id) { return req('/notes/' + id, { method: 'DELETE' }); },
+    restoreNote: function (id) { return req('/notes/' + id + '/restore', { method: 'PUT' }); },
+    purgeNote: function (id) { return req('/notes/' + id + '/purge', { method: 'DELETE' }); },
 
     listClips: function () { return req('/clips'); },
+    trashClips: function () { return req('/clips/trash'); },
     getClip: function (id) { return req('/clips/' + id); },
     createClip: function (clip) { return req('/clips', { method: 'POST', body: clip }); },
     deleteClip: function (id) { return req('/clips/' + id, { method: 'DELETE' }); },
+    restoreClip: function (id) { return req('/clips/' + id + '/restore', { method: 'PUT' }); },
+    purgeClip: function (id) { return req('/clips/' + id + '/purge', { method: 'DELETE' }); },
+
+    exportAll: function () { return req('/export'); },
   };
 })();
