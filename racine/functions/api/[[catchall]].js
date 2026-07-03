@@ -3,6 +3,7 @@
 
 const SESSION_DAYS = 30;
 const COOKIE_NAME = 'racine_session';
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // corbeille purgée après 30 jours
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -86,9 +87,23 @@ async function handleMe(request, env) {
 
 // ----- notes -----
 
+async function purgeOldTrash(env) {
+  const cutoff = Date.now() - TRASH_RETENTION_MS;
+  await env.DB.prepare('DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(cutoff).run();
+  await env.DB.prepare('DELETE FROM clips WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(cutoff).run();
+}
+
 async function listNotes(env) {
   const { results } = await env.DB.prepare(
-    'SELECT * FROM notes ORDER BY pinned DESC, position ASC, created_at ASC'
+    'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY pinned DESC, position ASC, created_at ASC'
+  ).all();
+  return json({ notes: results });
+}
+
+async function listTrashNotes(env) {
+  await purgeOldTrash(env);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC'
   ).all();
   return json({ notes: results });
 }
@@ -144,10 +159,9 @@ async function updateNote(id, request, env) {
   return json({ ok: true });
 }
 
-async function deleteNote(id, env) {
-  // supprime aussi les enfants directs et indirects (petite arborescence, boucle simple)
+async function collectDescendants(id, env) {
   let frontier = [id];
-  const toDelete = [id];
+  const all = [id];
   while (frontier.length) {
     const placeholders = frontier.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
@@ -155,12 +169,31 @@ async function deleteNote(id, env) {
     ).bind(...frontier).all();
     const children = results.map((r) => r.id);
     if (!children.length) break;
-    toDelete.push(...children);
+    all.push(...children);
     frontier = children;
   }
-  const placeholders = toDelete.map(() => '?').join(',');
-  await env.DB.prepare(`DELETE FROM notes WHERE id IN (${placeholders})`).bind(...toDelete).run();
-  return json({ ok: true, deleted: toDelete.length });
+  return all;
+}
+
+async function deleteNote(id, env) {
+  // corbeille : marque la note et ses descendants comme supprimées (pas de suppression réelle)
+  const ids = await collectDescendants(id, env);
+  const placeholders = ids.map(() => '?').join(',');
+  await env.DB.prepare(`UPDATE notes SET deleted_at = ? WHERE id IN (${placeholders})`)
+    .bind(Date.now(), ...ids).run();
+  return json({ ok: true, trashed: ids.length });
+}
+
+async function restoreNote(id, env) {
+  await env.DB.prepare('UPDATE notes SET deleted_at = NULL WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+async function purgeNote(id, env) {
+  const ids = await collectDescendants(id, env);
+  const placeholders = ids.map(() => '?').join(',');
+  await env.DB.prepare(`DELETE FROM notes WHERE id IN (${placeholders})`).bind(...ids).run();
+  return json({ ok: true, deleted: ids.length });
 }
 
 // ----- clips (presse-papier universel) -----
@@ -177,7 +210,17 @@ async function listClips(env) {
   const { results } = await env.DB.prepare(
     'SELECT id, label, kind, filename, mime, device, created_at, expires_at, LENGTH(content) as size, ' +
     "CASE WHEN kind = 'file' THEN NULL ELSE content END as preview " +
-    'FROM clips ORDER BY created_at DESC LIMIT 200'
+    "FROM clips WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+  ).all();
+  return json({ clips: results });
+}
+
+async function listTrashClips(env) {
+  await purgeOldTrash(env);
+  const { results } = await env.DB.prepare(
+    'SELECT id, label, kind, filename, mime, device, created_at, deleted_at, LENGTH(content) as size, ' +
+    "CASE WHEN kind = 'file' THEN NULL ELSE content END as preview " +
+    'FROM clips WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC'
   ).all();
   return json({ clips: results });
 }
@@ -222,8 +265,35 @@ async function createClip(request, env) {
 }
 
 async function deleteClip(id, env) {
+  await env.DB.prepare('UPDATE clips SET deleted_at = ? WHERE id = ?').bind(Date.now(), id).run();
+  return json({ ok: true });
+}
+
+async function restoreClip(id, env) {
+  await env.DB.prepare('UPDATE clips SET deleted_at = NULL WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+async function purgeClip(id, env) {
   await env.DB.prepare('DELETE FROM clips WHERE id = ?').bind(id).run();
   return json({ ok: true });
+}
+
+// ----- export complet -----
+
+async function exportAll(env) {
+  const notes = await env.DB.prepare(
+    'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY created_at ASC'
+  ).all();
+  await purgeExpiredClips(env);
+  const clips = await env.DB.prepare(
+    'SELECT * FROM clips WHERE deleted_at IS NULL ORDER BY created_at ASC'
+  ).all();
+  return json({
+    exported_at: Date.now(),
+    notes: notes.results,
+    clips: clips.results,
+  });
 }
 
 // ---------- routeur ----------
@@ -242,18 +312,26 @@ export async function onRequest(context) {
     const denied = await requireAuth(request, env);
     if (denied) return denied;
 
+    if (parts[0] === 'export' && parts.length === 1 && method === 'GET') return exportAll(env);
+
     if (parts[0] === 'notes') {
       if (parts.length === 1 && method === 'GET') return listNotes(env);
       if (parts.length === 1 && method === 'POST') return createNote(request, env);
+      if (parts.length === 2 && parts[1] === 'trash' && method === 'GET') return listTrashNotes(env);
       if (parts.length === 2 && method === 'PUT') return updateNote(parts[1], request, env);
       if (parts.length === 2 && method === 'DELETE') return deleteNote(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'restore' && method === 'PUT') return restoreNote(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'purge' && method === 'DELETE') return purgeNote(parts[1], env);
     }
 
     if (parts[0] === 'clips') {
       if (parts.length === 1 && method === 'GET') return listClips(env);
       if (parts.length === 1 && method === 'POST') return createClip(request, env);
+      if (parts.length === 2 && parts[1] === 'trash' && method === 'GET') return listTrashClips(env);
       if (parts.length === 2 && method === 'GET') return getClip(parts[1], env);
       if (parts.length === 2 && method === 'DELETE') return deleteClip(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'restore' && method === 'PUT') return restoreClip(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'purge' && method === 'DELETE') return purgeClip(parts[1], env);
     }
 
     return json({ error: 'not found' }, 404);
