@@ -39,6 +39,7 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.photos_count')   AS INTEGER), 0) AS photos_count,
                IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER), 0) AS comments_count,
                IFNULL(CAST(json_extract(data, '$.archive')        AS INTEGER), 0) AS archive,
+               IFNULL(CAST(json_extract(data, '$.informatif')      AS INTEGER), 0) AS informatif,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
