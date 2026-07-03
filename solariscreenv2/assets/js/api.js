@@ -181,6 +181,10 @@
       try { const r = await fetch(BASE + '/health', { credentials: 'same-origin' }); return r.ok; }
       catch (e) { return false; }
     },
+    async whoAmI() {
+      try { return (await req('/whoami')).data; }
+      catch (e) { return { email: null }; }
+    },
   };
 
   window.SS = SS;
