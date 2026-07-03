@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS notes (
   pinned INTEGER DEFAULT 0,        -- "à ne pas oublier"
   done INTEGER DEFAULT 0,          -- pour les todo
   position INTEGER DEFAULT 0,
+  space TEXT DEFAULT 'Général',     -- projet/passion (racines uniquement, hérité visuellement par les branches)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille

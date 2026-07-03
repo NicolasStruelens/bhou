@@ -31,6 +31,9 @@ Après avoir ajouté le binding D1 et la variable d'env, redéclenche un déploi
 - Entrer le mot de passe → doit arriver sur l'app.
 - Tester : créer une idée, une tâche, épingler, coller un texte dans le presse-papier, le récupérer depuis un autre appareil/navigateur.
 
+## Mises à jour d'une base déjà déployée
+Si `racine-db` existe déjà (déploiement initial fait avant une évolution du schéma), exécute dans la Console D1, une seule fois chacun, dans l'ordre : `migration_v2.sql` (corbeille) puis `migration_v3.sql` (espaces). Un nouveau déploiement depuis `schema.sql` seul (première installation) les inclut déjà.
+
 ## Notes
 - Contenu 100% privé derrière le mot de passe — personne ne peut lire `/api/*` sans session valide (vérifié par le backend, pas par un simple mot de passe front-end).
 - Presse-papier : entrées limitées à ~800 Ko chacune (texte ou fichier en base64) — pense à mettre une expiration sur les mots de passe/commandes sensibles.
