@@ -130,11 +130,20 @@
           <td class="num">${fmtEur(pu * qty)}</td>
         </tr>`;
       });
+      const remiseCat = c.remise_catalogue || {};
+      if (remiseCat.amount > 0) {
+        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${fmtEur(remiseCat.amount)}</td></tr>`;
+      }
 
       // Prestations / options
       let presta = '';
-      if (c.total_installation_ht > 0) {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td><td>—</td><td class="num">1</td><td class="num">${fmtEur(c.total_installation_ht)}</td><td class="num">${fmtEur(c.total_installation_ht)}</td></tr>`;
+      if (c.install_total_brut > 0) {
+        presta += `<tr><td class="num">—</td><td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td><td>—</td><td class="num">1</td><td class="num">${fmtEur(c.install_total_brut)}</td><td class="num">${fmtEur(c.install_total_brut)}</td></tr>`;
+      }
+      const remiseInst = c.remise_installation || {}, remiseOutil = c.remise_outillage || {};
+      const remiseInstallTotal = (remiseInst.amount || 0) + (remiseOutil.amount || 0);
+      if (remiseInstallTotal > 0) {
+        presta += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
         presta += `<tr><td class="num">—</td><td class="desc"><strong>${esc(e.label)}</strong></td><td>—</td><td class="num">${e.qty}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
@@ -145,9 +154,10 @@
       }
 
       const solde = c.total_ttc - c.acompte_montant;
+      const info = !!d.informatif;
 
       el('paper').innerHTML = `
-        ${draft ? '<div class="watermark draft">BROUILLON</div>' : ''}
+        ${info ? '<div class="watermark draft" style="color:color-mix(in srgb, var(--accent-2) 16%, transparent);">INFORMATIF</div>' : (draft ? '<div class="watermark draft">BROUILLON</div>' : '')}
         <div class="doc-head">
           <div class="brand-block">
             <div class="logo"><img src="../assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
@@ -157,14 +167,15 @@
             </div>
           </div>
           <div class="doc-meta">
-            <div class="doc-title">DEVIS</div>
+            <div class="doc-title">${info ? 'DEVIS INFORMATIF' : 'DEVIS'}</div>
             <div class="doc-num">N° ${esc(d.id)}</div>
             <div class="doc-dates">
               Date : ${fmtDate(d.date_creation)}<br>
-              Valable jusqu'au ${fmtDate(addDays(d.date_creation, VALIDITE_JOURS))}
+              ${info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(d.date_creation, VALIDITE_JOURS))}
             </div>
           </div>
         </div>
+        ${info ? '<div class="pay-note" style="border-color:color-mix(in srgb, var(--accent-2) 45%, transparent);background:color-mix(in srgb, var(--accent-2) 10%, transparent);"><strong>Estimation non contractuelle</strong> — établie à partir de mesures approximatives, sans engagement. Un devis formel sera établi après prise de mesures précises sur place.</div>' : ''}
 
         <div class="parties">
           <div class="party">
@@ -205,13 +216,14 @@
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(c.total_ttc)}</span></div>
         </div></div>
 
+        ${info ? '' : `
         <div class="pay-note">
           Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${fmtEur(c.acompte_montant)}</strong> —
           solde de <strong>${fmtEur(solde)}</strong> à la livraison / pose.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
 
-        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
+        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`}
 
         <div class="partners">
           <span class="lbl">Partenaires</span>
@@ -219,6 +231,7 @@
           <span class="partner-chip"><img src="../assets/img/logo-somfy.png" alt="Somfy"></span>
         </div>
 
+        ${info ? '' : `
         <div class="signatures">
           <div class="sig-box">
             <h4>Bon pour accord — le client</h4>
@@ -227,7 +240,7 @@
               : `<div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div>`}
           </div>
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
-        </div>
+        </div>`}
 
         <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
       `;
@@ -301,7 +314,8 @@
           : '<div class="paper" style="text-align:center;color:var(--text-muted);">Aucune photo sur ce devis.</div>';
       }
 
-      annex.innerHTML = cgvPaper() + tvaPaper() + photosPaper;
+      // Devis informatif : ni CGV ni attestation TVA, ce n'est pas un engagement contractuel
+      annex.innerHTML = DEVIS.informatif ? photosPaper : (cgvPaper() + tvaPaper() + photosPaper);
     };
 
     // ── Signature client (capture sur place — tablette/ordinateur en présence du client) ──
@@ -351,6 +365,7 @@
     function renderSignatureUI() {
       const signBlock = el('signBlock'), signedBlock = el('signedBlock');
       if (!signBlock || !signedBlock) return;
+      if (DEVIS.informatif) { signBlock.classList.add('hidden'); signedBlock.classList.add('hidden'); return; }
       if (DEVIS.signature && DEVIS.signature.image) {
         signBlock.classList.add('hidden');
         signedBlock.classList.remove('hidden');
