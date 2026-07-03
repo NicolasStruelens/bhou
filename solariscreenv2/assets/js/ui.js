@@ -91,6 +91,7 @@
       photos: d.photos_count || (d.metadata && d.metadata.photos_count) || 0,
       comments: d.comments_count || (d.comments && d.comments.length) || 0,
       archive: !!d.archive,
+      informatif: !!d.informatif,
     };
   }
 

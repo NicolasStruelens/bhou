@@ -27,6 +27,16 @@
     return { principal: 'autre', nicolas_pct: num(sellers.nicolas_pct), yannick_pct: num(sellers.yannick_pct) };
   }
 
+  // Réduction commerciale sur un poste : mode 'pct' (% du poste) ou 'eur' (montant fixe).
+  // Plafonnée au montant du poste (une réduction ne peut pas rendre un poste négatif).
+  function resolveRemiseAmount(remiseInput, base) {
+    if (!remiseInput) return 0;
+    const v = num(remiseInput.value);
+    if (v <= 0 || base <= 0) return 0;
+    const amount = remiseInput.mode === 'pct' ? base * (v / 100) : v;
+    return Math.min(Math.max(amount, 0), base);
+  }
+
   function computeDevis(input) {
     input = input || {};
     const items = input.items || [];
@@ -51,10 +61,27 @@
     const supplierEstimate = totalCatalog * SUPPLIER_RATE;
     const totalMaterialGross = totalCatalog * MATERIAL_MARGIN;
 
+    // ── Réduction commerciale sur le catalogue ──
+    // Déduite de la commission du vendeur principal du devis (celui qui négocie la vente) ;
+    // répartie au prorata des deux en mode "autre". N'affecte jamais le coût fournisseur réel.
+    const remiseCatalogueAmount = resolveRemiseAmount(input.remise_catalogue, totalCatalog);
+    const totalCatalogNet = r2(totalCatalog - remiseCatalogueAmount);
+
     // ── Commissions ──
     const sp = resolveSellerPcts(input.sellers);
-    const nicolasGross = totalCatalog * (sp.nicolas_pct / 100);
-    const yannickGross = totalCatalog * (sp.yannick_pct / 100);
+    let nicolasGross = totalCatalog * (sp.nicolas_pct / 100);
+    let yannickGross = totalCatalog * (sp.yannick_pct / 100);
+    if (remiseCatalogueAmount > 0) {
+      if (sp.principal === 'nicolas') nicolasGross -= remiseCatalogueAmount;
+      else if (sp.principal === 'yannick') yannickGross -= remiseCatalogueAmount;
+      else {
+        const sumPct = sp.nicolas_pct + sp.yannick_pct;
+        if (sumPct > 0) {
+          nicolasGross -= remiseCatalogueAmount * (sp.nicolas_pct / sumPct);
+          yannickGross -= remiseCatalogueAmount * (sp.yannick_pct / sumPct);
+        }
+      }
+    }
     const nicolasNet = nicolasGross / NET_DIVISOR;
     const yannickNet = yannickGross / NET_DIVISOR;
 
@@ -73,12 +100,24 @@
     const tech1Gross = num(inst.tech1_gross);
     const tech2Gross = num(inst.tech2_gross);
     const toolsGross = num(inst.tools_gross);
-    const installTotal = installGross * num(inst.install_qty);
-    const tech1Total = tech1Gross * num(inst.tech1_qty);
-    const tech2Total = tech2Gross * num(inst.tech2_qty);
-    const toolsTotal = toolsGross * num(inst.tools_qty);
+    const installTotalRaw = installGross * num(inst.install_qty);
+    const tech1TotalRaw = tech1Gross * num(inst.tech1_qty);
+    const tech2TotalRaw = tech2Gross * num(inst.tech2_qty);
+    const toolsTotalRaw = toolsGross * num(inst.tools_qty);
     const installBalanceOk =
       installGross <= 0 || Math.abs(tech1Gross + tech2Gross + toolsGross - installGross) <= 0.02;
+
+    // ── Réduction commerciale sur l'installation (pose + tech1 + tech2, réparties ensemble) ──
+    // La paie des techniciens n'est pas protégée : elle baisse proportionnellement, comme demandé.
+    const remiseInstallationAmount = resolveRemiseAmount(input.remise_installation, installTotalRaw);
+    const installFactor = installTotalRaw > 0 ? Math.max(0, installTotalRaw - remiseInstallationAmount) / installTotalRaw : 1;
+    const installTotal = r2(installTotalRaw * installFactor);
+    const tech1Total = r2(tech1TotalRaw * installFactor);
+    const tech2Total = r2(tech2TotalRaw * installFactor);
+
+    // ── Réduction commerciale sur l'outillage (poste indépendant) ──
+    const remiseOutillageAmount = resolveRemiseAmount(input.remise_outillage, toolsTotalRaw);
+    const toolsTotal = r2(toolsTotalRaw - remiseOutillageAmount);
 
     // ── Extras ──
     const extraLines = extrasIn.map(function (e) {
@@ -89,13 +128,22 @@
     const totalExtras = extraLines.reduce(function (s, e) { return s + e.total_ht; }, 0);
 
     // ── Totaux client ──
-    const totalHT = totalCatalog + installTotal + totalExtras + surplus;
+    // L'outillage n'est jamais facturé comme ligne séparée (il fait partie du forfait
+    // "Installation et pose"), mais sa réduction doit tout de même se répercuter sur le
+    // total payé par le client — sinon une "réduction outillage" n'aurait aucun effet réel.
+    const totalHT = totalCatalogNet + installTotal + totalExtras + surplus - remiseOutillageAmount;
     const totalTVA = totalHT * (tvaPct / 100);
     const totalTTC = totalHT + totalTVA;
     const acompteMontant = totalTTC * (acomptePct / 100);
+    const totalRemises = r2(remiseCatalogueAmount + remiseInstallationAmount + remiseOutillageAmount);
 
     return {
-      total_catalog_ht: r2(totalCatalog),
+      total_catalog_ht: r2(totalCatalogNet),
+      total_catalog_ht_brut: r2(totalCatalog),
+      remise_catalogue: { mode: (input.remise_catalogue && input.remise_catalogue.mode) || 'eur', value: num(input.remise_catalogue && input.remise_catalogue.value), amount: r2(remiseCatalogueAmount) },
+      remise_installation: { mode: (input.remise_installation && input.remise_installation.mode) || 'eur', value: num(input.remise_installation && input.remise_installation.value), amount: r2(remiseInstallationAmount) },
+      remise_outillage: { mode: (input.remise_outillage && input.remise_outillage.mode) || 'eur', value: num(input.remise_outillage && input.remise_outillage.value), amount: r2(remiseOutillageAmount) },
+      total_remises: totalRemises,
       total_openings: totalOpenings,
       supplier_estimate: r2(supplierEstimate),
       total_material_gross: r2(totalMaterialGross),
@@ -106,7 +154,9 @@
       yannick_gross: r2(yannickGross), yannick_net: r2(yannickNet),
       remise: remise,
       install_total: r2(installTotal),
-      tech1_total: r2(tech1Total), tech2_total: r2(tech2Total), tools_total: r2(toolsTotal),
+      install_total_brut: r2(installTotalRaw),
+      tech1_total: r2(tech1Total), tech2_total: r2(tech2Total),
+      tools_total: r2(toolsTotal), tools_total_brut: r2(toolsTotalRaw),
       total_installation_ht: r2(installTotal),
       install_balance_ok: installBalanceOk,
       total_extras_ht: r2(totalExtras),
