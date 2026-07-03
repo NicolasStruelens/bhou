@@ -97,6 +97,8 @@
     .hero-card .h-sep { border-top: 1px dashed var(--border); margin: var(--sp-3) 0; }
     .action-col { display: flex; flex-direction: column; gap: var(--sp-2); }
     .action-col .btn { justify-content: flex-start; padding: 0.75rem 1rem; }
+    .action-col .btn.is-gold { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); font-weight: 700; }
+    .action-col .btn.is-gold:hover { background: color-mix(in srgb, var(--accent-2) 18%, transparent); box-shadow: var(--glow-soft); color: var(--accent-2); }
 
     .interne-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent-3); padding: var(--sp-4) var(--sp-5); }
     .interne-card .h-line { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: var(--fs-xs); }
@@ -181,6 +183,7 @@
         <a class="btn btn-ghost" id="btnDoc" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Document client / PDF</a>
         <a class="btn btn-ghost" id="btnPicking" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Liste de pose</a>
         <a class="btn btn-ghost" id="btnFacturer" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Facturer</a>
+        <button class="btn btn-ghost hidden" id="btnPortfolio" onclick="togglePortfolio()"></button>
       </div>
 
       <div class="interne-card ticked">
@@ -287,6 +290,12 @@
       el('btnDoc').href = 'devis.html?id=' + d.id;
       el('btnPicking').href = 'picking.html?id=' + d.id;
       el('btnFacturer').href = 'factures.html?devis=' + d.id + '&type=acompte';
+      const btnPf = el('btnPortfolio');
+      btnPf.classList.toggle('hidden', d.statut !== 'termine');
+      btnPf.classList.toggle('is-gold', !!d.portfolio);
+      btnPf.innerHTML = d.portfolio
+        ? `${icon('check', 15)} Dans le portfolio`
+        : `${icon('star', 15)} Ajouter au portfolio`;
 
       // ── Client ──
       const initials = (((cl.prenom || '')[0] || '') + ((cl.nom || '')[0] || '')).toUpperCase() || '?';
@@ -458,6 +467,18 @@
       const lastAuthor = localStorage.getItem('ss_comment_author');
       if (lastAuthor) el('nAuthor').value = lastAuthor;
     }
+    window.togglePortfolio = async () => {
+      const willEnable = !DEVIS.portfolio;
+      if (willEnable) {
+        const photoCount = (DEVIS.items || []).reduce((s, it) => s + ((it.photos || []).length), 0);
+        if (!photoCount && !confirm('Aucune photo sur ce devis — il apparaîtra sans image dans le portfolio. Continuer quand même ?')) return;
+      }
+      DEVIS.portfolio = willEnable;
+      DEVIS.date_modification = new Date().toISOString();
+      await SS.saveDevis(DEVIS);
+      toast(willEnable ? 'Ajouté au portfolio ✓' : 'Retiré du portfolio', 'ok');
+      render();
+    };
     window.toggleInformatif = async () => {
       if (!confirm('Repasser ce devis en devis formel (signature + conditions de vente sur le PDF) ?')) return;
       DEVIS.informatif = false;
