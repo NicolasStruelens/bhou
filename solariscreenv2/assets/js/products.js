@@ -61,11 +61,62 @@
     return variante === 'Standard' ? CS8_CAISSON_MESURES_STANDARD : CS8_CAISSON_MESURES_GRAND;
   }
 
+  // ── Configurateur Tente solaire (fiches produit Harol_TS_FP_BX270/LUX, réf. 03/2026) ──
+  // Toile standard/options déjà couverte par TOILES_CATALOGUE (Dickson Orchestra / Sattler
+  // Urban Design en standard, Swela/Sattler/Dickson en option — confirmé identique sur les 2 fiches).
+  const TS_SPECS = {
+    BX270: {
+      caisson: '162 mm profondeur × 227 mm hauteur', largeur_max: 7000, projection_max: 3500,
+      inclinaison: '10° à 35°', manivelle: true, lambrequin_vario: false, eclairage_bras: false,
+    },
+    LUX: {
+      caisson: '240 mm profondeur × 250 mm hauteur', largeur_max: 7000, projection_max: 4000,
+      inclinaison: '10° à 30°', manivelle: false, lambrequin_vario: true, eclairage_bras: true,
+    },
+  };
+  // Commande — IO de série sur les 2 modèles ; la manivelle manuelle n'existe qu'en option sur BX270 (s.o. sur LUX)
+  const TS_MOTEURS = ['IO (standard)', 'RTS', 'Câblé', 'Manuel (manivelle)'];
+  // Éclairage LED — les emplacements "bras" ne sont proposés que sur LUX (s.o. sur BX270)
+  const TS_ECLAIRAGE_BX270 = ['Direct — caisson'];
+  const TS_ECLAIRAGE_LUX = ['Direct — caisson', 'Direct — bras', 'Direct — bras et caisson', 'Indirect — caisson et barre de charge'];
+
+  function tsMoteursFor(modele) {
+    return modele === 'LUX' ? TS_MOTEURS.filter(m => m !== 'Manuel (manivelle)') : TS_MOTEURS;
+  }
+  function tsEclairageFor(modele) {
+    return modele === 'LUX' ? TS_ECLAIRAGE_LUX : TS_ECLAIRAGE_BX270;
+  }
+
+  // ── Configurateur VR150 Pure (Volet roulant extérieur, fiche prix Harol 06/2026) ──
+  // Toujours en commande électrique, une seule lame (ALU242) — pas de variantes produit
+  // comme Coolscreen 8. Couleur caisson/glissières : même palette "Pure" 10 RAL que
+  // Coolscreen 8 (COULEURS_RAL_PURE) — confirmé identique par la fiche VR150 Pure.
+  const VR_CAISSONS = [
+    { taille: '137', hauteur_max: 1110 },
+    { taille: '150', hauteur_max: 1370 },
+    { taille: '165', hauteur_max: 1870 },
+    { taille: '180', hauteur_max: 2140 },
+    { taille: '205', hauteur_max: 3000 },
+  ]; // hauteur max donnée pour l'axe d'enroulement Ø60mm (le plus courant)
+  const VR_MOTEURS = ['Secure (RF, standard)', 'Primo (filaire, sans télécommande)', 'Solar Pure (solaire)'];
+  // 9 coloris standard de lame ALU242 (RAL ± indicatif, code Harol officiel)
+  const VR_COULEURS_LAMES = [
+    '01 — 9016 Blanc trafic', '03 — 8028 Brun acajou', '07 — 9006 Alu-métallic',
+    '23 — 7038 Gris clair', '27 — 9001 Blanc crème', '38 — 7016 Gris anthracite',
+    '43 — 7039 Gris quartz', '85 — 9007 Gris aluminium', '90 — 9005 Noir profond',
+  ];
+  function vrHauteurMaxFor(taille) {
+    const c = VR_CAISSONS.find(x => x.taille === taille);
+    return c ? c.hauteur_max : null;
+  }
+
   window.SSProducts = {
     ITEM_TYPES, ITEM_TYPES_LEGACY, MOTEURS, MODELES_CATALOGUE,
     COULEURS_RAL, COULEURS_RAL_PURE, TOILES_CATALOGUE,
     CS8_VARIANTES, CS8_COMBINAISONS, CS8_COLLECTIONS, CS8_MOTEURS,
     CS8_CAISSON_MESURES_STANDARD, CS8_CAISSON_MESURES_GRAND, CS8_CAISSON_FORMES, CS8_COLMATAGE,
     caissonMesuresFor,
+    TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
+    VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
   };
 })();
