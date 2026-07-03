@@ -10,7 +10,23 @@
     dragId: null,
     lastAddedId: null,
     collapsed: new Set(),
+    activeSpace: localStorage.getItem('racine_active_space') || 'Général',
   };
+
+  var OVERVIEW = '__overview__';
+
+  function knownSpaces() {
+    var stored = [];
+    try { stored = JSON.parse(localStorage.getItem('racine_spaces') || '[]'); } catch (e) {}
+    return stored;
+  }
+  function saveKnownSpace(name) {
+    var list = knownSpaces();
+    if (list.indexOf(name) === -1) {
+      list.push(name);
+      localStorage.setItem('racine_spaces', JSON.stringify(list));
+    }
+  }
 
   // ---------- garde-fou session ----------
   RA.me().catch(function () { location.href = 'login.html'; });
@@ -114,6 +130,7 @@
       content: captureDetails.value.trim(),
       kind: state.kind,
       pinned: state.pinned,
+      space: state.activeSpace === OVERVIEW ? 'Général' : state.activeSpace,
     }).then(function (res) {
       captureInput.value = '';
       captureDetails.value = '';
@@ -183,6 +200,75 @@
   function noteMeta(n) {
     var d = new Date(n.created_at);
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- espaces (multi-projets) ----------
+  function effectiveSpace(n) {
+    var byId = {};
+    state.notes.forEach(function (x) { byId[x.id] = x; });
+    var cur = n;
+    var seen = {};
+    while (cur && cur.parent_id && byId[cur.parent_id] && !seen[cur.id]) {
+      seen[cur.id] = true;
+      cur = byId[cur.parent_id];
+    }
+    return (cur && cur.space) || 'Général';
+  }
+
+  function allSpaces() {
+    var set = { 'Général': true };
+    knownSpaces().forEach(function (s) { set[s] = true; });
+    state.notes.forEach(function (n) { if (!n.parent_id) set[n.space || 'Général'] = true; });
+    var arr = Object.keys(set);
+    arr.sort(function (a, b) {
+      if (a === 'Général') return -1;
+      if (b === 'Général') return 1;
+      return a.localeCompare(b);
+    });
+    return arr;
+  }
+
+  function setActiveSpace(name) {
+    state.activeSpace = name;
+    localStorage.setItem('racine_active_space', name);
+    document.getElementById('captureBar').style.display = name === OVERVIEW ? 'none' : '';
+    renderSpaceBar();
+    renderNotesView();
+  }
+
+  function renderSpaceBar() {
+    var bar = document.getElementById('spaceBar');
+    bar.innerHTML = '';
+
+    var overviewBtn = document.createElement('button');
+    overviewBtn.className = 'space-pill overview' + (state.activeSpace === OVERVIEW ? ' active' : '');
+    var oDot = document.createElement('span'); oDot.className = 'dot';
+    overviewBtn.appendChild(oDot);
+    overviewBtn.appendChild(document.createTextNode("Vue d'ensemble"));
+    overviewBtn.addEventListener('click', function () { setActiveSpace(OVERVIEW); });
+    bar.appendChild(overviewBtn);
+
+    allSpaces().forEach(function (name) {
+      var btn = document.createElement('button');
+      btn.className = 'space-pill' + (state.activeSpace === name ? ' active' : '');
+      var dot = document.createElement('span'); dot.className = 'dot';
+      btn.appendChild(dot);
+      btn.appendChild(document.createTextNode(name));
+      btn.addEventListener('click', function () { setActiveSpace(name); });
+      bar.appendChild(btn);
+    });
+
+    var addBtn = document.createElement('button');
+    addBtn.className = 'space-pill-add';
+    addBtn.textContent = '+ espace';
+    addBtn.addEventListener('click', function () {
+      var name = prompt('Nom du nouvel espace (projet, passion…) :');
+      if (!name || !name.trim()) return;
+      name = name.trim().slice(0, 60);
+      saveKnownSpace(name);
+      setActiveSpace(name);
+    });
+    bar.appendChild(addBtn);
   }
 
   // ---------- glisser-déposer ----------
@@ -340,17 +426,24 @@
     return actions;
   }
 
-  // mode liste plate (recherche/filtre actif) : cartes autonomes, sans hiérarchie
-  function renderFlatNode(n, container) {
+  // mode liste plate (recherche/filtre actif, ou vue d'ensemble) : cartes autonomes, sans hiérarchie
+  function renderFlatNode(n, container, spaceTag, noDrag) {
     var el = document.createElement('div');
     el.className = 'node depth-0';
     el.dataset.kind = n.kind;
     el.dataset.id = n.id;
     if (n.pinned) el.classList.add('pinned');
     if (n.done) el.classList.add('done');
-    attachDnD(el, n);
+    if (noDrag) el.style.cursor = 'default';
+    else attachDnD(el, n);
     el.appendChild((function () { var d = document.createElement('div'); d.className = 'node-dot'; return d; })());
     el.appendChild(buildBody(n));
+    if (spaceTag) {
+      var tag = document.createElement('div');
+      tag.className = 'space-tag';
+      tag.textContent = spaceTag;
+      el.appendChild(tag);
+    }
     el.appendChild(buildActions(n));
     container.appendChild(el);
   }
@@ -452,14 +545,26 @@
   function renderNotesView() {
     var treeEl = document.getElementById('tree');
     treeEl.innerHTML = '';
-    var active = !!state.searchTerm || state.filterKind !== 'all' || state.filterPinned;
-    if (active) {
-      var filtered = state.notes.filter(matchesFilter);
+    var emptyMsg = document.querySelector('#emptyState p');
+    var searchActive = !!state.searchTerm || state.filterKind !== 'all' || state.filterPinned;
+
+    if (state.activeSpace === OVERVIEW) {
+      var overdue = state.notes.filter(function (n) {
+        return (n.pinned || (n.kind === 'todo' && !n.done)) && matchesFilter(n);
+      });
+      document.getElementById('emptyState').style.display = overdue.length ? 'none' : 'block';
+      if (emptyMsg) emptyMsg.textContent = 'Rien d\'épinglé ni de tâche en attente, dans aucun espace. Tout est calme.';
+      overdue.forEach(function (n) { renderFlatNode(n, treeEl, effectiveSpace(n), true); });
+    } else if (searchActive) {
+      var spaceNotes = state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
+      var filtered = spaceNotes.filter(matchesFilter);
       document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+      if (emptyMsg) emptyMsg.textContent = 'Rien pour l\'instant. Écris ta première idée ci-dessus.';
       filtered.forEach(function (n) { renderFlatNode(n, treeEl); });
     } else {
-      document.getElementById('emptyState').style.display = state.notes.length ? 'none' : 'block';
-      var roots = buildTree(state.notes);
+      var roots = buildTree(state.notes).filter(function (r) { return (r.space || 'Général') === state.activeSpace; });
+      document.getElementById('emptyState').style.display = roots.length ? 'none' : 'block';
+      if (emptyMsg) emptyMsg.textContent = 'Rien pour l\'instant dans « ' + state.activeSpace + ' ». Écris ta première idée ci-dessus.';
       roots.forEach(function (n) { renderRootCard(n, treeEl); });
     }
     if (state.lastAddedId) {
@@ -476,13 +581,14 @@
   treeContainer.addEventListener('dragover', function (e) { e.preventDefault(); });
   treeContainer.addEventListener('drop', function (e) {
     if (e.target !== treeContainer) return;
-    if (!state.dragId) return;
-    RA.updateNote(state.dragId, { parent_id: null, position: Date.now() }).then(loadNotes);
+    if (!state.dragId || state.activeSpace === OVERVIEW) return;
+    RA.updateNote(state.dragId, { parent_id: null, position: Date.now(), space: state.activeSpace }).then(loadNotes);
   });
 
   function loadNotes() {
     return RA.listNotes().then(function (data) {
       state.notes = data.notes;
+      renderSpaceBar();
       renderNotesView();
       checkReminders();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -844,6 +950,7 @@
     }
   }
 
+  document.getElementById('captureBar').style.display = state.activeSpace === OVERVIEW ? 'none' : '';
   loadNotes();
   loadClips();
   initFromQuery();
