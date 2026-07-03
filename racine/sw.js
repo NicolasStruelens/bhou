@@ -1,8 +1,6 @@
-// Racine — service worker minimal (cache de l'app shell, jamais l'API)
-const CACHE = 'racine-shell-v1';
+// Racine — service worker minimal (cache des fichiers statiques, jamais l'API ni les pages HTML)
+const CACHE = 'racine-shell-v2';
 const SHELL = [
-  '/app.html',
-  '/login.html',
   '/assets/css/tokens.css',
   '/assets/css/base.css',
   '/assets/js/api.js',
@@ -27,14 +25,20 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
-  var url = new URL(event.request.url);
+  var req = event.request;
+  if (req.method !== 'GET') return;
+  if (req.mode === 'navigate') return; // jamais intercepter le chargement des pages HTML
+  var url = new URL(req.url);
   if (url.pathname.startsWith('/api/')) return; // jamais de cache pour l'API
-  if (event.request.method !== 'GET') return;
+  if (SHELL.indexOf(url.pathname) === -1) return; // ne cache que les fichiers statiques listés
 
   event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      var network = fetch(event.request).then(function (res) {
-        if (res.ok) caches.open(CACHE).then(function (cache) { cache.put(event.request, res.clone()); });
+    caches.match(req).then(function (cached) {
+      var network = fetch(req).then(function (res) {
+        if (res.ok && !res.redirected) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
+        }
         return res;
       }).catch(function () { return cached; });
       return cached || network;
