@@ -62,6 +62,13 @@
     @media (max-width: 520px){ .extra-row { grid-template-columns: 1fr 60px 100px 36px; } }
 
     .id-badge { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 35%, transparent); padding: 0.3rem 0.6rem; border-radius: var(--r-sm); }
+
+    /* ── Bloc configurateur spécifique produit (ex: Coolscreen 8) ── */
+    .cs8-block { border: 1px dashed var(--accent-3); border-radius: var(--r-md); padding: var(--sp-4); background: color-mix(in srgb, var(--accent-3) 6%, transparent); }
+    .cs8-head { font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-3); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2); }
+    .field-check { display: flex; align-items: flex-end; padding-bottom: 0.55rem; }
+    .field-check label { display: flex; align-items: center; gap: 0.4rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; user-select: none; }
+    .field-readonly { opacity: 0.7; cursor: not-allowed; background: var(--surface-2); }
   </style>
 </head>
 <body>
@@ -119,6 +126,7 @@
           <datalist id="dl-modeles"></datalist>
           <datalist id="dl-couleurs"></datalist>
           <datalist id="dl-toiles"></datalist>
+          <datalist id="dl-caisson-forme"></datalist>
         </div>
       </section>
 
@@ -243,33 +251,60 @@
     const { computeDevis, totalSurface } = window.SSCalc;
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp } = window.SSUI;
+    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon } = window.SSUI;
 
     mountThemeToggle(document.getElementById('themeToggle'));
 
+    // 4 familles de produits uniquement (demande explicite Nicolas)
     const ITEM_TYPES = {
-      screen: 'Screen', volet_roulant: 'Volet roulant', store_banne: 'Store banne',
-      tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola',
+      screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier de volet', tente_solaire: 'Tente solaire',
     };
+    // Libellés conservés pour compat d'affichage sur d'anciens devis (plus proposés à la création)
+    const ITEM_TYPES_LEGACY = { store_banne: 'Store banne', pergola: 'Pergola' };
     const MOTEURS = ['', 'Manuel', 'Somfy IO', 'Somfy RTS', 'Somfy Solaire', 'Filaire'];
     // Références réelles du catalogue Harol (autocomplétion — champ libre, pas une liste fermée)
-    const MODELES_CATALOGUE = [
-      'Coolscreen 8', 'Coolscreen 8 Plus', 'Coolscreen 8 Led', 'Coolscreen 8 Solar',
-      'VR150', 'VR150 Solar', 'VR150 Blackout', 'VR150 Blackout Solar',
-      'BX270', 'BX260', 'LUX', 'CADIZ', 'TUCAN', 'PRAIA',
-    ];
-    // Coloris RAL les plus demandés (nuancier Harol 2026) — champ libre, autres RAL possibles
+    const MODELES_CATALOGUE = ['Coolscreen 8', 'VR150', 'BX270', 'LUX'];
+    // 24 coloris "populaires" confirmés (nuancier Harol BR_Coloris 2026, page 5) — champ libre, autres RAL possibles
     const COULEURS_RAL = [
-      '9016 — Blanc trafic', '9010 — Blanc pur', '9006 — Aluminium blanc', '9001 — Blanc crème',
-      '9005 — Noir signalisation', '9004 — Noir signalisation (mat)', '7016 — Gris anthracite',
-      '7021 — Noir goudron', '7039 — Gris quartz', '8019 — Brun gris',
-      '6009 — Vert sapin', '5011 — Bleu acier',
+      '9016 — Blanc trafic', '9010 — Blanc pur', '9001 — Blanc crème (Sunny snow)', '1015 — Blanc ivoire',
+      '1013 — Blanc perle ivoire', '7038 — Gris agate', '7030 — Gris pierre', '9007 — Gris aluminium',
+      '7039 — Gris quartz', '9008 — Gris anthracite', '7012 — Gris basalte', '7016 — Gris nuit',
+      '7021 — Gris anthracite foncé', '8016 — Gris noisette', '8028 — Brun acajou', '8014 — Brun terre',
+      '8019 — Brun sépia', '8022 — Brun noir', '9004 — Noir signalisation', '9005 — Noir profond',
+      '3005 — Rouge violet', '6009 — Vert sapin', '5011 — Bleu acier',
     ];
-    // Toiles standard (screens & stores bannes)
+    // Gamme restreinte "Pure" (2025) — 10 RAL, classe 2 uniquement
+    const COULEURS_RAL_PURE = ['7016', '7021', '7039', '8019', '9001', '9004', '9005', '9006', '9010', '9016'];
+    // Toiles génériques (Volet/Tente solaire — en attendant les détails Nicolas)
     const TOILES_CATALOGUE = [
       'Soltis Horizon 86', 'Soltis Perform 92', 'Soltis Opaque B92', 'Sergé 600', 'Sergé 1%',
       'Dickson Orchestra', 'Sattler Urban Design', 'Swela', 'Sattler', 'Dickson',
     ];
+    // ── Configurateur Coolscreen 8 (reproduit le portail Harol — Screen) ──
+    const CS8_VARIANTES = ['Standard', 'Solar', 'Led', 'Plus'];
+    const CS8_COMBINAISONS = [
+      { v: 'Simple', l: 'Simple' },
+      { v: 'DVC2', l: 'DVC2 — porte-fenêtre 2 parties, 1 caisson' },
+      { v: 'DVC3', l: 'DVC3 — porte-fenêtre 3 parties, 1 caisson' },
+    ];
+    // Toiles vues sur ton portail (libellés exacts conservés) + confirmées par le catalogue Harol (codes article)
+    const CS8_COLLECTIONS = [
+      'Collectie copaco serge 5%', 'Collectie soltis 86', 'Collectie soltis 92',
+      'Collectie soltis b92 - blackout', 'Collectie copaco serge 1%', 'Collectie blockout serge 600 lunar',
+      'Collectie stam 6002', 'Collectie Soltis 7635', 'Collectie Satiné 5500',
+      'Flexlight Lodge 6002 (occultant)', 'Cristal Clear (transparent, imperméable)',
+    ];
+    // Moteurs — tes réf. portail + réf. confirmées par le catalogue Harol (codes article)
+    const CS8_MOTEURS = [
+      '4114: Sunea 40 RTS', '4118: RS100 Solar IO', 'A1677: Harol Solar 50 ZS-ES-E-Z', 'A1871: Somfy Altea 50 Solar io',
+      'A1380: Maestria+ 50 io 17 tr/min', 'A1872: Altea 50 Solar io 15 Nm', 'A4119: RS100 Solar io 15/20 Nm',
+      'A1675: Harol Master 50-10/17-ZS-E-Z', 'A1676: Harol Optima 50-10/17-ZS',
+    ];
+    // Dimensions caisson — dépendent de la variante (Standard = petit caisson, Plus/Led/Solar = grand caisson)
+    const CS8_CAISSON_MESURES_STANDARD = ['90x95', '110x115', '135x140'];
+    const CS8_CAISSON_MESURES_GRAND    = ['90x123', '110x143', '135x168'];
+    const CS8_CAISSON_FORMES = ['Carré', 'Rond']; // Rond = Standard uniquement (confirmé catalogue)
+    const CS8_COLMATAGE = ["A125: Joint d'étanchéité", 'A947: Brosse (lame finale)', 'Pas'];
 
     const state = {
       id: qp('id') || generateDevisId(),
@@ -282,10 +317,84 @@
     setText('devisIdBadge', state.id);
 
     // ── ITEMS ──
+    // Champ « Modèle » : imposé selon le type (demande Nicolas), sauf Tablier (libre pour l'instant)
+    function modeleFieldHtml(item) {
+      if (item.type === 'screen') {
+        return `<div class="field"><label class="label">Modèle</label><input class="input field-readonly" data-f="modele" value="Coolscreen 8" readonly></div>`;
+      }
+      if (item.type === 'volet_roulant') {
+        return `<div class="field"><label class="label">Modèle</label><input class="input field-readonly" data-f="modele" value="VR150" readonly></div>`;
+      }
+      if (item.type === 'tente_solaire') {
+        const opts = ['BX270', 'LUX'].map(m => `<option value="${m}" ${item.modele === m ? 'selected' : ''}>${m}</option>`).join('');
+        return `<div class="field"><label class="label">Modèle</label><select class="select" data-f="modele"><option value="">—</option>${opts}</select></div>`;
+      }
+      // Tablier de volet : pas de référence catalogue fixée pour l'instant (à confirmer)
+      return `<div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Référence du tablier"></div>`;
+    }
+
+    // Champ « Moteur » générique — masqué pour Screen (le bloc Coolscreen 8 a son propre moteur précis)
+    function moteurFieldHtml(item) {
+      if (item.type === 'screen') return '';
+      const opt = (o, val, lbl) => `<option value="${val}" ${o===val?'selected':''}>${lbl}</option>`;
+      const motOpts = MOTEURS.map(m => opt(item.moteur || '', m, m || '—')).join('');
+      return `<div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>`;
+    }
+
+    // Dimensions caisson selon variante (confirmé catalogue : Standard = petit caisson, Solar/Led/Plus = grand caisson)
+    function caissonMesuresFor(variante) {
+      return variante === 'Standard' ? CS8_CAISSON_MESURES_STANDARD : CS8_CAISSON_MESURES_GRAND;
+    }
+
+    // Bloc de configuration détaillé Coolscreen 8 (reproduit le portail Harol)
+    function coolscreenBlockHtml(item) {
+      if (item.type !== 'screen') return '';
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      const combiOpts = CS8_COMBINAISONS.map(c => `<option value="${c.v}" ${item.combinaison === c.v ? 'selected' : ''}>${c.l}</option>`).join('');
+      const mesureOpts = opt(caissonMesuresFor(item.variante), item.caisson_mesure);
+      return `
+      <div class="cs8-block mt-4">
+        <div class="cs8-head">${icon('sliders', 14)} Configuration Coolscreen 8 <span class="badge badge-purple">Portail Harol</span></div>
+        <div class="grid grid-4">
+          <div class="field"><label class="label">Variante</label><select class="select" data-f="variante" onchange="onCS8VarianteChange('${item._id}'); ui_recalc()"><option value="">—</option>${opt(CS8_VARIANTES, item.variante)}</select></div>
+          <div class="field"><label class="label">Combinaison</label><select class="select" data-f="combinaison">${combiOpts}</select></div>
+          <div class="field"><label class="label">Latéralité</label><select class="select" data-f="lateralite">
+            <option value="Gauche" ${item.lateralite === 'Gauche' ? 'selected' : ''}>1 : Gauche</option>
+            <option value="Droite" ${item.lateralite === 'Droite' ? 'selected' : ''}>2 : Droite</option>
+          </select></div>
+          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur_ref"><option value="">—</option>${opt(CS8_MOTEURS, item.moteur_ref)}</select></div>
+        </div>
+        <div class="grid grid-4 mt-4">
+          <div class="field" style="grid-column:span 2;"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(CS8_COLLECTIONS, item.collection)}</select></div>
+          <div class="field"><label class="label">N° de toile</label><input class="input" data-f="toile_num" value="${item.toile_num || ''}" placeholder="Ex: 0101"></div>
+          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: grey / grey"></div>
+        </div>
+        <div class="grid grid-4 mt-4">
+          <div class="field"><label class="label">Caisson — forme</label><input class="input" data-f="caisson_forme" list="dl-caisson-forme" value="${item.caisson_forme || ''}" placeholder="Ex: Carré"></div>
+          <div class="field"><label class="label">Caisson — mesure</label><select class="select" data-f="caisson_mesure" id="cms-${item._id}"><option value="">—</option>${mesureOpts}</select></div>
+          <div class="field"><label class="label">Couleur caisson (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris nuit"></div>
+          <div class="field"><label class="label">Couleur lame finale (RAL)</label><input class="input" data-f="couleur_lame" list="dl-couleurs" value="${item.couleur_lame || ''}" placeholder="Ex: 7021 — Gris anthracite foncé"></div>
+        </div>
+        <div class="grid grid-4 mt-4">
+          <div class="field"><label class="label">Colmatage</label><select class="select" data-f="colmatage"><option value="">—</option>${opt(CS8_COLMATAGE, item.colmatage)}</select></div>
+          <div class="field field-check"><label><input type="checkbox" data-f="emetteur" ${item.emetteur ? 'checked' : ''}> Émetteur inclus</label></div>
+          <div class="field field-check"><label><input type="checkbox" data-f="panneau_solaire_separe" ${item.panneau_solaire_separe ? 'checked' : ''}> Panneau solaire séparé</label></div>
+          <div class="field field-check"><label><input type="checkbox" data-f="allongement_caisson" ${item.allongement_caisson ? 'checked' : ''}> Allongement caisson</label></div>
+        </div>
+      </div>`;
+    }
+
+    // La variante change → le jeu de dimensions caisson change (Standard = petit, Solar/Led/Plus = grand)
+    window.onCS8VarianteChange = (id) => {
+      const sel = el('cms-' + id); if (!sel) return;
+      const variante = document.querySelector(`[data-id="${id}"] [data-f="variante"]`)?.value;
+      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
+      sel.innerHTML = '<option value="">—</option>' + opt(caissonMesuresFor(variante), sel.value);
+    };
+
     function itemTemplate(item, idx) {
       const opt = (o, val, lbl) => `<option value="${val}" ${o===val?'selected':''}>${lbl}</option>`;
       const typeOpts = Object.entries(ITEM_TYPES).map(([v, l]) => opt(item.type, v, l)).join('');
-      const motOpts  = MOTEURS.map(m => opt(item.moteur || '', m, m || '—')).join('');
       const photos = (item.photos || []).map((p, pi) =>
         `<div class="photo-thumb"><img src="${p}" alt=""><button title="Retirer" aria-label="Retirer la photo" onclick="removePhoto('${item._id}',${pi})">✕</button></div>`).join('');
       return `
@@ -295,10 +404,10 @@
           <span class="item-sub" data-sub></span>
           <button class="btn btn-danger btn-sm" onclick="removeItem('${item._id}')">✕ Retirer</button>
         </div>
-        <div class="grid grid-4">
-          <div class="field"><label class="label">Type</label><select class="select" data-f="type">${typeOpts}</select></div>
-          <div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" list="dl-modeles" value="${item.modele || ''}" placeholder="Ex: Coolscreen 8 Solar"></div>
-          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur">${motOpts}</select></div>
+        <div class="grid grid-auto">
+          <div class="field"><label class="label">Type</label><select class="select" data-f="type" onchange="onItemTypeChange('${item._id}')">${typeOpts}</select></div>
+          ${modeleFieldHtml(item)}
+          ${moteurFieldHtml(item)}
           <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
         </div>
         <div class="grid grid-4 mt-4">
@@ -307,10 +416,12 @@
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" value="${item.etage || ''}" placeholder="RDC"></div>
         </div>
+        ${item.type !== 'screen' ? `
         <div class="grid grid-auto mt-4">
           <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris anthracite"></div>
           <div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>
-        </div>
+        </div>` : ''}
+        ${coolscreenBlockHtml(item)}
         <div class="grid grid-2 mt-4">
           <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
           <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${item.notes || ''}"></div>
@@ -321,6 +432,17 @@
         </div>
       </div>`;
     }
+
+    // Changement de type = jeu de champs différent → on redessine la carte
+    window.onItemTypeChange = (id) => {
+      const it = state.items.find(i => i._id === id);
+      const card = document.querySelector(`[data-id="${id}"]`);
+      if (!it || !card) return;
+      it.type = card.querySelector('[data-f="type"]').value;
+      it.modele = ''; // le modèle dépend du nouveau type, on repart propre
+      renderItems();
+      ui_recalc();
+    };
 
     let _uid = 0;
     window.addItem = (data = {}) => {
@@ -358,7 +480,8 @@
     function collectItem(it, card) {
       card.querySelectorAll('[data-f]').forEach(input => {
         const f = input.dataset.f;
-        if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht'].includes(f)) it[f] = parseFloat(input.value) || 0;
+        if (input.type === 'checkbox') it[f] = input.checked;
+        else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht'].includes(f)) it[f] = parseFloat(input.value) || 0;
         else it[f] = input.value;
       });
       // sous-titre live
@@ -569,6 +692,7 @@
     fillDatalist('dl-modeles', MODELES_CATALOGUE);
     fillDatalist('dl-couleurs', COULEURS_RAL);
     fillDatalist('dl-toiles', TOILES_CATALOGUE);
+    fillDatalist('dl-caisson-forme', CS8_CAISSON_FORMES);
 
     (async () => {
       if (qp('id')) await loadExisting(qp('id'));

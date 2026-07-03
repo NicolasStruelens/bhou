@@ -89,7 +89,7 @@
         const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
-        const meta = [it.moteur, it.couleur, it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        const meta = [it.variante, it.moteur || it.moteur_ref, it.couleur, it.toile || it.collection, it.emplacement, it.etage].filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
@@ -180,21 +180,7 @@
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
 
-        ${c.tva_pct === 6 ? `
-        <div class="pay-note" style="border-color:color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 10%, transparent);">
-          <strong style="color:var(--accent);">Attestation TVA 6 %</strong> — Le client soussigné, ${esc(cl.prenom)} ${esc(cl.nom)}${adresseComplete ? ', propriétaire ou locataire du bien situé ' + esc(adresseComplete) : ''},
-          déclare que ce bâtiment est principalement affecté au logement privé et achevé depuis plus de 10 ans, et que les travaux commandés relèvent de la rénovation, transformation, amélioration, réparation ou entretien de ce bâtiment,
-          ouvrant droit au taux réduit de TVA à 6 % conformément à la législation belge en vigueur. Cette déclaration est confirmée par la signature du client ci-dessous.
-        </div>` : ''}
-
-        <div class="terms">
-          <h4>Conditions générales de vente (extrait)</h4>
-          <strong>Commande</strong> — Devis valable ${VALIDITE_JOURS} jours. Commande ferme à réception de l'acompte (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.<br>
-          <strong>Prix et paiement</strong> — Prix en euros TVA comprise. Acompte de ${c.acompte_pct} % à la commande, solde payable le jour de l'installation (virement instantané ou carte). Tout retard de paiement entraîne de plein droit des intérêts au taux légal majoré de 10 %, ainsi qu'une indemnité forfaitaire de 15 % du montant dû (minimum 150 €).<br>
-          <strong>Garantie</strong> — Produits Harol : 5 ans · Moteurs RTS &amp; IO : 5 ans · Moteurs solaires et batteries Somfy : 7 ans · Autres moteurs solaires et batteries : 5 ans. La garantie ne couvre pas une mauvaise utilisation, l'absence d'entretien, ni les dommages causés par un tiers ou une catastrophe naturelle.<br>
-          <strong>Annulation</strong> — Nos produits étant fabriqués sur mesure, toute annulation après confirmation de commande donne lieu à une indemnité forfaitaire : 10 % du montant TTC avant commande des marchandises auprès du fournisseur, ou 100 % du prix TTC des marchandises sur mesure déjà commandées. Les acomptes versés restent acquis à titre de minimum forfaitaire.<br>
-          <strong>Litiges</strong> — Droit belge, tribunaux de ${esc(COMPANY.court)}. Conditions générales complètes disponibles sur demande.
-        </div>
+        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
 
         <div class="partners">
           <span class="lbl">Partenaires</span>
@@ -211,20 +197,76 @@
       `;
     }
 
+    // ── Annexe : Conditions Générales de Vente (statique, toujours jointe) ──
+    function cgvPaper() {
+      return `<div class="paper">
+        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div>
+        <div class="cgv-body">
+          <h5>1. Objet &amp; commande</h5>
+          Les présentes conditions régissent la vente, la livraison et l'installation des produits proposés par ${esc(COMPANY.name)}. Toute commande implique l'adhésion pleine et entière du client. Le devis est valable ${VALIDITE_JOURS} jours et doit être confirmé par écrit (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.
+          <h5>2. Prix &amp; paiement</h5>
+          Prix en euros, TVA comprise. Sauf mention contraire sur le devis, un acompte est dû à la commande pour valider le projet et lancer la fabrication ; le solde est payable le jour de l'installation, immédiatement après la fin des travaux, par virement instantané ou paiement par carte. Tout retard de paiement entraîne de plein droit et sans mise en demeure préalable des intérêts de retard au taux légal majoré de 10 %, ainsi qu'une indemnité forfaitaire de 15 % du montant dû (minimum 150 €).
+          <h5>3. Livraison &amp; installation</h5>
+          Les délais sont donnés à titre indicatif et ne peuvent donner droit à des dommages-intérêts, sauf faute lourde de ${esc(COMPANY.name)}. Le client doit assurer l'accessibilité du lieu d'installation. Les installations sont réalisées selon les règles de l'art ; pour les tentes solaires, ${esc(COMPANY.name)} décide seul de la faisabilité et celles-ci ne doivent jamais rester ouvertes en cas de vent.
+          <h5>4. Garantie</h5>
+          Produits Harol : 5 ans · Moteurs RTS &amp; IO : 5 ans · Moteurs solaires et batteries Somfy : 7 ans · Autres moteurs solaires et batteries : 5 ans. La garantie ne couvre pas une mauvaise utilisation, l'absence d'entretien, ni les dommages causés par un tiers ou une catastrophe naturelle.
+          <h5>5. Responsabilité &amp; réclamations</h5>
+          ${esc(COMPANY.name)} ne peut être tenu responsable des dommages indirects, ni d'une installation électrique défectueuse du client. Toute réclamation doit être faite par écrit dans les 7 jours suivant la livraison ou l'installation.
+          <h5>6. Annulation — commandes sur mesure</h5>
+          Nos produits étant fabriqués sur mesure, toute annulation après confirmation de commande donne lieu à une indemnité forfaitaire : 10 % du montant TTC en cas d'annulation avant la commande des marchandises auprès du fournisseur, ou 100 % du prix TTC des marchandises sur mesure déjà commandées (hors installation et prestations non réalisées). Les acomptes versés restent acquis à ${esc(COMPANY.name)} à titre de minimum forfaitaire.
+          <h5>7. Litiges</h5>
+          Les présentes conditions sont soumises au droit belge. Tout litige relève des tribunaux de ${esc(COMPANY.court)}.
+        </div>
+        <div class="signatures">
+          <div class="sig-box"><h4>Le client</h4><div class="hint">Mention « Lu et approuvé », date et signature</div></div>
+          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
+        </div>
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.legal)} · TVA ${esc(COMPANY.tva)}</div>
+      </div>`;
+    }
+
+    // ── Annexe : Attestation TVA 6 % (uniquement si le devis est à 6 %) ──
+    function tvaPaper() {
+      if (CALC.tva_pct !== 6) return '';
+      const cl = DEVIS.client || {};
+      const adr = cl.adresse || {};
+      const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      return `<div class="paper">
+        <div class="doc-head"><div class="co-name"><span class="b">Attestation</span> <span class="g">TVA 6 %</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div>
+        <div class="cgv-body" style="font-size:var(--fs-sm);color:var(--text);margin-top:var(--sp-6);">
+          Je soussigné(e) <strong>${esc(cl.prenom)} ${esc(cl.nom)}</strong>, propriétaire ou locataire du bâtiment situé
+          ${adresseComplete ? '<strong>' + esc(adresseComplete) + '</strong>' : '……………………………………………'},
+          déclare que ce bâtiment est principalement affecté à l'habitation privée et qu'il a été achevé depuis plus de 10 ans.
+          <br><br>
+          Je confirme que les travaux commandés concernent la rénovation, transformation, amélioration, réparation ou entretien de ce bâtiment et peuvent donc bénéficier du taux réduit de TVA à 6 % conformément à la législation belge en vigueur.
+        </div>
+        <div class="signatures" style="margin-top:var(--sp-7);">
+          <div class="sig-box"><h4>Date</h4><div class="hint">……… / ……… / ……………</div></div>
+          <div class="sig-box"><h4>Signature du client</h4><div class="hint">Précédée de la mention « Lu et approuvé »</div></div>
+        </div>
+      </div>`;
+    }
+
     window.renderPhotos = function () {
       const on = el('togglePhotos').checked;
       const annex = el('annex');
-      if (!on || !DEVIS) { annex.innerHTML = ''; return; }
-      const items = DEVIS.items || [];
-      let cells = '';
-      items.forEach((it, i) => {
-        (it.photos || []).forEach((p, pi) => {
-          cells += `<div class="photo-item"><img src="${p}" alt=""><div class="cap">Ouverture #${i + 1}${it.emplacement ? ' — ' + esc(it.emplacement) : ''} · photo ${pi + 1}</div></div>`;
+      if (!DEVIS) { annex.innerHTML = ''; return; }
+
+      let photosPaper = '';
+      if (on) {
+        const items = DEVIS.items || [];
+        let cells = '';
+        items.forEach((it, i) => {
+          (it.photos || []).forEach((p, pi) => {
+            cells += `<div class="photo-item"><img src="${p}" alt=""><div class="cap">Ouverture #${i + 1}${it.emplacement ? ' — ' + esc(it.emplacement) : ''} · photo ${pi + 1}</div></div>`;
+          });
         });
-      });
-      annex.innerHTML = cells
-        ? `<div class="paper"><div class="doc-head" style="border-color:var(--accent-2);"><div class="co-name"><span class="b">Annexe</span> <span class="g">photos</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div><div class="photo-grid" style="margin-top:var(--sp-5);">${cells}</div></div>`
-        : '<div class="paper" style="text-align:center;color:var(--text-muted);">Aucune photo sur ce devis.</div>';
+        photosPaper = cells
+          ? `<div class="paper"><div class="doc-head" style="border-color:var(--accent-2);"><div class="co-name"><span class="b">Annexe</span> <span class="g">photos</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div><div class="photo-grid" style="margin-top:var(--sp-5);">${cells}</div></div>`
+          : '<div class="paper" style="text-align:center;color:var(--text-muted);">Aucune photo sur ce devis.</div>';
+      }
+
+      annex.innerHTML = cgvPaper() + tvaPaper() + photosPaper;
     };
 
     // ── Chargement ──
@@ -236,6 +278,7 @@
       el('editLink').href = 'simulateur.html?id=' + id;
       CALC = getCalc(DEVIS);
       renderPaper();
+      renderPhotos(); // affiche aussi les annexes CGV / attestation TVA dès le chargement
     })();
   </script>
 </body>
