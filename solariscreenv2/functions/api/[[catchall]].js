@@ -41,6 +41,8 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.archive')        AS INTEGER), 0) AS archive,
                IFNULL(CAST(json_extract(data, '$.informatif')      AS INTEGER), 0) AS informatif,
                IFNULL(CAST(json_extract(data, '$.portfolio')       AS INTEGER), 0) AS portfolio,
+               IFNULL(CAST(json_extract(data, '$.calculs.nicolas_net') AS REAL), 0) AS nicolas_net,
+               IFNULL(CAST(json_extract(data, '$.calculs.yannick_net') AS REAL), 0) AS yannick_net,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
@@ -161,6 +163,11 @@ export async function onRequest(context) {
       stats.taux_conversion = stats.envoyes > 0 ? Math.round((stats.signes / stats.envoyes) * 100) : 0;
       stats.ca_moyen = stats.total > 0 ? Math.round(stats.ca_total_ttc / stats.total) : 0;
       return json({ ok: true, data: stats });
+    }
+
+    // ══════════ IDENTITÉ (qui est connecté via Cloudflare Access) ══════════
+    if (path === '/api/whoami') {
+      return json({ ok: true, data: { email: parseAccessEmail(request) } });
     }
 
     // ══════════ HEALTH ══════════
