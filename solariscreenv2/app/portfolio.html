@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Portfolio de réalisations</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .toolbar .search { flex: 1; min-width: 220px; position: relative; }
+    .toolbar .search input { padding-left: 2.2rem; }
+    .toolbar .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .chip { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
+    .chip:hover { border-color: var(--accent-2); color: var(--accent-2); }
+    .chip.active { background: var(--accent-2); color: var(--bg); border-color: var(--accent-2); }
+
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    .empty .big { display: flex; justify-content: center; margin-bottom: var(--sp-3); color: var(--text-subtle); }
+
+    /* ── Grille de réalisations ── */
+    .pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-4); }
+    .pf-card { cursor: pointer; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); transition: all var(--t-fast); position: relative; --tick-color: var(--accent-2); }
+    .pf-card:hover { border-color: var(--accent-2); box-shadow: var(--glow-soft); transform: translateY(-2px); }
+    .pf-cover { aspect-ratio: 4 / 3; overflow: hidden; background: var(--surface-3, var(--surface)); }
+    .pf-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--t-base); }
+    .pf-card:hover .pf-cover img { transform: scale(1.06); }
+    .pf-count { position: absolute; top: 8px; right: 8px; background: rgba(4,8,20,0.65); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-pill); display: flex; align-items: center; gap: 0.3rem; }
+    .pf-meta { padding: var(--sp-3); }
+    .pf-type { font-weight: 700; font-size: var(--fs-sm); color: var(--text); }
+    .pf-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Lightbox (identique à la fiche devis) ── */
+    .lightbox {
+      position: fixed; inset: 0; z-index: 9000; display: none;
+      align-items: center; justify-content: center; flex-direction: column; gap: var(--sp-3);
+      background: rgba(4, 8, 20, 0.88); backdrop-filter: blur(8px);
+    }
+    .lightbox.open { display: flex; animation: lb-in 0.18s ease; }
+    @keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+    .lightbox img {
+      max-width: 88vw; max-height: 74vh; border-radius: var(--r-md);
+      border: 1px solid var(--border-strong); box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .lb-cap { font-family: var(--font-mono); font-size: var(--fs-xs); color: #cfe0ff; letter-spacing: 0.03em; text-align: center; }
+    .lb-cap .lb-link { color: var(--accent-2); margin-left: var(--sp-2); }
+    .lb-btn {
+      position: absolute; width: 44px; height: 44px; border-radius: var(--r-round);
+      display: grid; place-items: center; cursor: pointer;
+      background: rgba(14, 21, 48, 0.8); color: #e9eefb; border: 1px solid rgba(77,139,255,0.4);
+      transition: all var(--t-fast);
+    }
+    .lb-btn:hover { border-color: #4d8bff; box-shadow: 0 0 14px rgba(77,139,255,0.35); }
+    .lb-close { top: 18px; right: 18px; }
+    .lb-prev { left: 18px; top: 50%; transform: translateY(-50%); }
+    .lb-next { right: 18px; top: 50%; transform: translateY(-50%); }
+    .lb-count { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: var(--fs-2xs); color: #8fa8d8; letter-spacing: 0.1em; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Portfolio de réalisations</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <label for="search" class="sr-only">Rechercher dans le portfolio</label>
+        <input class="input" id="search" placeholder="Rechercher une ville, un modèle, une couleur, un client…" oninput="render()">
+      </div>
+      <select class="select" id="sort" style="max-width:200px;" onchange="render()" aria-label="Trier les réalisations">
+        <option value="recent">Tri : récents d'abord</option>
+        <option value="ville">Tri : ville A→Z</option>
+      </select>
+    </div>
+    <div class="filters" id="typeFilters"></div>
+
+    <section class="section">
+      <div class="section-head">
+        <span class="section-title">Réalisations</span>
+        <span class="section-code">SS // PORTFOLIO</span>
+        <span class="section-sub" id="resultCount">—</span>
+      </div>
+      <div class="section-body">
+        <div id="grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ══════ LIGHTBOX ══════ -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-label="Photo agrandie">
+    <div class="lb-count" id="lbCount"></div>
+    <button class="lb-btn lb-close" onclick="lbClose()" aria-label="Fermer">✕</button>
+    <button class="lb-btn lb-prev" onclick="lbNav(-1)" aria-label="Photo précédente">‹</button>
+    <img id="lbImg" src="" alt="Photo de la réalisation">
+    <div class="lb-cap" id="lbCap"></div>
+    <button class="lb-btn lb-next" onclick="lbNav(1)" aria-label="Photo suivante">›</button>
+  </div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, setText, normDevis, icon } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    let ENTRIES = [], VISIBLE = [], activeType = 'tous';
+    let lbPhotos = [], lbIdx = 0;
+
+    async function loadEntries() {
+      const raw = await SS.listDevis();
+      const eligible = (raw || []).map(normDevis).filter(d => d.statut === 'termine' && d.portfolio);
+      const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
+      const entries = [];
+      fulls.filter(Boolean).forEach(d => {
+        const cl = d.client || {}, adr = cl.adresse || {};
+        (d.items || []).forEach((it, i) => {
+          const photos = it.photos || [];
+          if (!photos.length) return;
+          entries.push({
+            devisId: d.id, itemIndex: i,
+            type: it.type, modele: it.modele, variante: it.variante,
+            couleur: it.couleur || it.couleur_lame || '', toile: it.toile || it.toile_couleur || '',
+            ville: adr.ville || '', client: [cl.prenom, cl.nom].filter(Boolean).join(' '),
+            date: d.date_modification || d.date_creation || '',
+            photos,
+          });
+        });
+      });
+      return entries;
+    }
+
+    function kpis() {
+      const nbPhotos = ENTRIES.reduce((s, e) => s + e.photos.length, 0);
+      const villes = new Set(ENTRIES.map(e => e.ville).filter(Boolean));
+      el('kpis').innerHTML = `
+        <div class="kpi ticked gold"><div class="kpi-label">Réalisations</div><div class="kpi-value">${ENTRIES.length}</div><div class="kpi-sub">ouvertures avec photos</div></div>
+        <div class="kpi ticked accent"><div class="kpi-label">Photos</div><div class="kpi-value">${nbPhotos}</div><div class="kpi-sub">dans le portfolio</div></div>
+        <div class="kpi ticked"><div class="kpi-label">Villes</div><div class="kpi-value">${villes.size}</div><div class="kpi-sub">chantiers différents</div></div>`;
+    }
+
+    function typeFilters() {
+      const present = Array.from(new Set(ENTRIES.map(e => e.type)));
+      const chips = [['tous', 'Tous']].concat(present.map(t => [t, TYPE_LABEL[t] || t]));
+      el('typeFilters').innerHTML = chips.map(([k, label]) =>
+        `<button class="chip ${activeType === k ? 'active' : ''}" onclick="setTypeFilter('${k}')">${esc(label)}</button>`
+      ).join('');
+    }
+    window.setTypeFilter = (k) => { activeType = k; render(); };
+
+    function render() {
+      const q = (el('search').value || '').trim().toLowerCase();
+      const sort = el('sort').value;
+      VISIBLE = ENTRIES.filter(e => {
+        if (activeType !== 'tous' && e.type !== activeType) return false;
+        if (!q) return true;
+        const hay = [TYPE_LABEL[e.type], e.modele, e.variante, e.couleur, e.toile, e.ville, e.client].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+      VISIBLE.sort((a, b) => sort === 'ville' ? (a.ville || '').localeCompare(b.ville || '') : String(b.date).localeCompare(String(a.date)));
+
+      setText('resultCount', VISIBLE.length + ' résultat(s)');
+      typeFilters();
+
+      if (!VISIBLE.length) {
+        el('grid').innerHTML = `<div class="empty"><div class="big">${icon('image', 40)}</div>
+          ${ENTRIES.length ? 'Aucune réalisation ne correspond à ta recherche.' : `Aucune réalisation dans le portfolio pour l'instant.<br>Depuis la fiche d'un devis <strong>terminé</strong> avec photos, clique « Ajouter au portfolio ».`}</div>`;
+        return;
+      }
+      el('grid').innerHTML = `<div class="pf-grid">${VISIBLE.map((e, i) => `
+        <div class="pf-card ticked" onclick="openEntry(${i})">
+          <div class="pf-cover"><img src="${e.photos[0]}" alt="" loading="lazy"></div>
+          ${e.photos.length > 1 ? `<span class="pf-count">${icon('image', 11)} ${e.photos.length}</span>` : ''}
+          <div class="pf-meta">
+            <div class="pf-type">${esc(TYPE_LABEL[e.type] || e.type)}${e.modele ? ' — ' + esc(e.modele) : ''}</div>
+            <div class="pf-sub">${esc([e.couleur, e.ville].filter(Boolean).join(' · ') || '—')}</div>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+
+    // ── Lightbox : parcourt toutes les photos de l'entrée cliquée ──
+    window.openEntry = (i) => {
+      const e = VISIBLE[i];
+      lbPhotos = e.photos.map((src, pi) => ({
+        src,
+        cap: `${TYPE_LABEL[e.type] || e.type}${e.modele ? ' — ' + e.modele : ''} · photo ${pi + 1}/${e.photos.length}`,
+        devisId: e.devisId,
+      }));
+      lbIdx = 0;
+      lbShow();
+      el('lightbox').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    };
+    window.lbClose = () => { el('lightbox').classList.remove('open'); document.body.style.overflow = ''; };
+    window.lbNav = (dir) => { lbIdx = (lbIdx + dir + lbPhotos.length) % lbPhotos.length; lbShow(); };
+    function lbShow() {
+      const p = lbPhotos[lbIdx];
+      el('lbImg').src = p.src;
+      el('lbCap').innerHTML = `${esc(p.cap)} <a class="lb-link" href="vue.html?id=${p.devisId}">Voir la fiche →</a>`;
+      setText('lbCount', (lbIdx + 1) + ' / ' + lbPhotos.length);
+      const multi = lbPhotos.length > 1 ? '' : 'none';
+      document.querySelector('.lb-prev').style.display = multi;
+      document.querySelector('.lb-next').style.display = multi;
+    }
+    el('lightbox').addEventListener('click', (e) => { if (e.target === el('lightbox')) lbClose(); });
+    document.addEventListener('keydown', (e) => {
+      if (!el('lightbox').classList.contains('open')) return;
+      if (e.key === 'Escape') lbClose();
+      if (e.key === 'ArrowLeft') lbNav(-1);
+      if (e.key === 'ArrowRight') lbNav(1);
+    });
+
+    (async () => {
+      ENTRIES = await loadEntries();
+      kpis();
+      render();
+    })();
+  </script>
+</body>
+</html>
