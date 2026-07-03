@@ -32,9 +32,22 @@
     .crm-detail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-sm); min-height: 300px; --tick-color: var(--accent-2); }
     .detail-head { padding: var(--sp-5); border-bottom: 1px solid var(--border); display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
     .detail-head .avatar { width: 52px; height: 52px; font-size: var(--fs-md); }
-    .detail-head h2 { font-family: var(--font-display); font-size: var(--fs-xl); }
+    .detail-head h2 { font-family: var(--font-display); font-size: var(--fs-xl); display: inline-flex; align-items: center; gap: var(--sp-2); }
+    .detail-head h2 .ci-copy { opacity: 0.5; }
+    .detail-head h2:hover .ci-copy { opacity: 1; }
     .detail-head .actions { margin-left: auto; display: flex; gap: var(--sp-2); flex-wrap: wrap; }
     .detail-body { padding: var(--sp-5); }
+
+    /* ── Copier-coller rapide sur les champs de contact ── */
+    .input-copy-wrap { position: relative; }
+    .input-copy-wrap input { padding-right: 2.1rem; }
+    .ci-copy { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border: none; border-radius: var(--r-sm); background: none; color: var(--text-subtle); cursor: pointer; transition: all var(--t-fast); }
+    .ci-copy:hover { color: var(--accent-2); background: var(--surface-2); }
+    .input-copy-wrap .ci-copy { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); }
+    .hist-row .hm { cursor: pointer; }
+    .hist-row .hm:hover { color: var(--accent-2); }
+    .mini-kpi .v.v-copy { cursor: pointer; }
+    .mini-kpi .v.v-copy:hover { color: var(--accent-2); }
 
     .mini-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-5); }
     @media (max-width: 620px) { .mini-kpis { grid-template-columns: repeat(2, 1fr); } }
@@ -60,6 +73,7 @@
     </div>
     <div class="header-actions">
       <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> Dashboard</a>
+      <span id="quickNav"></span>
       <span id="themeToggle"></span>
       <button class="btn btn-primary btn-sm" onclick="newClient()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau client</button>
     </div>
@@ -92,11 +106,13 @@
   </main>
 
   <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, fmtDate, el, toast, icon } = window.SSUI;
+    window.SSNav.mount(document.getElementById('quickNav'));
     mountThemeToggle(document.getElementById('themeToggle'));
 
     const STATUSES = {
@@ -200,7 +216,7 @@
         return (b.stats.last || '').localeCompare(a.stats.last || '');
       });
       el('list').innerHTML = rows.length ? rows.map(c => `
-        <div class="crm-item ${c.key === selectedKey ? 'active' : ''}" onclick="renderDetail('${encodeURIComponent(c.key)}')">
+        <div class="crm-item ${c.key === selectedKey ? 'active' : ''}" onclick="renderDetail(${SSUI.jsAttr(c.key)})">
           <div class="avatar">${esc(initials(c.contact.prenom, c.contact.nom)).toUpperCase()}</div>
           <div class="ci-main">
             <div class="ci-name">${esc(c.contact.prenom)} ${esc(c.contact.nom)}</div>
@@ -210,8 +226,7 @@
         </div>`).join('') : '<div class="empty-detail-msg">Aucun client.</div>';
     }
 
-    window.renderDetail = function (encKey) {
-      const key = decodeURIComponent(encKey);
+    window.renderDetail = function (key) {
       selectedKey = key;
       const c = DIRECTORY.find(x => x.key === key);
       renderList();
@@ -223,29 +238,29 @@
         <div class="detail-head">
           <div class="avatar">${esc(initials(ct.prenom, ct.nom)).toUpperCase()}</div>
           <div>
-            <h2>${esc(ct.prenom)} ${esc(ct.nom)}</h2>
+            <h2>${esc(ct.prenom)} ${esc(ct.nom)}<button class="ci-copy" onclick="ssCopy(${SSUI.jsAttr(((ct.prenom || '') + ' ' + (ct.nom || '')).trim())}, ${SSUI.jsAttr('Nom')})" title="Copier le nom" aria-label="Copier le nom">${icon('copy', 13)}</button></h2>
             <div class="text-muted" style="font-size:var(--fs-2xs)">${c.stats.count} devis · dernier ${fmtDate(c.stats.last)}</div>
             ${(ct.tags || []).length ? `<div class="row wrap" style="gap:0.3rem;margin-top:0.4rem;">${ct.tags.map(t => `<span class="badge badge-purple">${esc(t)}</span>`).join('')}</div>` : ''}
           </div>
           <div class="actions">
-            <button class="btn btn-primary btn-sm" onclick="newDevisFor('${encodeURIComponent(key)}')">${icon('plus', 14)} Nouveau devis</button>
+            <button class="btn btn-primary btn-sm" onclick="newDevisFor(${SSUI.jsAttr(key)})">${icon('plus', 14)} Nouveau devis</button>
           </div>
         </div>
         <div class="detail-body">
           <div class="mini-kpis">
             <div class="mini-kpi ticked"><div class="v">${c.stats.count}</div><div class="l">Devis</div></div>
             <div class="mini-kpi ticked"><div class="v">${c.stats.signes}</div><div class="l">Signés</div></div>
-            <div class="mini-kpi ticked" style="--tick-color:var(--accent-2);"><div class="v" style="color:var(--accent-2)">${fmtEur(c.stats.ca)}</div><div class="l">CA total</div></div>
-            <div class="mini-kpi ticked" style="--tick-color:var(--ok);"><div class="v" style="color:var(--ok)">${fmtEur(c.stats.caSigne)}</div><div class="l">CA signé</div></div>
+            <div class="mini-kpi ticked" style="--tick-color:var(--accent-2);"><div class="v v-copy" style="color:var(--accent-2)" onclick="ssCopy(${SSUI.jsAttr(fmtEur(c.stats.ca))}, ${SSUI.jsAttr('CA total')})" title="Copier">${fmtEur(c.stats.ca)}</div><div class="l">CA total</div></div>
+            <div class="mini-kpi ticked" style="--tick-color:var(--ok);"><div class="v v-copy" style="color:var(--ok)" onclick="ssCopy(${SSUI.jsAttr(fmtEur(c.stats.caSigne))}, ${SSUI.jsAttr('CA signé')})" title="Copier">${fmtEur(c.stats.caSigne)}</div><div class="l">CA signé</div></div>
           </div>
 
           <div class="subhead" style="border:none;margin-top:0;padding-top:0;">Coordonnées</div>
           <div class="grid grid-2">
             <div class="field"><label class="label" for="f_prenom">Prénom</label><input class="input" id="f_prenom" value="${esc(ct.prenom)}"></div>
             <div class="field"><label class="label" for="f_nom">Nom</label><input class="input" id="f_nom" value="${esc(ct.nom)}"></div>
-            <div class="field"><label class="label" for="f_tel">Téléphone</label><input class="input" id="f_tel" value="${esc(ct.telephone)}"></div>
-            <div class="field"><label class="label" for="f_email">Email</label><input class="input" id="f_email" value="${esc(ct.email)}"></div>
-            <div class="field" style="grid-column:span 2;"><label class="label" for="f_rue">Rue & numéro</label><input class="input" id="f_rue" value="${esc((adr.rue || '') + (adr.numero ? ' ' + adr.numero : ''))}"></div>
+            <div class="field"><label class="label" for="f_tel">Téléphone</label><div class="input-copy-wrap"><input class="input" id="f_tel" value="${esc(ct.telephone)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_tel').value, 'Téléphone')" title="Copier" aria-label="Copier le téléphone">${icon('copy', 13)}</button></div></div>
+            <div class="field"><label class="label" for="f_email">Email</label><div class="input-copy-wrap"><input class="input" id="f_email" value="${esc(ct.email)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_email').value, 'Email')" title="Copier" aria-label="Copier l'email">${icon('copy', 13)}</button></div></div>
+            <div class="field" style="grid-column:span 2;"><label class="label" for="f_rue">Rue & numéro</label><div class="input-copy-wrap"><input class="input" id="f_rue" value="${esc((adr.rue || '') + (adr.numero ? ' ' + adr.numero : ''))}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_rue').value, 'Adresse')" title="Copier" aria-label="Copier l'adresse">${icon('copy', 13)}</button></div></div>
             <div class="field"><label class="label" for="f_cp">Code postal</label><input class="input" id="f_cp" value="${esc(adr.code_postal)}"></div>
             <div class="field"><label class="label" for="f_ville">Ville</label><input class="input" id="f_ville" value="${esc(adr.ville)}"></div>
             <div class="field"><label class="label" for="f_tags">Tags (séparés par ,)</label><input class="input" id="f_tags" value="${esc((ct.tags || []).join(', '))}"></div>
@@ -253,8 +268,8 @@
             <div class="field" style="grid-column:span 2;"><label class="label" for="f_notes">Notes internes</label><textarea class="textarea" id="f_notes" placeholder="Préférences, infos chantier, suivi…">${esc(ct.notes)}</textarea></div>
           </div>
           <div class="row mt-4" style="gap:var(--sp-2);">
-            <button class="btn btn-primary btn-sm" onclick="saveFiche('${encodeURIComponent(key)}')">${icon('save', 14)} Enregistrer la fiche</button>
-            ${c.overlay ? `<button class="btn btn-danger btn-sm" onclick="deleteFiche('${encodeURIComponent(key)}')">${icon('trash', 14)} Supprimer la fiche</button>` : ''}
+            <button class="btn btn-primary btn-sm" onclick="saveFiche(${SSUI.jsAttr(key)})">${icon('save', 14)} Enregistrer la fiche</button>
+            ${c.overlay ? `<button class="btn btn-danger btn-sm" onclick="deleteFiche(${SSUI.jsAttr(key)})">${icon('trash', 14)} Supprimer la fiche</button>` : ''}
           </div>
 
           <div class="subhead">Historique des devis (${c.devis.length})</div>
@@ -262,7 +277,7 @@
             <div class="hist-row">
               <div>${badge(d.statut)}</div>
               <div><span class="hid">#${d.id}</span><br><span class="text-muted" style="font-size:var(--fs-2xs)">${fmtDate(d.date)}</span></div>
-              <div class="hm">${fmtEur(d.ttc)}</div>
+              <div class="hm" onclick="ssCopy(${SSUI.jsAttr(fmtEur(d.ttc))}, ${SSUI.jsAttr('Montant TVAC')})" title="Copier le montant">${fmtEur(d.ttc)}</div>
               <div class="row" style="gap:0.3rem;">
                 <button class="btn btn-ghost btn-sm" title="Fiche du devis" aria-label="Fiche du devis ${d.id}" onclick="location.href='vue.html?id=${d.id}'">${icon('window', 14)}</button>
                 <button class="btn btn-ghost btn-sm" title="Document client / PDF" aria-label="Document client du devis ${d.id}" onclick="location.href='devis.html?id=${d.id}'">${icon('filetext', 14)}</button>
@@ -272,8 +287,7 @@
         </div>`;
     };
 
-    window.saveFiche = async function (encKey) {
-      const key = decodeURIComponent(encKey);
+    window.saveFiche = async function (key) {
       const rue = el('f_rue').value.trim();
       const m = rue.match(/^(.*?)(\s+(\d+\w*))?$/);
       const client = {
@@ -289,12 +303,12 @@
       const res = await SS.saveClient(client);
       toast(res.offline ? 'Fiche enregistrée (hors-ligne)' : 'Fiche enregistrée ✓', res.offline ? 'warn' : 'ok');
       await load();
-      renderDetail(encKey);
+      renderDetail(key);
     };
 
-    window.deleteFiche = async function (encKey) {
+    window.deleteFiche = async function (key) {
       if (!confirm('Supprimer la fiche client ? (les devis ne sont pas supprimés)')) return;
-      await SS.deleteClient(decodeURIComponent(encKey));
+      await SS.deleteClient(key);
       selectedKey = null;
       toast('Fiche supprimée', 'warn');
       el('detail').classList.add('empty-detail');
@@ -302,8 +316,8 @@
       await load();
     };
 
-    window.newDevisFor = function (encKey) {
-      const c = DIRECTORY.find(x => x.key === decodeURIComponent(encKey));
+    window.newDevisFor = function (key) {
+      const c = DIRECTORY.find(x => x.key === key);
       if (c) sessionStorage.setItem('ss_prefill_client', JSON.stringify(c.contact));
       location.href = 'simulateur.html';
     };
@@ -316,7 +330,7 @@
       await SS.saveClient({ key, prenom: prenom.trim(), nom: nom.trim(), tags: [], notes: '', date_creation: new Date().toISOString(), date_modification: new Date().toISOString() });
       toast('Client créé ✓', 'ok');
       await load();
-      renderDetail(encodeURIComponent(key));
+      renderDetail(key);
     };
 
     SS.isOnline(); // log état

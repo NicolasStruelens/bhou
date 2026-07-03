@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Statistiques</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--sp-4); align-items: start; }
+    .stats-grid .section { margin: 0; }
+
+    /* ── Barres horizontales (répartition) ── */
+    .bar-row { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+    .bar-row:last-child { margin-bottom: 0; }
+    .bar-label { width: 130px; flex: none; font-size: var(--fs-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { flex: 1; height: 10px; background: var(--surface-2); border-radius: var(--r-pill); overflow: hidden; border: 1px solid var(--border); }
+    .bar-fill { height: 100%; border-radius: var(--r-pill); background: var(--accent); transition: width var(--t-base); }
+    .bar-value { width: 118px; flex: none; text-align: right; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); }
+
+    /* ── Graphe mensuel (barres verticales) ── */
+    .month-chart { display: flex; align-items: flex-end; gap: 0.4rem; height: 140px; padding-top: var(--sp-3); }
+    .month-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 0.35rem; min-width: 0; }
+    .month-bar { width: 100%; max-width: 28px; border-radius: 3px 3px 0 0; background: var(--accent); min-height: 2px; transition: height var(--t-base); cursor: default; }
+    .month-bar.gold { background: var(--accent-2); }
+    .month-lbl { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); text-transform: uppercase; white-space: nowrap; }
+
+    .rank-row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px dashed var(--border); }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-no { width: 22px; flex: none; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); }
+    .rank-name { flex: 1; min-width: 0; font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .rank-value { flex: none; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; color: var(--accent-2); }
+
+    .empty-mini { text-align: center; color: var(--text-subtle); font-size: var(--fs-sm); padding: var(--sp-5) 0; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Statistiques</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="stats-grid">
+      <section class="section ticked">
+        <div class="section-head"><span class="section-title">Répartition par statut</span><span class="section-code">SS // FUNNEL</span></div>
+        <div class="section-body" id="byStatus"></div>
+      </section>
+
+      <section class="section ticked" style="--tick-color:var(--accent-2);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Paiements</span><span class="section-code">SS // ENCAISSEMENT</span></div>
+        <div class="section-body" id="payments"></div>
+      </section>
+
+      <section class="section ticked" style="grid-column:1 / -1;">
+        <div class="section-head"><span class="section-title">Devis créés par mois</span><span class="section-code">SS // 12 MOIS</span></div>
+        <div class="section-body" id="monthlyCreated"></div>
+      </section>
+
+      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-2);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Encaissé par mois (paiements reçus)</span><span class="section-code">SS // 12 MOIS</span></div>
+        <div class="section-body" id="monthlyPaid"></div>
+      </section>
+
+      <section class="section ticked">
+        <div class="section-head"><span class="section-title">Répartition par type de produit</span><span class="section-code">SS // CATALOGUE</span></div>
+        <div class="section-body" id="byType"></div>
+      </section>
+
+      <section class="section ticked" style="--tick-color:var(--accent-3);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Performance par vendeur</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
+        <div class="section-body" id="bySeller"></div>
+      </section>
+
+      <section class="section ticked">
+        <div class="section-head"><span class="section-title">Top clients</span><span class="section-code">SS // CA</span></div>
+        <div class="section-body" id="topClients"></div>
+      </section>
+
+      <section class="section ticked">
+        <div class="section-head"><span class="section-title">Répartition géographique</span><span class="section-code">SS // VILLES</span></div>
+        <div class="section-body" id="byCity"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtEur, fmtDate, el, setText, normDevis, icon } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const STATUSES = {
+      brouillon:     { label: 'Brouillon',  color: 'var(--text-subtle)' },
+      envoye_client: { label: 'Envoyé',     color: 'var(--accent)' },
+      relance_1:     { label: 'Relance 1',  color: 'var(--warn)' },
+      relance_2:     { label: 'Relance 2',  color: 'var(--warn)' },
+      signe:         { label: 'Signé',      color: 'var(--ok)' },
+      termine:       { label: 'Terminé',    color: 'var(--accent-2)' },
+      refuse:        { label: 'Refusé',     color: 'var(--danger)' },
+      annule:        { label: 'Annulé',     color: 'var(--text-subtle)' },
+    };
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    const monthKey = iso => { const d = new Date(iso); return isNaN(d) ? null : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+    const monthLabel = key => { const [y, m] = key.split('-'); return new Date(y, m - 1, 1).toLocaleDateString('fr-BE', { month: 'short' }).replace('.', '') + ' ' + y.slice(2); };
+    function last12MonthKeys() {
+      const out = []; const now = new Date();
+      for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); }
+      return out;
+    }
+
+    function barRow(label, value, max, valueText, colorVar) {
+      const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+      return `<div class="bar-row">
+        <div class="bar-label" title="${esc(label)}">${esc(label)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;${colorVar ? 'background:' + colorVar + ';' : ''}"></div></div>
+        <div class="bar-value">${esc(valueText)}</div>
+      </div>`;
+    }
+
+    function renderByStatus(devisFull) {
+      const visible = devisFull.filter(d => !d.archive);
+      const counts = {};
+      visible.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
+      const max = Math.max(1, ...Object.values(counts));
+      const rows = Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
+        barRow(s.label, counts[k], max, `${counts[k]} devis`, s.color)).join('');
+      el('byStatus').innerHTML = rows || '<div class="empty-mini">Aucun devis.</div>';
+    }
+
+    function renderPayments(factures) {
+      const totalFacture = factures.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const totalPaid = factures.reduce((s, f) => s + paidSum(f), 0);
+      const reste = Math.max(0, totalFacture - totalPaid);
+      const today = new Date().toISOString().slice(0, 10);
+      const retard = factures.filter(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
+      const retardMontant = retard.reduce((s, f) => s + ((f.total_ttc || 0) - paidSum(f)), 0);
+      el('payments').innerHTML = `
+        <div class="bar-row"><div class="bar-label">Total facturé</div><div class="bar-track"><div class="bar-fill" style="width:100%;"></div></div><div class="bar-value">${fmtEur(totalFacture)}</div></div>
+        ${barRow('Encaissé', totalPaid, totalFacture || 1, fmtEur(totalPaid), 'var(--ok)')}
+        ${barRow('Reste à encaisser', reste, totalFacture || 1, fmtEur(reste), 'var(--warn)')}
+        ${retard.length ? barRow('En retard', retardMontant, totalFacture || 1, `${fmtEur(retardMontant)} (${retard.length})`, 'var(--danger)') : ''}
+      `;
+    }
+
+    function renderMonthly(devisFull, factures) {
+      const keys = last12MonthKeys();
+      const createdCounts = {}; keys.forEach(k => createdCounts[k] = 0);
+      devisFull.forEach(d => { const k = monthKey(d.date_creation); if (k && createdCounts[k] != null) createdCounts[k]++; });
+      const maxCreated = Math.max(1, ...keys.map(k => createdCounts[k]));
+      el('monthlyCreated').innerHTML = `<div class="month-chart">${keys.map(k => `
+        <div class="month-col" title="${monthLabel(k)} : ${createdCounts[k]} devis">
+          <div class="month-bar" style="height:${Math.max(2, Math.round((createdCounts[k] / maxCreated) * 100))}%;"></div>
+          <div class="month-lbl">${monthLabel(k)}</div>
+        </div>`).join('')}</div>`;
+
+      const paidByMonth = {}; keys.forEach(k => paidByMonth[k] = 0);
+      factures.forEach(f => (f.paiements || []).forEach(p => { const k = monthKey(p.date); if (k && paidByMonth[k] != null) paidByMonth[k] += Number(p.montant) || 0; }));
+      const maxPaid = Math.max(1, ...keys.map(k => paidByMonth[k]));
+      el('monthlyPaid').innerHTML = `<div class="month-chart">${keys.map(k => `
+        <div class="month-col" title="${monthLabel(k)} : ${fmtEur(paidByMonth[k])}">
+          <div class="month-bar gold" style="height:${Math.max(2, Math.round((paidByMonth[k] / maxPaid) * 100))}%;"></div>
+          <div class="month-lbl">${monthLabel(k)}</div>
+        </div>`).join('')}</div>`;
+    }
+
+    function renderByType(devisFull) {
+      const byType = {};
+      devisFull.filter(d => !d.archive).forEach(d => (d.items || []).forEach(it => {
+        const t = it.type || 'autre';
+        byType[t] = byType[t] || { count: 0, ca: 0 };
+        byType[t].count += it.quantite || 1;
+        byType[t].ca += (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+      }));
+      const entries = Object.entries(byType).sort((a, b) => b[1].ca - a[1].ca);
+      const max = Math.max(1, ...entries.map(([, v]) => v.ca));
+      el('byType').innerHTML = entries.length
+        ? entries.map(([t, v]) => barRow(TYPE_LABEL[t] || t, v.ca, max, `${fmtEur(v.ca)} · ${v.count} unité(s)`)).join('')
+        : '<div class="empty-mini">Aucune ouverture chiffrée.</div>';
+    }
+
+    function renderBySeller(devisFull) {
+      const signes = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
+      const nicolasNet = signes.reduce((s, d) => s + (d.calculs?.nicolas_net || 0), 0);
+      const yannickNet = signes.reduce((s, d) => s + (d.calculs?.yannick_net || 0), 0);
+      const nicolasCount = signes.filter(d => (d.pricing_v2?.material?.sellers?.principal || 'nicolas') === 'nicolas').length;
+      const yannickCount = signes.filter(d => d.pricing_v2?.material?.sellers?.principal === 'yannick').length;
+      const max = Math.max(1, nicolasNet, yannickNet);
+      el('bySeller').innerHTML = signes.length ? `
+        ${barRow('Nicolas', nicolasNet, max, fmtEur(nicolasNet), 'var(--accent)')}
+        ${barRow('Yannick', yannickNet, max, fmtEur(yannickNet), 'var(--accent-2)')}
+        <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Nicolas vendeur principal sur ${nicolasCount} devis · Yannick sur ${yannickCount} devis (${signes.length} signés/terminés au total).</div>
+      ` : "<div class=\"empty-mini\">Aucun devis signé pour l'instant.</div>";
+    }
+
+    function renderTopClients(devisFull) {
+      const byClient = {};
+      devisFull.filter(d => !d.archive).forEach(d => {
+        const cl = d.client || {};
+        const name = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
+        const key = name.toLowerCase();
+        byClient[key] = byClient[key] || { name, ca: 0, count: 0 };
+        byClient[key].ca += d.calculs?.total_ttc || 0;
+        byClient[key].count++;
+      });
+      const top = Object.values(byClient).sort((a, b) => b.ca - a.ca).slice(0, 8);
+      el('topClients').innerHTML = top.length ? top.map((c, i) => `
+        <div class="rank-row">
+          <div class="rank-no">#${i + 1}</div>
+          <div><div class="rank-name">${esc(c.name)}</div><div class="rank-sub">${c.count} devis</div></div>
+          <div class="rank-value" style="margin-left:auto;">${fmtEur(c.ca)}</div>
+        </div>`).join('') : '<div class="empty-mini">Aucun client.</div>';
+    }
+
+    function renderByCity(devisFull) {
+      const byCity = {};
+      devisFull.filter(d => !d.archive).forEach(d => {
+        const ville = (d.client?.adresse?.ville || '').trim();
+        if (!ville) return;
+        byCity[ville] = byCity[ville] || { count: 0, ca: 0 };
+        byCity[ville].count++;
+        byCity[ville].ca += d.calculs?.total_ttc || 0;
+      });
+      const entries = Object.entries(byCity).sort((a, b) => b[1].count - a[1].count).slice(0, 8);
+      const max = Math.max(1, ...entries.map(([, v]) => v.count));
+      el('byCity').innerHTML = entries.length
+        ? entries.map(([ville, v]) => barRow(ville, v.count, max, `${v.count} devis · ${fmtEur(v.ca)}`)).join('')
+        : '<div class="empty-mini">Aucune adresse renseignée.</div>';
+    }
+
+    function renderKPIs(devisFull) {
+      const visible = devisFull.filter(d => !d.archive);
+      const signes = visible.filter(d => ['signe', 'termine'].includes(d.statut));
+      const envoyes = visible.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
+      const caTotal = visible.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
+      const caSigne = signes.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
+      const avg = visible.length ? caTotal / visible.length : 0;
+      const conv = envoyes.length + signes.length > 0 ? Math.round((signes.length / (envoyes.length + signes.length)) * 100) : 0;
+      el('kpis').innerHTML = `
+        <div class="kpi accent ticked"><div class="kpi-label">Devis (hors archives)</div><div class="kpi-value">${visible.length}</div><div class="kpi-sub">${fmtEur(caTotal)} au total</div></div>
+        <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub">${signes.length} devis signés/terminés</div></div>
+        <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
+        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
+    }
+
+    (async () => {
+      const raw = await SS.listDevis();
+      const summary = (raw || []).map(normDevis);
+      const devisFull = (await Promise.all(summary.map(d => SS.getDevis(d.id)))).filter(Boolean)
+        .map(d => ({ ...d, archive: !!d.archive }));
+      const factures = await SS.listFactures();
+
+      renderKPIs(devisFull);
+      renderByStatus(devisFull);
+      renderPayments(factures || []);
+      renderMonthly(devisFull, factures || []);
+      renderByType(devisFull);
+      renderBySeller(devisFull);
+      renderTopClients(devisFull);
+      renderByCity(devisFull);
+    })();
+  </script>
+</body>
+</html>

@@ -101,6 +101,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <span id="quickNav"></span>
       <span id="themeToggle"></span>
       <a class="btn btn-ghost btn-sm" href="dashboard.html" aria-label="Retour au dashboard" title="Dashboard">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -188,6 +189,7 @@
 
   <!-- ════════ LOGIQUE ════════ -->
   <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
@@ -197,6 +199,18 @@
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, el, setText, setVal, getVal, getNum, toast, generateDevisId, qp, icon } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    // ── Avertissement si on quitte la page avec des modifications non enregistrées ──
+    let dirty = false;
+    window.markDirty = () => { dirty = true; };
+    document.addEventListener('input', window.markDirty);
+    document.addEventListener('change', window.markDirty);
+    window.addEventListener('beforeunload', (e) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
 
     const {
       ITEM_TYPES, MOTEURS, COULEURS_RAL, TOILES_CATALOGUE,
@@ -256,13 +270,12 @@
       if (!q) { host.innerHTML = ''; return; }
       const rows = DIRECTORY.filter(c => `${c.prenom} ${c.nom} ${c.telephone} ${c.email}`.toLowerCase().includes(q)).slice(0, 6);
       host.innerHTML = rows.length ? rows.map(c => `
-        <div class="client-hit" onclick="pickClient('${encodeURIComponent(c.key)}')">
+        <div class="client-hit" onclick="pickClient(${SSUI.jsAttr(c.key)})">
           <div class="avatar">${esc(((c.prenom[0] || '') + (c.nom[0] || '')).toUpperCase())}</div>
           <div class="ci-main"><div class="ci-name">${esc(c.prenom)} ${esc(c.nom)}</div><div class="ci-sub">${esc(c.telephone || c.email || '—')}</div></div>
         </div>`).join('') : '<div class="text-muted" style="padding:0.4rem 0;font-size:var(--fs-xs);">Aucun résultat — remplis les champs ci-dessous pour un nouveau client.</div>';
     };
-    window.pickClient = function (encKey) {
-      const key = decodeURIComponent(encKey);
+    window.pickClient = function (key) {
       const c = DIRECTORY.find(x => x.key === key); if (!c) return;
       setVal('tPrenom', c.prenom); setVal('tNom', c.nom);
       setVal('tTel', c.telephone); setVal('tEmail', c.email);
@@ -438,13 +451,15 @@
     }
     window.setItemType = function (id, type) {
       const it = state.items.find(i => i._id === id); if (!it) return;
+      markDirty();
       it.type = type; it.modele = '';
       renderItemsStep();
     };
     window.goToItem = function (i) { if (i < 0 || i >= state.items.length) return; currentItemIdx = i; renderItemsStep(); };
-    window.addItemAndGo = function () { addItemSilent(); currentItemIdx = state.items.length - 1; renderItemsStep(); };
+    window.addItemAndGo = function () { markDirty(); addItemSilent(); currentItemIdx = state.items.length - 1; renderItemsStep(); };
     window.removeCurrentItem = function () {
       if (state.items.length <= 1) { toast('Il faut au moins une ouverture.', 'warn'); return; }
+      markDirty();
       state.items.splice(currentItemIdx, 1);
       if (currentItemIdx > 0) currentItemIdx--;
       renderItemsStep();
@@ -452,11 +467,11 @@
     window.addPhotos = function (id, input) {
       const it = state.items.find(i => i._id === id); if (!it) return;
       [...input.files].forEach(file => {
-        window.SSUI.compressImage(file).then(dataUrl => { it.photos.push(dataUrl); renderItemsStep(); })
+        window.SSUI.compressImage(file).then(dataUrl => { markDirty(); it.photos.push(dataUrl); renderItemsStep(); })
           .catch(() => toast('Photo illisible, réessaie.', 'warn'));
       });
     };
-    window.removePhoto = function (id, pi) { const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItemsStep(); } };
+    window.removePhoto = function (id, pi) { markDirty(); const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItemsStep(); } };
 
     function collectItem(it, root) {
       root.querySelectorAll('[data-f]').forEach(input => {
@@ -583,6 +598,7 @@
 
       toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
       state.savedId = state.id;
+      dirty = false;
       setText('doneSummary', `${client.prenom} ${client.nom} · ${state.items.length} ouverture(s) · à chiffrer au bureau`);
       goStep('done');
     };
@@ -592,6 +608,7 @@
       state.statut = 'brouillon'; state.items = []; state.savedId = null;
       ['tPrenom', 'tNom', 'tTel', 'tEmail', 'tRue', 'tNumero', 'tCp', 'tVille'].forEach(id => setVal(id, ''));
       currentItemIdx = 0;
+      dirty = false;
       goStep('client');
     };
 

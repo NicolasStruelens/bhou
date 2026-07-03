@@ -84,6 +84,7 @@
     </div>
     <div class="header-actions">
       <span class="id-badge" id="devisIdBadge">—</span>
+      <span id="quickNav"></span>
       <span id="themeToggle"></span>
       <a class="btn btn-ghost btn-sm" href="dashboard.html">← Dashboard</a>
     </div>
@@ -121,7 +122,7 @@
         </div>
         <div class="section-body">
           <div id="itemsContainer"></div>
-          <button class="btn btn-ghost" onclick="addItem()">+ Ajouter une ouverture</button>
+          <button class="btn btn-ghost" onclick="markDirty(); addItem();">+ Ajouter une ouverture</button>
           <!-- Autocomplétion (champs libres, ces listes ne sont que des suggestions) -->
           <datalist id="dl-modeles"></datalist>
           <datalist id="dl-couleurs"></datalist>
@@ -238,7 +239,7 @@
         <div class="section-body">
           <div id="extrasContainer"></div>
           <div class="row wrap" style="gap:var(--sp-2);">
-            <button class="btn btn-ghost" onclick="addExtra()">+ Ajouter un supplément (libre)</button>
+            <button class="btn btn-ghost" onclick="markDirty(); addExtra();">+ Ajouter un supplément (libre)</button>
             <select class="select" id="catalogOptionPick" style="max-width:280px;" onchange="pickCatalogOption()" aria-label="Ajouter depuis le catalogue Harol">
               <option value="">+ Depuis le catalogue Harol…</option>
             </select>
@@ -293,6 +294,7 @@
 
   <!-- ════════ LOGIQUE ════════ -->
   <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
@@ -301,8 +303,20 @@
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon } = window.SSUI;
+    window.SSNav.mount(document.getElementById('quickNav'));
 
     mountThemeToggle(document.getElementById('themeToggle'));
+
+    // ── Avertissement si on quitte la page avec des modifications non enregistrées ──
+    let dirty = false;
+    window.markDirty = () => { dirty = true; };
+    document.addEventListener('input', window.markDirty);
+    document.addEventListener('change', window.markDirty);
+    window.addEventListener('beforeunload', (e) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
 
     // Catalogue produits partagé (assets/js/products.js) — source unique avec terrain.html
     const {
@@ -514,12 +528,12 @@
       renderItems();
       ui_recalc();
     };
-    window.removeItem = (id) => { state.items = state.items.filter(i => i._id !== id); renderItems(); ui_recalc(); };
-    window.removePhoto = (id, pi) => { const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
+    window.removeItem = (id) => { markDirty(); state.items = state.items.filter(i => i._id !== id); renderItems(); ui_recalc(); };
+    window.removePhoto = (id, pi) => { markDirty(); const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
     window.addPhotos = (id, input) => {
       const it = state.items.find(i => i._id === id); if (!it) return;
       [...input.files].forEach(file => {
-        window.SSUI.compressImage(file).then(dataUrl => { it.photos.push(dataUrl); renderItems(); })
+        window.SSUI.compressImage(file).then(dataUrl => { markDirty(); it.photos.push(dataUrl); renderItems(); })
           .catch(() => toast('Photo illisible, réessaie.', 'warn'));
       });
     };
@@ -561,7 +575,7 @@
         <input class="input" placeholder="Ex: Capteur vent Eolis 3D" data-ex="label" value="${data.label || ''}" oninput="ui_recalc()">
         <input class="input input-num" type="number" min="1" step="1" data-ex="qty" value="${data.qty || 1}" oninput="ui_recalc()">
         <div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-ex="unit_price_ht" value="${data.unit_price_ht || ''}" placeholder="0.00" oninput="ui_recalc()"><span class="unit">€</span></div>
-        <button class="btn btn-danger btn-sm" aria-label="Retirer ce supplément" onclick="this.parentElement.remove(); ui_recalc();">✕</button>`;
+        <button class="btn btn-danger btn-sm" aria-label="Retirer ce supplément" onclick="markDirty(); this.parentElement.remove(); ui_recalc();">✕</button>`;
       el('extrasContainer').appendChild(row);
     };
 
@@ -578,6 +592,7 @@
       const sel = el('catalogOptionPick');
       const opt = sel.selectedOptions[0];
       if (!opt || !opt.value) return;
+      markDirty();
       addExtra({ label: opt.value, qty: 1, unit_price_ht: parseFloat(opt.dataset.price) || 0 });
       sel.value = '';
       ui_recalc();
@@ -721,6 +736,7 @@
       const res = await SS.saveDevis(devis);
       toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
       state.isExisting = true;
+      dirty = false;
     };
 
     window.goPdf = () => { window.location.href = `devis.html?id=${state.id}`; };

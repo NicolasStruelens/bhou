@@ -34,6 +34,7 @@
     /* ── Pastilles de statut colorées (menu custom) ── */
     table.data tbody tr { cursor: pointer; }
     .price { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-sm); color: var(--accent-2); letter-spacing: 0.01em; }
+    .row-pay { display: inline-flex; align-items: center; gap: var(--sp-2); white-space: nowrap; }
     .status-pill {
       display: inline-flex; align-items: center; gap: 0.45rem;
       font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
@@ -135,7 +136,9 @@
       <a class="btn btn-ghost btn-sm" href="clients.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Clients</a>
       <a class="btn btn-ghost btn-sm" href="factures.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Factures</a>
       <a class="btn btn-ghost btn-sm" href="portfolio.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Portfolio</a>
+      <a class="btn btn-ghost btn-sm" href="stats.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Stats</a>
       <a class="btn btn-sm btn-terrain" href="terrain.html" title="Mode Terrain (iPhone)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg> Terrain</a>
+      <span id="quickNav"></span>
       <span id="themeToggle"></span>
       <a class="btn btn-primary btn-sm" href="simulateur.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau devis</a>
     </div>
@@ -214,6 +217,7 @@
   </div>
 
   <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
   <script>
     const SS = window.SS;
@@ -221,6 +225,7 @@
     const { fmtEur, fmtDate, el, setText, toast, normDevis, icon } = window.SSUI;
 
     mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
 
     // Date du jour, au centre du header
     setText('headerDateText', new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }));
@@ -284,14 +289,19 @@
       const total = DEVIS.length;
       const signes = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
       const envoyes = DEVIS.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
-      const caTotal = DEVIS.reduce((s, d) => s + d.ttc, 0);
       const caSigne = signes.reduce((s, d) => s + d.ttc, 0);
-      const conv = envoyes.length + signes.length > 0 ? Math.round((signes.length / (envoyes.length + signes.length)) * 100) : 0;
+      // CA réellement encaissé = somme des paiements reçus sur toutes les factures (pas le total théorique des devis)
+      const caEncaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
+      const totalFacture = FACTURES.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      // Bénéfices cumulés par vendeur, sur les devis réellement signés/terminés
+      const nicolasNet = signes.reduce((s, d) => s + (d.nicolas_net || 0), 0);
+      const yannickNet = signes.reduce((s, d) => s + (d.yannick_net || 0), 0);
       el('kpis').innerHTML = `
         <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value">${total}</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
-        <div class="kpi gold"><div class="kpi-label">CA total (TVAC)</div><div class="kpi-value">${fmtEur(caTotal)}</div><div class="kpi-sub">tous statuts</div></div>
+        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(caEncaisse)}</div><div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
         <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value">${signes.length}</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
-        <div class="kpi"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
+        <div class="kpi accent"><div class="kpi-label">Bénéfice Nicolas</div><div class="kpi-value">${fmtEur(nicolasNet)}</div><div class="kpi-sub">devis signés/terminés</div></div>
+        <div class="kpi gold"><div class="kpi-label">Bénéfice Yannick</div><div class="kpi-value">${fmtEur(yannickNet)}</div><div class="kpi-sub">devis signés/terminés</div></div>`;
     }
 
     function render() {
@@ -333,7 +343,7 @@
                   <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}${d.informatif ? ' <span class=\"badge badge-cyan\" title=\"Estimation non contractuelle\">Informatif</span>' : ''}${d.portfolio ? ` <span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}</span><span class="id">#${d.id}</span></div></td>
                   <td>${pill(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
-                  <td class="num"><span class="price">${fmtEur(d.ttc)}</span><div class="mt-1">${paymentInfo(d)}</div></td>
+                  <td class="num"><span class="row-pay"><span class="price">${fmtEur(d.ttc)}</span>${paymentInfo(d)}</span></td>
                   <td class="count-pill">
                     ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
                     ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
