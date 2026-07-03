@@ -110,6 +110,30 @@
     return c ? c.hauteur_max : null;
   }
 
+  // ── Catalogue d'accessoires à prix connu (pour les Suppléments) ──
+  // Prix réels extraits des fiches prix Harol lues cette session (VR150 Pure 06/2026,
+  // catalogue Protection Solaire 03/2026). Liste volontairement partielle et honnête :
+  // uniquement les accessoires dont le prix est FIXE/à la pièce (pas les postes au mètre
+  // ou par tranche de largeur, qui varient trop pour un prix "sur étagère"). Le champ
+  // libre (bouton "+ Ajouter un supplément") reste toujours disponible pour tout le reste.
+  const CATALOG_OPTIONS = [
+    { label: 'Interrupteur Inis saillie (position fixe)', price: 7.54, cat: 'Domotique' },
+    { label: 'Interrupteur Inis saillie (position momentanée)', price: 8.31, cat: 'Domotique' },
+    { label: 'Interrupteur Inis encastré 80×80 (position fixe)', price: 9.56, cat: 'Domotique' },
+    { label: 'Interrupteur Inis encastré 80×80 (position momentanée)', price: 10.36, cat: 'Domotique' },
+    { label: 'Télécommande murale Lumo (1 canal)', price: 22.10, cat: 'Domotique' },
+    { label: 'Télécommande portable Flowi 1 (1 canal)', price: 23.07, cat: 'Domotique' },
+    { label: 'Télécommande portable Flowi 6 (6 canaux)', price: 26.06, cat: 'Domotique' },
+    { label: 'Capteur vent/soleil Suno 230V', price: 137.88, cat: 'Domotique' },
+    { label: 'Panneau solaire 5W (moteur solaire)', price: 30.62, cat: 'Domotique' },
+    { label: 'Chargeur panneau solaire', price: 31.93, cat: 'Domotique' },
+    { label: 'Console murale extra 300 mm', price: 37.90, cat: 'Fixation (Tente solaire)' },
+    { label: 'Console murale extra 500 mm', price: 53.20, cat: 'Fixation (Tente solaire)' },
+    { label: 'Console murale extra 1000 mm', price: 101.20, cat: 'Fixation (Tente solaire)' },
+    { label: 'Console plafond complète 300 mm', price: 59.90, cat: 'Fixation (Tente solaire)' },
+    { label: 'Console plafond complète 500 mm', price: 97.70, cat: 'Fixation (Tente solaire)' },
+  ];
+
   window.SSProducts = {
     ITEM_TYPES, ITEM_TYPES_LEGACY, MOTEURS, MODELES_CATALOGUE,
     COULEURS_RAL, COULEURS_RAL_PURE, TOILES_CATALOGUE,
@@ -118,5 +142,6 @@
     caissonMesuresFor,
     TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
     VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
+    CATALOG_OPTIONS,
   };
 })();
