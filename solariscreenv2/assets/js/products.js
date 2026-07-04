@@ -134,6 +134,26 @@
     { label: 'Console plafond complète 500 mm', price: 97.70, cat: 'Fixation (Tente solaire)' },
   ];
 
+  // ── Teintes RAL approximatives (pour le simulateur visuel avant/après) ──
+  // Valeurs sRGB indicatives couramment utilisées pour représenter ces RAL à l'écran —
+  // suffisant pour un aperçu commercial, PAS une garantie d'exactitude colorimétrique
+  // (l'écran/l'éclairage font déjà varier le rendu réel bien plus que ces approximations).
+  const RAL_HEX = {
+    '9016': '#F5F5F3', '9010': '#F0EEE4', '9001': '#EAE3D3', '1015': '#E4D3B4',
+    '1013': '#E6DCC4', '7038': '#AFB3AC', '7030': '#8F8F86', '9007': '#8C8C89',
+    '7039': '#6A6960', '9008': '#4B4C46', '7012': '#4C4F53', '7016': '#383E42',
+    '7021': '#2B2E2F', '8016': '#4C3426', '8028': '#4A3526', '8014': '#46392E',
+    '8019': '#3D3635', '8022': '#2B2926', '9004': '#292C2F', '9005': '#0A0A0A',
+    '3005': '#5E2129', '6009': '#27352A', '5011': '#1E2338', '9006': '#A8A9AA',
+  };
+  // Extrait un hex à partir d'un libellé libre du type "9016 — Blanc trafic" ou
+  // "38 — 7016 Gris anthracite" (code lame + RAL) en cherchant le premier code à 4 chiffres.
+  function hexForRalLabel(label) {
+    if (!label) return null;
+    const m = String(label).match(/\b(\d{4})\b/);
+    return (m && RAL_HEX[m[1]]) || null;
+  }
+
   window.SSProducts = {
     ITEM_TYPES, ITEM_TYPES_LEGACY, MOTEURS, MODELES_CATALOGUE,
     COULEURS_RAL, COULEURS_RAL_PURE, TOILES_CATALOGUE,
@@ -143,5 +163,6 @@
     TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
     VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
     CATALOG_OPTIONS,
+    RAL_HEX, hexForRalLabel,
   };
 })();
