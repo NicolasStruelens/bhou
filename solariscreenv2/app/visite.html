@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Rapport de visite</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/document.css">
+  <style>
+    .visite-table td.details { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.5; }
+    .visite-table td.details strong { color: var(--text); }
+    .visite-notes { margin-top: var(--sp-6); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); min-height: 70px; }
+    .visite-notes h4 { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
+    .visite-meta { display: flex; gap: var(--sp-6); flex-wrap: wrap; margin-top: var(--sp-4); font-size: var(--fs-sm); }
+    .visite-meta .pm-k { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+    .visite-meta .pm-v { font-weight: 600; }
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <div class="toolbar no-print">
+    <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    <a class="btn btn-ghost btn-sm" id="backLink" href="#"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Fiche du devis</a>
+    <div class="spacer"></div>
+    <span id="quickNav"></span>
+    <span id="themeToggle"></span>
+    <button class="btn btn-primary btn-sm" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
+  </div>
+
+  <div class="container no-print" style="padding-bottom:0;">
+    <section class="section ticked" style="--tick-color:var(--accent-2);">
+      <div class="section-head"><span class="section-title">Prochaines étapes (visible par le client)</span></div>
+      <div class="section-body">
+        <label class="sr-only" for="stepsInput">Prochaines étapes</label>
+        <textarea class="textarea" id="stepsInput" style="min-height:80px;" placeholder="Ex : préparation de votre devis détaillé, envoi sous 48h…" oninput="scheduleSaveSteps()"></textarea>
+      </div>
+    </section>
+  </div>
+
+  <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, qp, toast } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const COMPANY = window.SS_COMPANY;
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier volet', tente_solaire: 'Tente solaire', pergola: 'Pergola', store_banne: 'Store banne' };
+    let DEVIS = null;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    // Champs "envisagés" pertinents pour un client (jamais de prix/marge) — mêmes noms de
+    // champs que le simulateur, listés seulement s'ils sont déjà renseignés sur le devis.
+    const FIELD_LABELS = [
+      ['variante', 'Variante'], ['couleur', 'Couleur envisagée'], ['couleur_lame', 'Couleur lame envisagée'],
+      ['toile', 'Toile envisagée'], ['toile_couleur', 'Couleur toile envisagée'], ['collection', 'Collection toile'],
+      ['moteur', 'Motorisation'], ['moteur_ref', 'Motorisation'],
+    ];
+    function envisagedDetails(it) {
+      const parts = [];
+      FIELD_LABELS.forEach(([k, l]) => { if (it[k]) parts.push(`<strong>${esc(l)}:</strong> ${esc(it[k])}`); });
+      if (it.emplacement) parts.push(`<strong>Emplacement:</strong> ${esc(it.emplacement)}`);
+      return parts.join(' · ') || 'À définir';
+    }
+
+    const STEPS_BY_STATUT = {
+      brouillon: 'Nous préparons actuellement votre devis détaillé sur base des mesures prises.',
+      envoye_client: 'Votre devis vous a été envoyé. N\'hésitez pas à nous contacter pour toute question.',
+      relance_1: 'Votre devis vous a été envoyé. N\'hésitez pas à nous contacter pour toute question.',
+      relance_2: 'Votre devis vous a été envoyé. N\'hésitez pas à nous contacter pour toute question.',
+      signe: 'Votre commande est confirmée — nous préparons la suite (commande fournisseur puis planification de la pose).',
+      termine: 'Votre installation est terminée. Merci de votre confiance !',
+    };
+
+    function render(d) {
+      const cl = d.client || {}, adr = cl.adresse || {};
+      const adresse = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const totalOuvertures = (d.items || []).reduce((s, i) => s + (i.quantite || 1), 0);
+
+      const rows = (d.items || []).map((it, i) => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : 'À mesurer';
+        return `<tr>
+          <td class="num">${i + 1}</td>
+          <td><strong>${esc(TYPE_LABEL[it.type] || it.type)}</strong>${it.modele ? ' — ' + esc(it.modele) : ''}</td>
+          <td class="details">${envisagedDetails(it)}</td>
+          <td>${dims}</td>
+          <td class="num">${it.quantite || 1}</td>
+        </tr>`;
+      }).join('');
+
+      el('paper').innerHTML = `
+        <div class="doc-head">
+          <div class="brand-block">
+            <div class="logo"><img src="../assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
+            <div>
+              <div class="co-name"><span class="b">SOLARI</span><span class="g">SCREEN</span></div>
+              <div class="co-tag">${esc(COMPANY.tagline)}</div>
+            </div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-title">RAPPORT DE VISITE</div>
+            <div class="doc-num">Réf. devis N° ${esc(d.id)}</div>
+            <div class="doc-dates">Visite du ${fmtDate(d.date_creation)}</div>
+          </div>
+        </div>
+
+        <div class="visite-meta">
+          <div><div class="pm-k">Client</div><div class="pm-v">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div></div>
+          <div><div class="pm-k">Adresse</div><div class="pm-v">${esc(adresse) || '—'}</div></div>
+          <div><div class="pm-k">Ouvertures</div><div class="pm-v">${totalOuvertures}</div></div>
+        </div>
+
+        <table class="doc-table visite-table" style="margin-top:var(--sp-5);">
+          <thead><tr>
+            <th class="num">#</th><th>Produit envisagé</th><th>Détails</th><th>Mesures</th><th class="num">Qté</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Aucune ouverture mesurée pour l\'instant.</td></tr>'}</tbody>
+        </table>
+
+        <div class="visite-notes">
+          <h4>Prochaines étapes</h4>
+          <div id="paperSteps"></div>
+        </div>
+
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.address)} · ${esc(COMPANY.email)}</div>
+      `;
+      renderPaperSteps();
+    }
+
+    function renderPaperSteps() {
+      const host = el('paperSteps');
+      if (!host) return;
+      const txt = (DEVIS.rapport_visite_notes || '').trim() || STEPS_BY_STATUT[DEVIS.statut] || '';
+      host.textContent = txt || 'À définir avec votre installateur.';
+    }
+
+    let _saveTimer = null;
+    async function saveSteps() {
+      if (!DEVIS) return;
+      DEVIS.rapport_visite_notes = el('stepsInput').value;
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Enregistré hors-ligne' : 'Enregistré ✓', res.offline ? 'warn' : 'ok', 1400);
+      renderPaperSteps();
+    }
+    window.scheduleSaveSteps = () => { clearTimeout(_saveTimer); _saveTimer = setTimeout(saveSteps, 600); };
+
+    (async () => {
+      const id = qp('id');
+      if (!id) { el('paper').innerHTML = '<p style="color:var(--text-muted);">Aucun devis spécifié.</p>'; return; }
+      el('backLink').href = 'vue.html?id=' + id;
+      const d = await SS.getDevis(id);
+      if (!d) { el('paper').innerHTML = '<p style="color:var(--danger);">Devis introuvable (#' + esc(id) + ').</p>'; return; }
+      DEVIS = d;
+      el('stepsInput').value = d.rapport_visite_notes || '';
+      render(d);
+    })();
+  </script>
+</body>
+</html>

@@ -61,6 +61,17 @@
     .hist-row .hm { font-family: var(--font-mono); text-align: right; color: var(--accent); }
     .empty-detail-msg { text-align: center; color: var(--text-muted); padding: var(--sp-7); }
     .empty-detail-msg svg { display: block; margin: 0 auto var(--sp-3); color: var(--text-subtle); }
+    .hist-meta { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .hist-meta span { display: inline-flex; align-items: center; gap: 0.2rem; }
+    .hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 0.4rem; }
+    .hp-thumb { width: 100%; aspect-ratio: 1; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); cursor: pointer; background: var(--surface-2); }
+    .hp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hn-row { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); font-size: var(--fs-sm); background: var(--surface-2); }
+    .hn-row .hn-head { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: 0.2rem; }
+    .tag-presets { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+    .tag-chip { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.28rem 0.6rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); }
+    .tag-chip:hover { border-color: var(--accent); color: var(--text); }
+    .tag-chip.active { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2); }
   </style>
 </head>
 <body>
@@ -123,16 +134,21 @@
     };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const keyOf = (prenom, nom) => (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
+    const TAG_PRESETS = ['Chaud', 'À relancer', 'Gros chantier', 'Client pro', 'Rénovation TVA 6%', "Difficile d'accès"];
     const initials = (p, n) => ((p || '')[0] || '') + ((n || '')[0] || '') || '?';
 
     let DIRECTORY = [];   // [{key, prenom, nom, contact, devis:[], stats, overlay}]
     let selectedKey = null;
+    let FACTURES = [];
+    const FULL_CACHE = new Map(); // devisId -> devis complet (chargé à la demande pour photos/notes)
+    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
 
     function badge(st) { const s = STATUSES[st] || STATUSES.brouillon; return `<span class="badge ${s.cls}">${s.label}</span>`; }
 
     async function load() {
       const rawDevis = await SS.listDevis();
       const overlays = await SS.listClients();
+      FACTURES = await SS.listFactures();
       const map = new Map();
 
       (rawDevis || []).forEach(d => {
@@ -147,6 +163,8 @@
           ttc: d.total_ttc || (d.calculs && d.calculs.total_ttc) || 0,
           date: d.date_modification || d.date_creation || '',
           contact: d.client || null,
+          photos: d.photos_count || 0, comments: d.comments_count || 0,
+          chantier: d.chantier || null,
         });
       });
 
@@ -263,7 +281,11 @@
             <div class="field" style="grid-column:span 2;"><label class="label" for="f_rue">Rue & numéro</label><div class="input-copy-wrap"><input class="input" id="f_rue" value="${esc((adr.rue || '') + (adr.numero ? ' ' + adr.numero : ''))}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_rue').value, 'Adresse')" title="Copier" aria-label="Copier l'adresse">${icon('copy', 13)}</button></div></div>
             <div class="field"><label class="label" for="f_cp">Code postal</label><input class="input" id="f_cp" value="${esc(adr.code_postal)}"></div>
             <div class="field"><label class="label" for="f_ville">Ville</label><input class="input" id="f_ville" value="${esc(adr.ville)}"></div>
-            <div class="field"><label class="label" for="f_tags">Tags (séparés par ,)</label><input class="input" id="f_tags" value="${esc((ct.tags || []).join(', '))}"></div>
+            <div class="field" style="grid-column:span 2;">
+              <label class="label" for="f_tags">Tags (séparés par ,)</label>
+              <input class="input" id="f_tags" value="${esc((ct.tags || []).join(', '))}">
+              <div class="tag-presets">${TAG_PRESETS.map(t => `<button type="button" class="tag-chip ${(ct.tags || []).some(x => x.toLowerCase() === t.toLowerCase()) ? 'active' : ''}" onclick="toggleTagPreset(this,${SSUI.jsAttr(t)})">${esc(t)}</button>`).join('')}</div>
+            </div>
             <div class="field"><label class="label" for="f_bien">Type de bien</label><input class="input" id="f_bien" value="${esc(ct.type_bien)}" placeholder="maison, appartement…"></div>
             <div class="field" style="grid-column:span 2;"><label class="label" for="f_notes">Notes internes</label><textarea class="textarea" id="f_notes" placeholder="Préférences, infos chantier, suivi…">${esc(ct.notes)}</textarea></div>
           </div>
@@ -273,18 +295,102 @@
           </div>
 
           <div class="subhead">Historique des devis (${c.devis.length})</div>
-          ${c.devis.length ? c.devis.map(d => `
+          ${c.devis.length ? c.devis.map(d => {
+            const ch = d.chantier;
+            let chantierBadge = '';
+            if (ch && ch.date_pose) {
+              const days = Math.round((new Date(ch.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+              chantierBadge = days < 0 && d.statut !== 'termine'
+                ? `<span title="Pose en retard">${icon('calendar', 11)} en retard</span>`
+                : `<span title="Pose planifiée le ${fmtDate(ch.date_pose)}">${icon('calendar', 11)} ${fmtDate(ch.date_pose)}</span>`;
+            }
+            return `
             <div class="hist-row">
               <div>${badge(d.statut)}</div>
-              <div><span class="hid">#${d.id}</span><br><span class="text-muted" style="font-size:var(--fs-2xs)">${fmtDate(d.date)}</span></div>
+              <div>
+                <span class="hid">#${d.id}</span><br><span class="text-muted" style="font-size:var(--fs-2xs)">${fmtDate(d.date)}</span>
+                <div class="hist-meta">
+                  ${d.photos ? `<span>${icon('camera', 11)} ${d.photos}</span>` : ''}
+                  ${d.comments ? `<span>${icon('message', 11)} ${d.comments}</span>` : ''}
+                  ${chantierBadge}
+                </div>
+              </div>
               <div class="hm" onclick="ssCopy(${SSUI.jsAttr(fmtEur(d.ttc))}, ${SSUI.jsAttr('Montant TVAC')})" title="Copier le montant">${fmtEur(d.ttc)}</div>
               <div class="row" style="gap:0.3rem;">
                 <button class="btn btn-ghost btn-sm" title="Fiche du devis" aria-label="Fiche du devis ${d.id}" onclick="location.href='vue.html?id=${d.id}'">${icon('window', 14)}</button>
                 <button class="btn btn-ghost btn-sm" title="Document client / PDF" aria-label="Document client du devis ${d.id}" onclick="location.href='devis.html?id=${d.id}'">${icon('filetext', 14)}</button>
                 <button class="btn btn-ghost btn-sm" title="Éditer le devis" aria-label="Éditer le devis ${d.id}" onclick="location.href='simulateur.html?id=${d.id}'">${icon('edit', 14)}</button>
               </div>
-            </div>`).join('') : '<div class="text-muted">Aucun devis pour ce client.</div>'}
+            </div>`;
+          }).join('') : '<div class="text-muted">Aucun devis pour ce client.</div>'}
+
+          <div class="subhead">Factures</div>
+          <div id="histFactures">${renderHistFactures(c)}</div>
+
+          <div class="subhead">Photos</div>
+          <div class="hp-grid" id="histPhotos"><div class="text-muted">Chargement…</div></div>
+
+          <div class="subhead">Notes internes des devis</div>
+          <div id="histNotes"><div class="text-muted">Chargement…</div></div>
         </div>`;
+      loadHistExtras(c);
+    };
+
+    function renderHistFactures(c) {
+      const ids = new Set(c.devis.map(d => d.id));
+      const facs = FACTURES.filter(f => ids.has(f.devis_id)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!facs.length) return '<div class="text-muted">Aucune facture pour ce client.</div>';
+      const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale' };
+      return facs.map(f => {
+        const paid = paidSum(f), due = f.total_ttc || 0;
+        const statusBadge = paid >= due - 0.005 ? '<span class="badge badge-ok">Soldée</span>'
+          : paid > 0 ? '<span class="badge badge-warn">Partiel</span>' : '<span class="badge">Impayée</span>';
+        return `<div class="hist-row">
+          <div>${statusBadge}</div>
+          <div><span class="hid">${esc(TYPE_LABEL_FAC[f.type] || 'Facture')} #${esc(f.id)}</span><br><span class="text-muted" style="font-size:var(--fs-2xs)">devis #${esc(f.devis_id)} · ${fmtDate(f.date)}</span></div>
+          <div class="hm">${fmtEur(due)}</div>
+          <div class="row" style="gap:0.3rem;"><button class="btn btn-ghost btn-sm" title="Voir la facture" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 14)}</button></div>
+        </div>`;
+      }).join('');
+    }
+
+    // Photos + notes internes nécessitent le devis complet (pas dans le résumé de liste) —
+    // chargées à la demande à l'ouverture d'une fiche client, mises en cache pour éviter
+    // de re-télécharger si on revient sur le même client.
+    async function loadHistExtras(c) {
+      const fulls = await Promise.all(c.devis.map(async d => {
+        if (FULL_CACHE.has(d.id)) return FULL_CACHE.get(d.id);
+        const full = await SS.getDevis(d.id).catch(() => null);
+        if (full) FULL_CACHE.set(d.id, full);
+        return full;
+      }));
+      if (selectedKey !== c.key) return; // l'utilisateur a changé de client entre-temps
+      const validFulls = fulls.filter(Boolean);
+
+      const photos = [];
+      validFulls.forEach(d => (d.items || []).forEach((it, i) => (it.photos || []).forEach(p => photos.push({ devisId: d.id, itemIndex: i, src: p }))));
+      const phEl = el('histPhotos');
+      if (phEl) phEl.innerHTML = photos.length
+        ? photos.map(p => `<div class="hp-thumb" title="Ouvrir la fiche du devis #${p.devisId}" onclick="location.href='vue.html?id=${p.devisId}'"><img src="${p.src}" alt=""></div>`).join('')
+        : '<div class="text-muted">Aucune photo.</div>';
+
+      const notes = [];
+      validFulls.forEach(d => (d.comments || []).forEach(n => notes.push({ devisId: d.id, ...n })));
+      notes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const AUTHOR_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
+      const notesEl = el('histNotes');
+      if (notesEl) notesEl.innerHTML = notes.length
+        ? notes.map(n => `<div class="hn-row"><div class="hn-head"><span>${esc(AUTHOR_LABEL[n.author] || n.author || '—')} · devis #${esc(n.devisId)}</span><span>${fmtDate(n.date)}</span></div>${esc(n.text || '')}</div>`).join('')
+        : '<div class="text-muted">Aucune note.</div>';
+    }
+
+    window.toggleTagPreset = function (btn, tag) {
+      const input = el('f_tags');
+      const tags = input.value.split(',').map(t => t.trim()).filter(Boolean);
+      const idx = tags.findIndex(t => t.toLowerCase() === tag.toLowerCase());
+      if (idx >= 0) { tags.splice(idx, 1); btn.classList.remove('active'); }
+      else { tags.push(tag); btn.classList.add('active'); }
+      input.value = tags.join(', ');
     };
 
     window.saveFiche = async function (key) {

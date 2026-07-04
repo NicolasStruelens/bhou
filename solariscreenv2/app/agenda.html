@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Agenda de pose</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .ag-section-title { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-6) 0 var(--sp-3); }
+    .ag-section-title:first-child { margin-top: 0; }
+    .ag-section-title .n { color: var(--text-muted); }
+    .ag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--sp-3); }
+    .ag-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); --tick-color: var(--accent); }
+    .ag-card.is-retard { --tick-color: var(--danger); }
+    .ag-card.is-today { --tick-color: var(--accent-2); }
+    .ag-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+    .ag-client { font-weight: 700; }
+    .ag-addr { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    .ag-addr a { color: var(--accent-2); }
+    .ag-items { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-2); }
+    .ag-weather { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); margin-top: 0.2rem; min-height: 1em; }
+    .ag-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .ag-fields .field { margin: 0; }
+    .ag-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    .empty .big { display: flex; justify-content: center; margin-bottom: var(--sp-3); color: var(--text-subtle); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Agenda de pose</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+    <div id="host"><div class="empty">Chargement…</div></div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, icon, toast, fetchWeather } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const EQUIPE_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick', nicolas_yannick: 'Nicolas + Yannick', sous_traitant: 'Sous-traitant' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const today = () => new Date().toISOString().slice(0, 10);
+
+    let FULL = new Map(); // id -> devis complet
+
+    function itemsSummary(items) {
+      const counts = {};
+      (items || []).forEach(it => { counts[it.type] = (counts[it.type] || 0) + (it.quantite || 1); });
+      return Object.entries(counts).map(([t, n]) => `${n} ${TYPE_LABEL[t] || t}${n > 1 ? 's' : ''}`).join(', ') || 'Aucune ouverture';
+    }
+
+    async function load() {
+      const raw = await SS.listDevis();
+      const eligible = (raw || []).filter(d => ['signe', 'termine'].includes(d.statut));
+      const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
+      FULL = new Map();
+      fulls.filter(Boolean).forEach(d => FULL.set(d.id, d));
+      render();
+    }
+
+    function agCard(d) {
+      const ch = d.chantier || {};
+      const cl = d.client || {}, adr = cl.adresse || {};
+      const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const mapsUrl = adresseTxt ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adresseTxt) : null;
+      let cls = '', badge = '';
+      if (d.statut === 'termine') { badge = `<span class="badge badge-ok">Posé</span>`; }
+      else if (!ch.date_pose) { badge = `<span class="badge">À planifier</span>`; }
+      else {
+        const days = Math.round((new Date(ch.date_pose) - new Date(today())) / 86400000);
+        if (days < 0) { cls = 'is-retard'; badge = `<span class="badge badge-danger">En retard (${-days}j)</span>`; }
+        else if (days === 0) { cls = 'is-today'; badge = `<span class="badge badge-cyan">Aujourd'hui</span>`; }
+        else { badge = `<span class="badge badge-warn">Dans ${days}j</span>`; }
+      }
+      return `
+        <div class="ag-card ticked ${cls}">
+          <div class="ag-head">
+            <div>
+              <div class="ag-client">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
+              <div class="ag-addr">${adresseTxt ? (mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener">${esc(adresseTxt)}</a>` : esc(adresseTxt)) : 'Adresse non renseignée'}</div>
+            </div>
+            ${badge}
+          </div>
+          <div class="ag-items">${esc(itemsSummary(d.items))}</div>
+          <div class="ag-weather" id="weather-${d.id}"></div>
+          <div class="ag-fields">
+            <div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="${esc(ch.date_pose || '')}" onchange="setChantierField('${d.id}','date_pose',this.value)"></div>
+            <div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="${ch.duree_h ?? ''}" onchange="setChantierField('${d.id}','duree_h',parseFloat(this.value)||0)"></div>
+            <div class="field" style="grid-column:span 2;"><label class="label">Équipe</label>
+              <select class="select" onchange="setChantierField('${d.id}','equipe',this.value)">
+                ${Object.entries(EQUIPE_LABEL).map(([k, l]) => `<option value="${k}" ${((ch.equipe || 'nicolas') === k) ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="ag-actions">
+            <button class="btn btn-ghost btn-sm" onclick="location.href='vue.html?id=${d.id}'">${icon('window', 14)} Voir la fiche</button>
+            ${d.statut === 'signe' ? `<button class="btn btn-primary btn-sm" onclick="markDone('${d.id}')">${icon('check', 14)} Marquer posé</button>` : ''}
+          </div>
+        </div>`;
+    }
+
+    window.setChantierField = async (id, field, value) => {
+      const d = FULL.get(id);
+      if (!d) return;
+      d.chantier = d.chantier || {};
+      d.chantier[field] = value;
+      d.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(d);
+      toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour ✓', res.offline ? 'warn' : 'ok');
+      render();
+    };
+    window.markDone = async (id) => {
+      const d = FULL.get(id);
+      if (!d) return;
+      const identity = await window.SSNav.getIdentity();
+      await SS.updateStatus(id, 'termine', identity.key);
+      d.statut = 'termine';
+      toast('Chantier marqué comme posé ✓', 'ok');
+      render();
+    };
+
+    function kpis(groups) {
+      // Lundi de la semaine en cours. getDay() renvoie 0 pour dimanche — cas particulier
+      // nécessaire, sinon la formule générale calcule "demain" au lieu du lundi précédent.
+      const startWeek = new Date();
+      const dow = startWeek.getDay();
+      startWeek.setDate(startWeek.getDate() + (dow === 0 ? -6 : 1 - dow));
+      const endWeek = new Date(startWeek); endWeek.setDate(endWeek.getDate() + 6);
+      const cetteSemaine = [...FULL.values()].filter(d => d.chantier && d.chantier.date_pose && d.statut !== 'termine' &&
+        new Date(d.chantier.date_pose) >= new Date(startWeek.toISOString().slice(0, 10)) && new Date(d.chantier.date_pose) <= endWeek).length;
+      el('kpis').innerHTML = `
+        <div class="kpi ticked accent"><div class="kpi-label">Cette semaine</div><div class="kpi-value">${cetteSemaine}</div><div class="kpi-sub">pose(s) planifiée(s)</div></div>
+        <div class="kpi ticked"><div class="kpi-label">À planifier</div><div class="kpi-value">${groups.aPlanifier.length}</div><div class="kpi-sub">chantiers signés sans date</div></div>
+        <div class="kpi ticked danger"><div class="kpi-label">En retard</div><div class="kpi-value">${groups.retard.length}</div><div class="kpi-sub">date de pose dépassée</div></div>`;
+    }
+
+    function render() {
+      const all = [...FULL.values()];
+      const retard = [], aujourdhui = [], aVenir = [], aPlanifier = [];
+      all.forEach(d => {
+        if (d.statut === 'termine') return;
+        const ch = d.chantier || {};
+        if (!ch.date_pose) { aPlanifier.push(d); return; }
+        const days = Math.round((new Date(ch.date_pose) - new Date(today())) / 86400000);
+        if (days < 0) retard.push(d); else if (days === 0) aujourdhui.push(d); else aVenir.push(d);
+      });
+      const byDate = (a, b) => (a.chantier.date_pose || '').localeCompare(b.chantier.date_pose || '');
+      retard.sort(byDate); aujourdhui.sort(byDate); aVenir.sort(byDate);
+
+      kpis({ aPlanifier, retard });
+
+      if (!all.length) {
+        el('host').innerHTML = `<div class="empty">${icon('calendar', 40)}<div>Aucun chantier signé pour l'instant.<br>L'agenda se remplit dès qu'un devis passe au statut Signé.</div></div>`;
+        return;
+      }
+
+      const section = (title, n, list) => list.length ? `
+        <div class="ag-section-title">${title} <span class="n">(${n})</span></div>
+        <div class="ag-grid">${list.map(agCard).join('')}</div>` : '';
+
+      el('host').innerHTML =
+        section('⚠ En retard', retard.length, retard) +
+        section("Aujourd'hui", aujourdhui.length, aujourdhui) +
+        section('À venir', aVenir.length, aVenir) +
+        section('À planifier', aPlanifier.length, aPlanifier) ||
+        `<div class="empty">${icon('check', 40)}<div>Tous les chantiers signés sont planifiés et à jour.</div></div>`;
+
+      loadWeatherFor([...retard, ...aujourdhui, ...aVenir]);
+    }
+
+    // Météo prévue (Open-Meteo, 16 jours max) — chargée en tâche de fond, silencieuse si indisponible.
+    function loadWeatherFor(list) {
+      list.forEach(async (d) => {
+        const ville = (d.client && d.client.adresse && d.client.adresse.ville) || '';
+        const w = await fetchWeather(ville, d.chantier.date_pose);
+        const box = el('weather-' + d.id);
+        if (w && box) box.textContent = `Météo prévue : ${w.label}, ${Math.round(w.tmin)}°/${Math.round(w.tmax)}°`;
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>

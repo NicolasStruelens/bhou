@@ -90,8 +90,18 @@
       </section>
 
       <section class="section ticked" style="--tick-color:var(--accent-3);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Marge interne par type de produit</span><span class="section-code">SS // ESTIMATION</span></div>
+        <div class="section-body" id="margeByType"></div>
+      </section>
+
+      <section class="section ticked" style="--tick-color:var(--accent-3);">
         <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Performance par vendeur</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
         <div class="section-body" id="bySeller"></div>
+      </section>
+
+      <section class="section ticked" style="--tick-color:var(--danger);">
+        <div class="section-head"><span class="section-title" style="color:var(--danger);">Raisons de refus</span><span class="section-code">SS // DEVIS REFUSÉS</span></div>
+        <div class="section-body" id="byRaisonRefus"></div>
       </section>
 
       <section class="section ticked">
@@ -272,6 +282,41 @@
         <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
     }
 
+    // Marge (nicolas_net + yannick_net) répartie au prorata de la valeur catalogue de chaque
+    // type d'ouverture au sein d'un même devis — le moteur de calcul ne ventile pas la marge
+    // par ouverture individuellement, donc ceci est une ESTIMATION proportionnelle, pas un chiffre exact.
+    function renderMargeByType(devisFull) {
+      const signes = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
+      const byType = {};
+      signes.forEach(d => {
+        const items = d.items || [];
+        const totalCatalog = items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
+        const totalNet = (d.calculs?.nicolas_net || 0) + (d.calculs?.yannick_net || 0);
+        if (totalCatalog <= 0 || !totalNet) return;
+        items.forEach(it => {
+          const t = it.type || 'autre';
+          const itemVal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+          byType[t] = (byType[t] || 0) + totalNet * (itemVal / totalCatalog);
+        });
+      });
+      const entries = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) { el('margeByType').innerHTML = '<div class="empty-mini">Aucun devis signé chiffré.</div>'; return; }
+      const max = Math.max(1, ...entries.map(([, v]) => v));
+      el('margeByType').innerHTML = entries.map(([t, v]) => barRow(TYPE_LABEL[t] || t, v, max, fmtEur(v), 'var(--accent-3)')).join('')
+        + `<div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Estimation répartie au prorata de la valeur catalogue de chaque ouverture au sein d'un même devis.</div>`;
+    }
+
+    function renderRaisonRefus(devisFull) {
+      const refuses = devisFull.filter(d => d.statut === 'refuse');
+      if (!refuses.length) { el('byRaisonRefus').innerHTML = '<div class="empty-mini">Aucun devis refusé.</div>'; return; }
+      const counts = {};
+      refuses.forEach(d => { const r = d.raison_refus || 'Non renseignée'; counts[r] = (counts[r] || 0) + 1; });
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const max = Math.max(1, ...entries.map(([, v]) => v));
+      el('byRaisonRefus').innerHTML = entries.map(([r, n]) => barRow(r, n, max, `${n} devis`, 'var(--danger)')).join('')
+        + `<div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">${refuses.length} devis refusé(s) au total.</div>`;
+    }
+
     (async () => {
       const raw = await SS.listDevis();
       const summary = (raw || []).map(normDevis);
@@ -284,7 +329,9 @@
       renderPayments(factures || []);
       renderMonthly(devisFull, factures || []);
       renderByType(devisFull);
+      renderMargeByType(devisFull);
       renderBySeller(devisFull);
+      renderRaisonRefus(devisFull);
       renderTopClients(devisFull);
       renderByCity(devisFull);
     })();

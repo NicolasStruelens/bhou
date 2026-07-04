@@ -275,6 +275,7 @@
     <aside class="sim-aside">
       <div class="summary-card ticked">
         <div class="sc-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--accent-2);"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg><h2>Récapitulatif</h2></div>
+        <div class="warn-box" id="checklistWarn" style="margin:0 0 var(--sp-3);"></div>
         <div class="sc-body">
           <div class="sc-line"><span class="k">Catalogue HTVA</span><span class="v" id="sTotalCatalog">0,00 €</span></div>
           <div class="sc-line"><span class="k">Installation</span><span class="v" id="sTotalInstall">0,00 €</span></div>
@@ -690,6 +691,17 @@
       setText('sTotalTTC', fmtEur(c.total_ttc));
       setText('sAcomptePct', c.acompte_pct);
       setText('sAcompte', fmtEur(c.acompte_montant));
+
+      // ── Contrôle anti-erreur (avertissements non bloquants avant envoi) ──
+      const warnings = [];
+      state.items.forEach((it, i) => {
+        if (!it.largeur || !it.hauteur) warnings.push(`Ouverture #${i + 1} : largeur ou hauteur manquante`);
+        if (!el('isInformatif').checked && !it.prix_catalogue_ht) warnings.push(`Ouverture #${i + 1} : prix catalogue à 0€`);
+      });
+      if (!input.acompte_pct) warnings.push("Acompte à 0% — vérifie que c'est voulu");
+      const warnBox = el('checklistWarn');
+      warnBox.style.display = warnings.length ? 'block' : 'none';
+      if (warnings.length) warnBox.innerHTML = `<strong>À vérifier avant l'envoi :</strong><ul style="margin:0.3rem 0 0 1.1rem;padding:0;">${warnings.map(w => `<li>${w}</li>`).join('')}</ul>`;
 
       // compteur ouvertures
       setText('itemsCount', `${openings} ouverture(s) · ${totalSurface(state.items).toFixed(2)} m²`);

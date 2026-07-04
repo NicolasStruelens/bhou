@@ -18,6 +18,11 @@
     .toolbar .search { flex: 1; min-width: 220px; position: relative; }
     .toolbar .search input { padding-left: 2.2rem; }
     .toolbar .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+    #advToggle.active { border-color: var(--accent-2); color: var(--accent-2); }
+    #advCount { font-family: var(--font-mono); font-size: var(--fs-2xs); margin-left: 0.3rem; opacity: 0.75; }
+    .adv-panel { display: flex; gap: var(--sp-3); align-items: end; flex-wrap: wrap; padding: var(--sp-3); margin-bottom: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
+    .adv-panel.hidden { display: none; }
+    .adv-panel .field { margin: 0; min-width: 130px; }
     .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .chip { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
@@ -34,8 +39,15 @@
     /* ── Pastilles de statut colorées (menu custom) ── */
     table.data tbody tr { cursor: pointer; }
     .price { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-sm); color: var(--accent-2); letter-spacing: 0.01em; }
+    /* --row-line = hauteur de référence de la 1ère ligne d'une rangée du tableau. La
+       pastille de statut fait cette hauteur naturellement (padding+bordure) ; .name-row
+       (colonne Client) reçoit le même min-height pour que son centre vertical tombe
+       exactement au même endroit, même quand ses badges internes ont une hauteur variable
+       (rien, un badge texte, ou une simple icône) — sans ça, le point de centrage de
+       .name-row change selon le contenu et se décale de la pastille de quelques px. */
+    :root { --row-line: 1.64rem; }
     .status-pill {
-      display: inline-flex; align-items: center; gap: 0.45rem;
+      display: inline-flex; align-items: center; gap: 0.45rem; min-height: var(--row-line); box-sizing: border-box;
       font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
       letter-spacing: 0.03em; text-transform: uppercase;
       padding: 0.32rem 0.6rem; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-fast);
@@ -101,8 +113,13 @@
     /* Client : nom tronqué à largeur fixe + badges toujours calés sur le même bord droit
        (la colonne entière a la même largeur pour toutes les lignes, donc "justify-content:
        space-between" aligne les badges au millimètre, peu importe la longueur du nom). */
+    /* La cellule Client fait 2 lignes (nom+badges, puis ID) alors que les autres colonnes
+       n'en font qu'une : avec le vertical-align "middle" par défaut d'un <td>, la 1ère ligne
+       du Client (donc les badges) et la pastille de Statut ne tombent pas à la même hauteur.
+       Fixé en alignant toutes les cellules du tableau sur le haut. */
+    #tableHost table.data td { vertical-align: top; }
     .client-cell { display: flex; flex-direction: column; gap: 3px; max-width: 270px; }
-    .name-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; }
+    .name-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; min-height: var(--row-line); box-sizing: border-box; }
     .client-cell .name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
     .name-badges { display: flex; align-items: center; gap: 0.3rem; flex: none; }
     .client-cell .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
@@ -113,6 +130,9 @@
     .mi-slot { display: inline-flex; align-items: center; gap: 3px; color: var(--text-subtle); opacity: 0.35; transition: opacity var(--t-fast); }
     .mi-slot.active { opacity: 1; color: var(--text); }
     .note-flag { display: inline-flex; align-items: center; color: var(--accent-2); margin-left: 2px; }
+    .tag-dot { display: inline-flex; align-items: center; color: var(--text-subtle); }
+    .proba-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--pc, var(--border-strong)) 70%, transparent); background: var(--pc, var(--border-strong)); cursor: pointer; padding: 0; flex: none; }
+    .proba-dot:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc, var(--border-strong)) 25%, transparent); }
 
     /* ── Modale commentaires internes ── */
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
@@ -128,6 +148,7 @@
     .comment .c-avatar { width: 32px; height: 32px; flex: none; border-radius: var(--r-round); display: grid; place-items: center; font-weight: 700; font-size: var(--fs-2xs); }
     .comment .c-avatar.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
     .comment .c-avatar.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
+    .comment .c-avatar.client { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
     .comment .c-main { flex: 1; min-width: 0; }
     .comment .c-meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
     .comment .c-author { font-weight: 700; font-size: var(--fs-xs); text-transform: capitalize; }
@@ -189,9 +210,25 @@
       <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
+      <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres avancés<span id="advCount"></span></button>
     </div>
     <div class="filters" id="filters"></div>
     <div class="filters" id="sellerFilters" style="margin-top:0.35rem;"></div>
+
+    <div class="adv-panel hidden" id="advPanel">
+      <div class="field"><label class="label" for="advMontantMin">Montant min (€)</label><input class="input input-num" type="number" min="0" id="advMontantMin" oninput="render()"></div>
+      <div class="field"><label class="label" for="advMontantMax">Montant max (€)</label><input class="input input-num" type="number" min="0" id="advMontantMax" oninput="render()"></div>
+      <div class="field"><label class="label" for="advDateFrom">Créé depuis le</label><input class="input" type="date" id="advDateFrom" onchange="render()"></div>
+      <div class="field"><label class="label" for="advDateTo">Créé jusqu'au</label><input class="input" type="date" id="advDateTo" onchange="render()"></div>
+      <div class="field"><label class="label" for="advChantier">Chantier</label>
+        <select class="select" id="advChantier" onchange="render()">
+          <option value="tous">Tous</option>
+          <option value="planifie">Pose planifiée</option>
+          <option value="non_planifie">Signé, pose non planifiée</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="resetAdvFilters()" style="align-self:end;">Réinitialiser</button>
+    </div>
 
     <!-- Table -->
     <section class="section" style="margin-top: var(--sp-4);">
@@ -249,7 +286,7 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, toast, normDevis, icon, daysInCurrentStatus } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, normDevis, icon, daysInCurrentStatus, clientKeyOf } = window.SSUI;
 
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
@@ -269,8 +306,15 @@
     };
 
     const WAITING_STATUSES = ['envoye_client', 'relance_1', 'relance_2'];
+    const PRE_SIGNATURE_STATUSES = ['brouillon', 'envoye_client', 'relance_1', 'relance_2'];
+    const PROBABILITE = {
+      froid: { label: 'Froid', color: 'var(--text-subtle)' },
+      tiede: { label: 'Tiède', color: 'var(--accent)' },
+      chaud: { label: 'Chaud', color: 'var(--warn)' },
+      presque: { label: 'Presque signé', color: 'var(--accent-2)' },
+    };
 
-    let DEVIS = [], FACTURES = [];
+    let DEVIS = [], FACTURES = [], CLIENT_TAGS = new Map();
     let activeFilter = 'tous';
     let activeSeller = 'tous';
 
@@ -281,6 +325,35 @@
       if (!facs.length) return false;
       const today = new Date().toISOString().slice(0, 10);
       return facs.some(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
+    }
+    // Devis signé (chantier pas encore posé) dont l'acompte n'a pas été intégralement reçu.
+    function isAcompteUnpaid(d) {
+      if (d.statut !== 'signe') return false;
+      const facs = FACTURES.filter(f => f.devis_id === d.id && f.type === 'acompte');
+      if (!facs.length) return true;
+      const due = facs.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const paid = facs.reduce((s, f) => s + paidSum(f), 0);
+      return paid < due - 0.005;
+    }
+    // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
+    function isChantierAPreparer(d) {
+      if (d.statut !== 'signe' || !d.chantier || !d.chantier.date_pose) return false;
+      const days = Math.round((new Date(d.chantier.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+      return days >= 0 && days <= 7;
+    }
+    // Nombre de jours depuis le tout premier envoi au client (pas juste le statut courant —
+    // une relance ne remet pas le compteur de validité CGV à zéro). CGV : devis valide 30 jours.
+    function daysSinceSent(d) {
+      const hist = d.statut_history || [];
+      const first = hist.find(h => WAITING_STATUSES.includes(h.statut));
+      const anchor = first ? first.date : (WAITING_STATUSES.includes(d.statut) ? d.date_creation : null);
+      if (!anchor) return null;
+      return Math.floor((Date.now() - new Date(anchor).getTime()) / 86400000);
+    }
+    function isDevisExpire(d) {
+      if (!WAITING_STATUSES.includes(d.statut)) return false;
+      const days = daysSinceSent(d);
+      return days !== null && days >= 30;
     }
     function paymentInfo(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
@@ -335,16 +408,50 @@
       const visible = DEVIS.filter(d => !d.archive);
       const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
       const enRetard = visible.filter(isPaymentOverdue);
+      const acompteAttente = visible.filter(isAcompteUnpaid);
+      const aPreparer = visible.filter(isChantierAPreparer);
+      const expires = visible.filter(isDevisExpire);
       const box = el('todayBrief');
       const chips = [];
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
+      if (acompteAttente.length) chips.push({ label: `${acompteAttente.length} acompte${acompteAttente.length > 1 ? 's' : ''} non payé${acompteAttente.length > 1 ? 's' : ''}`, color: 'var(--warn)', filter: 'acompte_attente', ic: 'coin' });
+      if (aPreparer.length) chips.push({ label: `${aPreparer.length} chantier${aPreparer.length > 1 ? 's' : ''} à préparer`, color: 'var(--accent-2)', filter: 'a_preparer', ic: 'calendar' });
+      if (expires.length) chips.push({ label: `${expires.length} devis expiré${expires.length > 1 ? 's' : ''}`, color: 'var(--danger)', filter: 'expire', ic: 'warning' });
       if (!chips.length) { box.classList.add('hidden'); return; }
       box.classList.remove('hidden');
       box.innerHTML = `
         <span class="tb-label">${icon('sliders', 13)} Aujourd'hui</span>
         ${chips.map(c => `<button class="tb-chip" style="--tbc:${c.color}" onclick="setFilter('${c.filter}')">${icon(c.ic, 12)} ${c.label}</button>`).join('')}
       `;
+    }
+
+    // ── Filtres avancés (montant, date de création, chantier planifié) ──
+    window.toggleAdvFilters = () => {
+      el('advPanel').classList.toggle('hidden');
+      el('advToggle').classList.toggle('active', !el('advPanel').classList.contains('hidden'));
+    };
+    window.resetAdvFilters = () => {
+      el('advMontantMin').value = ''; el('advMontantMax').value = '';
+      el('advDateFrom').value = ''; el('advDateTo').value = '';
+      el('advChantier').value = 'tous';
+      render();
+    };
+    function applyAdvFilters(rows) {
+      const min = parseFloat(el('advMontantMin').value);
+      const max = parseFloat(el('advMontantMax').value);
+      const from = el('advDateFrom').value;
+      const to = el('advDateTo').value;
+      const chantier = el('advChantier').value;
+      let n = 0;
+      if (!isNaN(min)) { rows = rows.filter(d => d.ttc >= min); n++; }
+      if (!isNaN(max)) { rows = rows.filter(d => d.ttc <= max); n++; }
+      if (from) { rows = rows.filter(d => (d.date_creation || '').slice(0, 10) >= from); n++; }
+      if (to) { rows = rows.filter(d => (d.date_creation || '').slice(0, 10) <= to); n++; }
+      if (chantier === 'planifie') { rows = rows.filter(d => d.chantier && d.chantier.date_pose); n++; }
+      else if (chantier === 'non_planifie') { rows = rows.filter(d => ['signe', 'termine'].includes(d.statut) && !(d.chantier && d.chantier.date_pose)); n++; }
+      el('advCount').textContent = n ? `(${n})` : '';
+      return rows;
     }
 
     function renderKPIs() {
@@ -376,9 +483,13 @@
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
       if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
       else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
+      else if (activeFilter === 'acompte_attente') rows = rows.filter(isAcompteUnpaid);
+      else if (activeFilter === 'a_preparer') rows = rows.filter(isChantierAPreparer);
+      else if (activeFilter === 'expire') rows = rows.filter(isDevisExpire);
       else if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
       if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
       if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id} ${d.ville} ${d.telephone} ${d.email}`).toLowerCase().includes(q));
+      rows = applyAdvFilters(rows);
       rows.sort((a, b) => {
         if (sort === 'montant') return b.ttc - a.ttc;
         if (sort === 'nom') return (a.nom || '').localeCompare(b.nom || '');
@@ -395,10 +506,20 @@
 
       const pill = (d) => {
         const s = STATUSES[d.statut] || STATUSES.brouillon;
-        return `<button class="status-pill" style="--st:${s.color}" onclick="openStatusMenu(event,'${d.id}')" aria-label="Changer le statut du devis ${d.id}"><span class="dot"></span>${s.label} ${icon('chevrondown', 10)}</button>`;
+        const title = d.statut === 'refuse' && d.raison_refus ? ` title="Raison : ${esc(d.raison_refus)}"` : '';
+        return `<button class="status-pill" style="--st:${s.color}"${title} onclick="openStatusMenu(event,'${d.id}')" aria-label="Changer le statut du devis ${d.id}"><span class="dot"></span>${s.label} ${icon('chevrondown', 10)}</button>`;
+      };
+      const nameTitle = (d) => {
+        const full = ((d.prenom || '') + ' ' + (d.nom || '')).trim();
+        const tags = CLIENT_TAGS.get(clientKeyOf(d.prenom, d.nom)) || [];
+        return tags.length ? `${full} — Étiquettes : ${tags.join(', ')}` : full;
       };
       const waitingBadge = (d) => {
         if (!WAITING_STATUSES.includes(d.statut)) return '';
+        if (isDevisExpire(d)) {
+          const sentDays = daysSinceSent(d);
+          return `<div class="mt-1"><span class="badge badge-danger" title="Devis envoyé depuis ${sentDays} jours — validité CGV de 30 jours dépassée">${icon('warning', 10)} Expiré</span></div>`;
+        }
         const days = daysInCurrentStatus(d);
         if (days < 3) return '';
         const cls = days >= 14 ? 'badge-danger' : days >= 7 ? 'badge-warn' : '';
@@ -416,8 +537,10 @@
                 <tr data-id="${d.id}" title="Ouvrir la fiche du devis">
                   <td><div class="client-cell">
                     <div class="name-row">
-                      <span class="name" title="${esc(((d.prenom || '') + ' ' + (d.nom || '')).trim())}">${esc(d.prenom)} ${esc(d.nom) || '—'}</span>
+                      <span class="name" title="${esc(nameTitle(d))}">${esc(d.prenom)} ${esc(d.nom) || '—'}</span>
                       <div class="name-badges">
+                        ${PRE_SIGNATURE_STATUSES.includes(d.statut) ? `<button class="proba-dot" style="--pc:${(PROBABILITE[d.probabilite] || {}).color || 'var(--border-strong)'}" onclick="event.stopPropagation();toggleProbaMenu(event,'${d.id}')" title="${d.probabilite ? 'Probabilité : ' + PROBABILITE[d.probabilite].label : 'Définir une probabilité de signature'}"></button>` : ''}
+                        ${CLIENT_TAGS.has(clientKeyOf(d.prenom, d.nom)) ? `<span class="tag-dot" title="${esc('Étiquettes : ' + CLIENT_TAGS.get(clientKeyOf(d.prenom, d.nom)).join(', '))}">${icon('tag', 11)}</span>` : ''}
                         ${d.informatif ? `<span class="badge badge-cyan" title="Estimation non contractuelle">Informatif</span>` : ''}
                         ${d.portfolio ? `<span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}
                       </div>
@@ -487,9 +610,65 @@
       stMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 320) + 'px';
       stMenuEl.classList.add('open');
     };
+    const RAISON_REFUS = ['Prix', 'Délai', 'Concurrent', 'Projet reporté', 'Pas de réponse', 'Autre'];
     window.pickStatus = async (st) => {
+      if (st === 'refuse') {
+        // Demande la raison du refus dans le même menu flottant, avant d'appliquer le changement.
+        stMenuEl.innerHTML = RAISON_REFUS.map(r => `<button onclick="pickRaisonRefus('${r}')">${r}</button>`).join('')
+          + `<button onclick="pickRaisonRefus('')" style="color:var(--text-subtle);">Passer</button>`;
+        return;
+      }
       stMenuEl.classList.remove('open');
       if (stTarget) await changeStatus(stTarget, st);
+    };
+    window.pickRaisonRefus = async (raison) => {
+      stMenuEl.classList.remove('open');
+      const id = stTarget;
+      if (!id) return;
+      await changeStatus(id, 'refuse');
+      // Toujours (r)écrire raison_refus, même vide — sinon un refus sans raison (« Passer »)
+      // garde silencieusement la raison d'un refus précédent sur ce même devis.
+      const full = await SS.getDevis(id);
+      if (full) {
+        full.raison_refus = raison;
+        full.date_modification = new Date().toISOString();
+        await SS.saveDevis(full);
+      }
+      const d = DEVIS.find(x => x.id === id);
+      if (d) d.raison_refus = raison;
+      render();
+    };
+
+    // ── Score de probabilité (petit point coloré, popover identique au menu de statut) ──
+    let probaMenuEl = null, probaTarget = null;
+    window.toggleProbaMenu = (e, id) => {
+      e.stopPropagation();
+      if (!probaMenuEl) {
+        probaMenuEl = document.createElement('div');
+        probaMenuEl.className = 'status-menu';
+        document.body.appendChild(probaMenuEl);
+        document.addEventListener('click', (ev) => {
+          if (probaMenuEl.classList.contains('open') && !probaMenuEl.contains(ev.target) && !ev.target.closest('.proba-dot')) probaMenuEl.classList.remove('open');
+        }, true);
+        window.addEventListener('scroll', () => probaMenuEl.classList.remove('open'), true);
+      }
+      probaTarget = id;
+      probaMenuEl.innerHTML = Object.entries(PROBABILITE).map(([k, v]) =>
+        `<button onclick="pickProba('${k}')"><span class="dot" style="background:${v.color}"></span>${v.label}</button>`).join('');
+      const r = e.currentTarget.getBoundingClientRect();
+      probaMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 195)) + 'px';
+      probaMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 320) + 'px';
+      probaMenuEl.classList.add('open');
+    };
+    window.pickProba = async (val) => {
+      probaMenuEl.classList.remove('open');
+      const id = probaTarget;
+      if (!id) return;
+      const full = await SS.getDevis(id);
+      if (full) { full.probabilite = val; full.date_modification = new Date().toISOString(); await SS.saveDevis(full); }
+      const d = DEVIS.find(x => x.id === id);
+      if (d) d.probabilite = val;
+      render();
     };
 
     // ── Clic sur une ligne → fiche de visualisation du devis ──
@@ -556,11 +735,13 @@
         .map(c => {
           const t = CTYPE[c.type] || CTYPE.note;
           const author = (c.author || 'nicolas').toLowerCase();
+          const avatarCls = author === 'client' ? 'client' : (author === 'yannick' ? 'yannick' : 'nicolas');
+          const avatarTxt = author === 'client' ? 'CL' : (author === 'yannick' ? 'YA' : 'NI');
           return `<div class="comment ${c.type === 'important' ? 'is-important' : ''}">
-            <div class="c-avatar ${author === 'yannick' ? 'yannick' : 'nicolas'}">${author === 'yannick' ? 'YA' : 'NI'}</div>
+            <div class="c-avatar ${avatarCls}">${avatarTxt}</div>
             <div class="c-main">
               <div class="c-meta">
-                <span class="c-author">${author}</span>
+                <span class="c-author">${author === 'client' ? 'Client (via espace client)' : author}</span>
                 <span class="badge ${t.cls}">${t.label}</span>
                 <span class="c-date">${fmtDate(c.date)}</span>
                 <button class="c-del" title="Supprimer cette note" aria-label="Supprimer cette note" onclick="removeComment('${c.id}')">${icon('trash', 13)}</button>
@@ -626,9 +807,10 @@
 
     // ── Chargement ──
     async function load() {
-      const [raw, facs] = await Promise.all([SS.listDevis(), SS.listFactures()]);
+      const [raw, facs, clients] = await Promise.all([SS.listDevis(), SS.listFactures(), SS.listClients()]);
       DEVIS = (raw || []).map(normDevis);
       FACTURES = facs || [];
+      CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();
     }
     SS.isOnline().then(on => {
