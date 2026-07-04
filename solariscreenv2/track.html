@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Suivi de votre commande</title>
+  <link rel="icon" type="image/png" href="assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="assets/js/theme.js"></script>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/theme-dark.css">
+  <link rel="stylesheet" href="assets/css/theme-light.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <style>
+    .track-wrap { max-width: 560px; margin: 0 auto; padding: var(--sp-6) var(--sp-4); }
+    .track-hero { text-align: center; margin-bottom: var(--sp-6); }
+    .track-hero .logo { width: 64px; height: 64px; margin: 0 auto var(--sp-3); border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); }
+    .track-hero .logo img { width: 100%; height: 100%; object-fit: cover; }
+    .track-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); }
+    .track-hero p { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
+
+    .track-steps { display: flex; gap: 0.4rem; margin: var(--sp-5) 0; }
+    .track-step { flex: 1; text-align: center; }
+    .track-step .dot { width: 30px; height: 30px; margin: 0 auto var(--sp-2); border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text-subtle); font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-xs); transition: all var(--t-base); }
+    .track-step .lbl { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); }
+    .track-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+    .track-step.done .lbl { color: var(--ok); }
+    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); box-shadow: var(--glow-soft); }
+    .track-step.active .lbl { color: var(--accent-2); font-weight: 700; }
+    .track-bar { position: relative; height: 3px; background: var(--border); margin: -1.9rem 5% var(--sp-5); z-index: -1; }
+    .track-bar-fill { height: 100%; background: var(--ok); transition: width var(--t-base); }
+
+    .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--sp-5); }
+    .track-eta strong { color: var(--text); }
+
+    .track-items { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .track-item { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    .track-item svg { color: var(--accent); flex: none; }
+
+    .track-error { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--text-muted); }
+    .track-foot { text-align: center; color: var(--text-subtle); font-size: var(--fs-2xs); margin-top: var(--sp-6); }
+    .topbar { position: absolute; top: var(--sp-4); right: var(--sp-5); z-index: 2; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+  <div class="topbar"><span id="themeToggle"></span></div>
+
+  <div class="track-wrap" id="main" style="display:none;">
+    <div class="track-hero">
+      <div class="logo"><img src="assets/img/logo-solariscreen.png" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
+      <h1 id="greeting">Suivi de votre commande</h1>
+      <p>Voici où en est votre commande SolariScreen.</p>
+    </div>
+
+    <div class="track-steps" id="trackSteps"></div>
+    <div class="track-bar"><div class="track-bar-fill" id="trackBarFill"></div></div>
+    <div class="track-eta" id="trackEta"></div>
+
+    <div class="track-items" id="trackItems"></div>
+
+    <div class="track-foot">SolariScreen · www.solariscreen.be</div>
+  </div>
+
+  <div class="track-wrap" id="loading">
+    <div class="track-error">Chargement…</div>
+  </div>
+
+  <script src="assets/js/ui.js"></script>
+  <script>
+    const { icon } = window.SSUI;
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const STAGES = [
+      { k: 'a_commander', l: 'À commander' },
+      { k: 'commande', l: 'Commandé' },
+      { k: 'fabrication', l: 'Fabrication' },
+      { k: 'recu', l: 'Reçu' },
+      { k: 'pose', l: 'Posé' },
+    ];
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function showError(msg) {
+      document.getElementById('loading').innerHTML = `<div class="track-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div></div>`;
+    }
+
+    (async () => {
+      const token = new URLSearchParams(location.search).get('t');
+      if (!token) { showError('Lien invalide.'); return; }
+      let res;
+      try {
+        res = await fetch('/api/track?t=' + encodeURIComponent(token), { credentials: 'same-origin' }).then(r => r.json());
+      } catch (e) {
+        showError('Impossible de charger le suivi pour le moment. Réessayez un peu plus tard.');
+        return;
+      }
+      if (!res || !res.ok) { showError(res && res.error || 'Lien invalide ou expiré.'); return; }
+      const d = res.data;
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('main').style.display = '';
+
+      if (d.prenom) document.getElementById('greeting').textContent = `Bonjour ${d.prenom} !`;
+
+      const cc = d.commande || {};
+      const idx = Math.max(0, STAGES.findIndex(s => s.k === (cc.statut || 'a_commander')));
+      document.getElementById('trackSteps').innerHTML = STAGES.map((s, i) => `
+        <div class="track-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}">
+          <div class="dot">${i < idx ? icon('check', 14) : (i + 1)}</div>
+          <div class="lbl">${s.l}</div>
+        </div>`).join('');
+      const pct = STAGES.length > 1 ? Math.round((idx / (STAGES.length - 1)) * 100) : 0;
+      document.getElementById('trackBarFill').style.width = pct + '%';
+
+      let etaTxt = "L'installateur planifiera prochainement la suite de votre commande.";
+      if (cc.date_commande) {
+        const eta = new Date(cc.date_commande);
+        eta.setDate(eta.getDate() + (cc.delai_semaines || 0) * 7);
+        if (!isNaN(eta) && !['recu', 'pose'].includes(cc.statut)) {
+          etaTxt = `Livraison estimée : <strong>${eta.toLocaleDateString('fr-BE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>`;
+        } else if (['recu', 'pose'].includes(cc.statut)) {
+          etaTxt = cc.statut === 'pose' ? 'Installation terminée — merci de votre confiance !' : 'Matériel reçu, la pose sera bientôt planifiée.';
+        }
+      }
+      document.getElementById('trackEta').innerHTML = etaTxt;
+
+      document.getElementById('trackItems').innerHTML = (d.items || []).map(it => `
+        <div class="track-item">${icon('window', 16)}<div>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</div></div>
+      `).join('') || '';
+    })();
+  </script>
+</body>
+</html>
