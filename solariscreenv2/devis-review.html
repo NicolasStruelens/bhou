@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Votre devis</title>
+  <link rel="icon" type="image/png" href="assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="assets/js/theme.js"></script>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/theme-dark.css">
+  <link rel="stylesheet" href="assets/css/theme-light.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <style>
+    .rv-wrap { max-width: 560px; margin: 0 auto; padding: var(--sp-6) var(--sp-4); }
+    .rv-hero { text-align: center; margin-bottom: var(--sp-6); }
+    .rv-hero .logo { width: 64px; height: 64px; margin: 0 auto var(--sp-3); border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); }
+    .rv-hero .logo img { width: 100%; height: 100%; object-fit: cover; }
+    .rv-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); }
+    .rv-hero p { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
+
+    .rv-items { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+    .rv-item { display: flex; justify-content: space-between; gap: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    .rv-item .k { font-weight: 600; }
+    .rv-item .sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .rv-item .v { font-family: var(--font-mono); white-space: nowrap; }
+
+    .rv-total { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); margin-bottom: var(--sp-5); }
+    .rv-total .k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    .rv-total .v { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; color: var(--accent-2); text-shadow: var(--glow-hero); }
+
+    .rv-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-5); }
+    .rv-actions .btn { flex: 1; min-width: 140px; }
+    .rv-question { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); }
+    .rv-question h3 { font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
+    .rv-status-msg { text-align: center; padding: var(--sp-5); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); margin-bottom: var(--sp-5); }
+    .rv-status-msg.ok { border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); color: var(--ok); }
+
+    .rv-error { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--text-muted); }
+    .rv-foot { text-align: center; color: var(--text-subtle); font-size: var(--fs-2xs); margin-top: var(--sp-6); }
+    .topbar { position: absolute; top: var(--sp-4); right: var(--sp-5); z-index: 2; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+  <div class="topbar"><span id="themeToggle"></span></div>
+
+  <div class="rv-wrap" id="main" style="display:none;">
+    <div class="rv-hero">
+      <div class="logo"><img src="assets/img/logo-solariscreen.png" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
+      <h1 id="greeting">Votre devis SolariScreen</h1>
+      <p>Voici le récapitulatif de votre devis.</p>
+    </div>
+
+    <div class="rv-items" id="rvItems"></div>
+    <div class="rv-total"><span class="k">Total TVAC</span><span class="v" id="rvTotal">—</span></div>
+
+    <div id="rvStatusMsg"></div>
+
+    <div class="rv-actions hidden" id="rvActions">
+      <button class="btn btn-primary" onclick="submitAction('accept')">J'accepte ce devis</button>
+      <button class="btn btn-ghost" onclick="submitAction('decline')">Je refuse</button>
+    </div>
+
+    <div class="rv-question hidden" id="rvQuestionBox">
+      <h3>Une question ?</h3>
+      <textarea class="textarea" id="rvQuestionText" style="min-height:70px;" placeholder="Écrivez votre question ici…"></textarea>
+      <button class="btn btn-ghost btn-sm mt-2" onclick="submitAction('question')">Envoyer</button>
+    </div>
+
+    <div class="rv-foot">SolariScreen · www.solariscreen.be</div>
+  </div>
+
+  <div class="rv-wrap" id="loading">
+    <div class="rv-error">Chargement…</div>
+  </div>
+
+  <script src="assets/js/ui.js"></script>
+  <script>
+    const { icon, fmtEur, toast } = window.SSUI;
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const token = new URLSearchParams(location.search).get('t');
+    let DATA = null;
+
+    function showError(msg) {
+      document.getElementById('loading').innerHTML = `<div class="rv-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div></div>`;
+    }
+
+    async function loadReview() {
+      if (!token) { showError('Lien invalide.'); return; }
+      let res;
+      try {
+        res = await fetch('/api/devis-review?t=' + encodeURIComponent(token), { credentials: 'same-origin' }).then(r => r.json());
+      } catch (e) {
+        showError('Impossible de charger votre devis pour le moment. Réessayez un peu plus tard.');
+        return;
+      }
+      if (!res || !res.ok) { showError((res && res.error) || 'Lien invalide ou expiré.'); return; }
+      DATA = res.data;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('main').style.display = '';
+      render();
+    }
+
+    function render() {
+      const d = DATA;
+      if (d.prenom) document.getElementById('greeting').textContent = `Bonjour ${d.prenom} !`;
+      document.getElementById('rvItems').innerHTML = (d.items || []).map(it => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '';
+        const sousTotal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+        return `<div class="rv-item">
+          <div><div class="k">${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</div>
+          <div class="sub">${[dims, it.quantite > 1 ? '× ' + it.quantite : ''].filter(Boolean).join(' · ')}</div></div>
+          <div class="v">${fmtEur(sousTotal)}</div>
+        </div>`;
+      }).join('') || '<div class="text-muted">Aucune ouverture.</div>';
+      document.getElementById('rvTotal').textContent = fmtEur(d.total_ttc);
+
+      const decidable = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut) && !d.client_accepted;
+      const statusBox = document.getElementById('rvStatusMsg');
+      if (d.client_accepted) {
+        statusBox.innerHTML = `<div class="rv-status-msg ok">Vous avez accepté ce devis — nous revenons vers vous rapidement pour finaliser votre commande.</div>`;
+      } else if (d.statut === 'signe' || d.statut === 'termine') {
+        statusBox.innerHTML = `<div class="rv-status-msg ok">Ce devis est déjà confirmé. Merci !</div>`;
+      } else if (d.statut === 'refuse') {
+        statusBox.innerHTML = `<div class="rv-status-msg">Ce devis a été marqué comme refusé.</div>`;
+      } else {
+        statusBox.innerHTML = '';
+      }
+      document.getElementById('rvActions').classList.toggle('hidden', !decidable);
+      document.getElementById('rvQuestionBox').classList.toggle('hidden', false);
+    }
+
+    window.submitAction = async (action) => {
+      let text = '';
+      if (action === 'question') {
+        text = document.getElementById('rvQuestionText').value.trim();
+        if (!text) { toast('Écris ta question avant d\'envoyer.', 'warn'); return; }
+      }
+      if (action === 'decline') {
+        text = prompt('Une raison à préciser (facultatif) ?') || '';
+      }
+      try {
+        const res = await fetch('/api/devis-review', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action, text }),
+        }).then(r => r.json());
+        if (!res.ok) { toast(res.error || 'Erreur', 'error'); return; }
+        if (action === 'question') {
+          document.getElementById('rvQuestionText').value = '';
+          toast('Question envoyée ✓', 'ok');
+        } else {
+          toast('Merci pour votre réponse ✓', 'ok');
+          await loadReview();
+        }
+      } catch (e) {
+        toast('Erreur réseau, réessayez plus tard.', 'error');
+      }
+    };
+
+    loadReview();
+  </script>
+</body>
+</html>
