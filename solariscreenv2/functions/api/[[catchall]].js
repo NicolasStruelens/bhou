@@ -37,6 +37,13 @@ function parseAccessEmail(request) {
   } catch (e) { return null; }
 }
 
+// Même mapping que nav.js (IDENTITIES) — dupliqué ici volontairement car les deux
+// fichiers ne partagent pas de module commun (scripts classiques, pas de bundler).
+const IDENTITIES = {
+  'info@solariscreen.be': 'yannick',
+  'nicolas.struelens@me.com': 'nicolas',
+};
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -295,6 +302,31 @@ export async function onRequest(context) {
     // ══════════ IDENTITÉ (qui est connecté via Cloudflare Access) ══════════
     if (path === '/api/whoami') {
       return json({ ok: true, data: { email: parseAccessEmail(request) } });
+    }
+
+    // ══════════ HISTORIQUE DE CONNEXION (Nicolas / Yannick) ══════════
+    // Un "heartbeat" est envoyé par nav.js toutes les 30s tant que l'onglet est visible
+    // ET qu'il y a eu une interaction récente (voir nav.js) — approxime le temps
+    // réellement passé sur l'appli, pas juste "onglet resté ouvert".
+    if (path === '/api/heartbeat' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const sessionId = String(body.session_id || '').slice(0, 100);
+      if (!sessionId) return json({ ok: false, error: 'session_id manquant' }, 400);
+      const email = parseAccessEmail(request);
+      const identity = (email && IDENTITIES[email.toLowerCase()]) || null;
+      const now = new Date().toISOString();
+      await env.DB.prepare(`
+        INSERT INTO connections (session_id, identity, email, start_time, last_seen, page_count)
+        VALUES (?, ?, ?, ?, ?, 1)
+        ON CONFLICT(session_id) DO UPDATE SET last_seen = excluded.last_seen, page_count = page_count + 1
+      `).bind(sessionId, identity, email || '', now, now).run();
+      return json({ ok: true });
+    }
+    if (path === '/api/connections' && method === 'GET') {
+      const { results } = await env.DB.prepare(
+        'SELECT session_id, identity, email, start_time, last_seen, page_count FROM connections ORDER BY start_time DESC LIMIT 300'
+      ).all();
+      return json({ ok: true, data: results });
     }
 
     // ══════════ HEALTH ══════════
