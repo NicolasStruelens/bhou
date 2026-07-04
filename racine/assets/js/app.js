@@ -32,6 +32,81 @@
     localStorage.setItem('racine_spaces', JSON.stringify(list));
   }
 
+  function renameSpace(oldName) {
+    var newName = prompt('Renommer l\'espace « ' + oldName + ' » :', oldName);
+    if (!newName || !newName.trim() || newName.trim() === oldName) return;
+    newName = newName.trim().slice(0, 60);
+    var rootsInSpace = state.notes.filter(function (n) { return !n.parent_id && (n.space || 'Général') === oldName; });
+    var updates = rootsInSpace.map(function (n) { return RA.updateNote(n.id, { space: newName }); });
+    Promise.all(updates).then(function () {
+      removeKnownSpace(oldName);
+      saveKnownSpace(newName);
+      var colors = spaceColors();
+      if (colors[oldName]) { colors[newName] = colors[oldName]; delete colors[oldName]; saveSpaceColors(colors); }
+      if (state.activeSpace === oldName) {
+        state.activeSpace = newName;
+        localStorage.setItem('racine_active_space', newName);
+      }
+      loadNotes();
+    });
+  }
+
+  // ---------- couleurs d'espace ----------
+  var SPACE_PALETTE = ['#34d399', '#22d3ee', '#a78bfa', '#f472b6', '#fbbf24', '#fb7185', '#60a5fa', '#a3e635'];
+
+  function hexToRgb(hex) {
+    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return '52,211,153';
+    return parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16);
+  }
+
+  function spaceColors() {
+    try { return JSON.parse(localStorage.getItem('racine_space_colors') || '{}'); } catch (e) { return {}; }
+  }
+  function saveSpaceColors(map) { localStorage.setItem('racine_space_colors', JSON.stringify(map)); }
+
+  function getSpaceColor(name) {
+    var colors = spaceColors();
+    if (colors[name]) return colors[name];
+    // couleur automatique stable basée sur le nom, tant que l'utilisateur n'en choisit pas une
+    var hash = 0;
+    for (var i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return SPACE_PALETTE[hash % SPACE_PALETTE.length];
+  }
+
+  function applySpaceColorVars(el, name) {
+    var hex = getSpaceColor(name);
+    el.style.setProperty('--sc', hex);
+    el.style.setProperty('--sc-rgb', hexToRgb(hex));
+  }
+
+  var colorModal = document.getElementById('colorModal');
+  var colorGrid = document.getElementById('colorGrid');
+  var colorModalTitle = document.getElementById('colorModalTitle');
+  document.getElementById('colorClose').addEventListener('click', function () { colorModal.classList.remove('show'); });
+  colorModal.addEventListener('click', function (e) { if (e.target === colorModal) colorModal.classList.remove('show'); });
+
+  function openColorPicker(name) {
+    colorModalTitle.textContent = 'Couleur de « ' + name + ' »';
+    colorGrid.innerHTML = '';
+    var current = getSpaceColor(name);
+    SPACE_PALETTE.forEach(function (hex) {
+      var swatch = document.createElement('button');
+      swatch.className = 'color-swatch' + (hex === current ? ' selected' : '');
+      swatch.style.background = hex;
+      swatch.title = hex;
+      swatch.addEventListener('click', function () {
+        var colors = spaceColors();
+        colors[name] = hex;
+        saveSpaceColors(colors);
+        colorModal.classList.remove('show');
+        renderSpaceBar();
+        renderNotesView();
+      });
+      colorGrid.appendChild(swatch);
+    });
+  }
+
   function deleteSpace(name) {
     var rootsInSpace = state.notes.filter(function (n) { return !n.parent_id && (n.space || 'Général') === name; });
     var msg = rootsInSpace.length
@@ -58,12 +133,27 @@
 
   // ---------- toast ----------
   var toastEl = document.getElementById('toast');
+  var toastMsgEl = document.getElementById('toastMsg');
+  var toastActionEl = document.getElementById('toastAction');
   var toastTimer;
-  function toast(msg) {
-    toastEl.textContent = msg;
+  function toast(msg, actionLabel, actionFn) {
+    toastMsgEl.textContent = msg;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+    var duration = actionFn ? 5000 : 2200;
+    if (actionLabel && actionFn) {
+      toastActionEl.textContent = actionLabel;
+      toastActionEl.style.display = '';
+      toastActionEl.onclick = function () {
+        clearTimeout(toastTimer);
+        toastEl.classList.remove('show');
+        actionFn();
+      };
+    } else {
+      toastActionEl.style.display = 'none';
+      toastActionEl.onclick = null;
+    }
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, duration);
   }
 
   // ---------- thème jour/nuit ----------
@@ -177,6 +267,7 @@
   var searchInput = document.getElementById('searchInput');
   var filterKindEl = document.getElementById('filterKind');
   var filterPinnedBtn = document.getElementById('filterPinned');
+  var searchAllSpacesBtn = document.getElementById('searchAllSpaces');
 
   searchInput.addEventListener('input', function () {
     state.searchTerm = searchInput.value.trim().toLowerCase();
@@ -193,6 +284,12 @@
   filterPinnedBtn.addEventListener('click', function () {
     state.filterPinned = !state.filterPinned;
     filterPinnedBtn.classList.toggle('active', state.filterPinned);
+    renderNotesView();
+  });
+  state.searchAllSpaces = false;
+  searchAllSpacesBtn.addEventListener('click', function () {
+    state.searchAllSpaces = !state.searchAllSpaces;
+    searchAllSpacesBtn.classList.toggle('active', state.searchAllSpaces);
     renderNotesView();
   });
 
@@ -271,11 +368,34 @@
     allSpaces().forEach(function (name) {
       var btn = document.createElement('button');
       btn.className = 'space-pill' + (state.activeSpace === name ? ' active' : '');
+      applySpaceColorVars(btn, name);
       var dot = document.createElement('span'); dot.className = 'dot';
       btn.appendChild(dot);
       btn.appendChild(document.createTextNode(name));
       btn.addEventListener('click', function () { setActiveSpace(name); });
+
+      var colorBtn = document.createElement('span');
+      colorBtn.className = 'space-pill-color';
+      colorBtn.textContent = '🎨';
+      colorBtn.title = 'Choisir une couleur';
+      colorBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openColorPicker(name);
+        colorModal.classList.add('show');
+      });
+      btn.appendChild(colorBtn);
+
       if (name !== 'Général') {
+        var editBtn = document.createElement('span');
+        editBtn.className = 'space-pill-edit';
+        editBtn.textContent = '✎';
+        editBtn.title = 'Renommer l\'espace « ' + name + ' »';
+        editBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          renameSpace(name);
+        });
+        btn.appendChild(editBtn);
+
         var delX = document.createElement('span');
         delX.className = 'space-pill-del';
         delX.textContent = '×';
@@ -381,6 +501,32 @@
     });
   }
 
+  // mise en forme légère et sûre : **gras** et liens https:// cliquables (jamais d'innerHTML)
+  function renderRichText(container, text) {
+    var regex = /(\*\*[^*\n]+\*\*|https?:\/\/[^\s]+)/g;
+    var lastIndex = 0;
+    var m;
+    while ((m = regex.exec(text))) {
+      if (m.index > lastIndex) container.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+      var token = m[0];
+      if (token.slice(0, 2) === '**') {
+        var strong = document.createElement('strong');
+        strong.textContent = token.slice(2, -2);
+        container.appendChild(strong);
+      } else {
+        var a = document.createElement('a');
+        a.href = token;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = token;
+        a.addEventListener('click', function (e) { e.stopPropagation(); });
+        container.appendChild(a);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) container.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+
   function buildBody(n) {
     var body = document.createElement('div');
     body.className = 'node-body';
@@ -393,7 +539,7 @@
     if (n.content) {
       var content = document.createElement('div');
       content.className = 'node-content';
-      content.textContent = n.content;
+      renderRichText(content, n.content);
       body.appendChild(content);
     }
 
@@ -502,7 +648,12 @@
     delBtn.textContent = '×';
     delBtn.addEventListener('click', function () {
       if (!confirm('Mettre « ' + n.title + ' » (et ses branches) à la corbeille ?')) return;
-      RA.deleteNote(n.id).then(loadNotes);
+      RA.deleteNote(n.id).then(function () {
+        loadNotes();
+        toast('Mis à la corbeille', 'Annuler', function () {
+          RA.restoreNote(n.id).then(loadNotes);
+        });
+      });
     });
     actions.appendChild(delBtn);
 
@@ -525,6 +676,7 @@
       var tag = document.createElement('div');
       tag.className = 'space-tag';
       tag.textContent = spaceTag;
+      applySpaceColorVars(tag, spaceTag);
       el.appendChild(tag);
     }
     el.appendChild(buildActions(n, true));
@@ -624,11 +776,36 @@
     }
   }
 
+  function renderOverviewSummary(items) {
+    var el = document.getElementById('overviewSummary');
+    el.innerHTML = '';
+    var counts = {};
+    items.forEach(function (n) {
+      var sp = effectiveSpace(n);
+      counts[sp] = (counts[sp] || 0) + 1;
+    });
+    Object.keys(counts).sort(function (a, b) {
+      return counts[b] - counts[a];
+    }).forEach(function (name) {
+      var chip = document.createElement('div');
+      chip.className = 'overview-stat';
+      applySpaceColorVars(chip, name);
+      var dot = document.createElement('span'); dot.className = 'dot';
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(name + ' '));
+      var strong = document.createElement('strong');
+      strong.textContent = counts[name];
+      chip.appendChild(strong);
+      el.appendChild(chip);
+    });
+  }
+
   function renderNotesView() {
     var treeEl = document.getElementById('tree');
     treeEl.innerHTML = '';
     var emptyMsg = document.querySelector('#emptyState p');
     var searchActive = !!state.searchTerm || state.filterKind !== 'all' || state.filterPinned;
+    searchAllSpacesBtn.style.display = (searchActive && state.activeSpace !== OVERVIEW) ? '' : 'none';
 
     if (state.activeSpace === OVERVIEW) {
       var overdue = state.notes.filter(function (n) {
@@ -636,14 +813,20 @@
       });
       document.getElementById('emptyState').style.display = overdue.length ? 'none' : 'block';
       if (emptyMsg) emptyMsg.textContent = 'Rien d\'épinglé ni de tâche en attente, dans aucun espace. Tout est calme.';
+      renderOverviewSummary(overdue);
       overdue.forEach(function (n) { renderFlatNode(n, treeEl, effectiveSpace(n), true); });
     } else if (searchActive) {
-      var spaceNotes = state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
-      var filtered = spaceNotes.filter(matchesFilter);
+      document.getElementById('overviewSummary').innerHTML = '';
+      var pool = state.searchAllSpaces ? state.notes : state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
+      var filtered = pool.filter(matchesFilter);
       document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
       if (emptyMsg) emptyMsg.textContent = 'Rien pour l\'instant. Écris ta première idée ci-dessus.';
-      filtered.forEach(function (n) { renderFlatNode(n, treeEl); });
+      filtered.forEach(function (n) {
+        if (state.searchAllSpaces) renderFlatNode(n, treeEl, effectiveSpace(n), true);
+        else renderFlatNode(n, treeEl);
+      });
     } else {
+      document.getElementById('overviewSummary').innerHTML = '';
       var roots = buildTree(state.notes).filter(function (r) { return (r.space || 'Général') === state.activeSpace; });
       document.getElementById('emptyState').style.display = roots.length ? 'none' : 'block';
       if (emptyMsg) emptyMsg.textContent = 'Rien pour l\'instant dans « ' + state.activeSpace + ' ». Écris ta première idée ci-dessus.';
@@ -842,7 +1025,12 @@
     delBtn.textContent = '×';
     delBtn.title = 'Mettre à la corbeille';
     delBtn.addEventListener('click', function () {
-      RA.deleteClip(c.id).then(loadClips);
+      RA.deleteClip(c.id).then(function () {
+        loadClips();
+        toast('Mis à la corbeille', 'Annuler', function () {
+          RA.restoreClip(c.id).then(loadClips);
+        });
+      });
     });
     head.appendChild(delBtn);
     card.appendChild(head);
