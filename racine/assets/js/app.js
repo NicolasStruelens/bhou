@@ -374,6 +374,25 @@
     return body;
   }
 
+  function siblingsOf(n) {
+    var parent = n.parent_id || null;
+    var list = state.notes.filter(function (x) { return (x.parent_id || null) === parent; });
+    if (!parent) {
+      // au niveau racine, ne comparer qu'à l'intérieur du même espace
+      var sp = n.space || 'Général';
+      list = list.filter(function (x) { return (x.space || 'Général') === sp; });
+    }
+    return list.sort(function (a, b) { return a.position - b.position; });
+  }
+
+  function swapPosition(a, b) {
+    var pa = a.position, pb = b.position;
+    return Promise.all([
+      RA.updateNote(a.id, { position: pb }),
+      RA.updateNote(b.id, { position: pa }),
+    ]).then(loadNotes);
+  }
+
   function buildActions(n) {
     var actions = document.createElement('div');
     actions.className = 'node-actions';
@@ -397,6 +416,37 @@
       RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes);
     });
     actions.appendChild(pinBtn);
+
+    // réorganisation sans glisser-déposer (nécessaire sur iPhone/tactile, où le drag HTML ne marche pas)
+    var siblings = siblingsOf(n);
+    var idx = siblings.findIndex(function (s) { return s.id === n.id; });
+
+    if (idx > 0) {
+      var upBtn = document.createElement('button');
+      upBtn.className = 'icon-btn';
+      upBtn.title = 'Monter';
+      upBtn.textContent = '▲';
+      upBtn.addEventListener('click', function () { swapPosition(n, siblings[idx - 1]); });
+      actions.appendChild(upBtn);
+    }
+    if (idx !== -1 && idx < siblings.length - 1) {
+      var downBtn = document.createElement('button');
+      downBtn.className = 'icon-btn';
+      downBtn.title = 'Descendre';
+      downBtn.textContent = '▼';
+      downBtn.addEventListener('click', function () { swapPosition(n, siblings[idx + 1]); });
+      actions.appendChild(downBtn);
+    }
+    if (n.parent_id) {
+      var detachBtn = document.createElement('button');
+      detachBtn.className = 'icon-btn';
+      detachBtn.title = 'Détacher (devient une racine)';
+      detachBtn.textContent = '⌂';
+      detachBtn.addEventListener('click', function () {
+        RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes);
+      });
+      actions.appendChild(detachBtn);
+    }
 
     var addChildBtn = document.createElement('button');
     addChildBtn.className = 'icon-btn';
