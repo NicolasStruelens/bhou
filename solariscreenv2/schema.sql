@@ -42,3 +42,14 @@ CREATE TABLE IF NOT EXISTS factures (
 );
 CREATE INDEX IF NOT EXISTS idx_factures_date  ON factures(date DESC);
 CREATE INDEX IF NOT EXISTS idx_factures_devis ON factures(devis_id);
+
+-- ── CONNEXIONS (historique de connexion Nicolas / Yannick, alimenté par nav.js) ──
+CREATE TABLE IF NOT EXISTS connections (
+  session_id        TEXT PRIMARY KEY,
+  identity          TEXT,               -- 'nicolas' | 'yannick' | NULL
+  email             TEXT NOT NULL DEFAULT '',
+  start_time        TEXT NOT NULL,
+  last_seen         TEXT NOT NULL,
+  page_count        INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_connections_start ON connections(start_time DESC);
