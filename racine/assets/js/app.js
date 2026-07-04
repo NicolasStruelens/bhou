@@ -27,6 +27,26 @@
       localStorage.setItem('racine_spaces', JSON.stringify(list));
     }
   }
+  function removeKnownSpace(name) {
+    var list = knownSpaces().filter(function (s) { return s !== name; });
+    localStorage.setItem('racine_spaces', JSON.stringify(list));
+  }
+
+  function deleteSpace(name) {
+    var rootsInSpace = state.notes.filter(function (n) { return !n.parent_id && (n.space || 'Général') === name; });
+    var msg = rootsInSpace.length
+      ? 'Supprimer l\'espace « ' + name + ' » ? ' + rootsInSpace.length + ' note(s) racine seront déplacées vers « Général » (rien n\'est perdu).'
+      : 'Supprimer l\'espace « ' + name + ' » ?';
+    if (!confirm(msg)) return;
+    var updates = rootsInSpace.map(function (n) { return RA.updateNote(n.id, { space: 'Général' }); });
+    Promise.all(updates).then(function () {
+      removeKnownSpace(name);
+      if (state.activeSpace === name) state.activeSpace = 'Général';
+      localStorage.setItem('racine_active_space', state.activeSpace);
+      document.getElementById('captureBar').style.display = state.activeSpace === OVERVIEW ? 'none' : '';
+      loadNotes();
+    });
+  }
 
   // ---------- garde-fou session ----------
   RA.me().catch(function () { location.href = 'login.html'; });
@@ -255,6 +275,17 @@
       btn.appendChild(dot);
       btn.appendChild(document.createTextNode(name));
       btn.addEventListener('click', function () { setActiveSpace(name); });
+      if (name !== 'Général') {
+        var delX = document.createElement('span');
+        delX.className = 'space-pill-del';
+        delX.textContent = '×';
+        delX.title = 'Supprimer l\'espace « ' + name + ' »';
+        delX.addEventListener('click', function (e) {
+          e.stopPropagation();
+          deleteSpace(name);
+        });
+        btn.appendChild(delX);
+      }
       bar.appendChild(btn);
     });
 
@@ -393,7 +424,7 @@
     ]).then(loadNotes);
   }
 
-  function buildActions(n) {
+  function buildActions(n, flat) {
     var actions = document.createElement('div');
     actions.className = 'node-actions';
 
@@ -416,50 +447,54 @@
     actions.appendChild(pinBtn);
 
     // réorganisation sans glisser-déposer (nécessaire sur iPhone/tactile, où le drag HTML ne marche pas)
-    var siblings = siblingsOf(n);
-    var idx = siblings.findIndex(function (s) { return s.id === n.id; });
+    // — pas de sens en liste plate (recherche / vue d'ensemble), et ça garde une largeur d'actions
+    // constante là-bas pour un alignement propre des pastilles d'espace
+    if (!flat) {
+      var siblings = siblingsOf(n);
+      var idx = siblings.findIndex(function (s) { return s.id === n.id; });
 
-    if (idx > 0) {
-      var upBtn = document.createElement('button');
-      upBtn.className = 'icon-btn';
-      upBtn.title = 'Monter';
-      upBtn.textContent = '▲';
-      upBtn.addEventListener('click', function () { swapPosition(n, siblings[idx - 1]); });
-      actions.appendChild(upBtn);
-    }
-    if (idx !== -1 && idx < siblings.length - 1) {
-      var downBtn = document.createElement('button');
-      downBtn.className = 'icon-btn';
-      downBtn.title = 'Descendre';
-      downBtn.textContent = '▼';
-      downBtn.addEventListener('click', function () { swapPosition(n, siblings[idx + 1]); });
-      actions.appendChild(downBtn);
-    }
-    if (n.parent_id) {
-      var detachBtn = document.createElement('button');
-      detachBtn.className = 'icon-btn';
-      detachBtn.title = 'Détacher (devient une racine)';
-      detachBtn.textContent = '⌂';
-      detachBtn.addEventListener('click', function () {
-        RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes);
-      });
-      actions.appendChild(detachBtn);
-    }
+      if (idx > 0) {
+        var upBtn = document.createElement('button');
+        upBtn.className = 'icon-btn';
+        upBtn.title = 'Monter';
+        upBtn.textContent = '▲';
+        upBtn.addEventListener('click', function () { swapPosition(n, siblings[idx - 1]); });
+        actions.appendChild(upBtn);
+      }
+      if (idx !== -1 && idx < siblings.length - 1) {
+        var downBtn = document.createElement('button');
+        downBtn.className = 'icon-btn';
+        downBtn.title = 'Descendre';
+        downBtn.textContent = '▼';
+        downBtn.addEventListener('click', function () { swapPosition(n, siblings[idx + 1]); });
+        actions.appendChild(downBtn);
+      }
+      if (n.parent_id) {
+        var detachBtn = document.createElement('button');
+        detachBtn.className = 'icon-btn';
+        detachBtn.title = 'Détacher (devient une racine)';
+        detachBtn.textContent = '⌂';
+        detachBtn.addEventListener('click', function () {
+          RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes);
+        });
+        actions.appendChild(detachBtn);
+      }
 
-    var addChildBtn = document.createElement('button');
-    addChildBtn.className = 'icon-btn';
-    addChildBtn.title = 'Ajouter une branche';
-    addChildBtn.textContent = '+';
-    addChildBtn.addEventListener('click', function () {
-      var title = prompt('Nouvelle branche sous « ' + n.title + ' » :');
-      if (!title || !title.trim()) return;
-      state.collapsed.delete(n.id);
-      RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(function (res) {
-        state.lastAddedId = res.id;
-        loadNotes();
+      var addChildBtn = document.createElement('button');
+      addChildBtn.className = 'icon-btn';
+      addChildBtn.title = 'Ajouter une branche';
+      addChildBtn.textContent = '+';
+      addChildBtn.addEventListener('click', function () {
+        var title = prompt('Nouvelle branche sous « ' + n.title + ' » :');
+        if (!title || !title.trim()) return;
+        state.collapsed.delete(n.id);
+        RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(function (res) {
+          state.lastAddedId = res.id;
+          loadNotes();
+        });
       });
-    });
-    actions.appendChild(addChildBtn);
+      actions.appendChild(addChildBtn);
+    }
 
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
@@ -492,7 +527,7 @@
       tag.textContent = spaceTag;
       el.appendChild(tag);
     }
-    el.appendChild(buildActions(n));
+    el.appendChild(buildActions(n, true));
     container.appendChild(el);
   }
 
