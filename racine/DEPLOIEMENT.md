@@ -38,6 +38,7 @@ Si `racine-db` existe déjà (déploiement initial fait avant une évolution du 
 3. `migration_v4.sql` — tags, rappels datés, favoris presse-papier
 4. `migration_v5.sql` — liens entre notes
 5. `migration_v6.sql` — suivi des migrations, sauvegardes automatiques, anti-bruteforce login
+6. `migration_v7.sql` — énergie/someday sur les notes, presse-papier avancé (lecture unique, exclusion export, partage public par jeton)
 
 Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
 
@@ -45,5 +46,33 @@ Pour vérifier où en est ta base : une fois connecté à l'app, l'état systèm
 
 ## Notes
 - Contenu 100% privé derrière le mot de passe — personne ne peut lire `/api/*` sans session valide (vérifié par le backend, pas par un simple mot de passe front-end).
-- Presse-papier : entrées limitées à ~800 Ko chacune (texte ou fichier en base64) — pense à mettre une expiration sur les mots de passe/commandes sensibles.
+- Exception volontaire : `/api/public/:token` (partage presse-papier) et la page `share.html` sont accessibles sans connexion — protégés uniquement par un jeton long aléatoire à expiration courte (24h max), révocable à tout moment depuis l'app.
+- Presse-papier : entrées limitées à ~800 Ko chacune (texte ou fichier en base64) — pense à mettre une expiration sur les mots de passe/commandes sensibles, ou coche « lecture unique » / « ne jamais exporter ».
 - Pas de lien avec www.nicolas-struelens.com (GitHub Pages, statique) — l'URL officielle sera `https://<ton-projet>.pages.dev`, comme pour SolariScreen.
+
+## Tester la base D1 en local (optionnel)
+Le poste de développement utilisé pour ce projet n'a ni Node.js ni `wrangler` installés — les commandes ci-dessous n'ont donc pas pu être exécutées ici, mais sont fournies pour une future session avec Node disponible :
+```
+npm install -g wrangler
+wrangler d1 execute racine-db --local --file=./schema.sql
+wrangler pages dev . --d1=DB=racine-db --binding RACINE_PASSWORD=test
+```
+`wrangler.toml` (fourni à la racine du projet) déclare déjà le binding D1 attendu (`DB` → `racine-db`) pour que `wrangler pages dev` le détecte automatiquement.
+
+## Checklist de test manuel après déploiement
+Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) — à vérifier à la main après chaque déploiement significatif :
+- [ ] Connexion avec le bon mot de passe fonctionne, avec un mauvais mot de passe échoue (et se bloque après 5 essais)
+- [ ] Créer une idée / tâche / note, épingler, marquer terminé, éditer, supprimer puis restaurer depuis la corbeille
+- [ ] Créer un espace, changer sa couleur, le renommer, le supprimer (les racines repassent bien en « Général »)
+- [ ] Ajouter un tag, filtrer par ce tag
+- [ ] Poser un rappel daté sur une note, le voir apparaître dans l'onglet Rappels
+- [ ] Palette de commandes : `/todo test /rappel demain 9h /espace Test /tag urgent` crée bien une tâche taguée, dans le bon espace, avec un rappel
+- [ ] Sélectionner une énergie et « someday » sur une note, vérifier le filtre 🗓 dans la barre de recherche
+- [ ] Onglet Aujourd'hui affiche bien rappels dus / tâches ouvertes / épinglés / clips récents
+- [ ] Onglet Graphe affiche les notes liées et le clic ouvre la bonne note
+- [ ] Revue hebdomadaire (📅) affiche des listes cohérentes
+- [ ] Presse-papier : envoyer un texte, le récupérer/copier depuis un autre appareil ou navigateur ; tester « lecture unique » (doit disparaître après la première récupération) et « ne jamais exporter » (absent de l'export JSON)
+- [ ] Partager un clip → ouvrir le lien `share.html#...` dans une fenêtre de navigation privée (sans session) → doit fonctionner ; révoquer → doit ensuite échouer
+- [ ] Export JSON puis import dans un espace de test — les notes et clips réapparaissent avec la bonne hiérarchie
+- [ ] État du système (⚙) affiche la bonne version de schéma et permet de créer/restaurer une sauvegarde
+- [ ] Recharger l'app après un déploiement ne montre pas d'anciens fichiers (vérifier que les `?v=N` ont bien été incrémentés)

@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=14">
-<link rel="stylesheet" href="assets/css/base.css?v=14">
-<script src="assets/js/theme-init.js?v=14"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=15">
+<link rel="stylesheet" href="assets/css/base.css?v=15">
+<script src="assets/js/theme-init.js?v=15"></script>
 </head>
 <body>
 <canvas id="starfield"></canvas>
@@ -26,13 +26,16 @@
   <div class="topbar">
     <div class="brand"><span class="dot"></span><span class="brand-text">Racine</span></div>
     <div class="tabs">
+      <button class="tab" data-view="today">Aujourd'hui</button>
       <button class="tab active" data-view="notes">Racine</button>
       <button class="tab" data-view="clips">Presse-papier<span class="badge" id="clipCount"></span></button>
       <button class="tab" data-view="reminders">Rappels<span class="badge" id="reminderCount"></span></button>
+      <button class="tab" data-view="graph">Graphe</button>
       <button class="tab" data-view="trash">Corbeille<span class="badge" id="trashCount"></span></button>
     </div>
     <div class="topbar-right">
       <button class="theme-toggle" id="focusModeBtn" title="Mode Focus — une chose à la fois">🎯</button>
+      <button class="theme-toggle" id="weeklyBtn" title="Revue hebdomadaire">📅</button>
       <button class="theme-toggle" id="reminderToggle" title="Activer les rappels">🔔</button>
       <button class="theme-toggle" id="importBtn" title="Importer un export JSON">⬆</button>
       <input type="file" id="importFile" accept="application/json" class="hidden">
@@ -44,6 +47,16 @@
   </div>
 
   <main>
+
+    <!-- ===== Vue Aujourd'hui ===== -->
+    <section class="view" id="view-today">
+      <p class="trash-hint">Rappels dus, tâches ouvertes, épinglés et derniers éléments du presse-papier — tout ce qui compte maintenant.</p>
+      <div id="todayContent"></div>
+      <div class="empty-state hidden" id="todayEmpty">
+        <div class="dot-big"></div>
+        <p>Rien d'urgent aujourd'hui. Profites-en.</p>
+      </div>
+    </section>
 
     <!-- ===== Vue notes ===== -->
     <section class="view active" id="view-notes">
@@ -64,7 +77,23 @@
           <button class="btn btn-primary capture-add" id="captureAdd" type="button">Ajouter</button>
         </div>
         <textarea class="capture-details" id="captureDetails" placeholder="Précisions, contexte, lien… (Ctrl+Entrée pour valider)"></textarea>
-        <input type="text" class="capture-tags" id="captureTags" placeholder="#tags (optionnel, séparés par des espaces)">
+        <input type="text" class="capture-tags" id="captureTags" placeholder="#tags (optionnel, séparés par des espaces) — ou /todo /rappel demain 9h /espace X">
+        <div class="energy-row" id="energySelect">
+          <button class="energy-btn" data-energy="2min" title="2 minutes">⚡ 2min</button>
+          <button class="energy-btn" data-energy="facile" title="Facile">🙂 facile</button>
+          <button class="energy-btn" data-energy="profond" title="Travail profond">🧠 profond</button>
+          <button class="energy-btn" data-energy="urgent" title="Urgent">🔥 urgent</button>
+          <button class="energy-btn" data-energy="attente" title="En attente de quelqu'un/quelque chose">⏳ attente</button>
+          <button class="someday-toggle" id="somedayToggle" type="button" title="Parking mental — à traiter un jour, sans pression">🗓 someday</button>
+        </div>
+      </div>
+
+      <div class="template-row" id="templateRow">
+        <button class="template-btn" data-template="appel">📞 Appel client</button>
+        <button class="template-btn" data-template="bug">🐞 Bug</button>
+        <button class="template-btn" data-template="business">💡 Idée business</button>
+        <button class="template-btn" data-template="maison">🏠 Rappel maison</button>
+        <button class="template-btn" data-template="transfert">📤 Commande à transférer</button>
       </div>
 
       <div class="filter-bar">
@@ -76,6 +105,15 @@
           <button class="kind-btn" data-kind="note">Notes</button>
         </div>
         <button class="pin-toggle" id="filterPinned" title="Épinglés seulement">★</button>
+        <select id="filterEnergy" class="field energy-filter" title="Filtrer par énergie">
+          <option value="">Toute énergie</option>
+          <option value="2min">⚡ 2min</option>
+          <option value="facile">🙂 facile</option>
+          <option value="profond">🧠 profond</option>
+          <option value="urgent">🔥 urgent</option>
+          <option value="attente">⏳ attente</option>
+        </select>
+        <button class="pin-toggle" id="filterSomeday" title="Voir uniquement le parking mental (someday)">🗓</button>
         <button class="pin-toggle hidden" id="searchAllSpaces" title="Chercher dans tous les espaces">🌐</button>
       </div>
 
@@ -98,12 +136,14 @@
           <select id="clipTtl">
             <option value="">Jamais expirer</option>
             <option value="3600000">Expire dans 1 heure</option>
-            <option value="86400000">Expire dans 24 heures</option>
+            <option value="86400000" selected>Expire dans 24 heures</option>
             <option value="604800000">Expire dans 7 jours</option>
           </select>
           <button class="btn" id="clipPaste" type="button" title="Coller depuis le presse-papier de l'appareil">📋 Coller</button>
           <label class="file-label" for="clipFile">Joindre un petit fichier (max ~800 Ko)</label>
           <input type="file" id="clipFile" class="hidden">
+          <label class="clip-check-label" title="Supprimé automatiquement dès la première récupération"><input type="checkbox" id="clipBurn"> 🔥 lecture unique</label>
+          <label class="clip-check-label" title="Ne sera jamais inclus dans un export ou une sauvegarde"><input type="checkbox" id="clipNoExport"> 🚫 ne jamais exporter</label>
           <button class="btn btn-primary" id="clipSend">Envoyer</button>
         </div>
       </div>
@@ -122,6 +162,16 @@
       <div class="empty-state hidden" id="reminderEmpty">
         <div class="dot-big"></div>
         <p>Aucun rappel programmé. Clique sur ⏰ sur une note pour en poser un.</p>
+      </div>
+    </section>
+
+    <!-- ===== Vue graphe ===== -->
+    <section class="view" id="view-graph">
+      <p class="trash-hint">Notes liées entre elles ("voir aussi") — clique un nœud pour l'ouvrir.</p>
+      <canvas id="graphCanvas" class="graph-canvas"></canvas>
+      <div class="empty-state hidden" id="graphEmpty">
+        <div class="dot-big"></div>
+        <p>Aucune note liée pour l'instant. Utilise 🔗 sur une note pour créer des liens.</p>
       </div>
     </section>
 
@@ -171,6 +221,18 @@
       </select>
       <select id="editSpace" class="field"></select>
     </div>
+    <div class="edit-row">
+      <select id="editEnergy" class="field">
+        <option value="">Pas d'énergie précisée</option>
+        <option value="2min">⚡ 2min</option>
+        <option value="facile">🙂 facile</option>
+        <option value="profond">🧠 profond</option>
+        <option value="urgent">🔥 urgent</option>
+        <option value="attente">⏳ attente</option>
+      </select>
+      <label class="edit-someday-label"><input type="checkbox" id="editSomeday"> 🗓 someday (parking mental)</label>
+    </div>
+    <div class="modal-note edit-context" id="editContext"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="editSave">Enregistrer</button>
     </div>
@@ -230,6 +292,22 @@
   </div>
 </div>
 
+<!-- ===== Modale revue hebdomadaire ===== -->
+<div class="modal-backdrop" id="weeklyModal">
+  <div class="modal-card weekly-modal-card">
+    <div class="modal-head">
+      <span>Revue hebdomadaire</span>
+      <button class="icon-btn" id="weeklyClose">×</button>
+    </div>
+    <h3 class="trash-heading">Ajoutées cette semaine</h3>
+    <div id="weeklyAdded" class="weekly-list"></div>
+    <h3 class="trash-heading">Bloquées (anciennes, non traitées)</h3>
+    <div id="weeklyStuck" class="weekly-list"></div>
+    <h3 class="trash-heading">À archiver (terminées depuis longtemps)</h3>
+    <div id="weeklyArchive" class="weekly-list"></div>
+  </div>
+</div>
+
 <!-- ===== Mode Focus ===== -->
 <div class="modal-backdrop" id="focusModal">
   <div class="focus-card">
@@ -251,8 +329,8 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=14"></script>
-<script src="assets/js/api.js?v=14"></script>
-<script src="assets/js/app.js?v=14"></script>
+<script src="assets/js/starfield.js?v=15"></script>
+<script src="assets/js/api.js?v=15"></script>
+<script src="assets/js/app.js?v=15"></script>
 </body>
 </html>

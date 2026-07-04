@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS notes (
   tags TEXT DEFAULT '',             -- #tag1 #tag2, cross-cutting, indépendant de l'espace
   remind_at INTEGER,                -- rappel daté précis (NULL = aucun)
   links TEXT DEFAULT '',            -- ids d'autres notes liées ("voir aussi"), séparés par des virgules
+  energy TEXT DEFAULT '',           -- 2min | facile | profond | urgent | attente
+  status TEXT DEFAULT 'active',     -- active | someday (parking mental)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
@@ -52,11 +54,16 @@ CREATE TABLE IF NOT EXISTS clips (
   mime TEXT,
   device TEXT DEFAULT '',
   pinned INTEGER DEFAULT 0,        -- favori, remonté en haut de la liste
+  burn INTEGER DEFAULT 0,          -- lecture unique : supprimé après la première récupération
+  no_export INTEGER DEFAULT 0,     -- exclu des exports/sauvegardes
+  share_token TEXT,                -- jeton de partage public temporaire (NULL = pas de partage actif)
+  share_expires_at INTEGER,
   created_at INTEGER NOT NULL,
   expires_at INTEGER,              -- NULL = jamais (expiration dure, purge immédiate)
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
 );
 CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at);
+CREATE INDEX IF NOT EXISTS idx_clips_share_token ON clips(share_token);
 
 -- marque les migrations déjà incluses ci-dessus comme appliquées (installation neuve)
 INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
@@ -65,4 +72,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (3, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (4, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (5, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (6, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (6, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (7, CAST(strftime('%s','now') AS INTEGER) * 1000);
