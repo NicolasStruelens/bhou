@@ -41,5 +41,10 @@ window.RA = (function () {
     purgeClip: function (id) { return req('/clips/' + id + '/purge', { method: 'DELETE' }); },
 
     exportAll: function () { return req('/export'); },
+
+    health: function () { return req('/health'); },
+    listBackups: function () { return req('/backups'); },
+    createBackup: function () { return req('/backups', { method: 'POST' }); },
+    getBackup: function (id) { return req('/backups/' + id); },
   };
 })();
