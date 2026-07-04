@@ -59,6 +59,7 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.portfolio')       AS INTEGER), 0) AS portfolio,
                IFNULL(CAST(json_extract(data, '$.calculs.nicolas_net') AS REAL), 0) AS nicolas_net,
                IFNULL(CAST(json_extract(data, '$.calculs.yannick_net') AS REAL), 0) AS yannick_net,
+               json_extract(data, '$.pricing_v2.material.sellers.principal') AS seller_principal,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
