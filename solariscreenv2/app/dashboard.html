@@ -34,7 +34,6 @@
     /* ── Pastilles de statut colorées (menu custom) ── */
     table.data tbody tr { cursor: pointer; }
     .price { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-sm); color: var(--accent-2); letter-spacing: 0.01em; }
-    .row-pay { display: inline-flex; align-items: center; gap: var(--sp-2); white-space: nowrap; }
     .status-pill {
       display: inline-flex; align-items: center; gap: 0.45rem;
       font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
@@ -165,6 +164,7 @@
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
     </div>
     <div class="filters" id="filters"></div>
+    <div class="filters" id="sellerFilters" style="margin-top:0.35rem;"></div>
 
     <!-- Table -->
     <section class="section" style="margin-top: var(--sp-4);">
@@ -243,6 +243,7 @@
 
     let DEVIS = [], FACTURES = [];
     let activeFilter = 'tous';
+    let activeSeller = 'tous';
 
     // ── Paiement (acompte/solde) — lu depuis les factures liées au devis ──
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
@@ -285,6 +286,18 @@
     }
     window.setFilter = (k) => { activeFilter = k; render(); };
 
+    const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
+    function renderSellerFilters() {
+      const visible = DEVIS.filter(d => !d.archive);
+      const counts = {};
+      visible.forEach(d => { const s = d.seller_principal || 'nicolas'; counts[s] = (counts[s] || 0) + 1; });
+      const keys = Object.keys(counts).sort((a, b) => (a === 'nicolas' ? -1 : b === 'nicolas' ? 1 : a.localeCompare(b)));
+      if (keys.length < 2) { el('sellerFilters').innerHTML = ''; return; }
+      el('sellerFilters').innerHTML = `<button class="chip ${activeSeller === 'tous' ? 'active' : ''}" onclick="setSellerFilter('tous')">Tous vendeurs</button>`
+        + keys.map(k => `<button class="chip ${activeSeller === k ? 'active' : ''}" onclick="setSellerFilter('${k}')">${SELLER_LABELS[k] || k} <span style="opacity:.6">${counts[k]}</span></button>`).join('');
+    }
+    window.setSellerFilter = (k) => { activeSeller = k; render(); };
+
     function renderKPIs() {
       const total = DEVIS.length;
       const signes = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
@@ -307,10 +320,12 @@
     function render() {
       renderKPIs();
       renderFilters();
+      renderSellerFilters();
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
       if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
+      if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
       if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id}`).toLowerCase().includes(q));
       rows.sort((a, b) => {
         if (sort === 'montant') return b.ttc - a.ttc;
@@ -335,7 +350,7 @@
           <table class="data">
             <thead><tr>
               <th>Client</th><th>Statut</th><th>Modifié</th>
-              <th class="num">Montant TVAC</th><th>Médias</th><th style="text-align:right;">Actions</th>
+              <th class="num">Montant TVAC</th><th>Paiement</th><th>Médias</th><th style="text-align:right;">Actions</th>
             </tr></thead>
             <tbody>
               ${rows.map(d => `
@@ -343,7 +358,8 @@
                   <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}${d.informatif ? ' <span class=\"badge badge-cyan\" title=\"Estimation non contractuelle\">Informatif</span>' : ''}${d.portfolio ? ` <span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}</span><span class="id">#${d.id}</span></div></td>
                   <td>${pill(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
-                  <td class="num"><span class="row-pay"><span class="price">${fmtEur(d.ttc)}</span>${paymentInfo(d)}</span></td>
+                  <td class="num"><span class="price">${fmtEur(d.ttc)}</span></td>
+                  <td>${paymentInfo(d)}</td>
                   <td class="count-pill">
                     ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
                     ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
@@ -444,9 +460,12 @@
       setText('cmDevisId', '#' + id);
       el('cmList').innerHTML = '<div class="empty-comments">Chargement…</div>';
       el('modalComments').classList.add('open');
-      // mémorise le dernier auteur choisi (pratique : chacun garde son identité)
-      const lastAuthor = localStorage.getItem('ss_comment_author');
-      if (lastAuthor) el('cmAuthor').value = lastAuthor;
+      // priorité à l'identité Cloudflare Access détectée ; sinon dernier auteur mémorisé
+      window.SSNav.getIdentity().then((identity) => {
+        if (identity.key) { el('cmAuthor').value = identity.key; return; }
+        const lastAuthor = localStorage.getItem('ss_comment_author');
+        if (lastAuthor) el('cmAuthor').value = lastAuthor;
+      });
       await renderComments();
       el('cmText').focus();
     };
