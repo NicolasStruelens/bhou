@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS notes (
   done INTEGER DEFAULT 0,          -- pour les todo
   position INTEGER DEFAULT 0,
   space TEXT DEFAULT 'Général',     -- projet/passion (racines uniquement, hérité visuellement par les branches)
+  tags TEXT DEFAULT '',             -- #tag1 #tag2, cross-cutting, indépendant de l'espace
+  remind_at INTEGER,                -- rappel daté précis (NULL = aucun)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS clips (
   filename TEXT,
   mime TEXT,
   device TEXT DEFAULT '',
+  pinned INTEGER DEFAULT 0,        -- favori, remonté en haut de la liste
   created_at INTEGER NOT NULL,
   expires_at INTEGER,              -- NULL = jamais (expiration dure, purge immédiate)
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
