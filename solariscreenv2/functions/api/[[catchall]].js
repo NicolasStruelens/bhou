@@ -68,6 +68,81 @@ export async function onRequest(context) {
     }
   }
 
+  // ══════ ESPACE CLIENT — revoir le devis, accepter/refuser, poser une question ══════
+  // Route dédiée, publique par jeton non-devinable (devis.review_token), destinée à la
+  // même exemption Cloudflare Access que /api/track (voir DEPLOIEMENT.md). Contrairement
+  // à /api/track (post-signature, jamais de prix), celle-ci s'adresse à un devis PAS ENCORE
+  // signé et affiche donc le prix total (nécessaire pour que le client puisse se décider) —
+  // mais jamais la marge/commission interne.
+  if (path === '/api/devis-review' && method === 'GET') {
+    const token = (url.searchParams.get('t') || '').trim();
+    if (!token) return json({ ok: false, error: 'Lien invalide' }, 400);
+    try {
+      const row = await env.DB.prepare("SELECT data FROM devis WHERE json_extract(data, '$.review_token') = ?").bind(token).first();
+      if (!row) return json({ ok: false, error: 'Lien invalide ou expiré' }, 404);
+      const d = safeParse(row.data) || {};
+      // Suivi d'ouverture : horodatage à chaque consultation (conservé sur les 50 dernières).
+      // Débounce de 10s pour éviter qu'un simple rechargement de page (ou un aspirateur de
+      // liens) ne multiplie les écritures D1 sans information supplémentaire.
+      const now = new Date();
+      const views = d.review_views || [];
+      const last = views.length ? new Date(views[views.length - 1]) : null;
+      if (!last || (now - last) > 10000) {
+        d.review_views = views.concat([now.toISOString()]).slice(-50);
+        await upsertDevis(env.DB, d);
+      }
+      const items = (d.items || []).map(it => ({
+        type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
+        quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
+      }));
+      return json({ ok: true, data: {
+        prenom: (d.client && d.client.prenom) || '',
+        id: d.id, statut: d.statut || 'brouillon', items,
+        total_ttc: (d.calculs && d.calculs.total_ttc) || 0,
+        tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,
+        client_accepted: !!d.client_accepted,
+      } });
+    } catch (e) {
+      return json({ ok: false, error: 'Erreur serveur' }, 500);
+    }
+  }
+  if (path === '/api/devis-review' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const token = (body.token || '').trim();
+      if (!token) return json({ ok: false, error: 'Lien invalide' }, 400);
+      const row = await env.DB.prepare("SELECT data FROM devis WHERE json_extract(data, '$.review_token') = ?").bind(token).first();
+      if (!row) return json({ ok: false, error: 'Lien invalide ou expiré' }, 404);
+      const d = safeParse(row.data) || {};
+      // Une fois accepté OU déjà sorti du statut "en attente client", plus aucune décision
+      // ne peut être reprise par ce lien public (empêche un decline après un accept déjà posé).
+      const decidable = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut) && !d.client_accepted;
+      const MAX_TEXT = 2000; // borne la taille d'un texte soumis publiquement (raison / question)
+      if (body.action === 'accept') {
+        if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
+        d.client_accepted = true;
+        d.client_accepted_at = new Date().toISOString();
+      } else if (body.action === 'decline') {
+        if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
+        d.statut = 'refuse';
+        d.statut_history = (d.statut_history || []).concat([{ statut: 'refuse', date: new Date().toISOString(), by: 'client' }]);
+        d.raison_refus = (body.text || '').trim().slice(0, MAX_TEXT) || 'Pas de réponse';
+        d.client_declined = true;
+      } else if (body.action === 'question') {
+        const text = (body.text || '').trim().slice(0, MAX_TEXT);
+        if (!text) return json({ ok: false, error: 'Message vide' }, 400);
+        d.comments = (d.comments || []).concat([{ id: Date.now(), author: 'client', text, type: 'question', date: new Date().toISOString() }]);
+      } else {
+        return json({ ok: false, error: 'Action inconnue' }, 400);
+      }
+      d.date_modification = new Date().toISOString();
+      await upsertDevis(env.DB, d);
+      return json({ ok: true });
+    } catch (e) {
+      return json({ ok: false, error: 'Erreur serveur' }, 500);
+    }
+  }
+
   if (!accessOk(request, env)) return json({ ok: false, error: 'Non authentifié' }, 401);
 
   try {
@@ -85,6 +160,12 @@ export async function onRequest(context) {
                json_extract(data, '$.pricing_v2.material.sellers.principal') AS seller_principal,
                json_extract(data, '$.pricing_v2.note') AS pricing_note,
                json_extract(data, '$.statut_history') AS statut_history_json,
+               json_extract(data, '$.chantier') AS chantier_json,
+               json_extract(data, '$.checklist') AS checklist_json,
+               json_extract(data, '$.raison_refus') AS raison_refus,
+               json_extract(data, '$.probabilite') AS probabilite,
+               IFNULL(CAST(json_extract(data, '$.client_accepted') AS INTEGER), 0) AS client_accepted,
+               json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
@@ -92,8 +173,11 @@ export async function onRequest(context) {
       const data = results.map(r => {
         const client = safeParse(r.client_json);
         const statut_history = safeParse(r.statut_history_json) || [];
-        delete r.client_json; delete r.statut_history_json;
-        return { ...r, client, statut_history };
+        const chantier = safeParse(r.chantier_json);
+        const checklist = safeParse(r.checklist_json);
+        const review_views = (safeParse(r.review_views_json) || []).length;
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views };
       });
       return json({ ok: true, data });
     }
