@@ -187,6 +187,10 @@
       try { return (await req('/whoami')).data; }
       catch (e) { return { email: null }; }
     },
+    async listConnections() {
+      try { return (await req('/connections')).data; }
+      catch (e) { return []; }
+    },
   };
 
   window.SS = SS;
