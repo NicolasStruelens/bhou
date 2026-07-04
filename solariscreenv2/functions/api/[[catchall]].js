@@ -45,6 +45,29 @@ export async function onRequest(context) {
 
   if (method === 'OPTIONS') return new Response(null, { status: 204 });
 
+  // ══════ SUIVI DE COMMANDE CLIENT (volontairement PUBLIC — pas de gate Access) ══════
+  // Route dédiée, accessible via un lien avec jeton non-devinable (devis.track_token),
+  // pensée pour être exemptée de la politique Cloudflare Access sur ce domaine (voir
+  // DEPLOIEMENT.md). Ne renvoie jamais de prix ni de coordonnées — seulement l'avancement.
+  if (path === '/api/track' && method === 'GET') {
+    const token = (url.searchParams.get('t') || '').trim();
+    if (!token) return json({ ok: false, error: 'Lien invalide' }, 400);
+    try {
+      const row = await env.DB.prepare("SELECT data FROM devis WHERE json_extract(data, '$.track_token') = ?").bind(token).first();
+      if (!row) return json({ ok: false, error: 'Lien invalide ou expiré' }, 404);
+      const d = safeParse(row.data) || {};
+      const items = (d.items || []).map(it => ({ type: it.type, modele: it.modele || '' }));
+      return json({ ok: true, data: {
+        prenom: (d.client && d.client.prenom) || '',
+        items,
+        commande: d.commande || null,
+        statut: d.statut || 'brouillon',
+      } });
+    } catch (e) {
+      return json({ ok: false, error: 'Erreur serveur' }, 500);
+    }
+  }
+
   if (!accessOk(request, env)) return json({ ok: false, error: 'Non authentifié' }, 401);
 
   try {
@@ -60,14 +83,17 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.calculs.nicolas_net') AS REAL), 0) AS nicolas_net,
                IFNULL(CAST(json_extract(data, '$.calculs.yannick_net') AS REAL), 0) AS yannick_net,
                json_extract(data, '$.pricing_v2.material.sellers.principal') AS seller_principal,
+               json_extract(data, '$.pricing_v2.note') AS pricing_note,
+               json_extract(data, '$.statut_history') AS statut_history_json,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
       // client_json → objet client (coordonnées complètes pour le CRM)
       const data = results.map(r => {
         const client = safeParse(r.client_json);
-        delete r.client_json;
-        return { ...r, client };
+        const statut_history = safeParse(r.statut_history_json) || [];
+        delete r.client_json; delete r.statut_history_json;
+        return { ...r, client, statut_history };
       });
       return json({ ok: true, data });
     }
