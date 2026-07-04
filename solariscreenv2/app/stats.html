@@ -40,6 +40,12 @@
     .rank-value { flex: none; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; color: var(--accent-2); }
 
     .empty-mini { text-align: center; color: var(--text-subtle); font-size: var(--fs-sm); padding: var(--sp-5) 0; }
+    .conn-subhead { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-subtle); margin: var(--sp-4) 0 var(--sp-2); border-top: 1px solid var(--border); padding-top: var(--sp-3); }
+    .conn-row { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-xs); }
+    .conn-row:last-child { border-bottom: none; }
+    .conn-row .who { flex: none; }
+    .conn-row .when { flex: 1; color: var(--text-muted); font-family: var(--font-mono); }
+    .conn-row .dur { flex: none; font-family: var(--font-mono); color: var(--accent-2); }
   </style>
 </head>
 <body>
@@ -112,6 +118,11 @@
       <section class="section ticked">
         <div class="section-head"><span class="section-title">Répartition géographique</span><span class="section-code">SS // VILLES</span></div>
         <div class="section-body" id="byCity"></div>
+      </section>
+
+      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-3);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Temps de connexion</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
+        <div class="section-body" id="connTime"></div>
       </section>
     </div>
   </main>
@@ -317,12 +328,54 @@
         + `<div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">${refuses.length} devis refusé(s) au total.</div>`;
     }
 
+    const IDENTITY_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
+    function fmtDuration(ms) {
+      const min = Math.round(ms / 60000);
+      if (min < 1) return '< 1 min';
+      if (min < 60) return min + ' min';
+      const h = Math.floor(min / 60), m = min % 60;
+      return h + ' h' + (m ? ' ' + m + ' min' : '');
+    }
+    function fmtDateTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('fr-BE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' +
+        d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    }
+    function renderConnTime(connections) {
+      if (!connections.length) { el('connTime').innerHTML = '<div class="empty-mini">Aucune connexion enregistrée pour l\'instant.</div>'; return; }
+      const byIdentity = {};
+      connections.forEach(c => {
+        const key = c.identity || 'inconnu';
+        const dur = new Date(c.last_seen) - new Date(c.start_time);
+        byIdentity[key] = byIdentity[key] || { total: 0, count: 0 };
+        byIdentity[key].total += dur;
+        byIdentity[key].count += 1;
+      });
+      const entries = Object.entries(byIdentity).sort((a, b) => b[1].total - a[1].total);
+      const top = entries[0];
+      const topLabel = top ? (IDENTITY_LABEL[top[0]] || 'Inconnu') : null;
+      const max = Math.max(1, ...entries.map(([, v]) => v.total));
+      const bars = entries.map(([k, v]) => barRow(IDENTITY_LABEL[k] || 'Inconnu', v.total, max, `${fmtDuration(v.total)} · ${v.count} connexion(s)`, 'var(--accent-3)')).join('');
+      const recentRows = connections.slice(0, 15).map(c => `
+        <div class="conn-row">
+          <span class="who badge badge-purple">${esc(IDENTITY_LABEL[c.identity] || c.email || 'Inconnu')}</span>
+          <span class="when">${fmtDateTime(c.start_time)}</span>
+          <span class="dur">${fmtDuration(new Date(c.last_seen) - new Date(c.start_time))}</span>
+        </div>`).join('');
+      el('connTime').innerHTML = `
+        ${topLabel ? `<div class="text-muted" style="font-size:var(--fs-sm);margin-bottom:var(--sp-3);"><strong style="color:var(--text);">${esc(topLabel)}</strong> a passé le plus de temps sur l'appli au total.</div>` : ''}
+        ${bars}
+        <div class="conn-subhead">Connexions récentes</div>
+        ${recentRows}`;
+    }
+
     (async () => {
       const raw = await SS.listDevis();
       const summary = (raw || []).map(normDevis);
       const devisFull = (await Promise.all(summary.map(d => SS.getDevis(d.id)))).filter(Boolean)
         .map(d => ({ ...d, archive: !!d.archive }));
       const factures = await SS.listFactures();
+      const connections = await SS.listConnections();
 
       renderKPIs(devisFull);
       renderByStatus(devisFull);
@@ -334,6 +387,7 @@
       renderRaisonRefus(devisFull);
       renderTopClients(devisFull);
       renderByCity(devisFull);
+      renderConnTime(connections || []);
     })();
   </script>
 </body>
