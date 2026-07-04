@@ -126,7 +126,52 @@
       ville: (d.client && d.client.adresse && d.client.adresse.ville) || '',
       telephone: (d.client && d.client.telephone) || '',
       email: (d.client && d.client.email) || '',
+      chantier: d.chantier || null,
+      checklist: d.checklist || null,
+      raison_refus: d.raison_refus || '',
+      probabilite: d.probabilite || '',
+      client_accepted: !!d.client_accepted,
+      review_views: d.review_views || 0,
     };
+  }
+
+  // ── Météo chantier (Open-Meteo, gratuit, sans clé — géocodage par ville + prévision 16j) ──
+  const _geoCache = {};
+  function weatherLabel(code) {
+    if (code === 0) return 'Ciel clair';
+    if ([1, 2, 3].includes(code)) return 'Partiellement nuageux';
+    if ([45, 48].includes(code)) return 'Brouillard';
+    if ([51, 53, 55, 56, 57].includes(code)) return 'Bruine';
+    if ([61, 63, 65, 66, 67].includes(code)) return 'Pluie';
+    if ([71, 73, 75, 77].includes(code)) return 'Neige';
+    if ([80, 81, 82].includes(code)) return 'Averses';
+    if ([95, 96, 99].includes(code)) return 'Orage';
+    return 'Météo incertaine';
+  }
+  async function fetchWeather(ville, dateStr) {
+    if (!ville || !dateStr) return null;
+    const days = Math.round((new Date(dateStr) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+    if (days < 0 || days > 15) return null; // hors couverture de la prévision gratuite (16 jours)
+    try {
+      const key = ville.trim().toLowerCase();
+      let loc = _geoCache[key];
+      if (loc === undefined) {
+        const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&country=BE&count=1').then(r => r.json());
+        loc = (geo.results && geo.results[0]) || null;
+        _geoCache[key] = loc;
+      }
+      if (!loc) return null;
+      const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBrussels&forecast_days=16`).then(r => r.json());
+      const idx = (fc.daily && fc.daily.time || []).indexOf(dateStr);
+      if (idx < 0) return null;
+      return { code: fc.daily.weathercode[idx], tmax: fc.daily.temperature_2m_max[idx], tmin: fc.daily.temperature_2m_min[idx], label: weatherLabel(fc.daily.weathercode[idx]) };
+    } catch (e) { return null; }
+  }
+
+  // Clé d'appariement client (même normalisation que clients.html) — centralisée ici
+  // pour que dashboard/vue puissent retrouver une fiche CRM sans la dupliquer.
+  function clientKeyOf(prenom, nom) {
+    return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
   }
 
   // Depuis quand un devis est-il dans SON statut actuel (basé sur statut_history,
@@ -176,6 +221,9 @@
     info:       '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
     grid9:      '<circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="19" r="1.5"/><circle cx="19" cy="19" r="1.5"/>',
     clock:      '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    tag:        '<path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z"/><circle cx="8" cy="8.5" r="1"/>',
+    calendar:   '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    hammer:     '<path d="M14.5 12.5 22 20"/><path d="m18 4-8.5 8.5"/><path d="M6.5 6.5 2 11l5 5 4.5-4.5"/><path d="m2 11 4-4"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -191,6 +239,8 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, icon: icon, compressImage: compressImage,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
+    clientKeyOf: clientKeyOf,
+    fetchWeather: fetchWeather,
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
   window.ssCopy = function (text, label) { copyText(text, label); };

@@ -8,6 +8,7 @@
     { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
     { href: 'factures.html', label: 'Facturation', icon: 'filetext' },
     { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
+    { href: 'agenda.html', label: 'Agenda de pose', icon: 'calendar' },
     { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
     { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
     { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
