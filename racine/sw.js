@@ -1,5 +1,5 @@
 // Racine — service worker minimal (cache des fichiers statiques, jamais l'API ni les pages HTML)
-const CACHE = 'racine-shell-v3';
+const CACHE = 'racine-shell-v4';
 const SHELL = [
   '/assets/css/tokens.css',
   '/assets/css/base.css',
