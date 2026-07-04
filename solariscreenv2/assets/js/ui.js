@@ -120,6 +120,7 @@
       portfolio: !!d.portfolio,
       nicolas_net: Number(d.nicolas_net) || (d.calculs && Number(d.calculs.nicolas_net)) || 0,
       yannick_net: Number(d.yannick_net) || (d.calculs && Number(d.calculs.yannick_net)) || 0,
+      seller_principal: d.seller_principal || (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal) || 'nicolas',
     };
   }
 

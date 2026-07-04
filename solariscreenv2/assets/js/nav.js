@@ -13,30 +13,43 @@
     { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
   ];
 
-  // Identité Cloudflare Access → affichage cosmétique ("connecté en tant que…"),
-  // jamais utilisée pour une décision de sécurité.
+  // Identité Cloudflare Access → affichage cosmétique ("connecté en tant que…") ET
+  // pré-remplissage de l'auteur des notes internes. Jamais utilisée pour une décision
+  // de sécurité (l'application réelle se fait par la politique Access sur le domaine).
   const IDENTITIES = {
-    'info@solariscreen.be': { name: 'Yannick', colorVar: '--accent-2' },
-    'nicolas.struelens@me.com': { name: 'Nicolas', colorVar: '--accent' },
+    'info@solariscreen.be': { key: 'yannick', name: 'Yannick', colorVar: '--accent-2' },
+    'nicolas.struelens@me.com': { key: 'nicolas', name: 'Nicolas', colorVar: '--accent' },
   };
 
+  let identityPromise = null;
+  // Résout une fois par page : { email, key: 'nicolas'|'yannick'|null, name, colorVar }
+  function getIdentity() {
+    if (identityPromise) return identityPromise;
+    identityPromise = (window.SS && typeof window.SS.whoAmI === 'function' ? window.SS.whoAmI() : Promise.resolve({ email: null }))
+      .then(function (res) {
+        const email = res && res.email;
+        const id = email ? IDENTITIES[email.toLowerCase()] : null;
+        return { email: email || null, key: id ? id.key : null, name: id ? id.name : null, colorVar: id ? id.colorVar : '--text-subtle' };
+      })
+      .catch(function () { return { email: null, key: null, name: null, colorVar: '--text-subtle' }; });
+    return identityPromise;
+  }
+
   function mountWhoAmI(anchor) {
-    if (!anchor || !window.SS || typeof window.SS.whoAmI !== 'function') return;
-    window.SS.whoAmI().then(function (res) {
-      const email = res && res.email;
-      if (!email) return; // pas derrière Cloudflare Access (dev local) → rien à afficher
-      const id = IDENTITIES[email.toLowerCase()];
-      const label = id ? id.name : email;
-      const colorVar = 'var(' + (id ? id.colorVar : '--text-subtle') + ')';
+    if (!anchor) return;
+    getIdentity().then(function (identity) {
+      if (!identity.email) return; // pas derrière Cloudflare Access (dev local) → rien à afficher
+      const label = identity.name || identity.email;
+      const colorVar = 'var(' + identity.colorVar + ')';
       const span = document.createElement('span');
       span.className = 'badge ssnav-who';
-      span.title = 'Connecté : ' + email;
+      span.title = 'Connecté : ' + identity.email;
       span.style.color = colorVar;
       span.style.borderColor = 'color-mix(in srgb, ' + colorVar + ' 45%, transparent)';
       span.style.background = 'color-mix(in srgb, ' + colorVar + ' 9%, transparent)';
       span.innerHTML = window.SSUI.icon('user', 11) + ' ' + label;
       anchor.parentNode.insertBefore(span, anchor);
-    }).catch(function () {});
+    });
   }
 
   function mount(container) {
@@ -66,5 +79,5 @@
     mountWhoAmI(container);
   }
 
-  window.SSNav = { mount: mount };
+  window.SSNav = { mount: mount, getIdentity: getIdentity };
 })();
