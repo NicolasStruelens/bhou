@@ -46,5 +46,15 @@ window.RA = (function () {
     listBackups: function () { return req('/backups'); },
     createBackup: function () { return req('/backups', { method: 'POST' }); },
     getBackup: function (id) { return req('/backups/' + id); },
+
+    // partage public : volontairement en dehors du wrapper req() authentifié
+    // (pas de redirection vers login.html en cas d'échec — la page publique affiche son propre message)
+    getPublicClip: async function (token) {
+      var res = await fetch('/api/public/' + token, { method: 'GET' });
+      var data = null;
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok) throw new Error((data && data.error) || ('erreur ' + res.status));
+      return data;
+    },
   };
 })();
