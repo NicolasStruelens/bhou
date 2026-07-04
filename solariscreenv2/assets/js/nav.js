@@ -9,7 +9,7 @@
     const style = document.createElement('style');
     style.id = 'ssnav-injected-styles';
     style.textContent = `
-      .ssnav-who { margin: 0; font: inherit; }
+      .ssnav-who { margin: 0; line-height: 1; }
       .conn-log { position: fixed; z-index: 5000; display: none; min-width: 300px; max-width: 340px;
         background: var(--surface, #141d3d); border: 1px solid var(--border-strong, #324273);
         border-radius: var(--r-md, 3px); box-shadow: var(--shadow, 0 10px 34px rgba(0,0,0,0.5));
