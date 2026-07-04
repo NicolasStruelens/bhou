@@ -397,16 +397,14 @@
     var actions = document.createElement('div');
     actions.className = 'node-actions';
 
-    if (n.kind === 'todo') {
-      var doneBtn = document.createElement('button');
-      doneBtn.className = 'icon-btn';
-      doneBtn.title = n.done ? 'Marquer à faire' : 'Marquer fait';
-      doneBtn.textContent = n.done ? '↺' : '✓';
-      doneBtn.addEventListener('click', function () {
-        RA.updateNote(n.id, { done: !n.done }).then(loadNotes);
-      });
-      actions.appendChild(doneBtn);
-    }
+    var doneBtn = document.createElement('button');
+    doneBtn.className = 'icon-btn';
+    doneBtn.title = n.done ? 'Marquer non terminé' : 'Marquer terminé';
+    doneBtn.textContent = n.done ? '↺' : '✓';
+    doneBtn.addEventListener('click', function () {
+      RA.updateNote(n.id, { done: !n.done }).then(loadNotes);
+    });
+    actions.appendChild(doneBtn);
 
     var pinBtn = document.createElement('button');
     pinBtn.className = 'icon-btn';
@@ -499,9 +497,8 @@
   }
 
   function childSummary(children) {
-    var todos = children.filter(function (c) { return c.kind === 'todo'; });
-    if (todos.length) return { text: todos.filter(function (c) { return c.done; }).length + '/' + todos.length, done: todos.every(function (c) { return c.done; }) };
-    return { text: String(children.length), done: false };
+    var doneCount = children.filter(function (c) { return c.done; }).length;
+    return { text: doneCount + '/' + children.length, done: doneCount === children.length };
   }
 
   // mode arborescence : note racine = carte, enfants imbriqués visuellement dedans
