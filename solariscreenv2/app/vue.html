@@ -129,6 +129,14 @@
     }
     .status-menu button:hover { background: var(--surface-2); color: var(--text); }
     .status-menu .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+    .hist-btn { border-color: var(--border-strong); }
+    .hist-menu { padding: var(--sp-2) var(--sp-3); max-width: 260px; }
+    .hist-row { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.4rem 0; border-bottom: 1px dashed var(--border); }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-row .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: 0.35rem; }
+    .hist-label { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text); }
+    .hist-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.1rem; }
+    .hist-empty { font-size: var(--fs-xs); color: var(--text-muted); padding: var(--sp-2) 0; }
 
     .action-col { display: flex; flex-direction: column; gap: var(--sp-2); }
     .action-col .btn { justify-content: flex-start; padding: 0.75rem 1rem; }
@@ -139,6 +147,9 @@
     .interne-card .h-line { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: var(--fs-xs); }
     .interne-card .h-line .k { color: var(--text-muted); }
     .interne-card .h-line .v { font-family: var(--font-mono); }
+    .pricing-note { display: flex; gap: var(--sp-2); align-items: flex-start; background: color-mix(in srgb, var(--accent-2) 8%, transparent); border-left: 3px solid var(--accent-2); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+    .pricing-note svg { flex: none; color: var(--accent-2); margin-top: 2px; }
+    .pricing-note .txt { white-space: pre-wrap; word-break: break-word; }
 
     /* ── Suivi commande fournisseur ── */
     .commande-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent); padding: var(--sp-4) var(--sp-5); }
@@ -181,6 +192,7 @@
     <div class="header-actions">
       <span class="badge badge-gold" id="devisIdBadge">—</span>
       <button class="status-pill" id="statusBadge" type="button" onclick="toggleStatusMenu(event)" aria-label="Changer le statut du devis" title="Cliquer pour changer le statut"></button>
+      <button class="ci-copy hist-btn hidden" id="historyBtn" type="button" onclick="toggleHistoryMenu(event)" aria-label="Historique des statuts" title="Historique des statuts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
       <button class="badge badge-cyan hidden" id="informatifBadge" style="cursor:pointer;" onclick="toggleInformatif()" title="Cliquer pour repasser en devis formel (signature + CGV)">Informatif</button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
@@ -230,6 +242,7 @@
           <span class="badge badge-purple">Interne</span>
           <span class="section-sub" style="margin-left:auto;">jamais visible client</span>
         </div>
+        <div id="pricingNoteHost"></div>
         <div id="interneHost"></div>
       </div>
 
@@ -332,6 +345,7 @@
       setText('devisIdBadge', '#' + d.id);
       el('statusBadge').style.setProperty('--st', st.color);
       el('statusBadge').innerHTML = `<span class="dot"></span>${st.label} ${icon('chevrondown', 10)}`;
+      el('historyBtn').classList.toggle('hidden', !(d.statut_history || []).length);
       el('informatifBadge').classList.toggle('hidden', !d.informatif);
       el('btnEdit').href = 'simulateur.html?id=' + d.id;
       el('btnDoc').href = 'devis.html?id=' + d.id;
@@ -431,6 +445,12 @@
         <div class="h-line"><span class="k">TVA ${c.tva_pct} %</span>${copyableSpan('TVA', fmtEur(c.total_tva))}</div>
         <div class="h-sep"></div>
         <div class="h-line"><span class="k">Acompte ${c.acompte_pct} %</span><span class="v v-copy" style="color:var(--accent-2);font-weight:700;" onclick="ssCopy(${SSUI.jsAttr(fmtEur(c.acompte_montant))}, ${SSUI.jsAttr('Acompte')})" title="Copier">${fmtEur(c.acompte_montant)}</span></div>`;
+
+      // ── Note interne (saisie dans le simulateur, visible ici en lecture) ──
+      const pricingNote = (d.pricing_v2 && d.pricing_v2.note || '').trim();
+      el('pricingNoteHost').innerHTML = pricingNote
+        ? `<div class="pricing-note">${icon('info', 15)}<div class="txt">${esc(pricingNote)}</div></div>`
+        : '';
 
       // ── Interne ──
       el('interneHost').innerHTML = `
@@ -543,11 +563,43 @@
     window.pickStatus = async (statut) => {
       if (stMenuEl) stMenuEl.classList.remove('open');
       if (DEVIS.statut === statut) return;
-      DEVIS.statut = statut;
-      DEVIS.date_modification = new Date().toISOString();
-      const res = await SS.saveDevis(DEVIS);
+      const identity = await window.SSNav.getIdentity();
+      const res = await SS.updateStatus(DEVIS.id, statut, identity.key);
+      if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
+      DEVIS = await SS.getDevis(DEVIS.id);
+      CALC = getCalc(DEVIS);
       toast(res.offline ? 'Statut mis à jour (hors-ligne)' : 'Statut mis à jour ✓', res.offline ? 'warn' : 'ok');
       render();
+    };
+
+    // ── Historique des statuts (mini-timeline en popover) ──
+    let histMenuEl = null;
+    function ensureHistMenu() {
+      if (histMenuEl) return;
+      histMenuEl = document.createElement('div');
+      histMenuEl.className = 'status-menu hist-menu';
+      document.body.appendChild(histMenuEl);
+      document.addEventListener('click', (e) => {
+        if (histMenuEl.classList.contains('open') && !histMenuEl.contains(e.target) && !e.target.closest('#historyBtn')) histMenuEl.classList.remove('open');
+      }, true);
+      window.addEventListener('scroll', () => histMenuEl.classList.remove('open'), true);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') histMenuEl.classList.remove('open'); });
+    }
+    window.toggleHistoryMenu = (e) => {
+      e.stopPropagation();
+      ensureHistMenu();
+      const hist = (DEVIS.statut_history || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      histMenuEl.innerHTML = hist.length
+        ? hist.map(h => {
+            const s = STATUSES[h.statut] || STATUSES.brouillon;
+            const who = h.by === 'nicolas' ? 'Nicolas' : h.by === 'yannick' ? 'Yannick' : null;
+            return `<div class="hist-row"><span class="dot" style="background:${s.color}"></span><div><div class="hist-label">${s.label}</div><div class="hist-date">${fmtDate(h.date)}${who ? ' · ' + who : ''}</div></div></div>`;
+          }).join('')
+        : `<div class="hist-empty">Aucun historique avant ce changement.</div>`;
+      const r = e.currentTarget.getBoundingClientRect();
+      histMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 235)) + 'px';
+      histMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 320) + 'px';
+      histMenuEl.classList.add('open');
     };
     window.togglePortfolio = async () => {
       const willEnable = !DEVIS.portfolio;

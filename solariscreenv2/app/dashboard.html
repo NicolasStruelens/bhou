@@ -61,6 +61,23 @@
     .status-menu button:hover { background: var(--surface-2); color: var(--text); }
     .status-menu .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
+    /* ── Note interne rapide (icône + popover d'édition) ── */
+    .note-btn {
+      display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+      margin-left: 6px; border: none; background: none; border-radius: var(--r-sm);
+      color: var(--text-subtle); cursor: pointer; opacity: 0.4; transition: all var(--t-fast); vertical-align: middle;
+    }
+    .note-btn:hover { opacity: 1; background: var(--surface-2); color: var(--accent-2); }
+    .note-btn.has-note { opacity: 1; color: var(--accent-2); }
+    .note-popover {
+      position: fixed; z-index: 5000; display: none; width: 280px; padding: var(--sp-3);
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
+    }
+    .note-popover.open { display: block; }
+    .note-popover textarea { width: 100%; min-height: 84px; margin-bottom: var(--sp-2); resize: vertical; }
+    .note-popover .np-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+    .note-popover .np-label { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--sp-2); display: flex; align-items: center; gap: 0.4rem; }
+
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
     .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -152,7 +169,7 @@
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <label for="search" class="sr-only">Rechercher un devis</label>
-        <input class="input" id="search" placeholder="Rechercher un client, un n° de devis…" oninput="render()">
+        <input class="input" id="search" placeholder="Rechercher un client, une ville, un tél., un email, un n° de devis…" oninput="render()">
       </div>
       <select class="select" id="sort" style="max-width:200px;" onchange="render()" aria-label="Trier les devis">
         <option value="modif">Tri : récents d'abord</option>
@@ -222,7 +239,7 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, toast, normDevis, icon } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, normDevis, icon, daysInCurrentStatus } = window.SSUI;
 
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
@@ -326,7 +343,7 @@
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
       if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
       if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
-      if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id}`).toLowerCase().includes(q));
+      if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id} ${d.ville} ${d.telephone} ${d.email}`).toLowerCase().includes(q));
       rows.sort((a, b) => {
         if (sort === 'montant') return b.ttc - a.ttc;
         if (sort === 'nom') return (a.nom || '').localeCompare(b.nom || '');
@@ -345,6 +362,14 @@
         const s = STATUSES[d.statut] || STATUSES.brouillon;
         return `<button class="status-pill" style="--st:${s.color}" onclick="openStatusMenu(event,'${d.id}')" aria-label="Changer le statut du devis ${d.id}"><span class="dot"></span>${s.label} ${icon('chevrondown', 10)}</button>`;
       };
+      const WAITING_STATUSES = ['envoye_client', 'relance_1', 'relance_2'];
+      const waitingBadge = (d) => {
+        if (!WAITING_STATUSES.includes(d.statut)) return '';
+        const days = daysInCurrentStatus(d);
+        if (days < 3) return '';
+        const cls = days >= 14 ? 'badge-danger' : days >= 7 ? 'badge-warn' : '';
+        return `<div class="mt-1"><span class="badge ${cls}" title="En attente de réponse depuis ${days} jour(s)">${icon('clock', 10)} ${days} j</span></div>`;
+      };
       el('tableHost').innerHTML = `
         <div class="table-wrap" style="border:none;border-radius:0;">
           <table class="data">
@@ -356,13 +381,14 @@
               ${rows.map(d => `
                 <tr data-id="${d.id}" title="Ouvrir la fiche du devis">
                   <td><div class="client-cell"><span class="name">${esc(d.prenom)} ${esc(d.nom) || '—'}${d.informatif ? ' <span class=\"badge badge-cyan\" title=\"Estimation non contractuelle\">Informatif</span>' : ''}${d.portfolio ? ` <span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}</span><span class="id">#${d.id}</span></div></td>
-                  <td>${pill(d)}</td>
+                  <td>${pill(d)}${waitingBadge(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>
                   <td class="num"><span class="price">${fmtEur(d.ttc)}</span></td>
                   <td>${paymentInfo(d)}</td>
                   <td class="count-pill">
                     ${d.photos ? `<span class="row" style="display:inline-flex;gap:3px;">${icon('camera', 12)}${d.photos}</span>` : ''}
                     ${d.comments ? `<span class="row" style="display:inline-flex;gap:3px;margin-left:6px;">${icon('message', 12)}${d.comments}</span>` : ''}
+                    <button class="note-btn ${d.note ? 'has-note' : ''}" onclick="openNotePopover(event,'${d.id}')" title="${d.note ? esc(d.note) : 'Ajouter une note rapide'}" aria-label="Note interne du devis ${d.id}">${icon('info', 12)}</button>
                   </td>
                   <td><div class="actions">
                     <button class="icon-btn" title="Notes internes" aria-label="Notes internes du devis ${d.id}" onclick="openComments('${d.id}')" style="${d.comments ? 'color:var(--accent-2);border-color:color-mix(in srgb, var(--accent-2) 45%, transparent);' : ''}">${icon('message', 15)}</button>
@@ -384,8 +410,10 @@
 
     // ── Actions ──
     window.changeStatus = async (id, statut) => {
-      await SS.updateStatus(id, statut);
-      const d = DEVIS.find(x => x.id === id); if (d) d.statut = statut;
+      const identity = await window.SSNav.getIdentity();
+      await SS.updateStatus(id, statut, identity.key);
+      const d = DEVIS.find(x => x.id === id);
+      if (d) { d.statut = statut; d.statut_history = (d.statut_history || []).concat([{ statut, date: new Date().toISOString(), by: identity.key || null }]); }
       toast('Statut mis à jour', 'ok');
       render();
     };
@@ -417,6 +445,53 @@
     window.pickStatus = async (st) => {
       stMenuEl.classList.remove('open');
       if (stTarget) await changeStatus(stTarget, st);
+    };
+
+    // ── Note interne rapide (popover d'édition depuis le dashboard) ──
+    let noteMenuEl = null, noteTarget = null;
+    function ensureNoteMenu() {
+      if (noteMenuEl) return;
+      noteMenuEl = document.createElement('div');
+      noteMenuEl.className = 'note-popover';
+      noteMenuEl.innerHTML = `
+        <div class="np-label">${icon('info', 13)} Note interne rapide</div>
+        <textarea class="textarea" id="notePopText" placeholder="Ex: client difficile, a négocié -5%…"></textarea>
+        <div class="np-actions">
+          <button class="btn btn-ghost btn-sm" onclick="closeNotePopover()">Annuler</button>
+          <button class="btn btn-primary btn-sm" onclick="saveNotePopover()">Enregistrer</button>
+        </div>`;
+      document.body.appendChild(noteMenuEl);
+      document.addEventListener('click', (e) => {
+        if (noteMenuEl.classList.contains('open') && !noteMenuEl.contains(e.target) && !e.target.closest('.note-btn')) noteMenuEl.classList.remove('open');
+      }, true);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') noteMenuEl.classList.remove('open'); });
+    }
+    window.openNotePopover = (e, id) => {
+      e.stopPropagation();
+      ensureNoteMenu();
+      noteTarget = id;
+      const d = DEVIS.find(x => x.id === id);
+      el('notePopText').value = (d && d.note) || '';
+      const r = e.currentTarget.getBoundingClientRect();
+      noteMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 296)) + 'px';
+      noteMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 200) + 'px';
+      noteMenuEl.classList.add('open');
+      el('notePopText').focus();
+    };
+    window.closeNotePopover = () => { if (noteMenuEl) noteMenuEl.classList.remove('open'); };
+    window.saveNotePopover = async () => {
+      if (!noteTarget) return;
+      const text = el('notePopText').value;
+      const full = await SS.getDevis(noteTarget);
+      if (!full) { toast('Devis introuvable', 'error'); return; }
+      full.pricing_v2 = full.pricing_v2 || {};
+      full.pricing_v2.note = text;
+      full.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(full);
+      const d = DEVIS.find(x => x.id === noteTarget); if (d) d.note = text;
+      closeNotePopover();
+      toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note enregistrée ✓', res.offline ? 'warn' : 'ok');
+      render();
     };
 
     // ── Clic sur une ligne → fiche de visualisation du devis ──
