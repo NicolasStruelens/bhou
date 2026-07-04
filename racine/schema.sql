@@ -6,6 +6,24 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY,
+  applied_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+  ip TEXT PRIMARY KEY,
+  count INTEGER DEFAULT 0,
+  first_attempt INTEGER NOT NULL,
+  locked_until INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS backups (
+  id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  data TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
   parent_id TEXT,
@@ -39,3 +57,12 @@ CREATE TABLE IF NOT EXISTS clips (
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
 );
 CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at);
+
+-- marque les migrations déjà incluses ci-dessus comme appliquées (installation neuve)
+INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
+  (1, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (2, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (3, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (4, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (5, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (6, CAST(strftime('%s','now') AS INTEGER) * 1000);

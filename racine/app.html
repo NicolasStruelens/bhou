@@ -15,14 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=13">
-<link rel="stylesheet" href="assets/css/base.css?v=13">
-<script>
-  (function () {
-    var saved = localStorage.getItem('racine_theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-  })();
-</script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=14">
+<link rel="stylesheet" href="assets/css/base.css?v=14">
+<script src="assets/js/theme-init.js?v=14"></script>
 </head>
 <body>
 <canvas id="starfield"></canvas>
@@ -40,8 +35,9 @@
       <button class="theme-toggle" id="focusModeBtn" title="Mode Focus — une chose à la fois">🎯</button>
       <button class="theme-toggle" id="reminderToggle" title="Activer les rappels">🔔</button>
       <button class="theme-toggle" id="importBtn" title="Importer un export JSON">⬆</button>
-      <input type="file" id="importFile" accept="application/json" style="display:none">
+      <input type="file" id="importFile" accept="application/json" class="hidden">
       <button class="theme-toggle" id="exportBtn" title="Exporter toutes mes données (JSON)">⬇</button>
+      <button class="theme-toggle" id="systemBtn" title="État du système">⚙</button>
       <button class="theme-toggle" id="themeToggle" title="Basculer jour/nuit">🌙</button>
       <button class="btn btn-ghost" id="logoutBtn">Déconnexion</button>
     </div>
@@ -80,14 +76,14 @@
           <button class="kind-btn" data-kind="note">Notes</button>
         </div>
         <button class="pin-toggle" id="filterPinned" title="Épinglés seulement">★</button>
-        <button class="pin-toggle" id="searchAllSpaces" title="Chercher dans tous les espaces" style="display:none">🌐</button>
+        <button class="pin-toggle hidden" id="searchAllSpaces" title="Chercher dans tous les espaces">🌐</button>
       </div>
 
       <div class="tag-bar" id="tagBar"></div>
 
       <div class="overview-summary" id="overviewSummary"></div>
       <div class="tree" id="tree"></div>
-      <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-state hidden" id="emptyState">
         <div class="dot-big"></div>
         <p>Rien pour l'instant. Écris ta première idée ci-dessus.</p>
       </div>
@@ -107,13 +103,13 @@
           </select>
           <button class="btn" id="clipPaste" type="button" title="Coller depuis le presse-papier de l'appareil">📋 Coller</button>
           <label class="file-label" for="clipFile">Joindre un petit fichier (max ~800 Ko)</label>
-          <input type="file" id="clipFile" style="display:none">
+          <input type="file" id="clipFile" class="hidden">
           <button class="btn btn-primary" id="clipSend">Envoyer</button>
         </div>
       </div>
 
       <div class="clip-grid" id="clipGrid"></div>
-      <div class="empty-state" id="clipEmpty" style="display:none">
+      <div class="empty-state hidden" id="clipEmpty">
         <div class="dot-big"></div>
         <p>Aucune entrée. Colle quelque chose pour le retrouver sur un autre appareil.</p>
       </div>
@@ -123,7 +119,7 @@
     <section class="view" id="view-reminders">
       <p class="trash-hint">Tous les rappels datés, toutes espaces confondus, triés par échéance.</p>
       <div id="reminderList"></div>
-      <div class="empty-state" id="reminderEmpty" style="display:none">
+      <div class="empty-state hidden" id="reminderEmpty">
         <div class="dot-big"></div>
         <p>Aucun rappel programmé. Clique sur ⏰ sur une note pour en poser un.</p>
       </div>
@@ -136,7 +132,7 @@
       <div class="tree" id="trashNotes"></div>
       <h3 class="trash-heading">Presse-papier</h3>
       <div class="clip-grid" id="trashClips"></div>
-      <div class="empty-state" id="trashEmpty" style="display:none">
+      <div class="empty-state hidden" id="trashEmpty">
         <div class="dot-big"></div>
         <p>La corbeille est vide.</p>
       </div>
@@ -154,6 +150,44 @@
     </div>
     <img id="qrImage" alt="QR code" width="220" height="220">
     <p class="modal-note">L'appareil qui scanne doit déjà être connecté à Racine avec le même mot de passe.</p>
+  </div>
+</div>
+
+<!-- ===== Modale édition complète ===== -->
+<div class="modal-backdrop" id="editModal">
+  <div class="modal-card edit-modal-card">
+    <div class="modal-head">
+      <span>Modifier la note</span>
+      <button class="icon-btn" id="editClose">×</button>
+    </div>
+    <input type="text" id="editTitle" class="field" placeholder="Titre">
+    <textarea id="editContent" class="field edit-textarea" placeholder="Détails…"></textarea>
+    <input type="text" id="editTags" class="field" placeholder="#tags">
+    <div class="edit-row">
+      <select id="editKind" class="field">
+        <option value="idee">Idée</option>
+        <option value="todo">À faire</option>
+        <option value="note">Note</option>
+      </select>
+      <select id="editSpace" class="field"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="editSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modale état système ===== -->
+<div class="modal-backdrop" id="systemModal">
+  <div class="modal-card system-modal-card">
+    <div class="modal-head">
+      <span>État du système</span>
+      <button class="icon-btn" id="systemClose">×</button>
+    </div>
+    <div id="systemInfo" class="system-info"></div>
+    <button class="btn" id="backupNowBtn">Créer une sauvegarde maintenant</button>
+    <h3 class="trash-heading">Sauvegardes automatiques</h3>
+    <div id="backupList" class="backup-list"></div>
   </div>
 </div>
 
@@ -187,7 +221,7 @@
       <span>Rappel daté</span>
       <button class="icon-btn" id="remindClose">×</button>
     </div>
-    <p class="modal-note" id="remindNoteTitle" style="margin-top:0"></p>
+    <p class="modal-note no-margin-top" id="remindNoteTitle"></p>
     <input type="datetime-local" id="remindInput" class="field">
     <div class="modal-actions">
       <button class="btn btn-primary" id="remindSave">Enregistrer</button>
@@ -214,11 +248,11 @@
 
 <div class="toast" id="toast">
   <span id="toastMsg"></span>
-  <button class="toast-action" id="toastAction" style="display:none"></button>
+  <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=13"></script>
-<script src="assets/js/api.js?v=13"></script>
-<script src="assets/js/app.js?v=13"></script>
+<script src="assets/js/starfield.js?v=14"></script>
+<script src="assets/js/api.js?v=14"></script>
+<script src="assets/js/app.js?v=14"></script>
 </body>
 </html>

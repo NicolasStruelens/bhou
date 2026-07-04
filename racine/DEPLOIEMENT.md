@@ -32,7 +32,16 @@ Après avoir ajouté le binding D1 et la variable d'env, redéclenche un déploi
 - Tester : créer une idée, une tâche, épingler, coller un texte dans le presse-papier, le récupérer depuis un autre appareil/navigateur.
 
 ## Mises à jour d'une base déjà déployée
-Si `racine-db` existe déjà (déploiement initial fait avant une évolution du schéma), exécute dans la Console D1, une seule fois chacun, dans l'ordre : `migration_v2.sql` (corbeille) puis `migration_v3.sql` (espaces). Un nouveau déploiement depuis `schema.sql` seul (première installation) les inclut déjà.
+Si `racine-db` existe déjà (déploiement initial fait avant une évolution du schéma), exécute dans la Console D1, **une seule fois chacune, dans l'ordre** :
+1. `migration_v2.sql` — corbeille
+2. `migration_v3.sql` — espaces
+3. `migration_v4.sql` — tags, rappels datés, favoris presse-papier
+4. `migration_v5.sql` — liens entre notes
+5. `migration_v6.sql` — suivi des migrations, sauvegardes automatiques, anti-bruteforce login
+
+Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
+
+Pour vérifier où en est ta base : une fois connecté à l'app, l'état système (voir plus bas) affiche la version de schéma détectée. Si tu ajoutes une nouvelle migration à l'avenir, pense à terminer le fichier `.sql` par une ligne `INSERT INTO schema_migrations (version, applied_at) VALUES (N, <timestamp_ms>);` pour que ce suivi reste à jour.
 
 ## Notes
 - Contenu 100% privé derrière le mot de passe — personne ne peut lire `/api/*` sans session valide (vérifié par le backend, pas par un simple mot de passe front-end).
