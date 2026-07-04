@@ -11,6 +11,7 @@
     lastAddedId: null,
     collapsed: new Set(),
     activeSpace: localStorage.getItem('racine_active_space') || 'Général',
+    filterTag: null,
   };
 
   var OVERVIEW = '__overview__';
@@ -232,6 +233,8 @@
     captureBar.classList.toggle('has-value', !!captureInput.value.trim());
   });
 
+  var captureTags = document.getElementById('captureTags');
+
   function submitCapture() {
     var title = captureInput.value.trim();
     if (!title) { captureInput.focus(); return; }
@@ -241,9 +244,11 @@
       kind: state.kind,
       pinned: state.pinned,
       space: state.activeSpace === OVERVIEW ? 'Général' : state.activeSpace,
+      tags: parseTags(captureTags.value).join(' '),
     }).then(function (res) {
       captureInput.value = '';
       captureDetails.value = '';
+      captureTags.value = '';
       captureDetails.classList.remove('open');
       detailToggle.classList.remove('active');
       detailToggle.textContent = '+ ajouter des détails';
@@ -293,14 +298,40 @@
     renderNotesView();
   });
 
+  function parseTags(str) {
+    return (str || '').split(/\s+/).map(function (t) { return t.trim(); }).filter(function (t) { return t.indexOf('#') === 0 && t.length > 1; });
+  }
+
   function matchesFilter(n) {
     if (state.filterKind !== 'all' && n.kind !== state.filterKind) return false;
     if (state.filterPinned && !n.pinned) return false;
+    if (state.filterTag && parseTags(n.tags).map(function (t) { return t.toLowerCase(); }).indexOf(state.filterTag.toLowerCase()) === -1) return false;
     if (state.searchTerm) {
-      var hay = (n.title + ' ' + (n.content || '')).toLowerCase();
+      var hay = (n.title + ' ' + (n.content || '') + ' ' + (n.tags || '')).toLowerCase();
       if (hay.indexOf(state.searchTerm) === -1) return false;
     }
     return true;
+  }
+
+  function renderTagBar() {
+    var bar = document.getElementById('tagBar');
+    bar.innerHTML = '';
+    var scoped = state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
+    var set = {};
+    scoped.forEach(function (n) { parseTags(n.tags).forEach(function (t) { set[t] = true; }); });
+    var tags = Object.keys(set).sort();
+    if (!tags.length) { state.filterTag = null; return; }
+    tags.forEach(function (t) {
+      var chip = document.createElement('button');
+      chip.className = 'tag-chip' + (state.filterTag === t ? ' active' : '');
+      chip.textContent = t;
+      chip.addEventListener('click', function () {
+        state.filterTag = state.filterTag === t ? null : t;
+        renderTagBar();
+        renderNotesView();
+      });
+      bar.appendChild(chip);
+    });
   }
 
   function buildTree(notes) {
@@ -347,9 +378,11 @@
 
   function setActiveSpace(name) {
     state.activeSpace = name;
+    state.filterTag = null;
     localStorage.setItem('racine_active_space', name);
     document.getElementById('captureBar').style.display = name === OVERVIEW ? 'none' : '';
     renderSpaceBar();
+    renderTagBar();
     renderNotesView();
   }
 
@@ -527,6 +560,12 @@
     if (lastIndex < text.length) container.appendChild(document.createTextNode(text.slice(lastIndex)));
   }
 
+  function formatRemindAt(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' +
+      d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
   function buildBody(n) {
     var body = document.createElement('div');
     body.className = 'node-body';
@@ -545,8 +584,23 @@
 
     var meta = document.createElement('div');
     meta.className = 'node-meta';
-    meta.textContent = (n.pinned ? '★ à ne pas oublier · ' : '') + noteMeta(n);
+    var metaText = (n.pinned ? '★ à ne pas oublier · ' : '') + noteMeta(n);
+    if (n.remind_at) metaText += ' · ⏰ ' + formatRemindAt(n.remind_at);
+    meta.textContent = metaText;
     body.appendChild(meta);
+
+    var tags = parseTags(n.tags);
+    if (tags.length) {
+      var tagsRow = document.createElement('div');
+      tagsRow.className = 'node-tags';
+      tags.forEach(function (t) {
+        var tagEl = document.createElement('span');
+        tagEl.className = 'node-tag';
+        tagEl.textContent = t;
+        tagsRow.appendChild(tagEl);
+      });
+      body.appendChild(tagsRow);
+    }
 
     return body;
   }
@@ -591,6 +645,13 @@
       RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes);
     });
     actions.appendChild(pinBtn);
+
+    var remindBtn = document.createElement('button');
+    remindBtn.className = 'icon-btn';
+    remindBtn.title = n.remind_at ? 'Modifier le rappel' : 'Ajouter un rappel daté';
+    remindBtn.textContent = '⏰';
+    remindBtn.addEventListener('click', function () { openRemindModal(n); });
+    actions.appendChild(remindBtn);
 
     // réorganisation sans glisser-déposer (nécessaire sur iPhone/tactile, où le drag HTML ne marche pas)
     // — pas de sens en liste plate (recherche / vue d'ensemble), et ça garde une largeur d'actions
@@ -779,6 +840,23 @@
   function renderOverviewSummary(items) {
     var el = document.getElementById('overviewSummary');
     el.innerHTML = '';
+
+    var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    var createdWeek = state.notes.filter(function (n) { return n.created_at >= weekAgo; }).length;
+    var doneWeek = state.notes.filter(function (n) { return n.done && n.updated_at >= weekAgo; }).length;
+    if (createdWeek || doneWeek) {
+      var statsChip = document.createElement('div');
+      statsChip.className = 'overview-stat';
+      statsChip.appendChild(document.createTextNode('📈 '));
+      var s1 = document.createElement('strong'); s1.textContent = createdWeek;
+      statsChip.appendChild(s1);
+      statsChip.appendChild(document.createTextNode(' créées · '));
+      var s2 = document.createElement('strong'); s2.textContent = doneWeek;
+      statsChip.appendChild(s2);
+      statsChip.appendChild(document.createTextNode(' terminées cette semaine'));
+      el.appendChild(statsChip);
+    }
+
     var counts = {};
     items.forEach(function (n) {
       var sp = effectiveSpace(n);
@@ -804,7 +882,7 @@
     var treeEl = document.getElementById('tree');
     treeEl.innerHTML = '';
     var emptyMsg = document.querySelector('#emptyState p');
-    var searchActive = !!state.searchTerm || state.filterKind !== 'all' || state.filterPinned;
+    var searchActive = !!state.searchTerm || state.filterKind !== 'all' || state.filterPinned || !!state.filterTag;
     searchAllSpacesBtn.style.display = (searchActive && state.activeSpace !== OVERVIEW) ? '' : 'none';
 
     if (state.activeSpace === OVERVIEW) {
@@ -854,8 +932,10 @@
     return RA.listNotes().then(function (data) {
       state.notes = data.notes;
       renderSpaceBar();
+      renderTagBar();
       renderNotesView();
       checkReminders();
+      if (window.RAStarfield) window.RAStarfield.setNodeCount(12 + data.notes.length);
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
@@ -869,28 +949,46 @@
   function reminderDays() { return Number(localStorage.getItem(REMINDER_DAYS_KEY) || 3); }
 
   function checkReminders() {
-    if (localStorage.getItem(REMINDER_KEY) !== '1') return;
-    var days = reminderDays();
-    var cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    var overdue = state.notes.filter(function (n) {
-      var relevant = n.pinned || (n.kind === 'todo' && !n.done);
-      return relevant && n.created_at <= cutoff;
-    });
-    if (!overdue.length) return;
-
     var notifiedMap = {};
     try { notifiedMap = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '{}'); } catch (e) {}
     var today = new Date().toDateString();
-    var toNotify = overdue.filter(function (n) { return notifiedMap[n.id] !== today; });
+    var notifiedChanged = false;
+    var canNotify = 'Notification' in window && Notification.permission === 'granted';
 
-    if (toNotify.length && 'Notification' in window && Notification.permission === 'granted') {
-      var body = toNotify.slice(0, 3).map(function (n) { return '• ' + n.title; }).join('\n')
-        + (toNotify.length > 3 ? '\n… et ' + (toNotify.length - 3) + ' autre(s)' : '');
-      new Notification('Racine — ' + toNotify.length + ' chose(s) à ne pas oublier', { body: body });
-      toNotify.forEach(function (n) { notifiedMap[n.id] = today; });
-      localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notifiedMap));
+    // rappels datés précis, sur une note donnée — indépendants du réglage global
+    var due = state.notes.filter(function (n) { return n.remind_at && n.remind_at <= Date.now(); });
+    var dueToNotify = due.filter(function (n) { return notifiedMap['r:' + n.id] !== today; });
+    if (dueToNotify.length) {
+      if (canNotify) {
+        dueToNotify.forEach(function (n) { new Notification('Racine — rappel', { body: n.title }); });
+      }
+      dueToNotify.forEach(function (n) { notifiedMap['r:' + n.id] = today; });
+      notifiedChanged = true;
+      toast(dueToNotify.length === 1 ? 'Rappel : ' + dueToNotify[0].title : dueToNotify.length + ' rappels programmés sont arrivés à échéance');
     }
-    toast(overdue.length + ' élément(s) en attente depuis plus de ' + days + ' jour(s)');
+
+    // rappel global (épinglés / tâches en attente depuis plus de X jours)
+    if (localStorage.getItem(REMINDER_KEY) === '1') {
+      var days = reminderDays();
+      var cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      var overdue = state.notes.filter(function (n) {
+        var relevant = n.pinned || (n.kind === 'todo' && !n.done);
+        return relevant && n.created_at <= cutoff;
+      });
+      if (overdue.length) {
+        var toNotify = overdue.filter(function (n) { return notifiedMap[n.id] !== today; });
+        if (toNotify.length && canNotify) {
+          var body = toNotify.slice(0, 3).map(function (n) { return '• ' + n.title; }).join('\n')
+            + (toNotify.length > 3 ? '\n… et ' + (toNotify.length - 3) + ' autre(s)' : '');
+          new Notification('Racine — ' + toNotify.length + ' chose(s) à ne pas oublier', { body: body });
+        }
+        toNotify.forEach(function (n) { notifiedMap[n.id] = today; });
+        if (toNotify.length) notifiedChanged = true;
+        toast(overdue.length + ' élément(s) en attente depuis plus de ' + days + ' jour(s)');
+      }
+    }
+
+    if (notifiedChanged) localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notifiedMap));
   }
 
   if (localStorage.getItem(REMINDER_KEY) === '1') reminderToggle.classList.add('active');
@@ -950,6 +1048,93 @@
     qrImage.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(url);
     qrModal.classList.add('show');
   }
+
+  // ================= RAPPEL DATÉ (par note) =================
+
+  var remindModal = document.getElementById('remindModal');
+  var remindNoteTitle = document.getElementById('remindNoteTitle');
+  var remindInput = document.getElementById('remindInput');
+  var remindTargetId = null;
+
+  function toLocalInputValue(ts) {
+    var d = new Date(ts - new Date().getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16);
+  }
+
+  function openRemindModal(n) {
+    remindTargetId = n.id;
+    remindNoteTitle.textContent = '« ' + n.title + ' »';
+    remindInput.value = n.remind_at ? toLocalInputValue(n.remind_at) : '';
+    remindModal.classList.add('show');
+  }
+
+  document.getElementById('remindClose').addEventListener('click', function () { remindModal.classList.remove('show'); });
+  remindModal.addEventListener('click', function (e) { if (e.target === remindModal) remindModal.classList.remove('show'); });
+  document.getElementById('remindSave').addEventListener('click', function () {
+    if (!remindInput.value) { toast('Choisis une date'); return; }
+    var ts = new Date(remindInput.value).getTime();
+    RA.updateNote(remindTargetId, { remind_at: ts }).then(function () {
+      remindModal.classList.remove('show');
+      toast('Rappel programmé');
+      loadNotes();
+    });
+  });
+  document.getElementById('remindClear').addEventListener('click', function () {
+    RA.updateNote(remindTargetId, { remind_at: null }).then(function () {
+      remindModal.classList.remove('show');
+      loadNotes();
+    });
+  });
+
+  // ================= MODE FOCUS =================
+
+  var focusModal = document.getElementById('focusModal');
+  var focusQueue = [];
+  var focusIndex = 0;
+
+  function focusCandidates() {
+    return state.notes
+      .filter(function (n) { return n.pinned || (n.kind === 'todo' && !n.done); })
+      .sort(function (a, b) { return a.created_at - b.created_at; });
+  }
+
+  function showFocusCard() {
+    if (focusIndex >= focusQueue.length) {
+      focusModal.classList.remove('show');
+      toast('Rien de plus en attente — bien joué !');
+      return;
+    }
+    var n = focusQueue[focusIndex];
+    document.getElementById('focusKind').textContent = n.kind === 'todo' ? 'À faire' : (n.kind === 'idee' ? 'Idée' : 'Note');
+    document.getElementById('focusTitle').textContent = n.title;
+    var contentEl = document.getElementById('focusContent');
+    contentEl.innerHTML = '';
+    if (n.content) renderRichText(contentEl, n.content);
+    document.getElementById('focusSpace').textContent = effectiveSpace(n);
+    document.getElementById('focusProgress').textContent = (focusIndex + 1) + ' / ' + focusQueue.length;
+  }
+
+  document.getElementById('focusModeBtn').addEventListener('click', function () {
+    focusQueue = focusCandidates();
+    focusIndex = 0;
+    if (!focusQueue.length) { toast('Rien à traiter — tout est calme.'); return; }
+    focusModal.classList.add('show');
+    showFocusCard();
+  });
+  document.getElementById('focusClose').addEventListener('click', function () { focusModal.classList.remove('show'); });
+  focusModal.addEventListener('click', function (e) { if (e.target === focusModal) focusModal.classList.remove('show'); });
+  document.getElementById('focusSkip').addEventListener('click', function () {
+    focusIndex++;
+    showFocusCard();
+  });
+  document.getElementById('focusDone').addEventListener('click', function () {
+    var n = focusQueue[focusIndex];
+    RA.updateNote(n.id, { done: true }).then(function () {
+      loadNotes();
+      focusIndex++;
+      showFocusCard();
+    });
+  });
 
   // ================= CLIPS =================
 
@@ -1011,15 +1196,28 @@
 
   function renderClip(c) {
     var card = document.createElement('div');
-    card.className = 'clip-card';
+    card.className = 'clip-card' + (c.pinned ? ' pinned' : '');
     card.dataset.clipId = c.id;
 
     var head = document.createElement('div');
     head.className = 'clip-card-head';
+
+    var headLeft = document.createElement('div');
+    headLeft.className = 'clip-card-head-left';
+    var pinBtn = document.createElement('button');
+    pinBtn.className = 'clip-pin-btn' + (c.pinned ? ' active' : '');
+    pinBtn.textContent = '★';
+    pinBtn.title = c.pinned ? 'Retirer des favoris' : 'Mettre en favori';
+    pinBtn.addEventListener('click', function () {
+      RA.updateClip(c.id, { pinned: !c.pinned }).then(loadClips);
+    });
+    headLeft.appendChild(pinBtn);
     var label = document.createElement('span');
     label.className = 'clip-label';
     label.textContent = c.label || (c.kind === 'file' ? 'Fichier' : 'Texte');
-    head.appendChild(label);
+    headLeft.appendChild(label);
+    head.appendChild(headLeft);
+
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
     delBtn.textContent = '×';
@@ -1044,9 +1242,15 @@
 
     var meta = document.createElement('div');
     meta.className = 'clip-meta';
-    var d = new Date(c.created_at);
-    var expiresTxt = c.expires_at ? ('expire ' + new Date(c.expires_at).toLocaleString('fr-FR')) : '';
-    meta.innerHTML = '<span>' + d.toLocaleString('fr-FR') + '</span><span>' + expiresTxt + '</span>';
+    var dateSpan = document.createElement('span');
+    dateSpan.textContent = new Date(c.created_at).toLocaleString('fr-FR');
+    meta.appendChild(dateSpan);
+    var expirySpan = document.createElement('span');
+    if (c.expires_at) {
+      expirySpan.className = 'clip-countdown';
+      expirySpan.dataset.expires = c.expires_at;
+    }
+    meta.appendChild(expirySpan);
     card.appendChild(meta);
 
     var actions = document.createElement('div');
@@ -1079,6 +1283,17 @@
     });
     actions.appendChild(qrBtn);
 
+    var linkBtn = document.createElement('button');
+    linkBtn.className = 'btn';
+    linkBtn.textContent = '🔗';
+    linkBtn.title = 'Copier le lien direct';
+    linkBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(location.origin + '/app.html?clip=' + c.id).then(function () {
+        toast('Lien copié');
+      });
+    });
+    actions.appendChild(linkBtn);
+
     card.appendChild(actions);
 
     return card;
@@ -1092,8 +1307,35 @@
       document.getElementById('clipEmpty').style.display = data.clips.length ? 'none' : 'block';
       document.getElementById('clipCount').textContent = data.clips.length ? data.clips.length : '';
       data.clips.forEach(function (c) { grid.appendChild(renderClip(c)); });
+      updateClipCountdowns();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
+
+  function updateClipCountdowns() {
+    document.querySelectorAll('.clip-countdown').forEach(function (el) {
+      var ms = Number(el.dataset.expires) - Date.now();
+      if (ms <= 0) { el.textContent = 'expiré'; return; }
+      var mins = Math.round(ms / 60000);
+      if (mins < 60) el.textContent = 'expire dans ' + mins + ' min';
+      else if (mins < 24 * 60) el.textContent = 'expire dans ' + Math.round(mins / 60) + ' h';
+      else el.textContent = 'expire dans ' + Math.round(mins / 1440) + ' j';
+    });
+  }
+  setInterval(updateClipCountdowns, 30000);
+
+  document.getElementById('clipPaste').addEventListener('click', function () {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      toast('Ton navigateur ne permet pas de lire le presse-papier automatiquement');
+      return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      if (!text) { toast('Le presse-papier est vide'); return; }
+      document.getElementById('clipContent').value = text;
+      toast('Collé depuis le presse-papier');
+    }).catch(function () {
+      toast('Autorisation refusée pour lire le presse-papier');
+    });
+  });
 
   // ================= CORBEILLE =================
 

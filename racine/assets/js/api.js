@@ -35,6 +35,7 @@ window.RA = (function () {
     trashClips: function () { return req('/clips/trash'); },
     getClip: function (id) { return req('/clips/' + id); },
     createClip: function (clip) { return req('/clips', { method: 'POST', body: clip }); },
+    updateClip: function (id, patch) { return req('/clips/' + id, { method: 'PUT', body: patch }); },
     deleteClip: function (id) { return req('/clips/' + id, { method: 'DELETE' }); },
     restoreClip: function (id) { return req('/clips/' + id + '/restore', { method: 'PUT' }); },
     purgeClip: function (id) { return req('/clips/' + id + '/purge', { method: 'DELETE' }); },
