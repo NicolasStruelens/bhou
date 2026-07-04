@@ -57,6 +57,7 @@
 
     /* ── Photos ── */
     .photo-grid { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .photo-grid .ph-wrap { position: relative; width: 104px; height: 104px; }
     .photo-grid .ph {
       width: 104px; height: 104px; border-radius: var(--r-sm); overflow: hidden;
       border: 1px solid var(--border-strong); cursor: zoom-in; padding: 0; background: none;
@@ -64,6 +65,33 @@
     }
     .photo-grid .ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--t-base); }
     .photo-grid .ph:hover { border-color: var(--accent-2); box-shadow: var(--glow-soft); }
+    .photo-grid .ph-viz-btn {
+      position: absolute; bottom: 5px; right: 5px; width: 24px; height: 24px; border-radius: var(--r-sm);
+      background: rgba(10, 14, 28, 0.75); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+      display: grid; place-items: center; cursor: pointer; transition: all var(--t-fast);
+    }
+    .photo-grid .ph-viz-btn:hover { background: var(--accent-2); color: #0a0e1c; border-color: var(--accent-2); }
+
+    /* ── Simulateur visuel avant/après ── */
+    .viz-modal {
+      position: fixed; inset: 0; z-index: 9500; display: none;
+      align-items: center; justify-content: center; padding: var(--sp-4);
+      background: rgba(4, 8, 20, 0.88); backdrop-filter: blur(8px);
+    }
+    .viz-modal.open { display: flex; }
+    .viz-panel {
+      width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-3);
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
+      padding: var(--sp-4);
+    }
+    .viz-head { display: flex; align-items: center; justify-content: space-between; font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent-2); }
+    .viz-canvas-wrap { position: relative; width: 100%; background: #000; border-radius: var(--r-sm); overflow: hidden; touch-action: none; }
+    .viz-canvas-wrap canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+    .viz-controls { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+    .viz-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: var(--fs-sm); color: var(--text-muted); cursor: pointer; }
+    .viz-swatch { width: 20px; height: 20px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); flex: none; }
+    .viz-color-label { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .viz-hint { font-size: var(--fs-xs); color: var(--text-subtle); margin: 0; }
     .photo-grid .ph:hover img { transform: scale(1.06); }
 
     /* ── Lightbox ── */
@@ -254,6 +282,7 @@
           <div class="field"><label class="label">Délai estimé (semaines)</label><input class="input input-num" type="number" min="0" id="ccDelai" onchange="saveCommande()"></div>
         </div>
         <div class="cc-eta" id="ccEta"></div>
+        <button class="btn btn-ghost btn-sm mt-3" onclick="copyTrackLink()" style="width:100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copier le lien de suivi client</button>
       </div>
 
       <div class="notes-card ticked">
@@ -283,9 +312,33 @@
     <div class="lb-cap" id="lbCap"></div>
   </div>
 
+  <!-- ══════ SIMULATEUR VISUEL AVANT/APRÈS ══════ -->
+  <div class="viz-modal" id="vizModal" role="dialog" aria-label="Simulateur visuel">
+    <div class="viz-panel">
+      <div class="viz-head">
+        <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> <span id="vizItemLabel">Simulateur visuel</span></span>
+        <button class="lb-btn" style="position:static;width:34px;height:34px;" onclick="closeViz()" aria-label="Fermer">✕</button>
+      </div>
+      <div class="viz-canvas-wrap" id="vizCanvasWrap">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="viz-controls">
+        <label class="viz-toggle"><input type="checkbox" id="vizShowOverlay" checked onchange="renderViz()"> Aperçu avec store/volet</label>
+        <div class="viz-swatch" id="vizSwatch" title="Couleur simulée"></div>
+        <span class="viz-color-label" id="vizColorLabel"></span>
+        <div style="margin-left:auto;display:flex;gap:var(--sp-2);">
+          <button class="btn btn-ghost btn-sm" onclick="resetVizQuad()">Réinitialiser le cadre</button>
+          <button class="btn btn-primary btn-sm" onclick="saveVizImage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer l'image</button>
+        </div>
+      </div>
+      <p class="viz-hint">Fais glisser les 4 coins pour ajuster le cadre sur la fenêtre ou l'ouverture visible sur la photo — la couleur est une approximation indicative, pas un échantillon garanti.</p>
+    </div>
+  </div>
+
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
   <script>
     const SS = window.SS;
@@ -386,7 +439,10 @@
         const photos = (it.photos || []).map((p, pi) => {
           const idx = PHOTOS.length;
           PHOTOS.push({ src: p, cap: `Ouverture #${i + 1}${it.emplacement ? ' — ' + it.emplacement : ''} · photo ${pi + 1}` });
-          return `<button class="ph" onclick="lbOpen(${idx})" aria-label="Agrandir la photo ${pi + 1} de l'ouverture ${i + 1}"><img src="${p}" alt=""></button>`;
+          return `<div class="ph-wrap">
+            <button class="ph" onclick="lbOpen(${idx})" aria-label="Agrandir la photo ${pi + 1} de l'ouverture ${i + 1}"><img src="${p}" alt=""></button>
+            <button class="ph-viz-btn" onclick="openViz(${i}, ${pi})" title="Simulateur visuel avant/après" aria-label="Simulateur visuel sur la photo ${pi + 1}">${icon('image', 13)}</button>
+          </div>`;
         }).join('');
         return `
         <div class="ouv-card ticked">
@@ -515,6 +571,15 @@
       DEVIS.commande.date_commande = el('ccDate').value;
       DEVIS.commande.delai_semaines = parseInt(el('ccDelai').value) || 0;
       await persistCommande();
+    };
+    window.copyTrackLink = async () => {
+      if (!DEVIS.track_token) {
+        DEVIS.track_token = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))).replace(/-/g, '');
+        DEVIS.date_modification = new Date().toISOString();
+        await SS.saveDevis(DEVIS);
+      }
+      const url = location.origin + '/track.html?t=' + DEVIS.track_token;
+      ssCopy(url, 'Lien de suivi');
     };
 
     // ── Notes internes ──
@@ -654,6 +719,178 @@
       if (e.key === 'ArrowLeft') lbNav(-1);
       if (e.key === 'ArrowRight') lbNav(1);
     });
+
+    // ── Simulateur visuel avant/après ──
+    // Technique : le tissu/lame simulé est peint sur un petit canevas "texture", puis
+    // projeté sur le quadrilatère à 4 coins (déplaçables) via un mappage affine par
+    // triangle (2 triangles par quad) — un classique du rendu 2D pour suivre la
+    // perspective d'une photo sans bibliothèque externe.
+    const { hexForRalLabel } = window.SSProducts;
+    let vizState = null;
+
+    function affineFromTriangles(src, dst) {
+      const [s0, s1, s2] = src, [d0, d1, d2] = dst;
+      const denom = s0.x * (s1.y - s2.y) + s1.x * (s2.y - s0.y) + s2.x * (s0.y - s1.y);
+      if (!denom) return null;
+      const a = (d0.x * (s1.y - s2.y) + d1.x * (s2.y - s0.y) + d2.x * (s0.y - s1.y)) / denom;
+      const b = (d0.y * (s1.y - s2.y) + d1.y * (s2.y - s0.y) + d2.y * (s0.y - s1.y)) / denom;
+      const c = (d0.x * (s2.x - s1.x) + d1.x * (s0.x - s2.x) + d2.x * (s1.x - s0.x)) / denom;
+      const dd = (d0.y * (s2.x - s1.x) + d1.y * (s0.x - s2.x) + d2.y * (s1.x - s0.x)) / denom;
+      const e = (d0.x * (s1.x * s2.y - s2.x * s1.y) + d1.x * (s2.x * s0.y - s0.x * s2.y) + d2.x * (s0.x * s1.y - s1.x * s0.y)) / denom;
+      const f = (d0.y * (s1.x * s2.y - s2.x * s1.y) + d1.y * (s2.x * s0.y - s0.x * s2.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / denom;
+      return [a, b, c, dd, e, f];
+    }
+    function drawWarpedTriangle(ctx, srcCanvas, srcTri, dstTri) {
+      const m = affineFromTriangles(srcTri, dstTri);
+      if (!m) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(dstTri[0].x, dstTri[0].y);
+      ctx.lineTo(dstTri[1].x, dstTri[1].y);
+      ctx.lineTo(dstTri[2].x, dstTri[2].y);
+      ctx.closePath();
+      ctx.clip();
+      ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      ctx.drawImage(srcCanvas, 0, 0);
+      ctx.restore();
+    }
+    function buildSwatchCanvas(type, hex) {
+      const w = 400, h = 300;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = hex; ctx.fillRect(0, 0, w, h);
+      if (type === 'volet_roulant') {
+        const slatH = 16;
+        for (let y = 0; y < h; y += slatH) {
+          ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, y, w, 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(0, y + slatH - 3, w, 3);
+        }
+      } else {
+        for (let x = 0; x < w; x += 7) { ctx.fillStyle = 'rgba(0,0,0,0.03)'; ctx.fillRect(x, 0, 2, h); }
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, 'rgba(255,255,255,0.12)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.10)');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+      }
+      return c;
+    }
+    function colorForItem(it) {
+      return hexForRalLabel(it.couleur_lame) || hexForRalLabel(it.couleur) || hexForRalLabel(it.toile_couleur) || '#6b6b6b';
+    }
+    function defaultQuad(w, h) {
+      return [
+        { x: w * 0.25, y: h * 0.15 }, { x: w * 0.75, y: h * 0.15 },
+        { x: w * 0.75, y: h * 0.65 }, { x: w * 0.25, y: h * 0.65 },
+      ];
+    }
+    function renderViz() {
+      if (!vizState) return;
+      const { ctx, canvas, img, quad, swatch } = vizState;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (el('vizShowOverlay').checked) {
+        const sw = swatch.width, sh = swatch.height;
+        const sTL = { x: 0, y: 0 }, sTR = { x: sw, y: 0 }, sBR = { x: sw, y: sh }, sBL = { x: 0, y: sh };
+        const [TL, TR, BR, BL] = quad;
+        drawWarpedTriangle(ctx, swatch, [sTL, sTR, sBL], [TL, TR, BL]);
+        drawWarpedTriangle(ctx, swatch, [sTR, sBR, sBL], [TR, BR, BL]);
+      }
+      const r = Math.max(9, canvas.width * 0.012);
+      quad.forEach((p) => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,209,63,0.9)'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        ctx.fill(); ctx.stroke();
+      });
+      ctx.beginPath();
+      ctx.moveTo(quad[0].x, quad[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(quad[i].x, quad[i].y);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(255,209,63,0.8)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    window.openViz = (itemIndex, photoIndex) => {
+      const it = DEVIS.items[itemIndex];
+      const src = it.photos[photoIndex];
+      const img = new Image();
+      img.onload = () => {
+        const canvas = el('vizCanvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const hex = colorForItem(it);
+        vizState = {
+          img, itemIndex, photoIndex, canvas, ctx: canvas.getContext('2d'), dragIdx: -1,
+          swatch: buildSwatchCanvas(it.type, hex),
+          quad: defaultQuad(img.naturalWidth, img.naturalHeight),
+        };
+        setText('vizItemLabel', `${TYPE_LABEL[it.type] || it.type}${it.modele ? ' — ' + it.modele : ''}`);
+        el('vizColorLabel').textContent = it.couleur_lame || it.couleur || it.toile_couleur || 'couleur non définie';
+        el('vizSwatch').style.background = hex;
+        el('vizShowOverlay').checked = true;
+        el('vizModal').classList.add('open');
+        renderViz();
+      };
+      img.onerror = () => toast('Photo illisible', 'error');
+      img.src = src;
+    };
+    window.resetVizQuad = () => {
+      if (!vizState) return;
+      vizState.quad = defaultQuad(vizState.canvas.width, vizState.canvas.height);
+      renderViz();
+    };
+    window.closeViz = () => { el('vizModal').classList.remove('open'); vizState = null; };
+    window.saveVizImage = async () => {
+      if (!vizState) return;
+      const { img, canvas, quad, swatch } = vizState;
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvas.width; exportCanvas.height = canvas.height;
+      const ctx = exportCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (el('vizShowOverlay').checked) {
+        const sw = swatch.width, sh = swatch.height;
+        const sTL = { x: 0, y: 0 }, sTR = { x: sw, y: 0 }, sBR = { x: sw, y: sh }, sBL = { x: 0, y: sh };
+        const [TL, TR, BR, BL] = quad;
+        drawWarpedTriangle(ctx, swatch, [sTL, sTR, sBL], [TL, TR, BL]);
+        drawWarpedTriangle(ctx, swatch, [sTR, sBR, sBL], [TR, BR, BL]);
+      }
+      const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.85);
+      const it = DEVIS.items[vizState.itemIndex];
+      it.photos = it.photos || [];
+      it.photos.push(dataUrl);
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Image enregistrée (hors-ligne)' : 'Image ajoutée aux photos ✓', res.offline ? 'warn' : 'ok');
+      closeViz();
+      render();
+    };
+    function canvasPointFromEvent(e) {
+      const canvas = vizState.canvas;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+      return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+    }
+    (function initVizDrag() {
+      const canvas = el('vizCanvas');
+      canvas.addEventListener('pointerdown', (e) => {
+        if (!vizState) return;
+        const p = canvasPointFromEvent(e);
+        const threshold = vizState.canvas.width * 0.04;
+        let closest = -1, closestDist = Infinity;
+        vizState.quad.forEach((q, i) => {
+          const dist = Math.hypot(q.x - p.x, q.y - p.y);
+          if (dist < closestDist) { closestDist = dist; closest = i; }
+        });
+        if (closestDist < threshold) { vizState.dragIdx = closest; canvas.setPointerCapture(e.pointerId); }
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        if (!vizState || vizState.dragIdx < 0) return;
+        vizState.quad[vizState.dragIdx] = canvasPointFromEvent(e);
+        renderViz();
+      });
+      canvas.addEventListener('pointerup', () => { if (vizState) vizState.dragIdx = -1; });
+      canvas.addEventListener('pointercancel', () => { if (vizState) vizState.dragIdx = -1; });
+    })();
+    el('vizModal').addEventListener('click', (e) => { if (e.target === el('vizModal')) closeViz(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('vizModal').classList.contains('open')) closeViz(); });
 
     // ── Chargement ──
     (async () => {

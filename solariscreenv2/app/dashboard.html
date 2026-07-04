@@ -61,6 +61,23 @@
     .status-menu button:hover { background: var(--surface-2); color: var(--text); }
     .status-menu .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
+    /* ── Vue "Aujourd'hui" : briefing discret, uniquement s'il y a quelque chose à signaler ── */
+    .today-brief {
+      display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+      padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+      --tick-color: var(--accent-2);
+    }
+    .today-brief.hidden { display: none; }
+    .tb-label { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-2); display: flex; align-items: center; gap: 0.4rem; flex: none; }
+    .tb-chip {
+      display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
+      padding: 0.3rem 0.65rem; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-fast);
+      border: 1px solid color-mix(in srgb, var(--tbc, var(--text-subtle)) 45%, transparent);
+      color: var(--tbc, var(--text-muted)); background: color-mix(in srgb, var(--tbc, var(--text-subtle)) 10%, transparent);
+    }
+    .tb-chip:hover { box-shadow: var(--glow-soft); }
+
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
     .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -151,6 +168,9 @@
   </header>
 
   <main class="container">
+    <!-- Vue Aujourd'hui : uniquement si quelque chose mérite l'attention -->
+    <div class="today-brief ticked hidden" id="todayBrief"></div>
+
     <!-- KPIs -->
     <div class="kpis" id="kpis"></div>
 
@@ -248,21 +268,27 @@
       annule:        { label: 'Annulé',     color: 'var(--text-subtle)' },
     };
 
+    const WAITING_STATUSES = ['envoye_client', 'relance_1', 'relance_2'];
+
     let DEVIS = [], FACTURES = [];
     let activeFilter = 'tous';
     let activeSeller = 'tous';
 
     // ── Paiement (acompte/solde) — lu depuis les factures liées au devis ──
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    function isPaymentOverdue(d) {
+      const facs = FACTURES.filter(f => f.devis_id === d.id);
+      if (!facs.length) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      return facs.some(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
+    }
     function paymentInfo(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return '';
       const totalFact = facs.reduce((s, f) => s + (f.total_ttc || 0), 0);
       const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
-      const today = new Date().toISOString().slice(0, 10);
-      const overdue = facs.some(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
       if (totalPaid > 0 && totalPaid >= d.ttc - 0.005) return `<span class="badge badge-ok" title="Encaissé : ${fmtEur(totalPaid)}">${icon('coin', 10)} Soldé</span>`;
-      if (overdue) return `<span class="badge badge-danger" title="Facturé ${fmtEur(totalFact)}, payé ${fmtEur(totalPaid)}">${icon('warning', 10)} Retard paiement</span>`;
+      if (isPaymentOverdue(d)) return `<span class="badge badge-danger" title="Facturé ${fmtEur(totalFact)}, payé ${fmtEur(totalPaid)}">${icon('warning', 10)} Retard paiement</span>`;
       if (totalPaid > 0) return `<span class="badge badge-warn" title="Payé ${fmtEur(totalPaid)} sur ${fmtEur(totalFact)} facturé">${icon('coin', 10)} Acompte payé</span>`;
       return `<span class="badge" title="Facturé ${fmtEur(totalFact)}, en attente de paiement">${icon('coin', 10)} À encaisser</span>`;
     }
@@ -305,6 +331,22 @@
     }
     window.setSellerFilter = (k) => { activeSeller = k; render(); };
 
+    function renderTodayBrief() {
+      const visible = DEVIS.filter(d => !d.archive);
+      const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
+      const enRetard = visible.filter(isPaymentOverdue);
+      const box = el('todayBrief');
+      const chips = [];
+      if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
+      if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
+      if (!chips.length) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      box.innerHTML = `
+        <span class="tb-label">${icon('sliders', 13)} Aujourd'hui</span>
+        ${chips.map(c => `<button class="tb-chip" style="--tbc:${c.color}" onclick="setFilter('${c.filter}')">${icon(c.ic, 12)} ${c.label}</button>`).join('')}
+      `;
+    }
+
     function renderKPIs() {
       const total = DEVIS.length;
       const signes = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
@@ -325,13 +367,16 @@
     }
 
     function render() {
+      renderTodayBrief();
       renderKPIs();
       renderFilters();
       renderSellerFilters();
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
-      if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
+      if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
+      else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
+      else if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
       if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
       if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id} ${d.ville} ${d.telephone} ${d.email}`).toLowerCase().includes(q));
       rows.sort((a, b) => {
@@ -352,7 +397,6 @@
         const s = STATUSES[d.statut] || STATUSES.brouillon;
         return `<button class="status-pill" style="--st:${s.color}" onclick="openStatusMenu(event,'${d.id}')" aria-label="Changer le statut du devis ${d.id}"><span class="dot"></span>${s.label} ${icon('chevrondown', 10)}</button>`;
       };
-      const WAITING_STATUSES = ['envoye_client', 'relance_1', 'relance_2'];
       const waitingBadge = (d) => {
         if (!WAITING_STATUSES.includes(d.statut)) return '';
         const days = daysInCurrentStatus(d);
