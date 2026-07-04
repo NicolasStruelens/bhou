@@ -113,8 +113,8 @@ async function createNote(request, env) {
   const id = newId();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -124,6 +124,8 @@ async function createNote(request, env) {
     body.pinned ? 1 : 0,
     body.position || 0,
     String(body.space || 'Général').trim().slice(0, 60) || 'Général',
+    String(body.tags || '').slice(0, 300),
+    body.remind_at ? Number(body.remind_at) : null,
     now,
     now
   ).run();
@@ -146,6 +148,8 @@ async function updateNote(id, request, env) {
     parent_id: (v) => v || null,
     position: (v) => Number(v) || 0,
     space: (v) => String(v || 'Général').trim().slice(0, 60) || 'Général',
+    tags: (v) => String(v || '').slice(0, 300),
+    remind_at: (v) => (v ? Number(v) : null),
   };
   for (const key of Object.keys(map)) {
     if (key in body) {
@@ -213,11 +217,21 @@ async function purgeExpiredClips(env) {
 async function listClips(env) {
   await purgeExpiredClips(env);
   const { results } = await env.DB.prepare(
-    'SELECT id, label, kind, filename, mime, device, created_at, expires_at, LENGTH(content) as size, ' +
+    'SELECT id, label, kind, filename, mime, device, pinned, created_at, expires_at, LENGTH(content) as size, ' +
     "CASE WHEN kind = 'file' THEN NULL ELSE content END as preview " +
-    "FROM clips WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+    "FROM clips WHERE deleted_at IS NULL ORDER BY pinned DESC, created_at DESC LIMIT 200"
   ).all();
   return json({ clips: results });
+}
+
+async function updateClip(id, request, env) {
+  const body = await request.json().catch(() => ({}));
+  const existing = await env.DB.prepare('SELECT id FROM clips WHERE id = ?').bind(id).first();
+  if (!existing) return json({ error: 'not found' }, 404);
+  if ('pinned' in body) {
+    await env.DB.prepare('UPDATE clips SET pinned = ? WHERE id = ?').bind(body.pinned ? 1 : 0, id).run();
+  }
+  return json({ ok: true });
 }
 
 async function listTrashClips(env) {
@@ -334,6 +348,7 @@ export async function onRequest(context) {
       if (parts.length === 1 && method === 'POST') return createClip(request, env);
       if (parts.length === 2 && parts[1] === 'trash' && method === 'GET') return listTrashClips(env);
       if (parts.length === 2 && method === 'GET') return getClip(parts[1], env);
+      if (parts.length === 2 && method === 'PUT') return updateClip(parts[1], request, env);
       if (parts.length === 2 && method === 'DELETE') return deleteClip(parts[1], env);
       if (parts.length === 3 && parts[2] === 'restore' && method === 'PUT') return restoreClip(parts[1], env);
       if (parts.length === 3 && parts[2] === 'purge' && method === 'DELETE') return purgeClip(parts[1], env);
