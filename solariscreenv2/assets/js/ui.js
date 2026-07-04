@@ -121,7 +121,25 @@
       nicolas_net: Number(d.nicolas_net) || (d.calculs && Number(d.calculs.nicolas_net)) || 0,
       yannick_net: Number(d.yannick_net) || (d.calculs && Number(d.calculs.yannick_net)) || 0,
       seller_principal: d.seller_principal || (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal) || 'nicolas',
+      note: d.pricing_note || (d.pricing_v2 && d.pricing_v2.note) || '',
+      statut_history: d.statut_history || [],
+      ville: (d.client && d.client.adresse && d.client.adresse.ville) || '',
+      telephone: (d.client && d.client.telephone) || '',
+      email: (d.client && d.client.email) || '',
     };
+  }
+
+  // Depuis quand un devis est-il dans SON statut actuel (basé sur statut_history,
+  // repli sur date_modification pour les devis créés avant l'ajout de l'historique).
+  function daysInCurrentStatus(d) {
+    const hist = d.statut_history || [];
+    let anchor = d.date_modification || d.date_creation;
+    for (let i = hist.length - 1; i >= 0; i--) {
+      if (hist[i].statut === d.statut) { anchor = hist[i].date; break; }
+    }
+    if (!anchor) return 0;
+    const ms = Date.now() - new Date(anchor).getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
   }
 
   // ── Icônes SVG (trait fin, currentColor) — remplace les emojis partout ──
@@ -155,7 +173,9 @@
     image:      '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
     phone:      '<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
     user:       '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    info:       '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
     grid9:      '<circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="19" r="1.5"/><circle cx="19" cy="19" r="1.5"/>',
+    clock:      '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -170,7 +190,7 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, icon: icon, compressImage: compressImage,
-    copyText: copyText, jsAttr: jsAttr,
+    copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
   window.ssCopy = function (text, label) { copyText(text, label); };

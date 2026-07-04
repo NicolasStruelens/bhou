@@ -90,11 +90,13 @@
       try { return await req('/devis/' + id, { method: 'DELETE' }); }
       catch (e) { console.warn('[SS] deleteDevis hors-ligne:', e.message); return { ok: true, offline: true }; }
     },
-    async updateStatus(id, statut) {
+    async updateStatus(id, statut, by) {
       const devis = await this.getDevis(id);
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.statut = statut;
       devis.date_modification = new Date().toISOString();
+      devis.statut_history = devis.statut_history || [];
+      devis.statut_history.push({ statut, date: devis.date_modification, by: by || null });
       return this.saveDevis(devis);
     },
 
