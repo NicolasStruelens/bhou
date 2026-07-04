@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS notes (
   space TEXT DEFAULT 'Général',     -- projet/passion (racines uniquement, hérité visuellement par les branches)
   tags TEXT DEFAULT '',             -- #tag1 #tag2, cross-cutting, indépendant de l'espace
   remind_at INTEGER,                -- rappel daté précis (NULL = aucun)
+  links TEXT DEFAULT '',            -- ids d'autres notes liées ("voir aussi"), séparés par des virgules
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
