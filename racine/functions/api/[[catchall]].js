@@ -4,6 +4,11 @@
 const SESSION_DAYS = 30;
 const COOKIE_NAME = 'racine_session';
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // corbeille purgée après 30 jours
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+const BACKUP_KEEP = 14;
+const SCHEMA_VERSION = 6;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -60,13 +65,37 @@ async function requireAuth(request, env) {
 // ---------- handlers ----------
 
 async function handleLogin(request, env) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const now = Date.now();
+
+  const attemptRow = await env.DB.prepare('SELECT * FROM login_attempts WHERE ip = ?').bind(ip).first();
+  if (attemptRow && attemptRow.locked_until && attemptRow.locked_until > now) {
+    const waitMin = Math.ceil((attemptRow.locked_until - now) / 60000);
+    return json({ error: `Trop de tentatives. Réessaie dans ${waitMin} min.` }, 429);
+  }
+
   const body = await request.json().catch(() => ({}));
   const password = String(body.password || '');
   if (!env.RACINE_PASSWORD || password !== env.RACINE_PASSWORD) {
+    let count = 1;
+    let firstAttempt = now;
+    if (attemptRow && (now - attemptRow.first_attempt) < LOGIN_WINDOW_MS) {
+      count = attemptRow.count + 1;
+      firstAttempt = attemptRow.first_attempt;
+    }
+    const lockedUntil = count >= LOGIN_MAX_ATTEMPTS ? now + LOGIN_LOCKOUT_MS : null;
+    await env.DB.prepare(
+      `INSERT INTO login_attempts (ip, count, first_attempt, locked_until) VALUES (?, ?, ?, ?)
+       ON CONFLICT(ip) DO UPDATE SET count = excluded.count, first_attempt = excluded.first_attempt, locked_until = excluded.locked_until`
+    ).bind(ip, count, firstAttempt, lockedUntil).run();
+    if (lockedUntil) {
+      return json({ error: `Trop de tentatives. Réessaie dans ${Math.ceil(LOGIN_LOCKOUT_MS / 60000)} min.` }, 429);
+    }
     return json({ error: 'mot de passe incorrect' }, 401);
   }
+
+  await env.DB.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(ip).run();
   const token = newId();
-  const now = Date.now();
   await env.DB.prepare(
     'INSERT INTO sessions (token, created_at, expires_at) VALUES (?, ?, ?)'
   ).bind(token, now, now + SESSION_DAYS * 24 * 60 * 60 * 1000).run();
@@ -113,8 +142,8 @@ async function createNote(request, env) {
   const id = newId();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -126,6 +155,7 @@ async function createNote(request, env) {
     String(body.space || 'Général').trim().slice(0, 60) || 'Général',
     String(body.tags || '').slice(0, 300),
     body.remind_at ? Number(body.remind_at) : null,
+    String(body.links || '').slice(0, 2000),
     now,
     now
   ).run();
@@ -136,6 +166,16 @@ async function updateNote(id, request, env) {
   const body = await request.json().catch(() => ({}));
   const existing = await env.DB.prepare('SELECT id FROM notes WHERE id = ?').bind(id).first();
   if (!existing) return json({ error: 'not found' }, 404);
+
+  if ('parent_id' in body && body.parent_id) {
+    if (body.parent_id === id) {
+      return json({ error: 'boucle : une note ne peut pas être son propre parent' }, 400);
+    }
+    const descendants = await collectDescendants(id, env);
+    if (descendants.includes(body.parent_id)) {
+      return json({ error: 'boucle : le nouveau parent est une descendante de cette note' }, 400);
+    }
+  }
 
   const fields = [];
   const values = [];
@@ -150,6 +190,7 @@ async function updateNote(id, request, env) {
     space: (v) => String(v || 'Général').trim().slice(0, 60) || 'Général',
     tags: (v) => String(v || '').slice(0, 300),
     remind_at: (v) => (v ? Number(v) : null),
+    links: (v) => String(v || '').slice(0, 2000),
   };
   for (const key of Object.keys(map)) {
     if (key in body) {
@@ -245,7 +286,7 @@ async function listTrashClips(env) {
 }
 
 async function getClip(id, env) {
-  const row = await env.DB.prepare('SELECT * FROM clips WHERE id = ?').bind(id).first();
+  const row = await env.DB.prepare('SELECT * FROM clips WHERE id = ? AND deleted_at IS NULL').bind(id).first();
   if (!row) return json({ error: 'not found' }, 404);
   if (row.expires_at && row.expires_at < Date.now()) {
     await env.DB.prepare('DELETE FROM clips WHERE id = ?').bind(id).run();
@@ -315,6 +356,58 @@ async function exportAll(env) {
   });
 }
 
+// ----- sauvegardes -----
+
+async function createBackup(env) {
+  const notes = await env.DB.prepare('SELECT * FROM notes WHERE deleted_at IS NULL').all();
+  const clips = await env.DB.prepare('SELECT * FROM clips WHERE deleted_at IS NULL').all();
+  const id = newId();
+  const now = Date.now();
+  const data = JSON.stringify({ notes: notes.results, clips: clips.results });
+  await env.DB.prepare('INSERT INTO backups (id, created_at, data) VALUES (?, ?, ?)').bind(id, now, data).run();
+  await env.DB.prepare(
+    `DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY created_at DESC LIMIT ?)`
+  ).bind(BACKUP_KEEP).run();
+  return json({ ok: true, id, created_at: now });
+}
+
+async function listBackups(env) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, created_at, LENGTH(data) as size FROM backups ORDER BY created_at DESC'
+  ).all();
+  return json({ backups: results });
+}
+
+async function getBackup(id, env) {
+  const row = await env.DB.prepare('SELECT * FROM backups WHERE id = ?').bind(id).first();
+  if (!row) return json({ error: 'not found' }, 404);
+  let data;
+  try { data = JSON.parse(row.data); } catch (e) { data = { notes: [], clips: [] }; }
+  return json({ id: row.id, created_at: row.created_at, notes: data.notes, clips: data.clips });
+}
+
+// ----- état système -----
+
+async function health(env) {
+  const [notesCount, clipsCount, remindersCount, lastBackup, migrations] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) as c FROM notes WHERE deleted_at IS NULL').first(),
+    env.DB.prepare('SELECT COUNT(*) as c FROM clips WHERE deleted_at IS NULL').first(),
+    env.DB.prepare('SELECT COUNT(*) as c FROM notes WHERE deleted_at IS NULL AND remind_at IS NOT NULL').first(),
+    env.DB.prepare('SELECT created_at FROM backups ORDER BY created_at DESC LIMIT 1').first(),
+    env.DB.prepare('SELECT MAX(version) as v FROM schema_migrations').first().catch(() => null),
+  ]);
+  return json({
+    ok: true,
+    db: true,
+    schema_version: migrations && migrations.v ? migrations.v : null,
+    schema_version_expected: SCHEMA_VERSION,
+    notes: notesCount.c,
+    clips: clipsCount.c,
+    reminders: remindersCount.c,
+    last_backup: lastBackup ? lastBackup.created_at : null,
+  });
+}
+
 // ---------- routeur ----------
 
 export async function onRequest(context) {
@@ -332,6 +425,13 @@ export async function onRequest(context) {
     if (denied) return denied;
 
     if (parts[0] === 'export' && parts.length === 1 && method === 'GET') return exportAll(env);
+    if (parts[0] === 'health' && parts.length === 1 && method === 'GET') return health(env);
+
+    if (parts[0] === 'backups') {
+      if (parts.length === 1 && method === 'GET') return listBackups(env);
+      if (parts.length === 1 && method === 'POST') return createBackup(env);
+      if (parts.length === 2 && method === 'GET') return getBackup(parts[1], env);
+    }
 
     if (parts[0] === 'notes') {
       if (parts.length === 1 && method === 'GET') return listNotes(env);
