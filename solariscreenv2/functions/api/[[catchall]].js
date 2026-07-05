@@ -173,6 +173,7 @@ export async function onRequest(context) {
                json_extract(data, '$.probabilite') AS probabilite,
                IFNULL(CAST(json_extract(data, '$.client_accepted') AS INTEGER), 0) AS client_accepted,
                json_extract(data, '$.review_views') AS review_views_json,
+               json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                json_extract(data, '$.client') AS client_json
         FROM devis ORDER BY date_modification DESC
       `).all();
@@ -183,8 +184,9 @@ export async function onRequest(context) {
         const chantier = safeParse(r.chantier_json);
         const checklist = safeParse(r.checklist_json);
         const review_views = (safeParse(r.review_views_json) || []).length;
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views };
+        const sav_tickets = safeParse(r.sav_tickets_json) || [];
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets };
       });
       return json({ ok: true, data });
     }
@@ -208,6 +210,65 @@ export async function onRequest(context) {
         const ex = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(id).first();
         if (!ex) return json({ ok: false, error: 'Devis introuvable' }, 404);
         await env.DB.prepare('DELETE FROM devis WHERE id = ?').bind(id).run();
+        return json({ ok: true });
+      }
+    }
+
+    // ══════════ DOCUMENTS FOURNISSEUR (R2) ══════════
+    // Bon de commande / facture Harol attachés à un devis. Seuls les métadonnées (nom,
+    // type, clé R2) vivent dans la ligne D1 (comme chantier/checklist/sav_tickets) —
+    // les octets du PDF vivent dans R2, jamais dans D1 (voir incident photos non compressées).
+    // Nécessite la liaison R2 "DOCS" (Pages → Settings → Functions → R2 bucket bindings).
+    m = path.match(/^\/api\/devis\/([^/]+)\/documents$/);
+    if (m && method === 'POST') {
+      if (!env.DOCS) return json({ ok: false, error: "Stockage de documents non configuré (liaison R2 « DOCS » manquante)." }, 500);
+      const id = decodeURIComponent(m[1]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = JSON.parse(row.data);
+      const form = await request.formData();
+      const file = form.get('file');
+      const type = String(form.get('type') || 'autre').slice(0, 30);
+      if (!file || typeof file === 'string') return json({ ok: false, error: 'Fichier manquant' }, 400);
+      const MAX_SIZE = 15 * 1024 * 1024;
+      if (file.size > MAX_SIZE) return json({ ok: false, error: 'Fichier trop volumineux (15 Mo max)' }, 400);
+      const docId = crypto.randomUUID();
+      const safeName = (file.name || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+      const r2Key = `devis/${id}/${docId}-${safeName}`;
+      await env.DOCS.put(r2Key, file.stream(), { httpMetadata: { contentType: file.type || 'application/octet-stream' } });
+      const doc = { id: docId, type, filename: file.name || safeName, taille: file.size, r2_key: r2Key, date_upload: new Date().toISOString() };
+      d.documents = d.documents || [];
+      d.documents.push(doc);
+      d.date_modification = new Date().toISOString();
+      await upsertDevis(env.DB, d);
+      return json({ ok: true, data: d.documents });
+    }
+    m = path.match(/^\/api\/devis\/([^/]+)\/documents\/([^/]+)$/);
+    if (m) {
+      if (!env.DOCS) return json({ ok: false, error: "Stockage de documents non configuré (liaison R2 « DOCS » manquante)." }, 500);
+      const id = decodeURIComponent(m[1]);
+      const docId = decodeURIComponent(m[2]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = JSON.parse(row.data);
+      const doc = (d.documents || []).find(x => x.id === docId);
+      if (!doc) return json({ ok: false, error: 'Document introuvable' }, 404);
+      if (method === 'GET') {
+        const obj = await env.DOCS.get(doc.r2_key);
+        if (!obj) return json({ ok: false, error: 'Fichier introuvable dans le stockage' }, 404);
+        return new Response(obj.body, {
+          headers: {
+            'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'application/octet-stream',
+            'Content-Disposition': `inline; filename="${doc.filename.replace(/"/g, '')}"`,
+            'Cache-Control': 'private, max-age=3600',
+          },
+        });
+      }
+      if (method === 'DELETE') {
+        await env.DOCS.delete(doc.r2_key);
+        d.documents = (d.documents || []).filter(x => x.id !== docId);
+        d.date_modification = new Date().toISOString();
+        await upsertDevis(env.DB, d);
         return json({ ok: true });
       }
     }
