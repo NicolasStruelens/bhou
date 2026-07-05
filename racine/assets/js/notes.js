@@ -385,9 +385,15 @@
     });
   }
 
+  function setHistoryToggleLabel(open) {
+    editHistoryToggle.innerHTML = '';
+    if (!open) editHistoryToggle.appendChild(icon('history'));
+    editHistoryToggle.appendChild(document.createTextNode(open ? ' masquer l\'historique' : (' historique des versions (' + editTargetHistory.length + ')')));
+  }
+
   editHistoryToggle.addEventListener('click', function () {
     var open = editHistoryList.classList.toggle('hidden') === false;
-    editHistoryToggle.textContent = open ? '− masquer l\'historique' : ('🕘 historique des versions (' + editTargetHistory.length + ')');
+    setHistoryToggleLabel(open);
     if (open) renderHistoryList();
   });
 
@@ -401,7 +407,7 @@
     editSomeday.checked = n.status === 'someday';
     try { editTargetHistory = JSON.parse(n.history || '[]'); } catch (e) { editTargetHistory = []; }
     editHistoryList.classList.add('hidden');
-    editHistoryToggle.textContent = '🕘 historique des versions (' + editTargetHistory.length + ')';
+    setHistoryToggleLabel(false);
     var children = state.notes.filter(function (x) { return x.parent_id === n.id; });
     var links = parseLinks(n.links).map(function (lid) {
       var t = state.notes.find(function (x) { return x.id === lid; });
@@ -571,7 +577,7 @@
 
       var colorBtn = document.createElement('span');
       colorBtn.className = 'space-pill-color';
-      colorBtn.textContent = '🎨';
+      colorBtn.appendChild(icon('droplet'));
       colorBtn.title = 'Choisir une couleur';
       colorBtn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -583,7 +589,7 @@
       if (name !== 'Général') {
         var editBtn = document.createElement('span');
         editBtn.className = 'space-pill-edit';
-        editBtn.textContent = '✎';
+        editBtn.appendChild(icon('pencil'));
         editBtn.title = 'Renommer l\'espace « ' + name + ' »';
         editBtn.addEventListener('click', function (e) {
           e.stopPropagation();
@@ -593,7 +599,7 @@
 
         var delX = document.createElement('span');
         delX.className = 'space-pill-del';
-        delX.textContent = '×';
+        delX.appendChild(icon('x'));
         delX.title = 'Supprimer l\'espace « ' + name + ' »';
         delX.addEventListener('click', function (e) {
           e.stopPropagation();
@@ -746,14 +752,26 @@
 
     var meta = document.createElement('div');
     meta.className = 'node-meta';
-    var metaText = (n.pinned ? '★ à ne pas oublier · ' : '') + noteMeta(n);
-    if (n.remind_at) metaText += ' · ⏰ ' + formatRemindAt(n.remind_at);
-    if (n.status === 'someday') metaText += ' · 🗓 someday';
-    meta.textContent = metaText;
-    if (n.energy) {
+    if (n.pinned) {
+      meta.appendChild(icon('star', 'icon-inline'));
+      meta.appendChild(document.createTextNode(' à ne pas oublier · '));
+    }
+    meta.appendChild(document.createTextNode(noteMeta(n)));
+    if (n.remind_at) {
+      meta.appendChild(document.createTextNode(' · '));
+      meta.appendChild(icon('clock', 'icon-inline'));
+      meta.appendChild(document.createTextNode(' ' + formatRemindAt(n.remind_at)));
+    }
+    if (n.status === 'someday') {
+      meta.appendChild(document.createTextNode(' · '));
+      meta.appendChild(icon('clock-later', 'icon-inline'));
+      meta.appendChild(document.createTextNode(' someday'));
+    }
+    if (n.energy && ENERGY_LABELS[n.energy]) {
       var energyBadge = document.createElement('span');
       energyBadge.className = 'node-energy';
-      energyBadge.textContent = ENERGY_LABELS[n.energy] || n.energy;
+      energyBadge.appendChild(icon(ENERGY_LABELS[n.energy].icon, 'icon-inline'));
+      energyBadge.appendChild(document.createTextNode(' ' + ENERGY_LABELS[n.energy].text));
       meta.appendChild(energyBadge);
     }
     body.appendChild(meta);
@@ -781,12 +799,13 @@
         var chip = document.createElement('span');
         chip.className = 'node-link-chip';
         var label = document.createElement('span');
-        label.textContent = '🔗 ' + target.title;
+        label.appendChild(icon('link', 'icon-inline'));
+        label.appendChild(document.createTextNode(' ' + target.title));
         label.addEventListener('click', function (e) { e.stopPropagation(); jumpToNote(lid); });
         chip.appendChild(label);
         var unlinkX = document.createElement('span');
         unlinkX.className = 'unlink-x';
-        unlinkX.textContent = ' ×';
+        unlinkX.appendChild(icon('x', 'icon-inline'));
         unlinkX.title = 'Retirer le lien';
         unlinkX.addEventListener('click', function (e) { e.stopPropagation(); removeLink(n.id, lid); });
         chip.appendChild(unlinkX);
@@ -824,7 +843,7 @@
     var doneBtn = document.createElement('button');
     doneBtn.className = 'icon-btn';
     doneBtn.title = n.done ? 'Marquer non terminé' : 'Marquer terminé';
-    doneBtn.textContent = n.done ? '↺' : '✓';
+    doneBtn.appendChild(icon(n.done ? 'history' : 'check'));
     doneBtn.addEventListener('click', function () {
       RA.updateNote(n.id, { done: !n.done }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     });
@@ -833,7 +852,7 @@
     var pinBtn = document.createElement('button');
     pinBtn.className = 'icon-btn';
     pinBtn.title = 'Épingler';
-    pinBtn.textContent = '★';
+    pinBtn.appendChild(icon('star'));
     pinBtn.addEventListener('click', function () {
       RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     });
@@ -842,21 +861,21 @@
     var remindBtn = document.createElement('button');
     remindBtn.className = 'icon-btn';
     remindBtn.title = n.remind_at ? 'Modifier le rappel' : 'Ajouter un rappel daté';
-    remindBtn.textContent = '⏰';
+    remindBtn.appendChild(icon('clock'));
     remindBtn.addEventListener('click', function () { openRemindModal(n); });
     actions.appendChild(remindBtn);
 
     var linkBtn = document.createElement('button');
     linkBtn.className = 'icon-btn';
     linkBtn.title = 'Lier à une autre note ("voir aussi")';
-    linkBtn.textContent = '🔗';
+    linkBtn.appendChild(icon('link'));
     linkBtn.addEventListener('click', function () { openLinkModal(n); });
     actions.appendChild(linkBtn);
 
     var editBtn = document.createElement('button');
     editBtn.className = 'icon-btn';
     editBtn.title = 'Modifier';
-    editBtn.textContent = '✎';
+    editBtn.appendChild(icon('pencil'));
     editBtn.addEventListener('click', function () { openEditModal(n); });
     actions.appendChild(editBtn);
 
@@ -871,7 +890,7 @@
         var upBtn = document.createElement('button');
         upBtn.className = 'icon-btn';
         upBtn.title = 'Monter';
-        upBtn.textContent = '▲';
+        upBtn.appendChild(icon('chevron-up'));
         upBtn.addEventListener('click', function () { swapPosition(n, siblings[idx - 1]); });
         actions.appendChild(upBtn);
       }
@@ -879,7 +898,7 @@
         var downBtn = document.createElement('button');
         downBtn.className = 'icon-btn';
         downBtn.title = 'Descendre';
-        downBtn.textContent = '▼';
+        downBtn.appendChild(icon('chevron-down'));
         downBtn.addEventListener('click', function () { swapPosition(n, siblings[idx + 1]); });
         actions.appendChild(downBtn);
       }
@@ -887,7 +906,7 @@
         var detachBtn = document.createElement('button');
         detachBtn.className = 'icon-btn';
         detachBtn.title = 'Détacher (devient une racine)';
-        detachBtn.textContent = '⌂';
+        detachBtn.appendChild(icon('detach'));
         detachBtn.addEventListener('click', function () {
           RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
         });
@@ -897,7 +916,7 @@
       var addChildBtn = document.createElement('button');
       addChildBtn.className = 'icon-btn';
       addChildBtn.title = 'Ajouter une branche';
-      addChildBtn.textContent = '+';
+      addChildBtn.appendChild(icon('plus'));
       addChildBtn.addEventListener('click', function () {
         var title = prompt('Nouvelle branche sous « ' + n.title + ' » :');
         if (!title || !title.trim()) return;
@@ -913,7 +932,7 @@
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
     delBtn.title = 'Mettre à la corbeille';
-    delBtn.textContent = '×';
+    delBtn.appendChild(icon('x'));
     delBtn.addEventListener('click', function () {
       if (!confirm('Mettre « ' + n.title + ' » (et ses branches) à la corbeille ?')) return;
       var row = delBtn.closest('.node, .root-card, .branch-row');
@@ -1059,7 +1078,8 @@
     if (createdWeek || doneWeek) {
       var statsChip = document.createElement('div');
       statsChip.className = 'overview-stat';
-      statsChip.appendChild(document.createTextNode('📈 '));
+      statsChip.appendChild(icon('trend', 'icon-inline'));
+      statsChip.appendChild(document.createTextNode(' '));
       var s1 = document.createElement('strong'); s1.textContent = createdWeek;
       statsChip.appendChild(s1);
       statsChip.appendChild(document.createTextNode(' créées · '));

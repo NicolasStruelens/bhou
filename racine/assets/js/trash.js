@@ -24,7 +24,7 @@
 
     var restoreBtn = document.createElement('button');
     restoreBtn.className = 'icon-btn restore-btn';
-    restoreBtn.textContent = '↺';
+    restoreBtn.appendChild(icon('history'));
     restoreBtn.title = 'Restaurer';
     restoreBtn.addEventListener('click', function () {
       RA.restoreNote(n.id).then(function () { loadTrash(); loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -33,7 +33,7 @@
 
     var purgeBtn = document.createElement('button');
     purgeBtn.className = 'icon-btn';
-    purgeBtn.textContent = '×';
+    purgeBtn.appendChild(icon('x'));
     purgeBtn.title = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + n.title + ' » ?')) return;
@@ -62,7 +62,12 @@
 
     var preview = document.createElement('div');
     preview.className = 'clip-preview expanded';
-    preview.textContent = c.kind === 'file' ? ('📎 ' + c.filename) : (c.preview || '');
+    if (c.kind === 'file') {
+      preview.appendChild(icon('paperclip', 'icon-inline'));
+      preview.appendChild(document.createTextNode(' ' + c.filename));
+    } else {
+      preview.textContent = c.preview || '';
+    }
     card.appendChild(preview);
 
     var actions = document.createElement('div');

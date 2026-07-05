@@ -20,7 +20,35 @@
     filterSomeday: false,
   };
 
-  var ENERGY_LABELS = { '2min': '⚡ 2min', facile: '🙂 facile', profond: '🧠 profond', urgent: '🔥 urgent', attente: '⏳ attente' };
+  var ENERGY_LABELS = {
+    '2min': { icon: 'bolt', text: '2min' },
+    facile: { icon: 'leaf', text: 'facile' },
+    profond: { icon: 'node3', text: 'profond' },
+    urgent: { icon: 'flame', text: 'urgent' },
+    attente: { icon: 'hourglass', text: 'attente' },
+  };
+
+  // icônes SVG (jamais d'emoji dans l'app) : référence le sprite <symbol id="i-xxx"> défini en tête de app.html
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  function icon(name, cls) {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'icon' + (cls ? ' ' + cls : ''));
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var use = document.createElementNS(SVG_NS, 'use');
+    use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#i-' + name);
+    use.setAttribute('href', '#i-' + name);
+    svg.appendChild(use);
+    return svg;
+  }
+  // badge icône + texte (ex. énergie d'une note) — retourne un <span> prêt à insérer
+  function iconLabel(name, text) {
+    var span = document.createElement('span');
+    span.className = 'icon-label';
+    span.appendChild(icon(name));
+    span.appendChild(document.createTextNode(text));
+    return span;
+  }
 
   var OVERVIEW = '__overview__';
 
@@ -169,7 +197,8 @@
   var themeToggle = document.getElementById('themeToggle');
   function applyThemeIcon() {
     var isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    themeToggle.textContent = isLight ? '☀️' : '🌙';
+    themeToggle.innerHTML = '';
+    themeToggle.appendChild(icon(isLight ? 'sun' : 'moon'));
   }
   applyThemeIcon();
   themeToggle.addEventListener('click', function () {

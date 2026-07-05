@@ -23,15 +23,16 @@
     document.getElementById('todayEmpty').style.display = any ? 'none' : 'block';
 
     [
-      { title: '⏰ Rappels dus', items: due },
-      { title: '✓ Tâches ouvertes', items: openTodos },
-      { title: '★ Épinglé', items: pinned },
+      { icon: 'clock', title: 'Rappels dus', items: due },
+      { icon: 'check', title: 'Tâches ouvertes', items: openTodos },
+      { icon: 'star', title: 'Épinglé', items: pinned },
     ].forEach(function (sec) {
       if (!sec.items.length) return;
       var block = document.createElement('div');
       block.className = 'today-section';
       var h = document.createElement('h3');
-      h.textContent = sec.title;
+      h.appendChild(icon(sec.icon, 'icon-inline'));
+      h.appendChild(document.createTextNode(' ' + sec.title));
       block.appendChild(h);
       sec.items.forEach(function (n) {
         var row = document.createElement('div');
@@ -54,14 +55,22 @@
       var block2 = document.createElement('div');
       block2.className = 'today-section';
       var h2 = document.createElement('h3');
-      h2.textContent = '📋 Presse-papier récent';
+      h2.appendChild(icon('clipboard', 'icon-inline'));
+      h2.appendChild(document.createTextNode(' Presse-papier récent'));
       block2.appendChild(h2);
       recentClips.forEach(function (c) {
         var row = document.createElement('div');
         row.className = 'today-row';
         var title = document.createElement('div');
         title.className = 'today-title';
-        title.textContent = c.label || (c.kind === 'file' ? ('📎 ' + c.filename) : (c.preview || '').slice(0, 60));
+        if (c.label) {
+          title.textContent = c.label;
+        } else if (c.kind === 'file') {
+          title.appendChild(icon('paperclip', 'icon-inline'));
+          title.appendChild(document.createTextNode(' ' + c.filename));
+        } else {
+          title.textContent = (c.preview || '').slice(0, 60);
+        }
         row.appendChild(title);
         row.addEventListener('click', function () { switchTab('clips'); });
         block2.appendChild(row);

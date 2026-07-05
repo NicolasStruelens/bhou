@@ -101,7 +101,7 @@
     headLeft.className = 'clip-card-head-left';
     var pinBtn = document.createElement('button');
     pinBtn.className = 'clip-pin-btn' + (c.pinned ? ' active' : '');
-    pinBtn.textContent = '★';
+    pinBtn.appendChild(icon('star'));
     pinBtn.title = c.pinned ? 'Retirer des favoris' : 'Mettre en favori';
     pinBtn.addEventListener('click', function () {
       RA.updateClip(c.id, { pinned: !c.pinned }).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -116,13 +116,15 @@
     if (detected) {
       var typeBadge = document.createElement('span');
       typeBadge.className = 'clip-badge' + (detected.secret ? ' secret' : '');
-      typeBadge.textContent = detected.secret ? '⚠ ' + detected.label : detected.label;
+      if (detected.secret) typeBadge.appendChild(icon('warning', 'icon-inline'));
+      typeBadge.appendChild(document.createTextNode((detected.secret ? ' ' : '') + detected.label));
       headLeft.appendChild(typeBadge);
     }
     if (c.burn) {
       var burnBadge = document.createElement('span');
       burnBadge.className = 'clip-badge burn';
-      burnBadge.textContent = '🔥 lecture unique';
+      burnBadge.appendChild(icon('flame', 'icon-inline'));
+      burnBadge.appendChild(document.createTextNode(' lecture unique'));
       headLeft.appendChild(burnBadge);
     }
     if (c.device) {
@@ -135,7 +137,7 @@
 
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
-    delBtn.textContent = '×';
+    delBtn.appendChild(icon('x'));
     delBtn.title = 'Mettre à la corbeille';
     delBtn.addEventListener('click', function () {
       card.classList.add('removing');
@@ -154,7 +156,12 @@
     var preview = document.createElement('div');
     var isLong = c.kind !== 'file' && c.preview && c.preview.length > 280;
     preview.className = 'clip-preview' + (isLong ? '' : ' expanded');
-    preview.textContent = c.kind === 'file' ? ('📎 ' + c.filename + ' · ' + formatSize(c.size)) : (c.preview || '');
+    if (c.kind === 'file') {
+      preview.appendChild(icon('paperclip', 'icon-inline'));
+      preview.appendChild(document.createTextNode(' ' + c.filename + ' · ' + formatSize(c.size)));
+    } else {
+      preview.textContent = c.preview || '';
+    }
     if (isLong) preview.addEventListener('click', function () { preview.classList.toggle('expanded'); });
     card.appendChild(preview);
 
@@ -239,7 +246,8 @@
       RA.updateClip(c.id, { no_export: noExportInput.checked }).then(function () { toast(noExportInput.checked ? 'Exclu des exports' : 'Inclus dans les exports'); });
     });
     exportBtn2.appendChild(noExportInput);
-    exportBtn2.appendChild(document.createTextNode('🚫 export'));
+    exportBtn2.appendChild(icon('ban', 'icon-inline'));
+    exportBtn2.appendChild(document.createTextNode(' export'));
     actions.appendChild(exportBtn2);
 
     var qrBtn = document.createElement('button');
@@ -253,7 +261,7 @@
 
     var linkBtn = document.createElement('button');
     linkBtn.className = 'btn btn-icon';
-    linkBtn.textContent = '🔗';
+    linkBtn.appendChild(icon('link'));
     linkBtn.title = 'Copier le lien direct';
     linkBtn.addEventListener('click', function () {
       navigator.clipboard.writeText(location.origin + '/app.html?clip=' + c.id).then(function () {

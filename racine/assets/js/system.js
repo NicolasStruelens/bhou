@@ -9,7 +9,9 @@
   function statChip(value, label, warn) {
     var div = document.createElement('div');
     div.className = 'system-stat' + (warn ? ' warn' : '');
-    var v = document.createElement('div'); v.className = 'value'; v.textContent = value;
+    var v = document.createElement('div'); v.className = 'value';
+    if (value === 'ok' || value === 'fail') v.appendChild(icon(value === 'ok' ? 'check' : 'x'));
+    else v.textContent = value;
     var l = document.createElement('div'); l.className = 'label'; l.textContent = label;
     div.appendChild(v); div.appendChild(l);
     return div;
@@ -74,7 +76,7 @@
     Promise.all([RA.health(), RA.listBackups()]).then(function (results) {
       var h = results[0];
       var backups = results[1].backups;
-      systemInfo.appendChild(statChip(h.db ? '✓' : '✗', 'Base de données', !h.db));
+      systemInfo.appendChild(statChip(h.db ? 'ok' : 'fail', 'Base de données', !h.db));
       systemInfo.appendChild(statChip('v' + APP_VERSION, 'Version app'));
       systemInfo.appendChild(statChip(h.notes, 'Notes actives'));
       systemInfo.appendChild(statChip(h.clips, 'Clips actifs'));
