@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 9;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -142,8 +142,8 @@ async function createNote(request, env) {
   const id = newId();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, energy, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -156,15 +156,21 @@ async function createNote(request, env) {
     String(body.tags || '').slice(0, 300),
     body.remind_at ? Number(body.remind_at) : null,
     String(body.links || '').slice(0, 2000),
+    ['2min', 'facile', 'profond', 'urgent', 'attente', ''].includes(body.energy) ? body.energy : '',
+    body.status === 'someday' ? 'someday' : 'active',
     now,
     now
   ).run();
   return json({ ok: true, id });
 }
 
+const HISTORY_MAX = 10;
+
 async function updateNote(id, request, env) {
   const body = await request.json().catch(() => ({}));
-  const existing = await env.DB.prepare('SELECT id FROM notes WHERE id = ?').bind(id).first();
+  const existing = await env.DB.prepare(
+    'SELECT title, content, tags, energy, history, updated_at FROM notes WHERE id = ?'
+  ).bind(id).first();
   if (!existing) return json({ error: 'not found' }, 404);
 
   if ('parent_id' in body && body.parent_id) {
@@ -191,6 +197,8 @@ async function updateNote(id, request, env) {
     tags: (v) => String(v || '').slice(0, 300),
     remind_at: (v) => (v ? Number(v) : null),
     links: (v) => String(v || '').slice(0, 2000),
+    energy: (v) => (['2min', 'facile', 'profond', 'urgent', 'attente', ''].includes(v) ? v : ''),
+    status: (v) => (v === 'someday' ? 'someday' : 'active'),
   };
   for (const key of Object.keys(map)) {
     if (key in body) {
@@ -199,6 +207,24 @@ async function updateNote(id, request, env) {
     }
   }
   if (!fields.length) return json({ ok: true });
+
+  // historique : ne snapshotter que sur une édition de contenu réelle (pas un simple pin/done/déplacement)
+  const touchesContent = ['title', 'content', 'tags', 'energy'].some((k) => k in body);
+  if (touchesContent) {
+    let history = [];
+    try { history = JSON.parse(existing.history || '[]'); } catch (e) { history = []; }
+    history.push({
+      title: existing.title,
+      content: existing.content,
+      tags: existing.tags,
+      energy: existing.energy,
+      updated_at: existing.updated_at,
+    });
+    if (history.length > HISTORY_MAX) history = history.slice(history.length - HISTORY_MAX);
+    fields.push('history = ?');
+    values.push(JSON.stringify(history));
+  }
+
   fields.push('updated_at = ?');
   values.push(Date.now());
   values.push(id);
@@ -258,7 +284,8 @@ async function purgeExpiredClips(env) {
 async function listClips(env) {
   await purgeExpiredClips(env);
   const { results } = await env.DB.prepare(
-    'SELECT id, label, kind, filename, mime, device, pinned, created_at, expires_at, LENGTH(content) as size, ' +
+    'SELECT id, label, kind, filename, mime, device, pinned, burn, no_export, share_token, share_expires_at, ' +
+    'created_at, expires_at, LENGTH(content) as size, ' +
     "CASE WHEN kind = 'file' THEN NULL ELSE content END as preview " +
     "FROM clips WHERE deleted_at IS NULL ORDER BY pinned DESC, created_at DESC LIMIT 200"
   ).all();
@@ -272,7 +299,79 @@ async function updateClip(id, request, env) {
   if ('pinned' in body) {
     await env.DB.prepare('UPDATE clips SET pinned = ? WHERE id = ?').bind(body.pinned ? 1 : 0, id).run();
   }
+  if ('no_export' in body) {
+    await env.DB.prepare('UPDATE clips SET no_export = ? WHERE id = ?').bind(body.no_export ? 1 : 0, id).run();
+  }
+  if (body.share === true) {
+    const token = newId();
+    const ttl = Number(body.share_ttl_ms) || 60 * 60 * 1000;
+    const expiresAt = Date.now() + Math.min(ttl, 24 * 60 * 60 * 1000); // 24h max
+    await env.DB.prepare('UPDATE clips SET share_token = ?, share_expires_at = ? WHERE id = ?').bind(token, expiresAt, id).run();
+    return json({ ok: true, share_token: token, share_expires_at: expiresAt });
+  }
+  if (body.share === false) {
+    await env.DB.prepare('UPDATE clips SET share_token = NULL, share_expires_at = NULL WHERE id = ?').bind(id).run();
+  }
   return json({ ok: true });
+}
+
+async function getPublicClip(token, env) {
+  const row = await env.DB.prepare(
+    'SELECT * FROM clips WHERE share_token = ? AND deleted_at IS NULL'
+  ).bind(token).first();
+  if (!row) return json({ error: 'not found' }, 404);
+  if (!row.share_expires_at || row.share_expires_at < Date.now()) {
+    return json({ error: 'ce lien de partage a expiré' }, 410);
+  }
+  if (row.expires_at && row.expires_at < Date.now()) {
+    return json({ error: 'expired' }, 410);
+  }
+  return json({
+    clip: {
+      label: row.label,
+      kind: row.kind,
+      content: row.content,
+      filename: row.filename,
+      mime: row.mime,
+    },
+  });
+}
+
+// ----- capture rapide par jeton (iOS Raccourcis / Siri / Action Button) -----
+// un seul jeton actif à la fois ; volontairement protégé UNIQUEMENT par le secret du jeton
+// (comme /api/public/:token), car un raccourci Apple Shortcuts ne peut pas porter le cookie de session
+
+async function getQuickToken(env) {
+  const row = await env.DB.prepare('SELECT token, created_at FROM quick_capture LIMIT 1').first();
+  return json({ token: row ? row.token : null, created_at: row ? row.created_at : null });
+}
+
+async function createQuickToken(env) {
+  const token = newId();
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM quick_capture').run();
+  await env.DB.prepare('INSERT INTO quick_capture (token, created_at) VALUES (?, ?)').bind(token, now).run();
+  return json({ ok: true, token, created_at: now });
+}
+
+async function revokeQuickToken(env) {
+  await env.DB.prepare('DELETE FROM quick_capture').run();
+  return json({ ok: true });
+}
+
+async function quickCapture(token, request, env) {
+  const row = await env.DB.prepare('SELECT token FROM quick_capture WHERE token = ?').bind(token).first();
+  if (!row) return json({ error: 'jeton invalide ou révoqué' }, 404);
+  const body = await request.json().catch(() => ({}));
+  const text = String(body.text || '').trim().slice(0, 500);
+  if (!text) return json({ error: 'texte vide' }, 400);
+  const id = newId();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, created_at, updated_at)
+     VALUES (?, NULL, ?, '', 'idee', 0, 0, 0, 'Général', '#raccourci', ?, ?)`
+  ).bind(id, text, now, now).run();
+  return json({ ok: true, id });
 }
 
 async function listTrashClips(env) {
@@ -292,6 +391,9 @@ async function getClip(id, env) {
     await env.DB.prepare('DELETE FROM clips WHERE id = ?').bind(id).run();
     return json({ error: 'expired' }, 410);
   }
+  if (row.burn) {
+    await env.DB.prepare('DELETE FROM clips WHERE id = ?').bind(id).run();
+  }
   return json({ clip: row });
 }
 
@@ -308,8 +410,8 @@ async function createClip(request, env) {
   if (body.ttl_ms) expiresAt = now + Number(body.ttl_ms);
 
   await env.DB.prepare(
-    `INSERT INTO clips (id, label, content, kind, filename, mime, device, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO clips (id, label, content, kind, filename, mime, device, burn, no_export, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     String(body.label || '').slice(0, 200),
@@ -318,6 +420,8 @@ async function createClip(request, env) {
     body.filename ? String(body.filename).slice(0, 200) : null,
     body.mime ? String(body.mime).slice(0, 100) : null,
     String(body.device || '').slice(0, 100),
+    body.burn ? 1 : 0,
+    body.no_export ? 1 : 0,
     now,
     expiresAt
   ).run();
@@ -347,7 +451,7 @@ async function exportAll(env) {
   ).all();
   await purgeExpiredClips(env);
   const clips = await env.DB.prepare(
-    'SELECT * FROM clips WHERE deleted_at IS NULL ORDER BY created_at ASC'
+    'SELECT * FROM clips WHERE deleted_at IS NULL AND no_export = 0 ORDER BY created_at ASC'
   ).all();
   return json({
     exported_at: Date.now(),
@@ -419,6 +523,12 @@ export async function onRequest(context) {
     if (parts[0] === 'login' && method === 'POST') return handleLogin(request, env);
     if (parts[0] === 'logout' && method === 'POST') return handleLogout(request, env);
     if (parts[0] === 'me' && method === 'GET') return handleMe(request, env);
+    // partage public : volontairement AVANT la vérification de session (accessible sans connexion),
+    // protégé uniquement par un jeton long, aléatoire, à usage unique et à expiration courte
+    if (parts[0] === 'public' && parts.length === 2 && method === 'GET') return getPublicClip(parts[1], env);
+    // capture rapide (iOS Raccourcis/Siri) : même logique, volontairement avant la session —
+    // un raccourci Apple Shortcuts ne peut pas transporter le cookie de session
+    if (parts[0] === 'quick' && parts.length === 2 && method === 'POST') return quickCapture(parts[1], request, env);
 
     // tout le reste nécessite une session valide
     const denied = await requireAuth(request, env);
@@ -426,6 +536,12 @@ export async function onRequest(context) {
 
     if (parts[0] === 'export' && parts.length === 1 && method === 'GET') return exportAll(env);
     if (parts[0] === 'health' && parts.length === 1 && method === 'GET') return health(env);
+
+    if (parts[0] === 'quick-token') {
+      if (parts.length === 1 && method === 'GET') return getQuickToken(env);
+      if (parts.length === 1 && method === 'POST') return createQuickToken(env);
+      if (parts.length === 1 && method === 'DELETE') return revokeQuickToken(env);
+    }
 
     if (parts[0] === 'backups') {
       if (parts.length === 1 && method === 'GET') return listBackups(env);
