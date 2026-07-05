@@ -104,7 +104,7 @@
     pinBtn.textContent = '★';
     pinBtn.title = c.pinned ? 'Retirer des favoris' : 'Mettre en favori';
     pinBtn.addEventListener('click', function () {
-      RA.updateClip(c.id, { pinned: !c.pinned }).then(loadClips);
+      RA.updateClip(c.id, { pinned: !c.pinned }).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     headLeft.appendChild(pinBtn);
     var label = document.createElement('span');
@@ -141,9 +141,9 @@
       RA.deleteClip(c.id).then(function () {
         loadClips();
         toast('Mis à la corbeille', 'Annuler', function () {
-          RA.restoreClip(c.id).then(loadClips);
+          RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
         });
-      });
+      }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     head.appendChild(delBtn);
     card.appendChild(head);
@@ -202,7 +202,7 @@
           return RA.deleteClip(c.id);
         }).then(function () {
           loadClips();
-          toast('Copié et mis à la corbeille', 'Annuler', function () { RA.restoreClip(c.id).then(loadClips); });
+          toast('Copié et mis à la corbeille', 'Annuler', function () { RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); }); });
         }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       actions.appendChild(copyDelBtn);

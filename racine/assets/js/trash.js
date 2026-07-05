@@ -27,7 +27,7 @@
     restoreBtn.textContent = '↺';
     restoreBtn.title = 'Restaurer';
     restoreBtn.addEventListener('click', function () {
-      RA.restoreNote(n.id).then(function () { loadTrash(); loadNotes(); });
+      RA.restoreNote(n.id).then(function () { loadTrash(); loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(restoreBtn);
 
@@ -37,7 +37,7 @@
     purgeBtn.title = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + n.title + ' » ?')) return;
-      RA.purgeNote(n.id).then(loadTrash);
+      RA.purgeNote(n.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(purgeBtn);
 
@@ -68,7 +68,7 @@
     restoreBtn.className = 'btn restore-btn';
     restoreBtn.textContent = 'Restaurer';
     restoreBtn.addEventListener('click', function () {
-      RA.restoreClip(c.id).then(function () { loadTrash(); loadClips(); });
+      RA.restoreClip(c.id).then(function () { loadTrash(); loadClips(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(restoreBtn);
 
@@ -77,7 +77,7 @@
     purgeBtn.textContent = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement cette entrée ?')) return;
-      RA.purgeClip(c.id).then(loadTrash);
+      RA.purgeClip(c.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(purgeBtn);
 

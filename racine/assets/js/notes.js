@@ -257,7 +257,7 @@
     Promise.all([
       RA.updateNote(aId, { links: aLinks.join(',') }),
       RA.updateNote(bId, { links: bLinks.join(',') }),
-    ]).then(function () { loadNotes(); toast('Notes liées'); });
+    ]).then(function () { loadNotes(); toast('Notes liées'); }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   function removeLink(aId, bId) {
@@ -266,7 +266,7 @@
     var updates = [];
     if (a) updates.push(RA.updateNote(aId, { links: parseLinks(a.links).filter(function (x) { return x !== bId; }).join(',') }));
     if (b) updates.push(RA.updateNote(bId, { links: parseLinks(b.links).filter(function (x) { return x !== aId; }).join(',') }));
-    Promise.all(updates).then(loadNotes);
+    Promise.all(updates).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   function jumpToNote(id) {
@@ -645,7 +645,7 @@
     if (!draggedId || draggedId === targetNote.id) return;
     if (mode === 'nest') {
       if (wouldCycle(draggedId, targetNote.id)) { toast('Déplacement impossible (créerait une boucle)'); return; }
-      RA.updateNote(draggedId, { parent_id: targetNote.id, position: Date.now() }).then(loadNotes);
+      RA.updateNote(draggedId, { parent_id: targetNote.id, position: Date.now() }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     } else {
       var newParent = targetNote.parent_id || null;
       if (wouldCycle(draggedId, newParent)) { toast('Déplacement impossible (créerait une boucle)'); return; }
@@ -658,7 +658,7 @@
       var updates = siblings.map(function (s, i) {
         return RA.updateNote(s.id, { position: i * 10, parent_id: newParent });
       });
-      Promise.all(updates).then(loadNotes);
+      Promise.all(updates).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     }
   }
 
@@ -814,7 +814,7 @@
     return Promise.all([
       RA.updateNote(a.id, { position: pb }),
       RA.updateNote(b.id, { position: pa }),
-    ]).then(loadNotes);
+    ]).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   function buildActions(n, flat) {
@@ -826,7 +826,7 @@
     doneBtn.title = n.done ? 'Marquer non terminé' : 'Marquer terminé';
     doneBtn.textContent = n.done ? '↺' : '✓';
     doneBtn.addEventListener('click', function () {
-      RA.updateNote(n.id, { done: !n.done }).then(loadNotes);
+      RA.updateNote(n.id, { done: !n.done }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(doneBtn);
 
@@ -835,7 +835,7 @@
     pinBtn.title = 'Épingler';
     pinBtn.textContent = '★';
     pinBtn.addEventListener('click', function () {
-      RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes);
+      RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(pinBtn);
 
@@ -889,7 +889,7 @@
         detachBtn.title = 'Détacher (devient une racine)';
         detachBtn.textContent = '⌂';
         detachBtn.addEventListener('click', function () {
-          RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes);
+          RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
         });
         actions.appendChild(detachBtn);
       }
@@ -905,7 +905,7 @@
         RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(function (res) {
           state.lastAddedId = res.id;
           loadNotes();
-        });
+        }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       actions.appendChild(addChildBtn);
     }
@@ -919,9 +919,9 @@
       RA.deleteNote(n.id).then(function () {
         loadNotes();
         toast('Mis à la corbeille', 'Annuler', function () {
-          RA.restoreNote(n.id).then(loadNotes);
+          RA.restoreNote(n.id).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
         });
-      });
+      }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(delBtn);
 
@@ -1138,7 +1138,7 @@
   treeContainer.addEventListener('drop', function (e) {
     if (e.target !== treeContainer) return;
     if (!state.dragId || state.activeSpace === OVERVIEW) return;
-    RA.updateNote(state.dragId, { parent_id: null, position: Date.now(), space: state.activeSpace }).then(loadNotes);
+    RA.updateNote(state.dragId, { parent_id: null, position: Date.now(), space: state.activeSpace }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
   });
 
   function loadNotes() {

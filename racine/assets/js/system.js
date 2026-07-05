@@ -45,7 +45,7 @@
           a.click();
           a.remove();
           URL.revokeObjectURL(url);
-        });
+        }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       row.appendChild(dlBtn);
 

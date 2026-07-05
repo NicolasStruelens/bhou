@@ -57,7 +57,7 @@
         localStorage.setItem('racine_active_space', newName);
       }
       loadNotes();
-    });
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   // ---------- couleurs d'espace ----------
@@ -129,7 +129,7 @@
       localStorage.setItem('racine_active_space', state.activeSpace);
       document.getElementById('captureBar').style.display = state.activeSpace === OVERVIEW ? 'none' : '';
       loadNotes();
-    });
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   // ---------- garde-fou session ----------

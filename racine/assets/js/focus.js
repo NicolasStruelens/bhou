@@ -46,6 +46,6 @@
       loadNotes();
       focusIndex++;
       showFocusCard();
-    });
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
 

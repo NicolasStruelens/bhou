@@ -109,12 +109,12 @@
       remindModal.classList.remove('show');
       toast('Rappel programmé');
       loadNotes();
-    });
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
   document.getElementById('remindClear').addEventListener('click', function () {
     RA.updateNote(remindTargetId, { remind_at: null }).then(function () {
       remindModal.classList.remove('show');
       loadNotes();
-    });
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
 
