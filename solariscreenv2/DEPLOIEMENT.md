@@ -76,6 +76,21 @@ L'ancien Worker `solariscreen-api` (`*.workers.dev`, sans authentification, CORS
 
 Pages → **Custom domains** → ajoute par ex. `erp.nicolas-struelens.com`. L'app et l'API restent same-origin.
 
+## 8) Documents fournisseur (bon de commande / facture Harol) — bucket R2
+
+Les PDF ne sont **jamais** stockés dans D1 (ça a déjà causé un souci avec des photos non compressées) —
+ils vont dans un bucket **R2** (stockage objet Cloudflare, gratuit jusqu'à 10 Go). Sans ce bucket,
+le bouton « Ajouter un fichier » sur la fiche devis affichera une erreur claire, rien ne casse ailleurs.
+
+1. **Créer le bucket** : Dashboard Cloudflare → **R2** (menu de gauche) → **Create bucket**.
+   - Nom : `solariscreen-documents` (ou ce que tu veux, le nom n'a pas d'importance).
+   - Emplacement : Automatic. Pas besoin d'activer l'accès public.
+2. **Lier le bucket au projet Pages** : ton projet Pages → **Settings → Functions → R2 bucket bindings** → **Add binding**.
+   - Variable name : **`DOCS`** (exactement — c'est le nom que le code attend, `env.DOCS`).
+   - Bucket : `solariscreen-documents`.
+3. **Redéployer** (Deployments → Retry deployment, ou un simple `git push`) pour que la liaison prenne effet — comme pour la base D1 à l'étape 3, un binding ajouté après coup ne s'applique qu'au prochain déploiement.
+4. Vérifie sur une fiche devis (`vue.html`) : le bouton « Ajouter un fichier » dans la carte **Documents fournisseur** doit fonctionner (plus d'erreur « Stockage non configuré »).
+
 ---
 
 ## ✅ Vérifications finales
