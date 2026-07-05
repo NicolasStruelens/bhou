@@ -132,11 +132,26 @@
       probabilite: d.probabilite || '',
       client_accepted: !!d.client_accepted,
       review_views: d.review_views || 0,
+      sav_tickets: d.sav_tickets || [],
     };
   }
 
   // ── Météo chantier (Open-Meteo, gratuit, sans clé — géocodage par ville + prévision 16j) ──
   const _geoCache = {};
+  async function geocodeVille(ville) {
+    if (!ville) return null;
+    const key = ville.trim().toLowerCase();
+    if (!key) return null;
+    let loc = _geoCache[key];
+    if (loc === undefined) {
+      try {
+        const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&country=BE&count=1').then(r => r.json());
+        loc = (geo.results && geo.results[0]) || null;
+      } catch (e) { loc = null; }
+      _geoCache[key] = loc;
+    }
+    return loc;
+  }
   function weatherLabel(code) {
     if (code === 0) return 'Ciel clair';
     if ([1, 2, 3].includes(code)) return 'Partiellement nuageux';
@@ -153,13 +168,7 @@
     const days = Math.round((new Date(dateStr) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
     if (days < 0 || days > 15) return null; // hors couverture de la prévision gratuite (16 jours)
     try {
-      const key = ville.trim().toLowerCase();
-      let loc = _geoCache[key];
-      if (loc === undefined) {
-        const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&country=BE&count=1').then(r => r.json());
-        loc = (geo.results && geo.results[0]) || null;
-        _geoCache[key] = loc;
-      }
+      const loc = await geocodeVille(ville);
       if (!loc) return null;
       const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBrussels&forecast_days=16`).then(r => r.json());
       const idx = (fc.daily && fc.daily.time || []).indexOf(dateStr);
@@ -224,6 +233,7 @@
     tag:        '<path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z"/><circle cx="8" cy="8.5" r="1"/>',
     calendar:   '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
     hammer:     '<path d="M14.5 12.5 22 20"/><path d="m18 4-8.5 8.5"/><path d="M6.5 6.5 2 11l5 5 4.5-4.5"/><path d="m2 11 4-4"/>',
+    pin:        '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -241,6 +251,7 @@
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
     fetchWeather: fetchWeather,
+    geocodeVille: geocodeVille,
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
   window.ssCopy = function (text, label) { copyText(text, label); };

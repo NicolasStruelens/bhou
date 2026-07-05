@@ -34,6 +34,8 @@
     { href: 'factures.html', label: 'Facturation', icon: 'filetext' },
     { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
     { href: 'agenda.html', label: 'Agenda de pose', icon: 'calendar' },
+    { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
+    { href: 'sav.html', label: 'SAV', icon: 'warning' },
     { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
     { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
     { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
