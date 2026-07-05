@@ -56,5 +56,9 @@ window.RA = (function () {
       if (!res.ok) throw new Error((data && data.error) || ('erreur ' + res.status));
       return data;
     },
+
+    getQuickToken: function () { return req('/quick-token'); },
+    createQuickToken: function () { return req('/quick-token', { method: 'POST' }); },
+    revokeQuickToken: function () { return req('/quick-token', { method: 'DELETE' }); },
   };
 })();
