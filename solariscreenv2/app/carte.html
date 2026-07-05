@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Carte des chantiers</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    .cf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .cf-chip { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.32rem 0.7rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); user-select: none; }
+    .cf-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
+    .cf-chip.off { opacity: 0.4; }
+    .cf-chip:hover { border-color: var(--dot); }
+    #map { width: 100%; height: 62vh; min-height: 380px; border-radius: var(--r-md); border: 1px solid var(--border); overflow: hidden; position: relative; z-index: 1; }
+    [data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
+    [data-theme="dark"] .leaflet-control-attribution { background: rgba(10,14,30,0.75) !important; color: var(--text-subtle) !important; }
+    [data-theme="dark"] .leaflet-control-attribution a { color: var(--accent) !important; }
+    [data-theme="dark"] .leaflet-control-zoom a { background: var(--surface) !important; color: var(--text) !important; border-color: var(--border-strong) !important; }
+    .cf-popup .cf-p-client { font-weight: 700; margin-bottom: 0.15rem; }
+    .cf-popup .cf-p-addr { font-family: var(--font-mono); font-size: 0.72rem; color: #556; margin-bottom: 0.35rem; }
+    .cf-popup .cf-p-items { font-size: 0.78rem; color: #445; margin-bottom: 0.5rem; }
+    .cf-popup a.cf-p-link { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .cf-warn-list { margin-top: var(--sp-4); }
+    .cf-warn-row { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 0.5rem 0.9rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
+    .cf-warn-row .v { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Carte des chantiers</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+    <div class="cf-toolbar" id="toolbar"></div>
+    <div id="map"></div>
+    <div id="warnHost"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { el, icon, geocodeVille } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    function itemsSummary(items) {
+      const counts = {};
+      (items || []).forEach(it => { counts[it.type] = (counts[it.type] || 0) + (it.quantite || 1); });
+      return Object.entries(counts).map(([t, n]) => `${n} ${TYPE_LABEL[t] || t}${n > 1 ? 's' : ''}`).join(', ') || 'Aucune ouverture';
+    }
+
+    // Groupes de statuts affichés sur la carte (le brouillon n'a pas encore d'adresse engagée → exclu).
+    const GROUPS = {
+      attente: { label: 'En attente client', statuses: ['envoye_client', 'relance_1', 'relance_2'], colorVar: '--accent', defaultOn: true },
+      signe:   { label: 'Signé',             statuses: ['signe'],                                   colorVar: '--ok',     defaultOn: true },
+      termine: { label: 'Terminé',           statuses: ['termine'],                                 colorVar: '--accent-2', defaultOn: true },
+      refuse:  { label: 'Refusé',            statuses: ['refuse'],                                  colorVar: '--danger', defaultOn: false },
+      annule:  { label: 'Annulé',            statuses: ['annule'],                                  colorVar: '--text-subtle', defaultOn: false },
+    };
+    function groupOf(statut) { return Object.keys(GROUPS).find(k => GROUPS[k].statuses.includes(statut)) || null; }
+    function resolveColor(cssVarName) { return getComputedStyle(document.documentElement).getPropertyValue(cssVarName).trim() || '#5b8def'; }
+
+    let map, layerGroups = {};
+    function initMap() {
+      map = L.map('map', { scrollWheelZoom: true }).setView([50.5039, 4.4699], 8); // centre Belgique
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+        maxZoom: 18,
+      }).addTo(map);
+      Object.keys(GROUPS).forEach(k => {
+        layerGroups[k] = L.layerGroup(GROUPS[k].defaultOn ? [] : []);
+        if (GROUPS[k].defaultOn) layerGroups[k].addTo(map);
+      });
+    }
+
+    function renderToolbar(counts) {
+      el('toolbar').innerHTML = Object.entries(GROUPS).map(([k, g]) => `
+        <button type="button" class="cf-chip ${g.defaultOn ? '' : 'off'}" id="chip-${k}" style="--dot:${resolveColor(g.colorVar)}" onclick="toggleGroup('${k}')">
+          <span class="dot"></span> ${g.label} <span style="color:var(--text-subtle)">(${counts[k] || 0})</span>
+        </button>`).join('');
+    }
+    window.toggleGroup = function (k) {
+      const chip = el('chip-' + k);
+      const on = chip.classList.toggle('off');
+      if (on) map.removeLayer(layerGroups[k]); else layerGroups[k].addTo(map);
+    };
+
+    async function load() {
+      el('map') && (el('map').style.opacity = '0.5');
+      const raw = await SS.listDevis();
+      const candidates = (raw || []).filter(d => d.statut && d.statut !== 'brouillon' && !d.archive && groupOf(d.statut));
+      const fulls = (await Promise.all(candidates.map(d => SS.getDevis(d.id)))).filter(Boolean);
+
+      const withAddr = [], noVille = [];
+      fulls.forEach(d => {
+        const ville = (d.client && d.client.adresse && d.client.adresse.ville) || '';
+        if (ville.trim()) withAddr.push(d); else noVille.push(d);
+      });
+
+      const geocoded = [], notFound = [];
+      await Promise.all(withAddr.map(async d => {
+        const ville = d.client.adresse.ville;
+        const loc = await geocodeVille(ville);
+        if (loc) geocoded.push({ d, loc }); else notFound.push(d);
+      }));
+
+      renderKpis(fulls.length, geocoded.length, noVille.length + notFound.length);
+      renderMarkers(geocoded);
+      renderWarnings([...noVille, ...notFound]);
+      if (el('map')) el('map').style.opacity = '1';
+    }
+
+    function renderKpis(total, localises, nonLocalises) {
+      el('kpis').innerHTML = `
+        <div class="kpi ticked accent"><div class="kpi-label">Chantiers</div><div class="kpi-value">${total}</div><div class="kpi-sub">envoyés, signés ou terminés</div></div>
+        <div class="kpi ticked ok"><div class="kpi-label">Localisés</div><div class="kpi-value">${localises}</div><div class="kpi-sub">affichés sur la carte</div></div>
+        <div class="kpi ticked ${nonLocalises ? 'danger' : ''}"><div class="kpi-label">Non localisés</div><div class="kpi-value">${nonLocalises}</div><div class="kpi-sub">ville manquante ou introuvable</div></div>`;
+    }
+
+    function renderMarkers(geocoded) {
+      const counts = {};
+      Object.keys(GROUPS).forEach(k => { layerGroups[k].clearLayers(); counts[k] = 0; });
+      const bounds = [];
+      geocoded.forEach(({ d, loc }) => {
+        const g = groupOf(d.statut);
+        if (!g) return;
+        counts[g]++;
+        const cl = d.client || {}, adr = cl.adresse || {};
+        const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+        const jitter = () => (Math.random() - 0.5) * 0.006; // évite que 2 clients de la même ville se superposent exactement
+        const marker = L.circleMarker([loc.latitude + jitter(), loc.longitude + jitter()], {
+          radius: 9, weight: 2, color: resolveColor(GROUPS[g].colorVar), fillColor: resolveColor(GROUPS[g].colorVar), fillOpacity: 0.55,
+        });
+        marker.bindPopup(`
+          <div class="cf-popup">
+            <div class="cf-p-client">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
+            <div class="cf-p-addr">${esc(adresseTxt) || 'Adresse incomplète'}</div>
+            <div class="cf-p-items">${esc(itemsSummary(d.items))}</div>
+            <a class="cf-p-link" href="vue.html?id=${encodeURIComponent(d.id)}">Voir la fiche →</a>
+          </div>`);
+        marker.addTo(layerGroups[g]);
+        bounds.push([loc.latitude, loc.longitude]);
+      });
+      renderToolbar(counts);
+      if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+    }
+
+    function renderWarnings(list) {
+      const host = document.getElementById('warnHost');
+      if (!list.length) { host.innerHTML = ''; return; }
+      host.innerHTML = `
+        <div class="cf-warn-list">
+          <div class="sav-section-title" style="display:flex;align-items:center;gap:var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:0.08em;color:var(--text-subtle);margin-bottom:var(--sp-3);">
+            ${icon('warning', 14)} Non localisés (${list.length})
+          </div>
+          ${list.map(d => {
+            const cl = d.client || {}, ville = (cl.adresse && cl.adresse.ville) || '';
+            return `<div class="cf-warn-row"><span>${esc(cl.prenom)} ${esc(cl.nom) || '—'} <span class="v">${ville ? '— ville « ' + esc(ville) + ' » introuvable' : '— aucune ville renseignée'}</span></span><a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(d.id)}">${icon('window', 14)} Corriger</a></div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    initMap();
+    load();
+  </script>
+</body>
+</html>

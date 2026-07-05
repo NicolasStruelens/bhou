@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — SAV</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .sav-section-title { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-6) 0 var(--sp-3); }
+    .sav-section-title:first-child { margin-top: 0; }
+    .sav-section-title .n { color: var(--text-muted); }
+    .sav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--sp-3); }
+    .sav-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); --tick-color: var(--danger); }
+    .sav-card.is-resolu { --tick-color: var(--ok); opacity: 0.7; }
+    .sav-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+    .sav-client { font-weight: 700; }
+    .sav-devis { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    .sav-desc { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); }
+    .sav-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-2); }
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">SAV</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+    <div id="host"><div class="empty">Chargement…</div></div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, icon, normDevis } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    async function load() {
+      const raw = await SS.listDevis();
+      const summary = (raw || []).map(normDevis).filter(d => (d.sav_tickets || []).length);
+      const all = [];
+      summary.forEach(d => (d.sav_tickets || []).forEach(t => all.push({ ...t, devisId: d.id, client: `${d.prenom} ${d.nom}`.trim() })));
+      render(all);
+    }
+
+    function ticketCard(t) {
+      const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
+      const statutLabel = t.statut === 'resolu' ? 'Résolu' : (t.statut === 'en_cours' ? 'En cours' : 'Ouvert');
+      return `
+        <div class="sav-card ticked ${t.statut === 'resolu' ? 'is-resolu' : ''}">
+          <div class="sav-head">
+            <div>
+              <div class="sav-client">${esc(t.client) || '—'}</div>
+              <div class="sav-devis">Devis #${esc(t.devisId)} · ${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}</div>
+            </div>
+            <span class="badge ${badgeCls}">${statutLabel}</span>
+          </div>
+          <div class="sav-desc">${esc(t.description)}</div>
+          <div class="sav-date">Ouvert le ${fmtDate(t.date_creation)}${t.date_resolution ? ' · Résolu le ' + fmtDate(t.date_resolution) : ''}</div>
+          <div class="row mt-3"><a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(t.devisId)}">${icon('window', 14)} Voir la fiche</a></div>
+        </div>`;
+    }
+
+    function render(all) {
+      const ouverts = all.filter(t => t.statut === 'ouvert').sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
+      const enCours = all.filter(t => t.statut === 'en_cours').sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
+      const resolus = all.filter(t => t.statut === 'resolu').sort((a, b) => String(b.date_resolution || b.date_creation).localeCompare(String(a.date_resolution || a.date_creation)));
+
+      el('kpis').innerHTML = `
+        <div class="kpi ticked danger"><div class="kpi-label">Ouverts</div><div class="kpi-value">${ouverts.length}</div><div class="kpi-sub">à traiter</div></div>
+        <div class="kpi ticked"><div class="kpi-label">En cours</div><div class="kpi-value">${enCours.length}</div><div class="kpi-sub">en traitement</div></div>
+        <div class="kpi ticked ok"><div class="kpi-label">Résolus</div><div class="kpi-value">${resolus.length}</div><div class="kpi-sub">total historique</div></div>`;
+
+      if (!all.length) {
+        el('host').innerHTML = `<div class="empty">${icon('check', 40)}<div>Aucun ticket SAV pour l'instant.</div></div>`;
+        return;
+      }
+      const section = (title, list) => list.length ? `
+        <div class="sav-section-title">${title} <span class="n">(${list.length})</span></div>
+        <div class="sav-grid">${list.map(ticketCard).join('')}</div>` : '';
+      el('host').innerHTML = section('Ouverts', ouverts) + section('En cours', enCours) + section('Résolus', resolus);
+    }
+
+    load();
+  </script>
+</body>
+</html>

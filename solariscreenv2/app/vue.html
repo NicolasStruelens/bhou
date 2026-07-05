@@ -216,6 +216,25 @@
     .ck-item input { accent-color: var(--ok); width: 15px; height: 15px; flex: none; }
     .ck-progress { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted); }
 
+    /* ── SAV ── */
+    .sav-ticket { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
+    .sav-ticket-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .sav-ticket-type { font-weight: 700; text-transform: capitalize; }
+    .sav-ticket-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .sav-ticket-desc { font-size: var(--fs-sm); color: var(--text-muted); }
+
+    /* ── Documents fournisseur (R2) ── */
+    .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
+    .doc-item .doc-ico { flex: none; color: var(--accent); }
+    .doc-item .doc-main { flex: 1; min-width: 0; }
+    .doc-item .doc-name { font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-item .doc-meta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .doc-item .doc-actions { display: flex; gap: 0.2rem; flex: none; }
+    .doc-upload-row { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .doc-upload-row .select { flex: none; width: 150px; }
+    .doc-upload-row input[type="file"] { display: none; }
+    .sav-form { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--border); }
+
     /* ── Notes internes ── */
     .notes-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent-2); }
     .notes-card .n-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
@@ -250,6 +269,7 @@
       <button class="status-pill" id="statusBadge" type="button" onclick="toggleStatusMenu(event)" aria-label="Changer le statut du devis" title="Cliquer pour changer le statut"></button>
       <button class="ci-copy hist-btn hidden" id="historyBtn" type="button" onclick="toggleHistoryMenu(event)" aria-label="Historique des statuts" title="Historique des statuts"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
       <button class="badge badge-cyan hidden" id="informatifBadge" style="cursor:pointer;" onclick="toggleInformatif()" title="Cliquer pour repasser en devis formel (signature + CGV)">Informatif</button>
+      <span class="badge hidden" id="garantieBadge"></span>
       <button class="status-pill hidden" id="probaBadge" type="button" onclick="toggleProbaMenu(event)" aria-label="Score de probabilité"></button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
@@ -326,6 +346,20 @@
         <button class="btn btn-ghost btn-sm mt-3" onclick="copyTrackLink()" style="width:100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copier le lien de suivi client</button>
       </div>
 
+      <div class="commande-card ticked" id="docsCard" style="--tick-color:var(--accent-2);">
+        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Documents fournisseur <span id="docsCount" class="section-sub" style="margin-left:auto;"></span></div>
+        <div id="docsList"></div>
+        <div class="doc-upload-row">
+          <select class="select" id="docType" aria-label="Type de document">
+            <option value="bon_commande">Bon de commande</option>
+            <option value="facture">Facture</option>
+            <option value="autre">Autre</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="document.getElementById('docFile').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Ajouter un fichier</button>
+          <input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocument(this.files[0])">
+        </div>
+      </div>
+
       <div class="commande-card ticked hidden" id="chantierCard" style="--tick-color:var(--accent-2);">
         <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Planification de pose <span id="chantierRetard" class="badge badge-danger hidden" style="margin-left:auto;">En retard</span></div>
         <div class="grid grid-2 mt-3">
@@ -348,6 +382,27 @@
         <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Checklist avant pose</div>
         <div class="checklist-grid" id="checklistGrid"></div>
         <div class="ck-progress" id="checklistProgress"></div>
+      </div>
+
+      <div class="commande-card ticked hidden" id="savCard" style="--tick-color:var(--danger);">
+        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> SAV <span id="savCount" class="section-sub" style="margin-left:auto;"></span></div>
+        <div id="savList"></div>
+        <div class="sav-form">
+          <div class="grid grid-2">
+            <div class="field"><label class="label" for="savProbleme">Type de problème</label>
+              <select class="select" id="savProbleme">
+                <option value="moteur">Moteur</option>
+                <option value="toile">Toile</option>
+                <option value="reglage">Réglage</option>
+                <option value="garantie">Garantie</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+            <div></div>
+          </div>
+          <textarea class="textarea" id="savDescription" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Décris le problème…"></textarea>
+          <button class="btn btn-ghost btn-sm mt-2" onclick="addSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
+        </div>
       </div>
 
       <div class="notes-card ticked">
@@ -450,6 +505,33 @@
       annule: { label: 'Annulé', color: 'var(--text-subtle)' },
     };
     const WAITING_STATUSES_ALL = ['brouillon', 'envoye_client', 'relance_1', 'relance_2'];
+
+    // Garantie CGV : structure Harol 5 ans (toujours) · moteur RTS/IO standard 5 ans ·
+    // moteur solaire + batterie Somfy 7 ans · autres moteurs solaires (Harol, RS100…) 5 ans.
+    function itemMotorYears(it) {
+      const m = ((it.moteur || '') + ' ' + (it.moteur_ref || '')).toLowerCase();
+      return (m.includes('solar') && m.includes('somfy')) ? 7 : 5;
+    }
+    function renderGarantie() {
+      const badge = el('garantieBadge');
+      const ch = DEVIS.chantier || {};
+      if (DEVIS.statut !== 'termine' || !ch.date_pose) { badge.classList.add('hidden'); return; }
+      const poseDate = new Date(ch.date_pose);
+      const structureEnd = new Date(poseDate); structureEnd.setFullYear(structureEnd.getFullYear() + 5);
+      const items = DEVIS.items || [];
+      const motorYears = items.length ? Math.max(...items.map(itemMotorYears)) : 5;
+      const motorEnd = new Date(poseDate); motorEnd.setFullYear(motorEnd.getFullYear() + motorYears);
+      const today = new Date();
+      const structureActive = today < structureEnd, motorActive = today < motorEnd;
+      let cls, label;
+      if (structureActive && motorActive) { cls = 'badge-ok'; label = 'Garantie active'; }
+      else if (motorActive) { cls = 'badge-warn'; label = 'Garantie moteur active'; }
+      else { cls = ''; label = 'Garantie expirée'; }
+      badge.className = 'badge ' + cls;
+      badge.title = `Structure : jusqu'au ${fmtDate(structureEnd.toISOString())} (5 ans)\nMoteur : jusqu'au ${fmtDate(motorEnd.toISOString())} (${motorYears} ans)`;
+      badge.textContent = label;
+      badge.classList.remove('hidden');
+    }
     const PHOTO_CATEGORIES = ['Façade', 'Détail mesure', 'Accès', 'Obstacle', 'Avant', 'Après'];
     const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -496,6 +578,7 @@
       el('historyBtn').classList.toggle('hidden', !(d.statut_history || []).length);
       el('informatifBadge').classList.toggle('hidden', !d.informatif);
       renderProba();
+      renderGarantie();
       el('btnEdit').href = 'simulateur.html?id=' + d.id;
       el('btnDoc').href = 'devis.html?id=' + d.id;
       el('btnPicking').href = 'picking.html?id=' + d.id;
@@ -632,6 +715,8 @@
       renderChecklist();
       renderPaiements();
       renderReviewCard();
+      renderSav();
+      renderDocs();
     }
 
     // ── Suivi des paiements (agrégé depuis les factures liées à ce devis) ──
@@ -787,6 +872,114 @@
       if (res.offline) toast('Enregistré hors-ligne', 'warn');
       renderChecklist();
     };
+
+    // ── SAV (uniquement une fois l'installation terminée) ──
+    const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
+    const SAV_STATUT_LABEL = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu' };
+    const SAV_STATUT_NEXT = { ouvert: 'en_cours', en_cours: 'resolu', resolu: 'ouvert' };
+    function renderSav() {
+      const card = el('savCard');
+      const show = DEVIS.statut === 'termine';
+      card.classList.toggle('hidden', !show);
+      if (!show) return;
+      const tickets = (DEVIS.sav_tickets || []).slice().sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
+      const openCount = tickets.filter(t => t.statut !== 'resolu').length;
+      el('savCount').textContent = openCount ? `${openCount} ouvert(s)` : (tickets.length ? 'tout résolu' : '');
+      el('savList').innerHTML = tickets.length ? tickets.map(t => {
+        const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
+        return `<div class="sav-ticket">
+          <div class="sav-ticket-head">
+            <span class="sav-ticket-type">${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}</span>
+            <span class="badge ${badgeCls}" style="cursor:pointer;" onclick="cycleSavStatus('${t.id}')" title="Cliquer pour changer le statut">${SAV_STATUT_LABEL[t.statut] || t.statut}</span>
+            <span class="sav-ticket-date" style="margin-left:auto;">${fmtDate(t.date_creation)}</span>
+          </div>
+          <div class="sav-ticket-desc">${esc(t.description)}</div>
+          ${t.date_resolution ? `<div class="sav-ticket-date mt-1">Résolu le ${fmtDate(t.date_resolution)}</div>` : ''}
+        </div>`;
+      }).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucun ticket SAV pour ce devis.</div>';
+    }
+    window.addSavTicket = async () => {
+      const description = el('savDescription').value.trim();
+      if (!description) { toast('Décris le problème avant de créer le ticket.', 'warn'); return; }
+      DEVIS.sav_tickets = DEVIS.sav_tickets || [];
+      DEVIS.sav_tickets.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        probleme: el('savProbleme').value, description, statut: 'ouvert',
+        date_creation: new Date().toISOString(), date_resolution: null,
+      });
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Ticket créé (hors-ligne)' : 'Ticket SAV créé ✓', res.offline ? 'warn' : 'ok');
+      el('savDescription').value = '';
+      renderSav();
+    };
+    window.cycleSavStatus = async (ticketId) => {
+      const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
+      if (!t) return;
+      t.statut = SAV_STATUT_NEXT[t.statut] || 'ouvert';
+      t.date_resolution = t.statut === 'resolu' ? new Date().toISOString() : null;
+      DEVIS.date_modification = new Date().toISOString();
+      await SS.saveDevis(DEVIS);
+      renderSav();
+    };
+
+    // ── Documents fournisseur (bon de commande / facture Harol, stockés dans R2) ──
+    const DOC_TYPE_LABEL = { bon_commande: 'Bon de commande', facture: 'Facture', autre: 'Autre' };
+    function fmtBytes(n) {
+      if (!n) return '0 Ko';
+      if (n < 1024 * 1024) return Math.round(n / 1024) + ' Ko';
+      return (n / (1024 * 1024)).toFixed(1) + ' Mo';
+    }
+    function renderDocs() {
+      const docs = (DEVIS.documents || []).slice().sort((a, b) => String(b.date_upload).localeCompare(String(a.date_upload)));
+      el('docsCount').textContent = docs.length ? `${docs.length} fichier(s)` : '';
+      el('docsList').innerHTML = docs.length ? docs.map(d => `
+        <div class="doc-item">
+          <span class="doc-ico">${icon('filetext', 20)}</span>
+          <div class="doc-main">
+            <div class="doc-name" title="${esc(d.filename)}">${esc(d.filename)}</div>
+            <div class="doc-meta">${esc(DOC_TYPE_LABEL[d.type] || d.type)} · ${fmtBytes(d.taille)} · ${fmtDate(d.date_upload)}</div>
+          </div>
+          <div class="doc-actions">
+            <a class="ci-copy" title="Ouvrir / télécharger" aria-label="Ouvrir ${esc(d.filename)}" href="/api/devis/${encodeURIComponent(DEVIS.id)}/documents/${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${icon('download', 15)}</a>
+            <button class="ci-copy" title="Supprimer" aria-label="Supprimer ${esc(d.filename)}" onclick="deleteDocument('${d.id}')">${icon('trash', 15)}</button>
+          </div>
+        </div>`).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucun document attaché pour l\'instant.</div>';
+    }
+    window.uploadDocument = async (file) => {
+      if (!file) return;
+      const type = el('docType').value;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('type', type);
+      toast('Envoi du fichier…', 'ok');
+      try {
+        const r = await fetch(`/api/devis/${encodeURIComponent(DEVIS.id)}/documents`, { method: 'POST', body: fd, credentials: 'same-origin' });
+        let res; try { res = await r.json(); } catch (e2) { throw new Error('HTTP ' + r.status + ' — réponse non-JSON'); }
+        if (!res.ok) throw new Error(res.error || ('HTTP ' + r.status));
+        DEVIS.documents = res.data;
+        toast('Document ajouté ✓', 'ok');
+        renderDocs();
+      } catch (e) {
+        toast('Échec de l\'envoi : ' + e.message, 'error');
+      } finally {
+        el('docFile').value = '';
+      }
+    };
+    window.deleteDocument = async (docId) => {
+      if (!confirm('Supprimer ce document ?')) return;
+      try {
+        const r = await fetch(`/api/devis/${encodeURIComponent(DEVIS.id)}/documents/${encodeURIComponent(docId)}`, { method: 'DELETE', credentials: 'same-origin' });
+        let res; try { res = await r.json(); } catch (e2) { throw new Error('HTTP ' + r.status + ' — réponse non-JSON'); }
+        if (!res.ok) throw new Error(res.error || ('HTTP ' + r.status));
+        DEVIS.documents = (DEVIS.documents || []).filter(d => d.id !== docId);
+        toast('Document supprimé ✓', 'ok');
+        renderDocs();
+      } catch (e) {
+        toast('Échec de la suppression : ' + e.message, 'error');
+      }
+    };
+
     // ── Relances client prêtes à envoyer (email/SMS/WhatsApp) ──
     function normalizePhoneIntl(tel) {
       let t = String(tel || '').replace(/[^\d+]/g, '');
