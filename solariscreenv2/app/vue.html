@@ -201,6 +201,16 @@
     /* ── Suivi commande fournisseur ── */
     .commande-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent); padding: var(--sp-4) var(--sp-5); }
     .cc-head { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: var(--sp-3); }
+
+    /* ── Cartes repliables (réduit le défilement de la colonne latérale) ── */
+    .cc-head.collapsible, .cc-head-row.collapsible { cursor: pointer; user-select: none; }
+    .cc-head-right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; min-width: 0; }
+    .cc-head-right .section-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+    .cc-chevron { transition: transform var(--t-fast); flex-shrink: 0; color: var(--text-subtle); }
+    .commande-card.collapsed .cc-chevron, .interne-card.collapsed .cc-chevron { transform: rotate(-90deg); }
+    .commande-card.collapsed .cc-head { margin-bottom: 0; }
+    .cc-body { min-width: 0; }
+    .commande-card.collapsed .cc-body, .interne-card.collapsed .cc-body { display: none; }
     .cc-steps { display: flex; gap: 0.3rem; flex-wrap: wrap; }
     .cc-step { flex: 1; min-width: 62px; text-align: center; padding: 0.5rem 0.25rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.01em; color: var(--text-subtle); cursor: pointer; transition: all var(--t-fast); word-break: break-word; overflow-wrap: break-word; hyphens: auto; line-height: 1.25; }
     .cc-step:hover { border-color: var(--accent); color: var(--accent); }
@@ -321,13 +331,19 @@
         <button class="btn btn-ghost btn-sm mt-3" onclick="copyReviewLink()" style="width:100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier le lien espace client (revoir / accepter / question)</button>
       </div>
 
-      <div class="interne-card ticked">
-        <div class="row" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
+      <div class="interne-card ticked" id="interneCard">
+        <div class="row cc-head-row collapsible" onclick="toggleCard('interneCard')" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
           <span class="badge badge-purple">Interne</span>
-          <span class="section-sub" style="margin-left:auto;">jamais visible client</span>
+          <span class="cc-head-right">
+            <span id="interneSummary" class="section-sub"></span>
+            <span class="section-sub">jamais visible client</span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
-        <div id="pricingNoteHost"></div>
-        <div id="interneHost"></div>
+        <div class="cc-body">
+          <div id="pricingNoteHost"></div>
+          <div id="interneHost"></div>
+        </div>
       </div>
 
       <div class="commande-card ticked" id="paiementsCard" style="--tick-color:var(--ok);">
@@ -336,72 +352,109 @@
       </div>
 
       <div class="commande-card ticked hidden" id="commandeCard">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Suivi commande fournisseur <span id="ccRetard" class="badge badge-danger hidden" style="margin-left:auto;">Retard</span></div>
-        <div class="cc-steps" id="ccSteps"></div>
-        <div class="grid grid-2 mt-3">
-          <div class="field"><label class="label">Date de commande</label><input class="input" type="date" id="ccDate" onchange="saveCommande()"></div>
-          <div class="field"><label class="label">Délai estimé (semaines)</label><input class="input input-num" type="number" min="0" id="ccDelai" onchange="saveCommande()"></div>
+        <div class="cc-head collapsible" onclick="toggleCard('commandeCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Suivi commande fournisseur
+          <span class="cc-head-right">
+            <span id="ccSummary" class="section-sub"></span>
+            <span id="ccRetard" class="badge badge-danger hidden">Retard</span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
-        <div class="cc-eta" id="ccEta"></div>
-        <button class="btn btn-ghost btn-sm mt-3" onclick="copyTrackLink()" style="width:100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copier le lien de suivi client</button>
+        <div class="cc-body">
+          <div class="cc-steps" id="ccSteps"></div>
+          <div class="grid grid-2 mt-3">
+            <div class="field"><label class="label">Date de commande</label><input class="input" type="date" id="ccDate" onchange="saveCommande()"></div>
+            <div class="field"><label class="label">Délai estimé (semaines)</label><input class="input input-num" type="number" min="0" id="ccDelai" onchange="saveCommande()"></div>
+          </div>
+          <div class="cc-eta" id="ccEta"></div>
+          <button class="btn btn-ghost btn-sm mt-3" onclick="copyTrackLink()" style="width:100%;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copier le lien de suivi client</button>
+        </div>
       </div>
 
       <div class="commande-card ticked" id="docsCard" style="--tick-color:var(--accent-2);">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Documents fournisseur <span id="docsCount" class="section-sub" style="margin-left:auto;"></span></div>
-        <div id="docsList"></div>
-        <div class="doc-upload-row">
-          <select class="select" id="docType" aria-label="Type de document">
-            <option value="bon_commande">Bon de commande</option>
-            <option value="facture">Facture</option>
-            <option value="autre">Autre</option>
-          </select>
-          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="document.getElementById('docFile').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Ajouter un fichier</button>
-          <input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocument(this.files[0])">
+        <div class="cc-head collapsible" onclick="toggleCard('docsCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Documents fournisseur
+          <span class="cc-head-right">
+            <span id="docsCount" class="section-sub"></span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div id="docsList"></div>
+          <div class="doc-upload-row">
+            <select class="select" id="docType" aria-label="Type de document">
+              <option value="bon_commande">Bon de commande</option>
+              <option value="facture">Facture</option>
+              <option value="autre">Autre</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="document.getElementById('docFile').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Ajouter un fichier</button>
+            <input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadDocument(this.files[0])">
+          </div>
         </div>
       </div>
 
       <div class="commande-card ticked hidden" id="chantierCard" style="--tick-color:var(--accent-2);">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Planification de pose <span id="chantierRetard" class="badge badge-danger hidden" style="margin-left:auto;">En retard</span></div>
-        <div class="grid grid-2 mt-3">
-          <div class="field"><label class="label" for="chDate">Date de pose</label><input class="input" type="date" id="chDate" onchange="saveChantier()"></div>
-          <div class="field"><label class="label" for="chDuree">Durée estimée (heures)</label><input class="input input-num" type="number" min="0" step="0.5" id="chDuree" onchange="saveChantier()"></div>
-          <div class="field" style="grid-column:span 2;"><label class="label" for="chEquipe">Équipe</label>
-            <select class="select" id="chEquipe" onchange="saveChantier()">
-              <option value="nicolas">Nicolas</option>
-              <option value="yannick">Yannick</option>
-              <option value="nicolas_yannick">Nicolas + Yannick</option>
-              <option value="sous_traitant">Sous-traitant</option>
-            </select>
-          </div>
+        <div class="cc-head collapsible" onclick="toggleCard('chantierCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Planification de pose
+          <span class="cc-head-right">
+            <span id="chantierSummary" class="section-sub"></span>
+            <span id="chantierRetard" class="badge badge-danger hidden">En retard</span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
-        <div class="cc-eta" id="chantierInfo"></div>
-        <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
+        <div class="cc-body">
+          <div class="grid grid-2 mt-3">
+            <div class="field"><label class="label" for="chDate">Date de pose</label><input class="input" type="date" id="chDate" onchange="saveChantier()"></div>
+            <div class="field"><label class="label" for="chDuree">Durée estimée (heures)</label><input class="input input-num" type="number" min="0" step="0.5" id="chDuree" onchange="saveChantier()"></div>
+            <div class="field" style="grid-column:span 2;"><label class="label" for="chEquipe">Équipe</label>
+              <select class="select" id="chEquipe" onchange="saveChantier()">
+                <option value="nicolas">Nicolas</option>
+                <option value="yannick">Yannick</option>
+                <option value="nicolas_yannick">Nicolas + Yannick</option>
+                <option value="sous_traitant">Sous-traitant</option>
+              </select>
+            </div>
+          </div>
+          <div class="cc-eta" id="chantierInfo"></div>
+          <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
+        </div>
       </div>
 
       <div class="commande-card ticked hidden" id="checklistCard" style="--tick-color:var(--ok);">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Checklist avant pose</div>
-        <div class="checklist-grid" id="checklistGrid"></div>
-        <div class="ck-progress" id="checklistProgress"></div>
+        <div class="cc-head collapsible" onclick="toggleCard('checklistCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Checklist avant pose
+          <span class="cc-head-right">
+            <span id="checklistSummary" class="section-sub"></span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div class="checklist-grid" id="checklistGrid"></div>
+          <div class="ck-progress" id="checklistProgress"></div>
+        </div>
       </div>
 
       <div class="commande-card ticked hidden" id="savCard" style="--tick-color:var(--danger);">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> SAV <span id="savCount" class="section-sub" style="margin-left:auto;"></span></div>
-        <div id="savList"></div>
-        <div class="sav-form">
-          <div class="grid grid-2">
-            <div class="field"><label class="label" for="savProbleme">Type de problème</label>
-              <select class="select" id="savProbleme">
-                <option value="moteur">Moteur</option>
-                <option value="toile">Toile</option>
-                <option value="reglage">Réglage</option>
-                <option value="garantie">Garantie</option>
-                <option value="autre">Autre</option>
-              </select>
+        <div class="cc-head collapsible" onclick="toggleCard('savCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> SAV
+          <span class="cc-head-right">
+            <span id="savCount" class="section-sub"></span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div id="savList"></div>
+          <div class="sav-form">
+            <div class="grid grid-2">
+              <div class="field"><label class="label" for="savProbleme">Type de problème</label>
+                <select class="select" id="savProbleme">
+                  <option value="moteur">Moteur</option>
+                  <option value="toile">Toile</option>
+                  <option value="reglage">Réglage</option>
+                  <option value="garantie">Garantie</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div></div>
             </div>
-            <div></div>
+            <textarea class="textarea" id="savDescription" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Décris le problème…"></textarea>
+            <button class="btn btn-ghost btn-sm mt-2" onclick="addSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
           </div>
-          <textarea class="textarea" id="savDescription" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Décris le problème…"></textarea>
-          <button class="btn btn-ghost btn-sm mt-2" onclick="addSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
         </div>
       </div>
 
@@ -708,6 +761,7 @@
         ${c.remise_catalogue?.amount > 0 ? `<div class="h-line"><span class="k">Catalogue</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_catalogue.amount)}</span></div>` : ''}
         ${c.remise_installation?.amount > 0 ? `<div class="h-line"><span class="k">Installation</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_installation.amount)}</span></div>` : ''}
         ${c.remise_outillage?.amount > 0 ? `<div class="h-line"><span class="k">Outillage</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_outillage.amount)}</span></div>` : ''}` : ''}`;
+      setText('interneSummary', 'Net total ' + fmtEur((c.nicolas_net || 0) + (c.yannick_net || 0)));
 
       renderNotes();
       renderCommande();
@@ -768,6 +822,7 @@
       const cc = DEVIS.commande || {};
       const idx = Math.max(0, CC_STAGES.findIndex(s => s.k === (cc.statut || 'a_commander')));
       el('ccSteps').innerHTML = CC_STAGES.map((s, i) => `<div class="cc-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}" onclick="setCommandeStage('${s.k}')">${s.l}</div>`).join('');
+      setText('ccSummary', CC_STAGES[idx].l);
       el('ccDate').value = cc.date_commande || '';
       el('ccDelai').value = cc.delai_semaines ?? 8;
       let etaTxt = 'Renseigne la date de commande pour estimer la livraison.', retard = false;
@@ -821,6 +876,7 @@
       }
       el('chantierInfo').textContent = infoTxt;
       el('chantierRetard').classList.toggle('hidden', !retard);
+      setText('chantierSummary', ch.date_pose ? fmtDate(ch.date_pose) : 'Non planifié');
       const weatherBox = el('chantierWeather');
       weatherBox.textContent = '';
       if (ch.date_pose && DEVIS.statut !== 'termine') {
@@ -863,6 +919,7 @@
         </label>`).join('');
       const done = CHECKLIST_ITEMS.filter(it => ck[it.k]).length;
       el('checklistProgress').textContent = `${done} / ${CHECKLIST_ITEMS.length} complétées`;
+      setText('checklistSummary', `${done}/${CHECKLIST_ITEMS.length}`);
     }
     window.toggleChecklist = async (key, checked) => {
       DEVIS.checklist = DEVIS.checklist || {};
@@ -1444,6 +1501,29 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('relanceModal').classList.contains('open')) window.closeRelance(); });
 
     // ── Chargement ──
+    // ── Cartes repliables de la colonne latérale — repliées par défaut, mémorisées
+    // par outil (pas par devis) sur ce navigateur, pour réduire le défilement une fois
+    // qu'un devis a accumulé plusieurs sections (interne/commande/documents/pose/checklist/SAV).
+    const COLLAPSIBLE_CARDS = ['interneCard', 'commandeCard', 'docsCard', 'chantierCard', 'checklistCard', 'savCard'];
+    function loadCardPrefs() { try { return JSON.parse(localStorage.getItem('ss_card_collapsed') || '{}'); } catch (e) { return {}; } }
+    function saveCardPrefs(prefs) { try { localStorage.setItem('ss_card_collapsed', JSON.stringify(prefs)); } catch (e) {} }
+    window.toggleCard = function (id) {
+      const card = el(id);
+      if (!card) return;
+      const collapsed = card.classList.toggle('collapsed');
+      const prefs = loadCardPrefs();
+      prefs[id] = collapsed;
+      saveCardPrefs(prefs);
+    };
+    function applyCardPrefs() {
+      const prefs = loadCardPrefs();
+      COLLAPSIBLE_CARDS.forEach(id => {
+        const card = el(id);
+        if (!card) return;
+        card.classList.toggle('collapsed', prefs.hasOwnProperty(id) ? prefs[id] : true);
+      });
+    }
+
     (async () => {
       const id = qp('id');
       if (!id) { el('loading').textContent = 'Aucun devis spécifié.'; return; }
@@ -1456,6 +1536,7 @@
       el('loading').style.display = 'none';
       el('main').style.display = '';
       render();
+      applyCardPrefs();
     })();
   </script>
 </body>
