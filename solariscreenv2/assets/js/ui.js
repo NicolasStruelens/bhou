@@ -145,7 +145,10 @@
     let loc = _geoCache[key];
     if (loc === undefined) {
       try {
-        const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&country=BE&count=1').then(r => r.json());
+        // Le paramètre correct de l'API est "countryCode", pas "country" — avec "country=BE" le filtre
+        // était silencieusement ignoré et une ville homonyme plus peuplée à l'étranger (ex: Waterloo,
+        // USA/Canada) pouvait passer devant la vraie ville belge. Vérifié directement sur l'API.
+        const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&countryCode=BE&count=1').then(r => r.json());
         loc = (geo.results && geo.results[0]) || null;
       } catch (e) { loc = null; }
       _geoCache[key] = loc;
