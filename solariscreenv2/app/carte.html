@@ -123,14 +123,16 @@
 
       const withAddr = [], noVille = [];
       fulls.forEach(d => {
-        const ville = (d.client && d.client.adresse && d.client.adresse.ville) || '';
-        if (ville.trim()) withAddr.push(d); else noVille.push(d);
+        const adr = (d.client && d.client.adresse) || {};
+        if ((adr.ville || '').trim() || (adr.code_postal || '').toString().trim()) withAddr.push(d); else noVille.push(d);
       });
 
       const geocoded = [], notFound = [];
       await Promise.all(withAddr.map(async d => {
-        const ville = d.client.adresse.ville;
-        const loc = await geocodeVille(ville);
+        const adr = d.client.adresse;
+        // Code postal d'abord : sans ambiguïté d'orthographe, contrairement au nom de ville (saisie
+        // libre — ex: "Chapelle-les-Herlaimont" ne matche pas le vrai "Chapelle-lez-Herlaimont").
+        const loc = await geocodeVille(adr.ville, adr.code_postal);
         if (loc) geocoded.push({ d, loc }); else notFound.push(d);
       }));
 
@@ -184,8 +186,9 @@
             ${icon('warning', 14)} Non localisés (${list.length})
           </div>
           ${list.map(d => {
-            const cl = d.client || {}, ville = (cl.adresse && cl.adresse.ville) || '';
-            return `<div class="cf-warn-row"><span>${esc(cl.prenom)} ${esc(cl.nom) || '—'} <span class="v">${ville ? '— ville « ' + esc(ville) + ' » introuvable' : '— aucune ville renseignée'}</span></span><a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(d.id)}">${icon('window', 14)} Corriger</a></div>`;
+            const cl = d.client || {}, adr = cl.adresse || {}, ville = adr.ville || '', cp = adr.code_postal || '';
+            const detail = (ville || cp) ? `— « ${esc([cp, ville].filter(Boolean).join(' '))} » introuvable` : '— aucune adresse renseignée';
+            return `<div class="cf-warn-row"><span>${esc(cl.prenom)} ${esc(cl.nom) || '—'} <span class="v">${detail}</span></span><a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(d.id)}">${icon('window', 14)} Corriger</a></div>`;
           }).join('')}
         </div>`;
     }
