@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS backups (
   data TEXT NOT NULL
 );
 
+-- jeton de capture rapide (iOS Raccourcis/Siri) : au plus une ligne à la fois
+CREATE TABLE IF NOT EXISTS quick_capture (
+  token TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
   parent_id TEXT,
@@ -39,6 +45,7 @@ CREATE TABLE IF NOT EXISTS notes (
   links TEXT DEFAULT '',            -- ids d'autres notes liées ("voir aussi"), séparés par des virgules
   energy TEXT DEFAULT '',           -- 2min | facile | profond | urgent | attente
   status TEXT DEFAULT 'active',     -- active | someday (parking mental)
+  history TEXT DEFAULT '[]',        -- versions précédentes (JSON, 10 max) : [{title,content,tags,energy,updated_at}]
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
@@ -73,4 +80,6 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (4, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (5, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (6, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (7, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (7, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (8, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (9, CAST(strftime('%s','now') AS INTEGER) * 1000);

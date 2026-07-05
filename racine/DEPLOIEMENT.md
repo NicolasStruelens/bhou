@@ -39,6 +39,8 @@ Si `racine-db` existe déjà (déploiement initial fait avant une évolution du 
 4. `migration_v5.sql` — liens entre notes
 5. `migration_v6.sql` — suivi des migrations, sauvegardes automatiques, anti-bruteforce login
 6. `migration_v7.sql` — énergie/someday sur les notes, presse-papier avancé (lecture unique, exclusion export, partage public par jeton)
+7. `migration_v8.sql` — historique des versions d'une note
+8. `migration_v9.sql` — jeton de capture rapide (iOS Raccourcis/Siri)
 
 Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
 
@@ -75,4 +77,7 @@ Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) 
 - [ ] Partager un clip → ouvrir le lien `share.html#...` dans une fenêtre de navigation privée (sans session) → doit fonctionner ; révoquer → doit ensuite échouer
 - [ ] Export JSON puis import dans un espace de test — les notes et clips réapparaissent avec la bonne hiérarchie
 - [ ] État du système (⚙) affiche la bonne version de schéma et permet de créer/restaurer une sauvegarde
+- [ ] Historique d'une note : éditer une note plusieurs fois, ouvrir « historique des versions », vérifier que les anciennes versions apparaissent et que « restaurer » recharge bien les anciens champs dans le formulaire
+- [ ] Recherche par opérateurs : `tag:x`, `energie:x`, `espace:x`, `kind:x`, `avant:AAAA-MM-JJ`, `apres:AAAA-MM-JJ`, `someday:oui`, `pin:oui` filtrent correctement, seuls ou combinés
+- [ ] Capture rapide (⚙ → section iOS Raccourcis) : générer le lien, faire un `curl -X POST <lien> -d '{"text":"test"}'` (ou un vrai raccourci iOS) et vérifier qu'une nouvelle idée taguée #raccourci apparaît ; révoquer le lien et vérifier que l'appel échoue ensuite
 - [ ] Recharger l'app après un déploiement ne montre pas d'anciens fichiers (vérifier que les `?v=N` ont bien été incrémentés)

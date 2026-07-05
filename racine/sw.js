@@ -1,13 +1,22 @@
 // Racine — service worker minimal (cache des fichiers statiques, jamais l'API ni les pages HTML)
-const CACHE = 'racine-shell-v7';
+const CACHE = 'racine-shell-v10';
 const SHELL = [
   '/assets/css/tokens.css',
   '/assets/css/base.css',
   '/assets/js/api.js',
-  '/assets/js/app.js',
   '/assets/js/starfield.js',
   '/assets/js/theme-init.js',
   '/assets/js/login.js',
+  '/assets/js/shell.js',
+  '/assets/js/notes.js',
+  '/assets/js/reminders.js',
+  '/assets/js/importexport.js',
+  '/assets/js/system.js',
+  '/assets/js/focus.js',
+  '/assets/js/clips.js',
+  '/assets/js/views.js',
+  '/assets/js/trash.js',
+  '/assets/js/main.js',
 ];
 
 self.addEventListener('install', function (event) {
