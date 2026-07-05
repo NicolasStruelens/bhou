@@ -243,7 +243,7 @@
     actions.appendChild(exportBtn2);
 
     var qrBtn = document.createElement('button');
-    qrBtn.className = 'btn';
+    qrBtn.className = 'btn btn-icon';
     qrBtn.textContent = 'QR';
     qrBtn.title = 'Ouvrir sur un autre appareil via QR code';
     qrBtn.addEventListener('click', function () {
@@ -252,7 +252,7 @@
     actions.appendChild(qrBtn);
 
     var linkBtn = document.createElement('button');
-    linkBtn.className = 'btn';
+    linkBtn.className = 'btn btn-icon';
     linkBtn.textContent = '🔗';
     linkBtn.title = 'Copier le lien direct';
     linkBtn.addEventListener('click', function () {
