@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 9;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -164,9 +164,13 @@ async function createNote(request, env) {
   return json({ ok: true, id });
 }
 
+const HISTORY_MAX = 10;
+
 async function updateNote(id, request, env) {
   const body = await request.json().catch(() => ({}));
-  const existing = await env.DB.prepare('SELECT id FROM notes WHERE id = ?').bind(id).first();
+  const existing = await env.DB.prepare(
+    'SELECT title, content, tags, energy, history, updated_at FROM notes WHERE id = ?'
+  ).bind(id).first();
   if (!existing) return json({ error: 'not found' }, 404);
 
   if ('parent_id' in body && body.parent_id) {
@@ -203,6 +207,24 @@ async function updateNote(id, request, env) {
     }
   }
   if (!fields.length) return json({ ok: true });
+
+  // historique : ne snapshotter que sur une édition de contenu réelle (pas un simple pin/done/déplacement)
+  const touchesContent = ['title', 'content', 'tags', 'energy'].some((k) => k in body);
+  if (touchesContent) {
+    let history = [];
+    try { history = JSON.parse(existing.history || '[]'); } catch (e) { history = []; }
+    history.push({
+      title: existing.title,
+      content: existing.content,
+      tags: existing.tags,
+      energy: existing.energy,
+      updated_at: existing.updated_at,
+    });
+    if (history.length > HISTORY_MAX) history = history.slice(history.length - HISTORY_MAX);
+    fields.push('history = ?');
+    values.push(JSON.stringify(history));
+  }
+
   fields.push('updated_at = ?');
   values.push(Date.now());
   values.push(id);
@@ -313,6 +335,43 @@ async function getPublicClip(token, env) {
       mime: row.mime,
     },
   });
+}
+
+// ----- capture rapide par jeton (iOS Raccourcis / Siri / Action Button) -----
+// un seul jeton actif à la fois ; volontairement protégé UNIQUEMENT par le secret du jeton
+// (comme /api/public/:token), car un raccourci Apple Shortcuts ne peut pas porter le cookie de session
+
+async function getQuickToken(env) {
+  const row = await env.DB.prepare('SELECT token, created_at FROM quick_capture LIMIT 1').first();
+  return json({ token: row ? row.token : null, created_at: row ? row.created_at : null });
+}
+
+async function createQuickToken(env) {
+  const token = newId();
+  const now = Date.now();
+  await env.DB.prepare('DELETE FROM quick_capture').run();
+  await env.DB.prepare('INSERT INTO quick_capture (token, created_at) VALUES (?, ?)').bind(token, now).run();
+  return json({ ok: true, token, created_at: now });
+}
+
+async function revokeQuickToken(env) {
+  await env.DB.prepare('DELETE FROM quick_capture').run();
+  return json({ ok: true });
+}
+
+async function quickCapture(token, request, env) {
+  const row = await env.DB.prepare('SELECT token FROM quick_capture WHERE token = ?').bind(token).first();
+  if (!row) return json({ error: 'jeton invalide ou révoqué' }, 404);
+  const body = await request.json().catch(() => ({}));
+  const text = String(body.text || '').trim().slice(0, 500);
+  if (!text) return json({ error: 'texte vide' }, 400);
+  const id = newId();
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, created_at, updated_at)
+     VALUES (?, NULL, ?, '', 'idee', 0, 0, 0, 'Général', '#raccourci', ?, ?)`
+  ).bind(id, text, now, now).run();
+  return json({ ok: true, id });
 }
 
 async function listTrashClips(env) {
@@ -467,6 +526,9 @@ export async function onRequest(context) {
     // partage public : volontairement AVANT la vérification de session (accessible sans connexion),
     // protégé uniquement par un jeton long, aléatoire, à usage unique et à expiration courte
     if (parts[0] === 'public' && parts.length === 2 && method === 'GET') return getPublicClip(parts[1], env);
+    // capture rapide (iOS Raccourcis/Siri) : même logique, volontairement avant la session —
+    // un raccourci Apple Shortcuts ne peut pas transporter le cookie de session
+    if (parts[0] === 'quick' && parts.length === 2 && method === 'POST') return quickCapture(parts[1], request, env);
 
     // tout le reste nécessite une session valide
     const denied = await requireAuth(request, env);
@@ -474,6 +536,12 @@ export async function onRequest(context) {
 
     if (parts[0] === 'export' && parts.length === 1 && method === 'GET') return exportAll(env);
     if (parts[0] === 'health' && parts.length === 1 && method === 'GET') return health(env);
+
+    if (parts[0] === 'quick-token') {
+      if (parts.length === 1 && method === 'GET') return getQuickToken(env);
+      if (parts.length === 1 && method === 'POST') return createQuickToken(env);
+      if (parts.length === 1 && method === 'DELETE') return revokeQuickToken(env);
+    }
 
     if (parts[0] === 'backups') {
       if (parts.length === 1 && method === 'GET') return listBackups(env);
