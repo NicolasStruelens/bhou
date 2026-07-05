@@ -138,12 +138,15 @@
     delBtn.textContent = '×';
     delBtn.title = 'Mettre à la corbeille';
     delBtn.addEventListener('click', function () {
-      RA.deleteClip(c.id).then(function () {
-        loadClips();
-        toast('Mis à la corbeille', 'Annuler', function () {
-          RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
-        });
-      }).catch(function (err) { toast('Erreur : ' + err.message); });
+      card.classList.add('removing');
+      setTimeout(function () {
+        RA.deleteClip(c.id).then(function () {
+          loadClips();
+          toast('Mis à la corbeille', 'Annuler', function () {
+            RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
+          });
+        }).catch(function (err) { toast('Erreur : ' + err.message); card.classList.remove('removing'); });
+      }, 190);
     });
     head.appendChild(delBtn);
     card.appendChild(head);

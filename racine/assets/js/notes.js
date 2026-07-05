@@ -916,12 +916,16 @@
     delBtn.textContent = '×';
     delBtn.addEventListener('click', function () {
       if (!confirm('Mettre « ' + n.title + ' » (et ses branches) à la corbeille ?')) return;
-      RA.deleteNote(n.id).then(function () {
-        loadNotes();
-        toast('Mis à la corbeille', 'Annuler', function () {
-          RA.restoreNote(n.id).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
-        });
-      }).catch(function (err) { toast('Erreur : ' + err.message); });
+      var row = delBtn.closest('.node, .root-card, .branch-row');
+      if (row) row.classList.add('removing');
+      setTimeout(function () {
+        RA.deleteNote(n.id).then(function () {
+          loadNotes();
+          toast('Mis à la corbeille', 'Annuler', function () {
+            RA.restoreNote(n.id).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
+          });
+        }).catch(function (err) { toast('Erreur : ' + err.message); if (row) row.classList.remove('removing'); });
+      }, row ? 190 : 0);
     });
     actions.appendChild(delBtn);
 

@@ -37,7 +37,10 @@
     purgeBtn.title = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + n.title + ' » ?')) return;
-      RA.purgeNote(n.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); });
+      el.classList.add('removing');
+      setTimeout(function () {
+        RA.purgeNote(n.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); el.classList.remove('removing'); });
+      }, 190);
     });
     actions.appendChild(purgeBtn);
 
@@ -77,7 +80,10 @@
     purgeBtn.textContent = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement cette entrée ?')) return;
-      RA.purgeClip(c.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); });
+      card.classList.add('removing');
+      setTimeout(function () {
+        RA.purgeClip(c.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); card.classList.remove('removing'); });
+      }, 190);
     });
     actions.appendChild(purgeBtn);
 
