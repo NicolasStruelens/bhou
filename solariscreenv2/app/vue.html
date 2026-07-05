@@ -232,6 +232,14 @@
     .sav-ticket-type { font-weight: 700; text-transform: capitalize; }
     .sav-ticket-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     .sav-ticket-desc { font-size: var(--fs-sm); color: var(--text-muted); }
+    .sav-ticket-photos { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: var(--sp-2); }
+    .sav-photo-mini { width: 44px; height: 44px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); padding: 0; cursor: pointer; flex: none; }
+    .sav-photo-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .sav-ticket-actions { display: flex; justify-content: flex-end; gap: 0.2rem; margin-top: var(--sp-2); }
+    .sav-photos-preview { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: var(--sp-2); }
+    .sav-photo-thumb { position: relative; width: 44px; height: 44px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); flex: none; }
+    .sav-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .sav-photo-thumb button { position: absolute; top: 1px; right: 1px; width: 15px; height: 15px; border-radius: 50%; border: none; background: rgba(4,8,20,0.75); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
 
     /* ── Documents fournisseur (R2) ── */
     .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
@@ -453,7 +461,13 @@
               <div></div>
             </div>
             <textarea class="textarea" id="savDescription" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Décris le problème…"></textarea>
-            <button class="btn btn-ghost btn-sm mt-2" onclick="addSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
+            <div class="sav-photos-preview" id="savPhotosPreview"></div>
+            <div class="row mt-2" style="gap:var(--sp-2);">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('savPhotoInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Photo</button>
+              <input type="file" id="savPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="addPendingSavPhoto(this.files[0])">
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="savCancelBtn" onclick="cancelSavEdit()">Annuler</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="savSubmitBtn" style="margin-left:auto;" onclick="submitSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
+            </div>
           </div>
         </div>
       </div>
@@ -543,7 +557,7 @@
     const SS = window.SS;
     const { computeDevis, totalSurface } = window.SSCalc;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather, compressImage } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
@@ -933,7 +947,8 @@
     // ── SAV (uniquement une fois l'installation terminée) ──
     const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
     const SAV_STATUT_LABEL = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu' };
-    const SAV_STATUT_NEXT = { ouvert: 'en_cours', en_cours: 'resolu', resolu: 'ouvert' };
+    const SAV_STATUT_COLOR = { ouvert: 'var(--danger)', en_cours: 'var(--warn)', resolu: 'var(--ok)' };
+    let EDITING_SAV_ID = null, PENDING_SAV_PHOTOS = [];
     function renderSav() {
       const card = el('savCard');
       const show = DEVIS.statut === 'termine';
@@ -942,39 +957,126 @@
       const tickets = (DEVIS.sav_tickets || []).slice().sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
       const openCount = tickets.filter(t => t.statut !== 'resolu').length;
       el('savCount').textContent = openCount ? `${openCount} ouvert(s)` : (tickets.length ? 'tout résolu' : '');
+      // Les photos SAV partagent la lightbox des ouvertures (même tableau PHOTOS) — on retire
+      // d'abord nos propres entrées d'un rendu précédent pour ne pas les dupliquer à chaque appel,
+      // sans toucher aux entrées des ouvertures (jamais marquées sav:true).
+      PHOTOS = PHOTOS.filter(p => !p.sav);
       el('savList').innerHTML = tickets.length ? tickets.map(t => {
         const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
+        const photosHtml = (t.photos || []).length ? `<div class="sav-ticket-photos">${t.photos.map(p => {
+          const idx = PHOTOS.length;
+          PHOTOS.push({ src: p, cap: `Ticket SAV — ${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}`, sav: true });
+          return `<button type="button" class="sav-photo-mini" onclick="lbOpen(${idx})" aria-label="Agrandir la photo"><img src="${p}" alt=""></button>`;
+        }).join('')}</div>` : '';
         return `<div class="sav-ticket">
           <div class="sav-ticket-head">
             <span class="sav-ticket-type">${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}</span>
-            <span class="badge ${badgeCls}" style="cursor:pointer;" onclick="cycleSavStatus('${t.id}')" title="Cliquer pour changer le statut">${SAV_STATUT_LABEL[t.statut] || t.statut}</span>
+            <button type="button" class="badge ${badgeCls}" style="cursor:pointer;" onclick="toggleSavStatusMenu(event,'${t.id}')" title="Cliquer pour changer le statut">${SAV_STATUT_LABEL[t.statut] || t.statut} ${icon('chevrondown', 10)}</button>
             <span class="sav-ticket-date" style="margin-left:auto;">${fmtDate(t.date_creation)}</span>
           </div>
           <div class="sav-ticket-desc">${esc(t.description)}</div>
+          ${photosHtml}
           ${t.date_resolution ? `<div class="sav-ticket-date mt-1">Résolu le ${fmtDate(t.date_resolution)}</div>` : ''}
+          <div class="sav-ticket-actions">
+            <button type="button" class="ci-copy" title="Modifier" aria-label="Modifier ce ticket" onclick="editSavTicket('${t.id}')">${icon('edit', 13)}</button>
+            <button type="button" class="ci-copy" title="Supprimer" aria-label="Supprimer ce ticket" onclick="deleteSavTicket('${t.id}')">${icon('trash', 13)}</button>
+          </div>
         </div>`;
       }).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucun ticket SAV pour ce devis.</div>';
     }
-    window.addSavTicket = async () => {
+    function renderSavPhotosPreview() {
+      el('savPhotosPreview').innerHTML = PENDING_SAV_PHOTOS.map((p, i) => `
+        <div class="sav-photo-thumb"><img src="${p}" alt=""><button type="button" onclick="removePendingSavPhoto(${i})" aria-label="Retirer la photo">${icon('x', 10)}</button></div>`).join('');
+    }
+    window.addPendingSavPhoto = async (file) => {
+      if (!file) return;
+      try {
+        const dataUrl = await compressImage(file);
+        PENDING_SAV_PHOTOS.push(dataUrl);
+        renderSavPhotosPreview();
+      } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
+      el('savPhotoInput').value = '';
+    };
+    window.removePendingSavPhoto = (idx) => { PENDING_SAV_PHOTOS.splice(idx, 1); renderSavPhotosPreview(); };
+    window.submitSavTicket = async () => {
       const description = el('savDescription').value.trim();
       if (!description) { toast('Décris le problème avant de créer le ticket.', 'warn'); return; }
       DEVIS.sav_tickets = DEVIS.sav_tickets || [];
-      DEVIS.sav_tickets.push({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        probleme: el('savProbleme').value, description, statut: 'ouvert',
-        date_creation: new Date().toISOString(), date_resolution: null,
-      });
+      if (EDITING_SAV_ID) {
+        const t = DEVIS.sav_tickets.find(x => x.id === EDITING_SAV_ID);
+        if (t) { t.probleme = el('savProbleme').value; t.description = description; t.photos = PENDING_SAV_PHOTOS.slice(); }
+      } else {
+        DEVIS.sav_tickets.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          probleme: el('savProbleme').value, description, statut: 'ouvert',
+          date_creation: new Date().toISOString(), date_resolution: null,
+          photos: PENDING_SAV_PHOTOS.slice(),
+        });
+      }
       DEVIS.date_modification = new Date().toISOString();
+      const wasEditing = !!EDITING_SAV_ID;
       const res = await SS.saveDevis(DEVIS);
-      toast(res.offline ? 'Ticket créé (hors-ligne)' : 'Ticket SAV créé ✓', res.offline ? 'warn' : 'ok');
-      el('savDescription').value = '';
+      toast(res.offline ? (wasEditing ? 'Ticket modifié (hors-ligne)' : 'Ticket créé (hors-ligne)') : (wasEditing ? 'Ticket modifié ✓' : 'Ticket SAV créé ✓'), res.offline ? 'warn' : 'ok');
+      cancelSavEdit();
       renderSav();
     };
-    window.cycleSavStatus = async (ticketId) => {
+    window.editSavTicket = (ticketId) => {
       const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
       if (!t) return;
-      t.statut = SAV_STATUT_NEXT[t.statut] || 'ouvert';
-      t.date_resolution = t.statut === 'resolu' ? new Date().toISOString() : null;
+      EDITING_SAV_ID = ticketId;
+      PENDING_SAV_PHOTOS = (t.photos || []).slice();
+      el('savProbleme').value = t.probleme;
+      el('savDescription').value = t.description;
+      renderSavPhotosPreview();
+      el('savSubmitBtn').innerHTML = `${icon('check', 14)} Enregistrer les modifications`;
+      el('savCancelBtn').classList.remove('hidden');
+      el('savDescription').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    window.cancelSavEdit = () => {
+      EDITING_SAV_ID = null;
+      PENDING_SAV_PHOTOS = [];
+      el('savProbleme').value = 'moteur';
+      el('savDescription').value = '';
+      renderSavPhotosPreview();
+      el('savSubmitBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket`;
+      el('savCancelBtn').classList.add('hidden');
+    };
+    window.deleteSavTicket = async (ticketId) => {
+      if (!confirm('Supprimer ce ticket SAV ?')) return;
+      DEVIS.sav_tickets = (DEVIS.sav_tickets || []).filter(x => x.id !== ticketId);
+      DEVIS.date_modification = new Date().toISOString();
+      if (EDITING_SAV_ID === ticketId) cancelSavEdit();
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Ticket supprimé (hors-ligne)' : 'Ticket supprimé ✓', res.offline ? 'warn' : 'ok');
+      renderSav();
+    };
+    // ── Menu déroulant de statut SAV (même mécanique que le statut du devis) ──
+    let savMenuEl = null;
+    window.toggleSavStatusMenu = (e, ticketId) => {
+      e.stopPropagation();
+      if (!savMenuEl) {
+        savMenuEl = document.createElement('div');
+        savMenuEl.className = 'status-menu';
+        document.body.appendChild(savMenuEl);
+        document.addEventListener('click', (ev) => {
+          if (savMenuEl.classList.contains('open') && !savMenuEl.contains(ev.target)) savMenuEl.classList.remove('open');
+        }, true);
+        window.addEventListener('scroll', () => savMenuEl.classList.remove('open'), true);
+        document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') savMenuEl.classList.remove('open'); });
+      }
+      savMenuEl.innerHTML = Object.entries(SAV_STATUT_LABEL).map(([k, label]) =>
+        `<button onclick="pickSavStatus('${ticketId}','${k}')"><span class="dot" style="background:${SAV_STATUT_COLOR[k]}"></span>${label}</button>`).join('');
+      const r = e.currentTarget.getBoundingClientRect();
+      savMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 195)) + 'px';
+      savMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 220) + 'px';
+      savMenuEl.classList.add('open');
+    };
+    window.pickSavStatus = async (ticketId, statut) => {
+      if (savMenuEl) savMenuEl.classList.remove('open');
+      const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
+      if (!t || t.statut === statut) return;
+      t.statut = statut;
+      t.date_resolution = statut === 'resolu' ? new Date().toISOString() : null;
       DEVIS.date_modification = new Date().toISOString();
       await SS.saveDevis(DEVIS);
       renderSav();
