@@ -59,7 +59,7 @@ npm install -g wrangler
 wrangler d1 execute racine-db --local --file=./schema.sql
 wrangler pages dev . --d1=DB=racine-db --binding RACINE_PASSWORD=test
 ```
-`wrangler.toml` (fourni à la racine du projet) déclare déjà le binding D1 attendu (`DB` → `racine-db`) pour que `wrangler pages dev` le détecte automatiquement.
+⚠️ Ne PAS ajouter de fichier `wrangler.toml` à la racine du dossier déployé sur Cloudflare Pages : sa seule présence fait basculer le projet vers le système "Workers Builds" de Cloudflare, ce qui casse le déploiement classique en Production déclenché par un simple push GitHub (vécu en production sur ce projet — cause de plusieurs heures de déploiements "No deployment available"). Si tu veux tester avec `wrangler pages dev` en local un jour, crée ce fichier temporairement dans une copie du dossier, jamais dans celui poussé sur GitHub.
 
 ## Checklist de test manuel après déploiement
 Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) — à vérifier à la main après chaque déploiement significatif :
