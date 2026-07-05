@@ -138,21 +138,36 @@
 
   // ── Météo chantier (Open-Meteo, gratuit, sans clé — géocodage par ville + prévision 16j) ──
   const _geoCache = {};
-  async function geocodeVille(ville) {
-    if (!ville) return null;
-    const key = ville.trim().toLowerCase();
-    if (!key) return null;
+  // Géocode en préférant le CODE POSTAL quand il est disponible : contrairement au nom de ville
+  // (saisie libre, fautes d'orthographe/variantes possibles — ex: "Chapelle-les-Herlaimont" au lieu
+  // du vrai "Chapelle-lez-Herlaimont", qui fait échouer toute recherche par nom), un code postal belge
+  // est sans ambiguïté. zippopotam.us est gratuit, sans clé, et couvre les codes postaux belges.
+  async function geocodeVille(ville, codePostal) {
+    if (!ville && !codePostal) return null;
+    const key = codePostal ? 'cp:' + String(codePostal).trim() : 'v:' + String(ville).trim().toLowerCase();
     let loc = _geoCache[key];
-    if (loc === undefined) {
+    if (loc !== undefined) return loc;
+    loc = null;
+    if (codePostal) {
+      try {
+        const r = await fetch('https://api.zippopotam.us/BE/' + encodeURIComponent(String(codePostal).trim()));
+        if (r.ok) {
+          const data = await r.json();
+          const p = data.places && data.places[0];
+          if (p) loc = { latitude: parseFloat(p.latitude), longitude: parseFloat(p.longitude) };
+        }
+      } catch (e) {}
+    }
+    if (!loc && ville) {
       try {
         // Le paramètre correct de l'API est "countryCode", pas "country" — avec "country=BE" le filtre
         // était silencieusement ignoré et une ville homonyme plus peuplée à l'étranger (ex: Waterloo,
         // USA/Canada) pouvait passer devant la vraie ville belge. Vérifié directement sur l'API.
         const geo = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&countryCode=BE&count=1').then(r => r.json());
         loc = (geo.results && geo.results[0]) || null;
-      } catch (e) { loc = null; }
-      _geoCache[key] = loc;
+      } catch (e) {}
     }
+    _geoCache[key] = loc;
     return loc;
   }
   function weatherLabel(code) {
@@ -166,12 +181,12 @@
     if ([95, 96, 99].includes(code)) return 'Orage';
     return 'Météo incertaine';
   }
-  async function fetchWeather(ville, dateStr) {
-    if (!ville || !dateStr) return null;
+  async function fetchWeather(ville, dateStr, codePostal) {
+    if ((!ville && !codePostal) || !dateStr) return null;
     const days = Math.round((new Date(dateStr) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
     if (days < 0 || days > 15) return null; // hors couverture de la prévision gratuite (16 jours)
     try {
-      const loc = await geocodeVille(ville);
+      const loc = await geocodeVille(ville, codePostal);
       if (!loc) return null;
       const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBrussels&forecast_days=16`).then(r => r.json());
       const idx = (fc.daily && fc.daily.time || []).indexOf(dateStr);
