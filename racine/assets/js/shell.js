@@ -89,7 +89,11 @@
   }
 
   // ---------- couleurs d'espace ----------
-  var SPACE_PALETTE = ['#34d399', '#22d3ee', '#a78bfa', '#f472b6', '#fbbf24', '#fb7185', '#60a5fa', '#a3e635'];
+  var SPACE_PALETTE = [
+    '#34d399', '#2dd4bf', '#22d3ee', '#38bdf8', '#60a5fa', '#818cf8',
+    '#a78bfa', '#c084fc', '#e879f9', '#f472b6', '#fb7185', '#f87171',
+    '#fb923c', '#fbbf24', '#facc15', '#a3e635',
+  ];
 
   function hexToRgb(hex) {
     var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
