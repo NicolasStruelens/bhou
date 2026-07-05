@@ -51,12 +51,9 @@ input, textarea, select { font-family: inherit; }
   text-align: center;
 }
 
-.login-card .brand-dot {
-  width: 14px; height: 14px;
-  margin: 0 auto var(--sp-4);
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: var(--glow-accent);
+.login-card .brand-lg {
+  padding-top: 20px;
+  margin-bottom: var(--sp-2);
 }
 
 .login-card h1 {
@@ -142,9 +139,10 @@ input, textarea, select { font-family: inherit; }
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-3);
+  position: relative;
+  padding-top: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
   font-size: 1.4rem;
@@ -166,12 +164,62 @@ input, textarea, select { font-family: inherit; }
   0%, 100% { filter: drop-shadow(0 0 10px rgba(52,211,153,0.55)) drop-shadow(0 0 22px rgba(34,211,238,0.25)); }
   50% { filter: drop-shadow(0 0 16px rgba(34,211,238,0.65)) drop-shadow(0 0 30px rgba(52,211,153,0.35)); }
 }
-.brand .dot {
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: var(--glow-accent);
-  animation: pulse 2.2s ease-in-out infinite;
+
+/* ---------- Logo "neurones du titre" : synapses animées au-dessus de Racine ---------- */
+
+.brand-neurons {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 15px;
+  overflow: visible;
+  pointer-events: none;
+}
+.brand-lg .brand-neurons { height: 22px; }
+
+.bn-link {
+  fill: none;
+  stroke: rgba(52, 211, 153, 0.3);
+  stroke-width: 1;
+}
+.bn-link-cross { stroke: rgba(34, 211, 238, 0.14); }
+
+.bn-pulse {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 5 40;
+  animation: bnFlow 2.8s linear infinite;
+}
+.bn-pulse.c1 { stroke: var(--accent); filter: drop-shadow(0 0 3px rgba(52,211,153,0.9)); animation-delay: 0s; }
+.bn-pulse.c2 { stroke: var(--accent-2); filter: drop-shadow(0 0 3px rgba(34,211,238,0.9)); animation-delay: -0.9s; }
+.bn-pulse.c3 { stroke: var(--gold); filter: drop-shadow(0 0 3px rgba(255,210,63,0.9)); animation-delay: -1.8s; }
+@keyframes bnFlow {
+  0% { stroke-dashoffset: 45; opacity: 0; }
+  8%, 92% { opacity: 1; }
+  100% { stroke-dashoffset: -45; opacity: 0; }
+}
+
+.bn-node {
+  fill: var(--accent-2);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bnNodePulse 2.4s ease-in-out infinite;
+}
+.bn-node.n1 { animation-delay: 0s; }
+.bn-node.n2 { animation-delay: -0.4s; }
+.bn-node.n3 { animation-delay: -0.8s; }
+.bn-node.n4 { animation-delay: -1.2s; }
+.bn-node.n5 { animation-delay: -1.6s; }
+.bn-node.n6 { animation-delay: -2s; }
+@keyframes bnNodePulse {
+  0%, 100% { opacity: 0.65; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bn-pulse, .bn-node, .brand .brand-text { animation: none !important; }
 }
 
 .topbar-right {
@@ -1199,8 +1247,22 @@ select.field { cursor: pointer; }
 
 @media (max-width: 720px) {
   .topbar { flex-direction: column; gap: var(--sp-3); align-items: stretch; }
-  .tabs { justify-content: center; flex-wrap: wrap; }
-  .topbar-right { justify-content: center; flex-wrap: wrap; }
+  /* .topbar passe en colonne ci-dessus : sans ça, l'axe transversal devient la largeur
+     et .brand (inline-flex, non contraint) s'étire sur toute la largeur du topbar,
+     étalant les neurones du logo au lieu de les garder resserrés au-dessus du texte */
+  .brand { align-self: flex-start; }
+  /* barres d'onglets/icônes en défilement horizontal plutôt qu'en plusieurs lignes —
+     plus clair sur iPhone qu'un empilement de rangées qui pousse le contenu vers le bas */
+  .tabs, .topbar-right {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .tabs::-webkit-scrollbar, .topbar-right::-webkit-scrollbar { display: none; }
+  .tab, .theme-toggle, .topbar-right .btn-ghost { flex-shrink: 0; }
   main {
     padding-top: var(--sp-4);
     padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
@@ -1312,8 +1374,57 @@ select.field { cursor: pointer; }
   font-size: 0.78rem;
 }
 
+.history-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+.history-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.82rem;
+}
+.history-item:last-child { border-bottom: none; }
+.history-item .history-date {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+}
+.history-item .history-title { color: var(--text); margin: 2px 0; }
+.history-item button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent-2);
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  margin-top: 4px;
+}
+.history-empty { padding: 10px; color: var(--text-faint); font-size: 0.8rem; }
+
+.modal-note code {
+  background: var(--bg-panel-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+}
+.quick-capture-info {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: var(--bg-panel-2);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  margin: var(--sp-2) 0;
+  word-break: break-all;
+}
+
 /* ---------- Vue Aujourd'hui ---------- */
 
+.morning-review-label { display: flex; margin-bottom: var(--sp-4); }
 .today-section { margin-bottom: var(--sp-5); }
 .today-section h3 { margin: 0 0 var(--sp-2); font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
 .today-row {
