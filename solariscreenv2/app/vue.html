@@ -30,6 +30,8 @@
     .client-hero .sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
     .client-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
     .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+    .client-weather { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .client-weather svg { color: var(--accent-2); flex: none; }
     .contact-item {
       display: flex; align-items: center; gap: var(--sp-1);
       border: 1px solid var(--border); border-radius: var(--r-sm); padding-right: var(--sp-1);
@@ -558,7 +560,7 @@
     const SS = window.SS;
     const { computeDevis, totalSurface } = window.SSCalc;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather, compressImage } = window.SSUI;
+    const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather, fetchCurrentWeather, weatherIconName, compressImage } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
@@ -684,7 +686,18 @@
           ${contactItem(icon('filetext', 18), 'Email', cl.email, cl.email ? 'mailto:' + mailtoList(cl.email) : null)}
           ${contactItem(icon('grid', 18), 'Adresse', adresseTxt, mapsUrl)}
         </div>
+        <div class="client-weather hidden" id="clientWeather" title="Météo actuelle chez le client"></div>
         <button class="btn btn-ghost btn-sm mt-3" onclick="openRelance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Relancer le client</button>`;
+
+      // Météo actuelle chez le client (ambiance, jamais bloquant) — ville/code postal du devis.
+      if (adr.ville || adr.code_postal) {
+        fetchCurrentWeather(adr.ville || '', adr.code_postal).then(w => {
+          const box = el('clientWeather');
+          if (!w || !box) return;
+          box.innerHTML = `${icon(weatherIconName(w.code), 15)} <span>${Math.round(w.temp)}° · ${esc(w.label)}${adr.ville ? ' à ' + esc(adr.ville) : ''}</span>`;
+          box.classList.remove('hidden');
+        });
+      }
 
       // ── Ouvertures ──
       PHOTOS = [];
