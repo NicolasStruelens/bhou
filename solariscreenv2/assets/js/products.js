@@ -11,6 +11,15 @@
   };
   // Libellés conservés pour compat d'affichage sur d'anciens devis (plus proposés à la création)
   const ITEM_TYPES_LEGACY = { store_banne: 'Store banne', pergola: 'Pergola' };
+  // Suggestions pour Emplacement / Étage (autocomplétion — champs libres, pas des listes fermées).
+  // Gain de temps demandé par Nicolas : les valeurs les plus fréquentes reviennent devis après devis.
+  const EMPLACEMENTS_SUGGESTIONS = [
+    'Terrasse', 'Terrasse avant', 'Terrasse arrière', 'Façade avant', 'Façade arrière', 'Façade latérale',
+    'Salon', 'Salle à manger', 'Cuisine', 'Chambre', 'Chambre enfant', 'Bureau', 'Véranda', 'Garage',
+    "Porte d'entrée", 'Porte de garage', 'Fenêtre', 'Fenêtre salon', 'Fenêtre chambre', 'Fenêtre enfant',
+    'Côté gauche', 'Côté droit', 'Maison', 'Appartement',
+  ];
+  const ETAGES_SUGGESTIONS = ['Sous-sol', 'RDC', '1er', '2e', '3e', '4e', 'Combles'];
   const MOTEURS = ['', 'Manuel', 'Somfy IO', 'Somfy RTS', 'Somfy Solaire', 'Filaire'];
   // Références réelles du catalogue Harol (autocomplétion — champ libre, pas une liste fermée)
   const MODELES_CATALOGUE = ['Coolscreen 8', 'VR150', 'BX270', 'LUX'];
@@ -88,9 +97,11 @@
   }
 
   // ── Configurateur VR150 Pure (Volet roulant extérieur, fiche prix Harol 06/2026) ──
-  // Toujours en commande électrique, une seule lame (ALU242) — pas de variantes produit
-  // comme Coolscreen 8. Couleur caisson/glissières : même palette "Pure" 10 RAL que
-  // Coolscreen 8 (COULEURS_RAL_PURE) — confirmé identique par la fiche VR150 Pure.
+  // Toujours en commande électrique. Couleur caisson/glissières : même palette "Pure" 10 RAL
+  // que Coolscreen 8 (COULEURS_RAL_PURE) — confirmé identique par la fiche VR150 Pure.
+  // Type de lame : plusieurs profils possibles (vu sur le vrai portail de commande Harol de
+  // Nicolas, pas seulement ALU242 comme supposé initialement) — liste exacte de son portail.
+  const VR_LAMES = ['PVC37', 'Midi', 'alu35', 'alu237', 'alu242', 'alu242s'];
   const VR_CAISSONS = [
     { taille: '137', hauteur_max: 1110 },
     { taille: '150', hauteur_max: 1370 },
@@ -155,13 +166,13 @@
   }
 
   window.SSProducts = {
-    ITEM_TYPES, ITEM_TYPES_LEGACY, MOTEURS, MODELES_CATALOGUE,
+    ITEM_TYPES, ITEM_TYPES_LEGACY, EMPLACEMENTS_SUGGESTIONS, ETAGES_SUGGESTIONS, MOTEURS, MODELES_CATALOGUE,
     COULEURS_RAL, COULEURS_RAL_PURE, TOILES_CATALOGUE,
     CS8_VARIANTES, CS8_COMBINAISONS, CS8_COLLECTIONS, CS8_MOTEURS,
     CS8_CAISSON_MESURES_STANDARD, CS8_CAISSON_MESURES_GRAND, CS8_CAISSON_FORMES, CS8_COLMATAGE,
     caissonMesuresFor,
     TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
-    VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, vrHauteurMaxFor,
+    VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, VR_LAMES, vrHauteurMaxFor,
     CATALOG_OPTIONS,
     RAL_HEX, hexForRalLabel,
   };
