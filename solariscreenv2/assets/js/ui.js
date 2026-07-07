@@ -133,6 +133,7 @@
       client_accepted: !!d.client_accepted,
       review_views: d.review_views || 0,
       sav_tickets: d.sav_tickets || [],
+      item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
     };
   }
 
@@ -194,6 +195,44 @@
       return { code: fc.daily.weathercode[idx], tmax: fc.daily.temperature_2m_max[idx], tmin: fc.daily.temperature_2m_min[idx], label: weatherLabel(fc.daily.weathercode[idx]) };
     } catch (e) { return null; }
   }
+  // Nom d'icône SVG (voir ICONS) correspondant à un code météo WMO.
+  function weatherIconName(code) {
+    if (code === 0 || code === 1) return 'sun';
+    if ([95, 96, 99].includes(code)) return 'storm';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow';
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rain';
+    return 'cloud'; // 2,3 (nuageux) + 45,48 (brouillard) + repli
+  }
+  // Météo ACTUELLE (conditions du moment) pour une ville/code postal — pour la fiche devis.
+  async function fetchCurrentWeather(ville, codePostal) {
+    if (!ville && !codePostal) return null;
+    try {
+      const loc = await geocodeVille(ville, codePostal);
+      if (!loc) return null;
+      const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code&timezone=auto`).then(r => r.json());
+      const c = fc && fc.current;
+      if (!c) return null;
+      return { code: c.weather_code, temp: c.temperature_2m, label: weatherLabel(c.weather_code) };
+    } catch (e) { return null; }
+  }
+  // Météo ACTUELLE à partir de coordonnées GPS (géolocalisation navigateur) — pour le dashboard.
+  async function fetchCurrentWeatherByCoords(latitude, longitude) {
+    try {
+      const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`).then(r => r.json());
+      const c = fc && fc.current;
+      if (!c) return null;
+      return { code: c.weather_code, temp: c.temperature_2m, label: weatherLabel(c.weather_code) };
+    } catch (e) { return null; }
+  }
+  // Géocodage inverse (coordonnées → nom de ville) via BigDataCloud (gratuit, sans clé, CORS ok).
+  async function reverseGeocodeCity(latitude, longitude) {
+    try {
+      const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=fr`);
+      if (!r.ok) return null;
+      const d = await r.json();
+      return d.city || d.locality || d.principalSubdivision || null;
+    } catch (e) { return null; }
+  }
 
   // Clé d'appariement client (même normalisation que clients.html) — centralisée ici
   // pour que dashboard/vue puissent retrouver une fiche CRM sans la dupliquer.
@@ -252,6 +291,12 @@
     calendar:   '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
     hammer:     '<path d="M14.5 12.5 22 20"/><path d="m18 4-8.5 8.5"/><path d="M6.5 6.5 2 11l5 5 4.5-4.5"/><path d="m2 11 4-4"/>',
     pin:        '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+    sparkle:    '<path d="M12 2.6l1.7 4.9a1 1 0 0 0 .6.6l4.9 1.7-4.9 1.7a1 1 0 0 0-.6.6L12 17l-1.7-4.9a1 1 0 0 0-.6-.6L4.8 9.8l4.9-1.7a1 1 0 0 0 .6-.6z"/><path d="M19 15l.6 1.7 1.7.6-1.7.6L19 19.6l-.6-1.7-1.7-.6 1.7-.6z"/>',
+    sun:        '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+    cloud:      '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+    rain:       '<line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>',
+    snow:       '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="8" y1="20" x2="8.01" y2="20"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="12" y1="22" x2="12.01" y2="22"/><line x1="16" y1="16" x2="16.01" y2="16"/><line x1="16" y1="20" x2="16.01" y2="20"/>',
+    storm:      '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"/><polyline points="13 11 9 17 15 17 11 23"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -269,6 +314,11 @@
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
     fetchWeather: fetchWeather,
+    fetchCurrentWeather: fetchCurrentWeather,
+    fetchCurrentWeatherByCoords: fetchCurrentWeatherByCoords,
+    reverseGeocodeCity: reverseGeocodeCity,
+    weatherLabel: weatherLabel,
+    weatherIconName: weatherIconName,
     geocodeVille: geocodeVille,
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
