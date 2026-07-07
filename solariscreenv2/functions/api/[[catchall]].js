@@ -174,7 +174,8 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.client_accepted') AS INTEGER), 0) AS client_accepted,
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
-               json_extract(data, '$.client') AS client_json
+               json_extract(data, '$.client') AS client_json,
+               json_extract(data, '$.items') AS items_json
         FROM devis ORDER BY date_modification DESC
       `).all();
       // client_json → objet client (coordonnées complètes pour le CRM)
@@ -185,8 +186,12 @@ export async function onRequest(context) {
         const checklist = safeParse(r.checklist_json);
         const review_views = (safeParse(r.review_views_json) || []).length;
         const sav_tickets = safeParse(r.sav_tickets_json) || [];
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets };
+        // item_types → juste les types de produits présents (pour les badges dashboard), pas les
+        // items complets (prix/mesures) qui alourdiraient la liste pour rien.
+        const items = safeParse(r.items_json) || [];
+        const item_types = [...new Set(items.map(i => i.type).filter(Boolean))];
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.items_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types };
       });
       return json({ ok: true, data });
     }
