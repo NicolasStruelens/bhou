@@ -384,6 +384,16 @@
       }
     }
 
+    // ── Nom de fichier suggéré pour l'export PDF ──
+    // Chrome/Edge proposent le <title> de la page comme nom de fichier dans "Enregistrer au format PDF".
+    const PRODUIT_LABEL = { screen: 'Screen(s)', volet_roulant: 'Volet(s)', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier(s) de volet' };
+    function updateDocTitle(d) {
+      const cl = d.client || {};
+      const types = [...new Set((d.items || []).map(it => it.type))].map(t => PRODUIT_LABEL[t] || t);
+      const parts = ['SolariScreen', types.join(' + ') || 'Devis', [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client', d.id];
+      document.title = parts.filter(Boolean).join(' - ');
+    }
+
     // ── Chargement ──
     (async () => {
       const id = qp('id');
@@ -392,6 +402,7 @@
       if (!DEVIS) { el('paper').innerHTML = '<p style="color:var(--danger);">Devis introuvable (#' + esc(id) + ').</p>'; return; }
       el('editLink').href = 'simulateur.html?id=' + id;
       CALC = getCalc(DEVIS);
+      updateDocTitle(DEVIS);
       renderPaper();
       renderPhotos(); // affiche aussi les annexes CGV / attestation TVA dès le chargement
       renderSignatureUI();

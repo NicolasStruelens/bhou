@@ -623,6 +623,11 @@
       });
     }
 
+    // Le champ email accepte plusieurs adresses séparées par une virgule (input type="email" multiple) —
+    // normalise "a@x.com, b@y.com" en "a@x.com,b@y.com" pour un mailto: multi-destinataires conforme.
+    function mailtoList(emailStr) {
+      return String(emailStr || '').split(',').map(s => s.trim()).filter(Boolean).join(',');
+    }
     function contactItem(iconSvg, k, v, href) {
       if (!v) return '';
       const inner = `${iconSvg}<div><div class="ci-k">${k}</div><div class="ci-v">${esc(v)}</div></div>`;
@@ -676,7 +681,7 @@
         </div>
         <div class="contact-grid">
           ${contactItem(icon('message', 18), 'Téléphone', cl.telephone, cl.telephone ? 'tel:' + String(cl.telephone).replace(/\s+/g, '') : null)}
-          ${contactItem(icon('filetext', 18), 'Email', cl.email, cl.email ? 'mailto:' + cl.email : null)}
+          ${contactItem(icon('filetext', 18), 'Email', cl.email, cl.email ? 'mailto:' + mailtoList(cl.email) : null)}
           ${contactItem(icon('grid', 18), 'Adresse', adresseTxt, mapsUrl)}
         </div>
         <button class="btn btn-ghost btn-sm mt-3" onclick="openRelance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Relancer le client</button>`;
@@ -719,6 +724,7 @@
             ${it.etage ? `<div class="spec"><div class="s-k">Étage</div><div class="s-v">${esc(it.etage)}</div></div>` : ''}
             ${it.couleur ? `<div class="spec"><div class="s-k">Couleur${it.couleur_lame ? ' caisson' : ''}</div><div class="s-v">${esc(it.couleur)}</div></div>` : ''}
             ${it.couleur_lame ? `<div class="spec"><div class="s-k">Couleur lame finale</div><div class="s-v">${esc(it.couleur_lame)}</div></div>` : ''}
+            ${it.lame_type ? `<div class="spec"><div class="s-k">Type de lame</div><div class="s-v">${esc(it.lame_type)}</div></div>` : ''}
             ${it.toile ? `<div class="spec"><div class="s-k">Toile</div><div class="s-v">${esc(it.toile)}</div></div>` : ''}
             ${it.collection ? `<div class="spec"><div class="s-k">Collection toile</div><div class="s-v">${esc(it.collection)}</div></div>` : ''}
             ${it.toile_num ? `<div class="spec"><div class="s-k">N° de toile</div><div class="s-v">${esc(it.toile_num)}</div></div>` : ''}
@@ -1164,7 +1170,7 @@
       const getText = () => el('relanceText').value;
       el('btnRelanceEmail').onclick = () => {
         if (!cl.email) { toast("Pas d'email pour ce client", 'warn'); return; }
-        location.href = 'mailto:' + cl.email + '?subject=' + encodeURIComponent('SolariScreen — devis ' + DEVIS.id) + '&body=' + encodeURIComponent(getText());
+        location.href = 'mailto:' + mailtoList(cl.email) + '?subject=' + encodeURIComponent('SolariScreen — devis ' + DEVIS.id) + '&body=' + encodeURIComponent(getText());
       };
       el('btnRelanceSms').onclick = () => {
         if (!cl.telephone) { toast('Pas de téléphone pour ce client', 'warn'); return; }
