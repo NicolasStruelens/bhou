@@ -69,6 +69,14 @@
     .field-check { display: flex; align-items: flex-end; padding-bottom: 0.55rem; }
     .field-check label { display: flex; align-items: center; gap: 0.4rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; user-select: none; }
     .field-readonly { opacity: 0.7; cursor: not-allowed; background: var(--surface-2); }
+
+    /* ── Recherche client existant (répertoire CRM + anciens devis) ── */
+    .client-hit { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: var(--sp-2); cursor: pointer; transition: border-color var(--t-fast); }
+    .client-hit:hover { border-color: var(--accent); }
+    .client-hit .avatar { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: var(--fs-xs); background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+    .client-hit .ci-main { min-width: 0; flex: 1; }
+    .client-hit .ci-name { font-weight: 600; }
+    .client-hit .ci-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); }
   </style>
 </head>
 <body>
@@ -98,7 +106,12 @@
       <section class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Client</span></div>
         <div class="section-body">
-          <div class="grid grid-2">
+          <div class="field hidden" id="clientSearchField">
+            <label class="label" for="clientSearch">Rechercher un client existant</label>
+            <input class="input" id="clientSearch" placeholder="Nom, prénom, téléphone…" oninput="renderClientHits()" autocomplete="off">
+          </div>
+          <div id="clientHits"></div>
+          <div class="grid grid-2 mt-2">
             <div class="field"><label class="label required" for="clientPrenom">Prénom</label><input class="input" id="clientPrenom" oninput="ui_recalc()"></div>
             <div class="field"><label class="label required" for="clientNom">Nom</label><input class="input" id="clientNom" oninput="ui_recalc()"></div>
             <div class="field"><label class="label" for="clientTelephone">Téléphone</label><input class="input" id="clientTelephone" placeholder="+32 …"></div>
@@ -303,7 +316,7 @@
     const { computeDevis, totalSurface } = window.SSCalc;
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon } = window.SSUI;
+    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon, clientKeyOf, jsAttr } = window.SSUI;
     window.SSNav.mount(document.getElementById('quickNav'));
 
     mountThemeToggle(document.getElementById('themeToggle'));
@@ -721,6 +734,55 @@
       };
     }
 
+    // ── Recherche client existant (répertoire CRM + anciens devis, comme Mode Terrain) ──
+    // Évite de devoir passer par clients.html pour réutiliser les coordonnées d'un client connu.
+    let CLIENT_DIRECTORY = [];
+    async function buildClientDirectory() {
+      const [clients, devisList] = await Promise.all([SS.listClients(), SS.listDevis()]);
+      const map = new Map();
+      (devisList || []).forEach(d => {
+        const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
+        const nom = d.client_nom || (d.client && d.client.nom) || '';
+        if (!prenom && !nom) return;
+        const key = clientKeyOf(prenom, nom);
+        if (!map.has(key)) map.set(key, { key, prenom, nom, telephone: '', email: '', adresse: {} });
+        const e = map.get(key);
+        const c = d.client || {};
+        if (c.telephone && !e.telephone) e.telephone = c.telephone;
+        if (c.email && !e.email) e.email = c.email;
+        if (c.adresse && (c.adresse.rue || c.adresse.ville) && !e.adresse.rue && !e.adresse.ville) e.adresse = c.adresse;
+      });
+      (clients || []).forEach(o => {
+        const e = map.get(o.key) || { key: o.key, prenom: o.prenom, nom: o.nom, telephone: '', email: '', adresse: {} };
+        e.prenom = o.prenom || e.prenom; e.nom = o.nom || e.nom;
+        e.telephone = o.telephone || e.telephone; e.email = o.email || e.email;
+        if (o.adresse && (o.adresse.rue || o.adresse.ville)) e.adresse = o.adresse;
+        map.set(o.key, e);
+      });
+      return [...map.values()];
+    }
+    window.renderClientHits = function () {
+      const q = getVal('clientSearch').trim().toLowerCase();
+      const host = el('clientHits');
+      if (!q) { host.innerHTML = ''; return; }
+      const rows = CLIENT_DIRECTORY.filter(c => `${c.prenom} ${c.nom} ${c.telephone} ${c.email}`.toLowerCase().includes(q)).slice(0, 6);
+      host.innerHTML = rows.length ? rows.map(c => `
+        <div class="client-hit" onclick="pickClient(${jsAttr(c.key)})">
+          <div class="avatar">${(((c.prenom[0] || '') + (c.nom[0] || '')).toUpperCase())}</div>
+          <div class="ci-main"><div class="ci-name">${c.prenom} ${c.nom}</div><div class="ci-sub">${c.telephone || c.email || '—'}</div></div>
+        </div>`).join('') : '<div class="text-muted" style="padding:0.4rem 0;font-size:var(--fs-xs);">Aucun résultat — remplis les champs ci-dessous pour un nouveau client.</div>';
+    };
+    window.pickClient = function (key) {
+      const c = CLIENT_DIRECTORY.find(x => x.key === key); if (!c) return;
+      setVal('clientPrenom', c.prenom); setVal('clientNom', c.nom);
+      setVal('clientTelephone', c.telephone); setVal('clientEmail', c.email);
+      setVal('clientRue', c.adresse && c.adresse.rue); setVal('clientNumero', c.adresse && c.adresse.numero);
+      setVal('clientCodePostal', c.adresse && c.adresse.code_postal); setVal('clientVille', c.adresse && c.adresse.ville);
+      setVal('clientSearch', ''); el('clientHits').innerHTML = '';
+      toast('Client pré-rempli ✓', 'ok');
+      ui_recalc();
+    };
+
     // ── SAVE ──
     window.saveDevis = async () => {
       const client = collectClient();
@@ -822,8 +884,13 @@
     fillCatalogOptionsSelect();
 
     (async () => {
-      if (qp('id')) await loadExisting(qp('id'));
-      else applyPrefillClient();
+      if (qp('id')) {
+        await loadExisting(qp('id'));
+      } else {
+        applyPrefillClient();
+        el('clientSearchField').classList.remove('hidden');
+        CLIENT_DIRECTORY = await buildClientDirectory();
+      }
       if (state.items.length === 0) addItem();
       onSellerChange();
       ui_recalc();
