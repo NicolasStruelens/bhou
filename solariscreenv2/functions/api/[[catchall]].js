@@ -175,7 +175,7 @@ export async function onRequest(context) {
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                json_extract(data, '$.client') AS client_json,
-               json_extract(data, '$.items') AS items_json
+               json_extract(data, '$.item_types') AS item_types_json
         FROM devis ORDER BY date_modification DESC
       `).all();
       // client_json → objet client (coordonnées complètes pour le CRM)
@@ -186,11 +186,11 @@ export async function onRequest(context) {
         const checklist = safeParse(r.checklist_json);
         const review_views = (safeParse(r.review_views_json) || []).length;
         const sav_tickets = safeParse(r.sav_tickets_json) || [];
-        // item_types → juste les types de produits présents (pour les badges dashboard), pas les
-        // items complets (prix/mesures) qui alourdiraient la liste pour rien.
-        const items = safeParse(r.items_json) || [];
-        const item_types = [...new Set(items.map(i => i.type).filter(Boolean))];
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.items_json;
+        // item_types (types de produits présents) est DÉNORMALISÉ dans le blob à l'écriture
+        // (voir upsertDevis) — on n'extrait donc que ce petit tableau, jamais les items complets
+        // qui contiennent les PHOTOS base64 (celles-ci alourdiraient énormément la liste).
+        const item_types = safeParse(r.item_types_json) || [];
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json;
         return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types };
       });
       return json({ ok: true, data });
@@ -453,7 +453,10 @@ async function upsertDevis(db, devis) {
   const now = new Date().toISOString();
   const photosCount = (devis.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
   const commentsCount = (devis.comments || []).length;
-  const dataToStore = { ...devis, photos_count: photosCount, comments_count: commentsCount };
+  // Dénormalise les types de produits présents (petit tableau de chaînes) pour que la liste
+  // /api/devis n'ait pas à extraire les items complets (avec leurs photos base64) juste pour ça.
+  const itemTypes = [...new Set((devis.items || []).map(i => i.type).filter(Boolean))];
+  const dataToStore = { ...devis, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes };
   await db.prepare(`
     INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
