@@ -30,6 +30,7 @@
 
   const PAGES = [
     { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
+    { href: 'rdv.html', label: 'Demandes de RDV', icon: 'calendar' },
     { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
     { href: 'factures.html', label: 'Facturation', icon: 'filetext' },
     { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },

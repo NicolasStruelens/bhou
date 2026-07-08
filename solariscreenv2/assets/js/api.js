@@ -8,6 +8,7 @@
   const LS_DEVIS = 'ss_devis_cache';
   const LS_CLIENTS = 'ss_clients_cache';
   const LS_FACTURES = 'ss_factures_cache';
+  const LS_RDV = 'ss_rdv_cache';
 
   async function req(path, options) {
     const r = await fetch(BASE + path, Object.assign({
@@ -190,6 +191,42 @@
     async listConnections() {
       try { return (await req('/connections')).data; }
       catch (e) { return []; }
+    },
+
+    // ── RDV (demandes de visite / leads avant devis) ──
+    async listRdv() {
+      try { return (await req('/rdv')).data; }
+      catch (e) { console.warn('[SS] listRdv → cache local:', e.message); return localRdv.list(); }
+    },
+    async getRdv(id) {
+      try { return (await req('/rdv/' + encodeURIComponent(id))).data; }
+      catch (e) { return localRdv.get(id); }
+    },
+    async saveRdv(rdv) {
+      localRdv.save(rdv);
+      try { return await req('/rdv', { method: 'POST', body: JSON.stringify(rdv) }); }
+      catch (e) { console.warn('[SS] saveRdv hors-ligne:', e.message); return { ok: true, id: rdv.id, offline: true, error: e.message }; }
+    },
+    async deleteRdv(id) {
+      localRdv.delete(id);
+      try { return await req('/rdv/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) { return { ok: true, offline: true }; }
+    },
+  };
+
+  const localRdv = {
+    list: function () { try { return JSON.parse(localStorage.getItem(LS_RDV) || '[]'); } catch (e) { return []; } },
+    get: function (id) { return localRdv.list().find(function (r) { return r.id === id; }) || null; },
+    save: function (rdv) {
+      try {
+        const all = localRdv.list();
+        const i = all.findIndex(function (r) { return r.id === rdv.id; });
+        if (i !== -1) all[i] = rdv; else all.unshift(rdv);
+        localStorage.setItem(LS_RDV, JSON.stringify(all));
+      } catch (e) { console.warn('[SS] cache RDV plein:', e.message); }
+    },
+    delete: function (id) {
+      localStorage.setItem(LS_RDV, JSON.stringify(localRdv.list().filter(function (r) { return r.id !== id; })));
     },
   };
 
