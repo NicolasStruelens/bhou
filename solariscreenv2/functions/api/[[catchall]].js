@@ -322,6 +322,31 @@ export async function onRequest(context) {
       if (method === 'DELETE') { await env.DB.prepare('DELETE FROM factures WHERE id = ?').bind(id).run(); return json({ ok: true }); }
     }
 
+    // ══════════ RDV (demandes de visite / leads avant devis) ══════════
+    if (path === '/api/rdv' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT data FROM rdv ORDER BY date_modification DESC').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/rdv' && method === 'POST') {
+      const r = await request.json();
+      if (!r.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      await upsertRdv(env.DB, r);
+      return json({ ok: true, id: r.id });
+    }
+    m = path.match(/^\/api\/rdv\/([^/]+)$/);
+    if (m) {
+      const id = decodeURIComponent(m[1]);
+      if (method === 'GET') {
+        const row = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(id).first();
+        if (!row) return json({ ok: false, error: 'RDV introuvable' }, 404);
+        return json({ ok: true, data: JSON.parse(row.data) });
+      }
+      if (method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM rdv WHERE id = ?').bind(id).run();
+        return json({ ok: true });
+      }
+    }
+
     // ══════════ STATS ══════════
     if (path === '/api/stats' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT data, statut, total_ttc, date_creation FROM devis ORDER BY date_creation ASC').all();
@@ -446,6 +471,19 @@ async function upsertClient(db, c) {
     ON CONFLICT(key) DO UPDATE SET nom=excluded.nom, prenom=excluded.prenom,
       date_modification=excluded.date_modification, data=excluded.data
   `).bind(c.key, c.nom || '', c.prenom || '', c.date_modification || now, JSON.stringify(c)).run();
+}
+
+async function upsertRdv(db, r) {
+  const now = new Date().toISOString();
+  const cl = r.client || {};
+  await db.prepare(`
+    INSERT INTO rdv (id, client_nom, client_prenom, statut, assigned_to, date_rdv, devis_id, date_creation, date_modification, data)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET client_nom=excluded.client_nom, client_prenom=excluded.client_prenom,
+      statut=excluded.statut, assigned_to=excluded.assigned_to, date_rdv=excluded.date_rdv,
+      devis_id=excluded.devis_id, date_modification=excluded.date_modification, data=excluded.data
+  `).bind(r.id, cl.nom || '', cl.prenom || '', r.statut || 'nouveau', r.assigned_to || null,
+    r.date_rdv || null, r.devis_id || null, r.date_creation || now, r.date_modification || now, JSON.stringify(r)).run();
 }
 
 async function upsertFacture(db, f) {
