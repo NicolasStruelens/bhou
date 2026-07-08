@@ -121,9 +121,12 @@
       const rows = (res && res.data) || [];
       if (!rows.length) { connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Aucune connexion enregistrée.</div>'; return; }
       connLogEl.innerHTML = '<div class="conn-log-head">Historique de connexion</div>' + rows.slice(0, 30).map(function (c) {
+        // Durée d'une plage d'utilisation ACTIVE : une pause (navigateur réduit / onglet en
+        // arrière-plan / PC laissé ouvert > SESSION_GAP) coupe la session et en démarre une
+        // nouvelle, donc cet écart début→fin ne reflète que du temps réellement actif.
         const dur = fmtDuration(new Date(c.last_seen) - new Date(c.start_time));
         const label = IDENTITY_LABEL[c.identity] || c.email || 'Inconnu';
-        return '<div class="conn-log-row"><span class="conn-log-who">' + label + '</span><span class="conn-log-when">' + fmtDateTime(c.start_time) + '</span><span class="conn-log-dur">' + dur + '</span></div>';
+        return '<div class="conn-log-row"><span class="conn-log-who">' + label + '</span><span class="conn-log-when">' + fmtDateTime(c.start_time) + '</span><span class="conn-log-dur" title="Temps actif (onglet visible + interactions)">' + dur + '</span></div>';
       }).join('');
     } catch (e2) {
       connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Historique indisponible hors-ligne.</div>';
@@ -133,29 +136,37 @@
   // ── Heartbeat : approxime le temps réellement passé sur l'appli (voir schéma D1 "connections") ──
   (function trackSession() {
     const HEARTBEAT_MS = 30000;
-    const IDLE_LIMIT_MS = 5 * 60000;
+    const IDLE_LIMIT_MS = 2 * 60000;   // au-delà de 2 min sans interaction, on ne compte plus (lecture tolérée)
+    const SESSION_GAP_MS = 90000;      // un trou > 90 s (réduit / arrière-plan / inactif) démarre une NOUVELLE session
     let lastActivity = Date.now();
     ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function (ev) {
       document.addEventListener(ev, function () { lastActivity = Date.now(); }, { passive: true });
     });
+    // Identifiant de session qui se RENOUVELLE après une longue pause : si le dernier battement
+    // remonte à plus de SESSION_GAP (navigateur réduit, autre onglet/appli au premier plan, PC
+    // laissé ouvert…), on ouvre une nouvelle session. Chaque ligne d'historique = une vraie plage
+    // d'utilisation active, au lieu d'un seul long créneau qui engloberait les temps morts.
     function sessionId() {
+      const now = Date.now();
+      const lastBeat = parseInt(sessionStorage.getItem('ss_last_beat') || '0', 10);
       let id = sessionStorage.getItem('ss_session_id');
-      if (!id) { id = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2)); sessionStorage.setItem('ss_session_id', id); }
+      if (!id || (lastBeat && now - lastBeat > SESSION_GAP_MS)) {
+        id = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : now + '-' + Math.random().toString(36).slice(2));
+        sessionStorage.setItem('ss_session_id', id);
+      }
       return id;
     }
-    function sendHeartbeat(useBeacon) {
-      if (Date.now() - lastActivity > IDLE_LIMIT_MS) return; // inactif depuis trop longtemps, ne compte pas
-      const body = JSON.stringify({ session_id: sessionId() });
-      if (useBeacon && navigator.sendBeacon) {
-        navigator.sendBeacon('/api/heartbeat', new Blob([body], { type: 'application/json' }));
-      } else {
-        fetch('/api/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, credentials: 'same-origin', keepalive: true }).catch(function () {});
-      }
+    function sendHeartbeat() {
+      if (Date.now() - lastActivity > IDLE_LIMIT_MS) return;   // inactif depuis trop longtemps → ne compte pas
+      const sid = sessionId();
+      sessionStorage.setItem('ss_last_beat', String(Date.now()));
+      const body = JSON.stringify({ session_id: sid });
+      fetch('/api/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, credentials: 'same-origin', keepalive: true }).catch(function () {});
     }
     sendHeartbeat();
+    // Ne bat QUE lorsque l'onglet est réellement visible (réduit / arrière-plan → pas de battement,
+    // donc le temps mort n'est jamais compté et coupera la session au retour).
     setInterval(function () { if (document.visibilityState === 'visible') sendHeartbeat(); }, HEARTBEAT_MS);
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') sendHeartbeat(true); });
-    window.addEventListener('beforeunload', function () { sendHeartbeat(true); });
   })();
 
   function mount(container) {

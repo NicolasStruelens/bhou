@@ -88,6 +88,17 @@
   // Éclairage LED — les emplacements "bras" ne sont proposés que sur LUX (s.o. sur BX270)
   const TS_ECLAIRAGE_BX270 = ['Direct — caisson'];
   const TS_ECLAIRAGE_LUX = ['Direct — caisson', 'Direct — bras', 'Direct — bras et caisson', 'Indirect — caisson et barre de charge'];
+  // Options exactes du portail Harol (BX270) — fournies par Nicolas :
+  const TS_MANOEUVRES = ['Treuil', 'Moteur', 'Moteur avec manœuvre de secours']; // Type de manœuvre (31/51/52)
+  const TS_MOTEUR_SORTES = ['Sunea io', 'Orea wt'];                               // Sorte de moteur (1281/2619)
+  const TS_CABLE_LONGUEURS = ['5 m', '10 m'];                                     // Longueur du câble (A288)
+  const TS_CABLE_COULEURS = ['Blanc', 'Noir'];                                    // Couleur du câble
+  const TS_COLLECTIONS = [                                                        // Toiles disponibles (écran « Toile »)
+    'Sattler Lumera', 'Sattler Elements Urban Design', 'Sattler Lumera Landscape',
+    'Dickson Orchestra', 'Dickson Orchestra Max', 'Sattler Elements', 'Dickson R&H — Jacquards',
+    'Swela Chique', 'Swela Elegance', 'Sattler Lumera 3D', 'Dickson Spark FR (brandvertragend)',
+    'Sattler Elements Cross Fiber', 'Harol Premium Acrylic',
+  ];
 
   function tsMoteursFor(modele) {
     return modele === 'LUX' ? TS_MOTEURS.filter(m => m !== 'Manuel (manivelle)') : TS_MOTEURS;
@@ -172,6 +183,7 @@
     CS8_CAISSON_MESURES_STANDARD, CS8_CAISSON_MESURES_GRAND, CS8_CAISSON_FORMES, CS8_COLMATAGE,
     caissonMesuresFor,
     TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
+    TS_MANOEUVRES, TS_MOTEUR_SORTES, TS_CABLE_LONGUEURS, TS_CABLE_COULEURS, TS_COLLECTIONS,
     VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, VR_LAMES, vrHauteurMaxFor,
     CATALOG_OPTIONS,
     RAL_HEX, hexForRalLabel,
