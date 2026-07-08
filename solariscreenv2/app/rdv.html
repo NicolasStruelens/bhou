@@ -24,6 +24,9 @@
     .chip { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.35rem 0.7rem; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-fast); }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
     .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    /* Bouton doré "Créer le devis" (la classe .btn-terrain n'est définie que dans dashboard.html). */
+    .btn-terrain { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); font-weight: 700; }
+    .btn-terrain:hover { background: color-mix(in srgb, var(--accent-2) 18%, transparent); box-shadow: var(--glow-soft); color: var(--accent-2); }
 
     /* ── Rappels « À traiter » ── */
     .rdv-brief { border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); --tick-color: var(--warn); }
@@ -281,7 +284,10 @@
     }
 
     function renderKanban(rows) {
-      return `<div class="kanban">${KANBAN_ORDER.map(st => {
+      // Colonne "Annulé" ajoutée seulement si la case "Voir annulés" est cochée (sinon les annulés
+      // n'ont nulle part où apparaître en Kanban → la case n'avait aucun effet dans cette vue).
+      const order = el('showAnnules').checked ? KANBAN_ORDER.concat('annule') : KANBAN_ORDER;
+      return `<div class="kanban">${order.map(st => {
         const s = STATUSES[st];
         const cards = rows.filter(r => r.statut === st);
         return `<div class="kcol" data-statut="${st}" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropCard(event,'${st}')">
@@ -355,9 +361,12 @@
         date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
     }
     window.openNew = () => { CURRENT = blankRdv(); PENDING_PHOTOS = []; renderModal(true); };
+    let OPEN_TOKEN = 0;
     window.openEdit = async (id) => {
+      const token = ++OPEN_TOKEN;               // anti-course : deux clics rapides → seul le dernier gagne
       let r = RDV.find(x => x.id === id);
       try { const full = await SS.getRdv(id); if (full) r = full; } catch (e) {}
+      if (token !== OPEN_TOKEN) return;          // un autre openEdit a démarré pendant le fetch
       if (!r) { toast('Demande introuvable', 'error'); return; }
       CURRENT = JSON.parse(JSON.stringify(r));
       CURRENT.client = CURRENT.client || {}; CURRENT.client.adresse = CURRENT.client.adresse || {};
@@ -372,8 +381,10 @@
       el('mTitle').textContent = isNew ? 'Nouvelle demande de RDV' : clientName(r);
       el('mId').textContent = '#' + r.id;
       el('btnDelete').style.display = isNew ? 'none' : '';
-      el('btnConvert').style.display = (r.devis_id) ? 'none' : '';
-      el('btnConvert').innerHTML = r.devis_id ? '' : `${icon('filetext', 14)} Créer le devis`;
+      // "Créer le devis" masqué si déjà converti (devis lié OU statut converti) → évite un 2e devis.
+      const dejaConverti = !!r.devis_id || r.statut === 'converti';
+      el('btnConvert').style.display = dejaConverti ? 'none' : '';
+      el('btnConvert').innerHTML = dejaConverti ? '' : `${icon('filetext', 14)} Créer le devis`;
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
       const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
       el('mBody').innerHTML = `
@@ -434,7 +445,7 @@
 
     function renderPhotos() {
       el('photosHost').innerHTML = PENDING_PHOTOS.map((src, i) =>
-        `<div class="rdv-ph"><img src="${src}" alt=""><button onclick="removePhoto(${i})" title="Retirer">✕</button></div>`).join('');
+        `<div class="rdv-ph"><img src="${esc(src)}" alt=""><button onclick="removePhoto(${i})" title="Retirer">✕</button></div>`).join('');
     }
     window.addPhotos = async (files) => {
       for (const f of files) {
@@ -487,19 +498,22 @@
     }
 
     window.saveCurrent = async () => {
+      if (!CURRENT) return;
       collect();
-      const idx = RDV.findIndex(x => x.id === CURRENT.id);
-      if (idx !== -1) RDV[idx] = CURRENT; else RDV.unshift(CURRENT);
-      const res = await SS.saveRdv(CURRENT);
+      const cur = CURRENT;   // capturé AVANT l'await : fermer la modale (Échap/clic) met CURRENT=null
+      const idx = RDV.findIndex(x => x.id === cur.id);
+      if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
+      const res = await SS.saveRdv(cur);
       toast(res.offline ? 'Enregistré (hors-ligne)' : 'Demande enregistrée ✓', res.offline ? 'warn' : 'ok');
       closeModal();
       render();
     };
 
     window.deleteCurrent = async () => {
-      if (!CURRENT || !confirm('Supprimer définitivement cette demande de RDV ?')) return;
-      await SS.deleteRdv(CURRENT.id);
-      RDV = RDV.filter(x => x.id !== CURRENT.id);
+      const cur = CURRENT;
+      if (!cur || !confirm('Supprimer définitivement cette demande de RDV ?')) return;
+      await SS.deleteRdv(cur.id);
+      RDV = RDV.filter(x => x.id !== cur.id);
       toast('Demande supprimée', 'ok');
       closeModal();
       render();
@@ -507,26 +521,31 @@
 
     // ── Conversion en devis ──
     window.convertToDevis = async () => {
+      if (!CURRENT) return;
       collect();
-      if (!CURRENT.client.nom && !CURRENT.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
+      const cur = CURRENT;   // capturé AVANT tout await (voir saveCurrent)
+      if (!cur.client.nom && !cur.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
+      if (cur.devis_id) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
       const devisId = generateDevisId();
       const now = new Date().toISOString();
       const devis = {
         id: devisId,
-        client: JSON.parse(JSON.stringify(CURRENT.client)),
+        client: JSON.parse(JSON.stringify(cur.client)),
         statut: 'brouillon', items: [],
-        rdv_id: CURRENT.id,
-        note_projet: CURRENT.projet || '',
+        rdv_id: cur.id,
+        note_projet: cur.projet || '',
+        // Reprend le besoin client dans la note interne du devis (visible dans le simulateur).
+        pricing_v2: cur.projet ? { note: 'Projet (via demande de RDV) : ' + cur.projet } : {},
         date_creation: now, date_modification: now,
       };
       const rDevis = await SS.saveDevis(devis);
       // Lie le RDV au devis + passe en "converti"
-      CURRENT.devis_id = devisId;
-      CURRENT.statut = 'converti';
-      CURRENT.date_modification = now;
-      await SS.saveRdv(CURRENT);
-      const idx = RDV.findIndex(x => x.id === CURRENT.id);
-      if (idx !== -1) RDV[idx] = CURRENT;
+      cur.devis_id = devisId;
+      cur.statut = 'converti';
+      cur.date_modification = now;
+      await SS.saveRdv(cur);
+      const idx = RDV.findIndex(x => x.id === cur.id);
+      if (idx !== -1) RDV[idx] = cur;
       toast(rDevis.offline ? 'Devis créé (hors-ligne)' : 'Devis créé — ouverture du simulateur…', rDevis.offline ? 'warn' : 'ok', 1600);
       setTimeout(() => { location.href = 'simulateur.html?id=' + encodeURIComponent(devisId); }, 500);
     };

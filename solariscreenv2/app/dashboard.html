@@ -143,13 +143,6 @@
     @media (max-width: 1120px) { .wx-chip .wx-city { display: none; } }
     @media (max-width: 760px) { .wx-chip { display: none; } }
 
-    /* Client : nom tronqué à largeur fixe + badges toujours calés sur le même bord droit
-       (la colonne entière a la même largeur pour toutes les lignes, donc "justify-content:
-       space-between" aligne les badges au millimètre, peu importe la longueur du nom). */
-    /* La cellule Client fait 2 lignes (nom+badges, puis ID) alors que les autres colonnes
-       n'en font qu'une : avec le vertical-align "middle" par défaut d'un <td>, la 1ère ligne
-       du Client (donc les badges) et la pastille de Statut ne tombent pas à la même hauteur.
-       Fixé en alignant toutes les cellules du tableau sur le haut. */
     /* Toutes les cellules centrées verticalement : les colonnes à 1 ligne (date, montant…)
        s'alignent proprement sur le milieu des colonnes à 2 lignes (client, statut) → rangée calme. */
     #tableHost table.data td { vertical-align: middle; }
@@ -674,6 +667,7 @@
         const secondary = (waitB || infoB) ? `<div class="status-badges">${waitB}${infoB}</div>` : '';
         return `<div class="status-cell">${pill(d)}${secondary}</div>`;
       };
+      if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
       el('tableHost').innerHTML = `
         <div class="table-wrap" style="border:none;border-radius:0;">
           <table class="data">
@@ -688,7 +682,7 @@
                     <div class="name-row">
                       <span class="name" title="${esc(nameTitle(d))}">${esc(d.prenom)} ${esc(d.nom) || '—'}</span>
                       <div class="name-badges">
-                        ${PRE_SIGNATURE_STATUSES.includes(d.statut) ? `<button class="proba-dot" style="--pc:${(PROBABILITE[d.probabilite] || {}).color || 'var(--border-strong)'}" onclick="event.stopPropagation();toggleProbaMenu(event,'${d.id}')" title="${d.probabilite ? 'Probabilité : ' + PROBABILITE[d.probabilite].label : 'Définir une probabilité de signature'}"></button>` : ''}
+                        ${PRE_SIGNATURE_STATUSES.includes(d.statut) ? `<button class="proba-dot" style="--pc:${(PROBABILITE[d.probabilite] || {}).color || 'var(--border-strong)'}" onclick="event.stopPropagation();toggleProbaMenu(event,'${d.id}')" title="${PROBABILITE[d.probabilite] ? 'Probabilité : ' + PROBABILITE[d.probabilite].label : 'Définir une probabilité de signature'}"></button>` : ''}
                         ${CLIENT_TAGS.has(clientKeyOf(d.prenom, d.nom)) ? `<span class="tag-dot" title="${esc('Étiquettes : ' + CLIENT_TAGS.get(clientKeyOf(d.prenom, d.nom)).join(', '))}">${icon('tag', 11)}</span>` : ''}
                         ${d.portfolio ? `<span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}
                       </div>
@@ -759,7 +753,7 @@
         if (!photos.length) return '<div class="mp-empty">Aucune photo à afficher.</div>';
         const shown = photos.slice(0, 6), extra = photos.length - shown.length;
         return `<div class="mp-title">${icon('camera', 12)} ${photos.length} photo(s)</div>
-          <div class="mp-photos">${shown.map(s => `<img src="${s}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
+          <div class="mp-photos">${shown.map(s => `<img src="${esc(s)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
       }
       function renderNotes(devis) {
         const comments = (devis.comments || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 4);
@@ -769,22 +763,28 @@
           const cls = author === 'client' ? 'client' : (author === 'yannick' ? 'yannick' : 'nicolas');
           const av = author === 'client' ? 'CL' : (author === 'yannick' ? 'YA' : 'NI');
           const who = author === 'client' ? 'Client' : author.charAt(0).toUpperCase() + author.slice(1);
-          return `<div class="mp-comment"><div class="mp-ava ${cls}">${av}</div><div class="mp-c-body"><div class="mp-c-meta">${who} · ${fmtDate(c.date)}</div><div class="mp-c-text">${esc(c.text || '')}</div></div></div>`;
+          return `<div class="mp-comment"><div class="mp-ava ${cls}">${av}</div><div class="mp-c-body"><div class="mp-c-meta">${esc(who)} · ${fmtDate(c.date)}</div><div class="mp-c-text">${esc(c.text || '')}</div></div></div>`;
         }).join('');
       }
       async function show(slot) {
         const id = slot.getAttribute('data-id'), kind = slot.getAttribute('data-preview');
-        if (!id || !kind) return;
+        if (!id || !kind || !document.contains(slot)) return;
         ensureEl();
         previewEl.classList.add('open');
         previewEl.innerHTML = '<div class="mp-empty">Chargement…</div>';
         position(slot);
-        let devis = cache[id];
-        if (!devis) { try { devis = await SS.getDevis(id); cache[id] = devis; } catch (e) { devis = null; } }
-        if (currentSlot !== slot) return;   // le survol a changé de cible entre-temps
+        // Cache court (10 s) : évite de recharger le devis à chaque survol, mais se rafraîchit
+        // rapidement après un ajout/suppression de note ou un changement de statut.
+        const c = cache[id];
+        let devis = (c && Date.now() - c.t < 10000) ? c.d : null;
+        if (!devis) { try { devis = await SS.getDevis(id); cache[id] = { d: devis, t: Date.now() }; } catch (e) { devis = null; } }
+        if (currentSlot !== slot || !document.contains(slot)) return;   // survol changé ou ligne re-rendue
         previewEl.innerHTML = devis ? (kind === 'photos' ? renderPhotos(devis) : renderNotes(devis)) : '<div class="mp-empty">Aperçu indisponible.</div>';
         position(slot);
       }
+      // Réinitialisation exposée : appelée au début de render() pour fermer proprement l'aperçu
+      // si le tableau est réécrit alors qu'une carte était survolée (le slot devient détaché).
+      window.__mediaPreviewReset = () => { currentSlot = null; clearTimeout(hoverTimer); hide(); };
       host.addEventListener('mouseover', (e) => {
         const slot = e.target.closest('.mi-slot[data-preview]');
         if (!slot || slot === currentSlot) return;
@@ -968,7 +968,7 @@
             <div class="c-avatar ${avatarCls}">${avatarTxt}</div>
             <div class="c-main">
               <div class="c-meta">
-                <span class="c-author">${author === 'client' ? 'Client (via espace client)' : author}</span>
+                <span class="c-author">${author === 'client' ? 'Client (via espace client)' : esc(author)}</span>
                 <span class="badge ${t.cls}">${t.label}</span>
                 <span class="c-date">${fmtDate(c.date)}</span>
                 <button class="c-del" title="Supprimer cette note" aria-label="Supprimer cette note" onclick="removeComment('${c.id}')">${icon('trash', 13)}</button>
