@@ -43,6 +43,22 @@ CREATE TABLE IF NOT EXISTS factures (
 CREATE INDEX IF NOT EXISTS idx_factures_date  ON factures(date DESC);
 CREATE INDEX IF NOT EXISTS idx_factures_devis ON factures(devis_id);
 
+-- ── RDV (demandes de visite / leads avant devis) ──
+CREATE TABLE IF NOT EXISTS rdv (
+  id                TEXT PRIMARY KEY,   -- ex : RDV-2026-XXXXXX
+  client_nom        TEXT NOT NULL DEFAULT '',
+  client_prenom     TEXT NOT NULL DEFAULT '',
+  statut            TEXT NOT NULL DEFAULT 'nouveau',   -- nouveau|a_contacter|rdv_fixe|visite|converti|annule
+  assigned_to       TEXT,               -- 'nicolas' | 'yannick' | NULL
+  date_rdv          TEXT,               -- date de visite fixée (ISO) ou NULL
+  devis_id          TEXT,               -- devis créé après la visite (lien du dossier)
+  date_creation     TEXT,
+  date_modification TEXT,
+  data              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rdv_statut ON rdv(statut);
+CREATE INDEX IF NOT EXISTS idx_rdv_modif  ON rdv(date_modification DESC);
+
 -- ── CONNEXIONS (historique de connexion Nicolas / Yannick, alimenté par nav.js) ──
 CREATE TABLE IF NOT EXISTS connections (
   session_id        TEXT PRIMARY KEY,
