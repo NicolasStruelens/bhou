@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — Demandes de RDV</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    /* ── Barre d'outils (bascule vue, recherche, filtres) ── */
+    .rdv-toolbar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .view-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; }
+    .view-toggle button { background: none; border: none; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; padding: 0.4rem 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .view-toggle button.active { background: var(--accent); color: var(--on-accent); }
+    .rdv-search { flex: 1; min-width: 180px; }
+    .seller-chips { display: flex; gap: var(--sp-2); }
+    .chip { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.35rem 0.7rem; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-fast); }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+    /* ── Rappels « À traiter » ── */
+    .rdv-brief { border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); --tick-color: var(--warn); }
+    .rdv-brief h3 { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--warn); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: 0.4rem; }
+    .rdv-brief ul { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+    .rdv-brief li { font-size: var(--fs-sm); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    .rdv-brief li:hover { color: var(--accent-2); }
+    .rdv-brief li .rb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: none; }
+
+    /* ── Statut (pastille) ── */
+    .st-pill { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; padding: 0.28rem 0.55rem; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--st, var(--border-strong)) 45%, transparent); color: var(--st, var(--text-muted)); background: color-mix(in srgb, var(--st, transparent) 10%, transparent); }
+    .st-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--st, var(--text-muted)); box-shadow: 0 0 6px color-mix(in srgb, var(--st, transparent) 60%, transparent); }
+
+    /* ── Vue KANBAN ── */
+    .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: var(--sp-3); overflow-x: auto; padding-bottom: var(--sp-3); align-items: start; }
+    .kcol { background: color-mix(in srgb, var(--surface) 60%, transparent); border: 1px solid var(--border); border-radius: var(--r-md); min-height: 120px; display: flex; flex-direction: column; }
+    .kcol.drag-over { border-color: var(--accent); box-shadow: var(--glow-soft); }
+    .kcol-head { display: flex; align-items: center; gap: 0.5rem; padding: var(--sp-3); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .kcol-head .k-count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); background: var(--bg); border-radius: 999px; padding: 0.05rem 0.5rem; }
+    .kcol-body { padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); min-height: 40px; }
+    .rdv-card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-3); cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast); }
+    .rdv-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .rdv-card.dragging { opacity: 0.5; }
+    .rc-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+    .rc-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rc-meta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; }
+    .rc-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
+    .who-ava { width: 20px; height: 20px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 0.55rem; font-weight: 700; }
+    .who-ava.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+    .who-ava.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
+    .who-ava.none { background: var(--bg); color: var(--text-subtle); border: 1px solid var(--border-strong); }
+
+    /* ── Vue LISTE ── */
+    .rdv-table { width: 100%; border-collapse: collapse; }
+    .rdv-table th { text-align: left; font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+    .rdv-table td { padding: var(--sp-3); border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .rdv-table tbody tr { cursor: pointer; }
+    .rdv-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+    .rdv-table .r-name { font-weight: 600; }
+    .rdv-table .r-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+
+    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    .empty .big { display: flex; justify-content: center; margin-bottom: var(--sp-3); color: var(--text-subtle); }
+
+    /* ── Modale fiche ── */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 720px; max-width: 100%; max-height: 92vh; display: flex; flex-direction: column; }
+    .mhead { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent); }
+    .mhead .mid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
+    .mhead .mclose { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
+    .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; }
+    .mfoot { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+    .mfoot .spacer { flex: 1; }
+    .form-sec { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-4) 0 var(--sp-2); }
+    .form-sec:first-child { margin-top: 0; }
+    .radio-row { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+    .radio-row label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--fs-sm); cursor: pointer; }
+    /* Photos */
+    .rdv-photos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .rdv-ph { position: relative; width: 74px; height: 74px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-strong); }
+    .rdv-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .rdv-ph button { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); border: none; color: #fff; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    /* Commentaires */
+    .cm-thread { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .cm { display: flex; gap: 0.5rem; }
+    .cm .cm-text { font-size: var(--fs-sm); line-height: 1.4; }
+    .cm .cm-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); }
+    .cm-empty { font-size: var(--fs-sm); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Demandes de RDV</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+      <button class="btn btn-primary btn-sm" onclick="openNew()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle demande</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="briefHost"></div>
+
+    <div class="rdv-toolbar">
+      <div class="view-toggle" id="viewToggle">
+        <button data-view="kanban" onclick="setView('kanban')"></button>
+        <button data-view="list" onclick="setView('list')"></button>
+      </div>
+      <input class="input rdv-search" id="search" type="search" placeholder="Rechercher un client, un tél, un e-mail…" oninput="render()">
+      <div class="seller-chips" id="sellerChips"></div>
+      <label class="chip" style="cursor:pointer;"><input type="checkbox" id="showAnnules" onchange="render()" style="vertical-align:-1px;"> Voir annulés</label>
+    </div>
+
+    <div id="viewHost"></div>
+  </main>
+
+  <!-- Modale fiche RDV -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <div class="mhead">
+        <span id="mIcon"></span>
+        <span id="mTitle">Demande de RDV</span>
+        <span class="mid" id="mId"></span>
+        <button class="mclose" onclick="closeModal()" aria-label="Fermer">✕</button>
+      </div>
+      <div class="mbody" id="mBody"></div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" id="btnDelete" onclick="deleteCurrent()" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">Supprimer</button>
+        <div class="spacer"></div>
+        <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
+        <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js?v=rdv1"></script>
+  <script src="../assets/js/api.js?v=rdv1"></script>
+  <script>
+    const SS = window.SS;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, toast, qp, icon, compressImage, generateDevisId } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    const STATUSES = {
+      nouveau:     { label: 'Nouveau',     color: 'var(--accent)' },
+      a_contacter: { label: 'À contacter', color: 'var(--warn)' },
+      rdv_fixe:    { label: 'RDV fixé',    color: 'var(--accent-2)' },
+      visite:      { label: 'Visité',      color: 'var(--accent-3)' },
+      converti:    { label: 'Converti',    color: 'var(--ok)' },
+      annule:      { label: 'Annulé',      color: 'var(--text-subtle)' },
+    };
+    const KANBAN_ORDER = ['nouveau', 'a_contacter', 'rdv_fixe', 'visite', 'converti'];
+    const SOURCES = ['Téléphone', 'E-mail', 'Site web', 'Bouche à oreille', 'Salon / foire', 'Réseaux sociaux', 'Autre'];
+
+    let RDV = [];
+    let VIEW = localStorage.getItem('ss_rdv_view') || 'kanban';
+    let SELLER = 'tous';
+    let IDENTITY = { key: '', name: '' };
+    let CURRENT = null;         // RDV en cours d'édition dans la modale
+    let PENDING_PHOTOS = [];    // photos de la fiche ouverte
+
+    // ── Chargement ──
+    async function load() {
+      RDV = (await SS.listRdv()) || [];
+      renderSellerChips();
+      renderViewToggle();
+      render();
+      // Identité (Nicolas/Yannick) en arrière-plan — ne bloque pas l'affichage.
+      try { window.SSNav.getIdentity().then(id => { if (id) IDENTITY = id; }); } catch (e) {}
+    }
+
+    function whoAva(key) {
+      const k = (key || '').toLowerCase();
+      const cls = k === 'nicolas' ? 'nicolas' : (k === 'yannick' ? 'yannick' : 'none');
+      const txt = k === 'nicolas' ? 'NI' : (k === 'yannick' ? 'YA' : '–');
+      const title = k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Non attribué';
+      return `<span class="who-ava ${cls}" title="${esc(title)}">${txt}</span>`;
+    }
+    function stPill(statut) {
+      const s = STATUSES[statut] || STATUSES.nouveau;
+      return `<span class="st-pill" style="--st:${s.color}"><span class="dot"></span>${s.label}</span>`;
+    }
+    function clientName(r) { const c = r.client || {}; return ((c.prenom || '') + ' ' + (c.nom || '')).trim() || 'Sans nom'; }
+    function daysSince(iso) { if (!iso) return 0; return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
+    function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+    // ── Filtrage ──
+    function filtered() {
+      const q = el('search').value.trim().toLowerCase();
+      const showAnnules = el('showAnnules').checked;
+      return RDV.filter(r => {
+        if (!showAnnules && r.statut === 'annule') return false;
+        if (SELLER !== 'tous' && (r.assigned_to || '') !== SELLER) return false;
+        if (q) {
+          const c = r.client || {};
+          const hay = `${c.prenom || ''} ${c.nom || ''} ${c.telephone || ''} ${c.email || ''} ${(c.adresse && c.adresse.ville) || ''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    // ── Rappels « À traiter » ──
+    function renderBrief() {
+      const items = [];
+      RDV.forEach(r => {
+        if (r.statut === 'annule' || r.statut === 'converti') return;
+        // À contacter / nouveau depuis > 2 j sans date de visite
+        if (['nouveau', 'a_contacter'].includes(r.statut) && !r.date_rdv) {
+          const d = daysSince(r.date_creation);
+          if (d >= 2) items.push({ r, txt: `${clientName(r)} — à recontacter (demande depuis ${d} j, pas de RDV fixé)` });
+        }
+        // RDV fixé mais date passée sans devis
+        if (r.statut === 'rdv_fixe' && r.date_rdv && r.date_rdv.slice(0, 10) < todayStr()) {
+          items.push({ r, txt: `${clientName(r)} — visite passée le ${fmtDate(r.date_rdv.slice(0, 10))}, à traiter (devis ?)` });
+        }
+        // Visité sans devis
+        if (r.statut === 'visite' && !r.devis_id) {
+          items.push({ r, txt: `${clientName(r)} — visité, en attente du devis` });
+        }
+        // Rappel daté échu
+        if (r.rappel_date && r.rappel_date <= todayStr()) {
+          items.push({ r, txt: `${clientName(r)} — rappel prévu le ${fmtDate(r.rappel_date)}` });
+        }
+      });
+      const host = el('briefHost');
+      if (!items.length) { host.innerHTML = ''; return; }
+      host.innerHTML = `<div class="rdv-brief">
+        <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
+        <ul>${items.slice(0, 8).map(it => `<li onclick="openEdit('${it.r.id}')"><span class="rb-dot"></span>${esc(it.txt)}</li>`).join('')}</ul>
+      </div>`;
+    }
+
+    // ── Rendu principal ──
+    function render() {
+      renderBrief();
+      const rows = filtered();
+      const host = el('viewHost');
+      if (VIEW === 'kanban') host.innerHTML = renderKanban(rows);
+      else host.innerHTML = renderList(rows);
+    }
+
+    function cardHtml(r) {
+      const c = r.client || {};
+      const tel = c.telephone ? `${icon('phone', 11)} ${esc(c.telephone)}` : '';
+      const ville = (c.adresse && c.adresse.ville) ? `${icon('pin', 11)} ${esc(c.adresse.ville)}` : '';
+      const rdvDate = r.date_rdv ? `${icon('calendar', 11)} ${esc(fmtDate(r.date_rdv.slice(0, 10)))}` : '';
+      const badges = [];
+      if (r.pref_contact === 'tel') badges.push('<span class="badge badge-cyan">Préf. tél</span>');
+      if (r.pref_contact === 'email') badges.push('<span class="badge badge-cyan">Préf. e-mail</span>');
+      if ((r.photos || []).length) badges.push(`<span class="badge">${icon('camera', 10)} ${r.photos.length}</span>`);
+      if ((r.comments || []).length) badges.push(`<span class="badge">${icon('message', 10)} ${r.comments.length}</span>`);
+      if (r.devis_id) badges.push('<span class="badge badge-ok">Devis lié</span>');
+      return `<div class="rdv-card" draggable="true" data-id="${r.id}"
+          ondragstart="dragStart(event,'${r.id}')" ondragend="dragEnd(event)" onclick="openEdit('${r.id}')">
+        <div class="rc-top"><span class="rc-name">${esc(clientName(r))}</span>${whoAva(r.assigned_to)}</div>
+        <div class="rc-meta">${[tel, ville, rdvDate].filter(Boolean).join('')}</div>
+        ${badges.length ? `<div class="rc-badges">${badges.join('')}</div>` : ''}
+      </div>`;
+    }
+
+    function renderKanban(rows) {
+      return `<div class="kanban">${KANBAN_ORDER.map(st => {
+        const s = STATUSES[st];
+        const cards = rows.filter(r => r.statut === st);
+        return `<div class="kcol" data-statut="${st}" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropCard(event,'${st}')">
+          <div class="kcol-head"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block;"></span>
+            <strong style="font-size:var(--fs-sm);">${s.label}</strong><span class="k-count">${cards.length}</span></div>
+          <div class="kcol-body">${cards.map(cardHtml).join('') || '<div style="padding:var(--sp-3);color:var(--text-subtle);font-size:var(--fs-2xs);text-align:center;">—</div>'}</div>
+        </div>`;
+      }).join('')}</div>`;
+    }
+
+    function renderList(rows) {
+      if (!rows.length) return `<div class="empty"><div class="big">${icon('calendar', 40)}</div>Aucune demande de RDV.<br>Clique sur <strong>+ Nouvelle demande</strong> pour en ajouter une.</div>`;
+      const sorted = rows.slice().sort((a, b) => String(b.date_modification || '').localeCompare(String(a.date_modification || '')));
+      return `<div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;">
+        <table class="rdv-table">
+          <thead><tr><th>Client</th><th>Statut</th><th>Chargé</th><th>Visite</th><th>Contact</th><th>Source</th></tr></thead>
+          <tbody>${sorted.map(r => {
+            const c = r.client || {};
+            return `<tr onclick="openEdit('${r.id}')">
+              <td><div class="r-name">${esc(clientName(r))}</div><div class="r-sub">${esc((c.adresse && c.adresse.ville) || '')}</div></td>
+              <td>${stPill(r.statut)}</td>
+              <td>${whoAva(r.assigned_to)}</td>
+              <td class="r-sub">${r.date_rdv ? esc(fmtDate(r.date_rdv.slice(0, 10))) : '—'}</td>
+              <td class="r-sub">${esc(c.telephone || c.email || '—')}${r.pref_contact ? ` · ${r.pref_contact === 'tel' ? 'préf. tél' : 'préf. e-mail'}` : ''}</td>
+              <td class="r-sub">${esc(r.source || '—')}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>`;
+    }
+
+    // ── Bascule vue ──
+    function renderViewToggle() {
+      const t = el('viewToggle');
+      t.querySelector('[data-view="kanban"]').innerHTML = `${icon('grid', 13)} Kanban`;
+      t.querySelector('[data-view="list"]').innerHTML = `${icon('list', 13)} Liste`;
+      t.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.view === VIEW));
+    }
+    window.setView = (v) => { VIEW = v; localStorage.setItem('ss_rdv_view', v); renderViewToggle(); render(); };
+
+    function renderSellerChips() {
+      const opts = [['tous', 'Tous'], ['nicolas', 'Nicolas'], ['yannick', 'Yannick'], ['', 'Non attribué']];
+      el('sellerChips').innerHTML = opts.map(([v, l]) =>
+        `<button class="chip ${SELLER === v ? 'active' : ''}" onclick="setSeller('${v}')">${l}</button>`).join('');
+    }
+    window.setSeller = (v) => { SELLER = v; renderSellerChips(); render(); };
+
+    // ── Glisser-déposer (Kanban) ──
+    let DRAG_ID = null;
+    window.dragStart = (e, id) => { DRAG_ID = id; e.dataTransfer.effectAllowed = 'move'; e.currentTarget.classList.add('dragging'); };
+    window.dragEnd = (e) => { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.kcol.drag-over').forEach(c => c.classList.remove('drag-over')); };
+    window.allowDrop = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
+    window.dragLeave = (e) => { e.currentTarget.classList.remove('drag-over'); };
+    window.dropCard = async (e, statut) => {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const r = RDV.find(x => x.id === DRAG_ID);
+      DRAG_ID = null;
+      if (!r || r.statut === statut) return;
+      r.statut = statut;
+      r.date_modification = new Date().toISOString();
+      render();
+      const res = await SS.saveRdv(r);
+      toast(res.offline ? 'Statut enregistré (hors-ligne)' : 'Statut mis à jour ✓', res.offline ? 'warn' : 'ok', 1400);
+    };
+
+    // ── Modale : nouvelle / édition ──
+    function blankRdv() {
+      return { id: 'RDV-' + generateDevisId(), client: { nom: '', prenom: '', telephone: '', email: '', adresse: {} },
+        statut: 'nouveau', assigned_to: IDENTITY.key || '', source: 'Téléphone', pref_contact: '', pref_visite: '',
+        dates_proposees: '', date_rdv: '', rappel_date: '', projet: '', comments: [], photos: [],
+        date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
+    }
+    window.openNew = () => { CURRENT = blankRdv(); PENDING_PHOTOS = []; renderModal(true); };
+    window.openEdit = async (id) => {
+      let r = RDV.find(x => x.id === id);
+      try { const full = await SS.getRdv(id); if (full) r = full; } catch (e) {}
+      if (!r) { toast('Demande introuvable', 'error'); return; }
+      CURRENT = JSON.parse(JSON.stringify(r));
+      CURRENT.client = CURRENT.client || {}; CURRENT.client.adresse = CURRENT.client.adresse || {};
+      PENDING_PHOTOS = (CURRENT.photos || []).slice();
+      renderModal(false);
+    };
+    window.closeModal = () => { el('modalBg').classList.remove('open'); CURRENT = null; };
+
+    function renderModal(isNew) {
+      const r = CURRENT, c = r.client, a = c.adresse || {};
+      el('mIcon').innerHTML = icon('calendar', 18);
+      el('mTitle').textContent = isNew ? 'Nouvelle demande de RDV' : clientName(r);
+      el('mId').textContent = '#' + r.id;
+      el('btnDelete').style.display = isNew ? 'none' : '';
+      el('btnConvert').style.display = (r.devis_id) ? 'none' : '';
+      el('btnConvert').innerHTML = r.devis_id ? '' : `${icon('filetext', 14)} Créer le devis`;
+      const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
+      const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
+      el('mBody').innerHTML = `
+        <div class="form-sec">Client potentiel</div>
+        <div class="grid grid-2">
+          <div class="field"><label class="label">Prénom</label><input class="input" id="f_prenom" value="${esc(c.prenom)}"></div>
+          <div class="field"><label class="label">Nom</label><input class="input" id="f_nom" value="${esc(c.nom)}"></div>
+          <div class="field"><label class="label">Téléphone</label><input class="input" id="f_tel" value="${esc(c.telephone)}"></div>
+          <div class="field"><label class="label">Email(s)</label><input class="input" id="f_email" type="email" multiple value="${esc(c.email)}" placeholder="email@exemple.be"></div>
+          <div class="field"><label class="label">Rue et n°</label><input class="input" id="f_rue" value="${esc((a.rue || '') + (a.numero ? ' ' + a.numero : ''))}" placeholder="Rue des Fleurs 12"></div>
+          <div class="field"><label class="label">Code postal + ville</label><input class="input" id="f_ville" value="${esc(((a.code_postal || '') + ' ' + (a.ville || '')).trim())}" placeholder="7000 Mons"></div>
+        </div>
+
+        <div class="form-sec">Suivi de la demande</div>
+        <div class="grid grid-2">
+          <div class="field"><label class="label">Statut</label><select class="select" id="f_statut">${statusOpts}</select></div>
+          <div class="field"><label class="label">Pris en charge par</label><select class="select" id="f_assigned">
+            <option value="" ${!r.assigned_to ? 'selected' : ''}>— Non attribué —</option>
+            <option value="nicolas" ${r.assigned_to === 'nicolas' ? 'selected' : ''}>Nicolas</option>
+            <option value="yannick" ${r.assigned_to === 'yannick' ? 'selected' : ''}>Yannick</option>
+          </select></div>
+          <div class="field"><label class="label">Source de la demande</label><select class="select" id="f_source">${sourceOpts}</select></div>
+          <div class="field"><label class="label">Préférence de contact</label>
+            <div class="radio-row" style="padding-top:0.4rem;">
+              <label><input type="radio" name="prefc" value="tel" ${r.pref_contact === 'tel' ? 'checked' : ''}> Téléphone</label>
+              <label><input type="radio" name="prefc" value="email" ${r.pref_contact === 'email' ? 'checked' : ''}> E-mail</label>
+              <label><input type="radio" name="prefc" value="" ${!r.pref_contact ? 'checked' : ''}> Indifférent</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-sec">Rendez-vous</div>
+        <div class="grid grid-2">
+          <div class="field" style="grid-column:span 2;"><label class="label">Préférence de visite du client</label><input class="input" id="f_prefv" value="${esc(r.pref_visite)}" placeholder="Ex : en semaine après 17h, samedi matin…"></div>
+          <div class="field" style="grid-column:span 2;"><label class="label">Dates proposées</label><input class="input" id="f_dates" value="${esc(r.dates_proposees)}" placeholder="Ex : lun 14/07 matin · mer 16/07 après-midi"></div>
+          <div class="field"><label class="label">Date de visite fixée</label><input class="input" id="f_daterdv" type="datetime-local" value="${esc(r.date_rdv || '')}"></div>
+          <div class="field"><label class="label">Rappel le (optionnel)</label><input class="input" id="f_rappel" type="date" value="${esc(r.rappel_date || '')}"></div>
+        </div>
+
+        <div class="form-sec">Projet / besoin</div>
+        <div class="field"><textarea class="textarea" id="f_projet" placeholder="Ce que le client souhaite (produits, pièces, contexte…)">${esc(r.projet)}</textarea></div>
+
+        <div class="form-sec">Photos envoyées par le client</div>
+        <input type="file" id="f_photoInput" accept="image/*" multiple style="display:none;" onchange="addPhotos(this.files)">
+        <button class="btn btn-ghost btn-sm" onclick="el('f_photoInput').click()">${icon('camera', 14)} Ajouter des photos</button>
+        <div class="rdv-photos" id="photosHost"></div>
+
+        <div class="form-sec">Notes internes (Nicolas / Yannick)</div>
+        <div class="cm-thread" id="cmThread"></div>
+        <div style="display:flex;gap:var(--sp-2);margin-top:var(--sp-2);">
+          <input class="input" id="cmInput" placeholder="Ajouter une note…" style="flex:1;" onkeydown="if(event.key==='Enter')addNote()">
+          <button class="btn btn-ghost btn-sm" onclick="addNote()">Ajouter</button>
+        </div>`;
+      renderPhotos();
+      renderNotes();
+      el('modalBg').classList.add('open');
+    }
+
+    function renderPhotos() {
+      el('photosHost').innerHTML = PENDING_PHOTOS.map((src, i) =>
+        `<div class="rdv-ph"><img src="${src}" alt=""><button onclick="removePhoto(${i})" title="Retirer">✕</button></div>`).join('');
+    }
+    window.addPhotos = async (files) => {
+      for (const f of files) {
+        try { const url = await compressImage(f); PENDING_PHOTOS.push(url); } catch (e) { toast('Photo illisible', 'warn'); }
+      }
+      renderPhotos();
+    };
+    window.removePhoto = (i) => { PENDING_PHOTOS.splice(i, 1); renderPhotos(); };
+
+    function renderNotes() {
+      const notes = (CURRENT.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      el('cmThread').innerHTML = notes.length ? notes.map(n => {
+        const who = (n.author || 'nicolas').toLowerCase();
+        return `<div class="cm">${whoAva(who)}<div><div class="cm-meta">${esc(who.charAt(0).toUpperCase() + who.slice(1))} · ${fmtDate(n.date)}</div><div class="cm-text">${esc(n.text)}</div></div></div>`;
+      }).join('') : '<div class="cm-empty">Aucune note pour l’instant.</div>';
+    }
+    window.addNote = () => {
+      const inp = el('cmInput'), text = inp.value.trim();
+      if (!text) return;
+      CURRENT.comments = CURRENT.comments || [];
+      CURRENT.comments.push({ id: Date.now(), author: IDENTITY.key || 'nicolas', text, date: new Date().toISOString() });
+      inp.value = '';
+      renderNotes();
+    };
+
+    // Rassemble le formulaire dans CURRENT
+    function collect() {
+      const r = CURRENT, c = r.client;
+      c.prenom = el('f_prenom').value.trim();
+      c.nom = el('f_nom').value.trim();
+      c.telephone = el('f_tel').value.trim();
+      c.email = el('f_email').value.trim();
+      // Adresse : "rue n°" et "cp ville" saisis en 2 champs libres → on stocke tel quel + on tente d'extraire cp/ville
+      const rue = el('f_rue').value.trim();
+      const cpVille = el('f_ville').value.trim();
+      const mCp = cpVille.match(/^(\d{4})\s*(.*)$/);
+      c.adresse = { rue: rue, numero: '', code_postal: mCp ? mCp[1] : '', ville: mCp ? mCp[2] : cpVille };
+      r.statut = el('f_statut').value;
+      r.assigned_to = el('f_assigned').value;
+      r.source = el('f_source').value;
+      const prefc = document.querySelector('input[name="prefc"]:checked');
+      r.pref_contact = prefc ? prefc.value : '';
+      r.pref_visite = el('f_prefv').value.trim();
+      r.dates_proposees = el('f_dates').value.trim();
+      r.date_rdv = el('f_daterdv').value;
+      r.rappel_date = el('f_rappel').value;
+      r.projet = el('f_projet').value.trim();
+      r.photos = PENDING_PHOTOS.slice();
+      r.date_modification = new Date().toISOString();
+    }
+
+    window.saveCurrent = async () => {
+      collect();
+      const idx = RDV.findIndex(x => x.id === CURRENT.id);
+      if (idx !== -1) RDV[idx] = CURRENT; else RDV.unshift(CURRENT);
+      const res = await SS.saveRdv(CURRENT);
+      toast(res.offline ? 'Enregistré (hors-ligne)' : 'Demande enregistrée ✓', res.offline ? 'warn' : 'ok');
+      closeModal();
+      render();
+    };
+
+    window.deleteCurrent = async () => {
+      if (!CURRENT || !confirm('Supprimer définitivement cette demande de RDV ?')) return;
+      await SS.deleteRdv(CURRENT.id);
+      RDV = RDV.filter(x => x.id !== CURRENT.id);
+      toast('Demande supprimée', 'ok');
+      closeModal();
+      render();
+    };
+
+    // ── Conversion en devis ──
+    window.convertToDevis = async () => {
+      collect();
+      if (!CURRENT.client.nom && !CURRENT.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
+      const devisId = generateDevisId();
+      const now = new Date().toISOString();
+      const devis = {
+        id: devisId,
+        client: JSON.parse(JSON.stringify(CURRENT.client)),
+        statut: 'brouillon', items: [],
+        rdv_id: CURRENT.id,
+        note_projet: CURRENT.projet || '',
+        date_creation: now, date_modification: now,
+      };
+      const rDevis = await SS.saveDevis(devis);
+      // Lie le RDV au devis + passe en "converti"
+      CURRENT.devis_id = devisId;
+      CURRENT.statut = 'converti';
+      CURRENT.date_modification = now;
+      await SS.saveRdv(CURRENT);
+      const idx = RDV.findIndex(x => x.id === CURRENT.id);
+      if (idx !== -1) RDV[idx] = CURRENT;
+      toast(rDevis.offline ? 'Devis créé (hors-ligne)' : 'Devis créé — ouverture du simulateur…', rDevis.offline ? 'warn' : 'ok', 1600);
+      setTimeout(() => { location.href = 'simulateur.html?id=' + encodeURIComponent(devisId); }, 500);
+    };
+
+    el('modalBg').addEventListener('click', (e) => { if (e.target === el('modalBg')) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('modalBg').classList.contains('open')) closeModal(); });
+
+    load();
+  </script>
+</body>
+</html>

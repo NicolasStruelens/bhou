@@ -123,7 +123,17 @@
         const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm${it.projection ? ' · proj. ' + it.projection + ' mm' : ''}` : '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
-        const meta = [it.variante, it.moteur || it.moteur_ref, it.couleur, it.toile || it.collection, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        // Coloris : caisson / coulisses / lame finale peuvent différer (Screen) — on détaille
+        // seulement quand une couleur diffère du caisson, sinon on garde une seule couleur.
+        const coloris = (() => {
+          const cais = it.couleur || '';
+          const coul = it.couleur_coulisses && it.couleur_coulisses !== cais ? it.couleur_coulisses : '';
+          const lame = it.couleur_lame && it.couleur_lame !== cais ? it.couleur_lame : '';
+          if (!cais && !coul && !lame) return '';
+          if (!coul && !lame) return cais;
+          return 'caisson ' + (cais || '—') + (coul ? ', coulisses ' + coul : '') + (lame ? ', lame ' + lame : '');
+        })();
+        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.moteur || it.moteur_ref, coloris, it.toile || it.collection, it.emplacement, it.etage].filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
