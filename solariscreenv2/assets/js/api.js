@@ -108,7 +108,9 @@
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.comments = devis.comments || [];
       devis.comments.push({
-        id: Date.now(),
+        // id unique même si deux commentaires sont créés dans la même milliseconde (Date.now()
+        // seul pouvait collisionner → deleteComment en aurait supprimé deux d'un coup).
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
         author: opts.author || 'nicolas',
         text: (opts.text || '').trim(),
         type: opts.type || 'note',
@@ -199,9 +201,11 @@
     logActivity(evt) {
       try { req('/activity', { method: 'POST', body: JSON.stringify(evt) }).catch(function () {}); } catch (e) {}
     },
+    // Renvoie null en cas d'échec réseau/API (à distinguer d'un [] « vraiment rien de neuf ») :
+    // permet à checkWhatsNew de NE PAS avancer le marqueur « déjà vu » sur une erreur transitoire.
     async listActivity(since) {
-      try { return (await req('/activity' + (since ? '?since=' + encodeURIComponent(since) : ''))).data; }
-      catch (e) { return []; }
+      try { return (await req('/activity' + (since ? '?since=' + encodeURIComponent(since) : ''))).data || []; }
+      catch (e) { return null; }
     },
 
     // ── RDV (demandes de visite / leads avant devis) ──

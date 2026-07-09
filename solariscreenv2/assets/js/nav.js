@@ -96,7 +96,7 @@
       span.style.color = colorVar;
       span.style.borderColor = 'color-mix(in srgb, ' + colorVar + ' 45%, transparent)';
       span.style.background = 'color-mix(in srgb, ' + colorVar + ' 9%, transparent)';
-      span.innerHTML = window.SSUI.icon('user', 11) + ' ' + label;
+      span.innerHTML = window.SSUI.icon('user', 11) + ' ' + escHtml(label);
       span.addEventListener('click', function (e) { toggleConnLog(e); });
       anchor.parentNode.insertBefore(span, anchor);
     });
@@ -104,7 +104,10 @@
 
   // ── Historique de connexion (popover ouvert en cliquant sur le badge d'identité) ──
   const IDENTITY_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
+  // Échappement HTML partagé (le badge d'identité et le popover injectent des valeurs serveur).
+  function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function fmtDuration(ms) {
+    if (!isFinite(ms) || ms < 0) return '—';   // start_time/last_seen manquant ou incohérent → pas de « NaN h »
     const min = Math.round(ms / 60000);
     if (min < 1) return '< 1 min';
     if (min < 60) return min + ' min';
@@ -144,7 +147,7 @@
         // nouvelle, donc cet écart début→fin ne reflète que du temps réellement actif.
         const dur = fmtDuration(new Date(c.last_seen) - new Date(c.start_time));
         const label = IDENTITY_LABEL[c.identity] || c.email || 'Inconnu';
-        return '<div class="conn-log-row"><span class="conn-log-who">' + label + '</span><span class="conn-log-when">' + fmtDateTime(c.start_time) + '</span><span class="conn-log-dur" title="Temps actif (onglet visible + interactions)">' + dur + '</span></div>';
+        return '<div class="conn-log-row"><span class="conn-log-who">' + escHtml(label) + '</span><span class="conn-log-when">' + fmtDateTime(c.start_time) + '</span><span class="conn-log-dur" title="Temps actif (onglet visible + interactions)">' + dur + '</span></div>';
       }).join('');
     } catch (e2) {
       connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Historique indisponible hors-ligne.</div>';
@@ -155,7 +158,7 @@
   (function trackSession() {
     const HEARTBEAT_MS = 30000;
     const IDLE_LIMIT_MS = 2 * 60000;   // au-delà de 2 min sans interaction, on ne compte plus (lecture tolérée)
-    const SESSION_GAP_MS = 90000;      // un trou > 90 s (réduit / arrière-plan / inactif) démarre une NOUVELLE session
+    const SESSION_GAP_MS = 150000;     // > IDLE_LIMIT : un trou d'inactivité RÉELLE > 2 min 30 démarre une NOUVELLE session
     let lastActivity = Date.now();
     ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function (ev) {
       document.addEventListener(ev, function () { lastActivity = Date.now(); }, { passive: true });
@@ -166,9 +169,12 @@
     // d'utilisation active, au lieu d'un seul long créneau qui engloberait les temps morts.
     function sessionId() {
       const now = Date.now();
-      const lastBeat = parseInt(sessionStorage.getItem('ss_last_beat') || '0', 10);
+      // On segmente sur l'INACTIVITÉ RÉELLE (dernière interaction persistée), pas sur la cadence des
+      // battements : ceux-ci continuent jusqu'à IDLE_LIMIT après la dernière action, donc se baser sur
+      // ss_last_beat ne détectait le trou qu'au-delà de ~IDLE_LIMIT+GAP (temps actif surévalué).
+      const lastAct = parseInt(sessionStorage.getItem('ss_last_activity') || '0', 10);
       let id = sessionStorage.getItem('ss_session_id');
-      if (!id || (lastBeat && now - lastBeat > SESSION_GAP_MS)) {
+      if (!id || (lastAct && now - lastAct > SESSION_GAP_MS)) {
         id = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : now + '-' + Math.random().toString(36).slice(2));
         sessionStorage.setItem('ss_session_id', id);
       }
@@ -176,7 +182,8 @@
     }
     function sendHeartbeat() {
       if (Date.now() - lastActivity > IDLE_LIMIT_MS) return;   // inactif depuis trop longtemps → ne compte pas
-      const sid = sessionId();
+      const sid = sessionId();   // évalue le trou AVANT de rafraîchir la dernière activité persistée
+      sessionStorage.setItem('ss_last_activity', String(lastActivity));
       sessionStorage.setItem('ss_last_beat', String(Date.now()));
       const body = JSON.stringify({ session_id: sid });
       fetch('/api/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, credentials: 'same-origin', keepalive: true }).catch(function () {});
