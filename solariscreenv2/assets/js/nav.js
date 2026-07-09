@@ -24,6 +24,24 @@
       .conn-log-who { font-weight: 700; flex: none; min-width: 58px; color: var(--text, #e9eefb); }
       .conn-log-when { flex: 1; color: var(--text-muted, #97a4cc); font-family: var(--font-mono, monospace); font-size: 0.72rem; }
       .conn-log-dur { flex: none; font-family: var(--font-mono, monospace); font-size: 0.72rem; color: var(--accent-2, #ffd23f); }
+      /* ── Palette de recherche globale (Ctrl+K) ── */
+      .cmdk-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 6000; display: none; align-items: flex-start; justify-content: center; padding: 12vh 1rem 1rem; }
+      .cmdk-ov.open { display: flex; }
+      .cmdk { width: 560px; max-width: 100%; background: var(--surface,#141d3d); border: 1px solid var(--border-strong,#324273); border-radius: var(--r-md,4px); box-shadow: var(--shadow,0 10px 34px rgba(0,0,0,.5)); overflow: hidden; display: flex; flex-direction: column; max-height: 70vh; }
+      .cmdk-input { display: flex; align-items: center; gap: 0.6rem; padding: 0.8rem 1rem; border-bottom: 1px solid var(--border,#243056); }
+      .cmdk-input svg { color: var(--text-subtle,#6675a0); flex: none; }
+      .cmdk-input input { flex: 1; background: none; border: none; outline: none; color: var(--text,#e9eefb); font-size: 1rem; font-family: inherit; }
+      .cmdk-kbd { font-family: var(--font-mono, monospace); font-size: 0.6rem; color: var(--text-subtle,#6675a0); border: 1px solid var(--border,#243056); border-radius: 3px; padding: 0.1rem 0.35rem; flex: none; }
+      .cmdk-results { overflow-y: auto; padding: 0.35rem; }
+      .cmdk-group { font-family: var(--font-mono, monospace); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle,#6675a0); padding: 0.5rem 0.6rem 0.25rem; }
+      .cmdk-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 3px; cursor: pointer; text-decoration: none; color: var(--text,#e9eefb); }
+      .cmdk-item:hover, .cmdk-item.sel { background: color-mix(in srgb, var(--accent,#4d7cff) 16%, transparent); }
+      .cmdk-item .ci-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono, monospace); font-size: 0.62rem; font-weight: 700; background: color-mix(in srgb, var(--accent,#4d7cff) 16%, transparent); color: var(--accent,#4d7cff); }
+      .cmdk-item .ci-ic.F { background: color-mix(in srgb, var(--accent-2,#ffd23f) 16%, transparent); color: var(--accent-2,#ffd23f); }
+      .cmdk-item .ci-ic.R { background: color-mix(in srgb, var(--accent-3,#a78bfa) 16%, transparent); color: var(--accent-3,#a78bfa); }
+      .cmdk-item .ci-t { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cmdk-item .ci-s { font-size: 0.62rem; color: var(--text-subtle,#6675a0); font-family: var(--font-mono, monospace); flex: none; }
+      .cmdk-empty { padding: 1.4rem; text-align: center; color: var(--text-subtle,#6675a0); font-size: 0.85rem; }
     `;
     document.head.appendChild(style);
   }
@@ -177,6 +195,7 @@
       <div class="ssnav">
         <button class="btn btn-ghost btn-sm ssnav-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Naviguer vers une autre page">${icon('grid9', 14)}</button>
         <div class="ssnav-menu" role="menu">
+          <button class="ssnav-item ssnav-search" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('search', 14)} Recherche<span style="margin-left:auto;font-family:var(--font-mono);font-size:0.58rem;opacity:0.7;border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;">Ctrl&nbsp;K</span></button>
           ${PAGES.map(p => `<a class="ssnav-item ${p.href === cur ? 'active' : ''}" href="${p.href}" role="menuitem">${icon(p.icon, 14)} ${p.label}</a>`).join('')}
         </div>
       </div>`;
@@ -191,10 +210,100 @@
       btn.setAttribute('aria-expanded', String(willOpen));
     }
     btn.addEventListener('click', toggle);
+    const searchItem = root.querySelector('.ssnav-search');
+    if (searchItem) searchItem.addEventListener('click', function (e) { e.preventDefault(); close(); if (window.ssCommandPalette) window.ssCommandPalette(); });
     document.addEventListener('click', function (e) { if (!root.contains(e.target)) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     mountWhoAmI(container);
   }
+
+  // ── Palette de recherche globale (Ctrl+K / ⌘K) — devis, clients, factures, RDV ──
+  (function commandPalette() {
+    let ov = null, input = null, resultsEl = null, DATA = null, dataAt = 0, sel = 0, flat = [];
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function ensure() {
+      if (ov) return;
+      ov = document.createElement('div'); ov.className = 'cmdk-ov';
+      ov.innerHTML = '<div class="cmdk" role="dialog" aria-label="Recherche globale">' +
+        '<div class="cmdk-input">' + window.SSUI.icon('search', 16) +
+        '<input type="text" placeholder="Rechercher un devis, client, facture, RDV…" aria-label="Recherche" autocomplete="off">' +
+        '<span class="cmdk-kbd">Échap</span></div><div class="cmdk-results"></div></div>';
+      document.body.appendChild(ov);
+      input = ov.querySelector('input'); resultsEl = ov.querySelector('.cmdk-results');
+      ov.addEventListener('click', e => { if (e.target === ov) closeP(); });
+      input.addEventListener('input', renderP);
+      input.addEventListener('keydown', onKey);
+    }
+    async function loadData() {
+      if (DATA && Date.now() - dataAt < 60000) return DATA;
+      const SS = window.SS;
+      const [devis, clients, factures, rdv] = await Promise.all([
+        SS.listDevis().catch(() => []), SS.listClients().catch(() => []), SS.listFactures().catch(() => []),
+        (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
+      ]);
+      DATA = { devis: devis || [], clients: clients || [], factures: factures || [], rdv: rdv || [] };
+      dataAt = Date.now(); return DATA;
+    }
+    function openP() {
+      ensure(); ov.classList.add('open'); input.value = '';
+      resultsEl.innerHTML = '<div class="cmdk-empty">Chargement…</div>';
+      setTimeout(() => input.focus(), 30);
+      loadData().then(renderP).catch(() => { resultsEl.innerHTML = '<div class="cmdk-empty">Recherche indisponible hors-ligne.</div>'; });
+    }
+    function closeP() { if (ov) ov.classList.remove('open'); }
+    function renderP() {
+      if (!DATA) return;
+      const q = input.value.trim().toLowerCase();
+      flat = [];
+      if (!q) { resultsEl.innerHTML = '<div class="cmdk-empty">Tape pour chercher un devis, un client, une facture ou une demande de RDV.</div>'; return; }
+      const groups = [];
+      const dv = DATA.devis.map(d => {
+        const prenom = d.client_prenom || (d.client && d.client.prenom) || '', nom = d.client_nom || (d.client && d.client.nom) || '';
+        const ville = (d.client && d.client.adresse && d.client.adresse.ville) || '';
+        return { label: (prenom + ' ' + nom).trim() || 'Sans nom', sub: '#' + d.id, hay: (prenom + ' ' + nom + ' ' + d.id + ' ' + ville).toLowerCase(), href: 'vue.html?id=' + encodeURIComponent(d.id), ic: 'D' };
+      }).filter(x => x.hay.includes(q)).slice(0, 6);
+      if (dv.length) groups.push({ title: 'Devis', items: dv });
+      const cl = DATA.clients.map(c => {
+        const full = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+        return { label: full || 'Client', sub: c.telephone || c.email || '', hay: (full + ' ' + (c.telephone || '') + ' ' + (c.email || '') + ' ' + ((c.adresse && c.adresse.ville) || '')).toLowerCase(), href: 'clients.html?q=' + encodeURIComponent(full), ic: 'C' };
+      }).filter(x => x.hay.includes(q)).slice(0, 5);
+      if (cl.length) groups.push({ title: 'Clients', items: cl });
+      const fa = DATA.factures.map(f => {
+        const full = (((f.client && f.client.prenom) || '') + ' ' + ((f.client && f.client.nom) || '')).trim();
+        return { label: f.id + (full ? ' — ' + full : ''), sub: '', hay: (f.id + ' ' + full).toLowerCase(), href: 'facture.html?id=' + encodeURIComponent(f.id), ic: 'F' };
+      }).filter(x => x.hay.includes(q)).slice(0, 5);
+      if (fa.length) groups.push({ title: 'Factures', items: fa });
+      const rv = DATA.rdv.map(r => {
+        const full = (((r.client && r.client.prenom) || '') + ' ' + ((r.client && r.client.nom) || '')).trim();
+        return { label: full || 'Demande', sub: r.source || '', hay: (full + ' ' + (r.source || '') + ' ' + ((r.client && r.client.adresse && r.client.adresse.ville) || '')).toLowerCase(), href: 'rdv.html?open=' + encodeURIComponent(r.id), ic: 'R' };
+      }).filter(x => x.hay.includes(q)).slice(0, 5);
+      if (rv.length) groups.push({ title: 'Demandes de RDV', items: rv });
+      if (!groups.length) { resultsEl.innerHTML = '<div class="cmdk-empty">Aucun résultat pour « ' + esc(input.value) + ' ».</div>'; return; }
+      let html = '', idx = 0;
+      groups.forEach(g => {
+        html += '<div class="cmdk-group">' + esc(g.title) + '</div>';
+        g.items.forEach(it => { flat.push(it); html += '<a class="cmdk-item" data-i="' + idx + '" href="' + it.href + '"><span class="ci-ic ' + it.ic + '">' + it.ic + '</span><span class="ci-t">' + esc(it.label) + '</span><span class="ci-s">' + esc(it.sub) + '</span></a>'; idx++; });
+      });
+      resultsEl.innerHTML = html; sel = 0; highlight();
+    }
+    function highlight() {
+      resultsEl.querySelectorAll('.cmdk-item').forEach((e, i) => e.classList.toggle('sel', i === sel));
+      const s = resultsEl.querySelector('.cmdk-item.sel'); if (s) s.scrollIntoView({ block: 'nearest' });
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { closeP(); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (flat.length) { sel = (sel + 1) % flat.length; highlight(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (flat.length) { sel = (sel - 1 + flat.length) % flat.length; highlight(); } }
+      else if (e.key === 'Enter') { e.preventDefault(); if (flat[sel]) location.href = flat[sel].href; }
+    }
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (ov && ov.classList.contains('open')) closeP(); else openP();
+      }
+    });
+    window.ssCommandPalette = openP;
+  })();
 
   window.SSNav = { mount: mount, getIdentity: getIdentity };
 })();

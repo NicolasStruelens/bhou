@@ -121,6 +121,7 @@
       nicolas_net: Number(d.nicolas_net) || (d.calculs && Number(d.calculs.nicolas_net)) || 0,
       yannick_net: Number(d.yannick_net) || (d.calculs && Number(d.calculs.yannick_net)) || 0,
       seller_principal: d.seller_principal || (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal) || 'nicolas',
+      acompte_pct: (d.acompte_pct != null) ? d.acompte_pct : ((d.pricing_v2 && d.pricing_v2.acompte_pct != null) ? d.pricing_v2.acompte_pct : ((d.calculs && d.calculs.acompte_pct != null) ? d.calculs.acompte_pct : null)),
       note: d.pricing_note || (d.pricing_v2 && d.pricing_v2.note) || '',
       statut_history: d.statut_history || [],
       ville: (d.client && d.client.adresse && d.client.adresse.ville) || '',
@@ -323,4 +324,48 @@
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
   window.ssCopy = function (text, label) { copyText(text, label); };
+
+  // ── Confettis (petite pluie dorée — ex : devis signé) — Canvas plein écran, sans dépendance ──
+  function ssConfetti(opts) {
+    opts = opts || {};
+    try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:99999;';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const W = () => window.innerWidth, H = () => window.innerHeight;
+    function resize() { canvas.width = W() * DPR; canvas.height = H() * DPR; }
+    resize();
+    const colors = opts.colors || ['#ffd23f', '#ffcf33', '#f5b400', '#ffffff', '#7cc4ff'];
+    const N = opts.count || 150;
+    const parts = [];
+    for (let i = 0; i < N; i++) {
+      parts.push({
+        x: Math.random() * W(), y: -20 - Math.random() * H() * 0.5,
+        vx: (Math.random() - 0.5) * 3.5, vy: 2 + Math.random() * 4,
+        w: 5 + Math.random() * 6, h: 8 + Math.random() * 9,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.35,
+        color: colors[(Math.random() * colors.length) | 0],
+      });
+    }
+    const start = performance.now(), DUR = opts.duration || 2600;
+    function frame(now) {
+      const t = now - start;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.clearRect(0, 0, W(), H());
+      const fade = t > DUR - 700 ? Math.max(0, (DUR - t) / 700) : 1;
+      parts.forEach(p => {
+        p.vy += 0.06; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.globalAlpha = fade; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      if (t < DUR) requestAnimationFrame(frame);
+      else { canvas.remove(); window.removeEventListener('resize', resize); }
+    }
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(frame);
+  }
+  window.ssConfetti = ssConfetti;
 })();
