@@ -193,6 +193,17 @@
       catch (e) { return []; }
     },
 
+    // ── JOURNAL D'ACTIVITÉ (qui a fait quoi) ──
+    // "fire and forget" : ne bloque jamais l'action utilisateur, ignore silencieusement les
+    // erreurs (hors-ligne). L'acteur (nicolas/yannick) est ajouté côté serveur via Access.
+    logActivity(evt) {
+      try { req('/activity', { method: 'POST', body: JSON.stringify(evt) }).catch(function () {}); } catch (e) {}
+    },
+    async listActivity(since) {
+      try { return (await req('/activity' + (since ? '?since=' + encodeURIComponent(since) : ''))).data; }
+      catch (e) { return []; }
+    },
+
     // ── RDV (demandes de visite / leads avant devis) ──
     async listRdv() {
       try { return (await req('/rdv')).data; }

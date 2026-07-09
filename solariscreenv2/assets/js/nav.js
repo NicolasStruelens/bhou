@@ -305,5 +305,21 @@
     window.ssCommandPalette = openP;
   })();
 
+  // ── PWA : manifest + icônes iOS + enregistrement du service worker (un seul endroit) ──
+  (function pwa() {
+    // Base = racine du site. Les pages sont dans /app/ → remonter d'un cran ; sinon on est à la racine.
+    const base = location.pathname.indexOf('/app/') !== -1 ? '../' : './';
+    function addOnce(sel, make) { if (!document.querySelector(sel)) document.head.appendChild(make()); }
+    addOnce('link[rel="manifest"]', function () { const l = document.createElement('link'); l.rel = 'manifest'; l.href = base + 'manifest.webmanifest'; return l; });
+    addOnce('link[rel="apple-touch-icon"]', function () { const l = document.createElement('link'); l.rel = 'apple-touch-icon'; l.href = base + 'assets/img/logo-solariscreen.png'; return l; });
+    addOnce('meta[name="theme-color"]', function () { const m = document.createElement('meta'); m.name = 'theme-color'; m.content = '#0b1224'; return m; });
+    addOnce('meta[name="apple-mobile-web-app-capable"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-capable'; m.content = 'yes'; return m; });
+    addOnce('meta[name="apple-mobile-web-app-title"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-title'; m.content = 'SolariScreen'; return m; });
+    addOnce('meta[name="apple-mobile-web-app-status-bar-style"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-status-bar-style'; m.content = 'black-translucent'; return m; });
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register(base + 'sw.js').catch(function () {}); });
+    }
+  })();
+
   window.SSNav = { mount: mount, getIdentity: getIdentity };
 })();
