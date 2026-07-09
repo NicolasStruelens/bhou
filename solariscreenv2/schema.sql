@@ -59,6 +59,19 @@ CREATE TABLE IF NOT EXISTS rdv (
 CREATE INDEX IF NOT EXISTS idx_rdv_statut ON rdv(statut);
 CREATE INDEX IF NOT EXISTS idx_rdv_modif  ON rdv(date_modification DESC);
 
+-- ── JOURNAL D'ACTIVITÉ (qui a fait quoi et quand — alimenté par les actions client) ──
+CREATE TABLE IF NOT EXISTS activity (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts                TEXT NOT NULL,        -- horodatage ISO (serveur)
+  actor             TEXT,                 -- 'nicolas' | 'yannick' | e-mail brut | NULL
+  action            TEXT NOT NULL,        -- ex : 'devis.statut', 'devis.delete', 'rdv.create', 'note.add'
+  entity_type       TEXT,                 -- 'devis' | 'rdv' | 'facture' | 'client'
+  entity_id         TEXT,
+  label             TEXT,                 -- texte lisible : "Devis #123 (Depaepe) → Signé"
+  meta              TEXT                  -- JSON optionnel
+);
+CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity(ts DESC);
+
 -- ── CONNEXIONS (historique de connexion Nicolas / Yannick, alimenté par nav.js) ──
 CREATE TABLE IF NOT EXISTS connections (
   session_id        TEXT PRIMARY KEY,
