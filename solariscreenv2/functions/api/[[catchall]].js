@@ -348,6 +348,32 @@ export async function onRequest(context) {
       }
     }
 
+    // ══════════ JOURNAL D'ACTIVITÉ ══════════
+    // L'acteur (nicolas/yannick) est déterminé côté SERVEUR via Cloudflare Access — non
+    // falsifiable depuis le navigateur. Le client n'envoie que l'action et son libellé.
+    if (path === '/api/activity' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      if (!body.action) return json({ ok: false, error: 'action manquante' }, 400);
+      const email = parseAccessEmail(request);
+      const actor = (email && IDENTITIES[email.toLowerCase()]) || email || null;
+      await env.DB.prepare(
+        'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        new Date().toISOString(), actor, String(body.action).slice(0, 60),
+        String(body.entity_type || '').slice(0, 20), String(body.entity_id || '').slice(0, 60),
+        String(body.label || '').slice(0, 300), body.meta ? JSON.stringify(body.meta).slice(0, 1000) : null
+      ).run();
+      return json({ ok: true });
+    }
+    if (path === '/api/activity' && method === 'GET') {
+      const since = url.searchParams.get('since');
+      const q = since
+        ? env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label FROM activity WHERE ts > ? ORDER BY ts DESC LIMIT 200').bind(since)
+        : env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label FROM activity ORDER BY ts DESC LIMIT 200');
+      const { results } = await q.all();
+      return json({ ok: true, data: results });
+    }
+
     // ══════════ STATS ══════════
     if (path === '/api/stats' && method === 'GET') {
       const { results } = await env.DB.prepare('SELECT data, statut, total_ttc, date_creation FROM devis ORDER BY date_creation ASC').all();
