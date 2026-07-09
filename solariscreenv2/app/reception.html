@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolariScreen — PV de réception</title>
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <link rel="stylesheet" href="../assets/css/document.css">
+  <style>
+    .sign-wrap { width: 210mm; max-width: 100%; margin: 0 auto var(--sp-5); }
+    #sigCanvas { width: 100%; max-width: 500px; height: 170px; border: 1px dashed var(--border-strong); border-radius: var(--r-sm); background: #fff; touch-action: none; cursor: crosshair; display: block; }
+    .sig-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-top: var(--sp-3); }
+    .reserves-field { margin-top: var(--sp-4); }
+    @media print { .sign-wrap, .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <div class="toolbar no-print">
+    <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    <a class="btn btn-ghost btn-sm" id="backLink" href="#"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Fiche du devis</a>
+    <div class="spacer"></div>
+    <span id="quickNav"></span>
+    <span id="themeToggle"></span>
+    <button class="btn btn-primary btn-sm" onclick="printDoc()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
+  </div>
+
+  <!-- Zone de signature (à faire signer par le client sur place — jamais imprimée) -->
+  <div class="sign-wrap no-print" id="signArea">
+    <section class="section ticked" id="signBlock">
+      <div class="section-head"><span class="section-title">Signature du client — réception des travaux</span></div>
+      <div class="section-body">
+        <p class="text-muted" style="font-size:var(--fs-xs);margin-bottom:var(--sp-3);">À faire signer par le client sur place, une fois l'installation terminée et vérifiée avec lui. Le tracé et l'horodatage sont enregistrés. <strong>Cette réception fait courir les garanties à partir de ce jour.</strong></p>
+        <div class="reserves-field field">
+          <label class="label" for="reserves">Réserves éventuelles (facultatif)</label>
+          <textarea class="textarea" id="reserves" placeholder="Ex : petit réglage de fin de course à revoir la semaine prochaine…" style="min-height:60px;"></textarea>
+        </div>
+        <p style="margin-top:var(--sp-4);font-size:var(--fs-sm);">Je soussigné(e) <strong id="sigClientName">—</strong> reconnais que les travaux ont été réalisés conformément au devis et déclare en <strong>accepter la réception</strong> ce jour — mention « Bon pour réception ».</p>
+        <canvas id="sigCanvas"></canvas>
+        <div class="sig-actions">
+          <button class="btn btn-ghost btn-sm" onclick="clearSignature()">Effacer</button>
+          <button class="btn btn-primary" id="btnConfirmSig" onclick="confirmReception()" disabled>Confirmer la réception</button>
+        </div>
+      </div>
+    </section>
+    <section class="section ticked hidden" id="signedBlock" style="--tick-color:var(--ok);">
+      <div class="section-head"><span class="section-title" style="color:var(--ok);">✓ Réception signée</span></div>
+      <div class="section-body">
+        <p class="text-muted">Réceptionné le <strong id="signedDate" class="text-mono"></strong>. Point de départ des garanties.</p>
+        <img id="signedImg" alt="Signature du client" style="max-width:280px;max-height:90px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fff;margin-top:var(--sp-2);">
+        <div style="margin-top:var(--sp-3);"><button class="btn btn-ghost btn-sm" onclick="reopenSignature()">Refaire signer</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="paper-wrap"><div class="paper" id="paper">Chargement…</div></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const COMPANY = window.SS_COMPANY;
+    const { mountThemeToggle } = window.SSTheme;
+    const { fmtDate, el, qp, setText, toast } = window.SSUI;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+    window.printDoc = async function () { try { await document.fonts.ready; } catch (e) {} window.print(); };
+
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tablier_volet: 'Tablier volet', tente_solaire: 'Tente solaire', pergola: 'Pergola', store_banne: 'Store banne' };
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let DEVIS = null;
+
+    function render(d) {
+      const cl = d.client || {}, adr = cl.adresse || {}, ch = d.chantier || {}, rec = d.reception || {};
+      const adresse = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const recDate = rec.date ? fmtDate(rec.date) : fmtDate(new Date().toISOString());
+      const rows = (d.items || []).map((it, i) => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
+        const detail = [it.modele, it.variante, it.couleur, it.emplacement].filter(Boolean).join(' · ');
+        return `<tr><td class="num">${i + 1}</td><td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}</strong>${detail ? '<small>' + esc(detail) + '</small>' : ''}</td><td>${dims}</td><td class="num">${it.quantite || 1}</td></tr>`;
+      }).join('');
+
+      el('paper').innerHTML = `
+        <div class="doc-head">
+          <div class="brand-block">
+            <div class="logo"><img src="../assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
+            <div><div class="co-name"><span class="b">SOLARI</span><span class="g">SCREEN</span></div><div class="co-tag">${esc(COMPANY.tagline)}</div></div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-title" style="font-size:1.3rem;">PROCÈS-VERBAL DE RÉCEPTION</div>
+            <div class="doc-num">Réf. devis N° ${esc(d.id)}</div>
+            <div class="doc-dates">Réception du ${esc(recDate)}${ch.date_pose ? '<br>Pose du ' + fmtDate(ch.date_pose) : ''}</div>
+          </div>
+        </div>
+
+        <div class="parties">
+          <div class="party">
+            <h4>Installateur</h4>
+            <div class="pname">${esc(COMPANY.name)}</div>
+            <div class="pline">${COMPANY.legal ? esc(COMPANY.legal) + '<br>' : ''}${esc(COMPANY.address)}<br>TVA : ${esc(COMPANY.tva)}</div>
+          </div>
+          <div class="party">
+            <h4>Client</h4>
+            <div class="pname">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
+            <div class="pline">${adresse ? esc(adresse) + '<br>' : ''}${cl.telephone ? esc(cl.telephone) : ''}</div>
+          </div>
+        </div>
+
+        <table class="doc-table" style="margin-top:var(--sp-4);">
+          <thead><tr><th class="num">#</th><th>Produit installé</th><th>Dimensions</th><th class="num">Qté</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">—</td></tr>'}</tbody>
+        </table>
+
+        <div class="terms" style="margin-top:var(--sp-4);">
+          <h4>Déclaration de réception</h4>
+          Je soussigné(e) <strong>${esc(cl.prenom)} ${esc(cl.nom)}</strong>, reconnais que les travaux d'installation objet du devis N° ${esc(d.id)} ont été exécutés conformément à ce dernier, en bon état de fonctionnement, et déclare en <strong>accepter la réception</strong> à la date indiquée ci-dessus. La présente réception constitue le <strong>point de départ des garanties</strong> (structure 5 ans, motorisation selon les conditions du fabricant).
+          <br><br><strong>Réserves éventuelles :</strong> ${rec.notes ? esc(rec.notes) : 'Aucune.'}
+        </div>
+
+        <div class="signatures" style="margin-top:var(--sp-6);">
+          <div class="sig-box">
+            <h4>Le client — « Bon pour réception »</h4>
+            ${rec.image ? `<img src="${rec.image}" alt="Signature du client" style="max-width:100%;max-height:70px;margin-top:0.3rem;"><div class="hint">Signé le ${esc(recDate)}</div>` : '<div class="hint">Date et signature, précédées de « Bon pour réception »</div>'}
+          </div>
+          <div class="sig-box"><h4>L'installateur</h4><div class="hint">${esc(COMPANY.name)}</div></div>
+        </div>
+
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web || COMPANY.email)} · TVA ${esc(COMPANY.tva)}</div>
+      `;
+    }
+
+    // ── Signature (même mécanique que le devis) ──
+    let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null;
+    function initSignatureCanvas() {
+      const canvas = el('sigCanvas'); if (!canvas) return;
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
+      sigCtx = canvas.getContext('2d');
+      sigCtx.scale(ratio, ratio);
+      sigCtx.lineWidth = 2.2; sigCtx.lineCap = 'round'; sigCtx.strokeStyle = '#1a2238';
+      sigHasInk = false;
+      const pos = (e) => { const r = canvas.getBoundingClientRect(); const p = e.touches ? e.touches[0] : e; return { x: p.clientX - r.left, y: p.clientY - r.top }; };
+      const start = (e) => { sigDrawing = true; sigLast = pos(e); e.preventDefault(); };
+      const move = (e) => {
+        if (!sigDrawing) return;
+        const p = pos(e);
+        sigCtx.beginPath(); sigCtx.moveTo(sigLast.x, sigLast.y); sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
+        sigLast = p; sigHasInk = true; updateConfirmState();
+        e.preventDefault();
+      };
+      const end = () => { sigDrawing = false; };
+      canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+      canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', end);
+    }
+    window.updateConfirmState = function () {
+      const btn = el('btnConfirmSig'); if (btn) btn.disabled = !sigHasInk;
+    };
+    window.clearSignature = function () {
+      const canvas = el('sigCanvas'); if (!canvas || !sigCtx) return;
+      sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+      sigHasInk = false; updateConfirmState();
+    };
+    window.confirmReception = async function () {
+      const canvas = el('sigCanvas'); if (!canvas || !sigHasInk) return;
+      const now = new Date().toISOString();
+      DEVIS.reception = { accepted: true, image: canvas.toDataURL('image/png'), date: now, notes: el('reserves').value.trim() };
+      // La réception signifie que les travaux sont terminés → passe le devis en "terminé".
+      const wasNotDone = DEVIS.statut !== 'termine';
+      if (wasNotDone) { DEVIS.statut = 'termine'; DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'termine', date: now }]); }
+      DEVIS.date_modification = now;
+      const res = await SS.saveDevis(DEVIS);
+      toast(res.offline ? 'Réception enregistrée (hors-ligne)' : 'Réception signée ✓', res.offline ? 'warn' : 'ok');
+      SS.logActivity({ action: 'devis.reception', entity_type: 'devis', entity_id: DEVIS.id, label: `Chantier réceptionné (signé client) — devis #${DEVIS.id}${(DEVIS.client && (DEVIS.client.prenom || DEVIS.client.nom)) ? ' (' + ((DEVIS.client.prenom || '') + ' ' + (DEVIS.client.nom || '')).trim() + ')' : ''}` });
+      if (window.ssConfetti) window.ssConfetti({ count: 110 });
+      render(DEVIS); renderSignatureUI();
+    };
+    window.reopenSignature = function () {
+      el('signedBlock').classList.add('hidden');
+      el('signBlock').classList.remove('hidden');
+      el('reserves').value = (DEVIS.reception && DEVIS.reception.notes) || '';
+      const cl = DEVIS.client || {};
+      setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
+      initSignatureCanvas();
+    };
+    function renderSignatureUI() {
+      const rec = DEVIS.reception || {};
+      if (rec.image) {
+        el('signBlock').classList.add('hidden');
+        el('signedBlock').classList.remove('hidden');
+        const d = new Date(rec.date);
+        setText('signedDate', fmtDate(rec.date) + (isNaN(d) ? '' : ' à ' + d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })));
+        el('signedImg').src = rec.image;
+      } else {
+        el('signBlock').classList.remove('hidden');
+        el('signedBlock').classList.add('hidden');
+        const cl = DEVIS.client || {};
+        setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
+        el('reserves').value = rec.notes || '';
+        initSignatureCanvas();
+      }
+    }
+
+    (async () => {
+      const id = qp('id');
+      if (!id) { el('paper').innerHTML = '<p style="color:var(--text-muted);">Aucun devis spécifié.</p>'; el('signArea').style.display = 'none'; return; }
+      el('backLink').href = 'vue.html?id=' + id;
+      const d = await SS.getDevis(id);
+      if (!d) { el('paper').innerHTML = '<p style="color:var(--danger);">Devis introuvable (#' + esc(id) + ').</p>'; el('signArea').style.display = 'none'; return; }
+      DEVIS = d;
+      render(d);
+      renderSignatureUI();
+    })();
+  </script>
+</body>
+</html>

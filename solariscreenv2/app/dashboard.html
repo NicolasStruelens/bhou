@@ -205,6 +205,22 @@
     /* ── Modale commentaires internes ── */
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
     .modal-bg.open { display: flex; }
+    /* ── Journal d'activité / Quoi de neuf ── */
+    .act-news-banner { padding: var(--sp-3) var(--sp-4); background: color-mix(in srgb, var(--accent-2) 10%, transparent); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+    .act-daysep { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); padding: var(--sp-3) var(--sp-3) 0.3rem; }
+    .act-row { display: flex; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--border); transition: background var(--t-fast); animation: actIn 0.34s cubic-bezier(0.2,0.6,0.3,1) both; }
+    .act-row:last-child { border-bottom: none; }
+    .act-row[onclick] { cursor: pointer; }
+    .act-row[onclick]:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .act-ava { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700; }
+    .act-ava.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+    .act-ava.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
+    .act-ava.none { background: var(--bg); color: var(--text-subtle); border: 1px solid var(--border-strong); }
+    .act-main { min-width: 0; flex: 1; }
+    .act-label { font-size: var(--fs-sm); line-height: 1.35; }
+    .act-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+    @keyframes actIn { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .act-row { animation: none; } }
     .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
     .modal .mhead { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; gap: var(--sp-2); }
     .modal .mhead .mid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
@@ -282,6 +298,7 @@
       <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
+      <button class="btn btn-ghost btn-sm" onclick="openActivity('all')" title="Journal d'activité (qui a fait quoi)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Activité</button>
       <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres avancés<span id="advCount"></span></button>
     </div>
     <div class="filters" id="filters"></div>
@@ -349,6 +366,19 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Journal d'activité / « Quoi de neuf » -->
+  <div class="modal-bg" id="modalActivity">
+    <div class="modal ticked">
+      <div class="mhead">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        <span id="actTitle">Journal d'activité</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeActivity()" aria-label="Fermer" style="margin-left:auto;">✕</button>
+      </div>
+      <div class="mbody" id="actBody"><div class="empty-comments">Chargement…</div></div>
+      <div class="mfoot" id="actFoot"></div>
     </div>
   </div>
 
@@ -821,6 +851,8 @@
       if (d) { d.statut = statut; d.statut_history = (d.statut_history || []).concat([{ statut, date: new Date().toISOString(), by: identity.key || null }]); }
       toast(statut === 'signe' && prev !== 'signe' ? 'Devis signé 🎉' : 'Statut mis à jour', 'ok');
       if (statut === 'signe' && prev !== 'signe' && window.ssConfetti) window.ssConfetti();
+      const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
+      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: id, label: `Devis #${id}${cli ? ' (' + cli + ')' : ''} → ${(STATUSES[statut] || {}).label || statut}` });
       render();
     };
 
@@ -918,9 +950,12 @@
     });
     window.del = async (id) => {
       if (!confirm('Supprimer définitivement ce devis ?')) return;
+      const d = DEVIS.find(x => x.id === id);
+      const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
       await SS.deleteDevis(id);
-      DEVIS = DEVIS.filter(d => d.id !== id);
+      DEVIS = DEVIS.filter(x => x.id !== id);
       toast('Devis supprimé', 'warn');
+      SS.logActivity({ action: 'devis.delete', entity_type: 'devis', entity_id: id, label: `Devis #${id}${cli ? ' (' + cli + ')' : ''} supprimé` });
       render();
     };
     window.duplicate = async (id) => {
@@ -1001,6 +1036,8 @@
       el('cmText').value = '';
       toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée', res.offline ? 'warn' : 'ok');
       const d = DEVIS.find(x => x.id === cmDevisId); if (d) d.comments = (d.comments || 0) + 1;
+      const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
+      SS.logActivity({ action: 'note.add', entity_type: 'devis', entity_id: cmDevisId, label: `Note ajoutée sur le devis #${cmDevisId}${cli ? ' (' + cli + ')' : ''}` });
       closeComments(); // la fenêtre se ferme dès l'envoi
       render();
     };
@@ -1058,6 +1095,71 @@
       input.value = '';
     };
 
+    // ── Journal d'activité / « Quoi de neuf » ──
+    function actRelTime(iso) {
+      const t = Date.now() - new Date(iso).getTime(), m = Math.floor(t / 60000);
+      if (m < 1) return "à l'instant"; if (m < 60) return 'il y a ' + m + ' min';
+      const h = Math.floor(m / 60); if (h < 24) return 'il y a ' + h + ' h';
+      const dd = Math.floor(h / 24); if (dd === 1) return 'hier'; if (dd < 7) return 'il y a ' + dd + ' j';
+      return fmtDate(iso);
+    }
+    function actDayLabel(iso) {
+      const d = new Date(iso), today = new Date(), y = new Date(); y.setDate(y.getDate() - 1);
+      const same = (a, b) => a.toDateString() === b.toDateString();
+      if (same(d, today)) return "Aujourd'hui"; if (same(d, y)) return 'Hier';
+      return d.toLocaleDateString('fr-BE', { weekday: 'long', day: '2-digit', month: 'long' });
+    }
+    function actNavFor(a) {
+      if (a.entity_type === 'devis' && a.entity_id && a.action !== 'devis.delete') return 'vue.html?id=' + encodeURIComponent(a.entity_id);
+      if (a.entity_type === 'rdv' && a.entity_id) return 'rdv.html?open=' + encodeURIComponent(a.entity_id);
+      return null;
+    }
+    function renderActivity(list, mode) {
+      if (!list || !list.length) {
+        el('actBody').innerHTML = '<div class="empty-comments">' + (mode === 'news' ? 'Rien de neuf — tu es à jour ! ✨' : 'Aucune activité enregistrée pour le moment.') + '</div>';
+        return;
+      }
+      let html = '', lastDay = '';
+      list.forEach((a, i) => {
+        const day = actDayLabel(a.ts);
+        if (day !== lastDay) { html += '<div class="act-daysep">' + esc(day) + '</div>'; lastDay = day; }
+        const who = (a.actor || '').toLowerCase();
+        const cls = who === 'yannick' ? 'yannick' : (who === 'nicolas' ? 'nicolas' : 'none');
+        const ava = who === 'yannick' ? 'YA' : (who === 'nicolas' ? 'NI' : '?');
+        const whoName = who ? who.charAt(0).toUpperCase() + who.slice(1) : 'Système';
+        const nav = actNavFor(a);
+        html += `<div class="act-row" style="animation-delay:${Math.min(i, 12) * 35}ms"${nav ? ` onclick="location.href='${nav}'"` : ''}>
+          <span class="act-ava ${cls}">${ava}</span>
+          <div class="act-main"><div class="act-label">${esc(a.label || a.action)}</div><div class="act-meta">${esc(whoName)} · ${esc(actRelTime(a.ts))}</div></div>
+        </div>`;
+      });
+      el('actBody').innerHTML = html;
+    }
+    window.openActivity = async (mode, preloaded) => {
+      el('actTitle').textContent = mode === 'news' ? 'Quoi de neuf depuis ta dernière visite' : "Journal d'activité";
+      el('actFoot').innerHTML = '';
+      el('actBody').innerHTML = '<div class="empty-comments">Chargement…</div>';
+      el('modalActivity').classList.add('open');
+      const list = preloaded || await SS.listActivity(mode === 'news' ? localStorage.getItem('ss_activity_seen') : null);
+      renderActivity(list, mode);
+      if (mode === 'news') el('actFoot').innerHTML = '<button class="btn btn-ghost btn-sm" onclick="openActivity(\'all\')">Voir tout le journal</button>';
+    };
+    window.closeActivity = () => el('modalActivity').classList.remove('open');
+    el('modalActivity').addEventListener('click', (e) => { if (e.target === el('modalActivity')) closeActivity(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('modalActivity').classList.contains('open')) closeActivity(); });
+    // Auto : à la connexion, montre ce qui a changé DEPUIS la dernière visite (actions des autres).
+    async function checkWhatsNew() {
+      const lastSeen = localStorage.getItem('ss_activity_seen');
+      const nowIso = new Date().toISOString();
+      localStorage.setItem('ss_activity_seen', nowIso);
+      if (!lastSeen) return;   // 1re visite : on n'affiche pas tout l'historique
+      const news = await SS.listActivity(lastSeen);
+      let identity = { key: '' };
+      try { identity = await window.SSNav.getIdentity(); } catch (e) {}
+      const relevant = (news || []).filter(a => !identity.key || a.actor !== identity.key);
+      if (relevant.length) openActivity('news', relevant);
+    }
+
     // ── Chargement ──
     async function load() {
       const [raw, facs, clients] = await Promise.all([SS.listDevis(), SS.listFactures(), SS.listClients()]);
@@ -1065,6 +1167,7 @@
       FACTURES = facs || [];
       CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();
+      checkWhatsNew();   // fire-and-forget : ouvre « Quoi de neuf » s'il y a du nouveau
     }
     SS.isOnline().then(on => {
       const b = el('apiBadge');

@@ -569,9 +569,11 @@
       collect();
       const cur = CURRENT;   // capturé AVANT l'await : fermer la modale (Échap/clic) met CURRENT=null
       const idx = RDV.findIndex(x => x.id === cur.id);
+      const isNewRdv = idx === -1;
       if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
       const res = await SS.saveRdv(cur);
       toast(res.offline ? 'Enregistré (hors-ligne)' : 'Demande enregistrée ✓', res.offline ? 'warn' : 'ok');
+      if (isNewRdv) SS.logActivity({ action: 'rdv.create', entity_type: 'rdv', entity_id: cur.id, label: `Nouvelle demande de RDV — ${clientName(cur)}${cur.source ? ' (' + cur.source + ')' : ''}` });
       closeModal();
       render();
     };
@@ -613,6 +615,7 @@
       await SS.saveRdv(cur);
       const idx = RDV.findIndex(x => x.id === cur.id);
       if (idx !== -1) RDV[idx] = cur;
+      SS.logActivity({ action: 'devis.create', entity_type: 'devis', entity_id: devisId, label: `Devis #${devisId} créé depuis la demande de RDV — ${clientName(cur)}` });
       toast(rDevis.offline ? 'Devis créé (hors-ligne)' : 'Devis créé — ouverture du simulateur…', rDevis.offline ? 'warn' : 'ok', 1600);
       setTimeout(() => { location.href = 'simulateur.html?id=' + encodeURIComponent(devisId); }, 500);
     };

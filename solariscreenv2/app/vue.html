@@ -333,6 +333,7 @@
         <a class="btn btn-ghost" id="btnPicking" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Liste de pose</a>
         <a class="btn btn-ghost" id="btnVisite" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Rapport de visite</a>
         <a class="btn btn-ghost" id="btnFacturer" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Facturer</a>
+        <a class="btn btn-ghost hidden" id="btnReception" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception</a>
         <button class="btn btn-ghost hidden" id="btnPortfolio" onclick="togglePortfolio()"></button>
       </div>
 
@@ -585,8 +586,10 @@
     function renderGarantie() {
       const badge = el('garantieBadge');
       const ch = DEVIS.chantier || {};
-      if (DEVIS.statut !== 'termine' || !ch.date_pose) { badge.classList.add('hidden'); return; }
-      const poseDate = new Date(ch.date_pose);
+      // Point de départ des garanties = date de RÉCEPTION signée (PV) en priorité ; à défaut, date de pose.
+      const startIso = (DEVIS.reception && DEVIS.reception.date) || ch.date_pose;
+      if (DEVIS.statut !== 'termine' || !startIso) { badge.classList.add('hidden'); return; }
+      const poseDate = new Date(startIso);
       const structureEnd = new Date(poseDate); structureEnd.setFullYear(structureEnd.getFullYear() + 5);
       const items = DEVIS.items || [];
       const motorYears = items.length ? Math.max(...items.map(itemMotorYears)) : 5;
@@ -659,6 +662,13 @@
       el('btnPicking').href = 'picking.html?id=' + d.id;
       el('btnVisite').href = 'visite.html?id=' + d.id;
       el('btnFacturer').href = 'factures.html?devis=' + d.id + '&type=acompte';
+      const btnRec = el('btnReception');
+      btnRec.href = 'reception.html?id=' + d.id;
+      btnRec.classList.toggle('hidden', !['signe', 'termine'].includes(d.statut));
+      btnRec.classList.toggle('is-gold', !!(d.reception && d.reception.image));
+      btnRec.innerHTML = (d.reception && d.reception.image)
+        ? `${icon('check', 15)} Réception signée`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception`;
       const btnPf = el('btnPortfolio');
       btnPf.classList.toggle('hidden', d.statut !== 'termine');
       btnPf.classList.toggle('is-gold', !!d.portfolio);
@@ -1312,6 +1322,8 @@
       CALC = getCalc(DEVIS);
       toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
       if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
+      const cl = DEVIS.client || {};
+      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → ${(STATUSES[statut] || {}).label || statut}` });
       render();
     };
     window.pickRaisonRefus = async (raison) => {
