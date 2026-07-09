@@ -166,6 +166,7 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.calculs.yannick_net') AS REAL), 0) AS yannick_net,
                json_extract(data, '$.pricing_v2.material.sellers.principal') AS seller_principal,
                json_extract(data, '$.pricing_v2.note') AS pricing_note,
+               json_extract(data, '$.pricing_v2.acompte_pct') AS acompte_pct,
                json_extract(data, '$.statut_history') AS statut_history_json,
                json_extract(data, '$.chantier') AS chantier_json,
                json_extract(data, '$.checklist') AS checklist_json,
