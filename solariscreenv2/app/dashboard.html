@@ -459,11 +459,20 @@
     // Devis signé (chantier pas encore posé) dont l'acompte n'a pas été intégralement reçu.
     function isAcompteUnpaid(d) {
       if (d.statut !== 'signe') return false;
-      const facs = FACTURES.filter(f => f.devis_id === d.id && f.type === 'acompte');
-      if (!facs.length) return true;
-      const due = facs.reduce((s, f) => s + (f.total_ttc || 0), 0);
-      const paid = facs.reduce((s, f) => s + paidSum(f), 0);
-      return paid < due - 0.005;
+      const acompteFacs = FACTURES.filter(f => f.devis_id === d.id && f.type === 'acompte');
+      if (acompteFacs.length) {
+        // Cas normal : une facture d'acompte existe → comparer payé vs dû sur cette facture.
+        const due = acompteFacs.reduce((s, f) => s + (f.total_ttc || 0), 0);
+        const paid = acompteFacs.reduce((s, f) => s + paidSum(f), 0);
+        return paid < due - 0.005;
+      }
+      // Pas de facture d'acompte DÉDIÉE : l'acompte a pu être encaissé sur une facture solde/totale
+      // (ou via l'ancien ERP, ex. Ecole Du Bonheur : 9 539,05 € payés sur une facture "Solde"). On
+      // le considère couvert dès que le TOTAL encaissé (toutes factures) atteint le montant attendu.
+      const totalPaid = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
+      const pct = (d.acompte_pct != null) ? d.acompte_pct : 30;
+      const acompteDu = (d.ttc || 0) * pct / 100;
+      return acompteDu > 0 && totalPaid < acompteDu - 0.005;
     }
     // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
     function isChantierAPreparer(d) {
@@ -806,10 +815,12 @@
     // ── Actions ──
     window.changeStatus = async (id, statut) => {
       const identity = await window.SSNav.getIdentity();
+      const prev = (DEVIS.find(x => x.id === id) || {}).statut;
       await SS.updateStatus(id, statut, identity.key);
       const d = DEVIS.find(x => x.id === id);
       if (d) { d.statut = statut; d.statut_history = (d.statut_history || []).concat([{ statut, date: new Date().toISOString(), by: identity.key || null }]); }
-      toast('Statut mis à jour', 'ok');
+      toast(statut === 'signe' && prev !== 'signe' ? 'Devis signé 🎉' : 'Statut mis à jour', 'ok');
+      if (statut === 'signe' && prev !== 'signe' && window.ssConfetti) window.ssConfetti();
       render();
     };
 
@@ -1006,14 +1017,29 @@
     el('modalComments').addEventListener('click', (e) => { if (e.target === el('modalComments')) closeComments(); });
 
     // ── Gadgets : export / import JSON ──
+    // Sauvegarde COMPLÈTE : devis (fiches entières) + clients + factures + demandes de RDV,
+    // dans un seul fichier JSON daté (ceinture + bretelles, en plus de l'historique D1 30 j).
     window.exportJSON = async () => {
-      const all = await Promise.all(DEVIS.map(d => SS.getDevis(d.id)));
-      const blob = new Blob([JSON.stringify({ export_date: new Date().toISOString(), version: '3.0', total_devis: all.length, data: all.filter(Boolean) }, null, 2)], { type: 'application/json' });
+      toast('Préparation de la sauvegarde…', 'ok', 1200);
+      const [devisFull, clients, factures, rdv] = await Promise.all([
+        Promise.all(DEVIS.map(d => SS.getDevis(d.id))).then(a => a.filter(Boolean)),
+        SS.listClients().catch(() => []),
+        SS.listFactures().catch(() => []),
+        (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
+      ]);
+      const backup = {
+        export_date: new Date().toISOString(), version: '3.0',
+        counts: { devis: devisFull.length, clients: (clients || []).length, factures: (factures || []).length, rdv: (rdv || []).length },
+        data: devisFull,          // rétro-compatible avec l'import existant (liste de devis)
+        clients: clients || [], factures: factures || [], rdv: rdv || [],
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'solariscreen_export_' + new Date().toISOString().slice(0, 10) + '.json';
+      a.download = 'solariscreen_sauvegarde_' + new Date().toISOString().slice(0, 10) + '.json';
       a.click();
-      toast('Export téléchargé', 'ok');
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast(`Sauvegarde téléchargée (${backup.counts.devis} devis, ${backup.counts.clients} clients, ${backup.counts.factures} factures, ${backup.counts.rdv} RDV)`, 'ok', 3000);
     };
     window.importJSON = (input) => {
       const file = input.files[0]; if (!file) return;

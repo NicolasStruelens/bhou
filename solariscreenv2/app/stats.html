@@ -17,6 +17,23 @@
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--sp-4); align-items: start; }
     .stats-grid .section { margin: 0; }
 
+    /* ── Podium du mois (Nicolas vs Yannick) ── */
+    .podium { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+    @media (max-width: 560px) { .podium { grid-template-columns: 1fr; } }
+    .podium-card { position: relative; border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: var(--sp-4); text-align: center; background: var(--surface); }
+    .podium-card.lead { border-color: color-mix(in srgb, var(--accent-2) 55%, transparent); box-shadow: var(--glow-soft); }
+    .podium-crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 1.4rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,.3)); }
+    .podium-ava { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto var(--sp-2); display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: var(--fs-md); }
+    .podium-ava.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+    .podium-ava.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
+    .podium-name { font-weight: 700; font-size: var(--fs-md); }
+    .podium-count { font-family: var(--font-display); font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin: var(--sp-2) 0 0; }
+    .podium-card.nicolas .podium-count { color: var(--accent); }
+    .podium-card.yannick .podium-count { color: var(--accent-2); }
+    .podium-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+    .podium-ca { margin-top: var(--sp-3); font-family: var(--font-mono); font-weight: 700; color: var(--text); }
+    .podium-foot { text-align: center; margin-top: var(--sp-3); font-size: var(--fs-2xs); color: var(--text-subtle); }
+
     /* ── Barres horizontales (répartition) ── */
     .bar-row { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
     .bar-row:last-child { margin-bottom: 0; }
@@ -70,6 +87,16 @@
     <div class="kpis" id="kpis"></div>
 
     <div class="stats-grid">
+      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-2);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-2);" id="podiumTitle">Podium du mois</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
+        <div class="section-body" id="podium"></div>
+      </section>
+
+      <section class="section ticked" style="grid-column:1 / -1;">
+        <div class="section-head"><span class="section-title">D'où viennent les clients qui signent</span><span class="section-code">SS // SOURCE RDV</span></div>
+        <div class="section-body" id="bySource"></div>
+      </section>
+
       <section class="section ticked">
         <div class="section-head"><span class="section-title">Répartition par statut</span><span class="section-code">SS // FUNNEL</span></div>
         <div class="section-body" id="byStatus"></div>
@@ -369,6 +396,70 @@
         ${recentRows}`;
     }
 
+    // Date de passage en "signé" (dernière transition vers 'signe' dans l'historique).
+    function signeDateOf(d) {
+      const hist = d.statut_history || [];
+      for (let i = hist.length - 1; i >= 0; i--) if (hist[i].statut === 'signe') return hist[i].date;
+      return ['signe', 'termine'].includes(d.statut) ? d.date_modification : null;
+    }
+    function sellerOf(d) { return (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal) || 'nicolas'; }
+
+    // Podium du mois : Nicolas vs Yannick, devis SIGNÉS ce mois-ci (par date de signature) + CA.
+    function renderPodium(devisFull) {
+      const nowKey = monthKey(new Date().toISOString());
+      const tally = { nicolas: { count: 0, ca: 0 }, yannick: { count: 0, ca: 0 } };
+      devisFull.forEach(d => {
+        if (d.archive) return;
+        const sd = signeDateOf(d);
+        if (!sd || monthKey(sd) !== nowKey) return;
+        const s = sellerOf(d); if (s !== 'nicolas' && s !== 'yannick') return;
+        tally[s].count++; tally[s].ca += (d.calculs && d.calculs.total_ttc) || 0;
+      });
+      el('podiumTitle').textContent = 'Podium — ' + new Date().toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' });
+      const leadNic = tally.nicolas.ca > tally.yannick.ca, leadYan = tally.yannick.ca > tally.nicolas.ca;
+      const card = (who, label, t, lead) => `
+        <div class="podium-card ${who} ${lead ? 'lead' : ''}">
+          ${lead ? '<div class="podium-crown">👑</div>' : ''}
+          <div class="podium-ava ${who}">${label[0]}</div>
+          <div class="podium-name">${label}</div>
+          <div class="podium-count">${t.count}</div>
+          <div class="podium-sub">devis signé${t.count > 1 ? 's' : ''} ce mois</div>
+          <div class="podium-ca">${fmtEur(t.ca)}</div>
+        </div>`;
+      const total = tally.nicolas.count + tally.yannick.count;
+      el('podium').innerHTML = `<div class="podium">
+        ${card('nicolas', 'Nicolas', tally.nicolas, leadNic)}
+        ${card('yannick', 'Yannick', tally.yannick, leadYan)}
+      </div>
+      <div class="podium-foot">${total ? `${total} devis signé(s) ce mois — ${fmtEur(tally.nicolas.ca + tally.yannick.ca)} au total. ${leadNic ? 'Nicolas mène 🎉' : (leadYan ? 'Yannick mène 🎉' : 'Égalité parfaite !')}` : 'Aucun devis signé ce mois — à vous de jouer ! 💪'}</div>`;
+    }
+
+    // D'où viennent les clients qui signent : par source des demandes de RDV converties en devis.
+    function renderBySource(devisFull, rdv) {
+      const devisById = new Map(devisFull.map(d => [d.id, d]));
+      const bySrc = {};
+      (rdv || []).forEach(r => {
+        const src = (r.source || '').trim() || 'Non précisé';
+        bySrc[src] = bySrc[src] || { demandes: 0, devis: 0, signes: 0, ca: 0 };
+        bySrc[src].demandes++;
+        if (r.devis_id) {
+          bySrc[src].devis++;
+          const d = devisById.get(r.devis_id);
+          if (d && ['signe', 'termine'].includes(d.statut)) { bySrc[src].signes++; bySrc[src].ca += (d.calculs && d.calculs.total_ttc) || 0; }
+        }
+      });
+      const entries = Object.entries(bySrc).sort((a, b) => b[1].signes - a[1].signes || b[1].demandes - a[1].demandes);
+      if (!entries.length) {
+        el('bySource').innerHTML = '<div class="empty-mini">Les demandes de RDV (avec leur source) alimenteront cette section : tu verras quelle origine amène le plus de clients qui signent.</div>';
+        return;
+      }
+      const maxDem = Math.max(1, ...entries.map(([, v]) => v.demandes));
+      el('bySource').innerHTML = entries.map(([src, v]) => {
+        const taux = v.demandes ? Math.round((v.signes / v.demandes) * 100) : 0;
+        return barRow(src, v.demandes, maxDem, `${v.signes}/${v.demandes} signés · ${taux}%${v.ca ? ' · ' + fmtEur(v.ca) : ''}`, taux >= 50 ? 'var(--ok)' : (taux > 0 ? 'var(--accent)' : 'var(--text-subtle)'));
+      }).join('');
+    }
+
     (async () => {
       const raw = await SS.listDevis();
       const summary = (raw || []).map(normDevis);
@@ -376,7 +467,10 @@
         .map(d => ({ ...d, archive: !!d.archive }));
       const factures = await SS.listFactures();
       const connections = await SS.listConnections();
+      const rdv = (SS.listRdv ? await SS.listRdv().catch(() => []) : []);
 
+      renderPodium(devisFull);
+      renderBySource(devisFull, rdv);
       renderKPIs(devisFull);
       renderByStatus(devisFull);
       renderPayments(factures || []);
