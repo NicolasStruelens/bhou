@@ -138,7 +138,7 @@ export async function onRequest(context) {
       } else if (body.action === 'question') {
         const text = (body.text || '').trim().slice(0, MAX_TEXT);
         if (!text) return json({ ok: false, error: 'Message vide' }, 400);
-        d.comments = (d.comments || []).concat([{ id: Date.now(), author: 'client', text, type: 'question', date: new Date().toISOString() }]);
+        d.comments = (d.comments || []).concat([{ id: crypto.randomUUID(), author: 'client', text, type: 'question', date: new Date().toISOString() }]);
       } else {
         return json({ ok: false, error: 'Action inconnue' }, 400);
       }
@@ -157,8 +157,12 @@ export async function onRequest(context) {
     if (path === '/api/devis' && method === 'GET') {
       const { results } = await env.DB.prepare(`
         SELECT id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification,
-               IFNULL(CAST(json_extract(data, '$.photos_count')   AS INTEGER), 0) AS photos_count,
-               IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER), 0) AS comments_count,
+               -- Fallback pour les devis écrits AVANT la dénormalisation (clés absentes) : on recompte
+               -- depuis les items/commentaires bruts. COALESCE/IFNULL court-circuitent → coût nul sur les devis récents.
+               IFNULL(CAST(json_extract(data, '$.photos_count') AS INTEGER),
+                      (SELECT IFNULL(SUM(IFNULL(json_array_length(je.value, '$.photos'), 0)), 0) FROM json_each(data, '$.items') je)) AS photos_count,
+               IFNULL(CAST(json_extract(data, '$.comments_count') AS INTEGER),
+                      IFNULL(json_array_length(data, '$.comments'), 0)) AS comments_count,
                IFNULL(CAST(json_extract(data, '$.archive')        AS INTEGER), 0) AS archive,
                IFNULL(CAST(json_extract(data, '$.informatif')      AS INTEGER), 0) AS informatif,
                IFNULL(CAST(json_extract(data, '$.portfolio')       AS INTEGER), 0) AS portfolio,
@@ -176,7 +180,9 @@ export async function onRequest(context) {
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                json_extract(data, '$.client') AS client_json,
-               json_extract(data, '$.item_types') AS item_types_json
+               COALESCE(json_extract(data, '$.item_types'),
+                        (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
+                           FROM json_each(data, '$.items') je WHERE json_extract(je.value, '$.type') IS NOT NULL))) AS item_types_json
         FROM devis ORDER BY date_modification DESC
       `).all();
       // client_json → objet client (coordonnées complètes pour le CRM)
@@ -209,7 +215,8 @@ export async function onRequest(context) {
       if (method === 'GET') {
         const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
         if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
-        return json({ ok: true, data: JSON.parse(row.data) });
+        const d = safeParse(row.data);
+        return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Devis illisible (données corrompues)' }, 500);
       }
       if (method === 'PUT') { const d = await request.json(); stampSignatureIp(d, request); await upsertDevis(env.DB, { ...d, id }); return json({ ok: true }); }
       if (method === 'DELETE') {
@@ -231,7 +238,8 @@ export async function onRequest(context) {
       const id = decodeURIComponent(m[1]);
       const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
       if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
-      const d = JSON.parse(row.data);
+      const d = safeParse(row.data);
+      if (!d) return json({ ok: false, error: 'Devis illisible (données corrompues)' }, 500);
       const form = await request.formData();
       const file = form.get('file');
       const type = String(form.get('type') || 'autre').slice(0, 30);
@@ -256,7 +264,8 @@ export async function onRequest(context) {
       const docId = decodeURIComponent(m[2]);
       const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
       if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
-      const d = JSON.parse(row.data);
+      const d = safeParse(row.data);
+      if (!d) return json({ ok: false, error: 'Devis illisible (données corrompues)' }, 500);
       const doc = (d.documents || []).find(x => x.id === docId);
       if (!doc) return json({ ok: false, error: 'Document introuvable' }, 404);
       if (method === 'GET') {
@@ -296,7 +305,8 @@ export async function onRequest(context) {
       if (method === 'GET') {
         const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(key).first();
         if (!row) return json({ ok: false, error: 'Client introuvable' }, 404);
-        return json({ ok: true, data: JSON.parse(row.data) });
+        const d = safeParse(row.data);
+        return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Client illisible (données corrompues)' }, 500);
       }
       if (method === 'DELETE') { await env.DB.prepare('DELETE FROM clients WHERE key = ?').bind(key).run(); return json({ ok: true }); }
     }
@@ -318,7 +328,8 @@ export async function onRequest(context) {
       if (method === 'GET') {
         const row = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
         if (!row) return json({ ok: false, error: 'Facture introuvable' }, 404);
-        return json({ ok: true, data: JSON.parse(row.data) });
+        const d = safeParse(row.data);
+        return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Facture illisible (données corrompues)' }, 500);
       }
       if (method === 'DELETE') { await env.DB.prepare('DELETE FROM factures WHERE id = ?').bind(id).run(); return json({ ok: true }); }
     }
@@ -340,7 +351,8 @@ export async function onRequest(context) {
       if (method === 'GET') {
         const row = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(id).first();
         if (!row) return json({ ok: false, error: 'RDV introuvable' }, 404);
-        return json({ ok: true, data: JSON.parse(row.data) });
+        const d = safeParse(row.data);
+        return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'RDV illisible (données corrompues)' }, 500);
       }
       if (method === 'DELETE') {
         await env.DB.prepare('DELETE FROM rdv WHERE id = ?').bind(id).run();
