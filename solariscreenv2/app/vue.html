@@ -1318,7 +1318,8 @@
       const identity = await window.SSNav.getIdentity();
       const res = await SS.updateStatus(DEVIS.id, statut, identity.key);
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
-      DEVIS = await SS.getDevis(DEVIS.id);
+      const fresh = await SS.getDevis(DEVIS.id);
+      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash)
       CALC = getCalc(DEVIS);
       toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
       if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
@@ -1331,7 +1332,8 @@
       const identity = await window.SSNav.getIdentity();
       const res = await SS.updateStatus(DEVIS.id, 'refuse', identity.key);
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
-      DEVIS = await SS.getDevis(DEVIS.id);
+      const fresh = await SS.getDevis(DEVIS.id);
+      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash)
       // Toujours (r)écrire raison_refus, même vide — sinon un refus sans raison (« Passer »)
       // garde silencieusement la raison d'un refus précédent sur ce même devis.
       DEVIS.raison_refus = raison;
@@ -1441,7 +1443,8 @@
       const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('nText').value = '';
-      DEVIS = await SS.getDevis(DEVIS.id);
+      const fresh = await SS.getDevis(DEVIS.id);
+      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash de renderNotes)
       renderNotes();
       toast('Note ajoutée', 'ok');
     };

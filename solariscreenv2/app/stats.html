@@ -412,7 +412,11 @@
         if (d.archive) return;
         const sd = signeDateOf(d);
         if (!sd || monthKey(sd) !== nowKey) return;
-        const s = sellerOf(d); if (s !== 'nicolas' && s !== 'yannick') return;
+        // Équité : on ne crédite QUE les devis dont le vendeur principal est EXPLICITEMENT renseigné.
+        // (sellerOf() renvoie 'nicolas' par défaut pour le reste de l'app ; l'appliquer ici gonflerait
+        // artificiellement le podium de Nicolas avec les devis sans vendeur.)
+        const s = (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal);
+        if (s !== 'nicolas' && s !== 'yannick') return;
         tally[s].count++; tally[s].ca += (d.calculs && d.calculs.total_ttc) || 0;
       });
       el('podiumTitle').textContent = 'Podium — ' + new Date().toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' });
@@ -440,12 +444,16 @@
       const bySrc = {};
       (rdv || []).forEach(r => {
         const src = (r.source || '').trim() || 'Non précisé';
-        bySrc[src] = bySrc[src] || { demandes: 0, devis: 0, signes: 0, ca: 0 };
-        bySrc[src].demandes++;
+        const b = bySrc[src] = bySrc[src] || { demandes: 0, devis: 0, signes: 0, ca: 0, _seen: new Set() };
+        b.demandes++;
         if (r.devis_id) {
-          bySrc[src].devis++;
+          b.devis++;
           const d = devisById.get(r.devis_id);
-          if (d && ['signe', 'termine'].includes(d.statut)) { bySrc[src].signes++; bySrc[src].ca += (d.calculs && d.calculs.total_ttc) || 0; }
+          // Dédoublonnage : deux demandes de RDV peuvent pointer le même devis → on ne compte la
+          // signature (et son CA) qu'UNE fois par devis, sinon la conversion et le CA sont surévalués.
+          if (d && ['signe', 'termine'].includes(d.statut) && !b._seen.has(r.devis_id)) {
+            b._seen.add(r.devis_id); b.signes++; b.ca += (d.calculs && d.calculs.total_ttc) || 0;
+          }
         }
       });
       const entries = Object.entries(bySrc).sort((a, b) => b[1].signes - a[1].signes || b[1].demandes - a[1].demandes);

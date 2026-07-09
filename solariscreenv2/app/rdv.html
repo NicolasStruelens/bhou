@@ -238,7 +238,7 @@
       const rows = CLIENT_DIRECTORY.filter(c => `${c.prenom} ${c.nom} ${c.telephone} ${c.email} ${(c.adresse && c.adresse.ville) || ''}`.toLowerCase().includes(q)).slice(0, 6);
       host.innerHTML = rows.length ? rows.map(c => `
         <div class="client-hit" onclick="pickRdvClient(${jsAttr(c.key)})">
-          <div class="avatar">${esc(((c.prenom[0] || '') + (c.nom[0] || '')).toUpperCase()) || '?'}</div>
+          <div class="avatar">${esc(((((c.prenom || '')[0]) || '') + (((c.nom || '')[0]) || '')).toUpperCase()) || '?'}</div>
           <div class="ci-main"><div class="ci-name">${esc(c.prenom)} ${esc(c.nom)}</div><div class="ci-sub">${esc(c.telephone || c.email || (c.adresse && c.adresse.ville) || '—')}</div></div>
         </div>`).join('') : '<div class="mp-empty" style="padding:0.3rem 0;">Aucun client trouvé — remplis les champs ci-dessous pour un nouveau client.</div>';
     };
@@ -589,12 +589,14 @@
     };
 
     // ── Conversion en devis ──
+    let CONVERTING = false;
     window.convertToDevis = async () => {
-      if (!CURRENT) return;
+      if (!CURRENT || CONVERTING) return;
       collect();
       const cur = CURRENT;   // capturé AVANT tout await (voir saveCurrent)
       if (!cur.client.nom && !cur.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
       if (cur.devis_id) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
+      CONVERTING = true;   // verrou synchrone : devis_id n'est posé qu'APRÈS l'await → sans lui, un double-clic crée 2 devis orphelins
       const devisId = generateDevisId();
       const now = new Date().toISOString();
       const devis = {

@@ -484,25 +484,21 @@
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return false;
       const today = new Date().toISOString().slice(0, 10);
-      return facs.some(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
+      return facs.some(f => paidSum(f) < (Number(f.total_ttc) || 0) - 0.005 && f.echeance && f.echeance < today);
     }
     // Devis signé (chantier pas encore posé) dont l'acompte n'a pas été intégralement reçu.
     function isAcompteUnpaid(d) {
       if (d.statut !== 'signe') return false;
-      const acompteFacs = FACTURES.filter(f => f.devis_id === d.id && f.type === 'acompte');
-      if (acompteFacs.length) {
-        // Cas normal : une facture d'acompte existe → comparer payé vs dû sur cette facture.
-        const due = acompteFacs.reduce((s, f) => s + (f.total_ttc || 0), 0);
-        const paid = acompteFacs.reduce((s, f) => s + paidSum(f), 0);
-        return paid < due - 0.005;
-      }
-      // Pas de facture d'acompte DÉDIÉE : l'acompte a pu être encaissé sur une facture solde/totale
-      // (ou via l'ancien ERP, ex. Ecole Du Bonheur : 9 539,05 € payés sur une facture "Solde"). On
-      // le considère couvert dès que le TOTAL encaissé (toutes factures) atteint le montant attendu.
-      const totalPaid = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
-      const pct = (d.acompte_pct != null) ? d.acompte_pct : 30;
-      const acompteDu = (d.ttc || 0) * pct / 100;
-      return acompteDu > 0 && totalPaid < acompteDu - 0.005;
+      const facs = FACTURES.filter(f => f.devis_id === d.id);
+      // L'acompte a pu être encaissé sur N'IMPORTE quelle facture (acompte dédiée, solde, totale, ou
+      // via l'ancien ERP — ex. Ecole Du Bonheur : 9 539,05 € payés sur une facture « Solde »). On
+      // crédite donc TOUJOURS le total réellement encaissé sur le devis, comparé au montant attendu.
+      const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
+      const acompteFacs = facs.filter(f => f.type === 'acompte');
+      const due = acompteFacs.length
+        ? acompteFacs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0)                 // montant de la/les facture(s) d'acompte
+        : (d.ttc || 0) * ((d.acompte_pct != null) ? d.acompte_pct : 30) / 100;             // sinon, % attendu du TTC
+      return due > 0 && totalPaid < due - 0.005;
     }
     // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
     function isChantierAPreparer(d) {
@@ -527,7 +523,7 @@
     function paymentInfo(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return '';
-      const totalFact = facs.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const totalFact = facs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
       const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
       if (totalPaid > 0 && totalPaid >= d.ttc - 0.005) return `<span class="badge badge-ok" title="Encaissé : ${fmtEur(totalPaid)}">${icon('coin', 10)} Soldé</span>`;
       if (isPaymentOverdue(d)) return `<span class="badge badge-danger" title="Facturé ${fmtEur(totalFact)}, payé ${fmtEur(totalPaid)}">${icon('warning', 10)} Retard paiement</span>`;
@@ -630,7 +626,7 @@
       const caSigne = signes.reduce((s, d) => s + d.ttc, 0);
       // CA réellement encaissé = somme des paiements reçus sur toutes les factures (pas le total théorique des devis)
       const caEncaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
-      const totalFacture = FACTURES.reduce((s, f) => s + (f.total_ttc || 0), 0);
+      const totalFacture = FACTURES.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
       // Bénéfices cumulés par vendeur, sur les devis réellement signés/terminés
       const nicolasNet = signes.reduce((s, d) => s + (d.nicolas_net || 0), 0);
       const yannickNet = signes.reduce((s, d) => s + (d.yannick_net || 0), 0);
@@ -1070,13 +1066,21 @@
         data: devisFull,          // rétro-compatible avec l'import existant (liste de devis)
         clients: clients || [], factures: factures || [], rdv: rdv || [],
       };
+      // Filet de sécurité : si un devis n'a pu être récupéré (ni API ni cache), on prévient plutôt
+      // que de livrer une sauvegarde « complète » silencieusement amputée.
+      const missing = DEVIS.length - devisFull.length;
+      if (missing > 0) {
+        if (!confirm(`⚠ ${missing} devis sur ${DEVIS.length} n'ont pas pu être récupérés entièrement (réseau ?). Télécharger quand même la sauvegarde partielle ?`)) {
+          toast('Sauvegarde annulée', 'warn', 2500); return;
+        }
+      }
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'solariscreen_sauvegarde_' + new Date().toISOString().slice(0, 10) + '.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      toast(`Sauvegarde téléchargée (${backup.counts.devis} devis, ${backup.counts.clients} clients, ${backup.counts.factures} factures, ${backup.counts.rdv} RDV)`, 'ok', 3000);
+      toast(`Sauvegarde téléchargée (${backup.counts.devis} devis, ${backup.counts.clients} clients, ${backup.counts.factures} factures, ${backup.counts.rdv} RDV)` + (missing > 0 ? ` — ⚠ ${missing} devis incomplets` : ''), 'ok', 3000);
     };
     window.importJSON = (input) => {
       const file = input.files[0]; if (!file) return;
@@ -1151,12 +1155,13 @@
     async function checkWhatsNew() {
       const lastSeen = localStorage.getItem('ss_activity_seen');
       const nowIso = new Date().toISOString();
-      localStorage.setItem('ss_activity_seen', nowIso);
-      if (!lastSeen) return;   // 1re visite : on n'affiche pas tout l'historique
+      if (!lastSeen) { localStorage.setItem('ss_activity_seen', nowIso); return; }  // 1re visite : baseline, pas d'historique
       const news = await SS.listActivity(lastSeen);
+      if (news == null) return;   // échec réseau/API : on NE déplace PAS le marqueur → on réessaiera au prochain chargement
+      localStorage.setItem('ss_activity_seen', nowIso);   // fetch réussi (même vide) → on avance le marqueur
       let identity = { key: '' };
       try { identity = await window.SSNav.getIdentity(); } catch (e) {}
-      const relevant = (news || []).filter(a => !identity.key || a.actor !== identity.key);
+      const relevant = news.filter(a => !identity.key || a.actor !== identity.key);
       if (relevant.length) openActivity('news', relevant);
     }
 

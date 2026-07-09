@@ -141,7 +141,7 @@
     }
 
     // ── Signature (même mécanique que le devis) ──
-    let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null;
+    let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null, sigBound = false;
     function initSignatureCanvas() {
       const canvas = el('sigCanvas'); if (!canvas) return;
       const ratio = window.devicePixelRatio || 1;
@@ -161,8 +161,13 @@
         e.preventDefault();
       };
       const end = () => { sigDrawing = false; };
-      canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
-      canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', end);
+      // N'attacher les écouteurs qu'UNE fois : initSignatureCanvas() peut être rappelé (« Refaire signer »)
+      // sur le MÊME nœud canvas → sans ce garde, les écouteurs s'empilent (traits + updateConfirmState en double).
+      if (!sigBound) {
+        canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+        canvas.addEventListener('touchstart', start, { passive: false }); canvas.addEventListener('touchmove', move, { passive: false }); canvas.addEventListener('touchend', end);
+        sigBound = true;
+      }
     }
     window.updateConfirmState = function () {
       const btn = el('btnConfirmSig'); if (btn) btn.disabled = !sigHasInk;
@@ -174,6 +179,11 @@
     };
     window.confirmReception = async function () {
       const canvas = el('sigCanvas'); if (!canvas || !sigHasInk) return;
+      // Garde d'intégrité : seule la réception d'un devis SIGNÉ (ou déjà terminé) est légitime. La page
+      // est atteignable par URL directe → sans ce garde, signer ici ferait passer N'IMPORTE quel devis
+      // (refusé, brouillon…) en « terminé » en contournant les transitions de statut.
+      if (!['signe', 'termine'].includes(DEVIS.statut)) { toast('Ce devis n\'est pas signé — réception impossible.', 'warn'); return; }
+      const btn = el('btnConfirmSig'); if (btn) btn.disabled = true;   // anti double-clic pendant la sauvegarde
       const now = new Date().toISOString();
       DEVIS.reception = { accepted: true, image: canvas.toDataURL('image/png'), date: now, notes: el('reserves').value.trim() };
       // La réception signifie que les travaux sont terminés → passe le devis en "terminé".
@@ -193,6 +203,7 @@
       const cl = DEVIS.client || {};
       setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
       initSignatureCanvas();
+      updateConfirmState();   // canvas vierge → bouton « Confirmer » désactivé tant qu'il n'y a pas de trait
     };
     function renderSignatureUI() {
       const rec = DEVIS.reception || {};
