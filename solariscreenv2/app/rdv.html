@@ -81,6 +81,13 @@
     .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; }
     .mfoot { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
     .mfoot .spacer { flex: 1; }
+    /* Recherche de client existant (lie la base clients au module RDV). */
+    .client-hit { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: var(--sp-2); cursor: pointer; transition: border-color var(--t-fast); }
+    .client-hit:hover { border-color: var(--accent); }
+    .client-hit .avatar { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: var(--fs-xs); background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+    .client-hit .ci-main { min-width: 0; flex: 1; }
+    .client-hit .ci-name { font-weight: 600; }
+    .client-hit .ci-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); }
     .form-sec { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-4) 0 var(--sp-2); }
     .form-sec:first-child { margin-top: 0; }
     .radio-row { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
@@ -159,7 +166,7 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, toast, qp, icon, compressImage, generateDevisId } = window.SSUI;
+    const { fmtDate, el, toast, qp, icon, compressImage, generateDevisId, clientKeyOf, jsAttr } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
@@ -182,6 +189,7 @@
     let IDENTITY = { key: '', name: '' };
     let CURRENT = null;         // RDV en cours d'édition dans la modale
     let PENDING_PHOTOS = [];    // photos de la fiche ouverte
+    let CLIENT_DIRECTORY = [];  // annuaire clients (base CRM + clients des devis) pour l'autocomplétion
 
     // ── Chargement ──
     async function load() {
@@ -191,7 +199,58 @@
       render();
       // Identité (Nicolas/Yannick) en arrière-plan — ne bloque pas l'affichage.
       try { window.SSNav.getIdentity().then(id => { if (id) IDENTITY = id; }); } catch (e) {}
+      // Annuaire clients en arrière-plan → autocomplétion « client déjà enregistré » dans la fiche.
+      buildClientDirectory().then(dir => { CLIENT_DIRECTORY = dir; }).catch(() => {});
     }
+
+    // Annuaire clients = fusion de la base CRM (SS.listClients) et des clients présents sur les
+    // devis existants — même logique que le simulateur, pour relier la base clients aux RDV.
+    async function buildClientDirectory() {
+      const [clients, devisList] = await Promise.all([SS.listClients(), SS.listDevis()]);
+      const map = new Map();
+      (devisList || []).forEach(d => {
+        const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
+        const nom = d.client_nom || (d.client && d.client.nom) || '';
+        if (!prenom && !nom) return;
+        const key = clientKeyOf(prenom, nom);
+        if (!map.has(key)) map.set(key, { key, prenom, nom, telephone: '', email: '', adresse: {} });
+        const e = map.get(key), c = d.client || {};
+        if (c.telephone && !e.telephone) e.telephone = c.telephone;
+        if (c.email && !e.email) e.email = c.email;
+        if (c.adresse && (c.adresse.rue || c.adresse.ville) && !e.adresse.rue && !e.adresse.ville) e.adresse = c.adresse;
+      });
+      (clients || []).forEach(o => {
+        const e = map.get(o.key) || { key: o.key, prenom: o.prenom, nom: o.nom, telephone: '', email: '', adresse: {} };
+        e.prenom = o.prenom || e.prenom; e.nom = o.nom || e.nom;
+        e.telephone = o.telephone || e.telephone; e.email = o.email || e.email;
+        if (o.adresse && (o.adresse.rue || o.adresse.ville)) e.adresse = o.adresse;
+        map.set(o.key, e);
+      });
+      return [...map.values()];
+    }
+    window.renderRdvClientHits = function () {
+      const q = el('rdvClientSearch').value.trim().toLowerCase();
+      const host = el('rdvClientHits');
+      if (!q) { host.innerHTML = ''; return; }
+      const rows = CLIENT_DIRECTORY.filter(c => `${c.prenom} ${c.nom} ${c.telephone} ${c.email} ${(c.adresse && c.adresse.ville) || ''}`.toLowerCase().includes(q)).slice(0, 6);
+      host.innerHTML = rows.length ? rows.map(c => `
+        <div class="client-hit" onclick="pickRdvClient(${jsAttr(c.key)})">
+          <div class="avatar">${esc(((c.prenom[0] || '') + (c.nom[0] || '')).toUpperCase()) || '?'}</div>
+          <div class="ci-main"><div class="ci-name">${esc(c.prenom)} ${esc(c.nom)}</div><div class="ci-sub">${esc(c.telephone || c.email || (c.adresse && c.adresse.ville) || '—')}</div></div>
+        </div>`).join('') : '<div class="mp-empty" style="padding:0.3rem 0;">Aucun client trouvé — remplis les champs ci-dessous pour un nouveau client.</div>';
+    };
+    window.pickRdvClient = function (key) {
+      const c = CLIENT_DIRECTORY.find(x => x.key === key); if (!c) return;
+      const a = c.adresse || {};
+      el('f_prenom').value = c.prenom || '';
+      el('f_nom').value = c.nom || '';
+      el('f_tel').value = c.telephone || '';
+      el('f_email').value = c.email || '';
+      el('f_rue').value = ((a.rue || '') + (a.numero ? ' ' + a.numero : '')).trim();
+      el('f_ville').value = ((a.code_postal || '') + ' ' + (a.ville || '')).trim();
+      el('rdvClientSearch').value = ''; el('rdvClientHits').innerHTML = '';
+      toast('Client pré-rempli ✓', 'ok');
+    };
 
     function whoAva(key) {
       const k = (key || '').toLowerCase();
@@ -388,6 +447,11 @@
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
       const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
       el('mBody').innerHTML = `
+        ${isNew ? `<div class="field" style="margin-bottom:var(--sp-2);">
+          <label class="label" for="rdvClientSearch">Client déjà enregistré ?</label>
+          <input class="input" id="rdvClientSearch" placeholder="Rechercher par nom, prénom, tél, ville…" oninput="renderRdvClientHits()" autocomplete="off">
+          <div id="rdvClientHits" style="margin-top:var(--sp-2);"></div>
+        </div>` : ''}
         <div class="form-sec">Client potentiel</div>
         <div class="grid grid-2">
           <div class="field"><label class="label">Prénom</label><input class="input" id="f_prenom" value="${esc(c.prenom)}"></div>
