@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TradingLab — Simulateur d'événements</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axe: #c3c2b7; --bord: rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300; --s5: #4a3aa7;
+    --evenement: #e34948;
+    --bon: #006300; --mauvais: #d03b3b;
+    --fond-ok: #e8f6ec; --fond-ko: #fdeeee; --fond-note: #f2f6fa; --fond-warn: #fff7e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axe: #383835; --bord: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #008300; --s5: #9085e9;
+      --evenement: #e66767;
+      --bon: #0ca30c; --mauvais: #e66767;
+      --fond-ok: #10281a; --fond-ko: #2d1717; --fond-note: #16202a; --fond-warn: #2a2410;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  main { max-width: 1020px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 1.5em; border-bottom: 3px solid var(--s1); padding-bottom: 8px; }
+  h2 { font-size: 1.15em; margin-top: 34px; }
+  .carte {
+    background: var(--surface-1); border: 1px solid var(--bord);
+    border-radius: 10px; padding: 16px 18px; margin: 14px 0;
+  }
+  /* ---- contrôles ---- */
+  .controles { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .controles label { display: flex; flex-direction: column; font-size: 0.8em; color: var(--ink-2); gap: 4px; }
+  .controles input, .controles select {
+    font: inherit; color: var(--ink); background: var(--page);
+    border: 1px solid var(--axe); border-radius: 6px; padding: 6px 8px; min-width: 90px;
+  }
+  .controles input:focus, .controles select:focus { outline: 2px solid var(--s1); }
+  /* ---- verdict ---- */
+  .verdict { border-radius: 10px; padding: 14px 18px; margin: 14px 0; border: 1px solid var(--bord); }
+  .verdict.ok { background: var(--fond-ok); }
+  .verdict.ko { background: var(--fond-ko); }
+  /* ---- tableaux ---- */
+  .defile { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.85em; }
+  th, td { border: 1px solid var(--grid); padding: 6px 9px; text-align: center;
+           font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th { background: var(--fond-note); color: var(--ink-2); font-weight: 600; }
+  .gain { color: var(--bon); font-weight: 600; }
+  .perte { color: var(--mauvais); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.85em; }
+  /* ---- graphiques ---- */
+  .graphe { position: relative; }
+  .graphe svg { width: 100%; height: auto; display: block; }
+  .legende { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.8em; color: var(--ink-2); margin: 4px 0 8px; }
+  .legende span { display: inline-flex; align-items: center; gap: 6px; }
+  .pastille { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .infobulle {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--bord); border-radius: 8px;
+    padding: 8px 10px; font-size: 0.78em; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    white-space: nowrap; z-index: 5;
+  }
+  .infobulle b { font-variant-numeric: tabular-nums; }
+  .avertissement { background: var(--fond-warn); }
+  .methode { background: var(--fond-note); font-size: 0.92em; }
+  footer { color: var(--muted); font-size: 0.8em; margin-top: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔬 TradingLab — Simulateur d'événements</h1>
+  <p><b>La question testée :</b> quand une grosse news (guerre, canicule, OPEP…) fait
+  bondir un actif, est-ce que j'aurais gagné de l'argent en achetant <b>après</b> ?
+  Règle du jeu honnête : l'événement a lieu le jour J, toi tu achètes à
+  l'<b>ouverture du jour J+1</b> — le premier moment où tu peux vraiment agir.
+  Tout est <b>fictif</b> et calculé sur les vraies données historiques embarquées dans la page.</p>
+
+  <div class="carte">
+    <div class="controles">
+      <label>Actif
+        <select id="actif"></select>
+      </label>
+      <label>Capital fictif (€)
+        <input type="number" id="capital" value="5000" min="100" step="100">
+      </label>
+      <label>Type d'événement
+        <select id="direction">
+          <option value="hausse">Forte hausse (la news qui fait bondir)</option>
+          <option value="baisse">Forte baisse (le pari du rebond)</option>
+        </select>
+      </label>
+      <label>Seuil de détection
+        <select id="seuil">
+          <option value="auto">Auto (top 2,5 % des journées)</option>
+          <option value="3">± 3 % en un jour</option>
+          <option value="5">± 5 % en un jour</option>
+          <option value="8">± 8 % en un jour</option>
+        </select>
+      </label>
+      <label>Levier comparé
+        <select id="levier">
+          <option value="2">2x</option>
+          <option value="3" selected>3x</option>
+          <option value="5">5x</option>
+        </select>
+      </label>
+      <label>Frais par ordre (%)
+        <input type="number" id="frais" value="0.1" min="0" step="0.05">
+      </label>
+      <label>Slippage par ordre (%)
+        <input type="number" id="slippage" value="0.1" min="0" step="0.05">
+      </label>
+    </div>
+    <p class="note" style="margin-bottom:0">Slippage : pendant un événement, l'écart entre le prix affiché
+    et le prix réellement obtenu s'élargit. Le levier est recomposé jour par jour, comme un vrai produit à
+    levier (c'est ça qui crée l'érosion) — et un produit à levier qui tombe à zéro est liquidé.</p>
+  </div>
+
+  <div id="zone-verdict"></div>
+
+  <h2 id="titre-tableau"></h2>
+  <div class="carte defile"><table id="tableau"></table></div>
+  <p class="note" id="note-tableau"></p>
+
+  <h2>Ton capital fictif, trade après trade (sans levier)</h2>
+  <div class="carte">
+    <div class="legende" id="legende-capital"></div>
+    <div class="graphe" id="graphe-capital"></div>
+  </div>
+
+  <h2>Le prix, et chaque journée d'événement détectée</h2>
+  <div class="carte">
+    <div class="legende" id="legende-prix"></div>
+    <div class="graphe" id="graphe-prix"></div>
+  </div>
+
+  <h2>Les 10 plus gros événements (mets tes souvenirs de news dessus)</h2>
+  <div class="carte defile"><table id="tableau-top"></table></div>
+
+  <div class="carte methode">
+    <b>La méthode, en 4 points :</b>
+    <ol style="margin:8px 0 0; padding-left:20px">
+      <li><b>Pas de voyance rétroactive</b> : les exemples du type « t'aurais gagné 900 € hier »
+          supposent d'avoir acheté avant la news. Ici, l'achat se fait à l'ouverture du lendemain.</li>
+      <li><b>Tous les événements comptent</b> : pas seulement celui dont on se souvient parce
+          qu'il a bien fini. COVID, Ukraine, OPEP, canicules… tout y passe.</li>
+      <li><b>Les coûts réels sont inclus</b> : frais de courtage et slippage à l'achat et à la vente.</li>
+      <li><b>Un seul trade à la fois</b> : si un événement tombe pendant qu'on est déjà en position,
+          on ne peut pas le prendre — le simulateur non plus.</li>
+    </ol>
+  </div>
+
+  <div class="carte avertissement">
+    <b>⚠️ Rappels importants.</b> Argent <b>fictif</b>, données du <b>passé</b> : les performances
+    passées ne préjugent pas du futur. Les CFD avec levier et le forex sont <b>interdits de
+    commercialisation aux particuliers en Belgique</b> (FSMA) — la colonne « levier » de ce
+    simulateur montre pourquoi ce n'est pas une perte. Ceci n'est pas un conseil en
+    investissement : c'est un instrument de lucidité.
+  </div>
+
+  <footer id="pied"></footer>
+</main>
+
+<script src="donnees.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   TradingLab — simulateur d'événements, 100 % côté navigateur.
+   Les données (donnees.js) sont générées par exporter_donnees.py.
+   ============================================================ */
+
+const FENETRES = [1, 2, 3, 5, 10];          // durées de détention testées (jours de bourse)
+const fmtEUR = new Intl.NumberFormat("fr-BE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const fmtDate = d => d.split("-").reverse().join("/");
+const pct = (x, dec = 1) => (x >= 0 ? "+" : "") + (x * 100).toFixed(dec).replace(".", ",") + " %";
+const cls = x => x >= 0 ? "gain" : "perte";
+
+/* ---------- outils statistiques ---------- */
+function quantile(valeurs, q) {
+  const tri = [...valeurs].sort((a, b) => a - b);
+  const pos = (tri.length - 1) * q, bas = Math.floor(pos);
+  return bas + 1 < tri.length ? tri[bas] + (pos - bas) * (tri[bas + 1] - tri[bas]) : tri[bas];
+}
+const moyenne = v => v.reduce((a, b) => a + b, 0) / v.length;
+
+/* ---------- cœur du calcul (même logique que event_study.py) ---------- */
+function calculer(p) {
+  const d = DONNEES.actifs[p.actif];
+  const n = d.close.length;
+
+  // Rendements jour par jour, et seuil de détection.
+  const rets = [];
+  for (let t = 1; t < n; t++) rets.push(d.close[t] / d.close[t - 1] - 1);
+  const seuil = p.seuil === "auto"
+    ? (p.direction === "hausse" ? quantile(rets, 0.975) : -quantile(rets, 0.025))
+    : p.seuil / 100;
+
+  // Journées d'événement.
+  const evenements = [];
+  for (let t = 1; t < n; t++) {
+    const r = d.close[t] / d.close[t - 1] - 1;
+    if (p.direction === "hausse" ? r >= seuil : r <= -seuil) evenements.push({ t, r });
+  }
+
+  // Pour chaque durée de détention : tous les trades + portefeuille enchaîné.
+  const parFenetre = {};
+  for (const f of FENETRES) {
+    const trades = [];
+    for (const ev of evenements) {
+      const e = ev.t + 1, s = ev.t + f;
+      if (s >= n) continue;                                  // événement trop récent
+      const pe = d.open[e] * (1 + p.slippage);               // on achète un peu plus cher
+      const ps = d.close[s] * (1 - p.slippage);              // on revend un peu moins cher
+      const r1 = Math.max(ps / pe - 1 - 2 * p.frais, -1);    // plancher : on ne perd pas plus que sa mise
+
+      // Levier recomposé jour par jour ; un facteur journalier <= 0 = produit liquidé.
+      let fac = 1, prec = pe;
+      for (let k = e; k <= s; k++) {
+        const px = (k === s) ? ps : d.close[k];
+        fac *= Math.max(1 + p.levier * (px / prec - 1), 0);
+        prec = px;
+      }
+      const rl = Math.max(fac - 1 - 2 * p.frais * p.levier, -1);
+      trades.push({ t: ev.t, e, s, r1, rl, rJour: ev.r });
+    }
+    if (!trades.length) { parFenetre[f] = null; continue; }
+
+    // Un seul trade à la fois : on saute les événements qui tombent en pleine position.
+    const enchaines = [];
+    let derniereSortie = -1;
+    for (const tr of trades) if (tr.e > derniereSortie) { enchaines.push(tr); derniereSortie = tr.s; }
+
+    const r1s = trades.map(x => x.r1);
+    parFenetre[f] = {
+      trades, enchaines,
+      stats: {
+        n: trades.length,
+        gagnants: trades.filter(x => x.r1 > 0).length / trades.length,
+        moyen: moyenne(r1s), median: quantile(r1s, 0.5),
+        pire: Math.min(...r1s), meilleur: Math.max(...r1s),
+      },
+      pf1: portefeuille(enchaines, "r1", p.capital),
+      pfl: portefeuille(enchaines, "rl", p.capital),
+      ddMalchance: monteCarloDD(enchaines.map(x => x.r1), p.capital),
+    };
+  }
+
+  const buyhold = p.capital * d.close[n - 1] / d.close[0];
+  const top = [...evenements].sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 10);
+  return { d, n, seuil, evenements, parFenetre, buyhold, top };
+}
+
+function portefeuille(trades, cle, capital) {
+  // Le capital vit trade après trade ; s'il tombe sous 1 % du départ : ruine, on arrête.
+  const courbe = [{ t: trades.length ? trades[0].e : 0, v: capital }];
+  let ruine = null;
+  for (const tr of trades) {
+    const nouveau = courbe[courbe.length - 1].v * (1 + tr[cle]);
+    if (nouveau <= capital * 0.01) { courbe.push({ t: tr.s, v: 0 }); ruine = tr.s; break; }
+    courbe.push({ t: tr.s, v: nouveau });
+  }
+  let sommet = -Infinity, dd = 0;
+  for (const pt of courbe) { sommet = Math.max(sommet, pt.v); dd = Math.min(dd, pt.v / sommet - 1); }
+  return { courbe, final: courbe[courbe.length - 1].v, dd, ruine, nb: trades.length };
+}
+
+function monteCarloDD(rendements, capital) {
+  // L'ordre des trades ne change pas le résultat final, mais il change la
+  // DOULEUR en route : on mélange 500 fois et on regarde les 5 % pires chutes.
+  if (rendements.length < 2) return null;
+  const dds = [];
+  for (let tirage = 0; tirage < 500; tirage++) {
+    const r = [...rendements];
+    for (let i = r.length - 1; i > 0; i--) {           // mélange de Fisher-Yates
+      const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]];
+    }
+    let v = capital, sommet = capital, dd = 0;
+    for (const x of r) { v *= 1 + x; if (v <= 0) { dd = -1; break; } sommet = Math.max(sommet, v); dd = Math.min(dd, v / sommet - 1); }
+    dds.push(dd);
+  }
+  return quantile(dds, 0.05);
+}
+
+/* ---------- graphiques SVG ---------- */
+const COULEURS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+const L = { gauche: 62, droite: 40, haut: 12, bas: 26, largeur: 960, hauteur: 320 };
+
+function echelles(xMin, xMax, yMin, yMax) {
+  const x = v => L.gauche + (v - xMin) / (xMax - xMin || 1) * (L.largeur - L.gauche - L.droite);
+  const y = v => L.hauteur - L.bas - (v - yMin) / (yMax - yMin || 1) * (L.hauteur - L.haut - L.bas);
+  return { x, y };
+}
+
+function ticksY(min, max, nb = 5) {
+  const brut = (max - min) / nb, mag = Math.pow(10, Math.floor(Math.log10(brut)));
+  const pas = [1, 2, 5, 10].map(m => m * mag).find(v => v >= brut) || brut;
+  const t = [];
+  for (let v = Math.ceil(min / pas) * pas; v <= max + 1e-9; v += pas) t.push(v);
+  return t;
+}
+
+function ticksAnnees(dates, xMin, xMax) {
+  // Un repère au 1er jour de bourse de chaque année (une année sur deux si serré).
+  const reperes = [];
+  let annee = "";
+  for (let i = xMin; i <= xMax; i++) {
+    const a = dates[i].slice(0, 4);
+    if (a !== annee) { annee = a; reperes.push({ i, a }); }
+  }
+  const pasA = Math.ceil(reperes.length / 8);
+  return reperes.filter((_, k) => k % pasA === 0);
+}
+
+function cadre(sc, tY, reperes, formatY) {
+  let s = "";
+  for (const v of tY)
+    s += `<line x1="${L.gauche}" x2="${L.largeur - L.droite}" y1="${sc.y(v)}" y2="${sc.y(v)}" stroke="var(--grid)" stroke-width="1"/>` +
+         `<text x="${L.gauche - 8}" y="${sc.y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${formatY(v)}</text>`;
+  for (const r of reperes)
+    s += `<text x="${sc.x(r.i)}" y="${L.hauteur - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${r.a}</text>`;
+  s += `<line x1="${L.gauche}" x2="${L.largeur - L.droite}" y1="${L.hauteur - L.bas}" y2="${L.hauteur - L.bas}" stroke="var(--axe)" stroke-width="1"/>`;
+  return s;
+}
+
+function chemin(points, sc) {
+  return points.map((pt, k) => (k ? "L" : "M") + sc.x(pt.t).toFixed(1) + " " + sc.y(pt.v).toFixed(1)).join("");
+}
+
+function grapheCapital(res, p) {
+  const series = FENETRES.filter(f => res.parFenetre[f])
+    .map((f, k) => ({ nom: "Sortie J+" + f, couleur: COULEURS[k], points: res.parFenetre[f].pf1.courbe }));
+  const tous = series.flatMap(s => s.points.map(pt => pt.v)).concat([p.capital, res.buyhold]);
+  const xMin = Math.min(...series.map(s => s.points[0].t)), xMax = res.n - 1;
+  const yMin = 0, yMax = Math.max(...tous) * 1.05;
+  const sc = echelles(xMin, xMax, yMin, yMax);
+  const tY = ticksY(yMin, yMax);
+
+  let svg = cadre(sc, tY, ticksAnnees(res.d.dates, xMin, xMax), v => fmtEUR.format(v));
+  // Repères : capital de départ, et « acheter et garder » (la référence à battre).
+  svg += `<line x1="${L.gauche}" x2="${L.largeur - L.droite}" y1="${sc.y(p.capital)}" y2="${sc.y(p.capital)}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  svg += `<line x1="${L.gauche}" x2="${L.largeur - L.droite}" y1="${sc.y(res.buyhold)}" y2="${sc.y(res.buyhold)}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="1.5 3.5"/>`;
+  for (const s of series) {
+    svg += `<path d="${chemin(s.points, sc)}" fill="none" stroke="${s.couleur}" stroke-width="2" stroke-linejoin="round"/>`;
+    const fin = s.points[s.points.length - 1];
+    if (fin.v === 0) svg += `<text x="${sc.x(fin.t) + 4}" y="${sc.y(0) - 4}" font-size="12">💀</text>`;
+  }
+  document.getElementById("legende-capital").innerHTML =
+    series.map(s => `<span><i class="pastille" style="background:${s.couleur}"></i>${s.nom}</span>`).join("") +
+    `<span><i class="pastille" style="background:var(--muted)"></i>Capital de départ (— —) · « acheter et garder » (····)</span>`;
+  dessiner("graphe-capital", svg, ev => infoCapital(ev, series, sc, res));
+}
+
+function graphePrix(res, p) {
+  const pas = Math.max(1, Math.ceil(res.n / 1200));         // on allège le tracé
+  const points = [];
+  for (let i = 0; i < res.n; i += pas) points.push({ t: i, v: res.d.close[i] });
+  const yMin = 0, yMax = Math.max(...res.d.close) * 1.05;
+  const sc = echelles(0, res.n - 1, yMin, yMax);
+
+  let svg = cadre(sc, ticksY(yMin, yMax), ticksAnnees(res.d.dates, 0, res.n - 1), v => v.toLocaleString("fr-BE"));
+  svg += `<path d="${chemin(points, sc)}" fill="none" stroke="var(--s1)" stroke-width="1.5" stroke-linejoin="round"/>`;
+  for (const ev of res.evenements)
+    svg += `<circle cx="${sc.x(ev.t).toFixed(1)}" cy="${sc.y(res.d.close[ev.t]).toFixed(1)}" r="3.5" fill="var(--evenement)" stroke="var(--surface-1)" stroke-width="1"/>`;
+  document.getElementById("legende-prix").innerHTML =
+    `<span><i class="pastille" style="background:var(--s1)"></i>${res.d.nom} (clôture, $)</span>` +
+    `<span><i class="pastille" style="background:var(--evenement);height:8px;width:8px;border-radius:50%"></i>${res.evenements.length} journées d'événement (seuil ${pct(res.seuil)})</span>`;
+  dessiner("graphe-prix", svg, ev => infoPrix(ev, res, sc));
+}
+
+function dessiner(id, contenu, surSouris) {
+  const zone = document.getElementById(id);
+  zone.innerHTML =
+    `<svg viewBox="0 0 ${L.largeur} ${L.hauteur}" role="img">${contenu}
+       <line id="${id}-curseur" y1="${L.haut}" y2="${L.hauteur - L.bas}" stroke="var(--axe)" stroke-width="1" visibility="hidden"/>
+     </svg><div class="infobulle" id="${id}-bulle"></div>`;
+  const svg = zone.querySelector("svg");
+  svg.addEventListener("mousemove", surSouris);
+  svg.addEventListener("mouseleave", () => {
+    document.getElementById(id + "-bulle").style.display = "none";
+    document.getElementById(id + "-curseur").setAttribute("visibility", "hidden");
+  });
+}
+
+function positionSouris(ev, sc) {
+  const svg = ev.currentTarget, rect = svg.getBoundingClientRect();
+  const px = (ev.clientX - rect.left) / rect.width * L.largeur;
+  return { px, py: (ev.clientY - rect.top) / rect.height * L.hauteur };
+}
+
+function montrerBulle(id, ev, html, xLigne) {
+  const bulle = document.getElementById(id + "-bulle"), zone = document.getElementById(id);
+  const curseur = document.getElementById(id + "-curseur");
+  curseur.setAttribute("x1", xLigne); curseur.setAttribute("x2", xLigne);
+  curseur.setAttribute("visibility", "visible");
+  bulle.innerHTML = html; bulle.style.display = "block";
+  const rz = zone.getBoundingClientRect();
+  let gauche = ev.clientX - rz.left + 14;
+  if (gauche + bulle.offsetWidth > rz.width) gauche = ev.clientX - rz.left - bulle.offsetWidth - 14;
+  bulle.style.left = gauche + "px";
+  bulle.style.top = Math.max(0, ev.clientY - rz.top - bulle.offsetHeight - 10) + "px";
+}
+
+function infoCapital(ev, series, sc, res) {
+  const { px } = positionSouris(ev, sc);
+  let html = "", xRef = null;
+  for (const s of series) {
+    let plusProche = s.points[0];
+    for (const pt of s.points) if (Math.abs(sc.x(pt.t) - px) < Math.abs(sc.x(plusProche.t) - px)) plusProche = pt;
+    if (xRef === null) xRef = sc.x(plusProche.t);
+    html += `<div><i class="pastille" style="background:${s.couleur};margin-right:5px"></i>${s.nom} · ${fmtDate(res.d.dates[plusProche.t])} : <b>${fmtEUR.format(plusProche.v)}</b></div>`;
+  }
+  montrerBulle("graphe-capital", ev, html, xRef);
+}
+
+function infoPrix(ev, res, sc) {
+  const { px } = positionSouris(ev, sc);
+  const i = Math.max(0, Math.min(res.n - 1, Math.round((px - L.gauche) / (L.largeur - L.gauche - L.droite) * (res.n - 1))));
+  const evJour = res.evenements.find(e => Math.abs(e.t - i) <= 1);
+  let html = `${fmtDate(res.d.dates[i])} : <b>${res.d.close[i].toLocaleString("fr-BE")} $</b>`;
+  if (evJour) html += `<div class="perte">Événement : ${pct(evJour.r)} ce jour-là</div>`;
+  montrerBulle("graphe-prix", ev, html, sc.x(i));
+}
+
+/* ---------- rendu des tableaux et du verdict ---------- */
+function afficher() {
+  const p = {
+    actif: document.getElementById("actif").value,
+    capital: +document.getElementById("capital").value || 5000,
+    direction: document.getElementById("direction").value,
+    seuil: document.getElementById("seuil").value === "auto" ? "auto" : +document.getElementById("seuil").value,
+    levier: +document.getElementById("levier").value,
+    frais: (+document.getElementById("frais").value || 0) / 100,
+    slippage: (+document.getElementById("slippage").value || 0) / 100,
+  };
+  const res = calculer(p);
+
+  document.getElementById("titre-tableau").textContent =
+    `${res.d.nom} — acheter à l'ouverture du lendemain, revendre à J+N (${res.evenements.length} événements depuis ${DONNEES.debut.slice(0, 4)})`;
+
+  let lignes = `<tr><th>Sortie</th><th>Événements</th><th>Trades gagnants</th><th>Gain moyen / trade</th>
+    <th>Gain médian</th><th>Pire trade</th><th>Capital final (1x)</th><th>Pire chute (1x)</th>
+    <th>Pire chute si malchance</th><th>Capital final (${p.levier}x)</th></tr>`;
+  for (const f of FENETRES) {
+    const r = res.parFenetre[f];
+    if (!r) continue;
+    const ruine1 = r.pf1.ruine !== null ? ` 💀 ruine le ${fmtDate(res.d.dates[r.pf1.ruine])}` : "";
+    const ruineL = r.pfl.ruine !== null ? ` 💀 ruine le ${fmtDate(res.d.dates[r.pfl.ruine])}` : "";
+    lignes += `<tr>
+      <td><b>J+${f}</b></td><td>${r.stats.n}</td><td>${Math.round(r.stats.gagnants * 100)} %</td>
+      <td class="${cls(r.stats.moyen)}">${pct(r.stats.moyen)}</td>
+      <td class="${cls(r.stats.median)}">${pct(r.stats.median)}</td>
+      <td class="perte">${pct(r.stats.pire)}</td>
+      <td class="${cls(r.pf1.final - p.capital)}">${fmtEUR.format(r.pf1.final)}${ruine1}</td>
+      <td>${pct(r.pf1.dd)}</td>
+      <td>${r.ddMalchance !== null ? pct(r.ddMalchance) : "—"}</td>
+      <td class="${cls(r.pfl.final - p.capital)}">${fmtEUR.format(r.pfl.final)}${ruineL}</td>
+    </tr>`;
+  }
+  document.getElementById("tableau").innerHTML = lignes;
+  document.getElementById("note-tableau").textContent =
+    `« Capital final » = ${fmtEUR.format(p.capital)} de départ, tous les trades enchaînables (un seul à la fois), ` +
+    `frais ${(p.frais * 100).toFixed(2).replace(".", ",")} % et slippage ${(p.slippage * 100).toFixed(2).replace(".", ",")} % par ordre inclus. ` +
+    `« Pire chute si malchance » = les 5 % pires parcours quand on rejoue les mêmes trades dans 500 ordres différents. ` +
+    `Référence « acheter et garder » du début à la fin : ${fmtEUR.format(res.buyhold)}.`;
+
+  // Verdict basé sur J+1 (le « je réagis à la news et je revends vite »).
+  const r1 = res.parFenetre[1];
+  if (r1) {
+    const gagne = r1.pf1.final > p.capital, bat = r1.pf1.final > res.buyhold;
+    document.getElementById("zone-verdict").innerHTML = `<div class="verdict ${gagne && bat ? "ok" : "ko"}">
+      <b>Verdict pour ${res.d.nom} :</b> acheter le lendemain d'un événement et revendre le soir même a
+      <b>${gagne ? "RAPPORTÉ" : "PERDU"}</b> de l'argent sur la période — rendement moyen ${pct(r1.stats.moyen)}
+      par trade, ${fmtEUR.format(p.capital)} devenus <b>${fmtEUR.format(r1.pf1.final)}</b>.
+      Ne rien faire (acheter et garder tout du long) donnait ${fmtEUR.format(res.buyhold)}.
+      ${res.parFenetre[5] && res.parFenetre[5].pf1.final > p.capital && res.parFenetre[5].stats.moyen > 0
+        ? "Tenir quelques jours a historiquement mieux marché (voir le tableau) — mais regarde la colonne « pire chute » avant de t'emballer."
+        : ""}</div>`;
+  }
+
+  // Top 10 des événements, avec « et si j'achetais le lendemain (sortie J+3) ? ».
+  let lignesTop = `<tr><th>Date</th><th>Mouvement du jour J</th><th>Achat le lendemain, sortie J+3</th></tr>`;
+  for (const ev of res.top) {
+    const t3 = res.parFenetre[3] ? res.parFenetre[3].trades.find(x => x.t === ev.t) : null;
+    lignesTop += `<tr><td>${fmtDate(res.d.dates[ev.t])}</td>
+      <td class="${cls(ev.r)}">${pct(ev.r)}</td>
+      <td class="${t3 ? cls(t3.r1) : ""}">${t3 ? pct(t3.r1) : "—"}</td></tr>`;
+  }
+  document.getElementById("tableau-top").innerHTML = lignesTop;
+
+  grapheCapital(res, p);
+  graphePrix(res, p);
+
+  document.getElementById("pied").textContent =
+    `TradingLab · données Yahoo Finance du ${fmtDate(DONNEES.debut)} au ${fmtDate(res.d.dates[res.n - 1])}, ` +
+    `embarquées le ${fmtDate(DONNEES.genere_le)} · aucun cookie, aucun compte, tout se calcule dans ton navigateur.`;
+}
+
+/* ---------- initialisation ---------- */
+const selectActif = document.getElementById("actif");
+for (const [ticker, d] of Object.entries(DONNEES.actifs))
+  selectActif.insertAdjacentHTML("beforeend", `<option value="${ticker}">${d.nom}</option>`);
+for (const id of ["actif", "capital", "direction", "seuil", "levier", "frais", "slippage"])
+  document.getElementById(id).addEventListener("input", afficher);
+afficher();
+</script>
+</body>
+</html>
