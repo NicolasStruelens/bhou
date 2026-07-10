@@ -588,7 +588,9 @@
       const ch = DEVIS.chantier || {};
       // Point de départ des garanties = date de RÉCEPTION signée (PV) en priorité ; à défaut, date de pose.
       const startIso = (DEVIS.reception && DEVIS.reception.date) || ch.date_pose;
-      if (DEVIS.statut !== 'termine' || !startIso) { badge.classList.add('hidden'); return; }
+      const startDay = startIso ? String(startIso).slice(0, 10) : '';
+      // La garantie ne peut pas courir depuis une date FUTURE (pose pas encore faite) : on masque le badge.
+      if (DEVIS.statut !== 'termine' || !startDay || startDay > new Date().toISOString().slice(0, 10)) { badge.classList.add('hidden'); return; }
       const poseDate = new Date(startIso);
       const structureEnd = new Date(poseDate); structureEnd.setFullYear(structureEnd.getFullYear() + 5);
       const items = DEVIS.items || [];
@@ -1314,12 +1316,24 @@
       }
       if (stMenuEl) stMenuEl.classList.remove('open');
       if (DEVIS.statut === statut) return;
+      // « Terminé » implique que la pose est faite. Si ce n'est pas enregistré (commande ≠ « Posé »,
+      // aucun PV de réception), on avertit mais on autorise (certains devis importés sont déjà terminés).
+      if (statut === 'termine' && !window.SSUI.isPoseDone(DEVIS)) {
+        if (!confirm("La pose n'est pas encore enregistrée (commande ≠ « Posé », aucun PV de réception). Marquer quand même « Terminé » ?")) return;
+      }
       const wasSigne = DEVIS.statut === 'signe';
+      const prev = DEVIS.statut;
       const identity = await window.SSNav.getIdentity();
-      const res = await SS.updateStatus(DEVIS.id, statut, identity.key);
-      if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
-      const fresh = await SS.getDevis(DEVIS.id);
-      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash)
+      // Sauvegarde cohérente en un seul écrit : statut + historique + nettoyages liés.
+      DEVIS.statut = statut;
+      DEVIS.date_modification = new Date().toISOString();
+      DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut, date: DEVIS.date_modification, by: identity.key }]);
+      if (statut === 'signe') {
+        // Un devis signé est contractuel : on efface un refus précédent et le flag « informatif ».
+        DEVIS.raison_refus = ''; DEVIS.client_declined = false; DEVIS.informatif = false;
+      }
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
       CALC = getCalc(DEVIS);
       toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
       if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
@@ -1419,6 +1433,8 @@
     window.togglePortfolio = async () => {
       const willEnable = !DEVIS.portfolio;
       if (willEnable) {
+        // Le portfolio = réalisations TERMINÉES. On ne met en avant que des chantiers réellement finis.
+        if (DEVIS.statut !== 'termine') { toast('Le portfolio ne concerne que les devis terminés (chantier posé).', 'warn', 3500); return; }
         const photoCount = (DEVIS.items || []).reduce((s, it) => s + ((it.photos || []).length), 0);
         if (!photoCount && !confirm('Aucune photo sur ce devis — il apparaîtra sans image dans le portfolio. Continuer quand même ?')) return;
       }

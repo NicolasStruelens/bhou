@@ -152,6 +152,7 @@
       <div class="mbody" id="mBody"></div>
       <div class="mfoot">
         <button class="btn btn-ghost btn-sm" id="btnDelete" onclick="deleteCurrent()" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">Supprimer</button>
+        <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
         <div class="spacer"></div>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
         <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Enregistrer</button>
@@ -447,6 +448,8 @@
       const dejaConverti = !!r.devis_id || r.statut === 'converti';
       el('btnConvert').style.display = dejaConverti ? 'none' : '';
       el('btnConvert').innerHTML = dejaConverti ? '' : `${icon('filetext', 14)} Créer le devis`;
+      // « Annuler le RDV » : caché sur une nouvelle demande, un RDV déjà annulé, ou déjà converti en devis.
+      el('btnCancelRdv').style.display = (isNew || r.statut === 'annule' || r.statut === 'converti') ? 'none' : '';
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
       const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
       el('mBody').innerHTML = `
@@ -584,6 +587,23 @@
       await SS.deleteRdv(cur.id);
       RDV = RDV.filter(x => x.id !== cur.id);
       toast('Demande supprimée', 'ok');
+      closeModal();
+      render();
+    };
+
+    // Désistement client : on ANNULE la demande (elle reste dans l'historique, visible via « Voir annulés »)
+    // au lieu de la supprimer. Réversible : il suffit de rouvrir la fiche et de changer le statut.
+    window.cancelCurrent = async () => {
+      if (!CURRENT) return;
+      if (!confirm('Le client s\'est désisté ? Marquer cette demande comme ANNULÉE (elle ira dans les « annulés »).')) return;
+      collect();
+      const cur = CURRENT;              // capturé AVANT l'await (voir saveCurrent)
+      cur.statut = 'annule';
+      const idx = RDV.findIndex(x => x.id === cur.id);
+      if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
+      const res = await SS.saveRdv(cur);
+      if (SS.logActivity) SS.logActivity({ action: 'rdv.cancel', entity_type: 'rdv', entity_id: cur.id, label: `RDV annulé (désistement) — ${clientName(cur)}` });
+      toast(res.offline ? 'RDV annulé (hors-ligne)' : 'RDV annulé', 'warn');
       closeModal();
       render();
     };

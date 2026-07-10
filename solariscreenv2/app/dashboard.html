@@ -502,9 +502,18 @@
     }
     // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
     function isChantierAPreparer(d) {
-      if (d.statut !== 'signe' || !d.chantier || !d.chantier.date_pose) return false;
+      if (d.statut !== 'signe' || window.SSUI.isPoseDone(d) || !d.chantier || !d.chantier.date_pose) return false;
       const days = Math.round((new Date(d.chantier.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
       return days >= 0 && days <= 7;
+    }
+    // Chantier POSÉ mais pas entièrement payé → le solde reste à encaisser (rappel visible même « terminé »,
+    // sinon l'argent dû devient invisible une fois le devis marqué terminé).
+    function isSoldeUnpaid(d) {
+      if (!window.SSUI.isPoseDone(d)) return false;
+      const ttc = Number(d.ttc) || 0;
+      if (ttc <= 0) return false;
+      const totalPaid = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
+      return totalPaid < ttc - 0.005;
     }
     // Nombre de jours depuis le tout premier envoi au client (pas juste le statut courant —
     // une relance ne remet pas le compteur de validité CGV à zéro). CGV : devis valide 30 jours.
@@ -516,7 +525,8 @@
       return Math.floor((Date.now() - new Date(anchor).getTime()) / 86400000);
     }
     function isDevisExpire(d) {
-      if (!WAITING_STATUSES.includes(d.statut)) return false;
+      // Un devis déjà ACCEPTÉ par le client (via le lien de suivi) n'est ni « expiré » ni « à relancer ».
+      if (!WAITING_STATUSES.includes(d.statut) || d.client_accepted) return false;
       const days = daysSinceSent(d);
       return days !== null && days >= 30;
     }
@@ -571,9 +581,10 @@
 
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
-      const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
+      const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
       const enRetard = visible.filter(isPaymentOverdue);
       const acompteAttente = visible.filter(isAcompteUnpaid);
+      const soldeAttente = visible.filter(isSoldeUnpaid);
       const aPreparer = visible.filter(isChantierAPreparer);
       const expires = visible.filter(isDevisExpire);
       const box = el('todayBrief');
@@ -581,6 +592,7 @@
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
       if (acompteAttente.length) chips.push({ label: `${acompteAttente.length} acompte${acompteAttente.length > 1 ? 's' : ''} non payé${acompteAttente.length > 1 ? 's' : ''}`, color: 'var(--warn)', filter: 'acompte_attente', ic: 'coin' });
+      if (soldeAttente.length) chips.push({ label: `${soldeAttente.length} solde${soldeAttente.length > 1 ? 's' : ''} à encaisser`, color: 'var(--accent-2)', filter: 'solde_attente', ic: 'coin' });
       if (aPreparer.length) chips.push({ label: `${aPreparer.length} chantier${aPreparer.length > 1 ? 's' : ''} à préparer`, color: 'var(--accent-2)', filter: 'a_preparer', ic: 'calendar' });
       if (expires.length) chips.push({ label: `${expires.length} devis expiré${expires.length > 1 ? 's' : ''}`, color: 'var(--danger)', filter: 'expire', ic: 'warning' });
       if (!chips.length) { box.classList.add('hidden'); return; }
@@ -620,9 +632,11 @@
     }
 
     function renderKPIs() {
-      const total = DEVIS.length;
-      const signes = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
-      const envoyes = DEVIS.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
+      // Les KPIs de devis EXCLUENT les archivés (comme la page Stats) → un seul et même CA affiché partout.
+      const active = DEVIS.filter(d => !d.archive);
+      const total = active.length;
+      const signes = active.filter(d => ['signe', 'termine'].includes(d.statut));
+      const envoyes = active.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
       const caSigne = signes.reduce((s, d) => s + d.ttc, 0);
       // CA réellement encaissé = somme des paiements reçus sur toutes les factures (pas le total théorique des devis)
       const caEncaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
@@ -646,9 +660,10 @@
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
-      if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && daysInCurrentStatus(d) >= 7);
+      if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
       else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
       else if (activeFilter === 'acompte_attente') rows = rows.filter(isAcompteUnpaid);
+      else if (activeFilter === 'solde_attente') rows = rows.filter(isSoldeUnpaid);
       else if (activeFilter === 'a_preparer') rows = rows.filter(isChantierAPreparer);
       else if (activeFilter === 'expire') rows = rows.filter(isDevisExpire);
       else if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
@@ -948,9 +963,10 @@
       if (!confirm('Supprimer définitivement ce devis ?')) return;
       const d = DEVIS.find(x => x.id === id);
       const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
-      await SS.deleteDevis(id);
+      const res = await SS.deleteDevis(id);
+      if (res && res.ok === false) { toast(res.error || 'Suppression impossible', 'error', 6000); return; }   // ex. factures liées
       DEVIS = DEVIS.filter(x => x.id !== id);
-      toast('Devis supprimé', 'warn');
+      toast(res && res.offline ? 'Devis supprimé (hors-ligne)' : 'Devis supprimé', 'warn');
       SS.logActivity({ action: 'devis.delete', entity_type: 'devis', entity_id: id, label: `Devis #${id}${cli ? ' (' + cli + ')' : ''} supprimé` });
       render();
     };

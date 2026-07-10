@@ -822,6 +822,22 @@
         },
       };
       const res = await SS.saveDevis(devis);
+      // Synchronise la fiche CRM (comme le Mode Terrain) : crée si absente, met à jour les coordonnées
+      // sans écraser notes/tags ni vider un champ existant avec une valeur vide.
+      try {
+        const key = clientKeyOf(client.prenom, client.nom);
+        const ex = await SS.getClient(key);
+        const ea = (ex && ex.adresse) || {}, na = client.adresse || {};
+        await SS.saveClient({
+          key, prenom: client.prenom, nom: client.nom,
+          telephone: client.telephone || (ex && ex.telephone) || '',
+          email: client.email || (ex && ex.email) || '',
+          adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
+          type_bien: (ex && ex.type_bien) || '', tags: (ex && ex.tags) || [], notes: (ex && ex.notes) || '',
+          date_creation: (ex && ex.date_creation) || new Date().toISOString(),
+          date_modification: new Date().toISOString(),
+        });
+      } catch (e) { console.warn('[simulateur] sync fiche CRM:', e); }
       toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
       state.isExisting = true;
       dirty = false;

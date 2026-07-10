@@ -82,7 +82,9 @@
 
     async function load() {
       const raw = await SS.listDevis();
-      const eligible = (raw || []).filter(d => ['signe', 'termine'].includes(d.statut));
+      // Chantiers à poser = signés/terminés NON archivés. La visibilité réelle (posé ou non) est
+      // décidée dans render() via isPoseDone — un devis « terminé » mais pose non faite reste visible.
+      const eligible = (raw || []).filter(d => ['signe', 'termine'].includes(d.statut) && !d.archive);
       const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
       FULL = new Map();
       fulls.filter(Boolean).forEach(d => FULL.set(d.id, d));
@@ -95,7 +97,9 @@
       const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
       const mapsUrl = adresseTxt ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adresseTxt) : null;
       let cls = '', badge = '';
-      if (d.statut === 'termine') { badge = `<span class="badge badge-ok">Posé</span>`; }
+      // Ces cartes ne sont affichées que si la pose N'EST PAS faite. Un devis « Terminé » qui apparaît
+      // ici est donc incohérent (marqué terminé sans pose enregistrée) → on l'alerte au lieu de le cacher.
+      if (d.statut === 'termine') { cls = 'is-retard'; badge = `<span class="badge badge-warn" title="Marqué « Terminé » mais la pose n'est pas enregistrée (commande ≠ Posé, aucun PV de réception). Clique « Marquer posé » ou repasse-le en Signé.">⚠ Terminé sans pose</span>`; }
       else if (!ch.date_pose) { badge = `<span class="badge">À planifier</span>`; }
       else {
         const days = Math.round((new Date(ch.date_pose) - new Date(today())) / 86400000);
@@ -125,7 +129,7 @@
           </div>
           <div class="ag-actions">
             <button class="btn btn-ghost btn-sm" onclick="location.href='vue.html?id=${d.id}'">${icon('window', 14)} Voir la fiche</button>
-            ${d.statut === 'signe' ? `<button class="btn btn-primary btn-sm" onclick="markDone('${d.id}')">${icon('check', 14)} Marquer posé</button>` : ''}
+            <button class="btn btn-primary btn-sm" onclick="markDone('${d.id}')">${icon('check', 14)} Marquer posé</button>
           </div>
         </div>`;
     }
@@ -143,10 +147,23 @@
     window.markDone = async (id) => {
       const d = FULL.get(id);
       if (!d) return;
+      const t = today();
+      const ch = d.chantier = d.chantier || {};
+      // La pose ne peut pas être "faite" dans le futur : si la date prévue est future (ou absente),
+      // on confirme et on la cale à aujourd'hui (garantie, portfolio… démarrent d'une date réelle).
+      if (ch.date_pose && ch.date_pose > t) {
+        if (!confirm(`La pose est prévue le ${fmtDate(ch.date_pose)} (dans le futur). Confirmer qu'elle est POSÉE aujourd'hui ?`)) return;
+      }
+      if (!ch.date_pose || ch.date_pose > t) ch.date_pose = t;
+      d.commande = d.commande || {};
+      d.commande.statut = 'pose';                     // jalon "pose faite" partagé (isPoseDone)
+      d.statut = 'termine';                            // "Pose terminée" (≠ soldé : le solde reste à encaisser)
       const identity = await window.SSNav.getIdentity();
-      await SS.updateStatus(id, 'termine', identity.key);
-      d.statut = 'termine';
-      toast('Chantier marqué comme posé ✓', 'ok');
+      d.statut_history = (d.statut_history || []).concat([{ statut: 'termine', date: new Date().toISOString(), by: identity.key }]);
+      d.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(d);
+      if (SS.logActivity) SS.logActivity({ action: 'devis.pose', entity_type: 'devis', entity_id: id, label: `Chantier posé — devis #${id}` });
+      toast(res.offline ? 'Pose enregistrée (hors-ligne)' : 'Chantier posé ✓ — pense à facturer et encaisser le solde.', res.offline ? 'warn' : 'ok', 3500);
       render();
     };
 
@@ -157,8 +174,11 @@
       const dow = startWeek.getDay();
       startWeek.setDate(startWeek.getDate() + (dow === 0 ? -6 : 1 - dow));
       const endWeek = new Date(startWeek); endWeek.setDate(endWeek.getDate() + 6);
-      const cetteSemaine = [...FULL.values()].filter(d => d.chantier && d.chantier.date_pose && d.statut !== 'termine' &&
-        new Date(d.chantier.date_pose) >= new Date(startWeek.toISOString().slice(0, 10)) && new Date(d.chantier.date_pose) <= endWeek).length;
+      // Comparaison en chaînes ISO "YYYY-MM-DD" (lexicographique = chronologique) → aucun décalage
+      // de fuseau horaire (l'ancienne comparaison mélangeait minuit-UTC et l'heure locale du soir).
+      const wStart = startWeek.toISOString().slice(0, 10), wEnd = endWeek.toISOString().slice(0, 10);
+      const cetteSemaine = [...FULL.values()].filter(d => d.chantier && d.chantier.date_pose && !window.SSUI.isPoseDone(d) &&
+        d.chantier.date_pose >= wStart && d.chantier.date_pose <= wEnd).length;
       el('kpis').innerHTML = `
         <div class="kpi ticked accent"><div class="kpi-label">Cette semaine</div><div class="kpi-value">${cetteSemaine}</div><div class="kpi-sub">pose(s) planifiée(s)</div></div>
         <div class="kpi ticked"><div class="kpi-label">À planifier</div><div class="kpi-value">${groups.aPlanifier.length}</div><div class="kpi-sub">chantiers signés sans date</div></div>
@@ -169,7 +189,7 @@
       const all = [...FULL.values()];
       const retard = [], aujourdhui = [], aVenir = [], aPlanifier = [];
       all.forEach(d => {
-        if (d.statut === 'termine') return;
+        if (window.SSUI.isPoseDone(d)) return;   // pose réellement faite (PV signé ou commande = Posé) → sort de l'agenda
         const ch = d.chantier || {};
         if (!ch.date_pose) { aPlanifier.push(d); return; }
         const days = Math.round((new Date(ch.date_pose) - new Date(today())) / 86400000);

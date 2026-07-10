@@ -208,8 +208,10 @@
 
     // ── Nouvelle facture ──
     window.openNew = (preselectId, preselectType) => {
-      if (!DEVIS.length) { toast('Crée d\'abord un devis.', 'warn'); return; }
-      const opts = DEVIS.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})${['signe','termine'].includes(d.statut) ? ' ✓' : ''}</option>`).join('');
+      // On ne facture qu'un devis SIGNÉ ou TERMINÉ (jamais un brouillon, un refusé ou un annulé).
+      const billable = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
+      if (!billable.length) { toast('Aucun devis signé ou terminé à facturer.', 'warn'); return; }
+      const opts = billable.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})</option>`).join('');
       el('mDevis').innerHTML = opts;
       el('mEcheance').value = 15; el('mPct').value = 30; el('mType').value = 'acompte';
       if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
@@ -237,13 +239,19 @@
       const d = await SS.getDevis(devisId);
       const c = (d && d.calculs) || {};
       const ttc = c.total_ttc || 0, ht = c.total_ht || 0, tva = c.total_tva || 0, tvaPct = c.tva_pct || 6;
+      // Déjà facturé pour ce devis (toutes factures) → on ne dépasse JAMAIS le total du devis.
+      const already = FACTURES.filter(f => f.devis_id === devisId).reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
+      const remaining = Math.max(0, ttc - already);
       let factor = 1;
-      if (type === 'acompte') factor = (Number(pct) || 0) / 100;
-      else if (type === 'solde') {
-        const already = FACTURES.filter(f => f.devis_id === devisId).reduce((s, f) => s + (f.total_ttc || 0), 0);
-        factor = ttc > 0 ? Math.max(0, (ttc - already)) / ttc : 0;
+      if (type === 'acompte') {
+        const wanted = ttc * ((Number(pct) || 0) / 100);
+        factor = ttc > 0 ? Math.min(wanted, remaining) / ttc : 0;   // acompte plafonné au restant
+      } else if (type === 'solde') {
+        factor = ttc > 0 ? remaining / ttc : 0;                     // solde = tout le restant
+      } else { // totale : facture unique à 100 %, uniquement si RIEN n'a encore été facturé
+        factor = already > 0.005 ? 0 : 1;
       }
-      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor, tva_pct: tvaPct, factor };
+      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor, tva_pct: tvaPct, factor, already, ttc };
     }
 
     async function updatePreview() {
@@ -255,8 +263,15 @@
 
     function nextNumber() {
       const year = new Date().getFullYear();
-      const n = FACTURES.filter(f => (f.id || '').includes('F' + year)).length + 1;
-      return 'F' + year + '-' + String(n).padStart(3, '0');
+      const prefix = 'F' + year + '-';
+      // Numéro suivant = (plus grand numéro existant) + 1. JAMAIS basé sur le NOMBRE de factures :
+      // sinon supprimer une facture ferait régresser le compteur et RÉÉCRIRAIT une facture existante.
+      let maxN = 0;
+      FACTURES.forEach(f => {
+        const id = String(f.id || '');
+        if (id.indexOf(prefix) === 0) { const n = parseInt(id.slice(prefix.length), 10); if (n > maxN) maxN = n; }
+      });
+      return prefix + String(maxN + 1).padStart(3, '0');
     }
 
     function buildLines(devis, type, amounts, pct) {
@@ -280,9 +295,14 @@
 
     window.createFacture = async () => {
       const id = el('mDevis').value, type = el('mType').value, pct = Number(el('mPct').value) || 30;
+      // Rafraîchit la liste avant de numéroter (évite une collision de numéro si Yannick a créé une
+      // facture entre-temps) et pour recalculer le « déjà facturé » à jour.
+      FACTURES = (await SS.listFactures()) || FACTURES;
       const a = await computeAmounts(id, type, pct);
       if (!a.devis) { toast('Devis introuvable', 'error'); return; }
-      if (a.total_ttc <= 0) { toast('Montant nul (solde déjà facturé ?)', 'warn'); return; }
+      if (!['signe', 'termine'].includes(a.devis.statut)) { toast('On ne facture qu\'un devis signé ou terminé (statut actuel : ' + (a.devis.statut || '?') + ').', 'warn', 4000); return; }
+      if (type === 'totale' && a.already > 0.005) { toast('Des factures existent déjà pour ce devis — utilise « Solde » pour le restant.', 'warn', 4000); return; }
+      if (a.total_ttc <= 0) { toast('Montant nul (devis déjà entièrement facturé ?)', 'warn'); return; }
       const num = nextNumber();
       const facture = {
         id: num, type, devis_id: id,

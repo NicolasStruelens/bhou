@@ -410,7 +410,25 @@
         date_modification: new Date().toISOString(),
       };
       const res = await SS.saveClient(client);
-      toast(res.offline ? 'Fiche enregistrée (hors-ligne)' : 'Fiche enregistrée ✓', res.offline ? 'warn' : 'ok');
+      // Propagation (choix Nicolas) : le devis stocke une COPIE du client → on répercute les coordonnées
+      // corrigées sur ses devis existants pour que PDF, attestation TVA et suivi restent à jour.
+      // (Match par nom/prénom ; renommer un client ne re-lie pas les anciens devis — limitation connue.)
+      let propagated = 0;
+      try {
+        const devisList = await SS.listDevis();
+        const matches = (devisList || []).filter(d => { const c = d.client || {}; return keyOf(c.prenom, c.nom) === key; });
+        for (const summary of matches) {
+          const full = await SS.getDevis(summary.id);
+          if (!full || !full.client) continue;
+          full.client.telephone = client.telephone;
+          full.client.email = client.email;
+          full.client.adresse = Object.assign({}, full.client.adresse, client.adresse);
+          full.date_modification = new Date().toISOString();
+          await SS.saveDevis(full);
+          propagated++;
+        }
+      } catch (e) { console.warn('[clients] propagation coordonnées → devis:', e); }
+      toast(res.offline ? 'Fiche enregistrée (hors-ligne)' : ('Fiche enregistrée ✓' + (propagated ? ` — coordonnées propagées sur ${propagated} devis` : '')), res.offline ? 'warn' : 'ok', 3000);
       await load();
       renderDetail(key);
     };
@@ -436,6 +454,10 @@
       const nom = prompt('Nom du client ?'); if (nom === null) return;
       if (!prenom.trim() && !nom.trim()) { toast('Nom ou prénom requis', 'warn'); return; }
       const key = keyOf(prenom, nom);
+      // Ne JAMAIS écraser une fiche existante (même nom = même clé, ce qui effacerait ses notes/étiquettes) :
+      // on l'ouvre à la place.
+      const existing = await SS.getClient(key);
+      if (existing) { toast('Une fiche existe déjà pour ce nom — ouverture de la fiche existante.', 'warn', 3500); await load(); renderDetail(key); return; }
       await SS.saveClient({ key, prenom: prenom.trim(), nom: nom.trim(), tags: [], notes: '', date_creation: new Date().toISOString(), date_modification: new Date().toISOString() });
       toast('Client créé ✓', 'ok');
       await load();

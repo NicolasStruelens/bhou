@@ -371,12 +371,21 @@
       sigHasInk = false; updateConfirmState();
     };
     window.confirmSignature = async function () {
-      const canvas = el('sigCanvas'); if (!canvas) return;
-      DEVIS.signature = { accepted_terms: true, image: canvas.toDataURL('image/png'), date: new Date().toISOString() };
+      const canvas = el('sigCanvas'); if (!canvas || !sigHasInk) return;
+      // Anti-erreur : on ne signe pas un devis vide (aucune ouverture ou total à 0 €).
+      const ttc = (DEVIS.calculs && DEVIS.calculs.total_ttc) || 0;
+      if (!(DEVIS.items && DEVIS.items.length) || ttc <= 0) { toast('Impossible de signer un devis vide (aucune ouverture ou total à 0 €).', 'warn', 4000); return; }
+      const now = new Date().toISOString();
+      DEVIS.signature = { accepted_terms: true, image: canvas.toDataURL('image/png'), date: now };
       DEVIS.statut = 'signe';
-      DEVIS.date_modification = new Date().toISOString();
+      // Un devis signé est contractuel : on efface un refus précédent + le flag « informatif », on marque
+      // l'acceptation et on trace la transition dans l'historique (sinon la signature n'y apparaît pas).
+      DEVIS.raison_refus = ''; DEVIS.client_declined = false; DEVIS.informatif = false; DEVIS.client_accepted = true;
+      DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'signe', date: now, by: null }]);
+      DEVIS.date_modification = now;
       const res = await SS.saveDevis(DEVIS);
       toast(res.offline ? 'Signature enregistrée hors-ligne.' : 'Devis signé ✓', res.offline ? 'warn' : 'ok');
+      if (window.ssConfetti) window.ssConfetti();
       renderPaper();
       renderSignatureUI();
     };

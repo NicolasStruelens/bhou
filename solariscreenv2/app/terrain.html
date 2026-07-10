@@ -598,9 +598,14 @@
       const key = keyOf(client.prenom, client.nom);
       let existing = null;
       try { existing = await SS.getClient(key); } catch (e) {}
+      // Fusion douce : on ne remplace un champ de la fiche que par une valeur NON VIDE (sinon un devis
+      // sans email viderait l'email de la fiche corrigé ailleurs).
+      const ea = (existing && existing.adresse) || {}, na = client.adresse || {};
       await SS.saveClient({
         key, prenom: client.prenom, nom: client.nom,
-        telephone: client.telephone, email: client.email, adresse: client.adresse,
+        telephone: client.telephone || (existing && existing.telephone) || '',
+        email: client.email || (existing && existing.email) || '',
+        adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
         type_bien: (existing && existing.type_bien) || '', tags: (existing && existing.tags) || [], notes: (existing && existing.notes) || '',
         date_creation: (existing && existing.date_creation) || new Date().toISOString(),
         date_modification: new Date().toISOString(),

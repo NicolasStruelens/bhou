@@ -259,7 +259,9 @@
       const signes = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
       const nicolasNet = signes.reduce((s, d) => s + (d.calculs?.nicolas_net || 0), 0);
       const yannickNet = signes.reduce((s, d) => s + (d.calculs?.yannick_net || 0), 0);
-      const nicolasCount = signes.filter(d => (d.pricing_v2?.material?.sellers?.principal || 'nicolas') === 'nicolas').length;
+      // Attribution : on ne compte QUE les vendeurs explicitement renseignés (même règle que le podium) —
+      // les devis sans vendeur vont dans « Autre », pas par défaut chez Nicolas.
+      const nicolasCount = signes.filter(d => d.pricing_v2?.material?.sellers?.principal === 'nicolas').length;
       const yannickCount = signes.filter(d => d.pricing_v2?.material?.sellers?.principal === 'yannick').length;
       const autreCount = signes.length - nicolasCount - yannickCount;
       const max = Math.max(1, nicolasNet, yannickNet);
@@ -277,7 +279,9 @@
         const name = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
         const key = name.toLowerCase();
         byClient[key] = byClient[key] || { name, ca: 0, count: 0 };
-        byClient[key].ca += d.calculs?.total_ttc || 0;
+        // CA = uniquement l'argent qui s'est concrétisé (signé/terminé) — un devis refusé/brouillon
+        // ne doit pas propulser un client en tête du classement.
+        byClient[key].ca += ['signe', 'termine'].includes(d.statut) ? (d.calculs?.total_ttc || 0) : 0;
         byClient[key].count++;
       });
       const top = Object.values(byClient).sort((a, b) => b.ca - a.ca).slice(0, 8);
@@ -296,7 +300,7 @@
         if (!ville) return;
         byCity[ville] = byCity[ville] || { count: 0, ca: 0 };
         byCity[ville].count++;
-        byCity[ville].ca += d.calculs?.total_ttc || 0;
+        byCity[ville].ca += ['signe', 'termine'].includes(d.statut) ? (d.calculs?.total_ttc || 0) : 0;
       });
       const entries = Object.entries(byCity).sort((a, b) => b[1].count - a[1].count).slice(0, 8);
       const max = Math.max(1, ...entries.map(([, v]) => v.count));
