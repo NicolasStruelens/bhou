@@ -17,8 +17,8 @@
     }, options || {}));
     let data;
     try { data = await r.json(); }
-    catch (e) { throw new Error('HTTP ' + r.status + ' — réponse non-JSON'); }
-    if (!data.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    catch (e) { const err = new Error('HTTP ' + r.status + ' — réponse non-JSON'); err.status = r.status; err.serverRejected = true; throw err; }
+    if (!data.ok) { const err = new Error(data.error || ('HTTP ' + r.status)); err.status = r.status; err.serverRejected = true; throw err; }
     return data;
   }
 
@@ -87,9 +87,18 @@
       catch (e) { console.warn('[SS] saveDevis hors-ligne:', e.message); return { ok: true, id: devis.id, offline: true, error: e.message }; }
     },
     async deleteDevis(id) {
-      local.delete(id);
-      try { return await req('/devis/' + id, { method: 'DELETE' }); }
-      catch (e) { console.warn('[SS] deleteDevis hors-ligne:', e.message); return { ok: true, offline: true }; }
+      try {
+        const r = await req('/devis/' + id, { method: 'DELETE' });
+        local.delete(id);   // ne supprime en local qu'APRÈS confirmation du serveur
+        return r;
+      } catch (e) {
+        // Rejet explicite du serveur (ex. factures liées → 409) : NE PAS supprimer localement, remonter l'erreur.
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        // Vrai hors-ligne (réseau) : suppression locale optimiste.
+        local.delete(id);
+        console.warn('[SS] deleteDevis hors-ligne:', e.message);
+        return { ok: true, offline: true };
+      }
     },
     async updateStatus(id, statut, by) {
       const devis = await this.getDevis(id);

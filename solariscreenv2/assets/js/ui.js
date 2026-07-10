@@ -128,6 +128,8 @@
       telephone: (d.client && d.client.telephone) || '',
       email: (d.client && d.client.email) || '',
       chantier: d.chantier || null,
+      commande_statut: (d.commande && d.commande.statut) || d.commande_statut || '',
+      reception_date: (d.reception && d.reception.date) || d.reception_date || '',
       checklist: d.checklist || null,
       raison_refus: d.raison_refus || '',
       probabilite: d.probabilite || '',
@@ -136,6 +138,18 @@
       sav_tickets: d.sav_tickets || [],
       item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
     };
+  }
+
+  // ── Jalons du cycle de vie (partagés par agenda / vue / dashboard : ils doivent TOUS dire la même chose) ──
+  // POSE FAITE = PV de réception signé OU étape fournisseur « Posé ». On ne se fie PLUS à statut==='termine'
+  // (un devis peut être marqué terminé alors que la pose n'est pas faite — ex. données importées).
+  // Marche sur le blob complet (reception.image / commande.statut) ET sur le résumé de liste dénormalisé
+  // (reception_date / commande_statut).
+  function isPoseDone(d) {
+    if (!d) return false;
+    const recDone = !!(d.reception && d.reception.image) || !!d.reception_date;
+    const cmdPose = (d.commande && d.commande.statut === 'pose') || d.commande_statut === 'pose';
+    return recDone || cmdPose;
   }
 
   // ── Météo chantier (Open-Meteo, gratuit, sans clé — géocodage par ville + prévision 16j) ──
@@ -311,7 +325,7 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
-    normDevis: normDevis, icon: icon, compressImage: compressImage,
+    normDevis: normDevis, isPoseDone: isPoseDone, icon: icon, compressImage: compressImage,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
     fetchWeather: fetchWeather,

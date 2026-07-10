@@ -312,9 +312,11 @@
     window.ssCommandPalette = openP;
   })();
 
-  // ── PWA : manifest + icônes iOS + enregistrement du service worker (un seul endroit) ──
-  (function pwa() {
-    // Base = racine du site. Les pages sont dans /app/ → remonter d'un cran ; sinon on est à la racine.
+  // ── Métadonnées web (manifest + icônes iOS) ──
+  // NOTE : on N'ENREGISTRE PLUS de service worker. Un ancien SW (PWA hors-ligne) cassait toutes les
+  // navigations en ERR_FAILED derrière Cloudflare Access. sw.js est devenu un kill-switch qui se
+  // désinscrit tout seul. On garde uniquement le manifeste/les icônes (inoffensifs, aucune interception).
+  (function webMeta() {
     const base = location.pathname.indexOf('/app/') !== -1 ? '../' : './';
     function addOnce(sel, make) { if (!document.querySelector(sel)) document.head.appendChild(make()); }
     addOnce('link[rel="manifest"]', function () { const l = document.createElement('link'); l.rel = 'manifest'; l.href = base + 'manifest.webmanifest'; return l; });
@@ -323,8 +325,9 @@
     addOnce('meta[name="apple-mobile-web-app-capable"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-capable'; m.content = 'yes'; return m; });
     addOnce('meta[name="apple-mobile-web-app-title"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-title'; m.content = 'SolariScreen'; return m; });
     addOnce('meta[name="apple-mobile-web-app-status-bar-style"]', function () { const m = document.createElement('meta'); m.name = 'apple-mobile-web-app-status-bar-style'; m.content = 'black-translucent'; return m; });
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () { navigator.serviceWorker.register(base + 'sw.js').catch(function () {}); });
+    // Ceinture + bretelles : si un ancien SW traîne encore, on le désinscrit côté page aussi.
+    if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) { regs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
     }
   })();
 
