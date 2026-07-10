@@ -173,6 +173,8 @@ export async function onRequest(context) {
                json_extract(data, '$.pricing_v2.acompte_pct') AS acompte_pct,
                json_extract(data, '$.statut_history') AS statut_history_json,
                json_extract(data, '$.chantier') AS chantier_json,
+               json_extract(data, '$.commande.statut') AS commande_statut,
+               json_extract(data, '$.reception.date') AS reception_date,
                json_extract(data, '$.checklist') AS checklist_json,
                json_extract(data, '$.raison_refus') AS raison_refus,
                json_extract(data, '$.probabilite') AS probabilite,
@@ -222,6 +224,9 @@ export async function onRequest(context) {
       if (method === 'DELETE') {
         const ex = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(id).first();
         if (!ex) return json({ ok: false, error: 'Devis introuvable' }, 404);
+        // Blocage : un devis qui a des factures liées ne peut pas être supprimé (pièces comptables).
+        const fc = await env.DB.prepare("SELECT COUNT(*) AS n FROM factures WHERE json_extract(data, '$.devis_id') = ?").bind(id).first();
+        if (fc && fc.n > 0) return json({ ok: false, error: `Ce devis a ${fc.n} facture(s) liée(s). Supprime-les d'abord si tu veux vraiment le supprimer.` }, 409);
         await env.DB.prepare('DELETE FROM devis WHERE id = ?').bind(id).run();
         return json({ ok: true });
       }
