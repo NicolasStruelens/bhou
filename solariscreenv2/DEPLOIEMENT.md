@@ -67,6 +67,37 @@ Le point critique : l'API doit être **derrière Cloudflare Access**, comme les 
 3. Policy : Allow → emails autorisés (toi + Yannick).
 4. (Optionnel, ceinture + bretelles) Pages → Settings → **Environment variables** → ajoute `REQUIRE_ACCESS = true`. La fonction rejettera alors toute requête sans jeton Access.
 
+### 5bis) ⚠️ OBLIGATOIRE — Exempter les pages PUBLIQUES (lien envoyé au client)
+
+Sans cette étape, **le client ne peut jamais ouvrir son devis ou son suivi de commande** : Cloudflare Access
+intercepte la page avant même qu'elle n'atteigne le code et affiche un écran de connexion que le client ne
+peut pas franchir (il n'a pas de compte autorisé). Le code (`functions/api/[[catchall]].js`) est déjà écrit
+pour que ces routes soient publiques par jeton non-devinable — il manque uniquement la policy Cloudflare.
+
+**Zero Trust → Access → Applications → Add an application → Self-hosted**, une application dédiée avec
+policy **Bypass** (pas *Allow*) pour CHACUN de ces chemins, sur le même domaine que l'application de l'étape
+5 (Cloudflare évalue le chemin le plus spécifique en priorité, donc ces exceptions n'affaiblissent pas la
+protection du reste du site) :
+
+| Chemin à bypasser | Pourquoi |
+|---|---|
+| `/track` **(sans `.html`, voir piège ci-dessous)** | Suivi de commande envoyé au client après signature (jamais de prix) |
+| `/devis-review` **(sans `.html`)** | Consultation/acceptation du devis avant signature (avec prix, jamais la marge) |
+| `/api/track` | Backend de `/track` |
+| `/api/devis-review` | Backend de `/devis-review` |
+| `/assets/*` | CSS/JS/logo chargés par ces 2 pages — fichiers statiques, aucune donnée |
+
+**⚠️ Piège « Clean URLs » (vécu en prod, à ne plus refaire)** : Cloudflare Pages redirige automatiquement
+`/track.html` → `/track` (retire l'extension) **avant** qu'Access n'évalue la requête. Si le chemin bypassé
+dans Access est saisi AVEC `.html`, il ne correspond jamais à ce que Access voit réellement → écran de
+connexion pour le client malgré une policy bypass en apparence correcte. **Les chemins ci-dessus doivent
+être saisis SANS `.html`.** Pour diagnostiquer ce cas précis : sur l'écran de connexion Cloudflare qui
+bloque à tort, décoder le JWT dans le paramètre `meta` de l'URL (partie du milieu, base64url) — le champ
+`redirect_url` révèle le chemin exact qu'Access a réellement reçu.
+
+**Vérification** : ouvre `https://<ton-site>/devis-review.html?t=xxx` (ou copie un vrai lien depuis la fiche
+devis) **en navigation privée** → la page doit s'afficher directement, **sans** écran de connexion Cloudflare.
+
 ## 6) ⚠️ Supprimer l'ancien Worker (ferme le trou)
 
 L'ancien Worker `solariscreen-api` (`*.workers.dev`, sans authentification, CORS `*`) était la faille. Maintenant inutile :
@@ -91,11 +122,36 @@ le bouton « Ajouter un fichier » sur la fiche devis affichera une erreur clair
 3. **Redéployer** (Deployments → Retry deployment, ou un simple `git push`) pour que la liaison prenne effet — comme pour la base D1 à l'étape 3, un binding ajouté après coup ne s'applique qu'au prochain déploiement.
 4. Vérifie sur une fiche devis (`vue.html`) : le bouton « Ajouter un fichier » dans la carte **Documents fournisseur** doit fonctionner (plus d'erreur « Stockage non configuré »).
 
+## 9) Photos (ouvertures, SAV, RDV, simulateur visuel) — bucket R2 dédié
+
+Même logique que les documents fournisseur (étape 8) : les photos compressées ne vont plus dans le JSON
+D1 mais dans un **bucket R2 séparé** — un devis avec beaucoup de photos ne fait plus grossir la ligne D1.
+**Sans ce bucket, rien ne casse** : l'appli retombe automatiquement sur l'ancien comportement (photo
+stockée directement dans le devis, comme avant) — c'est du best-effort, pas un blocage.
+
+1. **Créer le bucket** : Dashboard Cloudflare → **R2** → **Create bucket**.
+   - Nom : `solariscreen-photos` (ou ce que tu veux).
+   - Emplacement : Automatic. Pas besoin d'accès public.
+2. **Lier le bucket au projet Pages** : **Settings → Functions → R2 bucket bindings** → **Add binding**.
+   - Variable name : **`PHOTOS`** (exactement — c'est le nom que le code attend, `env.PHOTOS`).
+   - Bucket : `solariscreen-photos`.
+3. **Redéployer** pour que la liaison prenne effet.
+4. Vérifie : ajoute une photo à une ouverture (simulateur ou mode terrain) → elle doit s'afficher
+   normalement. Si le bucket n'est pas lié, la photo reste stockée comme avant (dans le devis) —
+   aucune erreur visible, juste pas de gain d'espace tant que le bucket n'est pas branché.
+
+**Limitation connue (acceptée)** : seules les **nouvelles** photos (ajoutées après ce déploiement)
+partent en R2. Les photos déjà présentes sur tes devis existants restent en base64 dans le JSON —
+elles continuent de s'afficher normalement, elles ne sont juste pas migrées rétroactivement. Autre
+limitation mineure : supprimer une photo d'une ouverture ne supprime pas (encore) le fichier dans R2 —
+il reste orphelin (coût de stockage négligeable, R2 est gratuit jusqu'à 10 Go).
+
 ---
 
 ## ✅ Vérifications finales
 
 - `https://<site>/api/devis` en navigation privée (non connecté) → **bloqué par Access** (page de login). ✔ faille fermée.
+- `https://<site>/devis-review.html?t=xxx` (un vrai lien copié depuis une fiche devis) en navigation privée → **s'ouvre directement, sans écran de connexion**. Sinon voir 5bis (bypass Access manquant — le client ne peut pas accéder à son devis).
 - Connecté : l'app charge tes devis, le dashboard les liste, CRM et factures fonctionnent.
 - `Cf-Access` actif : le badge passe **● En ligne** dans le dashboard.
 

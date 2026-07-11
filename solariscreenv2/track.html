@@ -14,34 +14,59 @@
   <link rel="stylesheet" href="assets/css/theme-light.css">
   <link rel="stylesheet" href="assets/css/base.css">
   <style>
-    .track-wrap { max-width: 560px; margin: 0 auto; padding: var(--sp-6) var(--sp-4); }
+    body { min-height: 100vh; }
+    .track-wrap { max-width: 600px; margin: 0 auto; padding: var(--sp-7) var(--sp-4) var(--sp-6); }
+
+    @keyframes trackRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: no-preference) {
+      .track-hero, .track-card { animation: trackRise 0.55s cubic-bezier(.16,.8,.3,1) both; }
+      .track-card:nth-of-type(2) { animation-delay: 0.08s; }
+      .track-items .track-item { animation: trackRise 0.5s cubic-bezier(.16,.8,.3,1) both; }
+    }
+
     .track-hero { text-align: center; margin-bottom: var(--sp-6); }
-    .track-hero .logo { width: 64px; height: 64px; margin: 0 auto var(--sp-3); border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); }
+    .track-hero .logo { width: 72px; height: 72px; margin: 0 auto var(--sp-4); border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); background: var(--surface); }
     .track-hero .logo img { width: 100%; height: 100%; object-fit: cover; }
-    .track-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); }
+    .track-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); letter-spacing: 0.01em; }
     .track-hero p { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
 
-    .track-steps { display: flex; gap: 0.4rem; margin: var(--sp-5) 0; }
-    .track-step { flex: 1; text-align: center; }
-    .track-step .dot { width: 30px; height: 30px; margin: 0 auto var(--sp-2); border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text-subtle); font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-xs); transition: all var(--t-base); }
-    .track-step .lbl { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); }
+    /* Carte englobante pour la timeline : la sépare visuellement du fond, comme le reste de l'appli */
+    .track-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-5) var(--sp-4) var(--sp-4); margin-bottom: var(--sp-4); box-shadow: var(--shadow); }
+
+    /* Ligne de fond + remplissage positionnés en ABSOLU, indépendamment du texte des libellés en
+       dessous — évite le chevauchement que causait l'ancienne marge négative fixe dès qu'un libellé
+       (ex. "Fabrication") passait sur deux lignes. */
+    .track-line-wrap { position: relative; padding: 0 6%; }
+    .track-line-bg, .track-line-fill { position: absolute; top: 18px; left: 6%; right: 6%; height: 3px; border-radius: 2px; }
+    .track-line-bg { background: var(--border); }
+    .track-line-fill { right: auto; background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 70%, var(--accent-2))); transition: width 0.5s ease; }
+
+    .track-dots { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); }
+    .track-step { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-2); }
+    .track-step .dot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text-subtle); font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-xs); transition: all var(--t-base); }
+    .track-step .lbl { font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); line-height: 1.3; padding: 0 2px; }
     .track-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
     .track-step.done .lbl { color: var(--ok); }
-    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); box-shadow: var(--glow-soft); }
+    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); box-shadow: var(--glow-soft); transform: scale(1.08); }
     .track-step.active .lbl { color: var(--accent-2); font-weight: 700; }
-    .track-bar { position: relative; height: 3px; background: var(--border); margin: -1.9rem 5% var(--sp-5); z-index: -1; }
-    .track-bar-fill { height: 100%; background: var(--ok); transition: width var(--t-base); }
 
-    .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: var(--sp-5); }
+    .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px dashed var(--border); }
     .track-eta strong { color: var(--text); }
 
     .track-items { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .track-items-title { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: var(--sp-3); }
     .track-item { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
     .track-item svg { color: var(--accent); flex: none; }
 
     .track-error { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--text-muted); }
     .track-foot { text-align: center; color: var(--text-subtle); font-size: var(--fs-2xs); margin-top: var(--sp-6); }
     .topbar { position: absolute; top: var(--sp-4); right: var(--sp-5); z-index: 2; }
+
+    @media (max-width: 420px) {
+      .track-step .dot { width: 30px; height: 30px; }
+      .track-step .lbl { font-size: 0.56rem; }
+      .track-line-bg, .track-line-fill { top: 15px; }
+    }
   </style>
 </head>
 <body>
@@ -55,11 +80,19 @@
       <p>Voici où en est votre commande SolariScreen.</p>
     </div>
 
-    <div class="track-steps" id="trackSteps"></div>
-    <div class="track-bar"><div class="track-bar-fill" id="trackBarFill"></div></div>
-    <div class="track-eta" id="trackEta"></div>
+    <div class="track-card">
+      <div class="track-line-wrap">
+        <div class="track-line-bg"></div>
+        <div class="track-line-fill" id="trackBarFill"></div>
+        <div class="track-dots" id="trackSteps"></div>
+      </div>
+      <div class="track-eta" id="trackEta"></div>
+    </div>
 
-    <div class="track-items" id="trackItems"></div>
+    <div class="track-card" id="trackItemsCard" style="display:none;">
+      <div class="track-items-title">Votre commande</div>
+      <div class="track-items" id="trackItems"></div>
+    </div>
 
     <div class="track-foot">SolariScreen · www.solariscreen.be</div>
   </div>
@@ -127,9 +160,13 @@
       }
       document.getElementById('trackEta').innerHTML = etaTxt;
 
-      document.getElementById('trackItems').innerHTML = (d.items || []).map(it => `
-        <div class="track-item">${icon('window', 16)}<div>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</div></div>
-      `).join('') || '';
+      const items = d.items || [];
+      if (items.length) {
+        document.getElementById('trackItemsCard').style.display = '';
+        document.getElementById('trackItems').innerHTML = items.map(it => `
+          <div class="track-item">${icon('window', 16)}<div>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</div></div>
+        `).join('');
+      }
     })();
   </script>
 </body>
