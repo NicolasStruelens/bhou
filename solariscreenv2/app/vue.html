@@ -1028,8 +1028,8 @@
     window.addPendingSavPhoto = async (file) => {
       if (!file) return;
       try {
-        const dataUrl = await compressImage(file);
-        PENDING_SAV_PHOTOS.push(dataUrl);
+        const url = await window.SSUI.compressAndUploadPhoto(file, DEVIS.id);
+        PENDING_SAV_PHOTOS.push(url);
         renderSavPhotosPreview();
       } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
       el('savPhotoInput').value = '';
@@ -1323,6 +1323,7 @@
       }
       const wasSigne = DEVIS.statut === 'signe';
       const prev = DEVIS.statut;
+      const expected = DEVIS.date_modification;   // baseline connu AVANT mutation (détection de conflit)
       const identity = await window.SSNav.getIdentity();
       // Sauvegarde cohérente en un seul écrit : statut + historique + nettoyages liés.
       DEVIS.statut = statut;
@@ -1332,14 +1333,18 @@
         // Un devis signé est contractuel : on efface un refus précédent et le flag « informatif ».
         DEVIS.raison_refus = ''; DEVIS.client_declined = false; DEVIS.informatif = false;
       }
-      const res = await SS.saveDevis(DEVIS);
-      if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
-      CALC = getCalc(DEVIS);
-      toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
-      if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
-      const cl = DEVIS.client || {};
-      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → ${(STATUSES[statut] || {}).label || statut}` });
-      render();
+      const finishSave = async (force) => {
+        const res = await SS.saveDevis(DEVIS, force ? { force: true } : { expectedDateModification: expected });
+        if (res.conflict) { window.SSUI.showSaveConflict(() => finishSave(true)); return; }
+        if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
+        CALC = getCalc(DEVIS);
+        toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
+        if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
+        const cl = DEVIS.client || {};
+        SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → ${(STATUSES[statut] || {}).label || statut}` });
+        render();
+      };
+      await finishSave(false);
     };
     window.pickRaisonRefus = async (raison) => {
       if (stMenuEl) stMenuEl.classList.remove('open');
@@ -1620,9 +1625,10 @@
         drawWarpedTriangle(ctx, swatch, [sTR, sBR, sBL], [TR, BR, BL]);
       }
       const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.85);
+      const url = await window.SSUI.uploadPhotoDataUrl(dataUrl, DEVIS.id);
       const it = DEVIS.items[vizState.itemIndex];
       it.photos = it.photos || [];
-      it.photos.push(dataUrl);
+      it.photos.push(url);
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
       toast(res.offline ? 'Image enregistrée (hors-ligne)' : 'Image ajoutée aux photos ✓', res.offline ? 'warn' : 'ok');

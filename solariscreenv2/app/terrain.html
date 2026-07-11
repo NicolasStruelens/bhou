@@ -477,7 +477,7 @@
     window.addPhotos = function (id, input) {
       const it = state.items.find(i => i._id === id); if (!it) return;
       [...input.files].forEach(file => {
-        window.SSUI.compressImage(file).then(dataUrl => { markDirty(); it.photos.push(dataUrl); renderItemsStep(); })
+        window.SSUI.compressAndUploadPhoto(file, state.id).then(url => { markDirty(); it.photos.push(url); renderItemsStep(); })
           .catch(() => toast('Photo illisible, réessaie.', 'warn'));
       });
     };
@@ -592,35 +592,44 @@
           extras: c.extra_lines,
         },
       };
-      const res = await SS.saveDevis(devis);
+      // Détection de conflit : protège surtout la ré-édition d'un devis existant (?id=) sur le terrain
+      // pendant que l'autre le modifie aussi au bureau.
+      const finish = async (force) => {
+        const res = await SS.saveDevis(devis, force ? { force: true } : { expectedDateModification: state.isExisting ? state.loadedDateModification : undefined });
+        if (res.conflict) { window.SSUI.showSaveConflict(() => finish(true)); return; }
 
-      // Fiche CRM : mise à jour des coordonnées sans écraser notes/tags existants
-      const key = keyOf(client.prenom, client.nom);
-      let existing = null;
-      try { existing = await SS.getClient(key); } catch (e) {}
-      // Fusion douce : on ne remplace un champ de la fiche que par une valeur NON VIDE (sinon un devis
-      // sans email viderait l'email de la fiche corrigé ailleurs).
-      const ea = (existing && existing.adresse) || {}, na = client.adresse || {};
-      await SS.saveClient({
-        key, prenom: client.prenom, nom: client.nom,
-        telephone: client.telephone || (existing && existing.telephone) || '',
-        email: client.email || (existing && existing.email) || '',
-        adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
-        type_bien: (existing && existing.type_bien) || '', tags: (existing && existing.tags) || [], notes: (existing && existing.notes) || '',
-        date_creation: (existing && existing.date_creation) || new Date().toISOString(),
-        date_modification: new Date().toISOString(),
-      });
+        // Fiche CRM : mise à jour des coordonnées sans écraser notes/tags existants
+        const key = keyOf(client.prenom, client.nom);
+        let existing = null;
+        try { existing = await SS.getClient(key); } catch (e) {}
+        // Fusion douce : on ne remplace un champ de la fiche que par une valeur NON VIDE (sinon un devis
+        // sans email viderait l'email de la fiche corrigé ailleurs).
+        const ea = (existing && existing.adresse) || {}, na = client.adresse || {};
+        await SS.saveClient({
+          key, prenom: client.prenom, nom: client.nom,
+          telephone: client.telephone || (existing && existing.telephone) || '',
+          email: client.email || (existing && existing.email) || '',
+          adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
+          type_bien: (existing && existing.type_bien) || '', tags: (existing && existing.tags) || [], notes: (existing && existing.notes) || '',
+          date_creation: (existing && existing.date_creation) || new Date().toISOString(),
+          date_modification: new Date().toISOString(),
+        });
 
-      toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
-      state.savedId = state.id;
-      dirty = false;
-      setText('doneSummary', `${client.prenom} ${client.nom} · ${state.items.length} ouverture(s) · à chiffrer au bureau`);
-      goStep('done');
+        toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
+        state.savedId = state.id;
+        state.isExisting = true;
+        state.loadedDateModification = devis.date_modification;
+        dirty = false;
+        setText('doneSummary', `${client.prenom} ${client.nom} · ${state.items.length} ouverture(s) · à chiffrer au bureau`);
+        goStep('done');
+      };
+      await finish(false);
     };
 
     window.resetWizard = function () {
       state.id = generateDevisId(); state.date_creation = new Date().toISOString().slice(0, 10);
       state.statut = 'brouillon'; state.items = []; state.savedId = null;
+      state.isExisting = false; state.loadedDateModification = null;
       ['tPrenom', 'tNom', 'tTel', 'tEmail', 'tRue', 'tNumero', 'tCp', 'tVille'].forEach(id => setVal(id, ''));
       currentItemIdx = 0;
       dirty = false;
@@ -632,6 +641,8 @@
       const d = await SS.getDevis(id);
       if (!d) { toast('Devis introuvable, nouveau devis créé.', 'warn'); return; }
       state.statut = d.statut || 'brouillon';
+      state.isExisting = true;
+      state.loadedDateModification = d.date_modification || null;   // baseline pour la détection de conflit
       state.date_creation = d.date_creation || state.date_creation;
       const cl = d.client || {};
       setVal('tPrenom', cl.prenom); setVal('tNom', cl.nom);

@@ -561,7 +561,7 @@
     window.addPhotos = (id, input) => {
       const it = state.items.find(i => i._id === id); if (!it) return;
       [...input.files].forEach(file => {
-        window.SSUI.compressImage(file).then(dataUrl => { markDirty(); it.photos.push(dataUrl); renderItems(); })
+        window.SSUI.compressAndUploadPhoto(file, state.id).then(url => { markDirty(); it.photos.push(url); renderItems(); })
           .catch(() => toast('Photo illisible, réessaie.', 'warn'));
       });
     };
@@ -821,26 +821,33 @@
           extras: c.extra_lines,
         },
       };
-      const res = await SS.saveDevis(devis);
-      // Synchronise la fiche CRM (comme le Mode Terrain) : crée si absente, met à jour les coordonnées
-      // sans écraser notes/tags ni vider un champ existant avec une valeur vide.
-      try {
-        const key = clientKeyOf(client.prenom, client.nom);
-        const ex = await SS.getClient(key);
-        const ea = (ex && ex.adresse) || {}, na = client.adresse || {};
-        await SS.saveClient({
-          key, prenom: client.prenom, nom: client.nom,
-          telephone: client.telephone || (ex && ex.telephone) || '',
-          email: client.email || (ex && ex.email) || '',
-          adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
-          type_bien: (ex && ex.type_bien) || '', tags: (ex && ex.tags) || [], notes: (ex && ex.notes) || '',
-          date_creation: (ex && ex.date_creation) || new Date().toISOString(),
-          date_modification: new Date().toISOString(),
-        });
-      } catch (e) { console.warn('[simulateur] sync fiche CRM:', e); }
-      toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
-      state.isExisting = true;
-      dirty = false;
+      // Détection de conflit : si Nicolas et Yannick ont ce devis ouvert en même temps, la sauvegarde la
+      // plus récente ne doit pas écraser silencieusement l'autre — on demande à l'utilisateur de trancher.
+      const finish = async (force) => {
+        const res = await SS.saveDevis(devis, force ? { force: true } : { expectedDateModification: state.isExisting ? state.loadedDateModification : undefined });
+        if (res.conflict) { window.SSUI.showSaveConflict(() => finish(true)); return; }
+        // Synchronise la fiche CRM (comme le Mode Terrain) : crée si absente, met à jour les coordonnées
+        // sans écraser notes/tags ni vider un champ existant avec une valeur vide.
+        try {
+          const key = clientKeyOf(client.prenom, client.nom);
+          const ex = await SS.getClient(key);
+          const ea = (ex && ex.adresse) || {}, na = client.adresse || {};
+          await SS.saveClient({
+            key, prenom: client.prenom, nom: client.nom,
+            telephone: client.telephone || (ex && ex.telephone) || '',
+            email: client.email || (ex && ex.email) || '',
+            adresse: { rue: na.rue || ea.rue || '', numero: na.numero || ea.numero || '', code_postal: na.code_postal || ea.code_postal || '', ville: na.ville || ea.ville || '' },
+            type_bien: (ex && ex.type_bien) || '', tags: (ex && ex.tags) || [], notes: (ex && ex.notes) || '',
+            date_creation: (ex && ex.date_creation) || new Date().toISOString(),
+            date_modification: new Date().toISOString(),
+          });
+        } catch (e) { console.warn('[simulateur] sync fiche CRM:', e); }
+        toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
+        state.isExisting = true;
+        state.loadedDateModification = devis.date_modification;
+        dirty = false;
+      };
+      await finish(false);
     };
 
     window.goPdf = () => { window.location.href = `devis.html?id=${state.id}`; };
@@ -850,6 +857,7 @@
       const d = await SS.getDevis(id);
       if (!d) { toast('Devis introuvable, nouveau devis créé.', 'warn'); return; }
       state.isExisting = true;
+      state.loadedDateModification = d.date_modification || null;   // baseline pour la détection de conflit
       state.date_creation = d.date_creation || state.date_creation;
       state.statut = d.statut || 'brouillon';
       el('isInformatif').checked = !!d.informatif;
