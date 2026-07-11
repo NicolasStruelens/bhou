@@ -72,6 +72,16 @@ CREATE TABLE IF NOT EXISTS clips (
 CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at);
 CREATE INDEX IF NOT EXISTS idx_clips_share_token ON clips(share_token);
 
+CREATE TABLE IF NOT EXISTS recipes (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  ingredients TEXT DEFAULT '[]',   -- JSON : [{"name":"Farine","have":false}, ...]
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
+);
+CREATE INDEX IF NOT EXISTS idx_recipes_deleted ON recipes(deleted_at);
+
 -- marque les migrations déjà incluses ci-dessus comme appliquées (installation neuve)
 INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (1, CAST(strftime('%s','now') AS INTEGER) * 1000),
@@ -82,4 +92,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (6, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (7, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (8, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (9, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (9, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (10, CAST(strftime('%s','now') AS INTEGER) * 1000);

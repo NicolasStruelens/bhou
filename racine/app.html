@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=27">
-<link rel="stylesheet" href="assets/css/base.css?v=27">
-<script src="assets/js/theme-init.js?v=27"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=28">
+<link rel="stylesheet" href="assets/css/base.css?v=28">
+<script src="assets/js/theme-init.js?v=28"></script>
 </head>
 <body>
 <svg class="hidden" aria-hidden="true" focusable="false">
@@ -60,6 +60,8 @@
 <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></symbol>
 <symbol id="i-detach" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M9 20v-4h6v4"/></symbol>
 <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-9"/><path d="M15 6h6v6"/></symbol>
+<symbol id="i-pot" viewBox="0 0 24 24"><path d="M4 10h16"/><path d="M5 10v3a7 7 0 0 0 14 0v-3"/><path d="M2 10h4M18 10h4"/><path d="M9 4c0 1.5 1 1.5 1 3M14 4c0 1.5-1 1.5-1 3"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.4 12.4a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 8H6"/><circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none"/></symbol>
 </defs>
 </svg>
 <canvas id="starfield"></canvas>
@@ -94,6 +96,7 @@
       <button class="tab" data-view="clips">Presse-papier<span class="badge" id="clipCount"></span></button>
       <button class="tab" data-view="reminders">Rappels<span class="badge" id="reminderCount"></span></button>
       <button class="tab" data-view="graph">Graphe</button>
+      <button class="tab" data-view="recipes">Recettes</button>
       <button class="tab" data-view="trash">Corbeille<span class="badge" id="trashCount"></span></button>
     </div>
     <div class="topbar-right">
@@ -294,6 +297,40 @@
       </div>
     </section>
 
+    <!-- ===== Vue recettes ===== -->
+    <section class="view" id="view-recipes">
+      <div class="recipe-form">
+        <input type="text" id="recipeTitle" class="field" placeholder="Nom de la recette (ex. Pizza maison)">
+        <div class="recipe-ingredient-add-row">
+          <input type="text" id="recipeIngredientInput" class="field" placeholder="Ajouter un ingrédient… (Entrée pour valider)">
+          <button class="btn" id="recipeIngredientAdd" type="button"><svg class="icon"><use href="#i-plus"/></svg></button>
+        </div>
+        <div class="recipe-ingredient-draft" id="recipeIngredientDraft"></div>
+        <button class="btn btn-primary" id="recipeSave" type="button">Créer la recette</button>
+      </div>
+
+      <div class="recipe-toolbar">
+        <button class="btn" id="shoppingListBtn" type="button"><svg class="icon"><use href="#i-cart"/></svg> Liste de courses (tout ce qui manque)</button>
+      </div>
+
+      <div class="recipe-grid" id="recipeGrid"></div>
+      <div class="empty-state hidden" id="recipeEmpty">
+        <svg class="neuron-flourish" viewBox="0 0 80 20" aria-hidden="true" focusable="false">
+          <path class="bn-link" d="M6,14 Q20,4 34,10" />
+          <path class="bn-link" d="M34,10 Q47,16 60,6" />
+          <path class="bn-link" d="M60,6 Q68,2 74,10" />
+          <path class="bn-pulse c1" d="M6,14 Q20,4 34,10" />
+          <path class="bn-pulse c2" d="M34,10 Q47,16 60,6" />
+          <path class="bn-pulse c3" d="M60,6 Q68,2 74,10" />
+          <circle class="bn-node n1" cx="6" cy="14" r="2.6" />
+          <circle class="bn-node n2" cx="34" cy="10" r="2.6" />
+          <circle class="bn-node n3" cx="60" cy="6" r="2.6" />
+          <circle class="bn-node n4" cx="74" cy="10" r="2.6" />
+        </svg>
+        <p>Aucune recette pour l'instant. Ajoute un nom et des ingrédients ci-dessus.</p>
+      </div>
+    </section>
+
     <!-- ===== Vue corbeille ===== -->
     <section class="view" id="view-trash">
       <p class="trash-hint">Les éléments supprimés restent ici 30 jours avant suppression définitive automatique.</p>
@@ -301,6 +338,8 @@
       <div class="tree" id="trashNotes"></div>
       <h3 class="trash-heading">Presse-papier</h3>
       <div class="clip-grid" id="trashClips"></div>
+      <h3 class="trash-heading">Recettes</h3>
+      <div class="recipe-grid" id="trashRecipes"></div>
       <div class="empty-state hidden" id="trashEmpty">
         <svg class="neuron-flourish" viewBox="0 0 80 20" aria-hidden="true" focusable="false">
           <path class="bn-link" d="M6,14 Q20,4 34,10" />
@@ -481,17 +520,18 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=27"></script>
-<script src="assets/js/api.js?v=27"></script>
-<script src="assets/js/shell.js?v=27"></script>
-<script src="assets/js/notes.js?v=27"></script>
-<script src="assets/js/reminders.js?v=27"></script>
-<script src="assets/js/importexport.js?v=27"></script>
-<script src="assets/js/system.js?v=27"></script>
-<script src="assets/js/focus.js?v=27"></script>
-<script src="assets/js/clips.js?v=27"></script>
-<script src="assets/js/views.js?v=27"></script>
-<script src="assets/js/trash.js?v=27"></script>
-<script src="assets/js/main.js?v=27"></script>
+<script src="assets/js/starfield.js?v=28"></script>
+<script src="assets/js/api.js?v=28"></script>
+<script src="assets/js/shell.js?v=28"></script>
+<script src="assets/js/notes.js?v=28"></script>
+<script src="assets/js/reminders.js?v=28"></script>
+<script src="assets/js/importexport.js?v=28"></script>
+<script src="assets/js/system.js?v=28"></script>
+<script src="assets/js/focus.js?v=28"></script>
+<script src="assets/js/clips.js?v=28"></script>
+<script src="assets/js/views.js?v=28"></script>
+<script src="assets/js/recipes.js?v=28"></script>
+<script src="assets/js/trash.js?v=28"></script>
+<script src="assets/js/main.js?v=28"></script>
 </body>
 </html>
