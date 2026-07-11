@@ -59,7 +59,7 @@
     var missing = ingredients.filter(function (i) { return !i.have; });
     if (!missing.length) return null;
     var lines = ['Liste de courses' + (title ? ' — ' + title : '') + ' :'];
-    missing.forEach(function (i) { lines.push('- ' + i.name); });
+    missing.forEach(function (i) { lines.push('* ' + i.name); });
     return lines.join('\n');
   }
 
@@ -207,7 +207,7 @@
         var key = i.name.trim().toLowerCase();
         if (seen[key]) return;
         seen[key] = true;
-        lines.push('- ' + i.name);
+        lines.push('* ' + i.name);
       });
     });
     if (lines.length === 1) { toast('Rien à acheter — tout est déjà à la maison !'); return; }
