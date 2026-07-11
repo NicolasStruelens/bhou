@@ -450,10 +450,15 @@ const MAX_INGREDIENTS = 100;
 
 function sanitizeIngredients(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.slice(0, MAX_INGREDIENTS).map((it) => ({
-    name: String((it && it.name) || '').slice(0, 120),
-    have: !!(it && it.have),
-  })).filter((it) => it.name);
+  return raw.slice(0, MAX_INGREDIENTS).map((it) => {
+    const qtyNum = it && it.qty !== undefined && it.qty !== null && it.qty !== '' ? Number(it.qty) : NaN;
+    return {
+      name: String((it && it.name) || '').slice(0, 120),
+      have: !!(it && it.have),
+      qty: Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : null,
+      unit: ['piece', 'g', 'kg'].includes(it && it.unit) ? it.unit : 'piece',
+    };
+  }).filter((it) => it.name);
 }
 
 async function listRecipes(env) {
