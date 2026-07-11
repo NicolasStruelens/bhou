@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -120,6 +120,7 @@ async function purgeOldTrash(env) {
   const cutoff = Date.now() - TRASH_RETENTION_MS;
   await env.DB.prepare('DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(cutoff).run();
   await env.DB.prepare('DELETE FROM clips WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(cutoff).run();
+  await env.DB.prepare('DELETE FROM recipes WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(cutoff).run();
 }
 
 async function listNotes(env) {
@@ -443,6 +444,85 @@ async function purgeClip(id, env) {
   return json({ ok: true });
 }
 
+// ----- recettes & listes de courses -----
+
+const MAX_INGREDIENTS = 100;
+
+function sanitizeIngredients(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAX_INGREDIENTS).map((it) => ({
+    name: String((it && it.name) || '').slice(0, 120),
+    have: !!(it && it.have),
+  })).filter((it) => it.name);
+}
+
+async function listRecipes(env) {
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM recipes WHERE deleted_at IS NULL ORDER BY created_at DESC'
+  ).all();
+  return json({ recipes: results });
+}
+
+async function listTrashRecipes(env) {
+  await purgeOldTrash(env);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM recipes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC'
+  ).all();
+  return json({ recipes: results });
+}
+
+async function createRecipe(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const title = String(body.title || '').trim().slice(0, 200);
+  if (!title) return json({ error: 'titre vide' }, 400);
+  const id = newId();
+  const now = Date.now();
+  await env.DB.prepare(
+    'INSERT INTO recipes (id, title, ingredients, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(id, title, JSON.stringify(sanitizeIngredients(body.ingredients)), now, now).run();
+  return json({ ok: true, id });
+}
+
+async function updateRecipe(id, request, env) {
+  const body = await request.json().catch(() => ({}));
+  const existing = await env.DB.prepare('SELECT id FROM recipes WHERE id = ?').bind(id).first();
+  if (!existing) return json({ error: 'not found' }, 404);
+
+  const fields = [];
+  const values = [];
+  if ('title' in body) {
+    const title = String(body.title || '').trim().slice(0, 200);
+    if (!title) return json({ error: 'titre vide' }, 400);
+    fields.push('title = ?');
+    values.push(title);
+  }
+  if ('ingredients' in body) {
+    fields.push('ingredients = ?');
+    values.push(JSON.stringify(sanitizeIngredients(body.ingredients)));
+  }
+  if (!fields.length) return json({ ok: true });
+  fields.push('updated_at = ?');
+  values.push(Date.now());
+  values.push(id);
+  await env.DB.prepare(`UPDATE recipes SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+  return json({ ok: true });
+}
+
+async function deleteRecipe(id, env) {
+  await env.DB.prepare('UPDATE recipes SET deleted_at = ? WHERE id = ?').bind(Date.now(), id).run();
+  return json({ ok: true });
+}
+
+async function restoreRecipe(id, env) {
+  await env.DB.prepare('UPDATE recipes SET deleted_at = NULL WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+async function purgeRecipe(id, env) {
+  await env.DB.prepare('DELETE FROM recipes WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
 // ----- export complet -----
 
 async function exportAll(env) {
@@ -453,10 +533,14 @@ async function exportAll(env) {
   const clips = await env.DB.prepare(
     'SELECT * FROM clips WHERE deleted_at IS NULL AND no_export = 0 ORDER BY created_at ASC'
   ).all();
+  const recipes = await env.DB.prepare(
+    'SELECT * FROM recipes WHERE deleted_at IS NULL ORDER BY created_at ASC'
+  ).all();
   return json({
     exported_at: Date.now(),
     notes: notes.results,
     clips: clips.results,
+    recipes: recipes.results,
   });
 }
 
@@ -465,9 +549,10 @@ async function exportAll(env) {
 async function createBackup(env) {
   const notes = await env.DB.prepare('SELECT * FROM notes WHERE deleted_at IS NULL').all();
   const clips = await env.DB.prepare('SELECT * FROM clips WHERE deleted_at IS NULL').all();
+  const recipes = await env.DB.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all();
   const id = newId();
   const now = Date.now();
-  const data = JSON.stringify({ notes: notes.results, clips: clips.results });
+  const data = JSON.stringify({ notes: notes.results, clips: clips.results, recipes: recipes.results });
   await env.DB.prepare('INSERT INTO backups (id, created_at, data) VALUES (?, ?, ?)').bind(id, now, data).run();
   await env.DB.prepare(
     `DELETE FROM backups WHERE id NOT IN (SELECT id FROM backups ORDER BY created_at DESC LIMIT ?)`
@@ -486,17 +571,18 @@ async function getBackup(id, env) {
   const row = await env.DB.prepare('SELECT * FROM backups WHERE id = ?').bind(id).first();
   if (!row) return json({ error: 'not found' }, 404);
   let data;
-  try { data = JSON.parse(row.data); } catch (e) { data = { notes: [], clips: [] }; }
-  return json({ id: row.id, created_at: row.created_at, notes: data.notes, clips: data.clips });
+  try { data = JSON.parse(row.data); } catch (e) { data = { notes: [], clips: [], recipes: [] }; }
+  return json({ id: row.id, created_at: row.created_at, notes: data.notes, clips: data.clips, recipes: data.recipes || [] });
 }
 
 // ----- état système -----
 
 async function health(env) {
-  const [notesCount, clipsCount, remindersCount, lastBackup, migrations] = await Promise.all([
+  const [notesCount, clipsCount, remindersCount, recipesCount, lastBackup, migrations] = await Promise.all([
     env.DB.prepare('SELECT COUNT(*) as c FROM notes WHERE deleted_at IS NULL').first(),
     env.DB.prepare('SELECT COUNT(*) as c FROM clips WHERE deleted_at IS NULL').first(),
     env.DB.prepare('SELECT COUNT(*) as c FROM notes WHERE deleted_at IS NULL AND remind_at IS NOT NULL').first(),
+    env.DB.prepare('SELECT COUNT(*) as c FROM recipes WHERE deleted_at IS NULL').first(),
     env.DB.prepare('SELECT created_at FROM backups ORDER BY created_at DESC LIMIT 1').first(),
     env.DB.prepare('SELECT MAX(version) as v FROM schema_migrations').first().catch(() => null),
   ]);
@@ -508,6 +594,7 @@ async function health(env) {
     notes: notesCount.c,
     clips: clipsCount.c,
     reminders: remindersCount.c,
+    recipes: recipesCount.c,
     last_backup: lastBackup ? lastBackup.created_at : null,
   });
 }
@@ -568,6 +655,16 @@ export async function onRequest(context) {
       if (parts.length === 2 && method === 'DELETE') return deleteClip(parts[1], env);
       if (parts.length === 3 && parts[2] === 'restore' && method === 'PUT') return restoreClip(parts[1], env);
       if (parts.length === 3 && parts[2] === 'purge' && method === 'DELETE') return purgeClip(parts[1], env);
+    }
+
+    if (parts[0] === 'recipes') {
+      if (parts.length === 1 && method === 'GET') return listRecipes(env);
+      if (parts.length === 1 && method === 'POST') return createRecipe(request, env);
+      if (parts.length === 2 && parts[1] === 'trash' && method === 'GET') return listTrashRecipes(env);
+      if (parts.length === 2 && method === 'PUT') return updateRecipe(parts[1], request, env);
+      if (parts.length === 2 && method === 'DELETE') return deleteRecipe(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'restore' && method === 'PUT') return restoreRecipe(parts[1], env);
+      if (parts.length === 3 && parts[2] === 'purge' && method === 'DELETE') return purgeRecipe(parts[1], env);
     }
 
     return json({ error: 'not found' }, 404);
