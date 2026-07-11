@@ -37,5 +37,6 @@
   document.getElementById('captureBar').style.display = state.activeSpace === OVERVIEW ? 'none' : '';
   loadNotes();
   loadClips();
+  loadRecipes();
   initFromQuery();
   autoBackupIfNeeded();

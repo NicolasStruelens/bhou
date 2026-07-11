@@ -60,5 +60,13 @@ window.RA = (function () {
     getQuickToken: function () { return req('/quick-token'); },
     createQuickToken: function () { return req('/quick-token', { method: 'POST' }); },
     revokeQuickToken: function () { return req('/quick-token', { method: 'DELETE' }); },
+
+    listRecipes: function () { return req('/recipes'); },
+    trashRecipes: function () { return req('/recipes/trash'); },
+    createRecipe: function (recipe) { return req('/recipes', { method: 'POST', body: recipe }); },
+    updateRecipe: function (id, patch) { return req('/recipes/' + id, { method: 'PUT', body: patch }); },
+    deleteRecipe: function (id) { return req('/recipes/' + id, { method: 'DELETE' }); },
+    restoreRecipe: function (id) { return req('/recipes/' + id + '/restore', { method: 'PUT' }); },
+    purgeRecipe: function (id) { return req('/recipes/' + id + '/purge', { method: 'DELETE' }); },
   };
 })();

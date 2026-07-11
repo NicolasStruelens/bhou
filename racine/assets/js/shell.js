@@ -3,6 +3,7 @@
   var state = {
     notes: [],
     clips: [],
+    recipes: [],
     kind: 'idee',
     pinned: false,
     filterKind: 'all',
@@ -225,6 +226,7 @@
     if (name === 'reminders') renderReminders();
     if (name === 'today') renderToday();
     if (name === 'graph') renderGraph();
+    if (name === 'recipes') loadRecipes();
   }
   document.querySelectorAll('.tab').forEach(function (tab) {
     tab.addEventListener('click', function () { switchTab(tab.dataset.view); });
