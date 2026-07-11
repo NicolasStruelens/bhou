@@ -1,16 +1,74 @@
 // Racine — recettes et listes de courses (ingrédients qu'on a déjà / qu'il faut acheter)
   // ================= RECETTES =================
 
+  // liste d'ingrédients courants de supermarché, pour autocomplétion (datalist native du navigateur)
+  var COMMON_INGREDIENTS = [
+    'Pomme', 'Poire', 'Banane', 'Orange', 'Citron', 'Citron vert', 'Pamplemousse', 'Fraise', 'Framboise',
+    'Myrtille', 'Cerise', 'Abricot', 'Pêche', 'Nectarine', 'Prune', 'Raisin', 'Kiwi', 'Ananas', 'Mangue',
+    'Melon', 'Pastèque', 'Avocat', 'Figue', 'Grenade', 'Litchi', 'Clémentine', 'Mandarine',
+    'Tomate', 'Tomate cerise', 'Concombre', 'Courgette', 'Aubergine', 'Poivron rouge', 'Poivron vert',
+    'Poivron jaune', 'Oignon', 'Échalote', 'Ail', 'Pomme de terre', 'Patate douce', 'Carotte', 'Céleri',
+    'Céleri-rave', 'Poireau', 'Chou', 'Chou-fleur', 'Brocoli', 'Chou de Bruxelles', 'Chou rouge', 'Épinard',
+    'Salade verte', 'Laitue', 'Roquette', 'Mâche', 'Endive', 'Radis', 'Betterave', 'Navet', 'Fenouil',
+    'Haricot vert', 'Petit pois', 'Maïs', 'Champignon de Paris', 'Champignon', 'Courge butternut', 'Potiron',
+    'Artichaut', 'Asperge',
+    'Persil', 'Basilic', 'Coriandre', 'Ciboulette', 'Thym', 'Romarin', 'Laurier', 'Menthe', 'Estragon',
+    'Aneth', 'Origan', 'Gingembre frais',
+    'Poulet', 'Blanc de poulet', 'Cuisse de poulet', 'Bœuf haché', 'Steak haché', 'Steak', 'Bœuf bourguignon',
+    'Escalope de veau', 'Porc', 'Côte de porc', 'Lardons', 'Bacon', 'Jambon', 'Jambon blanc', 'Saucisse',
+    'Chorizo', 'Merguez', 'Dinde', 'Canard', 'Agneau', 'Côtelette d\'agneau',
+    'Saumon', 'Cabillaud', 'Thon', 'Thon en boîte', 'Crevettes', 'Moules', 'Sardine', 'Maquereau', 'Colin',
+    'Truite', 'Poisson blanc', 'Calamar',
+    'Lait', 'Lait entier', 'Lait demi-écrémé', 'Crème fraîche', 'Crème liquide', 'Beurre', 'Œufs', 'Yaourt',
+    'Yaourt nature', 'Fromage râpé', 'Emmental', 'Gruyère', 'Comté', 'Mozzarella', 'Parmesan', 'Feta',
+    'Chèvre', 'Camembert', 'Ricotta', 'Mascarpone', 'Fromage blanc', 'Petit-suisse',
+    'Farine', 'Farine de blé', 'Sucre', 'Sucre en poudre', 'Sucre roux', 'Sel', 'Poivre', 'Huile d\'olive',
+    'Huile de tournesol', 'Vinaigre', 'Vinaigre balsamique', 'Moutarde', 'Mayonnaise', 'Ketchup', 'Sauce soja',
+    'Riz', 'Pâtes', 'Spaghetti', 'Semoule', 'Quinoa', 'Lentilles', 'Pois chiches', 'Haricots rouges',
+    'Haricots blancs', 'Bouillon de légumes', 'Bouillon de poule', 'Concentré de tomate', 'Tomates pelées',
+    'Coulis de tomate', 'Olives', 'Câpres', 'Cornichons', 'Levure chimique', 'Levure boulangère', 'Chapelure',
+    'Pain', 'Pain de mie', 'Baguette',
+    'Chocolat noir', 'Chocolat au lait', 'Chocolat blanc', 'Pépites de chocolat', 'Cacao en poudre', 'Miel',
+    'Confiture', 'Pâte à tartiner', 'Vanille', 'Cannelle', 'Biscuits', 'Céréales', 'Amandes', 'Noisettes',
+    'Noix', 'Raisins secs', 'Pignons de pin',
+    'Eau', 'Jus d\'orange', 'Café', 'Thé', 'Vin rouge', 'Vin blanc', 'Lait de coco',
+    'Légumes surgelés', 'Frites surgelées', 'Épinards surgelés', 'Petits pois surgelés', 'Pizza surgelée', 'Glace',
+  ];
+
+  (function buildIngredientDatalist() {
+    var dl = document.createElement('datalist');
+    dl.id = 'ingredientDatalist';
+    COMMON_INGREDIENTS.forEach(function (name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      dl.appendChild(opt);
+    });
+    document.body.appendChild(dl);
+  })();
+
+  function formatQty(qty) {
+    // affiche 500 plutôt que 500.0, mais garde 0.5 si besoin
+    return String(Math.round(qty * 100) / 100);
+  }
+
+  function formatIngredientLabel(ing) {
+    if (!ing.qty) return ing.name;
+    if (ing.unit === 'g' || ing.unit === 'kg') return formatQty(ing.qty) + ' ' + ing.unit + ' ' + ing.name;
+    return formatQty(ing.qty) + ' ' + ing.name;
+  }
+
   var recipeDraftIngredients = [];
   var recipeIngredientInput = document.getElementById('recipeIngredientInput');
+  var recipeIngredientQty = document.getElementById('recipeIngredientQty');
+  var recipeIngredientUnit = document.getElementById('recipeIngredientUnit');
 
   function renderIngredientDraft() {
     var el = document.getElementById('recipeIngredientDraft');
     el.innerHTML = '';
-    recipeDraftIngredients.forEach(function (name, idx) {
+    recipeDraftIngredients.forEach(function (ing, idx) {
       var chip = document.createElement('span');
       chip.className = 'ingredient-chip';
-      chip.appendChild(document.createTextNode(name));
+      chip.appendChild(document.createTextNode(formatIngredientLabel(ing)));
       var x = document.createElement('span');
       x.className = 'ingredient-chip-x';
       x.appendChild(icon('x', 'icon-inline'));
@@ -26,13 +84,18 @@
   function addDraftIngredient() {
     var v = recipeIngredientInput.value.trim();
     if (!v) return;
-    recipeDraftIngredients.push(v);
+    var qty = recipeIngredientQty.value ? Number(recipeIngredientQty.value) : null;
+    recipeDraftIngredients.push({ name: v, have: false, qty: qty && qty > 0 ? qty : null, unit: recipeIngredientUnit.value });
     recipeIngredientInput.value = '';
+    recipeIngredientQty.value = '';
     renderIngredientDraft();
     recipeIngredientInput.focus();
   }
   document.getElementById('recipeIngredientAdd').addEventListener('click', addDraftIngredient);
   recipeIngredientInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); addDraftIngredient(); }
+  });
+  recipeIngredientQty.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); addDraftIngredient(); }
   });
 
@@ -41,8 +104,7 @@
     var title = titleInput.value.trim();
     if (!title) { toast('Donne un nom à la recette'); titleInput.focus(); return; }
     if (!recipeDraftIngredients.length) { toast('Ajoute au moins un ingrédient'); recipeIngredientInput.focus(); return; }
-    var ingredients = recipeDraftIngredients.map(function (name) { return { name: name, have: false }; });
-    RA.createRecipe({ title: title, ingredients: ingredients }).then(function () {
+    RA.createRecipe({ title: title, ingredients: recipeDraftIngredients }).then(function () {
       titleInput.value = '';
       recipeDraftIngredients = [];
       renderIngredientDraft();
@@ -59,7 +121,7 @@
     var missing = ingredients.filter(function (i) { return !i.have; });
     if (!missing.length) return null;
     var lines = ['Liste de courses' + (title ? ' — ' + title : '') + ' :'];
-    missing.forEach(function (i) { lines.push('* ' + i.name); });
+    missing.forEach(function (i) { lines.push('* ' + formatIngredientLabel(i)); });
     return lines.join('\n');
   }
 
@@ -122,12 +184,12 @@
       cb.type = 'checkbox';
       cb.checked = !!ing.have;
       cb.addEventListener('change', function () {
-        var next = ingredients.map(function (x, i) { return i === idx ? { name: x.name, have: cb.checked } : x; });
+        var next = ingredients.map(function (x, i) { return i === idx ? { name: x.name, have: cb.checked, qty: x.qty, unit: x.unit } : x; });
         RA.updateRecipe(r.id, { ingredients: next }).then(loadRecipes).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       row.appendChild(cb);
       var name = document.createElement('span');
-      name.textContent = ing.name;
+      name.textContent = formatIngredientLabel(ing);
       row.appendChild(name);
       var rm = document.createElement('span');
       rm.className = 'ingredient-remove';
@@ -147,8 +209,23 @@
     addRow.className = 'recipe-ingredient-add-row small';
     var addInput = document.createElement('input');
     addInput.type = 'text';
-    addInput.className = 'field';
+    addInput.className = 'field ingredient-name-field';
+    addInput.setAttribute('list', 'ingredientDatalist');
     addInput.placeholder = 'Ajouter un ingrédient…';
+    var addQty = document.createElement('input');
+    addQty.type = 'number';
+    addQty.className = 'field qty-field';
+    addQty.placeholder = 'Qté';
+    addQty.min = '0';
+    addQty.step = '0.1';
+    var addUnit = document.createElement('select');
+    addUnit.className = 'field unit-field';
+    ['piece', 'g', 'kg'].forEach(function (u) {
+      var opt = document.createElement('option');
+      opt.value = u;
+      opt.textContent = u === 'piece' ? 'pièce' : u;
+      addUnit.appendChild(opt);
+    });
     var addBtn = document.createElement('button');
     addBtn.className = 'btn';
     addBtn.type = 'button';
@@ -156,12 +233,16 @@
     function addIngredientHere() {
       var v = addInput.value.trim();
       if (!v) return;
-      var next = ingredients.concat([{ name: v, have: false }]);
+      var qty = addQty.value ? Number(addQty.value) : null;
+      var next = ingredients.concat([{ name: v, have: false, qty: qty && qty > 0 ? qty : null, unit: addUnit.value }]);
       RA.updateRecipe(r.id, { ingredients: next }).then(function () { loadRecipes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     }
     addBtn.addEventListener('click', addIngredientHere);
     addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addIngredientHere(); } });
+    addQty.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addIngredientHere(); } });
     addRow.appendChild(addInput);
+    addRow.appendChild(addQty);
+    addRow.appendChild(addUnit);
     addRow.appendChild(addBtn);
     card.appendChild(addRow);
 
@@ -205,7 +286,7 @@
         var key = i.name.trim().toLowerCase();
         if (seen[key]) return;
         seen[key] = true;
-        lines.push('* ' + i.name);
+        lines.push('* ' + formatIngredientLabel(i));
       });
     });
     if (lines.length === 1) { toast('Rien à acheter — tout est déjà à la maison !'); return; }

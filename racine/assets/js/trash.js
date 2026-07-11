@@ -113,7 +113,7 @@
 
     var preview = document.createElement('div');
     preview.className = 'clip-preview expanded';
-    preview.textContent = ingredients.map(function (i) { return i.name; }).join(', ');
+    preview.textContent = ingredients.map(function (i) { return typeof formatIngredientLabel === 'function' ? formatIngredientLabel(i) : i.name; }).join(', ');
     card.appendChild(preview);
 
     var actions = document.createElement('div');
