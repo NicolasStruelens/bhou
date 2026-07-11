@@ -102,6 +102,23 @@
     });
   }
 
+  // ── Déport des photos vers R2 (au lieu du dataURL base64 inline dans le blob devis) ──
+  // Ne touche PAS compressImage (toujours un dataURL en sortie, aucun appelant existant cassé) :
+  // on ajoute l'upload PAR-DESSUS, avec repli automatique sur le dataURL si ça échoue (hors-ligne,
+  // bucket R2 non lié…) — une photo n'est jamais perdue, juste pas toujours déportée.
+  async function uploadPhotoDataUrl(dataUrl, ownerId) {
+    try {
+      if (!window.SS || !window.SS.uploadPhoto) return dataUrl;
+      const blob = await (await fetch(dataUrl)).blob();
+      const url = await window.SS.uploadPhoto(ownerId, blob);
+      return url || dataUrl;
+    } catch (e) { return dataUrl; }
+  }
+  async function compressAndUploadPhoto(file, ownerId, maxDim, quality) {
+    const dataUrl = await compressImage(file, maxDim, quality);
+    return uploadPhotoDataUrl(dataUrl, ownerId);
+  }
+
   // ── Normalisation d'un devis (résumé API ou cache local complet) ──
   // Centralisé ici : évite de dupliquer cette fonction dans chaque page.
   function normDevis(d) {
@@ -150,6 +167,20 @@
     const recDone = !!(d.reception && d.reception.image) || !!d.reception_date;
     const cmdPose = (d.commande && d.commande.statut === 'pose') || d.commande_statut === 'pose';
     return recDone || cmdPose;
+  }
+
+  // ── Détection de conflit d'édition (2 utilisateurs sur le même devis) ──
+  // Appelée quand SS.saveDevis() renvoie { conflict: true } (voir api.js) : quelqu'un d'autre a déjà
+  // enregistré une version plus récente entre le chargement de la fiche et cette sauvegarde. On ne
+  // choisit JAMAIS à sa place — l'utilisateur tranche entre recharger (sûr) ou écraser (voulu).
+  function showSaveConflict(onForce) {
+    const reload = confirm(
+      "⚠ Ce devis a été modifié par quelqu'un d'autre (Nicolas ou Yannick) pendant que tu travaillais dessus.\n\n" +
+      "OK = recharger sa version la plus récente (plus sûr, tu perds tes modifications en cours)\n" +
+      "Annuler = enregistrer quand même TA version par-dessus la sienne"
+    );
+    if (reload) location.reload();
+    else if (onForce) onForce();
   }
 
   // ── Météo chantier (Open-Meteo, gratuit, sans clé — géocodage par ville + prévision 16j) ──
@@ -325,7 +356,8 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
-    normDevis: normDevis, isPoseDone: isPoseDone, icon: icon, compressImage: compressImage,
+    normDevis: normDevis, isPoseDone: isPoseDone, showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage,
+    compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
     fetchWeather: fetchWeather,

@@ -81,9 +81,19 @@
       try { return (await req('/devis/' + id)).data; }
       catch (e) { console.warn('[SS] getDevis → cache local:', e.message); return local.get(id); }
     },
-    async saveDevis(devis) {
+    // opts.expectedDateModification : si fourni, le serveur refuse d'écraser si une version PLUS RÉCENTE
+    // existe déjà (détection de conflit — 2 utilisateurs sur le même devis). Omis par défaut : comportement
+    // inchangé (dernier écrit gagne) pour tous les appelants qui n'ont pas encore été adaptés.
+    // opts.force : ignore la détection de conflit et écrase quand même (après confirmation utilisateur).
+    async saveDevis(devis, opts) {
+      opts = opts || {};
       local.save(devis);
-      try { return await req('/devis', { method: 'POST', body: JSON.stringify(devis) }); }
+      try {
+        const payload = (!opts.force && opts.expectedDateModification !== undefined)
+          ? Object.assign({}, devis, { _expected_date_modification: opts.expectedDateModification })
+          : devis;
+        return await req('/devis', { method: 'POST', body: JSON.stringify(payload) });
+      }
       catch (e) { console.warn('[SS] saveDevis hors-ligne:', e.message); return { ok: true, id: devis.id, offline: true, error: e.message }; }
     },
     async deleteDevis(id) {
@@ -99,6 +109,18 @@
         console.warn('[SS] deleteDevis hors-ligne:', e.message);
         return { ok: true, offline: true };
       }
+    },
+    // ── PHOTOS (R2) ── Best-effort : renvoie l'URL de service en cas de succès, `null` sinon (réseau
+    // coupé, bucket non lié…). L'appelant garde alors le dataURL local — une photo n'est JAMAIS perdue,
+    // juste pas encore déportée hors du blob JSON tant que le réseau ne revient pas.
+    async uploadPhoto(ownerId, blob) {
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, 'photo.jpg');
+        const r = await fetch(BASE + '/photos/' + encodeURIComponent(ownerId), { method: 'POST', body: fd, credentials: 'same-origin' });
+        const data = await r.json();
+        return (data && data.ok && data.url) ? data.url : null;
+      } catch (e) { console.warn('[SS] uploadPhoto hors-ligne:', e.message); return null; }
     },
     async updateStatus(id, statut, by) {
       const devis = await this.getDevis(id);
