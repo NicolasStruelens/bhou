@@ -64,9 +64,7 @@
   }
 
   function shareText(text) {
-    if (navigator.share) {
-      navigator.share({ text: text }).catch(function () {});
-    } else if (navigator.clipboard) {
+    if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(function () { toast('Liste copiée — colle-la où tu veux l\'envoyer'); });
     } else {
       toast('Impossible de copier automatiquement sur cet appareil');
