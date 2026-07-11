@@ -226,9 +226,14 @@
       opt.textContent = u === 'piece' ? 'pièce' : u;
       addUnit.appendChild(opt);
     });
+    var addQtyGroup = document.createElement('div');
+    addQtyGroup.className = 'qty-unit-group';
+    addQtyGroup.appendChild(addQty);
+    addQtyGroup.appendChild(addUnit);
     var addBtn = document.createElement('button');
     addBtn.className = 'btn';
     addBtn.type = 'button';
+    addBtn.title = 'Ajouter l\'ingrédient';
     addBtn.appendChild(icon('plus'));
     function addIngredientHere() {
       var v = addInput.value.trim();
@@ -241,8 +246,7 @@
     addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addIngredientHere(); } });
     addQty.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addIngredientHere(); } });
     addRow.appendChild(addInput);
-    addRow.appendChild(addQty);
-    addRow.appendChild(addUnit);
+    addRow.appendChild(addQtyGroup);
     addRow.appendChild(addBtn);
     card.appendChild(addRow);
 
