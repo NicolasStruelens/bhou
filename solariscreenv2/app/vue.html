@@ -481,6 +481,9 @@
         <div class="n-body" id="nList"></div>
         <div class="n-foot">
           <textarea class="textarea" id="nText" style="min-height:52px;" placeholder="Note rapide pour Yannick / toi-même…"></textarea>
+          <label class="check" style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-top:0.3rem;" title="Coché, ce message apparaît sur l'espace client (devis-review) — ex. réponse à une question posée par le client. Décoché par défaut.">
+            <input type="checkbox" id="nVisibleClient"> Visible pour le client (réponse à sa question)
+          </label>
           <div class="send-row">
             <select class="select" id="nAuthor" aria-label="Auteur de la note"><option value="nicolas">Nicolas</option><option value="yannick">Yannick</option></select>
             <select class="select" id="nType" aria-label="Type de note" style="max-width:120px;"><option value="note">Note</option><option value="question">Question</option><option value="important">Important</option></select>
@@ -1273,7 +1276,7 @@
         return `<div class="note-row ${c.type === 'important' ? 'is-important' : ''}">
           <div class="na ${cls}">${txt}</div>
           <div style="min-width:0;flex:1;">
-            <div class="nm">${label} · ${fmtDate(c.date)}${c.type !== 'note' ? ' · ' + c.type : ''}</div>
+            <div class="nm">${label} · ${fmtDate(c.date)}${c.type !== 'note' ? ' · ' + c.type : ''}${c.visible_client ? ' · <span style="color:var(--accent-2);">👁 visible client</span>' : ''}</div>
             <div class="nt">${esc(c.text)}</div>
           </div>
         </div>`;
@@ -1470,9 +1473,11 @@
       const text = el('nText').value.trim();
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
       localStorage.setItem('ss_comment_author', el('nAuthor').value);
-      const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value });
+      const visibleClient = el('nVisibleClient').checked;
+      const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value, visible_client: visibleClient });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('nText').value = '';
+      el('nVisibleClient').checked = false;
       // Le devis à jour vient directement de la réponse — PAS de re-fetch réseau juste après cette
       // écriture (un GET immédiat après un POST peut renvoyer une version D1 pas encore à jour et
       // faire "disparaître" le commentaire qu'on vient pourtant d'ajouter avec succès).
