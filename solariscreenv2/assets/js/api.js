@@ -147,7 +147,7 @@
       const devis = await this.getDevis(id);
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.comments = devis.comments || [];
-      devis.comments.push({
+      const comment = {
         // id unique même si deux commentaires sont créés dans la même milliseconde (Date.now()
         // seul pouvait collisionner → deleteComment en aurait supprimé deux d'un coup).
         id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
@@ -155,7 +155,12 @@
         text: (opts.text || '').trim(),
         type: opts.type || 'note',
         date: new Date().toISOString(),
-      });
+      };
+      // Opt-in explicite uniquement : absent/false → jamais exposé sur devis-review.html (voir
+      // le filtre serveur dans /api/devis-review). N'écrit la clé que si vraie pour ne pas gonfler
+      // inutilement le JSON stocké de milliers de `visible_client:false`.
+      if (opts.visible_client === true) comment.visible_client = true;
+      devis.comments.push(comment);
       devis.date_modification = new Date().toISOString();
       const res = await this.saveDevis(devis);
       // Renvoie aussi le devis complet à jour : évite à l'appelant de refaire un GET juste après ce
