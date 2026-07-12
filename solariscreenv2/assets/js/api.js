@@ -11,9 +11,14 @@
   const LS_RDV = 'ss_rdv_cache';
 
   async function req(path, options) {
-    const r = await fetch(BASE + path, Object.assign({
+    // Cache-buster : un paramètre unique par appel rend chaque URL inédite → aucun cache
+    // (navigateur, CDN, ou service worker fantôme d'une ancienne PWA qui matcherait par URL)
+    // ne peut resservir une réponse API périmée. Le backend ignore la query string.
+    const bust = (path.indexOf('?') !== -1 ? '&' : '?') + '_=' + Date.now();
+    const r = await fetch(BASE + path + bust, Object.assign({
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
+      cache: 'no-store',
     }, options || {}));
     let data;
     try { data = await r.json(); }

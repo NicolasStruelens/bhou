@@ -328,6 +328,22 @@
     // Ceinture + bretelles : si un ancien SW traîne encore, on le désinscrit côté page aussi.
     if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
       navigator.serviceWorker.getRegistrations().then(function (regs) { regs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
+      // Purge les caches laissés par l'ancienne PWA : un SW fantôme "cache-first" devient
+      // inoffensif sans ses caches (chaque requête retombe alors sur le réseau). C'est ce qui
+      // faisait "disparaître" des notes : GET API servis depuis un cache toujours un coup en
+      // retard → lecture périmée → réécriture du devis sur une base périmée.
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () {});
+      }
+      // Si un SW contrôle ENCORE cette page (zombie pas encore délogé), un rechargement unique
+      // suffit à s'en débrancher (la désinscription ne prend effet qu'à la navigation suivante).
+      // Garde sessionStorage : jamais plus d'un rechargement automatique par onglet.
+      try {
+        if (navigator.serviceWorker.controller && !sessionStorage.getItem('ss_sw_purge')) {
+          sessionStorage.setItem('ss_sw_purge', '1');
+          setTimeout(function () { location.reload(); }, 500);
+        }
+      } catch (e) {}
     }
   })();
 
