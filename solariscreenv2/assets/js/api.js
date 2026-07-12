@@ -148,7 +148,12 @@
         date: new Date().toISOString(),
       });
       devis.date_modification = new Date().toISOString();
-      return this.saveDevis(devis);
+      const res = await this.saveDevis(devis);
+      // Renvoie aussi le devis complet à jour : évite à l'appelant de refaire un GET juste après ce
+      // POST pour rafraîchir son affichage — un re-fetch immédiat après écriture peut renvoyer une
+      // version D1 pas encore à jour (latence de propagation), ce qui ferait "disparaître" le
+      // commentaire qu'on vient pourtant d'ajouter avec succès.
+      return Object.assign({}, res, { data: devis });
     },
     async deleteComment(devisId, commentId) {
       const devis = await this.getDevis(devisId);
