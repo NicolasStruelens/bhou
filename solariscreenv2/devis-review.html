@@ -101,7 +101,7 @@
       <button class="btn btn-ghost btn-sm mt-2" onclick="submitAction('question')">Envoyer</button>
     </div>
 
-    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="window.print()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / Télécharger en PDF</button>
+    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / Télécharger en PDF</button>
 
     <div class="rv-foot">SolariScreen · www.solariscreen.be</div>
   </div>
@@ -186,6 +186,51 @@
         </div>`;
       }).join('');
     }
+
+    // Impression : document DÉDIÉ généré dans une fenêtre propre (fond blanc, texte noir, styles
+    // inline uniquement) — totalement indépendant du thème sombre de la page. Imprimer la page
+    // elle-même (window.print) dépend du moteur du navigateur pour convertir le thème sombre,
+    // ce qui a déjà produit des PDF blancs chez le client — plus jamais via ce chemin-ci.
+    function buildPrintHtml(d) {
+      const rows = (d.items || []).map(it => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '—';
+        const sousTotal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+        return `<tr><td>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</td>` +
+          `<td>${dims}</td><td>${it.quantite || 1}</td><td style="text-align:right;">${esc(fmtEur(sousTotal))}</td></tr>`;
+      }).join('');
+      return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Devis SolariScreen ${esc(d.id || '')}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; color: #1a2238; background: #fff; margin: 36px; }
+  .head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+  .head img { width: 52px; height: 52px; border-radius: 8px; }
+  h1 { font-size: 19px; margin: 0; }
+  .sub { color: #4a5568; font-size: 12px; margin: 3px 0 0; }
+  table { width: 100%; border-collapse: collapse; margin: 18px 0 10px; }
+  th, td { border: 1px solid #c9d2e0; padding: 7px 9px; font-size: 12.5px; text-align: left; }
+  th { background: #f0f3f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .total { text-align: right; font-size: 16px; font-weight: bold; margin: 8px 0 0; }
+  .tva { text-align: right; color: #4a5568; font-size: 11px; margin: 2px 0 0; }
+  .foot { margin-top: 26px; padding-top: 10px; border-top: 1px solid #c9d2e0; color: #8390a6; font-size: 10.5px; }
+</style></head><body>
+<div class="head"><img src="/assets/img/logo-solariscreen.png" onerror="this.remove()"><div>
+  <h1>SolariScreen — Devis ${esc(d.id || '')}</h1>
+  <p class="sub">${d.prenom ? 'Client : ' + esc(d.prenom) + ' · ' : ''}Imprimé le ${new Date().toLocaleDateString('fr-BE')}</p>
+</div></div>
+<table><thead><tr><th>Produit</th><th>Dimensions</th><th>Qté</th><th>Prix</th></tr></thead><tbody>${rows}</tbody></table>
+<p class="total">Total TVAC : ${esc(fmtEur(d.total_ttc))}</p>
+<p class="tva">TVA ${d.tva_pct || 6}% comprise</p>
+<p class="foot">SolariScreen · www.solariscreen.be — Récapitulatif imprimé depuis votre espace client. Le devis détaillé signé fait foi.</p>
+</body></html>`;
+    }
+    window.printDevis = () => {
+      if (!DATA) { window.print(); return; }
+      const w = window.open('', '_blank');
+      if (!w) { window.print(); return; } // popup bloquée → impression classique en secours
+      w.document.write(buildPrintHtml(DATA));
+      w.document.close();
+      w.focus();
+      setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+    };
 
     window.submitAction = async (action) => {
       let text = '';
