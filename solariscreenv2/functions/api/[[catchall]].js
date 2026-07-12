@@ -297,6 +297,27 @@ export async function onRequest(context) {
         }
       }
       stampSignatureIp(devis, request);
+      // ── [DIAG notes qui disparaissent] Trace chaque écriture de devis dans le journal
+      // d'activité : nombre de notes AVANT → APRÈS, appareil d'origine. Visible via le bouton
+      // « Activité » du dashboard. À retirer une fois le coupable identifié.
+      try {
+        const prev = await env.DB.prepare(
+          "SELECT IFNULL(CAST(json_extract(data,'$.comments_count') AS INTEGER), IFNULL(json_array_length(data,'$.comments'), 0)) AS n FROM devis WHERE id = ?"
+        ).bind(devis.id).first();
+        const nAvant = prev ? (prev.n || 0) : 0;
+        const nApres = (devis.comments || []).length;
+        const ua = (request.headers.get('user-agent') || '').slice(0, 90);
+        const perte = nApres < nAvant ? ' ⚠️ PERTE DE NOTES !' : '';
+        await env.DB.prepare(
+          'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind(
+          new Date().toISOString(),
+          (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || parseAccessEmail(request) || null,
+          'debug.devis_write', 'devis', String(devis.id).slice(0, 60),
+          `[DIAG] Devis #${devis.id} écrit : notes ${nAvant} → ${nApres}${perte} · statut ${devis.statut || '?'}`,
+          JSON.stringify({ ua }).slice(0, 1000)
+        ).run();
+      } catch (e) { /* le diagnostic ne doit jamais bloquer une vraie sauvegarde */ }
       await upsertDevis(env.DB, devis);
       return json({ ok: true, id: devis.id });
     }
@@ -309,7 +330,29 @@ export async function onRequest(context) {
         const d = safeParse(row.data);
         return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Devis illisible (données corrompues)' }, 500);
       }
-      if (method === 'PUT') { const d = await request.json(); stampSignatureIp(d, request); await upsertDevis(env.DB, { ...d, id }); return json({ ok: true }); }
+      if (method === 'PUT') {
+        const d = await request.json();
+        stampSignatureIp(d, request);
+        // [DIAG notes qui disparaissent] Même trace que sur POST /api/devis : si un vieux client
+        // (page en cache, PWA téléphone…) passe encore par ici, on le verra dans le journal.
+        try {
+          const prev = await env.DB.prepare(
+            "SELECT IFNULL(CAST(json_extract(data,'$.comments_count') AS INTEGER), IFNULL(json_array_length(data,'$.comments'), 0)) AS n FROM devis WHERE id = ?"
+          ).bind(id).first();
+          const nAvant = prev ? (prev.n || 0) : 0;
+          const nApres = (d.comments || []).length;
+          const perte = nApres < nAvant ? ' ⚠️ PERTE DE NOTES !' : '';
+          await env.DB.prepare(
+            'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).bind(
+            new Date().toISOString(), null, 'debug.devis_write', 'devis', String(id).slice(0, 60),
+            `[DIAG] Devis #${id} écrit via PUT (chemin inhabituel !) : notes ${nAvant} → ${nApres}${perte}`,
+            JSON.stringify({ ua: (request.headers.get('user-agent') || '').slice(0, 90) }).slice(0, 1000)
+          ).run();
+        } catch (e) {}
+        await upsertDevis(env.DB, { ...d, id });
+        return json({ ok: true });
+      }
       if (method === 'DELETE') {
         const ex = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(id).first();
         if (!ex) return json({ ok: false, error: 'Devis introuvable' }, 404);
