@@ -101,13 +101,23 @@ export async function onRequest(context) {
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
         quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
+        // Photos d'ouverture (mesures, visualiseur couleur) uniquement — jamais les photos SAV
+        // (tickets internes), qui vivent dans un tableau séparé (d.sav_tickets) jamais lu ici.
+        photos: it.photos || [],
       }));
+      // Fil de discussion visible côté client : ses propres questions, + les réponses de
+      // Nicolas/Yannick explicitement marquées `visible_client` (opt-in, jamais par défaut —
+      // une note interne ordinaire ne doit jamais fuiter ici).
+      const comments = (d.comments || [])
+        .filter(c => c.author === 'client' || c.visible_client === true)
+        .map(c => ({ author: c.author, text: c.text, date: c.date }));
       return json({ ok: true, data: {
         prenom: (d.client && d.client.prenom) || '',
         id: d.id, statut: d.statut || 'brouillon', items,
         total_ttc: (d.calculs && d.calculs.total_ttc) || 0,
         tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,
         client_accepted: !!d.client_accepted,
+        comments,
       } });
     } catch (e) {
       return json({ ok: false, error: 'Erreur serveur' }, 500);
