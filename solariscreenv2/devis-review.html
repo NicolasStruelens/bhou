@@ -101,7 +101,7 @@
       <button class="btn btn-ghost btn-sm mt-2" onclick="submitAction('question')">Envoyer</button>
     </div>
 
-    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / Télécharger en PDF</button>
+    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Voir le devis complet — imprimer / PDF</button>
 
     <div class="rv-foot">SolariScreen · www.solariscreen.be</div>
   </div>
@@ -110,9 +110,11 @@
     <div class="rv-error">Chargement…</div>
   </div>
 
+  <script src="assets/js/company.js"></script>
   <script src="assets/js/ui.js"></script>
   <script>
     const { icon, fmtEur, fmtDate, toast } = window.SSUI;
+    const COMPANY = window.SS_COMPANY;
     window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
 
     const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
@@ -187,9 +189,167 @@
       }).join('');
     }
 
-    // Impression : document DÉDIÉ généré dans une fenêtre propre (fond blanc, texte noir, styles
-    // inline uniquement) — totalement indépendant du thème sombre de la page. Imprimer la page
-    // elle-même (window.print) dépend du moteur du navigateur pour convertir le thème sombre,
+    // ══════ LE VRAI DEVIS (même rendu que app/devis.html, via document.css) ══════
+    // Reconstruit le document officiel à partir du payload `document` de l'API (filtré côté
+    // serveur : jamais de marge/données internes). Miroir volontaire de renderPaper()/cgvPaper()
+    // de app/devis.html — si tu modifies la mise en page là-bas, répercute ici.
+    const VALIDITE_JOURS = 30;
+    function addDays(iso, n) {
+      const d2 = iso ? new Date(iso) : new Date();
+      if (isNaN(d2)) return '';
+      d2.setDate(d2.getDate() + n);
+      return d2.toISOString().slice(0, 10);
+    }
+    function buildPaperHtml(doc) {
+      const c = doc.calc, cl = doc.client || {}, adr = cl.adresse || {};
+      const info = !!doc.informatif;
+      let rows = '';
+      (doc.items || []).forEach((it, i) => {
+        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm${it.projection ? ' · proj. ' + it.projection + ' mm' : ''}` : '—';
+        const pu = it.prix_catalogue_ht || 0, qty = it.quantite || 1;
+        const coloris = (() => {
+          const cais = it.couleur || '';
+          const coul = it.couleur_coulisses && it.couleur_coulisses !== cais ? it.couleur_coulisses : '';
+          const lame = it.couleur_lame && it.couleur_lame !== cais ? it.couleur_lame : '';
+          if (!cais && !coul && !lame) return '';
+          if (!coul && !lame) return cais;
+          const parts = [];
+          if (cais) parts.push('caisson ' + cais);
+          if (coul) parts.push('coulisses ' + coul);
+          if (lame) parts.push('lame ' + lame);
+          return parts.join(', ');
+        })();
+        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur, coloris, it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        rows += `<tr>
+          <td class="num">${i + 1}</td>
+          <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
+          <td>${dims}</td>
+          <td class="num">${qty}</td>
+          <td class="num">${esc(fmtEur(pu))}</td>
+          <td class="num">${esc(fmtEur(pu * qty))}</td>
+        </tr>`;
+      });
+      if (c.remise_catalogue > 0) {
+        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
+      }
+      let presta = '';
+      if (c.install_total_brut > 0) {
+        presta += `<tr><td class="num">—</td><td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td><td>—</td><td class="num">1</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td></tr>`;
+      }
+      if (c.remise_installation > 0) {
+        presta += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_installation))}</td></tr>`;
+      }
+      (c.extra_lines || []).forEach((e) => {
+        presta += `<tr><td class="num">—</td><td class="desc"><strong>${esc(e.label)}</strong></td><td>—</td><td class="num">${e.qty}</td><td class="num">${esc(fmtEur(e.unit_price_ht))}</td><td class="num">${esc(fmtEur(e.total_ht))}</td></tr>`;
+      });
+      if (c.surplus_difficulte > 0) {
+        presta += `<tr><td class="num">—</td><td class="desc"><strong>Supplément accès difficile</strong></td><td>—</td><td class="num">1</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td></tr>`;
+      }
+      const solde = c.total_ttc - c.acompte_montant;
+      const paper = `
+        ${info ? '<div class="watermark informatif">INFORMATIF</div>' : ''}
+        <div class="doc-head">
+          <div class="brand-block">
+            <div class="logo"><img src="assets/img/logo-solariscreen.png" alt="SolariScreen"></div>
+            <div>
+              <div class="co-name"><span class="b">SOLARI</span><span class="g">SCREEN</span></div>
+              <div class="co-tag">${esc(COMPANY.tagline)}</div>
+            </div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-title">${info ? 'DEVIS INFORMATIF' : 'DEVIS'}</div>
+            <div class="doc-num">N° ${esc(doc.id)}</div>
+            <div class="doc-dates">
+              Date : ${fmtDate(doc.date_creation)}<br>
+              ${info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(doc.date_creation, VALIDITE_JOURS))}
+            </div>
+          </div>
+        </div>
+        ${info ? '<div class="pay-note"><strong>Estimation non contractuelle</strong> — établie à partir de mesures approximatives, sans engagement. Un devis formel sera établi après prise de mesures précises sur place.</div>' : ''}
+        <div class="parties">
+          <div class="party">
+            <h4>Émetteur</h4>
+            <div class="pname">${esc(COMPANY.name)}</div>
+            <div class="pline">
+              ${COMPANY.legal ? esc(COMPANY.legal) + '<br>' : ''}
+              ${esc(COMPANY.address)}<br>
+              TVA : ${esc(COMPANY.tva)}<br>
+              ${esc(COMPANY.email)}${COMPANY.email2 ? ' · ' + esc(COMPANY.email2) : ''}${COMPANY.phone ? '<br>' + esc(COMPANY.phone) : ''}
+            </div>
+          </div>
+          <div class="party">
+            <h4>Client</h4>
+            <div class="pname">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
+            <div class="pline">
+              ${(adr.rue || adr.numero) ? esc(adr.rue) + ' ' + esc(adr.numero) + '<br>' : ''}
+              ${(adr.code_postal || adr.ville) ? esc(adr.code_postal) + ' ' + esc(adr.ville) + '<br>' : ''}
+              ${cl.telephone ? esc(cl.telephone) + '<br>' : ''}${cl.email ? esc(cl.email) : ''}
+            </div>
+          </div>
+        </div>
+        <table class="doc-table">
+          <thead><tr>
+            <th class="num">#</th><th>Désignation</th><th>Dimensions</th>
+            <th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th>
+          </tr></thead>
+          <tbody>
+            ${rows ? '<tr class="cat-row"><td colspan="6">Fournitures</td></tr>' + rows : ''}
+            ${presta ? '<tr class="cat-row"><td colspan="6">Prestations & options</td></tr>' + presta : ''}
+          </tbody>
+        </table>
+        <div class="totals"><div class="box">
+          <div class="t-row"><span>Total HTVA</span><span class="v">${esc(fmtEur(c.total_ht))}</span></div>
+          <div class="t-row t-sub"><span>TVA ${c.tva_pct} %</span><span class="v">${esc(fmtEur(c.total_tva))}</span></div>
+          <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${esc(fmtEur(c.total_ttc))}</span></div>
+        </div></div>
+        ${info ? '' : `
+        <div class="pay-note">
+          Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${esc(fmtEur(c.acompte_montant))}</strong> —
+          solde de <strong>${esc(fmtEur(solde))}</strong> à la livraison / pose.
+          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(doc.id)}.</span>
+        </div>
+        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`}
+        <div class="partners">
+          <span class="lbl">Partenaires</span>
+          <span class="partner-chip"><img src="assets/img/logo-harol.png" alt="Harol"></span>
+          <span class="partner-chip"><img src="assets/img/logo-somfy.png" alt="Somfy"></span>
+        </div>
+        ${info ? '' : `
+        <div class="signatures">
+          <div class="sig-box">
+            <h4>Bon pour accord — le client</h4>
+            ${doc.signature && doc.signature.image
+              ? `<img src="${doc.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(doc.signature.date)} — « Lu et approuvé »</div>`
+              : `<div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div>`}
+          </div>
+          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
+        </div>`}
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>`;
+      const cgv = info ? '' : `<div class="paper">
+        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(doc.id)}</div></div></div>
+        <div class="cgv-body">
+          <h5>1. Objet &amp; commande</h5>
+          Les présentes conditions régissent la vente, la livraison et l'installation des produits proposés par ${esc(COMPANY.name)}. Toute commande implique l'adhésion pleine et entière du client. Le devis est valable ${VALIDITE_JOURS} jours et doit être confirmé par écrit (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.
+          <h5>2. Prix &amp; paiement</h5>
+          Prix en euros, TVA comprise. Sauf mention contraire sur le devis, un acompte est dû à la commande pour valider le projet et lancer la fabrication ; le solde est payable le jour de l'installation, immédiatement après la fin des travaux, par virement instantané ou paiement par carte. Tout retard de paiement entraîne de plein droit et sans mise en demeure préalable des intérêts de retard au taux légal majoré de 10 %, ainsi qu'une indemnité forfaitaire de 15 % du montant dû (minimum 150 €).
+          <h5>3. Livraison &amp; installation</h5>
+          Les délais sont donnés à titre indicatif et ne peuvent donner droit à des dommages-intérêts, sauf faute lourde de ${esc(COMPANY.name)}. Le client doit assurer l'accessibilité du lieu d'installation. Les installations sont réalisées selon les règles de l'art ; pour les tentes solaires, ${esc(COMPANY.name)} décide seul de la faisabilité et celles-ci ne doivent jamais rester ouvertes en cas de vent.
+          <h5>4. Garantie</h5>
+          Produits Harol : 5 ans · Moteurs RTS &amp; IO : 5 ans · Moteurs solaires et batteries Somfy : 7 ans · Autres moteurs solaires et batteries : 5 ans. La garantie ne couvre pas une mauvaise utilisation, l'absence d'entretien, ni les dommages causés par un tiers ou une catastrophe naturelle.
+          <h5>5. Responsabilité &amp; réclamations</h5>
+          ${esc(COMPANY.name)} ne peut être tenu responsable des dommages indirects, ni d'une installation électrique défectueuse du client. Toute réclamation doit être faite par écrit dans les 7 jours suivant la livraison ou l'installation.
+          <h5>6. Annulation — commandes sur mesure</h5>
+          Nos produits étant fabriqués sur mesure, toute annulation après confirmation de commande donne lieu à une indemnité forfaitaire : 10 % du montant TTC en cas d'annulation avant la commande des marchandises auprès du fournisseur, ou 100 % du prix TTC des marchandises sur mesure déjà commandées (hors installation et prestations non réalisées). Les acomptes versés restent acquis à ${esc(COMPANY.name)} à titre de minimum forfaitaire.
+          <h5>7. Litiges</h5>
+          Les présentes conditions sont soumises au droit belge. Tout litige relève des tribunaux de ${esc(COMPANY.court)}.
+        </div>
+      </div>`;
+      return { paper, cgv };
+    }
+
+    // Impression : document DÉDIÉ généré dans une fenêtre propre (fond blanc, texte noir) —
+    // totalement indépendant du thème sombre de la page. Imprimer la page elle-même
+    // (window.print) dépend du moteur du navigateur pour convertir le thème sombre,
     // ce qui a déjà produit des PDF blancs chez le client — plus jamais via ce chemin-ci.
     function buildPrintHtml(d) {
       const rows = (d.items || []).map(it => {
@@ -226,10 +386,44 @@
       if (!DATA) { window.print(); return; }
       const w = window.open('', '_blank');
       if (!w) { window.print(); return; } // popup bloquée → impression classique en secours
-      w.document.write(buildPrintHtml(DATA));
+      const doc = DATA.document;
+      if (doc && doc.calc) {
+        // Le VRAI devis, avec la même feuille de style document.css que app/devis.html.
+        // <base> obligatoire : la popup naît sur about:blank, sans lui aucun chemin relatif
+        // (css, logos) ne se résout. Résolu depuis la page appelante → marche en prod ET en local.
+        const base = new URL('.', location.href).href;
+        const types = [...new Set((doc.items || []).map(it => TYPE_LABEL[it.type] || it.type))].join(' + ');
+        const titre = ['SolariScreen', types || 'Devis', [doc.client.prenom, doc.client.nom].filter(Boolean).join(' ') || 'Client', doc.id].join(' - ');
+        const { paper, cgv } = buildPaperHtml(doc);
+        w.document.write(`<!DOCTYPE html><html lang="fr" data-theme="light"><head>
+          <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <base href="${base}">
+          <title>${esc(titre)}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+          <link rel="stylesheet" href="assets/css/tokens.css">
+          <link rel="stylesheet" href="assets/css/theme-light.css">
+          <link rel="stylesheet" href="assets/css/base.css">
+          <link rel="stylesheet" href="assets/css/document.css">
+        </head><body>
+          <div class="paper-wrap"><div class="paper">${paper}</div></div>
+          ${cgv ? '<div class="annex">' + cgv + '</div>' : ''}
+          <script>
+            // Impression une fois styles + polices + logos chargés (sinon mise en page faussée).
+            window.addEventListener('load', async function () {
+              try { await document.fonts.ready; } catch (e) {}
+              setTimeout(function () { window.print(); }, 200);
+            });
+          <\/script>
+        </body></html>`);
+      } else {
+        // Vieux devis sans calculs enregistrés : récapitulatif simple (jamais une page blanche).
+        w.document.write(buildPrintHtml(DATA));
+        setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+      }
       w.document.close();
       w.focus();
-      setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
     };
 
     window.submitAction = async (action) => {
