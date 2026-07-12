@@ -1349,18 +1349,27 @@
     window.pickRaisonRefus = async (raison) => {
       if (stMenuEl) stMenuEl.classList.remove('open');
       const identity = await window.SSNav.getIdentity();
-      const res = await SS.updateStatus(DEVIS.id, 'refuse', identity.key);
-      if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
-      const fresh = await SS.getDevis(DEVIS.id);
-      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash)
+      const expected = DEVIS.date_modification;   // baseline connu AVANT mutation (détection de conflit)
+      const prev = DEVIS.statut;
+      // Statut + historique + raison_refus fusionnés en UNE seule mutation locale + UN seul écrit
+      // (au lieu d'un updateStatus() suivi d'un re-fetch puis d'un second saveDevis() : le re-fetch
+      // intermédiaire pouvait renvoyer une version D1 pas encore à jour et écraser silencieusement
+      // le changement de statut qu'on venait pourtant de sauvegarder).
+      DEVIS.statut = 'refuse';
+      DEVIS.date_modification = new Date().toISOString();
+      DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'refuse', date: DEVIS.date_modification, by: identity.key }]);
       // Toujours (r)écrire raison_refus, même vide — sinon un refus sans raison (« Passer »)
       // garde silencieusement la raison d'un refus précédent sur ce même devis.
       DEVIS.raison_refus = raison;
-      DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
-      CALC = getCalc(DEVIS);
-      toast('Statut mis à jour ✓', 'ok');
-      render();
+      const finishSave = async (force) => {
+        const res = await SS.saveDevis(DEVIS, force ? { force: true } : { expectedDateModification: expected });
+        if (res.conflict) { window.SSUI.showSaveConflict(() => finishSave(true)); return; }
+        if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
+        CALC = getCalc(DEVIS);
+        toast('Statut mis à jour ✓', 'ok');
+        render();
+      };
+      await finishSave(false);
     };
 
     // ── Score de probabilité (uniquement tant que le devis n'est pas encore signé/refusé) ──
@@ -1464,8 +1473,10 @@
       const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('nText').value = '';
-      const fresh = await SS.getDevis(DEVIS.id);
-      if (fresh) DEVIS = fresh;   // garde l'objet courant si le re-fetch échoue (évite un crash de renderNotes)
+      // Le devis à jour vient directement de la réponse — PAS de re-fetch réseau juste après cette
+      // écriture (un GET immédiat après un POST peut renvoyer une version D1 pas encore à jour et
+      // faire "disparaître" le commentaire qu'on vient pourtant d'ajouter avec succès).
+      if (res.data) DEVIS = res.data;
       renderNotes();
       toast('Note ajoutée', 'ok');
     };
