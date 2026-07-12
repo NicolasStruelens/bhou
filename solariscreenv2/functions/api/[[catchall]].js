@@ -205,8 +205,18 @@ export async function onRequest(context) {
       return json({ ok: true, data });
     }
     if (path === '/api/devis' && method === 'POST') {
-      const devis = await request.json();
+      const body = await request.json();
+      const { _expected_date_modification, ...devis } = body;
       if (!devis.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      // Détection de conflit (2 utilisateurs sur le même devis) : uniquement si l'appelant a fourni la
+      // version qu'il croyait la plus récente. Réponse en ok:true (pas ok:false) volontairement — sinon
+      // req() (api.js) lèverait une exception et le conflit serait pris à tort pour une panne réseau.
+      if (_expected_date_modification) {
+        const existing = await env.DB.prepare('SELECT date_modification FROM devis WHERE id = ?').bind(devis.id).first();
+        if (existing && existing.date_modification && existing.date_modification !== _expected_date_modification) {
+          return json({ ok: true, conflict: true, current_date_modification: existing.date_modification });
+        }
+      }
       stampSignatureIp(devis, request);
       await upsertDevis(env.DB, devis);
       return json({ ok: true, id: devis.id });
@@ -291,6 +301,49 @@ export async function onRequest(context) {
         await upsertDevis(env.DB, d);
         return json({ ok: true });
       }
+    }
+
+    // ══════════ PHOTOS (R2) ══════════
+    // Photos d'ouvertures/chantier/SAV/RDV : compressées côté client (compressImage, ui.js) puis
+    // uploadées ici plutôt qu'embarquées en dataURL base64 dans le JSON D1 (c'est ce qui a déjà causé
+    // un souci de taille de ligne — voir DEPLOIEMENT.md). Nécessite la liaison R2 "PHOTOS" (Pages →
+    // Settings → Functions → R2 bucket bindings), bucket séparé de "DOCS" (documents fournisseur).
+    //
+    // "ownerId" est générique (pas forcément un id de devis) : sert aussi bien un item de devis qu'un
+    // ticket SAV ou une demande de RDV — le front est seul à savoir à quel objet la photo appartient
+    // (il stocke l'URL renvoyée dans le tableau `photos` de cet objet, exactement comme il stockait un
+    // dataURL avant). Volontairement AUCUNE vérification que l'objet "ownerId" existe déjà en base :
+    // en Mode Terrain/Simulateur, des photos sont ajoutées à un devis AVANT le tout premier
+    // enregistrement (l'id est généré côté client dès l'ouverture de la page) — exiger la ligne D1
+    // empêcherait cet usage. La clé R2 est entièrement déterministe (ownerId + photoId, tous deux dans
+    // l'URL), donc aucune métadonnée à maintenir en base pour retrouver un fichier.
+    m = path.match(/^\/api\/photos\/([^/]+)$/);
+    if (m && method === 'POST') {
+      if (!env.PHOTOS) return json({ ok: false, error: "Stockage de photos non configuré (liaison R2 « PHOTOS » manquante)." }, 500);
+      const ownerId = decodeURIComponent(m[1]);
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!file || typeof file === 'string') return json({ ok: false, error: 'Fichier manquant' }, 400);
+      const MAX_SIZE = 5 * 1024 * 1024;   // déjà compressée côté client → largement suffisant
+      if (file.size > MAX_SIZE) return json({ ok: false, error: 'Photo trop volumineuse (5 Mo max)' }, 400);
+      const photoId = crypto.randomUUID();
+      const r2Key = `photos/${ownerId}/${photoId}.jpg`;
+      await env.PHOTOS.put(r2Key, file.stream(), { httpMetadata: { contentType: file.type || 'image/jpeg' } });
+      return json({ ok: true, photoId, url: `/api/photos/${encodeURIComponent(ownerId)}/${photoId}` });
+    }
+    m = path.match(/^\/api\/photos\/([^/]+)\/([^/]+)$/);
+    if (m && method === 'GET') {
+      if (!env.PHOTOS) return json({ ok: false, error: "Stockage de photos non configuré (liaison R2 « PHOTOS » manquante)." }, 500);
+      const ownerId = decodeURIComponent(m[1]), photoId = decodeURIComponent(m[2]);
+      const r2Key = `photos/${ownerId}/${photoId}.jpg`;
+      const obj = await env.PHOTOS.get(r2Key);
+      if (!obj) return json({ ok: false, error: 'Photo introuvable' }, 404);
+      return new Response(obj.body, {
+        headers: {
+          'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/jpeg',
+          'Cache-Control': 'private, max-age=86400',   // un photoId est unique par upload → jamais réécrit, cache long possible
+        },
+      });
     }
 
     // ══════════ CLIENTS ══════════
