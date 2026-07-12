@@ -96,7 +96,12 @@ export async function onRequest(context) {
       const last = views.length ? new Date(views[views.length - 1]) : null;
       if (!last || (now - last) > 10000) {
         d.review_views = views.concat([now.toISOString()]).slice(-50);
-        await upsertDevis(env.DB, d);
+        // Écriture CIBLÉE de la seule clé review_views — surtout PAS upsertDevis(d), qui
+        // réécrirait le devis ENTIER depuis notre lecture : toute note/statut enregistré par
+        // Nicolas/Yannick entre notre SELECT et ce write serait silencieusement effacé. Une
+        // simple CONSULTATION du lien client ne doit jamais pouvoir détruire une donnée.
+        await env.DB.prepare("UPDATE devis SET data = json_set(data, '$.review_views', json(?1)) WHERE json_extract(data, '$.review_token') = ?2")
+          .bind(JSON.stringify(d.review_views), token).run();
       }
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
@@ -135,25 +140,53 @@ export async function onRequest(context) {
       // ne peut être reprise par ce lien public (empêche un decline après un accept déjà posé).
       const decidable = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut) && !d.client_accepted;
       const MAX_TEXT = 2000; // borne la taille d'un texte soumis publiquement (raison / question)
+      // Toutes les écritures ci-dessous sont CIBLÉES (json_set/json_insert sur les seules clés
+      // concernées, évaluées par SQLite sur la valeur ACTUELLE de la ligne) — jamais upsertDevis(d),
+      // qui réécrirait le devis entier depuis notre lecture et écraserait toute modification
+      // concurrente faite depuis le dashboard/vue au même moment.
+      const nowIso = new Date().toISOString();
+      const WHERE = "WHERE json_extract(data, '$.review_token') = ?";
       if (body.action === 'accept') {
         if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
-        d.client_accepted = true;
-        d.client_accepted_at = new Date().toISOString();
+        await env.DB.prepare(`UPDATE devis SET
+            data = json_set(data, '$.client_accepted', json('true'), '$.client_accepted_at', ?1, '$.date_modification', ?1),
+            date_modification = ?1 ${WHERE.replace('?', '?2')}`)
+          .bind(nowIso, token).run();
       } else if (body.action === 'decline') {
         if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
-        d.statut = 'refuse';
-        d.statut_history = (d.statut_history || []).concat([{ statut: 'refuse', date: new Date().toISOString(), by: 'client' }]);
-        d.raison_refus = (body.text || '').trim().slice(0, MAX_TEXT) || 'Pas de réponse';
-        d.client_declined = true;
+        const raison = (body.text || '').trim().slice(0, MAX_TEXT) || 'Pas de réponse';
+        const histEntry = JSON.stringify({ statut: 'refuse', date: nowIso, by: 'client' });
+        // json(COALESCE(json_extract(...), '[]')) : garantit que le tableau existe avant l'append
+        // [#] (json_insert échoue si la clé est absente, cas des vieux devis sans historique).
+        await env.DB.prepare(`UPDATE devis SET
+            data = json_insert(
+                     json_set(data,
+                       '$.statut', 'refuse',
+                       '$.raison_refus', ?1,
+                       '$.client_declined', json('true'),
+                       '$.date_modification', ?2,
+                       '$.statut_history', json(COALESCE(json_extract(data, '$.statut_history'), '[]'))),
+                     '$.statut_history[#]', json(?3)),
+            statut = 'refuse', date_modification = ?2 ${WHERE.replace('?', '?4')}`)
+          .bind(raison, nowIso, histEntry, token).run();
       } else if (body.action === 'question') {
         const text = (body.text || '').trim().slice(0, MAX_TEXT);
         if (!text) return json({ ok: false, error: 'Message vide' }, 400);
-        d.comments = (d.comments || []).concat([{ id: crypto.randomUUID(), author: 'client', text, type: 'question', date: new Date().toISOString() }]);
+        const comment = JSON.stringify({ id: crypto.randomUUID(), author: 'client', text, type: 'question', date: nowIso });
+        // comments_count (dénormalisé, lu par la liste du dashboard) = ancien nombre + 1, calculé
+        // par SQLite sur la même ligne dans la même instruction → cohérent même en concurrence.
+        await env.DB.prepare(`UPDATE devis SET
+            data = json_set(
+                     json_insert(
+                       json_set(data, '$.comments', json(COALESCE(json_extract(data, '$.comments'), '[]'))),
+                       '$.comments[#]', json(?1)),
+                     '$.comments_count', COALESCE(json_array_length(data, '$.comments'), 0) + 1,
+                     '$.date_modification', ?2),
+            date_modification = ?2 ${WHERE.replace('?', '?3')}`)
+          .bind(comment, nowIso, token).run();
       } else {
         return json({ ok: false, error: 'Action inconnue' }, 400);
       }
-      d.date_modification = new Date().toISOString();
-      await upsertDevis(env.DB, d);
       return json({ ok: true });
     } catch (e) {
       return json({ ok: false, error: 'Erreur serveur' }, 500);
