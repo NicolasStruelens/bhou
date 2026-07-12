@@ -189,43 +189,51 @@
     },
 
     // ── COMMENTAIRES INTERNES (fil de discussion Nicolas / Yannick sur un devis) ──
+    // ⚠️ ARCHITECTURE (corrige le bug « les notes disparaissent ») : un commentaire n'est PLUS
+    // ajouté en relisant le devis complet puis en le réécrivant entièrement (ce chemin
+    // « lecture → modification → réécriture » perdait la note dès qu'une autre écriture, ou une
+    // lecture périmée, s'intercalait). On appelle une route dédiée qui fait une écriture CIBLÉE
+    // côté serveur (json_insert sur la seule ligne concernée) — c'est le mécanisme, prouvé stable
+    // en production, déjà utilisé par le lien client (/api/devis-review). Rien ne peut plus
+    // écraser un commentaire.
     async addComment(id, opts) {
       opts = opts || {};
-      let devis;
-      try { devis = await getDevisForMutation(id); }
-      catch (e) { return { ok: false, error: e.message }; }
-      if (!devis) return { ok: false, error: 'Devis introuvable' };
-      devis.comments = devis.comments || [];
-      const comment = {
-        // id unique même si deux commentaires sont créés dans la même milliseconde (Date.now()
-        // seul pouvait collisionner → deleteComment en aurait supprimé deux d'un coup).
-        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
-        author: opts.author || 'nicolas',
-        text: (opts.text || '').trim(),
-        type: opts.type || 'note',
-        date: new Date().toISOString(),
-      };
-      // Opt-in explicite uniquement : absent/false → jamais exposé sur devis-review.html (voir
-      // le filtre serveur dans /api/devis-review). N'écrit la clé que si vraie pour ne pas gonfler
-      // inutilement le JSON stocké de milliers de `visible_client:false`.
-      if (opts.visible_client === true) comment.visible_client = true;
-      devis.comments.push(comment);
-      devis.date_modification = new Date().toISOString();
-      const res = await this.saveDevis(devis);
-      // Renvoie aussi le devis complet à jour : évite à l'appelant de refaire un GET juste après ce
-      // POST pour rafraîchir son affichage — un re-fetch immédiat après écriture peut renvoyer une
-      // version D1 pas encore à jour (latence de propagation), ce qui ferait "disparaître" le
-      // commentaire qu'on vient pourtant d'ajouter avec succès.
-      return Object.assign({}, res, { data: devis });
+      const payload = { author: opts.author || 'nicolas', text: (opts.text || '').trim(), type: opts.type || 'note' };
+      if (opts.visible_client === true) payload.visible_client = true;
+      if (!payload.text) return { ok: false, error: 'Message vide' };
+      try {
+        const res = await req('/devis/' + encodeURIComponent(id) + '/comment', { method: 'POST', body: JSON.stringify(payload) });
+        // Reflète le commentaire dans le cache local (affichage hors-ligne ultérieur).
+        try { const d = local.get(id); if (d) { d.comments = d.comments || []; d.comments.push(res.comment); local.save(d); } } catch (e) {}
+        return res; // { ok:true, comment, comments_count }
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) {
+          // Vrai hors-ligne : commentaire gardé en local, visible sur cet appareil.
+          const comment = {
+            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
+            author: payload.author, text: payload.text, type: payload.type, date: new Date().toISOString(),
+          };
+          if (payload.visible_client) comment.visible_client = true;
+          try { const d = local.get(id); if (d) { d.comments = d.comments || []; d.comments.push(comment); local.save(d); } } catch (e2) {}
+          return { ok: true, offline: true, comment };
+        }
+        return { ok: false, error: MSG_SESSION };
+      }
     },
     async deleteComment(devisId, commentId) {
-      let devis;
-      try { devis = await getDevisForMutation(devisId); }
-      catch (e) { return { ok: false, error: e.message }; }
-      if (!devis) return { ok: false, error: 'Devis introuvable' };
-      devis.comments = (devis.comments || []).filter(function (c) { return String(c.id) !== String(commentId); });
-      devis.date_modification = new Date().toISOString();
-      return this.saveDevis(devis);
+      try {
+        const res = await req('/devis/' + encodeURIComponent(devisId) + '/comment/' + encodeURIComponent(commentId), { method: 'DELETE' });
+        try { const d = local.get(devisId); if (d && d.comments) { d.comments = d.comments.filter(function (c) { return String(c.id) !== String(commentId); }); local.save(d); } } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) {
+          try { const d = local.get(devisId); if (d && d.comments) { d.comments = d.comments.filter(function (c) { return String(c.id) !== String(commentId); }); local.save(d); } } catch (e2) {}
+          return { ok: true, offline: true };
+        }
+        return { ok: false, error: MSG_SESSION };
+      }
     },
 
     // ── CLIENTS (fiches d'enrichissement : contact, notes, tags) ──
