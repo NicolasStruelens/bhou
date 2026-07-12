@@ -72,6 +72,20 @@
     },
   };
 
+  // ── Sonde "vraiment hors-ligne ?" ──
+  // Quand la session Cloudflare Access EXPIRE, un fetch /api/* ne renvoie PAS une erreur serveur :
+  // il meurt en TypeError "Failed to fetch" (redirection cross-origin vers la page de login → CORS),
+  // EXACTEMENT comme une coupure réseau. Vérifié en conditions réelles sur la prod (12/07/2026).
+  // Discriminateur fiable : un fichier statique (/assets/*, exempté d'Access) répond toujours tant
+  // que le réseau fonctionne. Statique OK + API morte = session expirée, pas hors-ligne.
+  async function isReallyOffline() {
+    try {
+      await fetch('/assets/img/logo-solariscreen.png?ping=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
+      return false; // le réseau répond → l'échec API vient d'Access/du serveur, pas du réseau
+    } catch (e) { return true; }
+  }
+  const MSG_SESSION = 'Session expirée — recharge la page (F5) puis réessaie. Ta saisie est conservée.';
+
   // Lecture "stricte" réservée aux flux lecture→modification→écriture (addComment, updateStatus,
   // deleteComment) : un rejet SERVEUR (session Access expirée, erreur 500…) est propagé au lieu
   // d'être avalé silencieusement. Sans ça, ces fonctions retombaient sur le cache localStorage
@@ -83,6 +97,7 @@
     try { return (await req('/devis/' + id)).data; }
     catch (e) {
       if (e && e.serverRejected) throw e;
+      if (!(await isReallyOffline())) throw new Error(MSG_SESSION);
       console.warn('[SS] getDevis (mutation) → cache local:', e.message);
       return local.get(id);
     }
@@ -117,8 +132,14 @@
       // atteint le serveur — la donnée "disparaît" au prochain rechargement, qui lit l'état réel.
       catch (e) {
         if (e && e.serverRejected) { console.warn('[SS] saveDevis rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
-        console.warn('[SS] saveDevis hors-ligne:', e.message);
-        return { ok: true, id: devis.id, offline: true, error: e.message };
+        // TypeError "Failed to fetch" = hors-ligne OU session Access expirée (indistinguables
+        // sans sonde — les deux meurent en erreur réseau). On tranche avec un fichier statique.
+        if (await isReallyOffline()) {
+          console.warn('[SS] saveDevis hors-ligne:', e.message);
+          return { ok: true, id: devis.id, offline: true, error: e.message };
+        }
+        console.warn('[SS] saveDevis : réseau OK mais API injoignable (session Access expirée ?)');
+        return { ok: false, error: MSG_SESSION };
       }
     },
     async deleteDevis(id) {
@@ -129,6 +150,9 @@
       } catch (e) {
         // Rejet explicite du serveur (ex. factures liées → 409) : NE PAS supprimer localement, remonter l'erreur.
         if (e && e.serverRejected) return { ok: false, error: e.message };
+        // Session Access expirée (réseau OK, API morte) : ne rien supprimer, remonter l'erreur —
+        // sinon le devis "supprimé" localement réapparaît au prochain chargement (jamais effacé serveur).
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         // Vrai hors-ligne (réseau) : suppression locale optimiste.
         local.delete(id);
         console.warn('[SS] deleteDevis hors-ligne:', e.message);
