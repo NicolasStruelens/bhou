@@ -72,6 +72,22 @@
     },
   };
 
+  // Lecture "stricte" réservée aux flux lecture→modification→écriture (addComment, updateStatus,
+  // deleteComment) : un rejet SERVEUR (session Access expirée, erreur 500…) est propagé au lieu
+  // d'être avalé silencieusement. Sans ça, ces fonctions retombaient sur le cache localStorage
+  // (potentiellement vieux de plusieurs jours), y ajoutaient la modif, puis la RÉENREGISTRAIENT —
+  // écrasant durablement tout ce qui existait réellement côté serveur, sans jamais afficher
+  // d'erreur (l'écriture elle-même réussit). Seule une vraie panne réseau (hors-ligne réel, ex.
+  // Mode Terrain sans connexion) garde le comportement de repli sur le cache local.
+  async function getDevisForMutation(id) {
+    try { return (await req('/devis/' + id)).data; }
+    catch (e) {
+      if (e && e.serverRejected) throw e;
+      console.warn('[SS] getDevis (mutation) → cache local:', e.message);
+      return local.get(id);
+    }
+  }
+
   const SS = {
     async listDevis() {
       try { return (await req('/devis')).data; }
@@ -132,7 +148,9 @@
       } catch (e) { console.warn('[SS] uploadPhoto hors-ligne:', e.message); return null; }
     },
     async updateStatus(id, statut, by) {
-      const devis = await this.getDevis(id);
+      let devis;
+      try { devis = await getDevisForMutation(id); }
+      catch (e) { return { ok: false, error: e.message }; }
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.statut = statut;
       devis.date_modification = new Date().toISOString();
@@ -144,7 +162,9 @@
     // ── COMMENTAIRES INTERNES (fil de discussion Nicolas / Yannick sur un devis) ──
     async addComment(id, opts) {
       opts = opts || {};
-      const devis = await this.getDevis(id);
+      let devis;
+      try { devis = await getDevisForMutation(id); }
+      catch (e) { return { ok: false, error: e.message }; }
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.comments = devis.comments || [];
       const comment = {
@@ -170,7 +190,9 @@
       return Object.assign({}, res, { data: devis });
     },
     async deleteComment(devisId, commentId) {
-      const devis = await this.getDevis(devisId);
+      let devis;
+      try { devis = await getDevisForMutation(devisId); }
+      catch (e) { return { ok: false, error: e.message }; }
       if (!devis) return { ok: false, error: 'Devis introuvable' };
       devis.comments = (devis.comments || []).filter(function (c) { return String(c.id) !== String(commentId); });
       devis.date_modification = new Date().toISOString();
