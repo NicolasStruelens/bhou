@@ -297,29 +297,60 @@ export async function onRequest(context) {
         }
       }
       stampSignatureIp(devis, request);
-      // ── [DIAG notes qui disparaissent] Trace chaque écriture de devis dans le journal
-      // d'activité : nombre de notes AVANT → APRÈS, appareil d'origine. Visible via le bouton
-      // « Activité » du dashboard. À retirer une fois le coupable identifié.
-      try {
-        const prev = await env.DB.prepare(
-          "SELECT IFNULL(CAST(json_extract(data,'$.comments_count') AS INTEGER), IFNULL(json_array_length(data,'$.comments'), 0)) AS n FROM devis WHERE id = ?"
-        ).bind(devis.id).first();
-        const nAvant = prev ? (prev.n || 0) : 0;
-        const nApres = (devis.comments || []).length;
-        const ua = (request.headers.get('user-agent') || '').slice(0, 90);
-        const perte = nApres < nAvant ? ' ⚠️ PERTE DE NOTES !' : '';
-        await env.DB.prepare(
-          'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(
-          new Date().toISOString(),
-          (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || parseAccessEmail(request) || null,
-          'debug.devis_write', 'devis', String(devis.id).slice(0, 60),
-          `[DIAG] Devis #${devis.id} écrit : notes ${nAvant} → ${nApres}${perte} · statut ${devis.statut || '?'}`,
-          JSON.stringify({ ua }).slice(0, 1000)
-        ).run();
-      } catch (e) { /* le diagnostic ne doit jamais bloquer une vraie sauvegarde */ }
       await upsertDevis(env.DB, devis);
       return json({ ok: true, id: devis.id });
+    }
+    // ── COMMENTAIRE INTERNE : ajout CIBLÉ (json_insert sur la seule ligne) ──
+    // Ne relit ni ne réécrit jamais le devis complet → un commentaire ne peut pas être perdu par
+    // une écriture concurrente ou une lecture périmée. Même mécanique que /api/devis-review
+    // (question client), prouvée stable en production.
+    let mCommentAdd = path.match(/^\/api\/devis\/([^/]+)\/comment$/);
+    if (mCommentAdd && method === 'POST') {
+      const id = decodeURIComponent(mCommentAdd[1]);
+      const body = await request.json().catch(() => ({}));
+      const text = (body.text || '').trim();
+      if (!text) return json({ ok: false, error: 'Message vide' }, 400);
+      const comment = {
+        id: crypto.randomUUID(),
+        author: String(body.author || 'nicolas').slice(0, 40),
+        text: text.slice(0, 5000),
+        type: String(body.type || 'note').slice(0, 20),
+        date: new Date().toISOString(),
+      };
+      if (body.visible_client === true) comment.visible_client = true;
+      const now = comment.date;
+      const r = await env.DB.prepare(
+        `UPDATE devis SET
+           data = json_set(
+                    json_insert(
+                      json_set(data, '$.comments', json(COALESCE(json_extract(data, '$.comments'), '[]'))),
+                      '$.comments[#]', json(?1)),
+                    '$.comments_count', COALESCE(json_array_length(data, '$.comments'), 0) + 1,
+                    '$.date_modification', ?2),
+           date_modification = ?2
+         WHERE id = ?3`
+      ).bind(JSON.stringify(comment), now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.comments'), 0) AS n FROM devis WHERE id = ?").bind(id).first();
+      return json({ ok: true, comment, comments_count: row ? row.n : null });
+    }
+    // ── COMMENTAIRE INTERNE : suppression CIBLÉE (json_set des seules clés comments/count) ──
+    let mCommentDel = path.match(/^\/api\/devis\/([^/]+)\/comment\/([^/]+)$/);
+    if (mCommentDel && method === 'DELETE') {
+      const id = decodeURIComponent(mCommentDel[1]);
+      const cid = decodeURIComponent(mCommentDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const comments = (d.comments || []).filter(c => String(c.id) !== String(cid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE devis SET
+           data = json_set(data, '$.comments', json(?1), '$.comments_count', ?2, '$.date_modification', ?3),
+           date_modification = ?3
+         WHERE id = ?4`
+      ).bind(JSON.stringify(comments), comments.length, now, id).run();
+      return json({ ok: true, comments_count: comments.length });
     }
     let m = path.match(/^\/api\/devis\/([^/]+)$/);
     if (m) {
@@ -330,29 +361,7 @@ export async function onRequest(context) {
         const d = safeParse(row.data);
         return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Devis illisible (données corrompues)' }, 500);
       }
-      if (method === 'PUT') {
-        const d = await request.json();
-        stampSignatureIp(d, request);
-        // [DIAG notes qui disparaissent] Même trace que sur POST /api/devis : si un vieux client
-        // (page en cache, PWA téléphone…) passe encore par ici, on le verra dans le journal.
-        try {
-          const prev = await env.DB.prepare(
-            "SELECT IFNULL(CAST(json_extract(data,'$.comments_count') AS INTEGER), IFNULL(json_array_length(data,'$.comments'), 0)) AS n FROM devis WHERE id = ?"
-          ).bind(id).first();
-          const nAvant = prev ? (prev.n || 0) : 0;
-          const nApres = (d.comments || []).length;
-          const perte = nApres < nAvant ? ' ⚠️ PERTE DE NOTES !' : '';
-          await env.DB.prepare(
-            'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
-          ).bind(
-            new Date().toISOString(), null, 'debug.devis_write', 'devis', String(id).slice(0, 60),
-            `[DIAG] Devis #${id} écrit via PUT (chemin inhabituel !) : notes ${nAvant} → ${nApres}${perte}`,
-            JSON.stringify({ ua: (request.headers.get('user-agent') || '').slice(0, 90) }).slice(0, 1000)
-          ).run();
-        } catch (e) {}
-        await upsertDevis(env.DB, { ...d, id });
-        return json({ ok: true });
-      }
+      if (method === 'PUT') { const d = await request.json(); stampSignatureIp(d, request); await upsertDevis(env.DB, { ...d, id }); return json({ ok: true }); }
       if (method === 'DELETE') {
         const ex = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(id).first();
         if (!ex) return json({ ok: false, error: 'Devis introuvable' }, 404);
@@ -670,12 +679,22 @@ function stampSignatureIp(devis, request) {
 async function upsertDevis(db, devis) {
   const { id, client, statut, calculs, date_creation, date_modification } = devis;
   const now = new Date().toISOString();
+  // ⚠️ INVARIANT COMMENTAIRES : les commentaires ne sont modifiés QUE par les routes ciblées
+  // /api/devis/:id/comment. Ici (enregistrement du devis complet : simulateur, statut, signature,
+  // import…) on IGNORE les commentaires du payload et on PRÉSERVE ceux déjà en base. Ainsi, même
+  // si un client envoie une version du devis lue avant l'ajout d'une note, cette note n'est jamais
+  // écrasée. Un devis neuf (absent en base) garde les commentaires fournis (souvent aucun).
+  let comments = Array.isArray(devis.comments) ? devis.comments : [];
+  try {
+    const existing = await db.prepare("SELECT json_extract(data, '$.comments') AS c FROM devis WHERE id = ?").bind(id).first();
+    if (existing && existing.c != null) comments = safeParse(existing.c) || [];
+  } catch (e) { /* si la lecture échoue, on retombe sur le payload — jamais bloquant */ }
   const photosCount = (devis.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
-  const commentsCount = (devis.comments || []).length;
+  const commentsCount = comments.length;
   // Dénormalise les types de produits présents (petit tableau de chaînes) pour que la liste
   // /api/devis n'ait pas à extraire les items complets (avec leurs photos base64) juste pour ça.
   const itemTypes = [...new Set((devis.items || []).map(i => i.type).filter(Boolean))];
-  const dataToStore = { ...devis, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes };
+  const dataToStore = { ...devis, comments, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes };
   await db.prepare(`
     INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
