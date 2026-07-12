@@ -94,7 +94,16 @@
           : devis;
         return await req('/devis', { method: 'POST', body: JSON.stringify(payload) });
       }
-      catch (e) { console.warn('[SS] saveDevis hors-ligne:', e.message); return { ok: true, id: devis.id, offline: true, error: e.message }; }
+      // Distinction cruciale (déjà appliquée dans deleteDevis, oubliée ici) : un rejet SERVEUR
+      // (session Access expirée → page de login HTML au lieu de JSON, erreur 500, payload refusé…)
+      // n'est PAS une panne réseau. Le traiter comme "hors-ligne, ok:true" masque un échec réel :
+      // l'appelant croit avoir sauvegardé (toast succès, compteur incrémenté) alors que rien n'a
+      // atteint le serveur — la donnée "disparaît" au prochain rechargement, qui lit l'état réel.
+      catch (e) {
+        if (e && e.serverRejected) { console.warn('[SS] saveDevis rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
+        console.warn('[SS] saveDevis hors-ligne:', e.message);
+        return { ok: true, id: devis.id, offline: true, error: e.message };
+      }
     },
     async deleteDevis(id) {
       try {
