@@ -116,6 +116,41 @@ export async function onRequest(context) {
       const comments = (d.comments || [])
         .filter(c => c.author === 'client' || c.visible_client === true)
         .map(c => ({ author: c.author, text: c.text, date: c.date }));
+      // Document devis complet — pour afficher/imprimer chez le client LE MÊME devis que le PDF
+      // officiel (app/devis.html). Whitelist stricte : uniquement des champs qui figurent déjà
+      // sur le devis envoyé au client. JAMAIS pricing_v2.material (achats/vendeurs/marges),
+      // JAMAIS les bénéfices nicolas_net/yannick_net, JAMAIS les notes internes.
+      const calc = d.calculs || null;
+      const cl = d.client || {};
+      const documentData = (calc && calc.total_ttc != null) ? {
+        id: d.id, statut: d.statut || 'brouillon', informatif: !!d.informatif,
+        date_creation: d.date_creation || '',
+        client: {
+          prenom: cl.prenom || '', nom: cl.nom || '',
+          adresse: cl.adresse || {}, telephone: cl.telephone || '', email: cl.email || '',
+        },
+        items: (d.items || []).map(it => ({
+          type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
+          projection: it.projection || null, quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
+          variante: it.variante || '', combinaison: it.combinaison || '', manoeuvre: it.manoeuvre || '',
+          moteur: it.moteur || it.moteur_ref || '', couleur: it.couleur || '',
+          couleur_coulisses: it.couleur_coulisses || '', couleur_lame: it.couleur_lame || '',
+          toile: it.toile || it.collection || '', emplacement: it.emplacement || '', etage: it.etage || '',
+        })),
+        calc: {
+          total_ht: calc.total_ht || 0, total_tva: calc.total_tva || 0,
+          tva_pct: calc.tva_pct != null ? calc.tva_pct : 6,
+          total_ttc: calc.total_ttc || 0,
+          acompte_pct: calc.acompte_pct || 0, acompte_montant: calc.acompte_montant || 0,
+          install_total_brut: calc.install_total_brut || 0,
+          remise_catalogue: (calc.remise_catalogue && calc.remise_catalogue.amount) || 0,
+          remise_installation: ((calc.remise_installation && calc.remise_installation.amount) || 0)
+                             + ((calc.remise_outillage && calc.remise_outillage.amount) || 0),
+          extra_lines: (calc.extra_lines || []).map(e => ({ label: e.label || '', qty: e.qty || 1, unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0 })),
+          surplus_difficulte: (d.pricing_v2 && d.pricing_v2.surplus_difficulte) || 0,
+        },
+        signature: (d.signature && d.signature.image) ? { image: d.signature.image, date: d.signature.date || '' } : null,
+      } : null;
       return json({ ok: true, data: {
         prenom: (d.client && d.client.prenom) || '',
         id: d.id, statut: d.statut || 'brouillon', items,
@@ -123,6 +158,7 @@ export async function onRequest(context) {
         tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,
         client_accepted: !!d.client_accepted,
         comments,
+        document: documentData,
       } });
     } catch (e) {
       return json({ ok: false, error: 'Erreur serveur' }, 500);
