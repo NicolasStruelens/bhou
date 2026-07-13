@@ -279,71 +279,340 @@
       .forEach(function (n) { weeklyRow(n, archiveEl, 'terminé le ' + noteMeta(n)); });
   }
 
-  // ================= GRAPHE =================
+  // ================= LA CONSTELLATION =================
+  // graphe groupé par thème (tags/espace), taille selon la richesse, halo pour l'activité
+  // récente, orphelins en pointillés, suggestions de liens (moteur de similarité du Bloc F),
+  // filtre temporel, sélection + chemin entre deux notes, pan/zoom. Sans IA distante.
+
+  var graphState = {
+    offsetX: 0, offsetY: 0, scale: 1,
+    selectedId: null, pathIds: null,
+    positions: {}, suggestedLinks: [],
+    rafId: null, didDrag: false,
+  };
+
+  function graphClusterKey(n) {
+    var tags = parseTags(n.tags);
+    return tags.length ? tags[0].toLowerCase() : ('espace:' + effectiveSpace(n));
+  }
+
+  function graphRichness(n) {
+    var childCount = state.notes.filter(function (x) { return x.parent_id === n.id; }).length;
+    var linkCount = parseLinks(n.links).length;
+    return (n.content || '').length / 80 + childCount * 2 + linkCount * 2;
+  }
+
+  function isGraphOrphan(n) {
+    if (n.parent_id) return false;
+    if (parseLinks(n.links).length) return false;
+    return !state.notes.some(function (x) { return x.parent_id === n.id; });
+  }
+
+  function graphTimeCutoff() {
+    var val = document.getElementById('graphTimeFilter').value;
+    if (val === 'all') return null;
+    return Date.now() - Number(val) * 24 * 60 * 60 * 1000;
+  }
+
+  function computeGraphLayout(rect) {
+    var cutoff = graphTimeCutoff();
+    var pool = state.notes.filter(function (n) { return !cutoff || n.created_at >= cutoff; });
+    var clusters = {};
+    pool.forEach(function (n) {
+      var key = graphClusterKey(n);
+      (clusters[key] = clusters[key] || []).push(n);
+    });
+    var clusterKeys = Object.keys(clusters).sort(function (a, b) { return clusters[b].length - clusters[a].length; });
+
+    var cx = rect.width / 2, cy = rect.height / 2;
+    var universe = Math.max(80, Math.min(cx, cy) - 70);
+    var positions = {};
+
+    clusterKeys.forEach(function (key, ci) {
+      var angle = (ci / clusterKeys.length) * Math.PI * 2 - Math.PI / 2;
+      var clusterR = clusterKeys.length === 1 ? 0 : universe * 0.62;
+      var clusterCx = cx + Math.cos(angle) * clusterR;
+      var clusterCy = cy + Math.sin(angle) * clusterR;
+      var members = clusters[key];
+      var localR = Math.min(28 + members.length * 6, universe * 0.4);
+      members.forEach(function (n, ni) {
+        var a2 = (ni / members.length) * Math.PI * 2;
+        var jitterR = members.length === 1 ? 0 : localR * (0.5 + 0.5 * ((ni % 3) / 2));
+        positions[n.id] = {
+          x: clusterCx + Math.cos(a2) * jitterR,
+          y: clusterCy + Math.sin(a2) * jitterR,
+          n: n,
+          radius: Math.max(6, Math.min(16, 6 + graphRichness(n))),
+        };
+      });
+    });
+    return positions;
+  }
+
+  function computeSuggestedLinks(positions) {
+    var ids = Object.keys(positions);
+    var dismissed = dismissedSuggestions();
+    var suggestions = [];
+    for (var i = 0; i < ids.length && suggestions.length < 15; i++) {
+      for (var j = i + 1; j < ids.length && suggestions.length < 15; j++) {
+        var a = positions[ids[i]].n, b = positions[ids[j]].n;
+        var key = suggestionKey(a.id, b.id);
+        if (dismissed.indexOf(key) !== -1) continue;
+        if (similarityScore(a, b) >= 4) suggestions.push({ a: a.id, b: b.id });
+      }
+    }
+    return suggestions;
+  }
+
+  function buildLinkAdjacency(notesInGraph) {
+    var ids = {};
+    notesInGraph.forEach(function (n) { ids[n.id] = true; });
+    var adj = {};
+    notesInGraph.forEach(function (n) { adj[n.id] = parseLinks(n.links).filter(function (id) { return ids[id]; }); });
+    return adj;
+  }
+
+  function findGraphPath(adj, startId, endId) {
+    if (startId === endId) return [startId];
+    var visited = {};
+    visited[startId] = true;
+    var queue = [[startId]];
+    while (queue.length) {
+      var path = queue.shift();
+      var last = path[path.length - 1];
+      var neighbors = adj[last] || [];
+      for (var i = 0; i < neighbors.length; i++) {
+        var nb = neighbors[i];
+        if (nb === endId) return path.concat(nb);
+        if (!visited[nb]) { visited[nb] = true; queue.push(path.concat(nb)); }
+      }
+    }
+    return null;
+  }
+
+  function pointSegmentDistance(px, py, x1, y1, x2, y2) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var lenSq = dx * dx + dy * dy;
+    var t = lenSq ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq)) : 0;
+    var cx = x1 + t * dx, cy = y1 + t * dy;
+    return Math.hypot(px - cx, py - cy);
+  }
 
   function renderGraph() {
     var canvas = document.getElementById('graphCanvas');
-    var linked = state.notes.filter(function (n) { return parseLinks(n.links).length; });
-    document.getElementById('graphEmpty').style.display = linked.length ? 'none' : 'block';
-    canvas.style.display = linked.length ? '' : 'none';
-    if (!linked.length) return;
+    document.getElementById('graphEmpty').style.display = state.notes.length ? 'none' : 'block';
+    canvas.style.display = state.notes.length ? '' : 'none';
+    if (graphState.rafId) { cancelAnimationFrame(graphState.rafId); graphState.rafId = null; }
+    if (!state.notes.length) return;
 
     var rect = canvas.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     var ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
 
-    var cx = rect.width / 2, cy = rect.height / 2;
-    var radius = Math.min(cx, cy) - 60;
-    var positions = {};
-    linked.forEach(function (n, i) {
-      var angle = (i / linked.length) * Math.PI * 2 - Math.PI / 2;
-      positions[n.id] = { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, n: n };
-    });
+    graphState.positions = computeGraphLayout(rect);
+    graphState.suggestedLinks = computeSuggestedLinks(graphState.positions);
 
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    ctx.strokeStyle = 'rgba(52,211,153,0.35)';
-    ctx.lineWidth = 1.2;
-    var drawn = {};
-    linked.forEach(function (n) {
-      parseLinks(n.links).forEach(function (lid) {
-        if (!positions[lid]) return;
-        var key = [n.id, lid].sort().join('|');
-        if (drawn[key]) return;
-        drawn[key] = true;
-        var a = positions[n.id], b = positions[lid];
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
+    function draw() {
+      if (!document.getElementById('view-graph').classList.contains('active')) { graphState.rafId = null; return; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.save();
+      ctx.translate(graphState.offsetX, graphState.offsetY);
+      ctx.scale(graphState.scale, graphState.scale);
+
+      var positions = graphState.positions;
+      var now = Date.now();
+
+      ctx.strokeStyle = 'rgba(52,211,153,0.35)';
+      ctx.lineWidth = 1.2 / graphState.scale;
+      var drawnPairs = {};
+      Object.keys(positions).forEach(function (id) {
+        parseLinks(positions[id].n.links).forEach(function (lid) {
+          if (!positions[lid]) return;
+          var key = [id, lid].sort().join('|');
+          if (drawnPairs[key]) return;
+          drawnPairs[key] = true;
+          var a = positions[id], b = positions[lid];
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        });
       });
-    });
 
-    Object.keys(positions).forEach(function (id) {
-      var p = positions[id];
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-      ctx.fillStyle = p.n.pinned ? '#ffd23f' : '#22d3ee';
-      ctx.fill();
-      ctx.font = '11px sans-serif';
-      ctx.fillStyle = '#e2f5ec';
-      ctx.textAlign = 'center';
-      var label = p.n.title.length > 18 ? p.n.title.slice(0, 17) + '…' : p.n.title;
-      ctx.fillText(label, p.x, p.y - 12);
-    });
+      if (graphState.pathIds && graphState.pathIds.length > 1) {
+        ctx.strokeStyle = '#ffd23f';
+        ctx.lineWidth = 2.4 / graphState.scale;
+        for (var i = 0; i < graphState.pathIds.length - 1; i++) {
+          var pa = positions[graphState.pathIds[i]], pb = positions[graphState.pathIds[i + 1]];
+          if (!pa || !pb) continue;
+          ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        }
+      }
 
-    canvas.onclick = function (e) {
-      var r = canvas.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      var hit = Object.keys(positions).find(function (id) {
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255,210,63,0.5)';
+      ctx.lineWidth = 1 / graphState.scale;
+      graphState.suggestedLinks.forEach(function (s) {
+        var a = positions[s.a], b = positions[s.b];
+        if (!a || !b) return;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      Object.keys(positions).forEach(function (id) {
         var p = positions[id];
-        return Math.hypot(p.x - x, p.y - y) < 14;
+        var n = p.n;
+        var orphan = isGraphOrphan(n);
+        var recent = (now - n.updated_at) < 3 * 24 * 60 * 60 * 1000;
+
+        if (recent) {
+          var pulse = 0.3 + 0.25 * Math.sin(now / 500 + p.x);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius + 6, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(34,211,238,' + pulse + ')';
+          ctx.lineWidth = 2 / graphState.scale;
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        if (orphan) {
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = 'rgba(226,245,236,0.5)';
+          ctx.lineWidth = 1.4 / graphState.scale;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else {
+          ctx.fillStyle = n.pinned ? '#ffd23f' : '#22d3ee';
+          ctx.fill();
+        }
+        if (id === graphState.selectedId) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1.5 / graphState.scale;
+          ctx.stroke();
+        }
+        ctx.font = (11 / graphState.scale) + 'px sans-serif';
+        ctx.fillStyle = '#e2f5ec';
+        ctx.textAlign = 'center';
+        var label = n.title.length > 18 ? n.title.slice(0, 17) + '…' : n.title;
+        ctx.fillText(label, p.x, p.y - p.radius - 6);
       });
-      if (hit) jumpToNote(hit);
-    };
+
+      ctx.restore();
+      graphState.rafId = requestAnimationFrame(draw);
+    }
+    draw();
   }
+
+  function screenToGraph(canvas, clientX, clientY) {
+    var rect = canvas.getBoundingClientRect();
+    var x = clientX - rect.left, y = clientY - rect.top;
+    return { x: (x - graphState.offsetX) / graphState.scale, y: (y - graphState.offsetY) / graphState.scale };
+  }
+
+  function hitTestNode(gx, gy) {
+    var positions = graphState.positions;
+    return Object.keys(positions).find(function (id) {
+      var p = positions[id];
+      return Math.hypot(p.x - gx, p.y - gy) < p.radius + 6;
+    });
+  }
+
+  function hitTestSuggestedLink(gx, gy) {
+    var positions = graphState.positions;
+    for (var i = 0; i < graphState.suggestedLinks.length; i++) {
+      var s = graphState.suggestedLinks[i];
+      var a = positions[s.a], b = positions[s.b];
+      if (!a || !b) continue;
+      if (pointSegmentDistance(gx, gy, a.x, a.y, b.x, b.y) < 6) return s;
+    }
+    return null;
+  }
+
+  function handleGraphClick(clientX, clientY, canvas) {
+    if (graphState.didDrag) { graphState.didDrag = false; return; }
+    var g = screenToGraph(canvas, clientX, clientY);
+    var hitId = hitTestNode(g.x, g.y);
+    if (hitId) {
+      if (graphState.selectedId && graphState.selectedId !== hitId) {
+        var notesInGraph = Object.keys(graphState.positions).map(function (id) { return graphState.positions[id].n; });
+        var adj = buildLinkAdjacency(notesInGraph);
+        var path = findGraphPath(adj, graphState.selectedId, hitId);
+        if (path && path.length > 1) {
+          graphState.pathIds = path;
+          toast(path.length - 1 === 1 ? 'Lien direct entre ces deux notes' : 'Chemin trouvé en ' + (path.length - 1) + ' étapes');
+        } else {
+          toast('Aucun chemin trouvé entre ces deux notes');
+          graphState.pathIds = null;
+        }
+        graphState.selectedId = null;
+      } else if (graphState.selectedId === hitId) {
+        jumpToNote(hitId);
+        graphState.selectedId = null;
+        graphState.pathIds = null;
+      } else {
+        graphState.selectedId = hitId;
+        graphState.pathIds = null;
+      }
+      return;
+    }
+    var suggestion = hitTestSuggestedLink(g.x, g.y);
+    if (suggestion) addLink(suggestion.a, suggestion.b);
+  }
+
+  (function setupGraphInteractions() {
+    var canvas = document.getElementById('graphCanvas');
+    var panning = false, panStartX = 0, panStartY = 0, panStartOffsetX = 0, panStartOffsetY = 0;
+
+    canvas.addEventListener('mousedown', function (e) {
+      panning = true;
+      panStartX = e.clientX; panStartY = e.clientY;
+      panStartOffsetX = graphState.offsetX; panStartOffsetY = graphState.offsetY;
+      graphState.didDrag = false;
+    });
+    window.addEventListener('mousemove', function (e) {
+      if (!panning) return;
+      var dx = e.clientX - panStartX, dy = e.clientY - panStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) graphState.didDrag = true;
+      graphState.offsetX = panStartOffsetX + dx;
+      graphState.offsetY = panStartOffsetY + dy;
+    });
+    window.addEventListener('mouseup', function () { panning = false; });
+    canvas.addEventListener('click', function (e) { handleGraphClick(e.clientX, e.clientY, canvas); });
+
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var factor = e.deltaY > 0 ? 0.9 : 1.1;
+      graphState.scale = Math.max(0.3, Math.min(3, graphState.scale * factor));
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      panning = true;
+      panStartX = e.touches[0].clientX; panStartY = e.touches[0].clientY;
+      panStartOffsetX = graphState.offsetX; panStartOffsetY = graphState.offsetY;
+      graphState.didDrag = false;
+    }, { passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (!panning || e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - panStartX, dy = e.touches[0].clientY - panStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) graphState.didDrag = true;
+      graphState.offsetX = panStartOffsetX + dx;
+      graphState.offsetY = panStartOffsetY + dy;
+    }, { passive: true });
+    canvas.addEventListener('touchend', function (e) {
+      panning = false;
+      if (e.changedTouches.length) handleGraphClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY, canvas);
+    });
+
+    document.getElementById('graphResetView').addEventListener('click', function () {
+      graphState.offsetX = 0; graphState.offsetY = 0; graphState.scale = 1;
+      graphState.selectedId = null; graphState.pathIds = null;
+    });
+    document.getElementById('graphTimeFilter').addEventListener('change', renderGraph);
+  })();
 
   window.addEventListener('resize', function () {
     if (document.getElementById('view-graph').classList.contains('active')) renderGraph();
