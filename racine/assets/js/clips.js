@@ -103,6 +103,7 @@
     pinBtn.className = 'clip-pin-btn' + (c.pinned ? ' active' : '');
     pinBtn.appendChild(icon('star'));
     pinBtn.title = c.pinned ? 'Retirer des favoris' : 'Mettre en favori';
+    pinBtn.setAttribute('aria-label', pinBtn.title);
     pinBtn.addEventListener('click', function () {
       RA.updateClip(c.id, { pinned: !c.pinned }).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); });
     });
@@ -139,6 +140,7 @@
     delBtn.className = 'icon-btn';
     delBtn.appendChild(icon('x'));
     delBtn.title = 'Mettre à la corbeille';
+    delBtn.setAttribute('aria-label', 'Mettre à la corbeille');
     delBtn.addEventListener('click', function () {
       card.classList.add('removing');
       setTimeout(function () {
@@ -263,6 +265,7 @@
     linkBtn.className = 'btn btn-icon';
     linkBtn.appendChild(icon('link'));
     linkBtn.title = 'Copier le lien direct';
+    linkBtn.setAttribute('aria-label', 'Copier le lien direct');
     linkBtn.addEventListener('click', function () {
       navigator.clipboard.writeText(location.origin + '/app.html?clip=' + c.id).then(function () {
         toast('Lien copié');

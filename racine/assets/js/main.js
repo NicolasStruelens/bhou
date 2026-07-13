@@ -41,3 +41,8 @@
   initFromQuery();
   autoBackupIfNeeded();
   syncPreferencesFromServer();
+  if (navigator.onLine) {
+    OfflineQueue.flush().then(function (synced) {
+      if (synced > 0) { loadNotes(); loadClips(); loadRecipes(); toast(synced + ' action(s) synchronisée(s) depuis la dernière session hors-ligne'); }
+    });
+  }

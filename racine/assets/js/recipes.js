@@ -69,8 +69,11 @@
       var chip = document.createElement('span');
       chip.className = 'ingredient-chip';
       chip.appendChild(document.createTextNode(formatIngredientLabel(ing)));
-      var x = document.createElement('span');
+      var x = document.createElement('button');
+      x.type = 'button';
       x.className = 'ingredient-chip-x';
+      x.title = 'Retirer cet ingrédient';
+      x.setAttribute('aria-label', 'Retirer cet ingrédient');
       x.appendChild(icon('x', 'icon-inline'));
       x.addEventListener('click', function () {
         recipeDraftIngredients.splice(idx, 1);
@@ -149,6 +152,7 @@
     var editBtn = document.createElement('button');
     editBtn.className = 'icon-btn';
     editBtn.title = 'Renommer';
+    editBtn.setAttribute('aria-label', 'Renommer');
     editBtn.appendChild(icon('pencil'));
     editBtn.addEventListener('click', function () {
       var newTitle = prompt('Renommer la recette :', r.title);
@@ -160,6 +164,7 @@
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
     delBtn.title = 'Mettre à la corbeille';
+    delBtn.setAttribute('aria-label', 'Mettre à la corbeille');
     delBtn.appendChild(icon('x'));
     delBtn.addEventListener('click', function () {
       card.classList.add('removing');
@@ -191,10 +196,12 @@
       var name = document.createElement('span');
       name.textContent = formatIngredientLabel(ing);
       row.appendChild(name);
-      var rm = document.createElement('span');
+      var rm = document.createElement('button');
+      rm.type = 'button';
       rm.className = 'ingredient-remove';
       rm.appendChild(icon('x', 'icon-inline'));
       rm.title = 'Retirer cet ingrédient';
+      rm.setAttribute('aria-label', 'Retirer cet ingrédient');
       rm.addEventListener('click', function (e) {
         e.preventDefault();
         var next = ingredients.filter(function (_, i) { return i !== idx; });

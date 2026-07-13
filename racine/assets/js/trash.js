@@ -26,6 +26,7 @@
     restoreBtn.className = 'icon-btn restore-btn';
     restoreBtn.appendChild(icon('history'));
     restoreBtn.title = 'Restaurer';
+    restoreBtn.setAttribute('aria-label', 'Restaurer');
     restoreBtn.addEventListener('click', function () {
       RA.restoreNote(n.id).then(function () { loadTrash(); loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
@@ -35,6 +36,7 @@
     purgeBtn.className = 'icon-btn';
     purgeBtn.appendChild(icon('x'));
     purgeBtn.title = 'Supprimer définitivement';
+    purgeBtn.setAttribute('aria-label', 'Supprimer définitivement « ' + n.title + ' »');
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + n.title + ' » ?')) return;
       el.classList.add('removing');
@@ -151,6 +153,9 @@
     withReminder.forEach(function (n) {
       var row = document.createElement('div');
       row.className = 'reminder-row' + (n.remind_at <= Date.now() ? ' overdue' : '');
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-label', 'Ouvrir « ' + n.title + ' »');
       var dateEl = document.createElement('div');
       dateEl.className = 'reminder-date';
       dateEl.textContent = formatRemindAt(n.remind_at);
@@ -164,6 +169,9 @@
       spaceEl.textContent = effectiveSpace(n);
       row.appendChild(spaceEl);
       row.addEventListener('click', function () { jumpToNote(n.id); });
+      row.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToNote(n.id); }
+      });
       list.appendChild(row);
     });
   }

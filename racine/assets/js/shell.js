@@ -142,6 +142,7 @@
       swatch.className = 'color-swatch' + (hex === current ? ' selected' : '');
       swatch.style.background = hex;
       swatch.title = hex;
+      swatch.setAttribute('aria-label', 'Choisir la couleur ' + hex);
       swatch.addEventListener('click', function () {
         var colors = spaceColors();
         colors[name] = hex;
@@ -224,8 +225,13 @@
   // ---------- tabs ----------
   var captureInput = document.getElementById('captureInput');
 
+  var ATELIER_VIEWS = ['clips', 'recipes', 'reminders', 'trash'];
+  var atelierToggle = document.getElementById('atelierToggle');
+  var atelierDropdown = document.getElementById('atelierDropdown');
+
   function switchTab(name) {
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === name); });
+    atelierToggle.classList.toggle('active', ATELIER_VIEWS.indexOf(name) !== -1);
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + name); });
     if (name === 'trash') loadTrash();
     if (name === 'reminders') renderReminders();
@@ -233,8 +239,28 @@
     if (name === 'graph') renderGraph();
     if (name === 'recipes') loadRecipes();
   }
-  document.querySelectorAll('.tab').forEach(function (tab) {
+  document.querySelectorAll('.tab:not(.atelier-toggle)').forEach(function (tab) {
     tab.addEventListener('click', function () { switchTab(tab.dataset.view); });
+  });
+
+  function closeAtelier() {
+    atelierDropdown.classList.add('hidden');
+    atelierToggle.setAttribute('aria-expanded', 'false');
+  }
+  atelierToggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var willOpen = atelierDropdown.classList.contains('hidden');
+    atelierDropdown.classList.toggle('hidden', !willOpen);
+    atelierToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+  atelierDropdown.querySelectorAll('.atelier-item').forEach(function (item) {
+    item.addEventListener('click', closeAtelier);
+  });
+  document.addEventListener('click', function (e) {
+    if (!atelierDropdown.classList.contains('hidden') && !e.target.closest('.atelier-wrap')) closeAtelier();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !atelierDropdown.classList.contains('hidden')) closeAtelier();
   });
 
   document.getElementById('logoutBtn').addEventListener('click', function () {

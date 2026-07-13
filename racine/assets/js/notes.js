@@ -1,339 +1,5 @@
-// Racine — notes : capture, énergie/someday, templates, palette de commandes, tags, liens, édition, arbre, drag & drop
+// Racine — notes : édition complète, rendu des cartes, chargement/état de la vue
   // ================= NOTES =================
-
-  var kindSelect = document.getElementById('kindSelect');
-  kindSelect.addEventListener('click', function (e) {
-    var btn = e.target.closest('.kind-btn');
-    if (!btn) return;
-    state.kind = btn.dataset.kind;
-    kindSelect.querySelectorAll('.kind-btn').forEach(function (b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-  });
-
-  var pinToggle = document.getElementById('pinToggle');
-  pinToggle.addEventListener('click', function () {
-    state.pinned = !state.pinned;
-    pinToggle.classList.toggle('active', state.pinned);
-  });
-
-  var energySelect = document.getElementById('energySelect');
-  energySelect.addEventListener('click', function (e) {
-    var btn = e.target.closest('.energy-btn');
-    if (!btn) return;
-    state.energy = state.energy === btn.dataset.energy ? '' : btn.dataset.energy;
-    energySelect.querySelectorAll('.energy-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.energy === state.energy); });
-  });
-
-  var somedayToggle = document.getElementById('somedayToggle');
-  somedayToggle.addEventListener('click', function () {
-    state.someday = !state.someday;
-    somedayToggle.classList.toggle('active', state.someday);
-  });
-
-  var TEMPLATES = {
-    appel: { kind: 'todo', title: 'Appeler ', tags: '#appel', energy: 'facile' },
-    bug: { kind: 'todo', title: 'Bug : ', tags: '#bug', energy: 'urgent' },
-    business: { kind: 'idee', title: '', tags: '#business', energy: 'profond' },
-    maison: { kind: 'todo', title: '', tags: '#maison', energy: '2min' },
-    transfert: { kind: 'note', title: 'Commande à transférer : ', tags: '#transfert', energy: '' },
-  };
-  document.getElementById('templateRow').addEventListener('click', function (e) {
-    var btn = e.target.closest('.template-btn');
-    if (!btn) return;
-    var t = TEMPLATES[btn.dataset.template];
-    if (!t) return;
-    state.kind = t.kind;
-    kindSelect.querySelectorAll('.kind-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.kind === t.kind); });
-    captureTags.value = t.tags;
-    state.energy = t.energy;
-    energySelect.querySelectorAll('.energy-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.energy === t.energy); });
-    captureInput.value = t.title;
-    captureBar.classList.toggle('has-value', !!t.title);
-    captureInput.focus();
-    captureInput.setSelectionRange(t.title.length, t.title.length);
-  });
-
-  var captureBar = document.getElementById('captureBar');
-  var captureDetails = document.getElementById('captureDetails');
-  var detailToggle = document.getElementById('detailToggle');
-  var captureAdd = document.getElementById('captureAdd');
-
-  detailToggle.addEventListener('click', function () {
-    var open = captureDetails.classList.toggle('open');
-    detailToggle.classList.toggle('active', open);
-    detailToggle.textContent = open ? '− masquer les détails' : '+ ajouter des détails';
-    if (open) captureDetails.focus();
-  });
-
-  captureInput.addEventListener('input', function () {
-    captureBar.classList.toggle('has-value', !!captureInput.value.trim());
-  });
-
-  var captureTags = document.getElementById('captureTags');
-
-  // ---------- analyseur de date en langage naturel (FR) ----------
-  // utilisé par la commande /rappel et par la détection passive de mots de date dans la capture
-  function parseNaturalDate(str) {
-    var s = (str || '').toLowerCase();
-    var now = new Date();
-    var target = null;
-    var m;
-    if (/\bapr[eè]s[\s-]?demain\b/.test(s)) {
-      target = new Date(now); target.setDate(target.getDate() + 2);
-    } else if (/\bdemain\b/.test(s)) {
-      target = new Date(now); target.setDate(target.getDate() + 1);
-    } else if (/\baujourd'?hui\b/.test(s)) {
-      target = new Date(now);
-    } else if ((m = /\bdans\s+(\d+)\s*jours?\b/.exec(s))) {
-      target = new Date(now); target.setDate(target.getDate() + Number(m[1]));
-    } else {
-      var days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-      for (var i = 0; i < days.length; i++) {
-        if (new RegExp('\\b' + days[i] + '\\b').test(s)) {
-          target = new Date(now);
-          var delta = (i - now.getDay() + 7) % 7;
-          if (delta === 0) delta = 7;
-          target.setDate(target.getDate() + delta);
-          break;
-        }
-      }
-    }
-    if (!target) return null;
-    var timeMatch = /\b(\d{1,2})h(\d{2})?\b/.exec(s);
-    var hour = 9, min = 0;
-    if (timeMatch) { hour = Math.min(23, Number(timeMatch[1])); min = timeMatch[2] ? Number(timeMatch[2]) : 0; }
-    target.setHours(hour, min, 0, 0);
-    return target.getTime();
-  }
-
-  // ---------- palette de commandes : /todo /idee /note /rappel <date> /espace X /tag X ----------
-  function parseCaptureCommand(raw) {
-    var result = { kind: null, remind_at: null, space: null, tags: [] };
-    var text = raw;
-    text = text.replace(/\/espace\s+([^\/]+)/i, function (_, g) { result.space = g.trim(); return ' '; });
-    text = text.replace(/\/tag\s+([^\/]+)/i, function (_, g) { result.tags.push('#' + g.trim().replace(/^#/, '').split(/\s+/)[0]); return ' '; });
-    text = text.replace(/\/rappel\s+([^\/]+)/i, function (_, g) {
-      var ts = parseNaturalDate(g);
-      if (ts) result.remind_at = ts;
-      return ' ';
-    });
-    text = text.replace(/\/todo\b/i, function () { result.kind = 'todo'; return ' '; });
-    text = text.replace(/\/idee\b/i, function () { result.kind = 'idee'; return ' '; });
-    text = text.replace(/\/note\b/i, function () { result.kind = 'note'; return ' '; });
-    result.title = text.replace(/\s+/g, ' ').trim();
-    return result;
-  }
-
-  function submitCapture() {
-    var raw = captureInput.value.trim();
-    if (!raw) { captureInput.focus(); return; }
-    var cmd = parseCaptureCommand(raw);
-    var title = cmd.title;
-    if (!title) { captureInput.focus(); return; }
-    var remindAt = cmd.remind_at;
-    if (!remindAt) {
-      // détection passive : un mot de date dans le texte pose un rappel automatiquement, sans le retirer du titre
-      remindAt = parseNaturalDate(title);
-    }
-    RA.createNote({
-      title: title,
-      content: captureDetails.value.trim(),
-      kind: cmd.kind || state.kind,
-      pinned: state.pinned,
-      space: cmd.space || (state.activeSpace === OVERVIEW ? 'Général' : state.activeSpace),
-      tags: parseTags(captureTags.value).concat(cmd.tags).join(' '),
-      remind_at: remindAt || null,
-      energy: state.energy,
-      status: state.someday ? 'someday' : 'active',
-    }).then(function (res) {
-      captureInput.value = '';
-      captureDetails.value = '';
-      captureTags.value = '';
-      captureDetails.classList.remove('open');
-      detailToggle.classList.remove('active');
-      detailToggle.textContent = '+ ajouter des détails';
-      state.pinned = false;
-      pinToggle.classList.remove('active');
-      state.energy = '';
-      energySelect.querySelectorAll('.energy-btn').forEach(function (b) { b.classList.remove('active'); });
-      state.someday = false;
-      somedayToggle.classList.remove('active');
-      captureBar.classList.remove('has-value');
-      state.lastAddedId = res.id;
-      if (cmd.space && knownSpaces().indexOf(cmd.space) === -1 && cmd.space !== 'Général') saveKnownSpace(cmd.space);
-      if (remindAt) toast('Rappel posé pour ' + formatRemindAt(remindAt));
-      loadNotes();
-    }).catch(function (err) { toast('Erreur : ' + err.message); });
-  }
-
-  captureInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') submitCapture();
-  });
-  captureDetails.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitCapture();
-  });
-  captureAdd.addEventListener('click', submitCapture);
-
-  // ---------- recherche / filtre ----------
-  var searchInput = document.getElementById('searchInput');
-  var filterKindEl = document.getElementById('filterKind');
-  var filterPinnedBtn = document.getElementById('filterPinned');
-  var searchAllSpacesBtn = document.getElementById('searchAllSpaces');
-  var filterEnergyEl = document.getElementById('filterEnergy');
-  var filterSomedayBtn = document.getElementById('filterSomeday');
-
-  filterEnergyEl.addEventListener('change', function () {
-    state.filterEnergy = filterEnergyEl.value;
-    renderNotesView();
-  });
-  filterSomedayBtn.addEventListener('click', function () {
-    state.filterSomeday = !state.filterSomeday;
-    filterSomedayBtn.classList.toggle('active', state.filterSomeday);
-    renderNotesView();
-  });
-
-  // ---------- opérateurs de recherche : tag: espace: energie: kind: avant: apres: someday: pin: ----------
-  function parseSearchQuery(raw) {
-    var q = { tag: null, space: null, energy: null, kind: null, before: null, after: null, someday: null, pinned: null };
-    var s = raw;
-    s = s.replace(/\btag:(\S+)/i, function (_, g) { q.tag = g.replace(/^#/, '').toLowerCase(); return ' '; });
-    s = s.replace(/\bespace:(\S+)/i, function (_, g) { q.space = g; return ' '; });
-    s = s.replace(/\benergie:(\S+)/i, function (_, g) { q.energy = g.toLowerCase(); return ' '; });
-    s = s.replace(/\bkind:(\S+)/i, function (_, g) { q.kind = g.toLowerCase(); return ' '; });
-    s = s.replace(/\bavant:(\S+)/i, function (_, g) { var t = Date.parse(g); if (!isNaN(t)) q.before = t; return ' '; });
-    s = s.replace(/\bapres:(\S+)/i, function (_, g) { var t = Date.parse(g); if (!isNaN(t)) q.after = t; return ' '; });
-    s = s.replace(/\bsomeday:(oui|yes|true)\b/i, function () { q.someday = true; return ' '; });
-    s = s.replace(/\bpin:(oui|yes|true)\b/i, function () { q.pinned = true; return ' '; });
-    q.text = s.replace(/\s+/g, ' ').trim().toLowerCase();
-    return q;
-  }
-  function hasSearchOperators(q) {
-    return !!(q.tag || q.space || q.energy || q.kind || q.before || q.after || q.someday || q.pinned);
-  }
-
-  searchInput.addEventListener('input', function () {
-    state.searchQuery = parseSearchQuery(searchInput.value.trim());
-    state.searchTerm = state.searchQuery.text;
-    renderNotesView();
-  });
-  filterKindEl.addEventListener('click', function (e) {
-    var btn = e.target.closest('.kind-btn');
-    if (!btn) return;
-    state.filterKind = btn.dataset.kind;
-    filterKindEl.querySelectorAll('.kind-btn').forEach(function (b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-    renderNotesView();
-  });
-  filterPinnedBtn.addEventListener('click', function () {
-    state.filterPinned = !state.filterPinned;
-    filterPinnedBtn.classList.toggle('active', state.filterPinned);
-    renderNotesView();
-  });
-  state.searchAllSpaces = false;
-  searchAllSpacesBtn.addEventListener('click', function () {
-    state.searchAllSpaces = !state.searchAllSpaces;
-    searchAllSpacesBtn.classList.toggle('active', state.searchAllSpaces);
-    renderNotesView();
-  });
-
-  function parseTags(str) {
-    return (str || '').split(/\s+/).map(function (t) { return t.trim(); }).filter(function (t) { return t.indexOf('#') === 0 && t.length > 1; });
-  }
-
-  // ---------- liens entre notes ("voir aussi") ----------
-  function parseLinks(str) {
-    return (str || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-  }
-
-  function addLink(aId, bId) {
-    if (aId === bId) return;
-    var a = state.notes.find(function (n) { return n.id === aId; });
-    var b = state.notes.find(function (n) { return n.id === bId; });
-    if (!a || !b) return;
-    var aLinks = parseLinks(a.links);
-    var bLinks = parseLinks(b.links);
-    if (aLinks.indexOf(bId) === -1) aLinks.push(bId);
-    if (bLinks.indexOf(aId) === -1) bLinks.push(aId);
-    Promise.all([
-      RA.updateNote(aId, { links: aLinks.join(',') }),
-      RA.updateNote(bId, { links: bLinks.join(',') }),
-    ]).then(function () { loadNotes(); toast('Notes liées'); }).catch(function (err) { toast('Erreur : ' + err.message); });
-  }
-
-  function removeLink(aId, bId) {
-    var a = state.notes.find(function (n) { return n.id === aId; });
-    var b = state.notes.find(function (n) { return n.id === bId; });
-    var updates = [];
-    if (a) updates.push(RA.updateNote(aId, { links: parseLinks(a.links).filter(function (x) { return x !== bId; }).join(',') }));
-    if (b) updates.push(RA.updateNote(bId, { links: parseLinks(b.links).filter(function (x) { return x !== aId; }).join(',') }));
-    Promise.all(updates).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
-  }
-
-  function jumpToNote(id) {
-    var n = state.notes.find(function (x) { return x.id === id; });
-    if (!n) { toast('Note introuvable (peut-être supprimée)'); return; }
-    switchTab('notes');
-    setActiveSpace(effectiveSpace(n));
-    state.searchTerm = '';
-    state.searchQuery = parseSearchQuery('');
-    searchInput.value = '';
-    state.filterKind = 'all';
-    state.filterPinned = false;
-    state.filterTag = null;
-    setTimeout(function () {
-      var el = document.querySelector('[data-id="' + id + '"]');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('just-added');
-        setTimeout(function () { el.classList.remove('just-added'); }, 1200);
-      }
-    }, 150);
-  }
-
-  var linkModal = document.getElementById('linkModal');
-  var linkSourceTitle = document.getElementById('linkSourceTitle');
-  var linkSearch = document.getElementById('linkSearch');
-  var linkResults = document.getElementById('linkResults');
-  var linkSourceId = null;
-
-  function renderLinkResults() {
-    var term = linkSearch.value.trim().toLowerCase();
-    var source = state.notes.find(function (n) { return n.id === linkSourceId; });
-    var already = source ? parseLinks(source.links) : [];
-    var results = state.notes.filter(function (n) {
-      if (n.id === linkSourceId || already.indexOf(n.id) !== -1) return false;
-      if (!term) return true;
-      return n.title.toLowerCase().indexOf(term) !== -1;
-    }).slice(0, 30);
-    linkResults.innerHTML = '';
-    results.forEach(function (n) {
-      var item = document.createElement('button');
-      item.className = 'link-result-item';
-      item.textContent = n.title;
-      var spaceEl = document.createElement('span');
-      spaceEl.className = 'link-result-space';
-      spaceEl.textContent = effectiveSpace(n);
-      item.appendChild(spaceEl);
-      item.addEventListener('click', function () {
-        addLink(linkSourceId, n.id);
-        linkModal.classList.remove('show');
-      });
-      linkResults.appendChild(item);
-    });
-  }
-
-  function openLinkModal(n) {
-    linkSourceId = n.id;
-    linkSourceTitle.textContent = n.title;
-    linkSearch.value = '';
-    renderLinkResults();
-    linkModal.classList.add('show');
-    linkSearch.focus();
-  }
-
-  document.getElementById('linkClose').addEventListener('click', function () { linkModal.classList.remove('show'); });
-  linkModal.addEventListener('click', function (e) { if (e.target === linkModal) linkModal.classList.remove('show'); });
-  linkSearch.addEventListener('input', renderLinkResults);
 
   // ---------- édition complète ----------
   var editModal = document.getElementById('editModal');
@@ -455,251 +121,9 @@
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
 
-  function matchesFilter(n) {
-    if (state.filterKind !== 'all' && n.kind !== state.filterKind) return false;
-    if (state.filterPinned && !n.pinned) return false;
-    if (state.filterEnergy && (n.energy || '') !== state.filterEnergy) return false;
-    var wantsSomeday = state.filterSomeday || (state.searchQuery && state.searchQuery.someday);
-    if (wantsSomeday && n.status !== 'someday') return false;
-    if (!wantsSomeday && n.status === 'someday') return false;
-    if (state.filterTag && parseTags(n.tags).map(function (t) { return t.toLowerCase(); }).indexOf(state.filterTag.toLowerCase()) === -1) return false;
-    if (state.searchTerm) {
-      var hay = (n.title + ' ' + (n.content || '') + ' ' + (n.tags || '')).toLowerCase();
-      if (hay.indexOf(state.searchTerm) === -1) return false;
-    }
-    var q = state.searchQuery;
-    if (q) {
-      if (q.tag && parseTags(n.tags).map(function (t) { return t.toLowerCase().replace(/^#/, ''); }).indexOf(q.tag) === -1) return false;
-      if (q.space && effectiveSpace(n).toLowerCase() !== q.space.toLowerCase()) return false;
-      if (q.energy && (n.energy || '').toLowerCase() !== q.energy) return false;
-      if (q.kind && n.kind !== q.kind) return false;
-      if (q.someday && n.status !== 'someday') return false;
-      if (q.pinned && !n.pinned) return false;
-      if (q.before && n.created_at >= q.before) return false;
-      if (q.after && n.created_at <= q.after) return false;
-    }
-    return true;
-  }
-
-  function renderTagBar() {
-    var bar = document.getElementById('tagBar');
-    bar.innerHTML = '';
-    var scoped = state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
-    var set = {};
-    scoped.forEach(function (n) { parseTags(n.tags).forEach(function (t) { set[t] = true; }); });
-    var tags = Object.keys(set).sort();
-    if (!tags.length) { state.filterTag = null; return; }
-    tags.forEach(function (t) {
-      var chip = document.createElement('button');
-      chip.className = 'tag-chip' + (state.filterTag === t ? ' active' : '');
-      chip.textContent = t;
-      chip.addEventListener('click', function () {
-        state.filterTag = state.filterTag === t ? null : t;
-        renderTagBar();
-        renderNotesView();
-      });
-      bar.appendChild(chip);
-    });
-  }
-
-  function buildTree(notes) {
-    var byId = {};
-    notes.forEach(function (n) { byId[n.id] = n; n._children = []; });
-    var roots = [];
-    notes.forEach(function (n) {
-      if (n.parent_id && byId[n.parent_id]) byId[n.parent_id]._children.push(n);
-      else roots.push(n);
-    });
-    return roots;
-  }
-
   function noteMeta(n) {
     var d = new Date(n.created_at);
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  }
-
-  // ---------- espaces (multi-projets) ----------
-  function effectiveSpace(n) {
-    var byId = {};
-    state.notes.forEach(function (x) { byId[x.id] = x; });
-    var cur = n;
-    var seen = {};
-    while (cur && cur.parent_id && byId[cur.parent_id] && !seen[cur.id]) {
-      seen[cur.id] = true;
-      cur = byId[cur.parent_id];
-    }
-    return (cur && cur.space) || 'Général';
-  }
-
-  function allSpaces() {
-    var set = { 'Général': true };
-    knownSpaces().forEach(function (s) { set[s] = true; });
-    state.notes.forEach(function (n) { if (!n.parent_id) set[n.space || 'Général'] = true; });
-    var arr = Object.keys(set);
-    arr.sort(function (a, b) {
-      if (a === 'Général') return -1;
-      if (b === 'Général') return 1;
-      return a.localeCompare(b);
-    });
-    return arr;
-  }
-
-  function setActiveSpace(name) {
-    state.activeSpace = name;
-    state.filterTag = null;
-    localStorage.setItem('racine_active_space', name);
-    document.getElementById('captureBar').style.display = name === OVERVIEW ? 'none' : '';
-    renderSpaceBar();
-    renderTagBar();
-    renderNotesView();
-  }
-
-  function renderSpaceBar() {
-    var bar = document.getElementById('spaceBar');
-    bar.innerHTML = '';
-
-    var overviewBtn = document.createElement('button');
-    overviewBtn.className = 'space-pill overview' + (state.activeSpace === OVERVIEW ? ' active' : '');
-    var oDot = document.createElement('span'); oDot.className = 'dot';
-    overviewBtn.appendChild(oDot);
-    overviewBtn.appendChild(document.createTextNode("Vue d'ensemble"));
-    overviewBtn.addEventListener('click', function () { setActiveSpace(OVERVIEW); });
-    bar.appendChild(overviewBtn);
-
-    allSpaces().forEach(function (name) {
-      var btn = document.createElement('button');
-      btn.className = 'space-pill' + (state.activeSpace === name ? ' active' : '');
-      applySpaceColorVars(btn, name);
-      var dot = document.createElement('span'); dot.className = 'dot';
-      btn.appendChild(dot);
-      btn.appendChild(document.createTextNode(name));
-      btn.addEventListener('click', function () { setActiveSpace(name); });
-
-      var colorBtn = document.createElement('span');
-      colorBtn.className = 'space-pill-color';
-      colorBtn.appendChild(icon('droplet'));
-      colorBtn.title = 'Choisir une couleur';
-      colorBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        openColorPicker(name);
-        colorModal.classList.add('show');
-      });
-      btn.appendChild(colorBtn);
-
-      if (name !== 'Général') {
-        var editBtn = document.createElement('span');
-        editBtn.className = 'space-pill-edit';
-        editBtn.appendChild(icon('pencil'));
-        editBtn.title = 'Renommer l\'espace « ' + name + ' »';
-        editBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          renameSpace(name);
-        });
-        btn.appendChild(editBtn);
-
-        var delX = document.createElement('span');
-        delX.className = 'space-pill-del';
-        delX.appendChild(icon('x'));
-        delX.title = 'Supprimer l\'espace « ' + name + ' »';
-        delX.addEventListener('click', function (e) {
-          e.stopPropagation();
-          deleteSpace(name);
-        });
-        btn.appendChild(delX);
-      }
-      bar.appendChild(btn);
-    });
-
-    var addBtn = document.createElement('button');
-    addBtn.className = 'space-pill-add';
-    addBtn.textContent = '+ espace';
-    addBtn.addEventListener('click', function () {
-      var name = prompt('Nom du nouvel espace (projet, passion…) :');
-      if (!name || !name.trim()) return;
-      name = name.trim().slice(0, 60);
-      saveKnownSpace(name);
-      setActiveSpace(name);
-    });
-    bar.appendChild(addBtn);
-  }
-
-  // ---------- glisser-déposer ----------
-  function clearDragClasses() {
-    document.querySelectorAll('.node, .root-card, .branch-row').forEach(function (n) {
-      n.classList.remove('drag-before', 'drag-after', 'drag-nest', 'dragging');
-    });
-  }
-
-  function isDescendantOf(childId, potentialAncestorId) {
-    var byId = {};
-    state.notes.forEach(function (n) { byId[n.id] = n; });
-    var cur = byId[childId];
-    while (cur && cur.parent_id) {
-      if (cur.parent_id === potentialAncestorId) return true;
-      cur = byId[cur.parent_id];
-    }
-    return false;
-  }
-
-  function wouldCycle(draggedId, newParentId) {
-    if (!newParentId) return false;
-    if (newParentId === draggedId) return true;
-    return isDescendantOf(newParentId, draggedId);
-  }
-
-  function handleDrop(draggedId, targetNote, mode) {
-    if (!draggedId || draggedId === targetNote.id) return;
-    if (mode === 'nest') {
-      if (wouldCycle(draggedId, targetNote.id)) { toast('Déplacement impossible (créerait une boucle)'); return; }
-      RA.updateNote(draggedId, { parent_id: targetNote.id, position: Date.now() }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
-    } else {
-      var newParent = targetNote.parent_id || null;
-      if (wouldCycle(draggedId, newParent)) { toast('Déplacement impossible (créerait une boucle)'); return; }
-      var siblings = state.notes
-        .filter(function (x) { return (x.parent_id || null) === newParent && x.id !== draggedId; })
-        .sort(function (a, b) { return a.position - b.position; });
-      var idx = siblings.findIndex(function (s) { return s.id === targetNote.id; });
-      var insertAt = mode === 'before' ? idx : idx + 1;
-      siblings.splice(insertAt, 0, { id: draggedId });
-      var updates = siblings.map(function (s, i) {
-        return RA.updateNote(s.id, { position: i * 10, parent_id: newParent });
-      });
-      Promise.all(updates).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
-    }
-  }
-
-  var CHEVRON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-
-  function attachDnD(el, n) {
-    el.draggable = true;
-    el.addEventListener('dragstart', function (e) {
-      state.dragId = n.id;
-      el.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', n.id);
-    });
-    el.addEventListener('dragend', function () { clearDragClasses(); state.dragId = null; });
-    el.addEventListener('dragover', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (state.dragId === n.id) return;
-      var rect = el.getBoundingClientRect();
-      var ratio = (e.clientY - rect.top) / rect.height;
-      el.classList.remove('drag-before', 'drag-after', 'drag-nest');
-      if (ratio < 0.25) el.classList.add('drag-before');
-      else if (ratio > 0.75) el.classList.add('drag-after');
-      else el.classList.add('drag-nest');
-    });
-    el.addEventListener('dragleave', function () {
-      el.classList.remove('drag-before', 'drag-after', 'drag-nest');
-    });
-    el.addEventListener('drop', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var mode = el.classList.contains('drag-before') ? 'before' : el.classList.contains('drag-after') ? 'after' : 'nest';
-      handleDrop(state.dragId, n, mode);
-      clearDragClasses();
-    });
   }
 
   // mise en forme légère et sûre : **gras** et liens https:// cliquables (jamais d'innerHTML)
@@ -799,15 +223,27 @@
         var chip = document.createElement('span');
         chip.className = 'node-link-chip';
         var label = document.createElement('span');
+        label.tabIndex = 0;
+        label.setAttribute('role', 'button');
+        label.setAttribute('aria-label', 'Ouvrir « ' + target.title + ' »');
         label.appendChild(icon('link', 'icon-inline'));
         label.appendChild(document.createTextNode(' ' + target.title));
         label.addEventListener('click', function (e) { e.stopPropagation(); jumpToNote(lid); });
+        label.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); jumpToNote(lid); }
+        });
         chip.appendChild(label);
         var unlinkX = document.createElement('span');
         unlinkX.className = 'unlink-x';
+        unlinkX.tabIndex = 0;
+        unlinkX.setAttribute('role', 'button');
         unlinkX.appendChild(icon('x', 'icon-inline'));
         unlinkX.title = 'Retirer le lien';
+        unlinkX.setAttribute('aria-label', 'Retirer le lien vers « ' + target.title + ' »');
         unlinkX.addEventListener('click', function (e) { e.stopPropagation(); removeLink(n.id, lid); });
+        unlinkX.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); removeLink(n.id, lid); }
+        });
         chip.appendChild(unlinkX);
         linksRow.appendChild(chip);
       });
@@ -843,6 +279,7 @@
     var doneBtn = document.createElement('button');
     doneBtn.className = 'icon-btn';
     doneBtn.title = n.done ? 'Marquer non terminé' : 'Marquer terminé';
+    doneBtn.setAttribute('aria-label', doneBtn.title);
     doneBtn.appendChild(icon(n.done ? 'history' : 'check'));
     doneBtn.addEventListener('click', function () {
       RA.updateNote(n.id, { done: !n.done }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -852,6 +289,7 @@
     var pinBtn = document.createElement('button');
     pinBtn.className = 'icon-btn';
     pinBtn.title = 'Épingler';
+    pinBtn.setAttribute('aria-label', 'Épingler');
     pinBtn.appendChild(icon('star'));
     pinBtn.addEventListener('click', function () {
       RA.updateNote(n.id, { pinned: !n.pinned }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -861,6 +299,7 @@
     var remindBtn = document.createElement('button');
     remindBtn.className = 'icon-btn';
     remindBtn.title = n.remind_at ? 'Modifier le rappel' : 'Ajouter un rappel daté';
+    remindBtn.setAttribute('aria-label', remindBtn.title);
     remindBtn.appendChild(icon('clock'));
     remindBtn.addEventListener('click', function () { openRemindModal(n); });
     actions.appendChild(remindBtn);
@@ -868,6 +307,7 @@
     var linkBtn = document.createElement('button');
     linkBtn.className = 'icon-btn';
     linkBtn.title = 'Lier à une autre note ("voir aussi")';
+    linkBtn.setAttribute('aria-label', linkBtn.title);
     linkBtn.appendChild(icon('link'));
     linkBtn.addEventListener('click', function () { openLinkModal(n); });
     actions.appendChild(linkBtn);
@@ -875,6 +315,7 @@
     var editBtn = document.createElement('button');
     editBtn.className = 'icon-btn';
     editBtn.title = 'Modifier';
+    editBtn.setAttribute('aria-label', 'Modifier');
     editBtn.appendChild(icon('pencil'));
     editBtn.addEventListener('click', function () { openEditModal(n); });
     actions.appendChild(editBtn);
@@ -890,6 +331,7 @@
         var upBtn = document.createElement('button');
         upBtn.className = 'icon-btn';
         upBtn.title = 'Monter';
+        upBtn.setAttribute('aria-label', 'Monter');
         upBtn.appendChild(icon('chevron-up'));
         upBtn.addEventListener('click', function () { swapPosition(n, siblings[idx - 1]); });
         actions.appendChild(upBtn);
@@ -898,6 +340,7 @@
         var downBtn = document.createElement('button');
         downBtn.className = 'icon-btn';
         downBtn.title = 'Descendre';
+        downBtn.setAttribute('aria-label', 'Descendre');
         downBtn.appendChild(icon('chevron-down'));
         downBtn.addEventListener('click', function () { swapPosition(n, siblings[idx + 1]); });
         actions.appendChild(downBtn);
@@ -906,6 +349,7 @@
         var detachBtn = document.createElement('button');
         detachBtn.className = 'icon-btn';
         detachBtn.title = 'Détacher (devient une racine)';
+        detachBtn.setAttribute('aria-label', 'Détacher (devient une racine)');
         detachBtn.appendChild(icon('detach'));
         detachBtn.addEventListener('click', function () {
           RA.updateNote(n.id, { parent_id: null, position: Date.now(), space: effectiveSpace(n) }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -916,6 +360,7 @@
       var addChildBtn = document.createElement('button');
       addChildBtn.className = 'icon-btn';
       addChildBtn.title = 'Ajouter une branche';
+      addChildBtn.setAttribute('aria-label', 'Ajouter une branche');
       addChildBtn.appendChild(icon('plus'));
       addChildBtn.addEventListener('click', function () {
         var title = prompt('Nouvelle branche sous « ' + n.title + ' » :');
@@ -932,6 +377,7 @@
     var delBtn = document.createElement('button');
     delBtn.className = 'icon-btn';
     delBtn.title = 'Mettre à la corbeille';
+    delBtn.setAttribute('aria-label', 'Mettre à la corbeille');
     delBtn.appendChild(icon('x'));
     delBtn.addEventListener('click', function () {
       if (!confirm('Mettre « ' + n.title + ' » (et ses branches) à la corbeille ?')) return;
@@ -999,6 +445,7 @@
       collapseBtn.className = 'collapse-btn';
       collapseBtn.innerHTML = CHEVRON_SVG;
       collapseBtn.title = 'Replier / déplier';
+      collapseBtn.setAttribute('aria-label', 'Replier ou déplier les branches');
       collapseBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         if (state.collapsed.has(n.id)) state.collapsed.delete(n.id);
@@ -1180,4 +627,3 @@
       if (window.RAStarfield) window.RAStarfield.setNodeCount(12 + data.notes.length);
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
-
