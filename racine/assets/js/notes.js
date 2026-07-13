@@ -96,6 +96,7 @@
     editSpace.value = curSpace;
     editSpace.disabled = !!n.parent_id;
     editSpace.title = n.parent_id ? 'Une branche suit l\'espace de sa racine' : '';
+    renderSimilarNotes(n);
     editModal.classList.add('show');
     editTitle.focus();
   }

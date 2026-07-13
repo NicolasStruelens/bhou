@@ -94,3 +94,86 @@
   document.getElementById('linkClose').addEventListener('click', function () { linkModal.classList.remove('show'); });
   linkModal.addEventListener('click', function (e) { if (e.target === linkModal) linkModal.classList.remove('show'); });
   linkSearch.addEventListener('input', renderLinkResults);
+
+  // ---------- "faire germer" v1 : suggestions de notes proches sans IA distante ----------
+  // Règles : jamais de liaison automatique, 3 suggestions max, un geste pour accepter,
+  // "ignorer" est permanent (mémorisé localement) — voir la vision de l'audit produit.
+
+  var DISMISSED_SUGGESTIONS_KEY = 'racine_dismissed_suggestions';
+
+  function dismissedSuggestions() {
+    try { return JSON.parse(localStorage.getItem(DISMISSED_SUGGESTIONS_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function suggestionKey(aId, bId) { return [aId, bId].sort().join('|'); }
+  function dismissSuggestion(aId, bId) {
+    var list = dismissedSuggestions();
+    var key = suggestionKey(aId, bId);
+    if (list.indexOf(key) === -1) list.push(key);
+    localStorage.setItem(DISMISSED_SUGGESTIONS_KEY, JSON.stringify(list));
+  }
+
+  var DIACRITICS_RE = new RegExp('[\\u0300-\\u036f]', 'g');
+  function wordsOf(str) {
+    var noAccents = (str || '').toLowerCase().normalize('NFD').replace(DIACRITICS_RE, '');
+    return noAccents.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 3; });
+  }
+
+  function similarityScore(a, b) {
+    if (a.id === b.id) return 0;
+    if (parseLinks(a.links).indexOf(b.id) !== -1) return 0; // déjà lié, pas la peine de suggérer
+    var score = 0;
+    var aTags = parseTags(a.tags).map(function (t) { return t.toLowerCase(); });
+    var bTags = parseTags(b.tags).map(function (t) { return t.toLowerCase(); });
+    score += aTags.filter(function (t) { return bTags.indexOf(t) !== -1; }).length * 3;
+    if (effectiveSpace(a) === effectiveSpace(b)) score += 1;
+    var aWords = wordsOf(a.title + ' ' + a.content);
+    var bWords = wordsOf(b.title + ' ' + b.content);
+    var sharedWords = aWords.filter(function (w) { return bWords.indexOf(w) !== -1; });
+    score += Math.min(sharedWords.length, 5) * 1.5;
+    return score;
+  }
+
+  function findSimilarNotes(n, max) {
+    var dismissed = dismissedSuggestions();
+    return state.notes
+      .filter(function (x) { return x.id !== n.id && dismissed.indexOf(suggestionKey(n.id, x.id)) === -1; })
+      .map(function (x) { return { note: x, score: similarityScore(n, x) }; })
+      .filter(function (s) { return s.score >= 3; }) // seuil minimal : évite le bruit sur des correspondances faibles
+      .sort(function (a, b) { return b.score - a.score; })
+      .slice(0, max || 3)
+      .map(function (s) { return s.note; });
+  }
+
+  function renderSimilarNotes(n) {
+    var container = document.getElementById('editSimilarNotes');
+    container.innerHTML = '';
+    var matches = findSimilarNotes(n, 3);
+    if (!matches.length) return;
+    var label = document.createElement('div');
+    label.className = 'similar-notes-label';
+    label.textContent = 'Notes proches (jamais liées automatiquement) :';
+    container.appendChild(label);
+    matches.forEach(function (m) {
+      var row = document.createElement('div');
+      row.className = 'similar-note-row';
+      var title = document.createElement('span');
+      title.className = 'similar-note-title';
+      title.textContent = m.title;
+      row.appendChild(title);
+      var linkBtn = document.createElement('button');
+      linkBtn.className = 'btn';
+      linkBtn.type = 'button';
+      linkBtn.textContent = 'Relier';
+      linkBtn.addEventListener('click', function () { addLink(n.id, m.id); row.remove(); });
+      row.appendChild(linkBtn);
+      var ignoreBtn = document.createElement('button');
+      ignoreBtn.className = 'icon-btn';
+      ignoreBtn.type = 'button';
+      ignoreBtn.title = 'Ignorer cette suggestion définitivement';
+      ignoreBtn.setAttribute('aria-label', 'Ignorer cette suggestion définitivement');
+      ignoreBtn.appendChild(icon('x'));
+      ignoreBtn.addEventListener('click', function () { dismissSuggestion(n.id, m.id); row.remove(); });
+      row.appendChild(ignoreBtn);
+      container.appendChild(row);
+    });
+  }
