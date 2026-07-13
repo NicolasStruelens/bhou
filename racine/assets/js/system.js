@@ -62,6 +62,7 @@
           toast('Sauvegarde restaurée');
           loadNotes();
           loadClips();
+          loadRecipes();
           systemModal.classList.remove('show');
         }).catch(function (err) { toast('Erreur : ' + err.message); });
       });

@@ -5,7 +5,9 @@
   var morningReviewToggle = document.getElementById('morningReviewToggle');
   morningReviewToggle.checked = localStorage.getItem(MORNING_REVIEW_KEY) === '1';
   morningReviewToggle.addEventListener('change', function () {
-    localStorage.setItem(MORNING_REVIEW_KEY, morningReviewToggle.checked ? '1' : '0');
+    var value = morningReviewToggle.checked ? '1' : '0';
+    localStorage.setItem(MORNING_REVIEW_KEY, value);
+    pushPreference(MORNING_REVIEW_KEY, value);
     toast(morningReviewToggle.checked ? 'Racine ouvrira ici au prochain démarrage' : 'Retour à l\'onglet Racine au démarrage');
   });
 

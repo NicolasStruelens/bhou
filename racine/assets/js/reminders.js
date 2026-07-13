@@ -57,6 +57,7 @@
     var enabled = localStorage.getItem(REMINDER_KEY) === '1';
     if (enabled) {
       localStorage.setItem(REMINDER_KEY, '0');
+      pushPreference(REMINDER_KEY, '0');
       reminderToggle.classList.remove('active');
       toast('Rappels désactivés');
       return;
@@ -69,6 +70,8 @@
     var days = Math.max(1, Number(input) || 3);
     localStorage.setItem(REMINDER_DAYS_KEY, String(days));
     localStorage.setItem(REMINDER_KEY, '1');
+    pushPreference(REMINDER_DAYS_KEY, String(days));
+    pushPreference(REMINDER_KEY, '1');
     reminderToggle.classList.add('active');
     toast('Rappels activés (tous les ' + days + ' jours)');
     if ('Notification' in window && Notification.permission !== 'granted') {

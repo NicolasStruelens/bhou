@@ -63,11 +63,13 @@
     if (list.indexOf(name) === -1) {
       list.push(name);
       localStorage.setItem('racine_spaces', JSON.stringify(list));
+      pushPreference('racine_spaces', JSON.stringify(list));
     }
   }
   function removeKnownSpace(name) {
     var list = knownSpaces().filter(function (s) { return s !== name; });
     localStorage.setItem('racine_spaces', JSON.stringify(list));
+    pushPreference('racine_spaces', JSON.stringify(list));
   }
 
   function renameSpace(oldName) {
@@ -105,7 +107,10 @@
   function spaceColors() {
     try { return JSON.parse(localStorage.getItem('racine_space_colors') || '{}'); } catch (e) { return {}; }
   }
-  function saveSpaceColors(map) { localStorage.setItem('racine_space_colors', JSON.stringify(map)); }
+  function saveSpaceColors(map) {
+    localStorage.setItem('racine_space_colors', JSON.stringify(map));
+    pushPreference('racine_space_colors', JSON.stringify(map));
+  }
 
   function getSpaceColor(name) {
     var colors = spaceColors();

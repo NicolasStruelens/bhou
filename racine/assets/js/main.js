@@ -40,3 +40,4 @@
   loadRecipes();
   initFromQuery();
   autoBackupIfNeeded();
+  syncPreferencesFromServer();
