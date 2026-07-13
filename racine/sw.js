@@ -1,14 +1,21 @@
-// Racine — service worker minimal (cache des fichiers statiques, jamais l'API ni les pages HTML)
-const CACHE = 'racine-shell-v22';
+// Racine — service worker : fichiers statiques + app-shell HTML + dernières données API en cache,
+// pour que l'app s'ouvre et affiche au moins les dernières données connues hors-ligne.
+// Les mutations (POST/PUT/DELETE) ne sont JAMAIS interceptées ici : voir assets/js/offline-queue.js.
+const CACHE = 'racine-shell-v26';
 const SHELL = [
   '/assets/css/tokens.css',
   '/assets/css/base.css',
+  '/assets/js/offline-queue.js',
   '/assets/js/api.js',
   '/assets/js/preferences.js',
   '/assets/js/starfield.js',
   '/assets/js/theme-init.js',
   '/assets/js/login.js',
   '/assets/js/shell.js',
+  '/assets/js/capture.js',
+  '/assets/js/search.js',
+  '/assets/js/links.js',
+  '/assets/js/tree.js',
   '/assets/js/notes.js',
   '/assets/js/reminders.js',
   '/assets/js/importexport.js',
@@ -19,7 +26,11 @@ const SHELL = [
   '/assets/js/recipes.js',
   '/assets/js/trash.js',
   '/assets/js/main.js',
+  '/app.html',
 ];
+
+// lecture seule : la dernière réponse connue s'affiche hors-ligne, jamais utilisée pour les mutations
+const CACHEABLE_API_GET = ['/api/notes', '/api/clips', '/api/recipes'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
@@ -39,10 +50,45 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   var req = event.request;
-  if (req.method !== 'GET') return;
-  if (req.mode === 'navigate') return; // jamais intercepter le chargement des pages HTML
+
+  // pages HTML (app.html, login.html, ...) : réseau d'abord, secours sur la dernière version en cache
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).then(function (res) {
+        if (res.ok && !res.redirected) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (cache) { cache.put(req.url, copy); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match(req.url).then(function (cached) { return cached || caches.match('/app.html'); });
+      })
+    );
+    return;
+  }
+
+  if (req.method !== 'GET') return; // jamais intercepter les mutations : gérées côté client par OfflineQueue
   var url = new URL(req.url);
-  if (url.pathname.startsWith('/api/')) return; // jamais de cache pour l'API
+
+  // données API en lecture : réseau d'abord (fraîcheur), secours sur la dernière copie connue si hors-ligne
+  if (url.pathname.startsWith('/api/')) {
+    if (CACHEABLE_API_GET.indexOf(url.pathname) === -1) return; // login/me/export/backups/preferences... jamais mis en cache
+    event.respondWith(
+      fetch(req).then(function (res) {
+        if (res.ok) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match(req).then(function (cached) {
+          return cached || new Response(JSON.stringify({ error: 'hors-ligne' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+        });
+      })
+    );
+    return;
+  }
+
   if (SHELL.indexOf(url.pathname) === -1) return; // ne cache que les fichiers statiques listés
 
   event.respondWith(
