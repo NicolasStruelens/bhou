@@ -42,6 +42,7 @@ Si `racine-db` existe déjà (déploiement initial fait avant une évolution du 
 7. `migration_v8.sql` — historique des versions d'une note
 8. `migration_v9.sql` — jeton de capture rapide (iOS Raccourcis/Siri)
 9. `migration_v10.sql` — recettes et listes de courses
+10. `migration_v11.sql` — préférences synchronisées entre appareils
 
 Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
 
@@ -76,8 +77,10 @@ Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) 
 - [ ] Revue hebdomadaire (📅) affiche des listes cohérentes
 - [ ] Presse-papier : envoyer un texte, le récupérer/copier depuis un autre appareil ou navigateur ; tester « lecture unique » (doit disparaître après la première récupération) et « ne jamais exporter » (absent de l'export JSON)
 - [ ] Partager un clip → ouvrir le lien `share.html#...` dans une fenêtre de navigation privée (sans session) → doit fonctionner ; révoquer → doit ensuite échouer
-- [ ] Export JSON puis import dans un espace de test — les notes et clips réapparaissent avec la bonne hiérarchie
-- [ ] État du système (⚙) affiche la bonne version de schéma et permet de créer/restaurer une sauvegarde
+- [ ] Export JSON puis import dans un espace de test — les notes (avec énergie/someday/historique), clips (avec burn/no_export/épinglage) et recettes réapparaissent fidèlement
+- [ ] État du système (⚙) affiche la bonne version de schéma, permet de créer/restaurer une sauvegarde, et le bouton « Vérifier la fidélité export/import » rapporte 0 problème
+- [ ] Un clip marqué « ne jamais exporter » est absent à la fois de l'export JSON ET des sauvegardes automatiques
+- [ ] Renommer un espace ou changer sa couleur sur un appareil, recharger l'app sur un autre navigateur/appareil → le changement doit apparaître (préférences synchronisées via D1)
 - [ ] Recettes : créer une recette avec plusieurs ingrédients (avec et sans quantité/unité g/kg/pièce), vérifier l'autocomplétion des ingrédients courants, cocher "j'ai déjà" (la quantité/unité doit rester affichée), vérifier que "Copier/partager ce qui manque" exclut les ingrédients cochés et inclut la quantité/unité dans le texte copié, tester le bouton global "Liste de courses" (agrège toutes les recettes, dédoublonne), mettre une recette à la corbeille puis la restaurer
 - [ ] Historique d'une note : éditer une note plusieurs fois, ouvrir « historique des versions », vérifier que les anciennes versions apparaissent et que « restaurer » recharge bien les anciens champs dans le formulaire
 - [ ] Recherche par opérateurs : `tag:x`, `energie:x`, `espace:x`, `kind:x`, `avant:AAAA-MM-JJ`, `apres:AAAA-MM-JJ`, `someday:oui`, `pin:oui` filtrent correctement, seuls ou combinés

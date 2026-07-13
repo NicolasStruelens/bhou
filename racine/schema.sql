@@ -82,6 +82,12 @@ CREATE TABLE IF NOT EXISTS recipes (
 );
 CREATE INDEX IF NOT EXISTS idx_recipes_deleted ON recipes(deleted_at);
 
+CREATE TABLE IF NOT EXISTS preferences (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,             -- JSON ou chaîne brute selon la clé (miroir de l'ancien localStorage)
+  updated_at INTEGER NOT NULL
+);
+
 -- marque les migrations déjà incluses ci-dessus comme appliquées (installation neuve)
 INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (1, CAST(strftime('%s','now') AS INTEGER) * 1000),
@@ -93,4 +99,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (7, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (8, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (9, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (10, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (10, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (11, CAST(strftime('%s','now') AS INTEGER) * 1000);
