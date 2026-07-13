@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -142,9 +142,15 @@ async function createNote(request, env) {
   const body = await request.json().catch(() => ({}));
   const id = newId();
   const now = Date.now();
+  // created_at/updated_at/history ne sont honorés que s'ils sont fournis (restauration d'export/sauvegarde) ;
+  // une création normale depuis l'app ne les envoie jamais et obtient donc l'horodatage courant.
+  let history = '[]';
+  if (Array.isArray(body.history)) {
+    history = JSON.stringify(body.history.slice(-HISTORY_MAX));
+  }
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, energy, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, energy, status, history, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -152,6 +158,7 @@ async function createNote(request, env) {
     String(body.content || '').slice(0, 20000),
     ['idee', 'todo', 'note'].includes(body.kind) ? body.kind : 'idee',
     body.pinned ? 1 : 0,
+    body.done ? 1 : 0,
     body.position || 0,
     String(body.space || 'Général').trim().slice(0, 60) || 'Général',
     String(body.tags || '').slice(0, 300),
@@ -159,8 +166,9 @@ async function createNote(request, env) {
     String(body.links || '').slice(0, 2000),
     ['2min', 'facile', 'profond', 'urgent', 'attente', ''].includes(body.energy) ? body.energy : '',
     body.status === 'someday' ? 'someday' : 'active',
-    now,
-    now
+    history,
+    body.created_at ? Number(body.created_at) : now,
+    body.updated_at ? Number(body.updated_at) : now
   ).run();
   return json({ ok: true, id });
 }
@@ -409,10 +417,11 @@ async function createClip(request, env) {
   const now = Date.now();
   let expiresAt = null;
   if (body.ttl_ms) expiresAt = now + Number(body.ttl_ms);
+  if (body.expires_at) expiresAt = Number(body.expires_at);
 
   await env.DB.prepare(
-    `INSERT INTO clips (id, label, content, kind, filename, mime, device, burn, no_export, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO clips (id, label, content, kind, filename, mime, device, pinned, burn, no_export, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     String(body.label || '').slice(0, 200),
@@ -421,9 +430,10 @@ async function createClip(request, env) {
     body.filename ? String(body.filename).slice(0, 200) : null,
     body.mime ? String(body.mime).slice(0, 100) : null,
     String(body.device || '').slice(0, 100),
+    body.pinned ? 1 : 0,
     body.burn ? 1 : 0,
     body.no_export ? 1 : 0,
-    now,
+    body.created_at ? Number(body.created_at) : now,
     expiresAt
   ).run();
   return json({ ok: true, id });
@@ -484,7 +494,13 @@ async function createRecipe(request, env) {
   const now = Date.now();
   await env.DB.prepare(
     'INSERT INTO recipes (id, title, ingredients, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, title, JSON.stringify(sanitizeIngredients(body.ingredients)), now, now).run();
+  ).bind(
+    id,
+    title,
+    JSON.stringify(sanitizeIngredients(body.ingredients)),
+    body.created_at ? Number(body.created_at) : now,
+    body.updated_at ? Number(body.updated_at) : now
+  ).run();
   return json({ ok: true, id });
 }
 
@@ -528,6 +544,29 @@ async function purgeRecipe(id, env) {
   return json({ ok: true });
 }
 
+// ----- préférences (synchronisées entre appareils : espaces connus, couleurs, mode matinal, rappels) -----
+
+async function getPreferences(env) {
+  const { results } = await env.DB.prepare('SELECT key, value FROM preferences').all();
+  const map = {};
+  results.forEach((r) => { map[r.key] = r.value; });
+  return json({ preferences: map });
+}
+
+async function setPreferences(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const now = Date.now();
+  const keys = Object.keys(body || {}).slice(0, 20);
+  for (const key of keys) {
+    const value = String(body[key]).slice(0, 5000);
+    await env.DB.prepare(
+      `INSERT INTO preferences (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    ).bind(key.slice(0, 100), value, now).run();
+  }
+  return json({ ok: true });
+}
+
 // ----- export complet -----
 
 async function exportAll(env) {
@@ -553,7 +592,7 @@ async function exportAll(env) {
 
 async function createBackup(env) {
   const notes = await env.DB.prepare('SELECT * FROM notes WHERE deleted_at IS NULL').all();
-  const clips = await env.DB.prepare('SELECT * FROM clips WHERE deleted_at IS NULL').all();
+  const clips = await env.DB.prepare('SELECT * FROM clips WHERE deleted_at IS NULL AND no_export = 0').all();
   const recipes = await env.DB.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all();
   const id = newId();
   const now = Date.now();
@@ -628,6 +667,11 @@ export async function onRequest(context) {
 
     if (parts[0] === 'export' && parts.length === 1 && method === 'GET') return exportAll(env);
     if (parts[0] === 'health' && parts.length === 1 && method === 'GET') return health(env);
+
+    if (parts[0] === 'preferences') {
+      if (parts.length === 1 && method === 'GET') return getPreferences(env);
+      if (parts.length === 1 && method === 'PUT') return setPreferences(request, env);
+    }
 
     if (parts[0] === 'quick-token') {
       if (parts.length === 1 && method === 'GET') return getQuickToken(env);
