@@ -286,7 +286,7 @@
 
   var graphState = {
     offsetX: 0, offsetY: 0, scale: 1,
-    selectedId: null, pathIds: null,
+    selectedId: null, pathIds: null, hoveredId: null,
     positions: {}, suggestedLinks: [],
     rafId: null, didDrag: false,
   };
@@ -314,6 +314,9 @@
     return Date.now() - Number(val) * 24 * 60 * 60 * 1000;
   }
 
+  var GRAPH_NODE_MIN = 6, GRAPH_NODE_MAX = 15;
+  var GRAPH_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // spirale de phyllotaxie : répartit les points sans jamais les superposer
+
   function computeGraphLayout(rect) {
     var cutoff = graphTimeCutoff();
     var pool = state.notes.filter(function (n) { return !cutoff || n.created_at >= cutoff; });
@@ -324,25 +327,39 @@
     });
     var clusterKeys = Object.keys(clusters).sort(function (a, b) { return clusters[b].length - clusters[a].length; });
 
+    // au-delà d'un certain nombre de groupes, ça devient illisible : on garde les plus gros
+    // et on regroupe le reste sous "Divers" plutôt que de tout entasser au même endroit
+    var MAX_CLUSTERS = 8;
+    if (clusterKeys.length > MAX_CLUSTERS) {
+      var kept = clusterKeys.slice(0, MAX_CLUSTERS - 1);
+      var divers = [];
+      clusterKeys.slice(MAX_CLUSTERS - 1).forEach(function (k) { divers = divers.concat(clusters[k]); delete clusters[k]; });
+      clusters['Divers'] = divers;
+      clusterKeys = kept.concat(['Divers']);
+    }
+
     var cx = rect.width / 2, cy = rect.height / 2;
-    var universe = Math.max(80, Math.min(cx, cy) - 70);
     var positions = {};
+    var nodeSpacing = GRAPH_NODE_MAX * 2.2;
 
     clusterKeys.forEach(function (key, ci) {
-      var angle = (ci / clusterKeys.length) * Math.PI * 2 - Math.PI / 2;
-      var clusterR = clusterKeys.length === 1 ? 0 : universe * 0.62;
-      var clusterCx = cx + Math.cos(angle) * clusterR;
-      var clusterCy = cy + Math.sin(angle) * clusterR;
       var members = clusters[key];
-      var localR = Math.min(28 + members.length * 6, universe * 0.4);
+      var localSpread = Math.sqrt(members.length) * nodeSpacing;
+      // les clusters s'écartent en spirale, chacun plus loin que le précédent —
+      // évite que deux groupes se retrouvent l'un sur l'autre, contrairement à un simple cercle
+      var dist = ci === 0 ? 0 : Math.sqrt(ci) * (localSpread + 70);
+      var angle = ci * GRAPH_GOLDEN_ANGLE;
+      var ccx = cx + Math.cos(angle) * dist;
+      var ccy = cy + Math.sin(angle) * dist;
+
       members.forEach(function (n, ni) {
-        var a2 = (ni / members.length) * Math.PI * 2;
-        var jitterR = members.length === 1 ? 0 : localR * (0.5 + 0.5 * ((ni % 3) / 2));
+        var localR = ni === 0 ? 0 : Math.sqrt(ni) * nodeSpacing;
+        var localAngle = ni * GRAPH_GOLDEN_ANGLE;
         positions[n.id] = {
-          x: clusterCx + Math.cos(a2) * jitterR,
-          y: clusterCy + Math.sin(a2) * jitterR,
+          x: ccx + Math.cos(localAngle) * localR,
+          y: ccy + Math.sin(localAngle) * localR,
           n: n,
-          radius: Math.max(6, Math.min(16, 6 + graphRichness(n))),
+          radius: Math.max(GRAPH_NODE_MIN, Math.min(GRAPH_NODE_MAX, GRAPH_NODE_MIN + graphRichness(n))),
         };
       });
     });
@@ -352,14 +369,27 @@
   function computeSuggestedLinks(positions) {
     var ids = Object.keys(positions);
     var dismissed = dismissedSuggestions();
-    var suggestions = [];
-    for (var i = 0; i < ids.length && suggestions.length < 15; i++) {
-      for (var j = i + 1; j < ids.length && suggestions.length < 15; j++) {
+    var degree = {}; // limite par nœud : sinon une note "générique" attire plein de fils vers elle (effet toile d'araignée)
+    var candidates = [];
+    for (var i = 0; i < ids.length; i++) {
+      for (var j = i + 1; j < ids.length; j++) {
         var a = positions[ids[i]].n, b = positions[ids[j]].n;
         var key = suggestionKey(a.id, b.id);
         if (dismissed.indexOf(key) !== -1) continue;
-        if (similarityScore(a, b) >= 4) suggestions.push({ a: a.id, b: b.id });
+        var score = similarityScore(a, b);
+        if (score >= 4) candidates.push({ a: a.id, b: b.id, score: score });
       }
+    }
+    candidates.sort(function (x, y) { return y.score - x.score; });
+    var suggestions = [];
+    var MAX_PER_NODE = 2, MAX_TOTAL = 15;
+    for (var k = 0; k < candidates.length && suggestions.length < MAX_TOTAL; k++) {
+      var c = candidates[k];
+      degree[c.a] = degree[c.a] || 0;
+      degree[c.b] = degree[c.b] || 0;
+      if (degree[c.a] >= MAX_PER_NODE || degree[c.b] >= MAX_PER_NODE) continue;
+      degree[c.a]++; degree[c.b]++;
+      suggestions.push(c);
     }
     return suggestions;
   }
@@ -459,7 +489,9 @@
       });
       ctx.setLineDash([]);
 
-      Object.keys(positions).forEach(function (id) {
+      var ids = Object.keys(positions);
+      var showAllLabels = ids.length <= 10 || graphState.scale > 1.8;
+      ids.forEach(function (id) {
         var p = positions[id];
         var n = p.n;
         var orphan = isGraphOrphan(n);
@@ -476,15 +508,14 @@
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = orphan ? 'rgba(226,245,236,0.35)' : (n.pinned ? '#ffd23f' : '#22d3ee');
+        ctx.fill();
         if (orphan) {
           ctx.setLineDash([3, 3]);
-          ctx.strokeStyle = 'rgba(226,245,236,0.5)';
-          ctx.lineWidth = 1.4 / graphState.scale;
+          ctx.strokeStyle = 'rgba(226,245,236,0.7)';
+          ctx.lineWidth = 1.2 / graphState.scale;
           ctx.stroke();
           ctx.setLineDash([]);
-        } else {
-          ctx.fillStyle = n.pinned ? '#ffd23f' : '#22d3ee';
-          ctx.fill();
         }
         if (id === graphState.selectedId) {
           ctx.beginPath();
@@ -493,11 +524,15 @@
           ctx.lineWidth = 1.5 / graphState.scale;
           ctx.stroke();
         }
-        ctx.font = (11 / graphState.scale) + 'px sans-serif';
-        ctx.fillStyle = '#e2f5ec';
-        ctx.textAlign = 'center';
-        var label = n.title.length > 18 ? n.title.slice(0, 17) + '…' : n.title;
-        ctx.fillText(label, p.x, p.y - p.radius - 6);
+        // les libellés de tous les nœuds à la fois rendent le graphe illisible dès qu'il y a
+        // plus d'une poignée de notes : on ne montre que le sélectionné/survolé, sauf vue clairsemée ou zoom fort
+        if (showAllLabels || id === graphState.selectedId || id === graphState.hoveredId) {
+          ctx.font = (11 / graphState.scale) + 'px sans-serif';
+          ctx.fillStyle = '#e2f5ec';
+          ctx.textAlign = 'center';
+          var label = n.title.length > 22 ? n.title.slice(0, 21) + '…' : n.title;
+          ctx.fillText(label, p.x, p.y - p.radius - 6);
+        }
       });
 
       ctx.restore();
@@ -581,6 +616,12 @@
     });
     window.addEventListener('mouseup', function () { panning = false; });
     canvas.addEventListener('click', function (e) { handleGraphClick(e.clientX, e.clientY, canvas); });
+    canvas.addEventListener('mousemove', function (e) {
+      if (panning) return;
+      var g = screenToGraph(canvas, e.clientX, e.clientY);
+      graphState.hoveredId = hitTestNode(g.x, g.y) || null;
+    });
+    canvas.addEventListener('mouseleave', function () { graphState.hoveredId = null; });
 
     canvas.addEventListener('wheel', function (e) {
       e.preventDefault();
