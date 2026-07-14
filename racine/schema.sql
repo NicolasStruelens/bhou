@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS notes (
   links TEXT DEFAULT '',            -- ids d'autres notes liées ("voir aussi"), séparés par des virgules
   energy TEXT DEFAULT '',           -- 2min | facile | profond | urgent | attente
   status TEXT DEFAULT 'active',     -- active | someday (parking mental)
+  inbox INTEGER DEFAULT 0,          -- pensée déposée sans rangement, à faire germer plus tard
+  effort_minutes INTEGER,           -- durée approximative pour les sessions Agir
   history TEXT DEFAULT '[]',        -- versions précédentes (JSON, 10 max) : [{title,content,tags,energy,updated_at}]
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -100,4 +102,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (8, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (9, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (10, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (11, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (11, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (12, CAST(strftime('%s','now') AS INTEGER) * 1000);

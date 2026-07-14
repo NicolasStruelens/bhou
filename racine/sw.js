@@ -1,7 +1,7 @@
 // Racine — service worker : fichiers statiques + app-shell HTML + dernières données API en cache,
 // pour que l'app s'ouvre et affiche au moins les dernières données connues hors-ligne.
 // Les mutations (POST/PUT/DELETE) ne sont JAMAIS interceptées ici : voir assets/js/offline-queue.js.
-const CACHE = 'racine-shell-v31';
+const CACHE = 'racine-shell-v48';
 const SHELL = [
   '/assets/css/tokens.css',
   '/assets/css/base.css',
