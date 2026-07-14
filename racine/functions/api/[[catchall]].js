@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -138,9 +138,15 @@ async function listTrashNotes(env) {
   return json({ notes: results });
 }
 
+function normalizeEffort(value) {
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes > 0 ? Math.max(1, Math.min(480, Math.round(minutes))) : null;
+}
+
 async function createNote(request, env) {
   const body = await request.json().catch(() => ({}));
-  const id = newId();
+  const requestedId = String(body.id || '');
+  const id = /^[a-zA-Z0-9-]{16,80}$/.test(requestedId) ? requestedId : newId();
   const now = Date.now();
   // created_at/updated_at/history ne sont honorés que s'ils sont fournis (restauration d'export/sauvegarde) ;
   // une création normale depuis l'app ne les envoie jamais et obtient donc l'horodatage courant.
@@ -149,8 +155,8 @@ async function createNote(request, env) {
     history = JSON.stringify(body.history.slice(-HISTORY_MAX));
   }
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, energy, status, history, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT OR IGNORE INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, remind_at, links, energy, status, inbox, effort_minutes, history, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     body.parent_id || null,
@@ -166,6 +172,8 @@ async function createNote(request, env) {
     String(body.links || '').slice(0, 2000),
     ['2min', 'facile', 'profond', 'urgent', 'attente', ''].includes(body.energy) ? body.energy : '',
     body.status === 'someday' ? 'someday' : 'active',
+    body.inbox ? 1 : 0,
+    normalizeEffort(body.effort_minutes),
     history,
     body.created_at ? Number(body.created_at) : now,
     body.updated_at ? Number(body.updated_at) : now
@@ -208,6 +216,8 @@ async function updateNote(id, request, env) {
     links: (v) => String(v || '').slice(0, 2000),
     energy: (v) => (['2min', 'facile', 'profond', 'urgent', 'attente', ''].includes(v) ? v : ''),
     status: (v) => (v === 'someday' ? 'someday' : 'active'),
+    inbox: (v) => (v ? 1 : 0),
+    effort_minutes: normalizeEffort,
   };
   for (const key of Object.keys(map)) {
     if (key in body) {
@@ -377,8 +387,8 @@ async function quickCapture(token, request, env) {
   const id = newId();
   const now = Date.now();
   await env.DB.prepare(
-    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, created_at, updated_at)
-     VALUES (?, NULL, ?, '', 'idee', 0, 0, 0, 'Général', '#raccourci', ?, ?)`
+    `INSERT INTO notes (id, parent_id, title, content, kind, pinned, done, position, space, tags, inbox, created_at, updated_at)
+     VALUES (?, NULL, ?, '', 'idee', 0, 0, 0, 'Général', '#raccourci', 1, ?, ?)`
   ).bind(id, text, now, now).run();
   return json({ ok: true, id });
 }
