@@ -132,7 +132,110 @@
     return card;
   }
 
+  // ce n'est pas un compteur de productivité : juste un signe visible que quelque chose grandit
+  function computeGrowthOfWeek() {
+    var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    var roots = state.notes.filter(function (n) { return !n.parent_id && n.status !== 'someday'; });
+    var best = null, bestCount = 0;
+    roots.forEach(function (r) {
+      var count = state.notes.filter(function (n) { return n.parent_id === r.id && n.created_at >= weekAgo; }).length;
+      if (count > bestCount) { bestCount = count; best = r; }
+    });
+    return bestCount > 0 ? { note: best, count: bestCount } : null;
+  }
+
+  function renderGrowthOfWeek() {
+    var el = document.getElementById('growthOfWeek');
+    var growth = computeGrowthOfWeek();
+    if (!growth) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML = '';
+    el.appendChild(icon('leaf', 'icon-inline'));
+    el.appendChild(document.createTextNode(
+      ' Pousse de la semaine : « ' + growth.note.title + ' » a gagné ' + growth.count + ' nouvelle' + (growth.count > 1 ? 's branches' : ' branche')
+    ));
+    el.onclick = function () { switchTab('notes'); jumpToNote(growth.note.id); };
+  }
+
+  // ---------- "faire germer" v2 : regrouper plusieurs graines proches en une nouvelle racine ----------
+  // jamais automatique : juste une proposition, à valider ou ignorer explicitement
+  var DISMISSED_BUNDLES_KEY = 'racine_dismissed_bundles';
+
+  function dismissedBundles() {
+    try { return JSON.parse(localStorage.getItem(DISMISSED_BUNDLES_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function bundleKey(tag, notes) { return tag + ':' + notes.map(function (n) { return n.id; }).sort().join(','); }
+  function dismissBundle(key) {
+    var list = dismissedBundles();
+    if (list.indexOf(key) === -1) list.push(key);
+    localStorage.setItem(DISMISSED_BUNDLES_KEY, JSON.stringify(list));
+  }
+
+  function computeBundleSuggestion() {
+    var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    var dismissed = dismissedBundles();
+    var candidates = state.notes.filter(function (n) {
+      return !n.parent_id && n.kind === 'idee' && n.status !== 'someday' && n.created_at >= weekAgo;
+    });
+    var byTag = {};
+    candidates.forEach(function (n) {
+      parseTags(n.tags).forEach(function (t) {
+        var key = t.toLowerCase();
+        (byTag[key] = byTag[key] || []).push(n);
+      });
+    });
+    var best = null;
+    Object.keys(byTag).forEach(function (tag) {
+      var group = byTag[tag];
+      if (group.length < 3) return;
+      if (dismissed.indexOf(bundleKey(tag, group)) !== -1) return;
+      if (!best || group.length > best.notes.length) best = { tag: tag, notes: group };
+    });
+    return best;
+  }
+
+  function bundleGroup(bundle) {
+    var title = 'Regroupement : #' + bundle.tag.replace(/^#/, '');
+    RA.createNote({ title: title, kind: 'idee', space: effectiveSpace(bundle.notes[0]) }).then(function (res) {
+      return Promise.all(bundle.notes.map(function (n) { return RA.updateNote(n.id, { parent_id: res.id }); }));
+    }).then(function () {
+      loadNotes();
+      toast(bundle.notes.length + ' idées regroupées sous « ' + title + ' »');
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
+  }
+
+  function renderBundleSuggestion() {
+    var el = document.getElementById('bundleSuggestion');
+    var bundle = computeBundleSuggestion();
+    el.innerHTML = '';
+    if (!bundle) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    var text = document.createElement('span');
+    text.appendChild(icon('node3', 'icon-inline'));
+    text.appendChild(document.createTextNode(
+      ' ' + bundle.notes.length + ' idées récentes autour de #' + bundle.tag.replace(/^#/, '') + ' — les rassembler en une nouvelle racine ?'
+    ));
+    el.appendChild(text);
+    var groupBtn = document.createElement('button');
+    groupBtn.className = 'btn btn-primary';
+    groupBtn.type = 'button';
+    groupBtn.textContent = 'Regrouper';
+    groupBtn.addEventListener('click', function () { bundleGroup(bundle); });
+    el.appendChild(groupBtn);
+    var ignoreBtn = document.createElement('button');
+    ignoreBtn.className = 'btn';
+    ignoreBtn.type = 'button';
+    ignoreBtn.textContent = 'Pas maintenant';
+    ignoreBtn.addEventListener('click', function () {
+      dismissBundle(bundleKey(bundle.tag, bundle.notes));
+      renderBundleSuggestion();
+    });
+    el.appendChild(ignoreBtn);
+  }
+
   function renderClairiere() {
+    renderGrowthOfWeek();
+    renderBundleSuggestion();
     var container = document.getElementById('clairiereCards');
     container.innerHTML = '';
     var picks = pickClairiere();
@@ -266,6 +369,16 @@
       .sort(function (a, b) { return b.created_at - a.created_at; })
       .forEach(function (n) { weeklyRow(n, addedEl, noteMeta(n)); });
 
+    var maturedEl = document.getElementById('weeklyMatured');
+    maturedEl.innerHTML = '';
+    state.notes.filter(function (n) {
+      if (n.parent_id || n.created_at >= weekAgo) return false; // seulement les racines déjà là avant cette semaine
+      var recentChildren = state.notes.filter(function (x) { return x.parent_id === n.id && x.created_at >= weekAgo; }).length;
+      var recentLink = parseLinks(n.links).length > 0 && n.updated_at >= weekAgo;
+      return recentChildren > 0 || recentLink;
+    }).sort(function (a, b) { return b.updated_at - a.updated_at; })
+      .forEach(function (n) { weeklyRow(n, maturedEl, noteMeta(n)); });
+
     var stuckEl = document.getElementById('weeklyStuck');
     stuckEl.innerHTML = '';
     state.notes.filter(function (n) { return n.status !== 'someday' && !n.done && n.created_at < monthAgo; })
@@ -277,7 +390,37 @@
     state.notes.filter(function (n) { return n.done && n.updated_at < monthAgo; })
       .sort(function (a, b) { return a.updated_at - b.updated_at; })
       .forEach(function (n) { weeklyRow(n, archiveEl, 'terminé le ' + noteMeta(n)); });
+
+    renderRandomForgottenNote();
   }
+
+  // ---------- carte aléatoire : "une pensée que tu n'as pas revue depuis longtemps" ----------
+  function renderRandomForgottenNote() {
+    var el = document.getElementById('weeklyRandomCard');
+    var sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
+    var forgotten = state.notes.filter(function (n) { return !n.done && n.updated_at < sixMonthsAgo; });
+    el.innerHTML = '';
+    if (!forgotten.length) {
+      var empty = document.createElement('p');
+      empty.className = 'weekly-random-empty';
+      empty.textContent = 'Rien d\'assez ancien pour l\'instant — reviens dans quelques mois.';
+      el.appendChild(empty);
+      return;
+    }
+    var pick = forgotten[Math.floor(Math.random() * forgotten.length)];
+    var card = document.createElement('div');
+    card.className = 'weekly-item';
+    var t = document.createElement('span');
+    t.textContent = pick.title;
+    card.appendChild(t);
+    var meta = document.createElement('span');
+    meta.className = 'weekly-item-meta';
+    meta.textContent = noteMeta(pick);
+    card.appendChild(meta);
+    card.addEventListener('click', function () { weeklyModal.classList.remove('show'); switchTab('notes'); jumpToNote(pick.id); });
+    el.appendChild(card);
+  }
+  document.getElementById('weeklyRandomBtn').addEventListener('click', renderRandomForgottenNote);
 
   // ================= LA CONSTELLATION =================
   // graphe groupé par thème (tags/espace), taille selon la richesse, halo pour l'activité
@@ -490,7 +633,7 @@
       ctx.setLineDash([]);
 
       var ids = Object.keys(positions);
-      var showAllLabels = ids.length <= 10 || graphState.scale > 1.8;
+      var showAllLabels = ids.length <= 6 || graphState.scale > 2.2;
       ids.forEach(function (id) {
         var p = positions[id];
         var n = p.n;
@@ -653,6 +796,16 @@
       graphState.selectedId = null; graphState.pathIds = null;
     });
     document.getElementById('graphTimeFilter').addEventListener('change', renderGraph);
+
+    // ---------- mode promenade : rien à faire ici, juste explorer ----------
+    var promenadeToggle = document.getElementById('graphPromenadeToggle');
+    promenadeToggle.addEventListener('click', function () {
+      var on = promenadeToggle.classList.toggle('active');
+      document.getElementById('graphHint').classList.toggle('hidden', on);
+      document.getElementById('graphPromenadeHint').classList.toggle('hidden', !on);
+      document.getElementById('graphToolbar').classList.toggle('promenade', on);
+      promenadeToggle.textContent = on ? 'Quitter la promenade' : 'Mode promenade';
+    });
   })();
 
   window.addEventListener('resize', function () {

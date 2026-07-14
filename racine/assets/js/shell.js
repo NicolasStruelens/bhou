@@ -267,6 +267,21 @@
     RA.logout().then(function () { location.href = 'login.html'; });
   });
 
+  // ---------- trois modes mentaux : Déposer / Déplier / Agir ----------
+  // pas de nouvel écran chacun : un raccourci direct vers ce que Racine sait déjà faire,
+  // pour ne pas avoir à choisir "où aller" avant de pouvoir penser
+  document.getElementById('modeDeposer').addEventListener('click', function () {
+    switchTab('notes');
+    setActiveSpace(state.activeSpace === OVERVIEW ? 'Général' : state.activeSpace);
+    setTimeout(function () { captureInput.focus(); }, 50);
+  });
+  document.getElementById('modeDeplier').addEventListener('click', function () {
+    switchTab('graph');
+  });
+  document.getElementById('modeAgir').addEventListener('click', function () {
+    document.getElementById('focusModeBtn').click();
+  });
+
   // ---------- raccourci clavier : "/" focus la capture ----------
   document.addEventListener('keydown', function (e) {
     if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
