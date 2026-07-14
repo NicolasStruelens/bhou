@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=48">
-<link rel="stylesheet" href="assets/css/base.css?v=48">
-<script src="assets/js/theme-init.js?v=48"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=49">
+<link rel="stylesheet" href="assets/css/base.css?v=49">
+<script src="assets/js/theme-init.js?v=49"></script>
 </head>
 <body>
 <svg class="hidden" aria-hidden="true" focusable="false">
@@ -104,6 +104,11 @@
           <button class="tab atelier-item" data-view="recipes" role="menuitem">Recettes</button>
           <button class="tab atelier-item" data-view="reminders" role="menuitem">Rappels<span class="badge" id="reminderCount"></span></button>
           <button class="tab atelier-item" data-view="trash" role="menuitem">Corbeille<span class="badge" id="trashCount"></span></button>
+          <div class="atelier-mobile-separator" aria-hidden="true"></div>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileReminderAction" type="button" role="menuitem">Activer les rappels</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileImportAction" type="button" role="menuitem">Importer mes données</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileExportAction" type="button" role="menuitem">Exporter mes données</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileSystemAction" type="button" role="menuitem">État du système</button>
         </div>
       </div>
     </div>
@@ -314,9 +319,24 @@
 
     <!-- ===== Vue graphe (La Constellation) ===== -->
     <section class="view" id="view-graph">
-      <p class="trash-hint" id="graphHint">Clique un nœud pour l'ouvrir, clique-en un deuxième pour voir le chemin entre les deux. Les pointillés sont des liens suggérés (clique dessus pour les créer). Molette pour zoomer, glisser pour te déplacer.</p>
-      <p class="trash-hint hidden" id="graphPromenadeHint">Aucune tâche ici, juste tes idées. Prends le temps de te promener.</p>
+      <div class="graph-intro" id="graphHint">
+        <div>
+          <div class="graph-kicker">Une lentille, pas un inventaire</div>
+          <h2>Que veux-tu comprendre maintenant&nbsp;?</h2>
+          <p>Choisis une vue. Racine réduit le bruit et t'explique pourquoi chaque pensée apparaît.</p>
+        </div>
+        <div class="graph-stats" id="graphStats" aria-live="polite"></div>
+      </div>
+      <p class="trash-hint hidden" id="graphPromenadeHint">Promène-toi librement. Une étoile ouvre sa fiche ; un double-clic ouvre la pensée.</p>
       <div class="graph-toolbar" id="graphToolbar">
+        <select id="graphLens" class="field graph-lens" aria-label="Choisir une lentille mentale">
+          <option value="attention">Ce qui réclame mon attention</option>
+          <option value="roots">Mes projets et leurs branches</option>
+          <option value="waiting">Ce qui est bloqué ou en attente</option>
+          <option value="dormant">Ce qui dort depuis longtemps</option>
+          <option value="all">Tout explorer</option>
+        </select>
+        <input id="graphSearch" class="field graph-search" type="search" placeholder="Chercher une pensée dans cette vue…" aria-label="Chercher une pensée dans la constellation">
         <select id="graphTimeFilter" class="field graph-time-filter">
           <option value="all">Toute la période</option>
           <option value="7">7 derniers jours</option>
@@ -327,15 +347,22 @@
         <button class="btn" id="graphPromenadeToggle" type="button">Mode promenade</button>
       </div>
       <div class="graph-legend" aria-label="Légende de la constellation">
-        <span><i class="legend-dot connected"></i> pensée reliée</span>
-        <span><i class="legend-dot orphan"></i> pensée isolée</span>
-        <span><i class="legend-line suggestion"></i> lien suggéré</span>
+        <span><i class="legend-dot idea"></i> idée</span>
+        <span><i class="legend-dot todo"></i> action</span>
+        <span><i class="legend-dot note"></i> note</span>
+        <span><i class="legend-line branch"></i> branche</span>
+        <span><i class="legend-line linked"></i> lien choisi</span>
+        <span><i class="legend-line suggestion"></i> proximité proposée</span>
       </div>
       <div class="graph-layout">
-        <canvas id="graphCanvas" class="graph-canvas"></canvas>
+        <canvas id="graphCanvas" class="graph-canvas" role="img" tabindex="0" aria-label="Carte interactive des pensées. Utilise la liste accessible à droite pour parcourir les éléments au clavier."></canvas>
         <aside id="graphInspector" class="graph-inspector" aria-live="polite">
-          <div class="graph-inspector-empty"><svg class="icon"><use href="#i-node3"/></svg><span>Touche une étoile pour découvrir la pensée.</span></div>
+          <div class="graph-inspector-empty"><svg class="icon"><use href="#i-node3"/></svg><span>Choisis une étoile ou un élément de la liste.</span></div>
         </aside>
+      </div>
+      <div class="graph-accessible-list-wrap">
+        <div class="graph-accessible-head"><strong>Les pensées visibles</strong><span>Alternative claire au graphe</span></div>
+        <div id="graphNodeList" class="graph-node-list"></div>
       </div>
       <div class="empty-state hidden" id="graphEmpty">
         <svg class="neuron-flourish" viewBox="0 0 80 20" aria-hidden="true" focusable="false">
@@ -350,7 +377,7 @@
           <circle class="bn-node n3" cx="60" cy="6" r="2.6" />
           <circle class="bn-node n4" cx="74" cy="10" r="2.6" />
         </svg>
-        <p>Aucune note liée pour l'instant. Utilise <svg class="icon icon-inline"><use href="#i-link"/></svg> sur une note pour créer des liens.</p>
+        <p>Aucune pensée ne correspond à cette lentille. Essaie une autre vue ou efface la recherche.</p>
       </div>
     </section>
 
@@ -427,7 +454,7 @@
 
 <!-- ===== Modale QR ===== -->
 <div class="modal-backdrop" id="qrModal">
-  <div class="modal-card">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Scanner pour ouvrir sur un autre appareil">
     <div class="modal-head">
       <span>Scanner pour ouvrir sur un autre appareil</span>
       <button class="icon-btn" id="qrClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -439,7 +466,7 @@
 
 <!-- ===== Modale édition complète ===== -->
 <div class="modal-backdrop" id="editModal">
-  <div class="modal-card edit-modal-card">
+  <div class="modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Modifier la note">
     <div class="modal-head">
       <span>Modifier la note</span>
       <button class="icon-btn" id="editClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -489,7 +516,7 @@
 
 <!-- ===== Modale état système ===== -->
 <div class="modal-backdrop" id="systemModal">
-  <div class="modal-card system-modal-card">
+  <div class="modal-card system-modal-card" role="dialog" aria-modal="true" aria-label="État du système">
     <div class="modal-head">
       <span>État du système</span>
       <button class="icon-btn" id="systemClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -516,7 +543,7 @@
 
 <!-- ===== Modale couleur d'espace ===== -->
 <div class="modal-backdrop" id="colorModal">
-  <div class="modal-card">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="colorModalTitle">
     <div class="modal-head">
       <span id="colorModalTitle">Couleur de l'espace</span>
       <button class="icon-btn" id="colorClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -527,7 +554,7 @@
 
 <!-- ===== Modale liaison entre notes ===== -->
 <div class="modal-backdrop" id="linkModal">
-  <div class="modal-card link-modal-card">
+  <div class="modal-card link-modal-card" role="dialog" aria-modal="true" aria-label="Lier cette pensée à une autre">
     <div class="modal-head">
       <span>Lier « <span id="linkSourceTitle"></span> » à…</span>
       <button class="icon-btn" id="linkClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -539,7 +566,7 @@
 
 <!-- ===== Modale rappel daté ===== -->
 <div class="modal-backdrop" id="remindModal">
-  <div class="modal-card">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Rappel daté">
     <div class="modal-head">
       <span>Rappel daté</span>
       <button class="icon-btn" id="remindClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -555,7 +582,7 @@
 
 <!-- ===== Modale revue hebdomadaire ===== -->
 <div class="modal-backdrop" id="weeklyModal">
-  <div class="modal-card weekly-modal-card">
+  <div class="modal-card weekly-modal-card" role="dialog" aria-modal="true" aria-label="Les Saisons">
     <div class="modal-head">
       <span>Les Saisons — comment ta pensée a évolué</span>
       <button class="icon-btn" id="weeklyClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
@@ -576,7 +603,7 @@
 
 <!-- ===== Mode Focus ===== -->
 <div class="modal-backdrop" id="focusModal">
-  <div class="focus-card">
+  <div class="focus-card" role="dialog" aria-modal="true" aria-label="Mode Agir">
     <button class="icon-btn focus-close" id="focusClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
     <svg class="neuron-flourish lg" viewBox="0 0 80 20" aria-hidden="true" focusable="false">
       <path class="bn-link" d="M6,14 Q20,4 34,10" />
@@ -648,24 +675,25 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=48"></script>
-<script src="assets/js/offline-queue.js?v=48"></script>
-<script src="assets/js/api.js?v=48"></script>
-<script src="assets/js/preferences.js?v=48"></script>
-<script src="assets/js/shell.js?v=48"></script>
-<script src="assets/js/capture.js?v=48"></script>
-<script src="assets/js/search.js?v=48"></script>
-<script src="assets/js/links.js?v=48"></script>
-<script src="assets/js/tree.js?v=48"></script>
-<script src="assets/js/notes.js?v=48"></script>
-<script src="assets/js/reminders.js?v=48"></script>
-<script src="assets/js/importexport.js?v=48"></script>
-<script src="assets/js/system.js?v=48"></script>
-<script src="assets/js/focus.js?v=48"></script>
-<script src="assets/js/clips.js?v=48"></script>
-<script src="assets/js/views.js?v=48"></script>
-<script src="assets/js/recipes.js?v=48"></script>
-<script src="assets/js/trash.js?v=48"></script>
-<script src="assets/js/main.js?v=48"></script>
+<script src="assets/js/starfield.js?v=49"></script>
+<script src="assets/js/offline-queue.js?v=49"></script>
+<script src="assets/js/api.js?v=49"></script>
+<script src="assets/js/preferences.js?v=49"></script>
+<script src="assets/js/shell.js?v=49"></script>
+<script src="assets/js/capture.js?v=49"></script>
+<script src="assets/js/search.js?v=49"></script>
+<script src="assets/js/links.js?v=49"></script>
+<script src="assets/js/tree.js?v=49"></script>
+<script src="assets/js/notes.js?v=49"></script>
+<script src="assets/js/reminders.js?v=49"></script>
+<script src="assets/js/importexport.js?v=49"></script>
+<script src="assets/js/system.js?v=49"></script>
+<script src="assets/js/focus.js?v=49"></script>
+<script src="assets/js/clips.js?v=49"></script>
+<script src="assets/js/views.js?v=49"></script>
+<script src="assets/js/graph-v49.js?v=49"></script>
+<script src="assets/js/recipes.js?v=49"></script>
+<script src="assets/js/trash.js?v=49"></script>
+<script src="assets/js/main.js?v=49"></script>
 </body>
 </html>

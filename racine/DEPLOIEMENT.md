@@ -100,3 +100,22 @@ Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) 
 - [ ] Les Saisons (bouton calendrier) : la revue hebdomadaire a maintenant 4 catégories (Germé/Mûri/Dormant/Abandonné) plus une carte "pensée oubliée" tirée au hasard parmi les notes non touchées depuis 6 mois, avec un bouton pour en tirer une autre
 - [ ] Regroupement de graines : si 3 idées récentes ou plus partagent un tag, un bandeau doit proposer de les regrouper sous une nouvelle racine ("Regrouper") ou d'ignorer la suggestion ("Pas maintenant", ne doit plus jamais réapparaître pour ce groupe précis)
 - [ ] Recharger l'app après un déploiement ne montre pas d'anciens fichiers (vérifier que les `?v=N` ont bien été incrémentés)
+
+## Version 49 — Constellation utile
+
+La v49 ne change pas le schéma D1 : **aucune migration SQL à exécuter** si la version 12 est déjà présente. Il faut seulement publier l'ensemble des fichiers, notamment le nouveau `assets/js/graph-v49.js`, puis forcer une actualisation de l'application installée.
+
+Checklist spécifique après déploiement :
+- [ ] État du système affiche **App v49** et **Schéma v12**.
+- [ ] Constellation s'ouvre par défaut sur la lentille **À regarder** et reste lisible avec beaucoup de pensées.
+- [ ] Les lentilles Racines, En attente, Endormies et Tout changent réellement le contenu affiché.
+- [ ] La recherche de Constellation et le filtre temporel fonctionnent ensemble ; Effacer restaure la vue.
+- [ ] Un clic sélectionne une pensée et explique pourquoi elle est affichée ; un double-clic l'ouvre.
+- [ ] Les branches parent-enfant et les liens déjà créés sont visuellement distincts.
+- [ ] Une suggestion de lien n'est jamais créée automatiquement : elle affiche d'abord Relier / Pas pertinent.
+- [ ] La liste accessible sous le graphe permet d'explorer les pensées au clavier.
+- [ ] Sur mobile, la fiche d'une pensée s'ouvre en panneau bas au-dessus de la navigation.
+- [ ] Sur mobile, Atelier donne aussi accès aux rappels, à l'import, à l'export et à l'état du système.
+- [ ] Agir en 5 minutes ne propose aucune tâche trop longue et respecte strictement l'énergie choisie.
+- [ ] Une pensée déposée hors ligne apparaît immédiatement et indique qu'elle sera synchronisée.
+- [ ] Échap ferme la dernière fenêtre modale ouverte.
