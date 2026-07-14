@@ -36,6 +36,11 @@ window.RA = (function () {
     return data;
   }
 
+  function clientId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
   return {
     login: function (password) { return req('/login', { method: 'POST', body: { password: password } }); },
     logout: function () { return req('/logout', { method: 'POST' }); },
@@ -43,7 +48,14 @@ window.RA = (function () {
 
     listNotes: function () { return req('/notes'); },
     trashNotes: function () { return req('/notes/trash'); },
-    createNote: function (note) { return req('/notes', { method: 'POST', body: note }); },
+    createNote: function (note) {
+      note = Object.assign({}, note);
+      if (!note.id) note.id = clientId();
+      return req('/notes', { method: 'POST', body: note, offlineQueueable: true }).then(function (res) {
+        if (res && res.queued) res.id = note.id;
+        return res;
+      });
+    },
     updateNote: function (id, patch) { return req('/notes/' + id, { method: 'PUT', body: patch, offlineQueueable: true }); },
     deleteNote: function (id) { return req('/notes/' + id, { method: 'DELETE', offlineQueueable: true }); },
     restoreNote: function (id) { return req('/notes/' + id + '/restore', { method: 'PUT', offlineQueueable: true }); },

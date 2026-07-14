@@ -173,3 +173,87 @@
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitCapture();
   });
   captureAdd.addEventListener('click', submitCapture);
+
+  // ---------- Déposer : une pensée entre sans exiger de classement ----------
+  var depositModal = document.getElementById('depositModal');
+  var depositInput = document.getElementById('depositInput');
+
+  function openDepositModal(initialText) {
+    depositInput.value = initialText || '';
+    depositModal.classList.add('show');
+    setTimeout(function () { depositInput.focus(); }, 40);
+  }
+
+  function closeDepositModal() { depositModal.classList.remove('show'); }
+
+  function depositPayload(raw) {
+    var lines = raw.trim().split(/\r?\n/);
+    var title = (lines.shift() || '').trim().slice(0, 500);
+    return {
+      title: title,
+      content: lines.join('\n').trim(),
+      kind: 'idee',
+      inbox: true,
+      position: Date.now(),
+      space: 'Général',
+    };
+  }
+
+  function optimisticDeposit(id, payload) {
+    var now = Date.now();
+    state.notes.unshift(Object.assign({
+      id: id, parent_id: null, pinned: 0, done: 0, tags: '', links: '', energy: '',
+      status: 'active', remind_at: null, history: '[]', effort_minutes: null,
+      created_at: now, updated_at: now,
+    }, payload));
+    renderSpaceBar();
+    renderNotesView();
+    renderToday();
+  }
+
+  function saveDeposit() {
+    var raw = depositInput.value.trim();
+    if (!raw) { depositInput.focus(); return; }
+    var payload = depositPayload(raw);
+    if (!payload.title) return;
+    document.getElementById('depositSave').disabled = true;
+    RA.createNote(payload).then(function (res) {
+      closeDepositModal();
+      depositInput.value = '';
+      if (res.queued) {
+        optimisticDeposit(res.id, payload);
+        toast('Pensée gardée hors-ligne — elle se synchronisera automatiquement');
+      } else {
+        toast('Pensée déposée. Tu n’as rien d’autre à décider maintenant.');
+        loadNotes();
+      }
+    }).catch(function (err) { toast('Erreur : ' + err.message); }).finally(function () {
+      document.getElementById('depositSave').disabled = false;
+    });
+  }
+
+  document.getElementById('depositClose').addEventListener('click', closeDepositModal);
+  depositModal.addEventListener('click', function (e) { if (e.target === depositModal) closeDepositModal(); });
+  document.getElementById('depositSave').addEventListener('click', saveDeposit);
+  document.getElementById('depositExpand').addEventListener('click', function () {
+    var raw = depositInput.value.trim();
+    closeDepositModal();
+    switchTab('notes');
+    if (raw) {
+      var payload = depositPayload(raw);
+      captureInput.value = payload.title;
+      captureDetails.value = payload.content;
+      captureBar.classList.add('has-value');
+      if (payload.content) {
+        captureDetails.classList.add('open');
+        detailToggle.classList.add('active');
+        detailToggle.textContent = '− masquer les détails';
+      }
+    }
+    setTimeout(function () { captureInput.focus(); }, 40);
+  });
+  depositInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveDeposit();
+    if (e.key === 'Escape') closeDepositModal();
+  });
+  document.getElementById('clairiereDeposit').addEventListener('click', function () { openDepositModal(); });

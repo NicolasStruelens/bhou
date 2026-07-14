@@ -1,16 +1,6 @@
 // Racine — vues transversales : Aujourd'hui, revue hebdomadaire, graphe des notes liées
   // ================= VUE AUJOURD'HUI =================
 
-  var MORNING_REVIEW_KEY = 'racine_morning_review';
-  var morningReviewToggle = document.getElementById('morningReviewToggle');
-  morningReviewToggle.checked = localStorage.getItem(MORNING_REVIEW_KEY) === '1';
-  morningReviewToggle.addEventListener('change', function () {
-    var value = morningReviewToggle.checked ? '1' : '0';
-    localStorage.setItem(MORNING_REVIEW_KEY, value);
-    pushPreference(MORNING_REVIEW_KEY, value);
-    toast(morningReviewToggle.checked ? 'Racine ouvrira ici au prochain démarrage' : 'Retour à l\'onglet Racine au démarrage');
-  });
-
   // ================= LA CLAIRIÈRE =================
   // sélection curée (4 emplacements max) plutôt qu'une agrégation exhaustive — voir DEPLOIEMENT.md
   // pour la logique. Moteur de scoring déterministe, sans IA distante.
@@ -59,13 +49,24 @@
 
     var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
     var graine = pool.filter(function (n) {
-      return n.kind === 'idee' && !used[n.id] && n.created_at >= weekAgo;
-    }).sort(function (a, b) { return b.created_at - a.created_at; })[0];
+      return n.kind === 'idee' && !used[n.id] && (n.inbox || n.created_at >= weekAgo);
+    }).sort(function (a, b) {
+      if (!!a.inbox !== !!b.inbox) return a.inbox ? -1 : 1;
+      return b.created_at - a.created_at;
+    })[0];
     if (graine) { picks.graine = graine; used[graine.id] = true; }
 
-    var resonance = pool.filter(function (n) {
-      return (n.kind === 'idee' || n.kind === 'note') && !used[n.id];
-    }).sort(function (a, b) { return a.updated_at - b.updated_at; })[0];
+    // Résonance = une pensée ancienne qui partage du sens avec ce qui bouge récemment.
+    var anchor = pool.filter(function (n) { return !used[n.id] && !n.inbox; })
+      .sort(function (a, b) { return b.updated_at - a.updated_at; })[0];
+    var resonancePool = pool.filter(function (n) {
+      return (n.kind === 'idee' || n.kind === 'note') && !n.inbox && !used[n.id] && (!anchor || n.id !== anchor.id);
+    });
+    var resonance = anchor ? resonancePool.map(function (n) {
+      return { note: n, score: similarityScore(anchor, n), age: now - n.updated_at };
+    }).filter(function (x) { return x.score >= 2.5; })
+      .sort(function (a, b) { return (b.score - a.score) || (b.age - a.age); })[0] : null;
+    resonance = resonance ? resonance.note : resonancePool.sort(function (a, b) { return a.updated_at - b.updated_at; })[0];
     if (resonance) { picks.resonance = resonance; used[resonance.id] = true; }
 
     var attente = pool.filter(function (n) { return n.energy === 'attente' && !used[n.id]; })
@@ -81,7 +82,7 @@
 
   function buildClairiereCard(slot, n) {
     var card = document.createElement('div');
-    card.className = 'clairiere-card';
+    card.className = 'clairiere-card slot-' + slot.key;
 
     var head = document.createElement('div');
     head.className = 'clairiere-card-head';
@@ -120,7 +121,7 @@
 
     actionBtn('Faire maintenant', function () { switchTab('notes'); jumpToNote(n.id); });
     actionBtn('Garder pour plus tard', function () { clairiereAction(n.id, { status: 'someday' }); });
-    actionBtn('Développer', function () { switchTab('notes'); openEditModal(n); });
+    actionBtn(n.inbox ? 'Faire germer' : 'Développer', function () { switchTab('notes'); openEditModal(n); });
     actionBtn('Relier', function () { switchTab('notes'); openLinkModal(n); });
     actionBtn('Pas aujourd\'hui', function () { skipToday(n.id); renderClairiere(); });
     actionBtn('Ne m\'intéresse plus', function () {
@@ -197,7 +198,7 @@
   function bundleGroup(bundle) {
     var title = 'Regroupement : #' + bundle.tag.replace(/^#/, '');
     RA.createNote({ title: title, kind: 'idee', space: effectiveSpace(bundle.notes[0]) }).then(function (res) {
-      return Promise.all(bundle.notes.map(function (n) { return RA.updateNote(n.id, { parent_id: res.id }); }));
+      return Promise.all(bundle.notes.map(function (n) { return RA.updateNote(n.id, { parent_id: res.id, inbox: false }); }));
     }).then(function () {
       loadNotes();
       toast(bundle.notes.length + ' idées regroupées sous « ' + title + ' »');
@@ -268,7 +269,9 @@
     var recentClips = state.clips.slice(0, 5);
     var any = due.length || openTodos.length || pinned.length || recentClips.length;
     document.getElementById('todayEmpty').style.display = (any || clairiereHasContent) ? 'none' : 'block';
-    document.getElementById('todayRestHeading').style.display = any ? '' : 'none';
+    var restCount = due.length + openTodos.length + pinned.length + recentClips.length;
+    document.getElementById('todayRestToggle').style.display = any ? '' : 'none';
+    document.getElementById('todayRestCount').textContent = restCount ? restCount + ' élément' + (restCount > 1 ? 's' : '') : '';
 
     [
       { icon: 'clock', title: 'Rappels dus', items: due },
@@ -334,6 +337,14 @@
       container.appendChild(block2);
     }
   }
+
+  var todayRestToggle = document.getElementById('todayRestToggle');
+  todayRestToggle.addEventListener('click', function () {
+    var panel = document.getElementById('todayRestPanel');
+    var open = panel.classList.toggle('hidden') === false;
+    todayRestToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    todayRestToggle.querySelector('span').lastChild.textContent = open ? ' Masquer le reste' : ' Voir le reste';
+  });
 
   // ================= REVUE HEBDOMADAIRE =================
 
@@ -430,7 +441,7 @@
   var graphState = {
     offsetX: 0, offsetY: 0, scale: 1,
     selectedId: null, pathIds: null, hoveredId: null,
-    positions: {}, suggestedLinks: [],
+    positions: {}, suggestedLinks: [], clusterLabels: [],
     rafId: null, didDrag: false,
   };
 
@@ -483,6 +494,7 @@
 
     var cx = rect.width / 2, cy = rect.height / 2;
     var positions = {};
+    var clusterLabels = [];
     var nodeSpacing = GRAPH_NODE_MAX * 2.2;
 
     clusterKeys.forEach(function (key, ci) {
@@ -494,6 +506,7 @@
       var angle = ci * GRAPH_GOLDEN_ANGLE;
       var ccx = cx + Math.cos(angle) * dist;
       var ccy = cy + Math.sin(angle) * dist;
+      clusterLabels.push({ key: key.replace(/^espace:/, ''), x: ccx, y: ccy - localSpread - 28, count: members.length });
 
       members.forEach(function (n, ni) {
         var localR = ni === 0 ? 0 : Math.sqrt(ni) * nodeSpacing;
@@ -506,6 +519,7 @@
         };
       });
     });
+    graphState.clusterLabels = clusterLabels;
     return positions;
   }
 
@@ -597,6 +611,13 @@
 
       var positions = graphState.positions;
       var now = Date.now();
+
+      graphState.clusterLabels.forEach(function (cluster) {
+        ctx.font = '700 ' + (12 / graphState.scale) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(127,169,152,0.82)';
+        ctx.fillText(cluster.key + ' · ' + cluster.count, cluster.x, cluster.y);
+      });
 
       ctx.strokeStyle = 'rgba(52,211,153,0.35)';
       ctx.lineWidth = 1.2 / graphState.scale;
@@ -709,6 +730,35 @@
     return null;
   }
 
+  function renderGraphInspector(n) {
+    var el = document.getElementById('graphInspector');
+    el.innerHTML = '';
+    if (!n) {
+      var empty = document.createElement('div');
+      empty.className = 'graph-inspector-empty';
+      empty.appendChild(icon('node3'));
+      var text = document.createElement('span');
+      text.textContent = 'Touche une étoile pour découvrir la pensée.';
+      empty.appendChild(text);
+      el.appendChild(empty);
+      return;
+    }
+    var kicker = document.createElement('div');
+    kicker.className = 'graph-inspector-kicker';
+    kicker.textContent = graphClusterKey(n).replace(/^espace:/, '');
+    el.appendChild(kicker);
+    var title = document.createElement('h3'); title.textContent = n.title; el.appendChild(title);
+    if (n.content) { var p = document.createElement('p'); p.textContent = n.content.slice(0, 240); el.appendChild(p); }
+    var meta = document.createElement('div');
+    meta.className = 'graph-inspector-meta';
+    meta.textContent = effectiveSpace(n) + ' · ' + parseLinks(n.links).length + ' lien(s)' + (n.effort_minutes ? ' · ≈ ' + n.effort_minutes + ' min' : '');
+    el.appendChild(meta);
+    var open = document.createElement('button');
+    open.className = 'btn btn-primary'; open.type = 'button'; open.textContent = 'Ouvrir cette pensée';
+    open.addEventListener('click', function () { jumpToNote(n.id); });
+    el.appendChild(open);
+  }
+
   function handleGraphClick(clientX, clientY, canvas) {
     if (graphState.didDrag) { graphState.didDrag = false; return; }
     var g = screenToGraph(canvas, clientX, clientY);
@@ -733,6 +783,7 @@
       } else {
         graphState.selectedId = hitId;
         graphState.pathIds = null;
+        renderGraphInspector(graphState.positions[hitId].n);
       }
       return;
     }
@@ -794,6 +845,7 @@
     document.getElementById('graphResetView').addEventListener('click', function () {
       graphState.offsetX = 0; graphState.offsetY = 0; graphState.scale = 1;
       graphState.selectedId = null; graphState.pathIds = null;
+      renderGraphInspector(null);
     });
     document.getElementById('graphTimeFilter').addEventListener('change', renderGraph);
 
@@ -811,4 +863,3 @@
   window.addEventListener('resize', function () {
     if (document.getElementById('view-graph').classList.contains('active')) renderGraph();
   });
-

@@ -18,9 +18,9 @@
     renderNotesView();
   });
 
-  // ---------- opérateurs de recherche : tag: espace: energie: kind: avant: apres: someday: pin: ----------
+  // ---------- opérateurs de recherche : tag: espace: energie: kind: avant: apres: someday: pin: depot: ----------
   function parseSearchQuery(raw) {
-    var q = { tag: null, space: null, energy: null, kind: null, before: null, after: null, someday: null, pinned: null };
+    var q = { tag: null, space: null, energy: null, kind: null, before: null, after: null, someday: null, pinned: null, inbox: null };
     var s = raw;
     s = s.replace(/\btag:(\S+)/i, function (_, g) { q.tag = g.replace(/^#/, '').toLowerCase(); return ' '; });
     s = s.replace(/\bespace:(\S+)/i, function (_, g) { q.space = g; return ' '; });
@@ -30,11 +30,12 @@
     s = s.replace(/\bapres:(\S+)/i, function (_, g) { var t = Date.parse(g); if (!isNaN(t)) q.after = t; return ' '; });
     s = s.replace(/\bsomeday:(oui|yes|true)\b/i, function () { q.someday = true; return ' '; });
     s = s.replace(/\bpin:(oui|yes|true)\b/i, function () { q.pinned = true; return ' '; });
+    s = s.replace(/\b(?:depot|dépôt|inbox):(oui|yes|true)\b/i, function () { q.inbox = true; return ' '; });
     q.text = s.replace(/\s+/g, ' ').trim().toLowerCase();
     return q;
   }
   function hasSearchOperators(q) {
-    return !!(q.tag || q.space || q.energy || q.kind || q.before || q.after || q.someday || q.pinned);
+    return !!(q.tag || q.space || q.energy || q.kind || q.before || q.after || q.someday || q.pinned || q.inbox);
   }
 
   // ---------- compréhension du langage naturel (FR) : traduit une phrase libre vers les opérateurs
@@ -164,6 +165,7 @@
       if (q.kind && n.kind !== q.kind) return false;
       if (q.someday && n.status !== 'someday') return false;
       if (q.pinned && !n.pinned) return false;
+      if (q.inbox && !n.inbox) return false;
       if (q.before && n.created_at >= q.before) return false;
       if (q.after && n.created_at <= q.after) return false;
     }

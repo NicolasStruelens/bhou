@@ -48,6 +48,8 @@
         tags: n.tags || '',
         energy: n.energy || '',
         status: n.status || 'active',
+        inbox: !!n.inbox,
+        effort_minutes: n.effort_minutes || null,
         remind_at: n.remind_at || null,
         history: history,
         created_at: n.created_at || null,
@@ -153,7 +155,8 @@
         var nRes = await RA.createNote({
           title: n.title, content: n.content || '', kind: n.kind || 'idee',
           pinned: !!n.pinned, done: !!n.done, space: FIDELITY_TEST_SPACE, tags: n.tags || '',
-          energy: n.energy || '', status: n.status || 'active', remind_at: n.remind_at || null,
+          energy: n.energy || '', status: n.status || 'active', inbox: !!n.inbox,
+          effort_minutes: n.effort_minutes || null, remind_at: n.remind_at || null,
           history: history, created_at: n.created_at || null, updated_at: n.updated_at || null,
         });
         createdNoteIds.push(nRes.id);
@@ -166,6 +169,8 @@
         });
         if ((fn.energy || '') !== (n.energy || '')) mismatches.push('note « ' + n.title + ' » : énergie non fidèle');
         if ((fn.status || 'active') !== (n.status || 'active')) mismatches.push('note « ' + n.title + ' » : someday non fidèle');
+        if (!!fn.inbox !== !!n.inbox) mismatches.push('note « ' + n.title + ' » : boîte de dépôt non fidèle');
+        if ((fn.effort_minutes || null) !== (n.effort_minutes || null)) mismatches.push('note « ' + n.title + ' » : durée non fidèle');
         if (!!fn.pinned !== !!n.pinned) mismatches.push('note « ' + n.title + ' » : épinglage non fidèle');
         if (!!fn.done !== !!n.done) mismatches.push('note « ' + n.title + ' » : statut fait non fidèle');
         if ((fn.remind_at || null) !== (n.remind_at || null)) mismatches.push('note « ' + n.title + ' » : rappel non fidèle');
@@ -244,4 +249,3 @@
       });
     });
   }
-

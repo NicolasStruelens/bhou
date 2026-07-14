@@ -271,9 +271,7 @@
   // pas de nouvel écran chacun : un raccourci direct vers ce que Racine sait déjà faire,
   // pour ne pas avoir à choisir "où aller" avant de pouvoir penser
   document.getElementById('modeDeposer').addEventListener('click', function () {
-    switchTab('notes');
-    setActiveSpace(state.activeSpace === OVERVIEW ? 'Général' : state.activeSpace);
-    setTimeout(function () { captureInput.focus(); }, 50);
+    openDepositModal();
   });
   document.getElementById('modeDeplier').addEventListener('click', function () {
     switchTab('graph');
@@ -291,4 +289,3 @@
     switchTab('notes');
     captureInput.focus();
   });
-

@@ -6,20 +6,15 @@
     // partage entrant (Android/Chrome : Web Share Target — non supporté par iOS Safari)
     var sharedText = params.get('shared_text') || params.get('shared_url');
     if (sharedText) {
-      switchTab('notes');
-      captureInput.value = sharedText.slice(0, 500);
-      captureBar.classList.add('has-value');
-      captureInput.focus();
-      toast('Contenu partagé prêt à être ajouté');
+      openDepositModal(sharedText.slice(0, 500));
+      toast('Contenu partagé prêt à être déposé');
       return;
     }
-    // revue matinale : si activée et qu'aucun lien direct ne demande un autre onglet, ouvrir sur Aujourd'hui
-    if (!params.get('tab') && !params.get('focus') && !params.get('clip') && localStorage.getItem('racine_morning_review') === '1') {
-      switchTab('today');
-    }
-    if (params.get('tab') === 'clips') switchTab('clips');
-    if (params.get('tab') === 'today') switchTab('today');
-    if (params.get('focus') === 'capture') { switchTab('notes'); captureInput.focus(); }
+    // La Clairière est l'entrée normale. Les liens directs restent prioritaires.
+    var requestedTab = params.get('tab');
+    if (['today', 'notes', 'graph', 'clips', 'recipes', 'reminders', 'trash'].indexOf(requestedTab) !== -1) switchTab(requestedTab);
+    else if (!params.get('focus') && !params.get('clip')) switchTab('today');
+    if (params.get('focus') === 'capture') openDepositModal();
     var clipId = params.get('clip');
     if (clipId) {
       switchTab('clips');

@@ -4,7 +4,7 @@
   var systemModal = document.getElementById('systemModal');
   var systemInfo = document.getElementById('systemInfo');
   var backupList = document.getElementById('backupList');
-  var APP_VERSION = '17';
+  var APP_VERSION = '48';
 
   function statChip(value, label, warn) {
     var div = document.createElement('div');
@@ -140,4 +140,3 @@
       localStorage.setItem('racine_last_backup_date', today);
     }).catch(function () {});
   }
-

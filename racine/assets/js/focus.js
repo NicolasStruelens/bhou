@@ -12,9 +12,13 @@
   var focusSessionMinutes = 15;
   var focusSessionEnergy = '';
 
-  // combien de choses est-il raisonnable de proposer pour ce temps disponible —
-  // volontairement approximatif, pas une minuterie stricte
-  var MINUTES_TO_LIMIT = { 5: 1, 15: 3, 30: 5, 60: 7 };
+  function estimatedMinutes(n) {
+    if (n.effort_minutes) return Number(n.effort_minutes);
+    if (n.energy === '2min') return 2;
+    if (n.energy === 'facile') return 10;
+    if (n.energy === 'profond') return 30;
+    return 15;
+  }
 
   focusTimeRow.querySelectorAll('.focus-choice').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -56,9 +60,17 @@
       return a.created_at - b.created_at;
     });
 
-    var limit = MINUTES_TO_LIMIT[focusSessionMinutes] || 3;
-    focusOverflowCount = Math.max(0, pool.length - limit);
-    return pool.slice(0, limit);
+    var selected = [];
+    var remaining = focusSessionMinutes;
+    pool.forEach(function (n) {
+      var duration = estimatedMinutes(n);
+      if (!selected.length || duration <= remaining) {
+        selected.push(n);
+        remaining = Math.max(0, remaining - duration);
+      }
+    });
+    focusOverflowCount = Math.max(0, pool.length - selected.length);
+    return selected;
   }
 
   function showFocusCard() {
@@ -76,7 +88,8 @@
     contentEl.innerHTML = '';
     if (n.content) renderRichText(contentEl, n.content);
     document.getElementById('focusSpace').textContent = effectiveSpace(n);
-    document.getElementById('focusProgress').textContent = (focusIndex + 1) + ' / ' + focusQueue.length;
+    var remainingMinutes = focusQueue.slice(focusIndex).reduce(function (sum, x) { return sum + estimatedMinutes(x); }, 0);
+    document.getElementById('focusProgress').textContent = (focusIndex + 1) + ' / ' + focusQueue.length + ' · ≈ ' + estimatedMinutes(n) + ' min · ' + remainingMinutes + ' min restantes';
   }
 
   document.getElementById('focusModeBtn').addEventListener('click', function () {
@@ -96,6 +109,11 @@
   focusModal.addEventListener('click', function (e) { if (e.target === focusModal) focusModal.classList.remove('show'); });
   document.getElementById('focusSkip').addEventListener('click', function () {
     focusIndex++;
+    showFocusCard();
+  });
+  document.getElementById('focusReject').addEventListener('click', function () {
+    var rejected = focusQueue.splice(focusIndex, 1)[0];
+    toast('« ' + rejected.title + ' » écartée de cette session');
     showFocusCard();
   });
   document.getElementById('focusDone').addEventListener('click', function () {

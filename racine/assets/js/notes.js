@@ -9,6 +9,7 @@
   var editKind = document.getElementById('editKind');
   var editSpace = document.getElementById('editSpace');
   var editEnergy = document.getElementById('editEnergy');
+  var editEffort = document.getElementById('editEffort');
   var editSomeday = document.getElementById('editSomeday');
   var editContext = document.getElementById('editContext');
   var editHistoryToggle = document.getElementById('editHistoryToggle');
@@ -70,6 +71,7 @@
     editTags.value = n.tags || '';
     editKind.value = n.kind;
     editEnergy.value = n.energy || '';
+    editEffort.value = n.effort_minutes ? String(n.effort_minutes) : '';
     editSomeday.checked = n.status === 'someday';
     try { editTargetHistory = JSON.parse(n.history || '[]'); } catch (e) { editTargetHistory = []; }
     editHistoryList.classList.add('hidden');
@@ -112,7 +114,9 @@
       tags: parseTags(editTags.value).join(' '),
       kind: editKind.value,
       energy: editEnergy.value,
+      effort_minutes: editEffort.value ? Number(editEffort.value) : null,
       status: editSomeday.checked ? 'someday' : 'active',
+      inbox: false,
     };
     if (!editSpace.disabled) patch.space = editSpace.value;
     RA.updateNote(editTargetId, patch).then(function () {
@@ -192,6 +196,14 @@
       meta.appendChild(icon('clock-later', 'icon-inline'));
       meta.appendChild(document.createTextNode(' someday'));
     }
+    if (n.inbox) {
+      var inboxBadge = document.createElement('span');
+      inboxBadge.className = 'inbox-badge';
+      inboxBadge.appendChild(icon('leaf', 'icon-inline'));
+      inboxBadge.appendChild(document.createTextNode(' à faire germer'));
+      meta.appendChild(inboxBadge);
+    }
+    if (n.effort_minutes) meta.appendChild(document.createTextNode(' · ≈ ' + n.effort_minutes + ' min'));
     if (n.energy && ENERGY_LABELS[n.energy]) {
       var energyBadge = document.createElement('span');
       energyBadge.className = 'node-energy';
