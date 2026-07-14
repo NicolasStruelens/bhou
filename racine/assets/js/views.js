@@ -861,5 +861,5 @@
   })();
 
   window.addEventListener('resize', function () {
-    if (document.getElementById('view-graph').classList.contains('active')) renderGraph();
+    if (document.getElementById('view-graph').classList.contains('active')) window.renderGraph();
   });

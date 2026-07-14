@@ -636,7 +636,7 @@
       document.getElementById('reminderCount').textContent = reminderCount ? reminderCount : '';
       if (document.getElementById('view-reminders').classList.contains('active')) renderReminders();
       if (document.getElementById('view-today').classList.contains('active')) renderToday();
-      if (document.getElementById('view-graph').classList.contains('active')) renderGraph();
+      if (document.getElementById('view-graph').classList.contains('active')) window.renderGraph();
       if (window.RAStarfield) window.RAStarfield.setNodeCount(12 + data.notes.length);
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }

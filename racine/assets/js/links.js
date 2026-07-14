@@ -113,9 +113,15 @@
   }
 
   var DIACRITICS_RE = new RegExp('[\\u0300-\\u036f]', 'g');
+  var SIMILARITY_STOPWORDS = {
+    avec: 1, pour: 1, dans: 1, sans: 1, sous: 1, vers: 1, chez: 1, entre: 1,
+    cette: 1, celui: 1, celle: 1, mais: 1, donc: 1, alors: 1, comme: 1,
+    faire: 1, avoir: 1, etre: 1, plus: 1, moins: 1, encore: 1, tout: 1,
+    tous: 1, toute: 1, toutes: 1, quand: 1, quoi: 1, quel: 1, quelle: 1,
+  };
   function wordsOf(str) {
     var noAccents = (str || '').toLowerCase().normalize('NFD').replace(DIACRITICS_RE, '');
-    return noAccents.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 3; });
+    return noAccents.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 3 && !SIMILARITY_STOPWORDS[w]; });
   }
 
   function similarityScore(a, b) {

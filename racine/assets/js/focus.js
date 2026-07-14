@@ -45,7 +45,7 @@
       if (!(n.pinned || (n.kind === 'todo' && !n.done))) return false;
       // énergie choisie pour cette session (ou, à défaut, le filtre global de recherche s'il est actif)
       var wantedEnergy = focusSessionEnergy || state.filterEnergy;
-      if (wantedEnergy && n.energy && n.energy !== wantedEnergy) return false;
+      if (wantedEnergy && (n.energy || '') !== wantedEnergy) return false;
       return true;
     });
 
@@ -64,7 +64,7 @@
     var remaining = focusSessionMinutes;
     pool.forEach(function (n) {
       var duration = estimatedMinutes(n);
-      if (!selected.length || duration <= remaining) {
+      if (duration <= remaining) {
         selected.push(n);
         remaining = Math.max(0, remaining - duration);
       }
@@ -100,7 +100,7 @@
   document.getElementById('focusStart').addEventListener('click', function () {
     focusQueue = focusCandidates();
     focusIndex = 0;
-    if (!focusQueue.length) { toast('Rien à traiter pour ce temps/cette énergie — tout est calme.'); return; }
+    if (!focusQueue.length) { toast('Rien ne tient vraiment dans ' + focusSessionMinutes + ' min pour cette énergie. Choisis un autre cadre.'); return; }
     focusIntro.classList.add('hidden');
     focusQueueView.classList.remove('hidden');
     showFocusCard();

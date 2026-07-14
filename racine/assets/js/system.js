@@ -4,7 +4,7 @@
   var systemModal = document.getElementById('systemModal');
   var systemInfo = document.getElementById('systemInfo');
   var backupList = document.getElementById('backupList');
-  var APP_VERSION = '48';
+  var APP_VERSION = '49';
 
   function statChip(value, label, warn) {
     var div = document.createElement('div');
@@ -79,6 +79,7 @@
       var backups = results[1].backups;
       systemInfo.appendChild(statChip(h.db ? 'ok' : 'fail', 'Base de données', !h.db));
       systemInfo.appendChild(statChip('v' + APP_VERSION, 'Version app'));
+      systemInfo.appendChild(statChip('v' + (h.schema_version || '?'), 'Schéma', h.schema_version !== h.schema_version_expected));
       systemInfo.appendChild(statChip(h.notes, 'Notes actives'));
       systemInfo.appendChild(statChip(h.clips, 'Clips actifs'));
       systemInfo.appendChild(statChip(h.reminders, 'Rappels programmés'));

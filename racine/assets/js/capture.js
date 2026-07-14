@@ -135,7 +135,7 @@
       // détection passive : un mot de date dans le texte pose un rappel automatiquement, sans le retirer du titre
       remindAt = parseNaturalDate(title);
     }
-    RA.createNote({
+    var notePayload = {
       title: title,
       content: captureDetails.value.trim(),
       kind: cmd.kind || state.kind,
@@ -145,7 +145,9 @@
       remind_at: remindAt || null,
       energy: state.energy,
       status: state.someday ? 'someday' : 'active',
-    }).then(function (res) {
+      inbox: false,
+    };
+    RA.createNote(notePayload).then(function (res) {
       captureInput.value = '';
       captureDetails.value = '';
       captureTags.value = '';
@@ -161,8 +163,13 @@
       captureBar.classList.remove('has-value');
       state.lastAddedId = res.id;
       if (cmd.space && knownSpaces().indexOf(cmd.space) === -1 && cmd.space !== 'Général') saveKnownSpace(cmd.space);
-      if (remindAt) toast('Rappel posé pour ' + formatRemindAt(remindAt));
-      loadNotes();
+      if (res.queued) {
+        optimisticDeposit(res.id, notePayload);
+        toast('Pensée gardée hors-ligne — elle se synchronisera automatiquement');
+      } else {
+        if (remindAt) toast('Rappel posé pour ' + formatRemindAt(remindAt));
+        loadNotes();
+      }
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 

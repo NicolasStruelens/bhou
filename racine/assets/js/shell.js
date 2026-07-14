@@ -236,7 +236,7 @@
     if (name === 'trash') loadTrash();
     if (name === 'reminders') renderReminders();
     if (name === 'today') renderToday();
-    if (name === 'graph') renderGraph();
+    if (name === 'graph') window.renderGraph();
     if (name === 'recipes') loadRecipes();
   }
   document.querySelectorAll('.tab:not(.atelier-toggle)').forEach(function (tab) {
@@ -256,11 +256,27 @@
   atelierDropdown.querySelectorAll('.atelier-item').forEach(function (item) {
     item.addEventListener('click', closeAtelier);
   });
+  [
+    ['mobileReminderAction', 'reminderToggle'],
+    ['mobileImportAction', 'importBtn'],
+    ['mobileExportAction', 'exportBtn'],
+    ['mobileSystemAction', 'systemBtn'],
+  ].forEach(function (pair) {
+    var mobileAction = document.getElementById(pair[0]);
+    mobileAction.addEventListener('click', function () {
+      closeAtelier();
+      document.getElementById(pair[1]).click();
+    });
+  });
   document.addEventListener('click', function (e) {
     if (!atelierDropdown.classList.contains('hidden') && !e.target.closest('.atelier-wrap')) closeAtelier();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !atelierDropdown.classList.contains('hidden')) closeAtelier();
+    if (e.key === 'Escape') {
+      var openModals = Array.prototype.slice.call(document.querySelectorAll('.modal-backdrop.show'));
+      if (openModals.length) openModals[openModals.length - 1].classList.remove('show');
+    }
   });
 
   document.getElementById('logoutBtn').addEventListener('click', function () {
