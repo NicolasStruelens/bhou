@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=42">
-<link rel="stylesheet" href="assets/css/base.css?v=42">
-<script src="assets/js/theme-init.js?v=42"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=47">
+<link rel="stylesheet" href="assets/css/base.css?v=47">
+<script src="assets/js/theme-init.js?v=47"></script>
 </head>
 <body>
 <svg class="hidden" aria-hidden="true" focusable="false">
@@ -120,12 +120,29 @@
     </div>
   </div>
 
+  <div class="mode-bar">
+    <button class="mode-btn" id="modeDeposer" type="button" title="Capturer une idée sans rangement" aria-label="Déposer — capturer une idée sans rangement">
+      <svg class="icon"><use href="#i-plus"/></svg>
+      <span>Déposer</span>
+    </button>
+    <button class="mode-btn" id="modeDeplier" type="button" title="Explorer la constellation de tes notes" aria-label="Déplier — explorer la constellation de tes notes">
+      <svg class="icon"><use href="#i-globe"/></svg>
+      <span>Déplier</span>
+    </button>
+    <button class="mode-btn" id="modeAgir" type="button" title="Choisir un temps et une énergie pour avancer" aria-label="Agir — choisir un temps et une énergie pour avancer">
+      <svg class="icon"><use href="#i-target"/></svg>
+      <span>Agir</span>
+    </button>
+  </div>
+
   <main>
 
     <!-- ===== Vue Aujourd'hui (La Clairière) ===== -->
     <section class="view" id="view-today">
       <p class="trash-hint">Pas une liste exhaustive : juste ce qui mérite ton attention maintenant.</p>
       <label class="clip-check-label morning-review-label"><input type="checkbox" id="morningReviewToggle"><svg class="icon"><use href="#i-sunrise"/></svg> Ouvrir ici à chaque démarrage (revue matinale)</label>
+      <div id="growthOfWeek" class="growth-of-week hidden"></div>
+      <div id="bundleSuggestion" class="bundle-suggestion hidden"></div>
       <div id="clairiereCards" class="clairiere-cards"></div>
       <h3 class="trash-heading" id="todayRestHeading">Le reste</h3>
       <div id="todayContent"></div>
@@ -288,8 +305,9 @@
 
     <!-- ===== Vue graphe (La Constellation) ===== -->
     <section class="view" id="view-graph">
-      <p class="trash-hint">Clique un nœud pour l'ouvrir, clique-en un deuxième pour voir le chemin entre les deux. Les pointillés sont des liens suggérés (clique dessus pour les créer). Molette pour zoomer, glisser pour te déplacer.</p>
-      <div class="graph-toolbar">
+      <p class="trash-hint" id="graphHint">Clique un nœud pour l'ouvrir, clique-en un deuxième pour voir le chemin entre les deux. Les pointillés sont des liens suggérés (clique dessus pour les créer). Molette pour zoomer, glisser pour te déplacer.</p>
+      <p class="trash-hint hidden" id="graphPromenadeHint">Aucune tâche ici, juste tes idées. Prends le temps de te promener.</p>
+      <div class="graph-toolbar" id="graphToolbar">
         <select id="graphTimeFilter" class="field graph-time-filter">
           <option value="all">Toute la période</option>
           <option value="7">7 derniers jours</option>
@@ -297,6 +315,7 @@
           <option value="90">3 derniers mois</option>
         </select>
         <button class="btn" id="graphResetView" type="button">Recentrer</button>
+        <button class="btn" id="graphPromenadeToggle" type="button">Mode promenade</button>
       </div>
       <canvas id="graphCanvas" class="graph-canvas"></canvas>
       <div class="empty-state hidden" id="graphEmpty">
@@ -508,15 +527,20 @@
 <div class="modal-backdrop" id="weeklyModal">
   <div class="modal-card weekly-modal-card">
     <div class="modal-head">
-      <span>Revue hebdomadaire</span>
+      <span>Les Saisons — comment ta pensée a évolué</span>
       <button class="icon-btn" id="weeklyClose" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
     </div>
-    <h3 class="trash-heading">Ajoutées cette semaine</h3>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-leaf"/></svg> Germé cette semaine</h3>
     <div id="weeklyAdded" class="weekly-list"></div>
-    <h3 class="trash-heading">Bloquées (anciennes, non traitées)</h3>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-node3"/></svg> Mûri (nouvelles branches ou liens récents)</h3>
+    <div id="weeklyMatured" class="weekly-list"></div>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-hourglass"/></svg> Dormant (non touché depuis un moment)</h3>
     <div id="weeklyStuck" class="weekly-list"></div>
-    <h3 class="trash-heading">À archiver (terminées depuis longtemps)</h3>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-check"/></svg> Abandonné (terminé depuis longtemps)</h3>
     <div id="weeklyArchive" class="weekly-list"></div>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-sunrise"/></svg> Une pensée oubliée</h3>
+    <div id="weeklyRandomCard" class="weekly-random-card"></div>
+    <button class="btn" id="weeklyRandomBtn" type="button">Une autre pensée au hasard</button>
   </div>
 </div>
 
@@ -573,24 +597,24 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=42"></script>
-<script src="assets/js/offline-queue.js?v=42"></script>
-<script src="assets/js/api.js?v=42"></script>
-<script src="assets/js/preferences.js?v=42"></script>
-<script src="assets/js/shell.js?v=42"></script>
-<script src="assets/js/capture.js?v=42"></script>
-<script src="assets/js/search.js?v=42"></script>
-<script src="assets/js/links.js?v=42"></script>
-<script src="assets/js/tree.js?v=42"></script>
-<script src="assets/js/notes.js?v=42"></script>
-<script src="assets/js/reminders.js?v=42"></script>
-<script src="assets/js/importexport.js?v=42"></script>
-<script src="assets/js/system.js?v=42"></script>
-<script src="assets/js/focus.js?v=42"></script>
-<script src="assets/js/clips.js?v=42"></script>
-<script src="assets/js/views.js?v=42"></script>
-<script src="assets/js/recipes.js?v=42"></script>
-<script src="assets/js/trash.js?v=42"></script>
-<script src="assets/js/main.js?v=42"></script>
+<script src="assets/js/starfield.js?v=47"></script>
+<script src="assets/js/offline-queue.js?v=47"></script>
+<script src="assets/js/api.js?v=47"></script>
+<script src="assets/js/preferences.js?v=47"></script>
+<script src="assets/js/shell.js?v=47"></script>
+<script src="assets/js/capture.js?v=47"></script>
+<script src="assets/js/search.js?v=47"></script>
+<script src="assets/js/links.js?v=47"></script>
+<script src="assets/js/tree.js?v=47"></script>
+<script src="assets/js/notes.js?v=47"></script>
+<script src="assets/js/reminders.js?v=47"></script>
+<script src="assets/js/importexport.js?v=47"></script>
+<script src="assets/js/system.js?v=47"></script>
+<script src="assets/js/focus.js?v=47"></script>
+<script src="assets/js/clips.js?v=47"></script>
+<script src="assets/js/views.js?v=47"></script>
+<script src="assets/js/recipes.js?v=47"></script>
+<script src="assets/js/trash.js?v=47"></script>
+<script src="assets/js/main.js?v=47"></script>
 </body>
 </html>
