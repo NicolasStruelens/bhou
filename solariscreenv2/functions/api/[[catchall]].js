@@ -677,31 +677,51 @@ function stampSignatureIp(devis, request) {
 }
 
 async function upsertDevis(db, devis) {
-  const { id, client, statut, calculs, date_creation, date_modification } = devis;
+  const id = devis.id;
   const now = new Date().toISOString();
-  // ⚠️ INVARIANT COMMENTAIRES : les commentaires ne sont modifiés QUE par les routes ciblées
-  // /api/devis/:id/comment. Ici (enregistrement du devis complet : simulateur, statut, signature,
-  // import…) on IGNORE les commentaires du payload et on PRÉSERVE ceux déjà en base. Ainsi, même
-  // si un client envoie une version du devis lue avant l'ajout d'une note, cette note n'est jamais
-  // écrasée. Un devis neuf (absent en base) garde les commentaires fournis (souvent aucun).
-  let comments = Array.isArray(devis.comments) ? devis.comments : [];
+
+  // ⚠️ FUSION AVEC L'EXISTANT — corrige une perte de données majeure.
+  // Certains écrans (simulateur.html, terrain.html) ne renvoient PAS le devis complet : ils le
+  // reconstruisent à partir d'un sous-ensemble de champs (client, items, calculs, pricing_v2…).
+  // Avec un remplacement brut du blob (`data=excluded.data`), tout ce que les AUTRES écrans avaient
+  // écrit disparaissait : signature du client, PV de réception, date de pose, suivi de commande,
+  // historique de statuts, checklist, liste de pose, tickets SAV, portfolio/archive, et surtout les
+  // jetons review_token / track_token (⇒ le lien déjà envoyé au client devenait « Lien invalide »).
+  // On ne remplace donc que les clés RÉELLEMENT PRÉSENTES dans le payload ; les autres sont
+  // conservées telles qu'en base. Un écran qui veut vider un champ doit l'envoyer explicitement
+  // (null / '' / []), ce que font tous les écrans actuels — omettre une clé n'efface plus rien.
+  let existing = null;
   try {
-    const existing = await db.prepare("SELECT json_extract(data, '$.comments') AS c FROM devis WHERE id = ?").bind(id).first();
-    if (existing && existing.c != null) comments = safeParse(existing.c) || [];
-  } catch (e) { /* si la lecture échoue, on retombe sur le payload — jamais bloquant */ }
-  const photosCount = (devis.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
+    const row = await db.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+    if (row && row.data) existing = safeParse(row.data);
+  } catch (e) { /* lecture impossible : on retombe sur le payload seul — jamais bloquant */ }
+  const merged = existing ? Object.assign({}, existing, devis) : devis;
+
+  // INVARIANT COMMENTAIRES : ils ne sont modifiés QUE par les routes ciblées
+  // /api/devis/:id/comment. Tout enregistrement complet du devis PRÉSERVE ceux déjà en base, même
+  // si le payload en contient une version périmée — une note ne peut donc jamais être écrasée.
+  let comments = Array.isArray(merged.comments) ? merged.comments : [];
+  if (existing && Array.isArray(existing.comments)) comments = existing.comments;
+
+  const photosCount = (merged.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
   const commentsCount = comments.length;
   // Dénormalise les types de produits présents (petit tableau de chaînes) pour que la liste
   // /api/devis n'ait pas à extraire les items complets (avec leurs photos base64) juste pour ça.
-  const itemTypes = [...new Set((devis.items || []).map(i => i.type).filter(Boolean))];
-  const dataToStore = { ...devis, comments, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes };
+  const itemTypes = [...new Set((merged.items || []).map(i => i.type).filter(Boolean))];
+  const dataToStore = Object.assign({}, merged, {
+    comments, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes,
+  });
+  // Les colonnes indexées sont dérivées de la version FUSIONNÉE (pas du payload brut) : un écran
+  // qui omet `statut` ne doit pas faire retomber le devis en « brouillon ».
+  const mClient = merged.client;
   await db.prepare(`
     INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET client_nom=excluded.client_nom, client_prenom=excluded.client_prenom,
       statut=excluded.statut, total_ttc=excluded.total_ttc, date_modification=excluded.date_modification, data=excluded.data
-  `).bind(id, (client && client.nom) || '', (client && client.prenom) || '', statut || 'brouillon',
-    (calculs && calculs.total_ttc) || 0, date_creation || now, date_modification || now, JSON.stringify(dataToStore)).run();
+  `).bind(id, (mClient && mClient.nom) || '', (mClient && mClient.prenom) || '', merged.statut || 'brouillon',
+    (merged.calculs && merged.calculs.total_ttc) || 0, merged.date_creation || now,
+    merged.date_modification || now, JSON.stringify(dataToStore)).run();
 }
 
 async function upsertClient(db, c) {
