@@ -245,15 +245,29 @@
       try { return (await req('/clients/' + encodeURIComponent(key))).data; }
       catch (e) { return localClients.get(key); }
     },
+    // Même discipline que saveDevis (voir le commentaire détaillé plus haut) : un rejet SERVEUR
+    // ou une session Access expirée ne doivent JAMAIS être présentés comme un enregistrement réussi.
     async saveClient(client) {
       localClients.save(client);
       try { return await req('/clients', { method: 'POST', body: JSON.stringify(client) }); }
-      catch (e) { console.warn('[SS] saveClient hors-ligne:', e.message); return { ok: true, key: client.key, offline: true }; }
+      catch (e) {
+        if (e && e.serverRejected) { console.warn('[SS] saveClient rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        console.warn('[SS] saveClient hors-ligne:', e.message);
+        return { ok: true, key: client.key, offline: true };
+      }
     },
     async deleteClient(key) {
-      localClients.delete(key);
-      try { return await req('/clients/' + encodeURIComponent(key), { method: 'DELETE' }); }
-      catch (e) { return { ok: true, offline: true }; }
+      try {
+        const r = await req('/clients/' + encodeURIComponent(key), { method: 'DELETE' });
+        localClients.delete(key);   // suppression locale seulement APRÈS confirmation du serveur
+        return r;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        localClients.delete(key);
+        return { ok: true, offline: true };
+      }
     },
 
     // ── FACTURES ──
@@ -265,15 +279,30 @@
       try { return (await req('/factures/' + id)).data; }
       catch (e) { return localFactures.get(id); }
     },
+    // ⚠️ CRITIQUE côté comptable : une facture « créée » qui n'a jamais atteint le serveur fait
+    // réattribuer son numéro (F2026-014) à la facture suivante → deux pièces au même numéro.
+    // D'où la même distinction stricte que saveDevis entre rejet serveur et vraie panne réseau.
     async saveFacture(f) {
       localFactures.save(f);
       try { return await req('/factures', { method: 'POST', body: JSON.stringify(f) }); }
-      catch (e) { console.warn('[SS] saveFacture hors-ligne:', e.message); return { ok: true, id: f.id, offline: true }; }
+      catch (e) {
+        if (e && e.serverRejected) { console.warn('[SS] saveFacture rejetée par le serveur:', e.message); return { ok: false, error: e.message }; }
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        console.warn('[SS] saveFacture hors-ligne:', e.message);
+        return { ok: true, id: f.id, offline: true };
+      }
     },
     async deleteFacture(id) {
-      localFactures.delete(id);
-      try { return await req('/factures/' + id, { method: 'DELETE' }); }
-      catch (e) { return { ok: true, offline: true }; }
+      try {
+        const r = await req('/factures/' + id, { method: 'DELETE' });
+        localFactures.delete(id);   // suppression locale seulement APRÈS confirmation du serveur
+        return r;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        localFactures.delete(id);
+        return { ok: true, offline: true };
+      }
     },
 
     async getStats() {
@@ -329,12 +358,24 @@
     async saveRdv(rdv) {
       localRdv.save(rdv);
       try { return await req('/rdv', { method: 'POST', body: JSON.stringify(rdv) }); }
-      catch (e) { console.warn('[SS] saveRdv hors-ligne:', e.message); return { ok: true, id: rdv.id, offline: true, error: e.message }; }
+      catch (e) {
+        if (e && e.serverRejected) { console.warn('[SS] saveRdv rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        console.warn('[SS] saveRdv hors-ligne:', e.message);
+        return { ok: true, id: rdv.id, offline: true, error: e.message };
+      }
     },
     async deleteRdv(id) {
-      localRdv.delete(id);
-      try { return await req('/rdv/' + encodeURIComponent(id), { method: 'DELETE' }); }
-      catch (e) { return { ok: true, offline: true }; }
+      try {
+        const r = await req('/rdv/' + encodeURIComponent(id), { method: 'DELETE' });
+        localRdv.delete(id);   // suppression locale seulement APRÈS confirmation du serveur
+        return r;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        localRdv.delete(id);
+        return { ok: true, offline: true };
+      }
     },
   };
 
