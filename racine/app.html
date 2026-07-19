@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=49">
-<link rel="stylesheet" href="assets/css/base.css?v=49">
-<script src="assets/js/theme-init.js?v=49"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=50">
+<link rel="stylesheet" href="assets/css/base.css?v=50.1">
+<script src="assets/js/theme-init.js?v=50"></script>
 </head>
 <body>
 <svg class="hidden" aria-hidden="true" focusable="false">
@@ -109,6 +109,9 @@
           <button class="tab atelier-item atelier-mobile-tool" id="mobileImportAction" type="button" role="menuitem">Importer mes données</button>
           <button class="tab atelier-item atelier-mobile-tool" id="mobileExportAction" type="button" role="menuitem">Exporter mes données</button>
           <button class="tab atelier-item atelier-mobile-tool" id="mobileSystemAction" type="button" role="menuitem">État du système</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileWeeklyAction" type="button" role="menuitem">Revue de la semaine</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileThemeAction" type="button" role="menuitem">Changer de thème</button>
+          <button class="tab atelier-item atelier-mobile-tool" id="mobileLogoutAction" type="button" role="menuitem">Se déconnecter</button>
         </div>
       </div>
     </div>
@@ -151,6 +154,27 @@
           <p>Quelques choix seulement. Le reste peut attendre.</p>
         </div>
         <button class="btn btn-primary clairiere-deposit" id="clairiereDeposit" type="button"><svg class="icon"><use href="#i-plus"/></svg> Déposer une pensée</button>
+      </div>
+      <div class="daily-command-grid" aria-label="Tableau de bord quotidien">
+        <section class="daily-command-card inbox-command" id="inboxCommand">
+          <div class="daily-command-icon"><svg class="icon"><use href="#i-leaf"/></svg></div>
+          <div class="daily-command-copy">
+            <div class="daily-command-kicker">Boîte d'entrée</div>
+            <strong id="inboxCommandTitle">Rien à trier</strong>
+            <span id="inboxCommandHint">Tout ce qui traverse ton esprit a trouvé sa place.</span>
+          </div>
+          <button class="btn btn-primary" id="inboxTriageStart" type="button">Trier</button>
+        </section>
+        <section class="daily-command-card radar-command" id="projectRadar">
+          <div class="daily-command-head">
+            <div>
+              <div class="daily-command-kicker">Radar des racines</div>
+              <strong>Ce qui risque de se perdre</strong>
+            </div>
+            <span id="projectRadarCount" class="daily-count"></span>
+          </div>
+          <div id="projectRadarList" class="project-radar-list"></div>
+        </section>
       </div>
       <div id="growthOfWeek" class="growth-of-week hidden"></div>
       <div id="bundleSuggestion" class="bundle-suggestion hidden"></div>
@@ -215,7 +239,8 @@
         <button class="template-btn" data-template="transfert"><svg class="icon"><use href="#i-send"/></svg> Commande à transférer</button>
       </div>
 
-      <div class="filter-bar">
+      <button class="mobile-filters-toggle" id="mobileFiltersToggle" type="button" aria-expanded="false"><svg class="icon"><use href="#i-sliders"/></svg> Affiner la vue</button>
+      <div class="filter-bar" id="filterBar">
         <input type="text" id="searchInput" class="field" placeholder="Rechercher… ex. « tâches urgentes de cette semaine » (ou tag:x espace:x energie:x depot:oui)">
         <div class="kind-select" id="filterKind">
           <button class="kind-btn active" data-kind="all">Tout</button>
@@ -449,7 +474,32 @@
       </div>
     </section>
 
-  </main>
+</main>
+
+<!-- ===== Triage calme de la boîte d'entrée ===== -->
+<div class="modal-backdrop" id="triageModal">
+  <div class="modal-card triage-card" role="dialog" aria-modal="true" aria-labelledby="triageTitle">
+    <div class="modal-head">
+      <div>
+        <div class="daily-command-kicker">Une pensée à la fois</div>
+        <h2 id="triageTitle">Faire de la place</h2>
+      </div>
+      <button class="icon-btn" id="triageClose" type="button" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="triage-progress" id="triageProgress"></div>
+    <article class="triage-thought">
+      <div class="triage-thought-kind" id="triageKind"></div>
+      <h3 id="triageThoughtTitle"></h3>
+      <p id="triageThoughtContent"></p>
+    </article>
+    <div class="triage-primary-actions">
+      <button class="btn btn-primary" id="triageOrganize" type="button"><svg class="icon"><use href="#i-leaf"/></svg> Ranger et développer</button>
+      <button class="btn" id="triageKeep" type="button">Garder simplement</button>
+      <button class="btn" id="triageSomeday" type="button">Un jour peut-être</button>
+    </div>
+    <button class="triage-skip" id="triageSkip" type="button">Passer pour l'instant</button>
+  </div>
+</div>
 </div>
 
 <!-- ===== Modale QR ===== -->
@@ -675,25 +725,26 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=49"></script>
-<script src="assets/js/offline-queue.js?v=49"></script>
-<script src="assets/js/api.js?v=49"></script>
-<script src="assets/js/preferences.js?v=49"></script>
-<script src="assets/js/shell.js?v=49"></script>
-<script src="assets/js/capture.js?v=49"></script>
-<script src="assets/js/search.js?v=49"></script>
-<script src="assets/js/links.js?v=49"></script>
-<script src="assets/js/tree.js?v=49"></script>
-<script src="assets/js/notes.js?v=49"></script>
-<script src="assets/js/reminders.js?v=49"></script>
-<script src="assets/js/importexport.js?v=49"></script>
-<script src="assets/js/system.js?v=49"></script>
-<script src="assets/js/focus.js?v=49"></script>
-<script src="assets/js/clips.js?v=49"></script>
-<script src="assets/js/views.js?v=49"></script>
-<script src="assets/js/graph-v49.js?v=49"></script>
-<script src="assets/js/recipes.js?v=49"></script>
-<script src="assets/js/trash.js?v=49"></script>
-<script src="assets/js/main.js?v=49"></script>
+<script src="assets/js/starfield.js?v=50"></script>
+<script src="assets/js/offline-queue.js?v=50"></script>
+<script src="assets/js/api.js?v=50"></script>
+<script src="assets/js/preferences.js?v=50"></script>
+<script src="assets/js/shell.js?v=50"></script>
+<script src="assets/js/capture.js?v=50"></script>
+<script src="assets/js/search.js?v=50"></script>
+<script src="assets/js/links.js?v=50"></script>
+<script src="assets/js/tree.js?v=50"></script>
+<script src="assets/js/notes.js?v=50"></script>
+<script src="assets/js/reminders.js?v=50"></script>
+<script src="assets/js/importexport.js?v=50"></script>
+<script src="assets/js/system.js?v=50"></script>
+<script src="assets/js/focus.js?v=50"></script>
+<script src="assets/js/clips.js?v=50"></script>
+<script src="assets/js/views.js?v=50"></script>
+<script src="assets/js/graph-v49.js?v=50.1"></script>
+<script src="assets/js/daily-v50.js?v=50"></script>
+<script src="assets/js/recipes.js?v=50"></script>
+<script src="assets/js/trash.js?v=50"></script>
+<script src="assets/js/main.js?v=50"></script>
 </body>
 </html>

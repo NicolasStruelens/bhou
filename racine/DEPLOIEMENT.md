@@ -119,3 +119,27 @@ Checklist spécifique après déploiement :
 - [ ] Agir en 5 minutes ne propose aucune tâche trop longue et respecte strictement l'énergie choisie.
 - [ ] Une pensée déposée hors ligne apparaît immédiatement et indique qu'elle sera synchronisée.
 - [ ] Échap ferme la dernière fenêtre modale ouverte.
+
+## Version 50 — Le poste de pilotage quotidien
+
+La v50 ne change pas le schéma D1 : **aucune migration supplémentaire** si la version 12 est déjà installée. Si la base est encore en version 11, exécuter `migration_v12.sql` une seule fois avant de publier les fichiers.
+
+Changements majeurs :
+- une vraie boîte d'entrée pour trier les pensées déposées sans perdre le fil ;
+- un radar qui signale les racines bloquées, dormantes ou sans prochaine action ;
+- une Clairière plus calme : une action principale, les décisions secondaires à la demande ;
+- des Racines moins chargées grâce aux actions contextuelles repliées ;
+- une interface GSM compacte, avec filtres repliables et cartes de Clairière balayables horizontalement ;
+- l'Atelier mobile donne aussi accès à la revue, au thème et à la déconnexion ;
+- cache hors ligne et ressources unifiés en **v50**.
+
+Checklist spécifique après déploiement :
+- [ ] État du système affiche **App v50** et **Schéma v12**.
+- [ ] La boîte d'entrée affiche le bon nombre de pensées déposées et le tri progresse sans recharger toute la page.
+- [ ] « Ranger et développer » ouvre l'édition de la pensée sélectionnée.
+- [ ] Le radar affiche au maximum quatre racines avec une raison compréhensible.
+- [ ] Les cartes de Clairière n'affichent qu'une action principale et le bouton `•••` révèle les autres choix.
+- [ ] Dans Racines, le bouton `•••` ouvre les actions secondaires sans masquer le bouton Terminer.
+- [ ] Sur un écran de 390 px, les quatre onglets restent sur une ligne et Atelier est entièrement parcourable.
+- [ ] Sur mobile, les cartes de Clairière se parcourent horizontalement et les filtres de Racines restent repliés au départ.
+- [ ] Après actualisation forcée, aucun ancien fichier v49 ne reste chargé par le service worker.
