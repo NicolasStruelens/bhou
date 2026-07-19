@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolariScreen — Dashboard Devis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="icon" type="image/png" href="assets/logo-solariscreen.png">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Orbitron:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080d12;
+            --bg-card: #0d1520;
+            --bg-panel: #111c2a;
+            --green: #00ff88;
+            --green-dim: #00cc6a;
+            --green-dark: #003d22;
+            --cyan: #00e5ff;
+            --cyan-dim: #00b8d9;
+            --red: #ff4757;
+            --orange: #ffa502;
+            --yellow: #ffdd59;
+            --text: #c8d8e8;
+            --text-dim: #5a7a9a;
+            --border: #1a3048;
+            --border-bright: #1e4060;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-display: 'Orbitron', sans-serif;
+            --scanline-opacity: 0.03;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-mono);
+            background: var(--bg-primary);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ── SCANLINES ── */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,var(--scanline-opacity)) 2px, rgba(0,255,136,var(--scanline-opacity)) 4px);
+            pointer-events: none; z-index: 9999;
+            animation: scan 10s linear infinite;
+        }
+        @keyframes scan { to { background-position: 0 100%; } }
+
+        /* ── BG GRID ── */
+        .bg-grid {
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── NAVBAR ── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(8,13,18,0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .nav-logo {
+            font-family: var(--font-display); font-size: 0.85em;
+            color: var(--green); letter-spacing: 0.1em; text-decoration: none;
+        }
+        .nav-logo span { color: var(--cyan); }
+        .nav-links { display: flex; gap: 1.6rem; list-style: none; }
+        .nav-links a {
+            color: var(--text-dim); text-decoration: none; font-size: 0.65em;
+            letter-spacing: 0.1em; text-transform: uppercase; transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--green); }
+        .nav-right { display: flex; align-items: center; gap: 1rem; }
+        .nav-status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.6em; color: var(--text-dim); }
+        .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .btn-nav {
+            font-family: var(--font-mono); font-size: 0.6em; letter-spacing: 0.08em;
+            text-transform: uppercase; padding: 0.4rem 0.85rem;
+            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+            border-radius: 3px; cursor: pointer; transition: all 0.2s; text-decoration: none;
+        }
+        .btn-nav:hover { background: rgba(0,229,255,0.08); box-shadow: 0 0 14px rgba(0,229,255,0.2); }
+
+        /* ── MAIN CONTENT ── */
+        .main-container {
+            padding: 100px 6vw 60px;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-container::before, .main-container::after {
+            content: ''; position: absolute;
+            width: 24px; height: 24px; border-color: var(--green); border-style: solid; opacity: 0.25;
+        }
+        .main-container::before { top: 80px; left: 20px; border-width: 2px 0 0 2px; }
+        .main-container::after  { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+        /* ── SECTION HEADER ── */
+        .section-tag {
+            font-size: 0.58em; color: var(--text-dim); letter-spacing: 0.15em;
+            text-transform: uppercase; margin-bottom: 0.6rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .section-tag::before {
+            content: ''; width: 6px; height: 6px; background: var(--green);
+            border-radius: 50%; box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite;
+        }
+        .section-title {
+            font-family: var(--font-display); font-size: clamp(1.8em, 4vw, 3em);
+            color: var(--green); text-transform: uppercase; letter-spacing: 0.05em;
+            line-height: 1.1; margin-bottom: 1.5rem;
+        }
+        .h-divider {
+            height: 1px; background: linear-gradient(90deg, var(--green), var(--cyan), transparent);
+            opacity: 0.4; margin-bottom: 2rem;
+        }
+
+        /* ── STATS GRID ── */
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1rem; 
+            margin-bottom: 2rem; 
+        }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            padding: 1.2rem; text-align: center; position: relative; overflow: hidden; 
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .stat-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+        .stat-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+        }
+        .stat-number { 
+            font-family: var(--font-display); font-size: 1.8em; color: var(--green); 
+            display: block; margin-bottom: 0.3rem; 
+        }
+        .stat-label { font-size: 0.7em; color: var(--text-dim); }
+        .stat-subtitle { 
+            font-size: 0.6em; color: var(--text-dim); opacity: 0.7; 
+            margin-top: 0.2rem; 
+        }
+
+        /* ── ACTIONS BAR ── */
+        .actions-bar {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            padding: 1rem 1.5rem; margin-bottom: 2rem; position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+        }
+        .actions-bar::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+        }
+        .actions-left { display: flex; align-items: center; gap: 0.8rem; }
+        .actions-right { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+        .btn {
+            font-family: var(--font-mono); font-size: 0.7em; letter-spacing: 0.1em;
+            text-transform: uppercase; padding: 0.6rem 1.2rem; border-radius: 3px;
+            text-decoration: none; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid;
+        }
+        .btn-primary { background: var(--green); color: var(--bg-primary); border-color: var(--green); font-weight: 700; }
+        .btn-primary:hover { background: transparent; color: var(--green); box-shadow: 0 0 20px rgba(0,255,136,0.3); }
+        .btn-secondary { background: var(--cyan); color: var(--bg-primary); border-color: var(--cyan); font-weight: 700; }
+        .btn-secondary:hover { background: transparent; color: var(--cyan); box-shadow: 0 0 20px rgba(0,229,255,0.3); }
+        .btn-danger { background: var(--red); color: white; border-color: var(--red); }
+        .btn-danger:hover { background: transparent; color: var(--red); box-shadow: 0 0 20px rgba(255,71,87,0.3); }
+        .btn-outline { background: transparent; color: var(--text-dim); border-color: var(--border); }
+        .btn-outline:hover { color: var(--green); border-color: var(--green); }
+
+        /* ── TABLE CONTAINER ── */
+        .table-container {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
+            overflow: hidden; position: relative;
+        }
+        .table-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan)); opacity: 0.6;
+        }
+
+        .table-header {
+            background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center;
+        }
+        .table-title {
+            font-family: var(--font-display); font-size: 1rem; color: var(--green);
+            letter-spacing: 0.05em; text-transform: uppercase;
+        }
+
+        /* ── TABLE ── */
+        .devis-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+        }
+
+        .devis-table th,
+        .devis-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .devis-table th {
+            background: var(--bg-panel);
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.7em;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .devis-table tbody tr {
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .devis-table tbody tr:hover {
+            background: var(--bg-panel);
+        }
+
+        .devis-id {
+            color: var(--green);
+            font-weight: 600;
+            font-family: var(--font-display);
+        }
+
+        .devis-client {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .devis-date {
+            font-size: 0.75em;
+            color: var(--text-dim);
+        }
+
+        .devis-amount {
+            color: var(--green);
+            font-weight: 600;
+            font-family: var(--font-display);
+        }
+
+        /* ── STATUS BADGES ── */
+        .status-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 3px;
+            font-size: 0.6em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border: 1px solid;
+        }
+
+        .status-brouillon { 
+            background: rgba(148, 163, 184, 0.1); 
+            color: var(--text-dim); 
+            border-color: rgba(148, 163, 184, 0.3);
+        }
+        .status-signe { 
+            background: rgba(0, 255, 136, 0.1); 
+            color: var(--green); 
+            border-color: rgba(0, 255, 136, 0.3);
+        }
+        .status-envoye_client { 
+            background: rgba(0, 229, 255, 0.1); 
+            color: var(--cyan); 
+            border-color: rgba(0, 229, 255, 0.3);
+        }
+        .status-en_attente_validation { 
+            background: rgba(255, 165, 2, 0.1); 
+            color: var(--orange); 
+            border-color: rgba(255, 165, 2, 0.3);
+        }
+        .status-refuse { 
+            background: rgba(255, 71, 87, 0.1); 
+            color: var(--red); 
+            border-color: rgba(255, 71, 87, 0.3);
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-dim);
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            letter-spacing: 0.05em;
+        }
+
+        .empty-state p {
+            font-size: 0.8rem;
+            line-height: 1.6;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* ── ACTIONS CELL ── */
+        .actions-cell {
+            text-align: right;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 0.3rem;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            margin-left: 0.2rem;
+        }
+
+        .action-btn:hover {
+            color: var(--green);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .action-btn.danger:hover {
+            color: var(--red);
+            background: rgba(255, 71, 87, 0.1);
+        }
+
+        /* ── MODAL OVERLAY ── */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 9000;
+            background: rgba(4,8,12,0.94); backdrop-filter: blur(14px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-card); border: 1px solid var(--border-bright);
+            border-radius: 4px; padding: 2.5rem; width: min(420px, 90vw);
+            position: relative; transform: translateY(20px); transition: transform 0.3s;
+        }
+        .modal-overlay.open .modal-box { transform: translateY(0); }
+        .modal-box::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+        .modal-title {
+            font-family: var(--font-display); font-size: 0.95em; color: var(--green);
+            letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem;
+        }
+        .modal-sub { font-size: 0.62em; color: var(--text-dim); margin-bottom: 2rem; }
+        .modal-close {
+            position: absolute; top: 0.9rem; right: 0.9rem;
+            background: none; border: none; color: var(--text-dim); cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.9em; transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--green); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 80px 4vw 40px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 0.8rem;
+            }
+            
+            .actions-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .actions-left, .actions-right {
+                justify-content: center;
+            }
+            
+            .devis-table {
+                font-size: 0.7rem;
+            }
+            
+            .devis-table th,
+            .devis-table td {
+                padding: 0.8rem 0.5rem;
+            }
+        }
+
+        @media(max-width:700px){
+            nav { padding: 0 1rem; }
+            .nav-links { gap: 1rem; }
+            .nav-links li:nth-child(n+4) { display: none; }
+        }
+
+        /* ── STATUS DROPDOWN ── */
+        .status-badge { cursor: pointer; user-select: none; }
+        .status-badge:hover { opacity: 0.8; transform: scale(1.04); transition: all 0.15s; }
+        .status-dropdown {
+            position: fixed; z-index: 9000;
+            background: var(--bg-card); border: 1px solid var(--border-bright);
+            border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            min-width: 200px; overflow: hidden;
+        }
+        .status-dropdown::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+        }
+        .status-dropdown-header {
+            padding: 0.5rem 0.9rem;
+            font-size: 0.58em; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 0.1em; border-bottom: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
+        .status-option {
+            display: block; width: 100%; padding: 0.5rem 0.9rem;
+            background: none; border: none; text-align: left; cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.72em; color: var(--text);
+            transition: background 0.15s; border-bottom: 1px solid var(--border);
+        }
+        .status-option:last-child { border-bottom: none; }
+        .status-option:hover { background: rgba(0,255,136,0.08); color: var(--green); }
+        .status-option.active { color: var(--green); font-weight: 600; }
+        .status-option .s-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 0.5rem; }
+        /* status colors */
+        .status-brouillon { background:rgba(148,163,184,0.1); color:var(--text-dim); border-color:rgba(148,163,184,0.3); }
+        .status-signe { background:rgba(0,255,136,0.1); color:var(--green); border-color:rgba(0,255,136,0.3); }
+        .status-envoye_client { background:rgba(0,229,255,0.1); color:var(--cyan); border-color:rgba(0,229,255,0.3); }
+        .status-en_attente_validation { background:rgba(255,165,2,0.1); color:var(--orange); border-color:rgba(255,165,2,0.3); }
+        .status-refuse { background:rgba(255,71,87,0.1); color:var(--red); border-color:rgba(255,71,87,0.3); }
+        .status-annule { background:rgba(255,71,87,0.07); color:#ff6b7a; border-color:rgba(255,71,87,0.2); }
+        .status-termine { background:rgba(0,255,136,0.15); color:var(--green); border-color:rgba(0,255,136,0.5); }
+        .status-travaux_planifies { background:rgba(165,94,234,0.1); color:#a55eea; border-color:rgba(165,94,234,0.3); }
+        .status-a_tarifer { background:rgba(255,221,89,0.1); color:#ffdd59; border-color:rgba(255,221,89,0.3); }
+
+        /* ── COMMENT PANEL ── */
+        .comment-overlay { display:none;position:fixed;inset:0;z-index:7999;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px); }
+        .comment-overlay.open { display:block; }
+        .comment-panel {
+            position:fixed;top:0;right:0;bottom:0;z-index:8000;
+            width:min(400px,100vw);
+            background:var(--bg-card);border-left:1px solid var(--border-bright);
+            display:flex;flex-direction:column;
+            transform:translateX(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+            box-shadow:-8px 0 40px rgba(0,0,0,0.7);
+        }
+        .comment-panel.open { transform:translateX(0); }
+        .comment-panel-header {
+            position:relative;padding:1.1rem 1.2rem 0.9rem;
+            border-bottom:1px solid var(--border);background:var(--bg-panel);
+            display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;
+        }
+        .comment-panel-header::before {
+            content:'';position:absolute;top:0;left:0;right:0;height:2px;
+            background:linear-gradient(90deg,var(--purple),var(--cyan));
+        }
+        .comment-panel-title { font-family:var(--font-display);font-size:0.72rem;color:var(--purple);letter-spacing:0.1em; }
+        .comment-panel-sub { font-size:0.6rem;color:var(--text-dim);margin-top:0.2rem; }
+        .comment-panel-close { background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;padding:0.2rem;transition:color 0.2s; }
+        .comment-panel-close:hover { color:var(--red); }
+        .comment-thread { flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:0.7rem; }
+        .comment-thread::-webkit-scrollbar { width:4px; }
+        .comment-thread::-webkit-scrollbar-thumb { background:var(--border-bright);border-radius:2px; }
+        .comment-item {
+            background:var(--bg-panel);border-radius:6px;border:1px solid var(--border);
+            padding:0.65rem 0.8rem;position:relative;transition:border-color 0.2s;
+        }
+        .comment-item:hover { border-color:var(--border-bright); }
+        .comment-item-header { display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;flex-wrap:wrap; }
+        .comment-author { font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase; }
+        .comment-author-nicolas { color:var(--green); }
+        .comment-author-yannick { color:var(--purple); }
+        .comment-type-badge { font-size:0.5rem;padding:1px 5px;border-radius:2px;text-transform:uppercase;letter-spacing:0.06em;border:1px solid; }
+        .comment-type-note   { color:var(--text-dim);border-color:var(--border-bright); }
+        .comment-type-alerte { color:var(--orange);border-color:rgba(255,165,2,0.4);background:rgba(255,165,2,0.06); }
+        .comment-type-info   { color:var(--cyan);border-color:rgba(0,229,255,0.3);background:rgba(0,229,255,0.05); }
+        .comment-date { font-size:0.55rem;color:var(--text-dim);margin-left:auto; }
+        .comment-text { font-size:0.72rem;color:var(--text);line-height:1.55;white-space:pre-wrap;word-break:break-word; }
+        .comment-delete { position:absolute;top:0.4rem;right:0.5rem;background:none;border:none;color:transparent;cursor:pointer;font-size:0.7rem;transition:color 0.2s; }
+        .comment-item:hover .comment-delete { color:var(--text-dim); }
+        .comment-delete:hover { color:var(--red) !important; }
+        .comment-empty { text-align:center;padding:2.5rem 1rem;color:var(--text-dim);font-size:0.7rem;line-height:1.6; }
+        .comment-empty-icon { font-size:1.8rem;display:block;margin-bottom:0.5rem;opacity:0.35; }
+        .comment-form { padding:0.9rem 1rem;border-top:1px solid var(--border);background:var(--bg-panel);flex-shrink:0; }
+        .comment-form-row { display:flex;gap:0.5rem;margin-bottom:0.6rem; }
+        .comment-select {
+            flex:1;font-family:var(--font-mono);font-size:0.65rem;
+            background:var(--bg-primary);border:1px solid var(--border-bright);
+            color:var(--text);border-radius:4px;padding:0.35rem 0.5rem;cursor:pointer;
+        }
+        .comment-select:focus { outline:none;border-color:var(--purple); }
+        .comment-textarea {
+            width:100%;font-family:var(--font-mono);font-size:0.7rem;
+            background:var(--bg-primary);border:1px solid var(--border-bright);
+            color:var(--text);border-radius:4px;padding:0.5rem 0.7rem;
+            resize:vertical;min-height:72px;line-height:1.5;transition:border-color 0.2s;
+        }
+        .comment-textarea:focus { outline:none;border-color:var(--purple);box-shadow:0 0 8px rgba(165,94,234,0.15); }
+        .comment-submit {
+            width:100%;font-family:var(--font-mono);font-size:0.68rem;letter-spacing:0.08em;
+            text-transform:uppercase;background:rgba(165,94,234,0.1);
+            border:1px solid rgba(165,94,234,0.4);color:var(--purple);
+            border-radius:4px;padding:0.5rem;cursor:pointer;transition:all 0.2s;margin-top:0.5rem;
+        }
+        .comment-submit:hover { background:rgba(165,94,234,0.2);box-shadow:0 0 12px rgba(165,94,234,0.2); }
+        .comment-submit:disabled { opacity:0.4;cursor:not-allowed; }
+        .comment-shortcut { font-size:0.52rem;color:var(--text-dim);text-align:center;margin-top:0.4rem; }
+        /* Badge count sur le bouton 💬 */
+        .comment-btn-wrap { position:relative;display:inline-block; }
+        .comment-count-badge {
+            position:absolute;top:-5px;right:-5px;
+            background:var(--purple);color:#fff;
+            font-size:0.42rem;font-weight:700;
+            min-width:14px;height:14px;border-radius:7px;
+            display:flex;align-items:center;justify-content:center;
+            padding:0 3px;pointer-events:none;line-height:1;
+            box-shadow:0 0 6px rgba(165,94,234,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <!-- ═══ NAVBAR ═══ -->
+    <nav>
+        <a href="index.html" class="nav-logo" style="display:flex;align-items:center;gap:0.6rem;">
+            <img src="assets/logo-solariscreen.png" alt="SS" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">
+            SolariScreen<span>://</span>Dashboard
+        </a>
+        <ul class="nav-links">
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="calculateur.html">Calculateur</a></li>
+            <li><a href="stats.html">Statistiques</a></li>
+        </ul>
+        <div class="nav-right">
+            <div class="nav-status"><div class="status-dot"></div>ONLINE</div>
+            <a href="calculateur.html" class="btn-nav">➕ Nouveau</a>
+        </div>
+    </nav>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <div class="main-container">
+        
+        <!-- Section Header -->
+        <div class="section-tag">01 / Dashboard</div>
+        <div class="section-title">Gestion des Devis</div>
+        <div class="h-divider"></div>
+
+        <!-- Sync Status -->
+        <div id="syncStatus" style="margin-bottom:1.2rem;padding:0.65rem 1rem;border-radius:4px;font-size:0.65rem;letter-spacing:0.05em;display:flex;align-items:center;gap:0.7rem;border:1px solid var(--border);background:var(--bg-card);color:var(--text-dim);flex-wrap:wrap;">
+            <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></span>
+            <span id="syncMsg">⟳ Vérification de la connexion à Cloudflare D1…</span>
+            <button id="syncMigrateBtn" onclick="migrateLocalStorage()" style="display:none;margin-left:auto;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.06em;padding:0.3rem 0.8rem;background:transparent;border:1px solid rgba(255,165,2,0.5);color:var(--orange);border-radius:3px;cursor:pointer;">🔄 Migrer données locales → D1</button>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number" id="statCA">0 €</span>
+                <span class="stat-label">Chiffre d'Affaires</span>
+                <span class="stat-subtitle" id="statCASubtitle">Sur 0 devis signés</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="statTotal">0</span>
+                <span class="stat-label">Total Devis</span>
+                <span class="stat-subtitle" id="statTotalSubtitle">Tous statuts confondus</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="statEnCours">0</span>
+                <span class="stat-label">En Cours</span>
+                <span class="stat-subtitle" id="statEnCoursSubtitle">Hors signés / refusés / annulés</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="statTaux">0%</span>
+                <span class="stat-label">Taux de Signature</span>
+                <span class="stat-subtitle">Conversion devis → vente</span>
+            </div>
+        </div>
+
+        <!-- Actions Bar -->
+        <div class="actions-bar">
+            <div class="actions-left">
+                <span style="font-size: 0.8em; color: var(--text-dim); letter-spacing: 0.05em;">GESTION DEVIS</span>
+            </div>
+            <div class="actions-right">
+                <a href="calculateur.html" class="btn btn-primary">
+                    <span>➕</span>
+                    Nouveau Devis
+                </a>
+                <button onclick="importJSON()" class="btn btn-outline">
+                    <span>📂</span>
+                    Import JSON
+                </button>
+                <button onclick="exportAllData()" class="btn btn-secondary">
+                    <span>💾</span>
+                    Export Complet
+                </button>
+            </div>
+        </div>
+
+        <!-- Devis Table -->
+        <div class="table-container">
+            <div class="table-header">
+                <h2 class="table-title">📋 Liste des Devis</h2>
+                <span style="font-size: 0.7em; color: var(--text-dim);" id="tableCounter">0 devis</span>
+            </div>
+            
+            <table class="devis-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>CLIENT</th>
+                        <th>DATE</th>
+                        <th>STATUT</th>
+                        <th>MONTANT</th>
+                        <th>PHOTOS</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="devisTableBody">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>Aucun devis trouvé</h3>
+                            <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
+                            <div style="margin-top: 1rem;">
+                                <a href="calculateur.html" class="btn btn-primary">▸ Créer un Devis</a>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- File Input (hidden) -->
+    <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+    <script src="assets/api.js"></script>
+    <script>
+        // Global variables  
+        let devisList = [];
+        let filteredDevis = [];
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Initializing SolariScreen Dashboard...');
+            await loadRealData();
+            updateStats();
+            renderTable();
+            checkApiStatus(); // vérifier D1 en arrière-plan, sans bloquer l'affichage
+            // Fermer dropdown statut au clic ailleurs
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.status-badge') && !e.target.closest('.status-dropdown')) {
+                    closeStatusDropdown();
+                }
+            });
+            console.log('✅ Dashboard initialized');
+        });
+
+        // ── Vérification connexion D1 ──
+        async function checkApiStatus() {
+            const dot  = document.getElementById('syncDot');
+            const msg  = document.getElementById('syncMsg');
+            const mBtn = document.getElementById('syncMigrateBtn');
+            try {
+                let r, parsed;
+                try {
+                    r = await fetch('https://solariscreen-api.nicolas-struelens.workers.dev/api/health');
+                } catch(netErr) {
+                    throw new Error('Réseau — Worker inaccessible : ' + netErr.message);
+                }
+
+                try { parsed = await r.json(); }
+                catch { throw new Error(`HTTP ${r.status} — Réponse non-JSON. Cloudflare Pages intercepte peut-être /api/* avant le Worker.`); }
+
+                if (!parsed.ok) {
+                    if (parsed.needsSchema) {
+                        // Cas le plus fréquent : table D1 inexistante
+                        dot.style.background = '#e74c3c';
+                        dot.style.boxShadow  = '0 0 6px #e74c3c';
+                        msg.innerHTML = `<strong style="color:#e74c3c;">⛔ Table D1 manquante</strong> — Le Worker tourne mais la table n'existe pas encore.<br>
+                        <span style="color:var(--cyan);font-size:0.6rem;">Exécutez dans votre terminal :</span>
+                        <code style="display:block;margin-top:4px;padding:6px 10px;background:var(--bg-panel);border-radius:4px;color:var(--green);font-size:0.62rem;letter-spacing:0.04em;">wrangler d1 execute solariscreen-db --file=schema.sql --remote</code>`;
+                        return;
+                    }
+                    throw new Error(parsed.error || 'Worker retourne ok:false');
+                }
+
+                // ✅ D1 accessible
+                const n = parsed.devis_count ?? 0;
+                dot.style.background = 'var(--green)';
+                dot.style.boxShadow  = '0 0 6px var(--green)';
+                msg.style.color  = 'var(--green)';
+                msg.textContent = `✅ Cloudflare D1 connectée — ${n} devis en base`;
+
+                // Proposer migration si localStorage contient des données non-synchro
+                const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+                if (local.length > 0 && local.length > n) {
+                    mBtn.style.display = 'inline-flex';
+                    msg.textContent += ` · ${local.length - n} devis locaux non synchronisés`;
+                } else if (local.length > 0 && n === 0) {
+                    mBtn.style.display = 'inline-flex';
+                    msg.textContent += ` · ${local.length} devis locaux à migrer`;
+                }
+
+            } catch(e) {
+                dot.style.background = 'var(--orange)';
+                dot.style.boxShadow  = '0 0 6px var(--orange)';
+                msg.innerHTML = `<strong style="color:var(--orange);">⚠ Worker non joignable</strong> — ${e.message}`;
+                const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+                if (local.length > 0) mBtn.style.display = 'inline-flex';
+                console.warn('[Sync]', e.message);
+            }
+        }
+
+        // Chargement via API (fallback localStorage auto dans api.js)
+        async function loadRealData() {
+            try {
+                const raw = await SS_API.listDevis();
+                // Normaliser format API plat → format dashboard attendu
+                devisList = raw.map(d => ({
+                    ...d,
+                    client: d.client || {
+                        nom:    d.client_nom    || '',
+                        prenom: d.client_prenom || ''
+                    },
+                    calculs: d.calculs || { total_ttc: d.total_ttc || 0 },
+                    metadata: { photos_count: d.photos_count || 0, comments_count: d.comments_count || 0 }
+                }));
+                filteredDevis = [...devisList];
+                console.log(`📊 ${devisList.length} devis chargés`);
+            } catch(e) {
+                console.error('loadRealData error:', e);
+                devisList = []; filteredDevis = [];
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = devisList.length;
+            // Statuts terminaux (ne comptent plus dans "en cours")
+            const TERMINAL = ['signe', 'refuse', 'annule', 'termine'];
+            // Signés = signe + termine — aligné sur la logique Worker
+            const signes  = devisList.filter(d => d.statut === 'signe' || d.statut === 'termine');
+            // Envoyés = devis actuellement dans la phase d'envoi/relance
+            const envoyes = devisList.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
+            // En cours = tout ce qui n'est pas dans un statut terminal
+            const enCours = devisList.filter(d => !TERMINAL.includes(d.statut));
+
+            const totalCA = signes.reduce((sum, d) => sum + (d.calculs?.total_ttc || d.total_ttc || 0), 0);
+            const tauxSignature = envoyes.length > 0 ? Math.round((signes.length / envoyes.length) * 100) : 0;
+
+            // Update UI
+            document.getElementById('statCA').textContent = formatEuro(totalCA);
+            document.getElementById('statCASubtitle').textContent = `Sur ${signes.length} signé(s) / terminé(s)`;
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statTotalSubtitle').textContent = `Tous statuts confondus`;
+            document.getElementById('statEnCours').textContent = enCours.length;
+            document.getElementById('statTaux').textContent = `${tauxSignature}%`;
+
+            // Update table counter
+            document.getElementById('tableCounter').textContent = `${total} devis`;
+        }
+
+        // Render devis table
+        function renderTable() {
+            const tbody = document.getElementById('devisTableBody');
+            
+            if (filteredDevis.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="icon">📋</div>
+                            <h3>Aucun devis trouvé</h3>
+                            <p>Créez votre premier devis avec le calculateur de prix ou importez des données existantes.</p>
+                            <div style="margin-top: 1rem;">
+                                <a href="calculateur.html" class="btn btn-primary">▸ Créer un Devis</a>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = filteredDevis.map(devis => {
+                const clientName = `${devis.client?.prenom || ''} ${devis.client?.nom || ''}`.trim();
+                const statusClass = `status-${devis.statut}`;
+                const statusText = getStatusText(devis.statut);
+                const photosCount   = devis.metadata?.photos_count   || 0;
+                const commentsCount = devis.metadata?.comments_count || 0;
+                
+                return `
+                    <tr onclick="viewDevis('${devis.id}')" title="Cliquer pour voir le détail">
+                        <td class="devis-id">#${devis.id}</td>
+                        <td>
+                            <div class="devis-client">${clientName}</div>
+                            <div class="devis-date">${formatDate(devis.date_creation)}</div>
+                        </td>
+                        <td class="devis-date">${formatDate(devis.date_modification)}</td>
+                        <td><span class="status-badge ${statusClass}" onclick="event.stopPropagation(); openStatusDropdown('${devis.id}', event)" title="Cliquer pour changer le statut">${statusText}</span></td>
+                        <td class="devis-amount">${formatEuro(devis.calculs?.total_ttc || 0)}</td>
+                        <td style="text-align: center; color: var(--text-dim); font-size: 0.8em;">
+                            ${photosCount > 0 ? `📸 ${photosCount}` : '—'}
+                        </td>
+                        <td class="actions-cell">
+                            <button onclick="event.stopPropagation(); viewDevis('${devis.id}')" class="action-btn" title="Voir le détail">👁️</button>
+                            <button onclick="event.stopPropagation(); window.open('pdf.html?id=${devis.id}','_blank')" class="action-btn" title="Générer PDF" style="color:var(--cyan);">📄</button>
+                            <button onclick="event.stopPropagation(); duplicateDevis('${devis.id}')" class="action-btn" title="Dupliquer">📋</button>
+                            <button onclick="event.stopPropagation(); editDevis('${devis.id}')" class="action-btn" title="Modifier">✏️</button>
+                            <button onclick="event.stopPropagation(); exportDevis('${devis.id}')" class="action-btn" title="Exporter JSON">📤</button>
+                            <span class="comment-btn-wrap">
+                                <button onclick="event.stopPropagation(); openComments('${devis.id}')" class="action-btn" title="Commentaires" style="color:var(--purple);">💬</button>
+                                ${commentsCount > 0 ? `<span class="comment-count-badge">${commentsCount}</span>` : ''}
+                            </span>
+                            <button onclick="event.stopPropagation(); deleteDevis('${devis.id}')" class="action-btn danger" title="Supprimer">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Utility functions
+        function formatEuro(amount) {
+            return new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(amount || 0);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('fr-FR');
+        }
+
+        function getStatusText(statut) {
+            return STATUSES[statut] || statut || 'Brouillon';
+        }
+
+        // Action functions
+        const STATUSES = {
+            brouillon:'Brouillon', a_tarifer:'À tarifer', tarife:'Tarifé',
+            envoye_client:'Envoyé client', relance_1:'Relance 1', relance_2:'Relance 2',
+            en_attente_validation:'En attente', signe:'Signé',
+            refuse:'Refusé', annule:'Annulé',
+            travaux_planifies:'Travaux planifiés', travaux_en_cours:'Travaux en cours', termine:'Terminé'
+        };
+        const STATUS_COLORS = {
+            brouillon:'#5a7a9a', a_tarifer:'#ffdd59', tarife:'#ffdd59',
+            envoye_client:'#00e5ff', relance_1:'#ffa502', relance_2:'#ffa502',
+            en_attente_validation:'#ffa502', signe:'#00ff88',
+            refuse:'#ff4757', annule:'#ff6b7a',
+            travaux_planifies:'#a55eea', travaux_en_cours:'#a55eea', termine:'#00ff88'
+        };
+
+        function viewDevis(id) {
+            window.location.href = `show.html?id=${id}`;
+        }
+
+        let _activeDropdownId = null;
+
+        function openStatusDropdown(id, event) {
+            // Fermer si déjà ouvert sur le même
+            closeStatusDropdown();
+            _activeDropdownId = id;
+
+            const devis = devisList.find(d => d.id === id);
+            const currentStatus = devis?.statut || 'brouillon';
+
+            const rect = event.target.getBoundingClientRect();
+            const dropdown = document.createElement('div');
+            dropdown.className = 'status-dropdown';
+            dropdown.id = 'statusDropdown';
+
+            let optionsHTML = '<div class="status-dropdown-header">Changer le statut</div>';
+            Object.entries(STATUSES).forEach(([key, label]) => {
+                const isActive = key === currentStatus;
+                const color = STATUS_COLORS[key] || '#5a7a9a';
+                optionsHTML += `<button class="status-option${isActive?' active':''}" onclick="changeStatus('${id}','${key}')">
+                    <span class="s-dot" style="background:${color};box-shadow:0 0 4px ${color};"></span>${label}${isActive?' ✓':''}
+                </button>`;
+            });
+            dropdown.innerHTML = optionsHTML;
+
+            document.body.appendChild(dropdown);
+
+            // Positionner — ouvre vers le haut si pas assez de place en bas
+            const estimatedH = 40 + Object.keys(STATUSES).length * 35;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const top = spaceBelow >= estimatedH + 8
+                ? rect.bottom + 4
+                : Math.max(8, rect.top - estimatedH - 4);
+            const left = Math.min(rect.left, window.innerWidth - 210);
+            dropdown.style.top = top + 'px';
+            dropdown.style.left = left + 'px';
+        }
+
+        function closeStatusDropdown() {
+            const el = document.getElementById('statusDropdown');
+            if (el) el.remove();
+            _activeDropdownId = null;
+        }
+
+        async function changeStatus(id, newStatus) {
+            closeStatusDropdown();
+            const idx = devisList.findIndex(d => d.id === id);
+            if (idx === -1) return;
+            devisList[idx].statut = newStatus;
+            devisList[idx].date_modification = new Date().toISOString();
+            filteredDevis = [...devisList];
+            await SS_API.updateStatus(id, newStatus);
+            updateStats();
+            renderTable();
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '✅ Statut → <strong style="color:var(--cyan);">' + STATUSES[newStatus] + '</strong>';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
+        }
+
+        function editDevis(id) {
+            window.location.href = `calculateur.html?id=${id}`;
+        }
+
+        async function duplicateDevis(id) {
+            const original = await SS_API.getDevis(id);
+            if (!original) return;
+            const now = new Date();
+            const newId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(Date.now()).slice(-4)}`;
+            const newDevis = {
+                ...original, id: newId,
+                date_creation: now.toISOString().split('T')[0],
+                date_modification: now.toISOString(),
+                statut: 'brouillon'
+            };
+            await SS_API.saveDevis(newDevis);
+            devisList.unshift(newDevis);
+            filteredDevis = [...devisList];
+            updateStats();
+            renderTable();
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '📋 Devis dupliqué → <strong style="color:var(--cyan);">#' + newId + '</strong>';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
+        }
+
+        async function deleteDevis(id) {
+            if (!confirm(`Supprimer le devis ${id} ?\n\nCette action est irréversible.`)) return;
+            await SS_API.deleteDevis(id);
+            devisList = devisList.filter(d => d.id !== id);
+            filteredDevis = filteredDevis.filter(d => d.id !== id);
+            updateStats();
+            renderTable();
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.innerHTML = '🗑️ Devis <strong style="color:var(--red);">#' + id + '</strong> supprimé';
+                toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 2500);
+            }
+        }
+
+        async function exportDevis(id) {
+            const devis = await SS_API.getDevis(id);
+            if (!devis) { alert('Impossible de charger les données complètes du devis.'); return; }
+            const dataStr = JSON.stringify(devis, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `devis_${id}_complet.json`;
+            link.click();
+        }
+
+        // Export & Import functions
+        async function exportAllData() {
+            if (devisList.length === 0) { alert('Aucune donnée à exporter'); return; }
+
+            // Trouver le bouton pour feedback visuel
+            const btn = document.querySelector('[onclick="exportAllData()"]');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<span>⟳</span> Export…'; }
+
+            try {
+                // Charger le JSON COMPLET de chaque devis (items, photos, calculs, commentaires…)
+                const fullDevis = [];
+                for (const d of devisList) {
+                    const full = await SS_API.getDevis(d.id);
+                    if (full) fullDevis.push(full);
+                }
+
+                const exportData = {
+                    export_date:  new Date().toISOString(),
+                    version:      '2.0',
+                    total_devis:  fullDevis.length,
+                    data:         fullDevis
+                };
+
+                const dataBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const link = document.createElement('a');
+                link.href     = URL.createObjectURL(dataBlob);
+                link.download = `solariscreen_backup_${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+
+                const toast = document.getElementById('toast');
+                if (toast) {
+                    toast.innerHTML = `✅ Backup complet — <strong style="color:var(--cyan);">${fullDevis.length} devis</strong> exportés avec toutes les données`;
+                    toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 4000);
+                }
+            } catch(e) {
+                alert('Erreur export : ' + e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<span>💾</span> Export Complet'; }
+            }
+        }
+
+        function importJSON() {
+            document.getElementById('fileInput').click();
+        }
+
+        async function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    let importedData = Array.isArray(jsonData) ? jsonData
+                        : jsonData.data ? jsonData.data : [jsonData];
+                    for (const devis of importedData) {
+                        await SS_API.saveDevis(devis);
+                    }
+                    await loadRealData();
+                    updateStats(); renderTable();
+                    const toast = document.getElementById('toast');
+                    if (toast) {
+                        toast.innerHTML = `✅ ${importedData.length} devis importés`;
+                        toast.style.display = 'flex'; toast.style.opacity = '1'; toast.style.transition = '';
+                        setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.5s'; setTimeout(()=>toast.style.display='none',500); }, 3000);
+                    }
+                } catch (error) { alert('Erreur import : ' + error.message); }
+            };
+            reader.readAsText(file);
+        }
+
+        async function resetAllData() {
+            if (!confirm('⚠️ Supprimer TOUS les devis ?\n\nAction IRRÉVERSIBLE.')) return;
+            if (!confirm('🗑️ DERNIÈRE CONFIRMATION — Supprimer toutes les données ?')) return;
+            try {
+                for (const d of devisList) { await SS_API.deleteDevis(d.id); }
+                localStorage.removeItem('solariscreen_devis');
+                devisList = []; filteredDevis = [];
+                updateStats(); renderTable();
+                alert('✅ Toutes les données supprimées.');
+            } catch (error) { alert('❌ Erreur : ' + error.message); }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // COMMENTAIRES
+        // ═══════════════════════════════════════════════════════════
+        let _commentDevisId   = null;
+        let _commentDevisData = null;
+
+        async function openComments(id) {
+            _commentDevisId   = id;
+            _commentDevisData = null;
+
+            // Ouvrir le panel
+            document.getElementById('commentOverlay').classList.add('open');
+            document.getElementById('commentPanel').classList.add('open');
+
+            // En-tête avec infos client depuis la liste locale (rapide)
+            const devis = devisList.find(d => d.id === id);
+            const clientName = `${devis?.client?.prenom || devis?.client_prenom || ''} ${devis?.client?.nom || devis?.client_nom || ''}`.trim();
+            document.getElementById('commentPanelSub').textContent = `#${id}${clientName ? ' · ' + clientName : ''}`;
+            document.getElementById('commentThread').innerHTML = '<div class="comment-empty"><span class="comment-empty-icon">⟳</span>Chargement...</div>';
+
+            // Charger le devis complet (D1 ou cache)
+            _commentDevisData = await SS_API.getDevis(id);
+            renderCommentThread();
+        }
+
+        function closeComments() {
+            document.getElementById('commentOverlay').classList.remove('open');
+            document.getElementById('commentPanel').classList.remove('open');
+            _commentDevisId   = null;
+            _commentDevisData = null;
+        }
+
+        function _escHtml(s) {
+            return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function renderCommentThread() {
+            const comments = _commentDevisData?.comments || [];
+            const thread   = document.getElementById('commentThread');
+            if (comments.length === 0) {
+                thread.innerHTML = '<div class="comment-empty"><span class="comment-empty-icon">💬</span>Aucun commentaire.<br>Soyez le premier à écrire.</div>';
+                return;
+            }
+            const TYPE_LABELS = { note:'Note', alerte:'⚠ Alerte', info:'ℹ Info' };
+            thread.innerHTML = comments.map(c => {
+                const authorClass = c.author === 'yannick' ? 'comment-author-yannick' : 'comment-author-nicolas';
+                const authorLabel = c.author === 'yannick' ? 'Yannick' : 'Nicolas';
+                const typeClass   = `comment-type-${c.type || 'note'}`;
+                const typeLabel   = TYPE_LABELS[c.type] || 'Note';
+                const d           = new Date(c.date);
+                const dateStr     = d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' })
+                                  + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+                return `<div class="comment-item" id="ci-${c.id}">
+                    <button class="comment-delete" onclick="deleteCommentItem(${c.id})" title="Supprimer">✕</button>
+                    <div class="comment-item-header">
+                        <span class="comment-author ${authorClass}">${authorLabel}</span>
+                        <span class="comment-type-badge ${typeClass}">${typeLabel}</span>
+                        <span class="comment-date">${dateStr}</span>
+                    </div>
+                    <div class="comment-text">${_escHtml(c.text)}</div>
+                </div>`;
+            }).join('');
+            thread.scrollTop = thread.scrollHeight;
+        }
+
+        async function submitComment() {
+            const text = (document.getElementById('commentText').value || '').trim();
+            if (!text || !_commentDevisId) return;
+            const btn = document.getElementById('commentSubmit');
+            btn.disabled = true; btn.textContent = '⟳ Envoi...';
+            try {
+                const res = await SS_API.addComment(_commentDevisId, {
+                    author: document.getElementById('commentAuthor').value,
+                    text,
+                    type:   document.getElementById('commentType').value
+                });
+                if (res.ok) {
+                    document.getElementById('commentText').value = '';
+                    _commentDevisData = await SS_API.getDevis(_commentDevisId);
+                    renderCommentThread();
+                    // Mettre à jour le badge dans la table sans bloquer
+                    const idx = devisList.findIndex(d => d.id === _commentDevisId);
+                    if (idx !== -1) {
+                        const cnt = (_commentDevisData?.comments || []).length;
+                        devisList[idx].metadata = { ...devisList[idx].metadata, comments_count: cnt };
+                        filteredDevis = [...devisList];
+                        renderTable();
+                    }
+                } else {
+                    alert('Erreur : ' + (res.error || 'Impossible d\'envoyer.'));
+                }
+            } catch(e) {
+                console.error('[submitComment]', e);
+                alert('Erreur inattendue : ' + e.message);
+            } finally {
+                // Toujours réinitialiser le bouton, quoi qu'il arrive
+                btn.disabled = false; btn.textContent = '▸ Ajouter le commentaire';
+            }
+        }
+
+        async function deleteCommentItem(commentId) {
+            if (!_commentDevisId) return;
+            const res = await SS_API.deleteComment(_commentDevisId, commentId);
+            if (res.ok) {
+                _commentDevisData = await SS_API.getDevis(_commentDevisId);
+                renderCommentThread();
+                // Mettre à jour le badge dans la table
+                const idx = devisList.findIndex(d => d.id === _commentDevisId);
+                if (idx !== -1) {
+                    const cnt = (_commentDevisData?.comments || []).length;
+                    devisList[idx].metadata = { ...devisList[idx].metadata, comments_count: cnt };
+                    filteredDevis = [...devisList];
+                    renderTable();
+                }
+            }
+        }
+
+        // ── Migration localStorage → API (une seule fois) ──
+        async function migrateLocalStorage() {
+            const local = JSON.parse(localStorage.getItem('solariscreen_devis') || '[]');
+            if (local.length === 0) { alert('Aucune donnée locale à migrer.'); return; }
+            if (!confirm(`Migrer ${local.length} devis locaux vers Cloudflare D1 ?`)) return;
+
+            const btn = document.getElementById('syncMigrateBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⟳ Migration...'; }
+
+            const res = await SS_API.migrateFromLocalStorage((done, total) => {
+                if (btn) btn.textContent = `⟳ ${done}/${total}...`;
+            });
+
+            let msg = `✅ Migration terminée : ${res.migrated}/${res.total} devis migrés vers D1.`;
+            if (res.errors > 0) {
+                msg += `\n\n⚠ ${res.errors} erreur(s) :`;
+                res.errorDetails.forEach(e => { msg += `\n• ${e.id} : ${e.error}`; });
+            }
+            alert(msg);
+
+            if (btn) { btn.disabled = false; btn.textContent = '🔄 Migrer données locales → D1'; }
+            await loadRealData(); updateStats(); renderTable();
+            checkApiStatus(); // Rafraîchir le bandeau
+        }
+
+    </script>
+</body>
+</html><!-- INJECTED: Modal viewDevis + Toast -->
+<div class="modal-overlay" id="viewModal" onclick="if(event.target===this)closeViewModal()">
+    <div class="modal-box" style="width:min(680px,94vw);max-height:88vh;overflow-y:auto;">
+        <button class="modal-close" onclick="closeViewModal()">✕</button>
+        <div class="modal-title">📋 Détail du Devis</div>
+        <div class="modal-sub">Récapitulatif complet · données locales</div>
+        <div id="viewModalContent"></div>
+    </div>
+</div>
+<div id="toast" style="position:fixed;bottom:2rem;right:2rem;z-index:9999;background:var(--bg-card);border:1px solid var(--green);border-radius:6px;padding:0.8rem 1.4rem;font-family:var(--font-mono);font-size:0.78rem;color:var(--green);box-shadow:0 0 20px rgba(0,255,136,0.25);display:none;align-items:center;gap:0.6rem;"></div>
+
+<!-- ═══ COMMENT OVERLAY + PANEL ═══ -->
+<div class="comment-overlay" id="commentOverlay" onclick="closeComments()"></div>
+<div class="comment-panel" id="commentPanel">
+    <div class="comment-panel-header">
+        <div>
+            <div class="comment-panel-title">💬 Commentaires</div>
+            <div class="comment-panel-sub" id="commentPanelSub"></div>
+        </div>
+        <button class="comment-panel-close" onclick="closeComments()" title="Fermer">✕</button>
+    </div>
+    <div class="comment-thread" id="commentThread"></div>
+    <div class="comment-form">
+        <div class="comment-form-row">
+            <select class="comment-select" id="commentAuthor">
+                <option value="nicolas">Nicolas</option>
+                <option value="yannick">Yannick</option>
+            </select>
+            <select class="comment-select" id="commentType">
+                <option value="note">Note</option>
+                <option value="info">Info</option>
+                <option value="alerte">Alerte</option>
+            </select>
+        </div>
+        <textarea class="comment-textarea" id="commentText"
+            placeholder="Ajouter un commentaire…"
+            onkeydown="if(event.ctrlKey&&event.key==='Enter'){event.preventDefault();submitComment();}"></textarea>
+        <button class="comment-submit" id="commentSubmit" onclick="submitComment()">▸ Ajouter le commentaire</button>
+        <div class="comment-shortcut">Ctrl + Entrée pour envoyer rapidement</div>
+    </div>
+</div>
+<script>
+// Toast auto-show si ?saved=ID en URL
+(function(){
+    const p = new URLSearchParams(window.location.search);
+    const sid = p.get('saved');
+    if (sid) {
+        const toast = document.getElementById('toast');
+        toast.innerHTML = '✅ Devis <strong style="color:var(--cyan);font-family:var(--font-display);font-size:0.85em;">#' + sid + '</strong> sauvegardé avec succès';
+        toast.style.display = 'flex';
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.style.display = 'none', 500); }, 3500);
+        // Nettoyer l'URL
+        history.replaceState({}, '', 'dashboard.html');
+    }
+})();
+</script>
