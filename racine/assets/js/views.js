@@ -109,27 +109,50 @@
 
     var actions = document.createElement('div');
     actions.className = 'clairiere-actions';
+    var secondary = document.createElement('div');
+    secondary.className = 'clairiere-secondary hidden';
 
-    function actionBtn(label, handler) {
+    function actionBtn(container, label, handler, primary) {
       var b = document.createElement('button');
-      b.className = 'btn';
+      b.className = 'btn' + (primary ? ' btn-primary clairiere-primary' : '');
       b.type = 'button';
       b.textContent = label;
       b.addEventListener('click', handler);
-      actions.appendChild(b);
+      container.appendChild(b);
+      return b;
     }
 
-    actionBtn('Faire maintenant', function () { switchTab('notes'); jumpToNote(n.id); });
-    actionBtn('Garder pour plus tard', function () { clairiereAction(n.id, { status: 'someday' }); });
-    actionBtn(n.inbox ? 'Faire germer' : 'Développer', function () { switchTab('notes'); openEditModal(n); });
-    actionBtn('Relier', function () { switchTab('notes'); openLinkModal(n); });
-    actionBtn('Pas aujourd\'hui', function () { skipToday(n.id); renderClairiere(); });
-    actionBtn('Ne m\'intéresse plus', function () {
+    var primaryLabel = slot.key === 'maintenant' ? 'Commencer' : slot.key === 'graine' ? 'Faire germer' : slot.key === 'attente' ? 'Voir ce qui bloque' : 'Explorer';
+    actionBtn(actions, primaryLabel, function () {
+      if (slot.key === 'graine' || slot.key === 'resonance') { switchTab('notes'); openEditModal(n); }
+      else { switchTab('notes'); jumpToNote(n.id); }
+    }, true);
+
+    var more = document.createElement('button');
+    more.className = 'btn clairiere-more';
+    more.type = 'button';
+    more.textContent = '•••';
+    more.title = 'Autres choix';
+    more.setAttribute('aria-label', 'Autres choix pour « ' + n.title + ' »');
+    more.setAttribute('aria-expanded', 'false');
+    more.addEventListener('click', function () {
+      var open = secondary.classList.toggle('hidden') === false;
+      more.setAttribute('aria-expanded', open ? 'true' : 'false');
+      card.classList.toggle('details-open', open);
+    });
+    actions.appendChild(more);
+
+    actionBtn(secondary, 'Ouvrir', function () { switchTab('notes'); jumpToNote(n.id); });
+    actionBtn(secondary, 'Garder pour plus tard', function () { clairiereAction(n.id, { status: 'someday' }); });
+    actionBtn(secondary, 'Relier', function () { switchTab('notes'); openLinkModal(n); });
+    actionBtn(secondary, 'Pas aujourd\'hui', function () { skipToday(n.id); renderClairiere(); });
+    actionBtn(secondary, 'Ne plus proposer', function () {
       if (!confirm('Mettre « ' + n.title + ' » à la corbeille ?')) return;
       RA.deleteNote(n.id).then(function () { loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
 
     card.appendChild(actions);
+    card.appendChild(secondary);
     return card;
   }
 
@@ -336,6 +359,7 @@
       });
       container.appendChild(block2);
     }
+    if (window.RAV50) window.RAV50.render();
   }
 
   var todayRestToggle = document.getElementById('todayRestToggle');

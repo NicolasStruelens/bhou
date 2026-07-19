@@ -354,7 +354,10 @@
         if (id === graph49.selectedId || id === graph49.hoveredId) {
           ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / graph49.scale; ctx.stroke();
         }
-        var showLabel = ids.length <= 18 || !n.parent_id || id === graph49.selectedId || id === graph49.hoveredId;
+        // La carte donne d'abord la forme générale. Les noms apparaissent seulement
+        // quand ils sont réellement utiles : petit ensemble, sélection/survol, ou
+        // racines lorsque l'utilisateur a volontairement zoomé.
+        var showLabel = ids.length <= 8 || id === graph49.selectedId || id === graph49.hoveredId || (graph49.scale >= 1.6 && !n.parent_id);
         if (showLabel) {
           ctx.font = (10.5 / graph49.scale) + 'px sans-serif'; ctx.fillStyle = '#e2f5ec'; ctx.textAlign = 'center';
           var label = n.title.length > 24 ? n.title.slice(0, 23) + '…' : n.title; ctx.fillText(label, p.x, p.y - p.radius - 6);

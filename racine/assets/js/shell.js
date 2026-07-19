@@ -261,6 +261,9 @@
     ['mobileImportAction', 'importBtn'],
     ['mobileExportAction', 'exportBtn'],
     ['mobileSystemAction', 'systemBtn'],
+    ['mobileWeeklyAction', 'weeklyBtn'],
+    ['mobileThemeAction', 'themeToggle'],
+    ['mobileLogoutAction', 'logoutBtn'],
   ].forEach(function (pair) {
     var mobileAction = document.getElementById(pair[0]);
     mobileAction.addEventListener('click', function () {
@@ -294,6 +297,15 @@
   });
   document.getElementById('modeAgir').addEventListener('click', function () {
     document.getElementById('focusModeBtn').click();
+  });
+
+  var mobileFiltersToggle = document.getElementById('mobileFiltersToggle');
+  var filterBar = document.getElementById('filterBar');
+  mobileFiltersToggle.addEventListener('click', function () {
+    var open = filterBar.classList.toggle('mobile-open');
+    mobileFiltersToggle.classList.toggle('active', open);
+    mobileFiltersToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    mobileFiltersToggle.lastChild.textContent = open ? ' Masquer les filtres' : ' Affiner la vue';
   });
 
   // ---------- raccourci clavier : "/" focus la capture ----------

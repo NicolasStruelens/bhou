@@ -407,8 +407,48 @@
     });
     actions.appendChild(delBtn);
 
+    // Une action évidente, le reste à la demande : évite les rangées de 8 icônes
+    // sur chaque pensée, surtout sur téléphone.
+    var secondaryButtons = Array.prototype.slice.call(actions.children, 1);
+    if (secondaryButtons.length) {
+      var secondaryMenu = document.createElement('div');
+      secondaryMenu.className = 'node-actions-secondary hidden';
+      secondaryMenu.setAttribute('role', 'menu');
+      secondaryButtons.forEach(function (button) {
+        button.setAttribute('role', 'menuitem');
+        secondaryMenu.appendChild(button);
+      });
+      var moreBtn = document.createElement('button');
+      moreBtn.className = 'icon-btn node-more-btn';
+      moreBtn.type = 'button';
+      moreBtn.textContent = '•••';
+      moreBtn.title = 'Autres actions';
+      moreBtn.setAttribute('aria-label', 'Autres actions pour « ' + n.title + ' »');
+      moreBtn.setAttribute('aria-expanded', 'false');
+      moreBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        document.querySelectorAll('.node-actions-secondary:not(.hidden)').forEach(function (menu) {
+          if (menu !== secondaryMenu) menu.classList.add('hidden');
+        });
+        var open = secondaryMenu.classList.toggle('hidden') === false;
+        moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      actions.appendChild(moreBtn);
+      actions.appendChild(secondaryMenu);
+      secondaryMenu.addEventListener('click', function () {
+        secondaryMenu.classList.add('hidden');
+        moreBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
     return actions;
   }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.node-actions')) return;
+    document.querySelectorAll('.node-actions-secondary:not(.hidden)').forEach(function (menu) { menu.classList.add('hidden'); });
+    document.querySelectorAll('.node-more-btn[aria-expanded="true"]').forEach(function (button) { button.setAttribute('aria-expanded', 'false'); });
+  });
 
   // mode liste plate (recherche/filtre actif, ou vue d'ensemble) : cartes autonomes, sans hiérarchie
   function renderFlatNode(n, container, spaceTag, noDrag) {
