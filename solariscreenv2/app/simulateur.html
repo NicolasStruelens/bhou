@@ -826,6 +826,10 @@
       const finish = async (force) => {
         const res = await SS.saveDevis(devis, force ? { force: true } : { expectedDateModification: state.isExisting ? state.loadedDateModification : undefined });
         if (res.conflict) { window.SSUI.showSaveConflict(() => finish(true)); return; }
+        // Échec réel (session Access expirée, rejet serveur) : surtout NE PAS remettre dirty=false,
+        // sinon l'avertissement « modifications non enregistrées » disparaît et le travail est perdu
+        // en fermant l'onglet.
+        if (res.ok === false) { toast(res.error || 'Devis NON enregistré — réessaie.', 'error', 7000); return; }
         // Synchronise la fiche CRM (comme le Mode Terrain) : crée si absente, met à jour les coordonnées
         // sans écraser notes/tags ni vider un champ existant avec une valeur vide.
         try {

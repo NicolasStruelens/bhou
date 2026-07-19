@@ -576,6 +576,7 @@
       const isNewRdv = idx === -1;
       if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
       const res = await SS.saveRdv(cur);
+      if (res.ok === false) { toast(res.error || 'Demande NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré (hors-ligne)' : 'Demande enregistrée ✓', res.offline ? 'warn' : 'ok');
       if (isNewRdv) SS.logActivity({ action: 'rdv.create', entity_type: 'rdv', entity_id: cur.id, label: `Nouvelle demande de RDV — ${clientName(cur)}${cur.source ? ' (' + cur.source + ')' : ''}` });
       closeModal();
@@ -603,6 +604,7 @@
       const idx = RDV.findIndex(x => x.id === cur.id);
       if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
       const res = await SS.saveRdv(cur);
+      if (res.ok === false) { toast(res.error || 'Annulation NON enregistrée — réessaie.', 'error', 6000); return; }
       if (SS.logActivity) SS.logActivity({ action: 'rdv.cancel', entity_type: 'rdv', entity_id: cur.id, label: `RDV annulé (désistement) — ${clientName(cur)}` });
       toast(res.offline ? 'RDV annulé (hors-ligne)' : 'RDV annulé', 'warn');
       closeModal();
@@ -631,6 +633,13 @@
         date_creation: now, date_modification: now,
       };
       const rDevis = await SS.saveDevis(devis);
+      // Si le devis n'a pas été créé côté serveur, NE PAS marquer la demande « convertie » : elle
+      // serait verrouillée (bouton masqué) et liée à un devis inexistant, sans retour arrière possible.
+      if (rDevis.ok === false) {
+        CONVERTING = false;   // libère le verrou pour permettre un nouvel essai
+        toast(rDevis.error || 'Devis NON créé — réessaie.', 'error', 7000);
+        return;
+      }
       // Lie le RDV au devis + passe en "converti"
       cur.devis_id = devisId;
       cur.statut = 'converti';

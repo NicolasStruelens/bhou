@@ -894,6 +894,7 @@
     async function persistCommande() {
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { toast(res.error || 'Suivi NON enregistré — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Suivi mis à jour ✓', res.offline ? 'warn' : 'ok');
       renderCommande();
     }
@@ -947,6 +948,7 @@
       DEVIS.chantier.equipe = el('chEquipe').value;
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { toast(res.error || 'Planification NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour ✓', res.offline ? 'warn' : 'ok');
       renderChantier();
     };
@@ -980,6 +982,12 @@
       DEVIS.checklist[key] = checked;
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        DEVIS.checklist[key] = !checked;   // la case n'a pas été enregistrée : on la remet comme avant
+        toast(res.error || 'Case NON enregistrée — réessaie.', 'error', 6000);
+        renderChecklist();
+        return;
+      }
       if (res.offline) toast('Enregistré hors-ligne', 'warn');
       renderChecklist();
     };
@@ -1056,6 +1064,7 @@
       DEVIS.date_modification = new Date().toISOString();
       const wasEditing = !!EDITING_SAV_ID;
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { toast(res.error || 'Ticket SAV NON enregistré — réessaie.', 'error', 6000); return; }
       toast(res.offline ? (wasEditing ? 'Ticket modifié (hors-ligne)' : 'Ticket créé (hors-ligne)') : (wasEditing ? 'Ticket modifié ✓' : 'Ticket SAV créé ✓'), res.offline ? 'warn' : 'ok');
       cancelSavEdit();
       renderSav();
@@ -1087,6 +1096,7 @@
       DEVIS.date_modification = new Date().toISOString();
       if (EDITING_SAV_ID === ticketId) cancelSavEdit();
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { toast(res.error || 'Ticket NON supprimé — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Ticket supprimé (hors-ligne)' : 'Ticket supprimé ✓', res.offline ? 'warn' : 'ok');
       renderSav();
     };
@@ -1242,14 +1252,27 @@
       if (!show) return;
       let infoTxt = "Copie ce lien et envoie-le au client pour qu'il puisse revoir son devis en ligne.";
       if (DEVIS.client_accepted) infoTxt = `Le client a accepté ce devis le ${fmtDate(DEVIS.client_accepted_at)}.`;
-      else if (DEVIS.review_views > 0) infoTxt = `Le client a consulté ce lien ${DEVIS.review_views} fois.`;
+      // review_views est un TABLEAU d'horodatages dans le devis complet (c'est la liste /api/devis
+      // qui en expose le nombre). Comparer le tableau à un nombre donnait toujours faux → le
+      // compteur de consultations n'apparaissait jamais.
+      else {
+        const views = Array.isArray(DEVIS.review_views) ? DEVIS.review_views.length : (Number(DEVIS.review_views) || 0);
+        if (views > 0) infoTxt = `Le client a consulté ce lien ${views} fois.`;
+      }
       el('reviewInfo').textContent = infoTxt;
     }
+    // Le jeton doit être ENREGISTRÉ avant qu'on copie le lien : sinon il n'existe que dans ce
+    // navigateur et le client reçoit un lien qui affiche « Lien invalide ou expiré ».
     window.copyReviewLink = async () => {
       if (!DEVIS.review_token) {
         DEVIS.review_token = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))).replace(/-/g, '');
         DEVIS.date_modification = new Date().toISOString();
-        await SS.saveDevis(DEVIS);
+        const res = await SS.saveDevis(DEVIS);
+        if (res.ok === false || res.offline) {
+          DEVIS.review_token = null;
+          toast(res.error || 'Lien non créé : reconnecte-toi puis réessaie (le client ne pourrait pas l\'ouvrir).', 'error', 8000);
+          return;
+        }
       }
       const url = location.origin + '/devis-review.html?t=' + DEVIS.review_token;
       ssCopy(url, 'Lien espace client');
@@ -1258,7 +1281,12 @@
       if (!DEVIS.track_token) {
         DEVIS.track_token = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))).replace(/-/g, '');
         DEVIS.date_modification = new Date().toISOString();
-        await SS.saveDevis(DEVIS);
+        const res = await SS.saveDevis(DEVIS);
+        if (res.ok === false || res.offline) {
+          DEVIS.track_token = null;
+          toast(res.error || 'Lien non créé : reconnecte-toi puis réessaie (le client ne pourrait pas l\'ouvrir).', 'error', 8000);
+          return;
+        }
       }
       const url = location.origin + '/track.html?t=' + DEVIS.track_token;
       ssCopy(url, 'Lien de suivi');
@@ -1647,6 +1675,7 @@
       it.photos.push(url);
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { toast(res.error || 'Image NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Image enregistrée (hors-ligne)' : 'Image ajoutée aux photos ✓', res.offline ? 'warn' : 'ok');
       closeViz();
       render();

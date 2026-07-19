@@ -185,6 +185,9 @@
       if (!['signe', 'termine'].includes(DEVIS.statut)) { toast('Ce devis n\'est pas signé — réception impossible.', 'warn'); return; }
       const btn = el('btnConfirmSig'); if (btn) btn.disabled = true;   // anti double-clic pendant la sauvegarde
       const now = new Date().toISOString();
+      // Instantané AVANT mutation : si l'enregistrement échoue (session Access expirée…), on remet
+      // la fiche exactement dans son état d'origine plutôt que d'afficher un PV « signé » fantôme.
+      const snapshot = { reception: DEVIS.reception, commande: DEVIS.commande, statut: DEVIS.statut, statut_history: DEVIS.statut_history, date_modification: DEVIS.date_modification };
       DEVIS.reception = { accepted: true, image: canvas.toDataURL('image/png'), date: now, notes: el('reserves').value.trim() };
       // Le PV de réception atteste que la pose est faite → on aligne l'étape fournisseur sur « Posé »
       // (jalon partagé isPoseDone) pour que agenda/garantie/dashboard soient cohérents.
@@ -195,6 +198,12 @@
       if (wasNotDone) { DEVIS.statut = 'termine'; DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'termine', date: now }]); }
       DEVIS.date_modification = now;
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        Object.assign(DEVIS, snapshot);   // rien n'a été enregistré : on annule la mutation locale
+        if (btn) btn.disabled = false;
+        toast(res.error || 'Réception NON enregistrée — réessaie.', 'error', 7000);
+        return;
+      }
       toast(res.offline ? 'Réception enregistrée (hors-ligne)' : 'Réception signée ✓', res.offline ? 'warn' : 'ok');
       SS.logActivity({ action: 'devis.reception', entity_type: 'devis', entity_id: DEVIS.id, label: `Chantier réceptionné (signé client) — devis #${DEVIS.id}${(DEVIS.client && (DEVIS.client.prenom || DEVIS.client.nom)) ? ' (' + ((DEVIS.client.prenom || '') + ' ' + (DEVIS.client.nom || '')).trim() + ')' : ''}` });
       if (window.ssConfetti) window.ssConfetti({ count: 110 });

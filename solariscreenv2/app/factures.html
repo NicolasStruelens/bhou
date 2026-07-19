@@ -313,9 +313,13 @@
         total_ttc: Math.round(a.total_ttc * 100) / 100, tva_pct: a.tva_pct, devis_ttc: a.devis.calculs && a.devis.calculs.total_ttc,
         paiements: [], date_creation: new Date().toISOString(),
       };
-      await SS.saveFacture(facture);
+      const resFac = await SS.saveFacture(facture);
+      // ⚠️ Comptabilité : si la facture n'a pas atteint le serveur, il ne FAUT PAS continuer —
+      // son numéro (nextNumber = max+1) serait réattribué à la facture suivante, créant deux
+      // pièces au même numéro, ce qui n'est pas rattrapable.
+      if (resFac.ok === false) { toast(resFac.error || 'Facture NON créée — réessaie.', 'error', 7000); return; }
       closeModal('modalNew');
-      toast('Facture ' + num + ' créée ✓', 'ok');
+      toast(resFac.offline ? 'Facture ' + num + ' créée (hors-ligne)' : 'Facture ' + num + ' créée ✓', resFac.offline ? 'warn' : 'ok');
       await load();
       location.href = 'facture.html?id=' + encodeURIComponent(num);
     };
@@ -338,15 +342,21 @@
       payTarget.paiements = payTarget.paiements || [];
       payTarget.paiements.push({ date: el('payDate').value || today(), montant, moyen: el('payMoyen').value });
       payTarget.date_modification = new Date().toISOString();
-      await SS.saveFacture(payTarget);
+      const resPay = await SS.saveFacture(payTarget);
+      if (resPay.ok === false) {
+        payTarget.paiements.pop();   // l'encaissement n'a pas été enregistré : on annule en local
+        toast(resPay.error || 'Paiement NON enregistré — réessaie.', 'error', 7000);
+        return;
+      }
       closeModal('modalPay');
-      toast('Paiement enregistré ✓', 'ok');
+      toast(resPay.offline ? 'Paiement enregistré (hors-ligne)' : 'Paiement enregistré ✓', resPay.offline ? 'warn' : 'ok');
       await load();
     };
 
     window.delFacture = async (encId) => {
       if (!confirm('Supprimer cette facture ?')) return;
-      await SS.deleteFacture(decodeURIComponent(encId));
+      const resDel = await SS.deleteFacture(decodeURIComponent(encId));
+      if (resDel.ok === false) { toast(resDel.error || 'Suppression refusée.', 'error', 6000); return; }
       toast('Facture supprimée', 'warn');
       await load();
     };

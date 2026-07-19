@@ -410,6 +410,7 @@
         date_modification: new Date().toISOString(),
       };
       const res = await SS.saveClient(client);
+      if (res.ok === false) { toast(res.error || 'Fiche NON enregistrée — réessaie.', 'error', 6000); return; }
       // Propagation (choix Nicolas) : le devis stocke une COPIE du client → on répercute les coordonnées
       // corrigées sur ses devis existants pour que PDF, attestation TVA et suivi restent à jour.
       // (Match par nom/prénom ; renommer un client ne re-lie pas les anciens devis — limitation connue.)
@@ -435,7 +436,8 @@
 
     window.deleteFiche = async function (key) {
       if (!confirm('Supprimer la fiche client ? (les devis ne sont pas supprimés)')) return;
-      await SS.deleteClient(key);
+      const resDel = await SS.deleteClient(key);
+      if (resDel.ok === false) { toast(resDel.error || 'Suppression refusée.', 'error', 6000); return; }
       selectedKey = null;
       toast('Fiche supprimée', 'warn');
       el('detail').classList.add('empty-detail');

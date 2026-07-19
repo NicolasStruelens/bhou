@@ -376,6 +376,15 @@
       const ttc = (DEVIS.calculs && DEVIS.calculs.total_ttc) || 0;
       if (!(DEVIS.items && DEVIS.items.length) || ttc <= 0) { toast('Impossible de signer un devis vide (aucune ouverture ou total à 0 €).', 'warn', 4000); return; }
       const now = new Date().toISOString();
+      // Instantané AVANT mutation : si l'enregistrement échoue (session Access expirée…), on remet
+      // la fiche dans son état d'origine — un devis affiché « signé » mais jamais enregistré est
+      // le pire des scénarios (le client est reparti en croyant avoir signé).
+      const snapshot = {
+        signature: DEVIS.signature, statut: DEVIS.statut, raison_refus: DEVIS.raison_refus,
+        client_declined: DEVIS.client_declined, informatif: DEVIS.informatif,
+        client_accepted: DEVIS.client_accepted, statut_history: DEVIS.statut_history,
+        date_modification: DEVIS.date_modification,
+      };
       DEVIS.signature = { accepted_terms: true, image: canvas.toDataURL('image/png'), date: now };
       DEVIS.statut = 'signe';
       // Un devis signé est contractuel : on efface un refus précédent + le flag « informatif », on marque
@@ -384,6 +393,11 @@
       DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'signe', date: now, by: null }]);
       DEVIS.date_modification = now;
       const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        Object.assign(DEVIS, snapshot);   // rien n'a été enregistré : on annule la mutation locale
+        toast(res.error || 'Signature NON enregistrée — réessaie avant que le client ne parte.', 'error', 8000);
+        return;
+      }
       toast(res.offline ? 'Signature enregistrée hors-ligne.' : 'Devis signé ✓', res.offline ? 'warn' : 'ok');
       if (window.ssConfetti) window.ssConfetti();
       renderPaper();

@@ -547,7 +547,8 @@
       if (!full) { toast('Devis introuvable', 'error'); return; }
       full.archive = val;
       full.date_modification = new Date().toISOString();
-      await SS.saveDevis(full);
+      const resAr = await SS.saveDevis(full);
+      if (resAr.ok === false) { toast(resAr.error || 'Archivage NON enregistré — réessaie.', 'error', 6000); return; }
       const d = DEVIS.find(x => x.id === id); if (d) d.archive = val;
       toast(val ? 'Devis archivé' : 'Devis désarchivé', 'ok');
       render();
@@ -857,7 +858,10 @@
     window.changeStatus = async (id, statut) => {
       const identity = await window.SSNav.getIdentity();
       const prev = (DEVIS.find(x => x.id === id) || {}).statut;
-      await SS.updateStatus(id, statut, identity.key);
+      const resSt = await SS.updateStatus(id, statut, identity.key);
+      // Sans ce garde, une session Access expirée affichait « Devis signé 🎉 » + confettis alors que
+      // rien n'avait été enregistré : au rechargement, le devis était toujours « Envoyé ».
+      if (resSt && resSt.ok === false) { toast(resSt.error || 'Statut NON enregistré — réessaie.', 'error', 6000); return; }
       const d = DEVIS.find(x => x.id === id);
       if (d) { d.statut = statut; d.statut_history = (d.statut_history || []).concat([{ statut, date: new Date().toISOString(), by: identity.key || null }]); }
       toast(statut === 'signe' && prev !== 'signe' ? 'Devis signé 🎉' : 'Statut mis à jour', 'ok');
@@ -903,20 +907,29 @@
       if (stTarget) await changeStatus(stTarget, st);
     };
     window.pickRaisonRefus = async (raison) => {
-      stMenuEl.classList.remove('open');
+      if (stMenuEl) stMenuEl.classList.remove('open');
       const id = stTarget;
       if (!id) return;
-      await changeStatus(id, 'refuse');
+      // UNE seule lecture, UN seul enregistrement contenant statut + historique + raison.
+      // L'enchaînement précédent (changeStatus → relecture immédiate → 2e enregistrement) pouvait
+      // relire une version pas encore propagée et la réécrire par-dessus : le refus disparaissait
+      // alors que la raison restait. Même correction que celle déjà appliquée dans vue.html.
+      const identity = await window.SSNav.getIdentity();
+      const full = await SS.getDevis(id);
+      if (!full) { toast('Devis introuvable', 'error'); return; }
+      const now = new Date().toISOString();
+      full.statut = 'refuse';
+      full.statut_history = (full.statut_history || []).concat([{ statut: 'refuse', date: now, by: identity.key || null }]);
       // Toujours (r)écrire raison_refus, même vide — sinon un refus sans raison (« Passer »)
       // garde silencieusement la raison d'un refus précédent sur ce même devis.
-      const full = await SS.getDevis(id);
-      if (full) {
-        full.raison_refus = raison;
-        full.date_modification = new Date().toISOString();
-        await SS.saveDevis(full);
-      }
+      full.raison_refus = raison;
+      full.date_modification = now;
+      const res = await SS.saveDevis(full);
+      if (res.ok === false) { toast(res.error || 'Refus NON enregistré — réessaie.', 'error', 6000); return; }
       const d = DEVIS.find(x => x.id === id);
-      if (d) d.raison_refus = raison;
+      if (d) { d.statut = 'refuse'; d.raison_refus = raison; d.statut_history = full.statut_history; }
+      toast('Devis refusé', 'ok');
+      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: id, label: `Devis #${id} → Refusé${raison ? ' (' + raison + ')' : ''}` });
       render();
     };
 
@@ -946,7 +959,11 @@
       const id = probaTarget;
       if (!id) return;
       const full = await SS.getDevis(id);
-      if (full) { full.probabilite = val; full.date_modification = new Date().toISOString(); await SS.saveDevis(full); }
+      if (!full) { toast('Devis introuvable', 'error'); return; }
+      full.probabilite = val;
+      full.date_modification = new Date().toISOString();
+      const resPb = await SS.saveDevis(full);
+      if (resPb.ok === false) { toast(resPb.error || 'Probabilité NON enregistrée — réessaie.', 'error', 6000); return; }
       const d = DEVIS.find(x => x.id === id);
       if (d) d.probabilite = val;
       render();
@@ -979,7 +996,9 @@
       copy.date_creation = new Date().toISOString().slice(0, 10);
       copy.date_modification = new Date().toISOString();
       if (copy.client) copy.client.nom = (copy.client.nom || '') + ' (copie)';
-      await SS.saveDevis(copy);
+      const resDup = await SS.saveDevis(copy);
+      // Sans ce garde, on redirigeait vers un devis qui n'existe que dans le cache du navigateur.
+      if (resDup.ok === false) { toast(resDup.error || 'Duplication NON enregistrée — réessaie.', 'error', 6000); return; }
       toast('Devis dupliqué', 'ok');
       location.href = 'simulateur.html?id=' + copy.id;
     };
@@ -1056,9 +1075,12 @@
 
     window.removeComment = async (commentId) => {
       if (!confirm('Supprimer cette note ?')) return;
-      await SS.deleteComment(cmDevisId, commentId);
+      const resRm = await SS.deleteComment(cmDevisId, commentId);
+      if (resRm.ok === false) { toast(resRm.error || 'Note NON supprimée — réessaie.', 'error', 6000); return; }
       await renderComments();
-      const d = DEVIS.find(x => x.id === cmDevisId); if (d && d.comments > 0) d.comments--;
+      // Recale le compteur sur la valeur renvoyée par le serveur plutôt que sur un décrément local.
+      const d = DEVIS.find(x => x.id === cmDevisId);
+      if (d) d.comments = (typeof resRm.comments_count === 'number') ? resRm.comments_count : Math.max(0, (d.comments || 0) - 1);
       render();
     };
 
@@ -1105,9 +1127,16 @@
         try {
           const json = JSON.parse(e.target.result);
           const list = Array.isArray(json) ? json : (json.data || []);
-          let n = 0;
-          for (const d of list) { if (d && d.id) { await SS.saveDevis(d); n++; } }
-          toast(`${n} devis importé(s)`, 'ok');
+          // On compte les VRAIS succès : annoncer « 42 devis importés » alors que les 42 écritures
+          // ont été refusées (session expirée) donnerait l'illusion d'une restauration réussie.
+          let n = 0, echecs = 0;
+          for (const d of list) {
+            if (!d || !d.id) continue;
+            const r = await SS.saveDevis(d);
+            if (r.ok === false) echecs++; else n++;
+          }
+          if (echecs) toast(`${n} devis importé(s) — ⚠ ${echecs} ÉCHEC(S), rien n'a été enregistré pour ceux-là.`, 'error', 9000);
+          else toast(`${n} devis importé(s)`, 'ok');
           await load();
         } catch (err) { toast('Fichier JSON invalide', 'error'); }
       };
