@@ -154,6 +154,7 @@
       client_accepted_at: d.client_accepted_at || '',
       review_views: d.review_views || 0,
       sav_tickets: d.sav_tickets || [],
+      chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
     };
   }

@@ -259,6 +259,30 @@
       }
     },
 
+    // ── JOURNAL DE CHANTIER (photos annotées prises pendant/après la pose) ──
+    // Même architecture ciblée que les tickets SAV : la photo est d'abord déportée dans R2
+    // (SSUI.compressAndUploadPhoto → uploadPhoto), puis SEULE sa métadonnée (url + note + phase +
+    // date) est envoyée ici → écriture ciblée côté serveur, jamais le devis complet. `entry.id`
+    // absent = ajout d'une photo ; présent = modification de l'annotation/phase/date.
+    async saveChantierPhoto(devisId, entry) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/chantier-photo', { method: 'POST', body: JSON.stringify(entry || {}) });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : la photo de chantier sera à ajouter une fois la connexion revenue.' };
+      }
+    },
+    async deleteChantierPhoto(devisId, photoId) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/chantier-photo/' + encodeURIComponent(photoId), { method: 'DELETE' });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+      }
+    },
+
     // ── CLIENTS (fiches d'enrichissement : contact, notes, tags) ──
     async listClients() {
       try { return (await req('/clients')).data; }
