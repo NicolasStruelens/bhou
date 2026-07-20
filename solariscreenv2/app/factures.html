@@ -277,13 +277,23 @@
     function buildLines(devis, type, amounts, pct) {
       if (type === 'totale') {
         const lines = (devis.items || []).map(it => ({
-          desc: ({ screen: 'Screen', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola' }[it.type] || it.type) + (it.modele ? ' — ' + it.modele : ''),
+          // volet_roulant manquait dans cette table : une facture de volets imprimait « volet_roulant ».
+          desc: ({ screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' }[it.type] || it.type) + (it.modele ? ' — ' + it.modele : ''),
           sub: [it.moteur, it.emplacement].filter(Boolean).join(' · '),
-          dims: (it.largeur && it.hauteur) ? it.largeur + ' × ' + it.hauteur + ' mm' : '—',
+          dims: window.SSUI.dimsOf(it) || '—',
           qty: it.quantite || 1, pu: it.prix_catalogue_ht || 0, total: (it.prix_catalogue_ht || 0) * (it.quantite || 1),
         }));
         const c = devis.calculs || {};
-        if (c.total_installation_ht > 0) lines.push({ desc: 'Installation et pose', qty: 1, pu: c.total_installation_ht, total: c.total_installation_ht });
+        // Même structure que le devis (app/devis.html) pour que facture et devis correspondent
+        // ligne à ligne : fournitures BRUTES + ligne de remise, installation BRUTE + ligne de remise.
+        // Sans ces lignes de remise, la facture affichait des lignes qui ne totalisaient pas le
+        // montant réellement dû (écart = remise catalogue + remise outillage).
+        const rc = (c.remise_catalogue && c.remise_catalogue.amount) || 0;
+        if (rc > 0) lines.push({ desc: 'Remise commerciale', qty: 1, pu: -rc, total: -rc });
+        if (c.install_total_brut > 0) lines.push({ desc: 'Installation et pose', qty: 1, pu: c.install_total_brut, total: c.install_total_brut });
+        // La remise installation ET la remise outillage réduisent toutes deux le forfait de pose.
+        const ri = ((c.remise_installation && c.remise_installation.amount) || 0) + ((c.remise_outillage && c.remise_outillage.amount) || 0);
+        if (ri > 0) lines.push({ desc: 'Remise commerciale', qty: 1, pu: -ri, total: -ri });
         (c.extra_lines || []).forEach(e => lines.push({ desc: e.label, qty: e.qty, pu: e.unit_price_ht, total: e.total_ht }));
         const surplus = devis.pricing_v2 && devis.pricing_v2.surplus_difficulte;
         if (surplus > 0) lines.push({ desc: 'Supplément accès difficile', qty: 1, pu: surplus, total: surplus });

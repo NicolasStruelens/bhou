@@ -362,8 +362,7 @@
           <div class="field"><label class="label">Câble — longueur</label><select class="select" data-f="cable_longueur"><option value="">—</option>${opt(TS_CABLE_LONGUEURS, item.cable_longueur)}</select></div>
           <div class="field"><label class="label">Câble — couleur</label><select class="select" data-f="cable_couleur"><option value="">—</option>${opt(TS_CABLE_COULEURS, item.cable_couleur)}</select></div>
           <div class="field col-full"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(TS_COLLECTIONS, item.collection)}</select></div>
-          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: gris"></div>
-          <div class="field"><label class="label">Projection (mm)</label><input class="input input-num" inputmode="numeric" data-f="projection" value="${item.projection || ''}" placeholder="${specs.projection_max ? 'Max ' + specs.projection_max : ''}"></div>
+          <div class="field col-full"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: gris"></div>
           <div class="field col-full"><label class="label">Éclairage LED</label><select class="select" data-f="eclairage_led"><option value="">—</option>${eclairageOpts}</select></div>
         </div>
         <div class="stack" style="gap:0;margin-top:var(--sp-2);">
@@ -427,14 +426,21 @@
         <div class="grid grid-2 mt-4">${modeleFieldHtml(item)}${moteurFieldHtml(item)}</div>
         <div class="grid grid-2 mt-3">
           <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" inputmode="numeric" data-f="largeur" value="${item.largeur || ''}"></div>
-          <div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" inputmode="numeric" data-f="hauteur" value="${item.hauteur || ''}"></div>
+          ${item.type === 'tente_solaire'
+            // Tente solaire = largeur × PROJECTION (la hauteur n'a pas de sens). Le champ est
+            // remonté ici et retiré du bloc de configuration (un seul input data-f="projection").
+            ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" inputmode="numeric" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
+            : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" inputmode="numeric" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" list="dl-emplacements" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" list="dl-etages" value="${item.etage || ''}" placeholder="RDC"></div>
         </div>
         ${item.type !== 'screen' ? `
         <div class="grid grid-2 mt-3">
           <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016"></div>
-          ${item.type !== 'volet_roulant' ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
+          ${!['volet_roulant', 'tente_solaire'].includes(item.type)
+            // Pas de toile en texte libre pour les tentes : « Collection toile » (liste fermée)
+            // est déjà dans leur bloc de configuration.
+            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
         </div>` : ''}
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}

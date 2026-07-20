@@ -588,8 +588,13 @@
       const soldeAttente = visible.filter(isSoldeUnpaid);
       const aPreparer = visible.filter(isChantierAPreparer);
       const expires = visible.filter(isDevisExpire);
+      // Devis acceptés en ligne par le client mais pas encore signés : l'action la plus rentable
+      // de la journée. Le prédicat sur WAITING_STATUSES fait que le chip disparaît tout seul une
+      // fois le devis passé en « signé » — pas de compteur qui s'accumule.
+      const acceptes = visible.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
       const box = el('todayBrief');
       const chips = [];
+      if (acceptes.length) chips.push({ label: `${acceptes.length} devis accepté${acceptes.length > 1 ? 's' : ''} par le client — à faire signer`, color: 'var(--ok)', filter: 'accepte_client', ic: 'check' });
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
       if (acompteAttente.length) chips.push({ label: `${acompteAttente.length} acompte${acompteAttente.length > 1 ? 's' : ''} non payé${acompteAttente.length > 1 ? 's' : ''}`, color: 'var(--warn)', filter: 'acompte_attente', ic: 'coin' });
@@ -661,7 +666,8 @@
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
-      if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
+      if (activeFilter === 'accepte_client') rows = rows.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
+      else if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
       else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
       else if (activeFilter === 'acompte_attente') rows = rows.filter(isAcompteUnpaid);
       else if (activeFilter === 'solde_attente') rows = rows.filter(isSoldeUnpaid);
@@ -703,6 +709,9 @@
       // Badge secondaire de statut (attente/expiré) — renvoie juste le <span>, regroupé sous la pastille.
       const waitingBadge = (d) => {
         if (!WAITING_STATUSES.includes(d.statut)) return '';
+        // Un devis accepté par le client n'est plus « en attente de réponse » : afficher
+        // « ⏱ 12 j — en attente de réponse » serait factuellement faux et à contresens.
+        if (d.client_accepted) return '';
         if (isDevisExpire(d)) {
           const sentDays = daysSinceSent(d);
           return `<span class="badge badge-danger" title="Devis envoyé depuis ${sentDays} jours — validité CGV de 30 jours dépassée">${icon('warning', 10)} Expiré</span>`;
@@ -714,8 +723,13 @@
       };
       const statusCell = (d) => {
         const infoB = d.informatif ? `<span class="badge badge-cyan" title="Estimation non contractuelle">Informatif</span>` : '';
+        // Le client a cliqué « J'accepte » sur son espace client : c'est l'information la plus
+        // actionnable de la ligne (il reste à faire signer), elle passe donc en tête des badges.
+        const acceptB = (d.client_accepted && WAITING_STATUSES.includes(d.statut))
+          ? `<span class="badge badge-ok" title="Le client a accepté ce devis en ligne${d.client_accepted_at ? ' le ' + fmtDate(d.client_accepted_at) : ''} — reste à faire signer">${icon('check', 10)} Accepté client</span>`
+          : '';
         const waitB = waitingBadge(d);
-        const secondary = (waitB || infoB) ? `<div class="status-badges">${waitB}${infoB}</div>` : '';
+        const secondary = (acceptB || waitB || infoB) ? `<div class="status-badges">${acceptB}${waitB}${infoB}</div>` : '';
         return `<div class="status-cell">${pill(d)}${secondary}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau

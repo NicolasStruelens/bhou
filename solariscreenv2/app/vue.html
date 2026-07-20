@@ -720,7 +720,9 @@
       const surf = totalSurface(items);
       setText('ouvCount', `${items.reduce((s, i) => s + (i.quantite || 1), 0)} ouverture(s) · ${surf.toFixed(2)} m²`);
       el('ouvHost').innerHTML = items.length ? items.map((it, i) => {
-        const s = (it.largeur > 0 && it.hauteur > 0) ? ((it.largeur / 1000) * (it.hauteur / 1000)).toFixed(2) : null;
+        // 2e dimension selon le type : projection pour une tente solaire, hauteur sinon.
+        const dim2 = window.SSUI.isTenteSolaire(it) ? it.projection : it.hauteur;
+        const s = (it.largeur > 0 && dim2 > 0) ? ((it.largeur / 1000) * (dim2 / 1000)).toFixed(2) : null;
         const photos = (it.photos || []).map((p, pi) => {
           const idx = PHOTOS.length;
           const cat = (it.photo_categories || [])[pi] || '';
@@ -744,7 +746,11 @@
           </div>
           <div class="specs">
             <div class="spec"><div class="s-k">Largeur</div><div class="s-v">${it.largeur ? it.largeur + ' mm' : '—'}</div></div>
-            <div class="spec"><div class="s-k">Hauteur</div><div class="s-v">${it.hauteur ? it.hauteur + ' mm' : '—'}</div></div>
+            ${window.SSUI.isTenteSolaire(it)
+              // Tente solaire : la 2e dimension est la projection (affichée ici, donc plus besoin
+              // de la répéter dans la liste d'options plus bas). La hauteur n'existe pas.
+              ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection ? it.projection + ' mm' : '—'}</div></div>`
+              : `<div class="spec"><div class="s-k">Hauteur</div><div class="s-v">${it.hauteur ? it.hauteur + ' mm' : '—'}</div></div>`}
             <div class="spec"><div class="s-k">Surface</div><div class="s-v">${s ? s + ' m²' : '—'}</div></div>
             <div class="spec"><div class="s-k">Quantité</div><div class="s-v">× ${it.quantite || 1}</div></div>
             <div class="spec"><div class="s-k">Prix unit. HTVA</div><div class="s-v">${fmtEur(it.prix_catalogue_ht || 0)}</div></div>
@@ -754,8 +760,7 @@
             ${it.couleur_coulisses ? `<div class="spec"><div class="s-k">Couleur coulisses</div><div class="s-v">${esc(it.couleur_coulisses)}</div></div>` : ''}
             ${it.couleur_lame ? `<div class="spec"><div class="s-k">Couleur lame finale</div><div class="s-v">${esc(it.couleur_lame)}</div></div>` : ''}
             ${it.lame_type ? `<div class="spec"><div class="s-k">Type de lame</div><div class="s-v">${esc(it.lame_type)}</div></div>` : ''}
-            ${it.toile ? `<div class="spec"><div class="s-k">Toile</div><div class="s-v">${esc(it.toile)}</div></div>` : ''}
-            ${it.collection ? `<div class="spec"><div class="s-k">Collection toile</div><div class="s-v">${esc(it.collection)}</div></div>` : ''}
+            ${(it.collection || it.toile) ? `<div class="spec"><div class="s-k">Collection toile</div><div class="s-v">${esc(it.collection || it.toile)}</div></div>` : ''}
             ${it.toile_num ? `<div class="spec"><div class="s-k">N° de toile</div><div class="s-v">${esc(it.toile_num)}</div></div>` : ''}
             ${it.toile_couleur ? `<div class="spec"><div class="s-k">Couleur toile</div><div class="s-v">${esc(it.toile_couleur)}</div></div>` : ''}
             ${it.combinaison ? `<div class="spec"><div class="s-k">Combinaison</div><div class="s-v">${esc(it.combinaison)}</div></div>` : ''}
@@ -766,7 +771,7 @@
             ${it.panneau_solaire_separe ? `<div class="spec"><div class="s-k">Panneau solaire</div><div class="s-v">Fourni séparément</div></div>` : ''}
             ${it.allongement_caisson ? `<div class="spec"><div class="s-k">Allongement</div><div class="s-v">Caisson allongé</div></div>` : ''}
             ${it.barre_surelevee ? `<div class="spec"><div class="s-k">Barre de charge</div><div class="s-v">Surélevée (A2416)</div></div>` : ''}
-            ${it.projection ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection} mm</div></div>` : ''}
+            ${(it.projection && !window.SSUI.isTenteSolaire(it)) ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection} mm</div></div>` : ''}
             ${it.manoeuvre ? `<div class="spec"><div class="s-k">Manœuvre</div><div class="s-v">${esc(it.manoeuvre)}</div></div>` : ''}
             ${(it.cable_longueur || it.cable_couleur) ? `<div class="spec"><div class="s-k">Câble</div><div class="s-v">${esc([it.cable_longueur, it.cable_couleur].filter(Boolean).join(' · '))}</div></div>` : ''}
             ${it.telecommande ? `<div class="spec"><div class="s-k">Commande à distance</div><div class="s-v">Oui</div></div>` : ''}
@@ -999,9 +1004,17 @@
     let EDITING_SAV_ID = null, PENDING_SAV_PHOTOS = [];
     function renderSav() {
       const card = el('savCard');
-      const show = DEVIS.statut === 'termine';
+      // Le SAV devient pertinent dès que la pose est FAITE — pas seulement quand le devis a été
+      // repassé en « Terminé » à la main. On utilise le jalon partagé isPoseDone (PV de réception
+      // signé ou étape fournisseur « Posé »), cohérent avec l'agenda et la garantie. Et si des
+      // tickets existent déjà, la carte reste évidemment visible quel que soit le statut.
+      const tickets0 = DEVIS.sav_tickets || [];
+      const show = window.SSUI.isPoseDone(DEVIS) || DEVIS.statut === 'termine' || tickets0.length > 0;
       card.classList.toggle('hidden', !show);
       if (!show) return;
+      // Un ticket non résolu est une action en attente : on déplie la carte d'office (sinon elle
+      // reste une simple ligne d'en-tête tout en bas de la colonne, et personne ne la voit).
+      if (tickets0.some(t => t.statut !== 'resolu')) card.classList.remove('collapsed');
       const tickets = (DEVIS.sav_tickets || []).slice().sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
       const openCount = tickets.filter(t => t.statut !== 'resolu').length;
       el('savCount').textContent = openCount ? `${openCount} ouvert(s)` : (tickets.length ? 'tout résolu' : '');
@@ -1049,23 +1062,21 @@
     window.submitSavTicket = async () => {
       const description = el('savDescription').value.trim();
       if (!description) { toast('Décris le problème avant de créer le ticket.', 'warn'); return; }
-      DEVIS.sav_tickets = DEVIS.sav_tickets || [];
-      if (EDITING_SAV_ID) {
-        const t = DEVIS.sav_tickets.find(x => x.id === EDITING_SAV_ID);
-        if (t) { t.probleme = el('savProbleme').value; t.description = description; t.photos = PENDING_SAV_PHOTOS.slice(); }
-      } else {
-        DEVIS.sav_tickets.push({
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          probleme: el('savProbleme').value, description, statut: 'ouvert',
-          date_creation: new Date().toISOString(), date_resolution: null,
-          photos: PENDING_SAV_PHOTOS.slice(),
-        });
-      }
-      DEVIS.date_modification = new Date().toISOString();
       const wasEditing = !!EDITING_SAV_ID;
-      const res = await SS.saveDevis(DEVIS);
+      const existing = wasEditing ? (DEVIS.sav_tickets || []).find(x => x.id === EDITING_SAV_ID) : null;
+      // Écriture CIBLÉE via la route dédiée : on n'envoie QUE le ticket, jamais le devis complet.
+      const res = await SS.saveSavTicket(DEVIS.id, {
+        id: wasEditing ? EDITING_SAV_ID : undefined,
+        probleme: el('savProbleme').value,
+        description,
+        statut: existing ? existing.statut : 'ouvert',
+        photos: PENDING_SAV_PHOTOS.slice(),
+      });
       if (res.ok === false) { toast(res.error || 'Ticket SAV NON enregistré — réessaie.', 'error', 6000); return; }
-      toast(res.offline ? (wasEditing ? 'Ticket modifié (hors-ligne)' : 'Ticket créé (hors-ligne)') : (wasEditing ? 'Ticket modifié ✓' : 'Ticket SAV créé ✓'), res.offline ? 'warn' : 'ok');
+      // Le serveur renvoie la liste à jour (qui inclut d'éventuels tickets ajoutés par Yannick
+      // pendant que cette fiche était ouverte) : on s'aligne dessus plutôt que sur notre copie.
+      DEVIS.sav_tickets = res.sav_tickets || DEVIS.sav_tickets || [];
+      toast(wasEditing ? 'Ticket modifié ✓' : 'Ticket SAV créé ✓', 'ok');
       cancelSavEdit();
       renderSav();
     };
@@ -1092,12 +1103,11 @@
     };
     window.deleteSavTicket = async (ticketId) => {
       if (!confirm('Supprimer ce ticket SAV ?')) return;
-      DEVIS.sav_tickets = (DEVIS.sav_tickets || []).filter(x => x.id !== ticketId);
-      DEVIS.date_modification = new Date().toISOString();
       if (EDITING_SAV_ID === ticketId) cancelSavEdit();
-      const res = await SS.saveDevis(DEVIS);
+      const res = await SS.deleteSavTicket(DEVIS.id, ticketId);
       if (res.ok === false) { toast(res.error || 'Ticket NON supprimé — réessaie.', 'error', 6000); return; }
-      toast(res.offline ? 'Ticket supprimé (hors-ligne)' : 'Ticket supprimé ✓', res.offline ? 'warn' : 'ok');
+      DEVIS.sav_tickets = res.sav_tickets || [];
+      toast('Ticket supprimé ✓', 'ok');
       renderSav();
     };
     // ── Menu déroulant de statut SAV (même mécanique que le statut du devis) ──
@@ -1125,10 +1135,12 @@
       if (savMenuEl) savMenuEl.classList.remove('open');
       const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
       if (!t || t.statut === statut) return;
-      t.statut = statut;
-      t.date_resolution = statut === 'resolu' ? new Date().toISOString() : null;
-      DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
+      const res = await SS.saveSavTicket(DEVIS.id, {
+        id: t.id, probleme: t.probleme, description: t.description, statut, photos: t.photos || [],
+      });
+      if (res.ok === false) { toast(res.error || 'Statut du ticket NON enregistré — réessaie.', 'error', 6000); return; }
+      DEVIS.sav_tickets = res.sav_tickets || DEVIS.sav_tickets;
+      toast('Ticket ' + (SAV_STATUT_LABEL[statut] || statut).toLowerCase() + ' ✓', 'ok');
       renderSav();
     };
 
@@ -1251,7 +1263,10 @@
       card.classList.toggle('hidden', !show);
       if (!show) return;
       let infoTxt = "Copie ce lien et envoie-le au client pour qu'il puisse revoir son devis en ligne.";
-      if (DEVIS.client_accepted) infoTxt = `Le client a accepté ce devis le ${fmtDate(DEVIS.client_accepted_at)}.`;
+      // Acceptation en ligne : on la met en évidence (carte verte) au lieu d'une ligne de texte gris
+      // noyée dans la fiche — c'est l'information la plus actionnable (il reste à faire signer).
+      card.style.setProperty('--tick-color', DEVIS.client_accepted ? 'var(--ok)' : '');
+      if (DEVIS.client_accepted) infoTxt = `✅ Le client a ACCEPTÉ ce devis le ${fmtDate(DEVIS.client_accepted_at)} — il reste à le faire signer.`;
       // review_views est un TABLEAU d'horodatages dans le devis complet (c'est la liste /api/devis
       // qui en expose le nombre). Comparer le tableau à un nombre donnait toujours faux → le
       // compteur de consultations n'apparaissait jamais.
@@ -1728,9 +1743,13 @@
     };
     function applyCardPrefs() {
       const prefs = loadCardPrefs();
+      // Un SAV non résolu est une action en attente : la carte reste dépliée même si la préférence
+      // enregistrée dit « repliée » (elle s'applique de nouveau dès que tout est résolu).
+      const savOuvert = (DEVIS && (DEVIS.sav_tickets || []).some(t => t.statut !== 'resolu'));
       COLLAPSIBLE_CARDS.forEach(id => {
         const card = el(id);
         if (!card) return;
+        if (id === 'savCard' && savOuvert) { card.classList.remove('collapsed'); return; }
         card.classList.toggle('collapsed', prefs.hasOwnProperty(id) ? prefs[id] : true);
       });
     }
@@ -1748,6 +1767,17 @@
       el('main').style.display = '';
       render();
       applyCardPrefs();
+      // Arrivée depuis la page SAV (« Nouveau ticket ») : on déplie la carte SAV, on y amène
+      // l'écran et on place le curseur dans la description — sinon elle reste repliée tout en bas
+      // de la colonne et l'utilisateur ne la trouve pas.
+      if (location.hash === '#sav') {
+        const card = el('savCard');
+        if (card && !card.classList.contains('hidden')) {
+          card.classList.remove('collapsed');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => { const f = el('savDescription'); if (f) f.focus({ preventScroll: true }); }, 400);
+        }
+      }
     })();
   </script>
 </body>

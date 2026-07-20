@@ -26,6 +26,19 @@
     .sav-desc { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); }
     .sav-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-2); }
     .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    .empty .hint { font-size: var(--fs-sm); margin-top: var(--sp-2); }
+
+    /* Sélecteur de devis pour créer un ticket (même gabarit de modale que le dashboard) */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
+    .modal .mhead { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; gap: var(--sp-2); }
+    .modal .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; min-height: 120px; }
+    .pick-item { display: flex; align-items: center; gap: var(--sp-3); width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-2); cursor: pointer; color: inherit; font: inherit; }
+    .pick-item:hover { border-color: var(--accent); }
+    .pick-item .pi-main { flex: 1; min-width: 0; }
+    .pick-item .pi-name { font-weight: 700; }
+    .pick-item .pi-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
   </style>
 </head>
 <body>
@@ -40,6 +53,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket SAV</button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
       <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
@@ -50,6 +64,20 @@
     <div class="kpis" id="kpis"></div>
     <div id="host"><div class="empty">Chargement…</div></div>
   </main>
+
+  <!-- Sélecteur de chantier : un ticket SAV est toujours rattaché à un devis posé -->
+  <div class="modal-bg" id="modalPick">
+    <div class="modal ticked">
+      <div class="mhead">
+        <span id="pickTitle">Sur quel chantier ?</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="closePicker()">✕</button>
+      </div>
+      <div class="mbody">
+        <input class="input" id="pickSearch" placeholder="Rechercher un client, une ville, un n° de devis…" oninput="renderPicker()" style="margin-bottom:var(--sp-3);">
+        <div id="pickList"></div>
+      </div>
+    </div>
+  </div>
 
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
@@ -63,14 +91,43 @@
 
     const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let ELIGIBLES = [];   // chantiers sur lesquels un ticket SAV a du sens (pose faite)
 
     async function load() {
       const raw = await SS.listDevis();
-      const summary = (raw || []).map(normDevis).filter(d => (d.sav_tickets || []).length);
+      const tous = (raw || []).map(normDevis);
+      const summary = tous.filter(d => (d.sav_tickets || []).length);
+      // Un SAV concerne un chantier POSÉ (jalon partagé isPoseDone : PV de réception signé ou
+      // étape fournisseur « Posé »), ou déjà marqué terminé. Les archivés sont exclus.
+      ELIGIBLES = tous
+        .filter(d => !d.archive && (window.SSUI.isPoseDone(d) || d.statut === 'termine'))
+        .sort((a, b) => String(b.date_modification).localeCompare(String(a.date_modification)));
       const all = [];
       summary.forEach(d => (d.sav_tickets || []).forEach(t => all.push({ ...t, devisId: d.id, client: `${d.prenom} ${d.nom}`.trim() })));
       render(all);
     }
+
+    // ── Création d'un ticket : on choisit d'abord le chantier, puis on ouvre sa fiche au bon endroit ──
+    window.openPicker = () => { el('pickSearch').value = ''; renderPicker(); el('modalPick').classList.add('open'); el('pickSearch').focus(); };
+    window.closePicker = () => el('modalPick').classList.remove('open');
+    window.renderPicker = () => {
+      const q = el('pickSearch').value.trim().toLowerCase();
+      const list = q
+        ? ELIGIBLES.filter(d => `${d.prenom} ${d.nom} ${d.id} ${d.ville}`.toLowerCase().includes(q))
+        : ELIGIBLES;
+      el('pickList').innerHTML = list.length
+        ? list.slice(0, 50).map(d => `
+            <button class="pick-item" onclick="goCreate('${encodeURIComponent(d.id)}')">
+              <div class="pi-main">
+                <div class="pi-name">${esc(`${d.prenom} ${d.nom}`.trim() || '—')}</div>
+                <div class="pi-sub">#${esc(d.id)}${d.ville ? ' · ' + esc(d.ville) : ''}${(d.sav_tickets || []).length ? ' · ' + d.sav_tickets.length + ' ticket(s)' : ''}</div>
+              </div>
+              ${icon('window', 16)}
+            </button>`).join('')
+        : `<div class="empty">Aucun chantier posé ne correspond.<div class="hint">Un ticket SAV se crée sur un chantier dont la pose est faite (PV de réception signé ou étape « Posé »).</div></div>`;
+    };
+    // `#sav` : la fiche devis déplie la carte SAV et y amène directement (voir vue.html).
+    window.goCreate = (encId) => { location.href = `vue.html?id=${encId}#sav`; };
 
     function ticketCard(t) {
       const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
@@ -101,7 +158,13 @@
         <div class="kpi ticked ok"><div class="kpi-label">Résolus</div><div class="kpi-value">${resolus.length}</div><div class="kpi-sub">total historique</div></div>`;
 
       if (!all.length) {
-        el('host').innerHTML = `<div class="empty">${icon('check', 40)}<div>Aucun ticket SAV pour l'instant.</div></div>`;
+        // Un écran vide sans point d'entrée se lit comme « fonctionnalité absente » : on explique
+        // et on propose l'action directement ici.
+        el('host').innerHTML = `<div class="empty">${icon('check', 40)}
+          <div>Aucun ticket SAV pour l'instant.</div>
+          <div class="hint">Un ticket se crée sur un chantier posé — clique ci-dessous pour choisir le chantier concerné.</div>
+          <button class="btn btn-primary mt-4" onclick="openPicker()">+ Nouveau ticket SAV</button>
+        </div>`;
         return;
       }
       const section = (title, list) => list.length ? `
@@ -109,6 +172,9 @@
         <div class="sav-grid">${list.map(ticketCard).join('')}</div>` : '';
       el('host').innerHTML = section('Ouverts', ouverts) + section('En cours', enCours) + section('Résolus', resolus);
     }
+
+    el('modalPick').addEventListener('click', (e) => { if (e.target === el('modalPick')) closePicker(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePicker(); });
 
     load();
   </script>

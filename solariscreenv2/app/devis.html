@@ -120,7 +120,8 @@
       // Lignes fournitures
       let rows = '';
       (d.items || []).forEach((it, i) => {
-        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm${it.projection ? ' · proj. ' + it.projection + ' mm' : ''}` : '—';
+        // Tente solaire = largeur × projection (pas de hauteur) ; autres types = largeur × hauteur.
+        const dims = window.SSUI.dimsOf(it) || '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
         // Coloris : caisson / coulisses / lame finale peuvent différer (Screen) — on détaille
@@ -138,7 +139,9 @@
           if (lame) parts.push('lame ' + lame);
           return parts.join(', ');
         })();
-        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.toile || it.collection, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        // La COLLECTION (liste fabricant) prime sur l'ancien texte libre `toile` : sur les devis
+        // saisis quand les deux champs coexistaient, c'est la collection qui fait foi.
+        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>

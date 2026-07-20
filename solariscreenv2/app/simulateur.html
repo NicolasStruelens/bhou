@@ -446,8 +446,7 @@
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field" style="grid-column:span 2;"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(TS_COLLECTIONS, item.collection)}</select></div>
-          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: gris"></div>
-          <div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${specs.projection_max ? 'Max ' + specs.projection_max : ''}"></div>
+          <div class="field" style="grid-column:span 2;"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: gris"></div>
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field field-check"><label><input type="checkbox" data-f="telecommande" ${item.telecommande ? 'checked' : ''}> Avec commande à distance</label></div>
@@ -514,14 +513,24 @@
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="largeur" value="${item.largeur || ''}"></div>
-          <div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>
+          ${item.type === 'tente_solaire'
+            // Une tente solaire se mesure en largeur × PROJECTION (l'avancée) : la hauteur n'a
+            // aucun sens ici. Le champ projection est donc remonté en dimension principale (et
+            // retiré du bloc de configuration — deux inputs data-f="projection" dans la même
+            // carte feraient que collectItem ne garderait que le dernier du DOM).
+            ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
+            : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" list="dl-emplacements" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" list="dl-etages" value="${item.etage || ''}" placeholder="RDC"></div>
         </div>
         ${item.type !== 'screen' ? `
         <div class="grid grid-auto mt-4">
           <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris anthracite"></div>
-          ${item.type !== 'volet_roulant' ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
+          ${!['volet_roulant', 'tente_solaire'].includes(item.type)
+            // Pas de « Toile / finition » en texte libre pour les tentes solaires : leur bloc de
+            // configuration a déjà « Collection toile » (liste fermée du fabricant). Le champ reste
+            // pour tablier_volet (et les anciens types), qui n'ont aucun configurateur.
+            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
         </div>` : ''}
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}
@@ -587,8 +596,9 @@
         else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht', 'projection'].includes(f)) it[f] = parseFloat(input.value) || 0;
         else it[f] = input.value;
       });
-      // sous-titre live
-      const surf = it.largeur > 0 && it.hauteur > 0 ? ((it.largeur/1000)*(it.hauteur/1000)).toFixed(2) + ' m²' : '—';
+      // sous-titre live — 2e dimension selon le type (tente solaire = projection, pas hauteur)
+      const dim2 = it.type === 'tente_solaire' ? it.projection : it.hauteur;
+      const surf = it.largeur > 0 && dim2 > 0 ? ((it.largeur/1000)*(dim2/1000)).toFixed(2) + ' m²' : '—';
       const sub = card.querySelector('[data-sub]');
       if (sub) sub.textContent = `${ITEM_TYPES[it.type] || it.type} · ${surf} · ${fmtEur((it.prix_catalogue_ht||0)*(it.quantite||1))}`;
     }
@@ -722,7 +732,12 @@
       // ── Contrôle anti-erreur (avertissements non bloquants avant envoi) ──
       const warnings = [];
       state.items.forEach((it, i) => {
-        if (!it.largeur || !it.hauteur) warnings.push(`Ouverture #${i + 1} : largeur ou hauteur manquante`);
+        // Tente solaire : c'est la PROJECTION qui compte, pas la hauteur (dimension sans objet ici).
+        if (it.type === 'tente_solaire') {
+          if (!it.largeur || !it.projection) warnings.push(`Ouverture #${i + 1} : largeur ou projection manquante`);
+        } else if (!it.largeur || !it.hauteur) {
+          warnings.push(`Ouverture #${i + 1} : largeur ou hauteur manquante`);
+        }
         if (!el('isInformatif').checked && !it.prix_catalogue_ht) warnings.push(`Ouverture #${i + 1} : prix catalogue à 0€`);
       });
       if (!input.acompte_pct) warnings.push("Acompte à 0% — vérifie que c'est voulu");
