@@ -47,8 +47,8 @@
     .track-step .lbl { font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); line-height: 1.3; padding: 0 2px; }
     .track-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
     .track-step.done .lbl { color: var(--ok); }
-    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); box-shadow: var(--glow-soft); transform: scale(1.08); }
-    .track-step.active .lbl { color: var(--accent-2); font-weight: 700; }
+    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2-ink); box-shadow: var(--glow-soft); transform: scale(1.08); }
+    .track-step.active .lbl { color: var(--accent-2-ink); font-weight: 700; }
 
     .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px dashed var(--border); }
     .track-eta strong { color: var(--text); }
@@ -62,9 +62,10 @@
     .track-foot { text-align: center; color: var(--text-subtle); font-size: var(--fs-2xs); margin-top: var(--sp-6); }
     .topbar { position: absolute; top: var(--sp-4); right: var(--sp-5); z-index: 2; }
 
+    .track-foot a { color: var(--accent-2-ink); }
     @media (max-width: 420px) {
       .track-step .dot { width: 30px; height: 30px; }
-      .track-step .lbl { font-size: 0.56rem; }
+      .track-step .lbl { font-size: var(--fs-3xs); }   /* plancher lisible (0,62rem) au lieu de 0,56rem */
       .track-line-bg, .track-line-fill { top: 15px; }
     }
   </style>
@@ -94,17 +95,28 @@
       <div class="track-items" id="trackItems"></div>
     </div>
 
-    <div class="track-foot">SolariScreen · www.solariscreen.be</div>
+    <div class="track-foot" id="trackFoot"></div>
   </div>
 
   <div class="track-wrap" id="loading">
     <div class="track-error">Chargement…</div>
   </div>
 
+  <script src="assets/js/company.js"></script>
   <script src="assets/js/ui.js"></script>
   <script>
     const { icon } = window.SSUI;
+    const COMPANY = window.SS_COMPANY;
     window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+
+    // Pied de page joignable (présent aussi sur l'écran d'erreur : un lien expiré ne doit pas
+    // laisser le client sans moyen de nous contacter).
+    function contactFootHtml() {
+      const mail = COMPANY.email ? `Une question ? <a href="mailto:${esc(COMPANY.email)}">${esc(COMPANY.email)}</a>` : '';
+      const tel = COMPANY.phone ? ` · <a href="tel:${esc(COMPANY.phone.replace(/\s/g, ''))}">${esc(COMPANY.phone)}</a>` : '';
+      const web = COMPANY.web ? `<a href="https://${esc(COMPANY.web)}" target="_blank" rel="noopener">${esc(COMPANY.web)}</a>` : '';
+      return `SolariScreen${web ? ' · ' + web : ''}${mail ? '<br>' + mail + tel : ''}`;
+    }
 
     const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
     const STAGES = [
@@ -117,7 +129,19 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     function showError(msg) {
-      document.getElementById('loading').innerHTML = `<div class="track-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div></div>`;
+      document.getElementById('loading').innerHTML = `<div class="track-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div>
+        <div class="track-foot" style="margin-top:var(--sp-5);">${contactFootHtml()}</div></div>`;
+    }
+    // « Bonjour »/« Bonsoir » selon l'heure locale du visiteur + prénom (amical) ou civilité+nom (pro).
+    function computeGreeting(g) {
+      const salut = new Date().getHours() >= 18 ? 'Bonsoir' : 'Bonjour';
+      if (!g || (!g.prenom && !g.nom)) return `${salut} !`;
+      if (g.ton === 'pro') {
+        if (g.civilite && g.nom) return `${salut} ${g.civilite} ${g.nom} !`;
+        const full = [g.prenom, g.nom].filter(Boolean).join(' ');
+        return full ? `${salut} ${full} !` : `${salut} !`;
+      }
+      return g.prenom ? `${salut} ${g.prenom} !` : `${salut} !`;
     }
 
     (async () => {
@@ -135,8 +159,9 @@
 
       document.getElementById('loading').style.display = 'none';
       document.getElementById('main').style.display = '';
+      document.getElementById('trackFoot').innerHTML = contactFootHtml();
 
-      if (d.prenom) document.getElementById('greeting').textContent = `Bonjour ${d.prenom} !`;
+      document.getElementById('greeting').textContent = computeGreeting(d.greeting || { prenom: d.prenom });
 
       const cc = d.commande || {};
       const idx = Math.max(0, STAGES.findIndex(s => s.k === (cc.statut || 'a_commander')));

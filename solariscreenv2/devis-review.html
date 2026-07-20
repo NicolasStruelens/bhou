@@ -28,7 +28,7 @@
     .rv-item .sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
     .rv-item .v { font-family: var(--font-mono); white-space: nowrap; }
     .rv-item-photos { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-3); }
-    .rv-item-photos a { display: block; width: 64px; height: 64px; border-radius: var(--r-xs); overflow: hidden; border: 1px solid var(--border); }
+    .rv-item-photos a { display: block; width: 64px; height: 64px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); }
     .rv-item-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
     /* Récapitulatif : les lignes intermédiaires (remise, installation, TVA…) qui font que le
@@ -41,12 +41,19 @@
 
     .rv-total { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); margin-bottom: var(--sp-3); }
     .rv-total .k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
-    .rv-total .v { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; color: var(--accent-2); text-shadow: var(--glow-hero); }
+    .rv-total .v { font-family: var(--font-mono); font-size: clamp(1.2rem, 6vw, 1.6rem); font-weight: 800; color: var(--accent-2-ink); text-shadow: var(--glow-hero); white-space: nowrap; }
     .rv-acompte { font-size: var(--fs-sm); color: var(--text-muted); text-align: center; margin-bottom: var(--sp-5); }
     .rv-acompte strong { color: var(--text); }
 
-    .rv-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-5); }
-    .rv-actions .btn { flex: 1; min-width: 140px; }
+    /* Décision d'acceptation : bouton plein pleine largeur, débloqué par la case CGV (valeur
+       juridique) — l'acceptation était auparavant déclenchée par un simple tap, sans confirmation. */
+    .rv-actions { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+    .rv-cgv { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-sm); color: var(--text-muted); }
+    .rv-cgv input { margin-top: 0.15rem; flex: none; width: 18px; height: 18px; }
+    .rv-accept { width: 100%; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-size: var(--fs-md); padding: 0.75rem; }
+    .rv-accept:hover:not(:disabled) { background: var(--accent-strong); color: var(--on-accent); }
+    .rv-decline-btn { width: 100%; }
+    .rv-decline { margin-top: var(--sp-1); }
     .rv-question { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); margin-bottom: var(--sp-5); }
     .rv-question h3 { font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
     .rv-status-msg { text-align: center; padding: var(--sp-5); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); margin-bottom: var(--sp-5); }
@@ -98,8 +105,16 @@
     <div id="rvStatusMsg"></div>
 
     <div class="rv-actions hidden" id="rvActions">
-      <button class="btn btn-primary" onclick="submitAction('accept')">J'accepte ce devis</button>
-      <button class="btn btn-ghost" onclick="submitAction('decline')">Je refuse</button>
+      <label class="rv-cgv">
+        <input type="checkbox" id="rvCgv" onchange="document.getElementById('rvAcceptBtn').disabled = !this.checked">
+        <span>J'ai lu et j'accepte ce devis ainsi que les conditions générales de vente.</span>
+      </label>
+      <button class="btn btn-primary rv-accept" id="rvAcceptBtn" disabled onclick="submitAction('accept')">J'accepte ce devis</button>
+      <button class="btn btn-ghost rv-decline-btn" onclick="toggleDecline()">Je refuse</button>
+      <div class="rv-decline hidden" id="rvDeclineBox">
+        <textarea class="textarea" id="rvDeclineReason" style="min-height:60px;" placeholder="Une raison à préciser (facultatif)…"></textarea>
+        <button class="btn btn-ghost btn-sm mt-2" onclick="submitAction('decline')">Confirmer le refus</button>
+      </div>
     </div>
 
     <div id="rvThreadWrap" class="hidden">
@@ -115,7 +130,7 @@
 
     <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Voir le devis complet — imprimer / PDF</button>
 
-    <div class="rv-foot">SolariScreen · www.solariscreen.be</div>
+    <div class="rv-foot" id="rvFoot"></div>
   </div>
 
   <div class="rv-wrap" id="loading">
@@ -134,8 +149,32 @@
     const token = new URLSearchParams(location.search).get('t');
     let DATA = null;
 
+    // Pied de page joignable — présent aussi sur l'écran d'erreur (un lien expiré laissait le
+    // client sans aucun moyen de nous contacter).
+    function contactFootHtml() {
+      const mail = COMPANY.email ? `Une question ? <a href="mailto:${esc(COMPANY.email)}">${esc(COMPANY.email)}</a>` : '';
+      const tel = COMPANY.phone ? ` · <a href="tel:${esc(COMPANY.phone.replace(/\s/g, ''))}">${esc(COMPANY.phone)}</a>` : '';
+      const web = COMPANY.web ? `<a href="https://${esc(COMPANY.web)}" target="_blank" rel="noopener">${esc(COMPANY.web)}</a>` : '';
+      return `SolariScreen${web ? ' · ' + web : ''}${mail ? '<br>' + mail + tel : ''}`;
+    }
     function showError(msg) {
-      document.getElementById('loading').innerHTML = `<div class="rv-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div></div>`;
+      document.getElementById('loading').innerHTML = `<div class="rv-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div>
+        <div class="rv-foot" style="margin-top:var(--sp-5);">${contactFootHtml()}</div></div>`;
+    }
+    window.toggleDecline = () => { document.getElementById('rvDeclineBox').classList.toggle('hidden'); };
+
+    // Salutation : « Bonjour » ou « Bonsoir » selon l'heure LOCALE du visiteur (calcul côté client),
+    // puis prénom si ton amical, ou « Monsieur/Madame Nom » si ton professionnel. Sans civilité en
+    // mode pro, on affiche le nom complet — jamais de « Monsieur/Madame » deviné (pas de mégenrage).
+    function computeGreeting(g) {
+      const salut = new Date().getHours() >= 18 ? 'Bonsoir' : 'Bonjour';
+      if (!g || (!g.prenom && !g.nom)) return `${salut} !`;
+      if (g.ton === 'pro') {
+        if (g.civilite && g.nom) return `${salut} ${g.civilite} ${g.nom} !`;
+        const full = [g.prenom, g.nom].filter(Boolean).join(' ');
+        return full ? `${salut} ${full} !` : `${salut} !`;
+      }
+      return g.prenom ? `${salut} ${g.prenom} !` : `${salut} !`;
     }
 
     async function loadReview() {
@@ -151,12 +190,13 @@
       DATA = res.data;
       document.getElementById('loading').style.display = 'none';
       document.getElementById('main').style.display = '';
+      document.getElementById('rvFoot').innerHTML = contactFootHtml();
       render();
     }
 
     function render() {
       const d = DATA;
-      if (d.prenom) document.getElementById('greeting').textContent = `Bonjour ${d.prenom} !`;
+      document.getElementById('greeting').textContent = computeGreeting(d.greeting || { prenom: d.prenom });
       document.getElementById('rvItems').innerHTML = (d.items || []).map(it => {
         const dims = window.SSUI.dimsOf(it);
         const sousTotal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
@@ -472,10 +512,15 @@
       let text = '';
       if (action === 'question') {
         text = document.getElementById('rvQuestionText').value.trim();
-        if (!text) { toast('Écris ta question avant d\'envoyer.', 'warn'); return; }
+        if (!text) { toast('Écrivez votre question avant d\'envoyer.', 'warn'); return; }
+      }
+      if (action === 'accept') {
+        // Filet de sécurité en plus de la case CGV : une acceptation engage le client.
+        if (!confirm('Confirmez-vous l\'acceptation de ce devis ? Nous reviendrons vers vous pour la signature.')) return;
       }
       if (action === 'decline') {
-        text = prompt('Une raison à préciser (facultatif) ?') || '';
+        // Raison saisie dans le champ dédié (plus de prompt() natif — sur mobile il affichait l'URL).
+        text = document.getElementById('rvDeclineReason').value.trim();
       }
       try {
         const res = await fetch('/api/devis-review', {
