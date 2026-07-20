@@ -151,10 +151,25 @@
       raison_refus: d.raison_refus || '',
       probabilite: d.probabilite || '',
       client_accepted: !!d.client_accepted,
+      client_accepted_at: d.client_accepted_at || '',
       review_views: d.review_views || 0,
       sav_tickets: d.sav_tickets || [],
       item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
     };
+  }
+
+  // ── Dimensions d'une ouverture (source unique, partagée par tous les documents) ──
+  // Une TENTE SOLAIRE (store banne) se mesure en LARGEUR × PROJECTION (l'avancée) : la hauteur
+  // n'a aucun sens pour ce produit. Tous les autres types se mesurent en largeur × hauteur.
+  // ⚠️ On branche sur le TYPE, jamais sur la présence de la valeur : les anciens devis de tentes
+  // gardent une hauteur parasite en base, qui ne doit plus jamais être affichée.
+  function isTenteSolaire(it) { return !!it && it.type === 'tente_solaire'; }
+  function dimsOf(it) {
+    if (!it) return '';
+    if (isTenteSolaire(it)) {
+      return (it.largeur && it.projection) ? `${it.largeur} × ${it.projection} mm (l × proj.)` : '';
+    }
+    return (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '';
   }
 
   // ── Jalons du cycle de vie (partagés par agenda / vue / dashboard : ils doivent TOUS dire la même chose) ──
@@ -356,7 +371,8 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
-    normDevis: normDevis, isPoseDone: isPoseDone, showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage,
+    normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
+    showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,

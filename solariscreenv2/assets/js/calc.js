@@ -170,9 +170,13 @@
     };
   }
 
+  // Surface couverte (indicatif, n'entre dans AUCUN calcul de prix). Une tente solaire se mesure
+  // en largeur × projection : utiliser sa hauteur donnerait une surface fausse (ou nulle, puisque
+  // la hauteur n'est plus saisie pour ce type).
   function totalSurface(items) {
     return (items || []).reduce(function (s, i) {
-      return s + (num(i.largeur) / 1000) * (num(i.hauteur) / 1000) * (num(i.quantite) || 1);
+      const secondDim = (i && i.type === 'tente_solaire') ? num(i.projection) : num(i.hauteur);
+      return s + (num(i.largeur) / 1000) * (secondDim / 1000) * (num(i.quantite) || 1);
     }, 0);
   }
 

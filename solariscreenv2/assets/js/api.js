@@ -236,6 +236,29 @@
       }
     },
 
+    // ── TICKETS SAV ──
+    // Même architecture que les commentaires : écriture CIBLÉE côté serveur (route dédiée), pour
+    // qu'un ticket ne puisse pas être écrasé par un enregistrement du devis complet fait ailleurs.
+    // `ticket.id` absent = création ; présent = modification (édition ou changement de statut).
+    async saveSavTicket(devisId, ticket) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/sav', { method: 'POST', body: JSON.stringify(ticket || {}) });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : le ticket SAV sera à ressaisir une fois la connexion revenue.' };
+      }
+    },
+    async deleteSavTicket(devisId, ticketId) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/sav/' + encodeURIComponent(ticketId), { method: 'DELETE' });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+      }
+    },
+
     // ── CLIENTS (fiches d'enrichissement : contact, notes, tags) ──
     async listClients() {
       try { return (await req('/clients')).data; }
