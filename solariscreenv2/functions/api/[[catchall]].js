@@ -44,6 +44,25 @@ const IDENTITIES = {
   'nicolas.struelens@me.com': 'nicolas',
 };
 
+// Clé de fiche client (doit rester identique à clientKeyOf côté front, ui.js) : "nom|prenom".
+function clientKey(prenom, nom) {
+  return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
+}
+// Infos de salutation pour la page client : prénom, nom, civilité, ton (« amical » / « pro »).
+// La civilité et le ton vivent sur la FICHE client (clients.html), source unique — on la relit ici
+// pour ne pas dépendre de la copie figée dans le devis (qui pourrait être réécrite par le simulateur).
+async function resolveGreeting(env, d) {
+  const cl = (d && d.client) || {};
+  let civilite = cl.civilite || '', ton = cl.ton || '';
+  if ((!civilite || !ton) && (cl.prenom || cl.nom)) {
+    try {
+      const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(clientKey(cl.prenom, cl.nom)).first();
+      if (row) { const f = safeParse(row.data) || {}; civilite = civilite || f.civilite || ''; ton = ton || f.ton || ''; }
+    } catch (e) { /* jamais bloquant : on retombe sur le prénom seul */ }
+  }
+  return { prenom: cl.prenom || '', nom: cl.nom || '', civilite: civilite || '', ton: ton || 'amical' };
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -66,6 +85,7 @@ export async function onRequest(context) {
       const items = (d.items || []).map(it => ({ type: it.type, modele: it.modele || '' }));
       return json({ ok: true, data: {
         prenom: (d.client && d.client.prenom) || '',
+        greeting: await resolveGreeting(env, d),   // civilité + ton pour la salutation
         items,
         commande: d.commande || null,
         statut: d.statut || 'brouillon',
@@ -191,6 +211,7 @@ export async function onRequest(context) {
       } : null;
       return json({ ok: true, data: {
         prenom: (d.client && d.client.prenom) || '',
+        greeting: await resolveGreeting(env, d),   // civilité + ton pour la salutation
         id: d.id, statut: d.statut || 'brouillon', items,
         total_ttc: (d.calculs && d.calculs.total_ttc) || 0,
         tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,
