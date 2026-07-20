@@ -31,9 +31,19 @@
     .rv-item-photos a { display: block; width: 64px; height: 64px; border-radius: var(--r-xs); overflow: hidden; border: 1px solid var(--border); }
     .rv-item-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    .rv-total { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); margin-bottom: var(--sp-5); }
+    /* Récapitulatif : les lignes intermédiaires (remise, installation, TVA…) qui font que le
+       total tombe juste — sans elles, les produits affichés ne s'additionnaient pas au Total TVAC. */
+    .rv-summary { display: flex; flex-direction: column; gap: var(--sp-1); margin: 0 var(--sp-1) var(--sp-3); }
+    .rv-sum-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .rv-sum-row .v { font-family: var(--font-mono); white-space: nowrap; }
+    .rv-sum-row.remise { color: var(--ok); }
+    .rv-sum-row.htva { border-top: 1px solid var(--border); margin-top: var(--sp-1); padding-top: var(--sp-2); font-weight: 700; color: var(--text); }
+
+    .rv-total { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); margin-bottom: var(--sp-3); }
     .rv-total .k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
     .rv-total .v { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 800; color: var(--accent-2); text-shadow: var(--glow-hero); }
+    .rv-acompte { font-size: var(--fs-sm); color: var(--text-muted); text-align: center; margin-bottom: var(--sp-5); }
+    .rv-acompte strong { color: var(--text); }
 
     .rv-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-5); }
     .rv-actions .btn { flex: 1; min-width: 140px; }
@@ -81,7 +91,9 @@
     </div>
 
     <div class="rv-items" id="rvItems"></div>
+    <div class="rv-summary" id="rvSummary"></div>
     <div class="rv-total"><span class="k">Total TVAC</span><span class="v" id="rvTotal">—</span></div>
+    <div class="rv-acompte" id="rvAcompte"></div>
 
     <div id="rvStatusMsg"></div>
 
@@ -146,7 +158,7 @@
       const d = DATA;
       if (d.prenom) document.getElementById('greeting').textContent = `Bonjour ${d.prenom} !`;
       document.getElementById('rvItems').innerHTML = (d.items || []).map(it => {
-        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm` : '';
+        const dims = window.SSUI.dimsOf(it);
         const sousTotal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
         const photosHtml = (it.photos || []).length ? `<div class="rv-item-photos">${it.photos.map(p =>
           `<a href="${esc(p)}" target="_blank" rel="noopener"><img src="${esc(p)}" alt="Photo de l'ouverture" loading="lazy"></a>`).join('')}</div>` : '';
@@ -160,6 +172,7 @@
         </div>`;
       }).join('') || '<div class="text-muted">Aucune ouverture.</div>';
       document.getElementById('rvTotal').textContent = fmtEur(d.total_ttc);
+      renderSummary();
       renderThread();
 
       const decidable = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut) && !d.client_accepted;
@@ -175,6 +188,35 @@
       }
       document.getElementById('rvActions').classList.toggle('hidden', !decidable);
       document.getElementById('rvQuestionBox').classList.toggle('hidden', false);
+    }
+
+    // Récapitulatif détaillé : rend visibles les lignes qui expliquent l'écart entre la somme des
+    // produits (au prix catalogue) et le Total TVAC — installation, remises, supplément, TVA. Les
+    // valeurs viennent de DATA.document.calc (déjà aplaties en nombres par le serveur, sans marge).
+    // Sans le bloc « document » (vieux devis sans calculs enregistrés), on n'affiche que le total.
+    function renderSummary() {
+      const box = document.getElementById('rvSummary');
+      const acompteBox = document.getElementById('rvAcompte');
+      const doc = DATA.document;
+      const c = doc && doc.calc;
+      if (!c) { box.innerHTML = ''; acompteBox.innerHTML = ''; return; }
+      const fournitures = (doc.items || []).reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
+      const row = (k, v, cls) => `<div class="rv-sum-row ${cls || ''}"><span>${k}</span><span class="v">${v}</span></div>`;
+      let rows = '';
+      rows += row('Fournitures', fmtEur(fournitures));
+      if (c.remise_catalogue > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_catalogue), 'remise');
+      if (c.install_total_brut > 0) rows += row('Installation et pose', fmtEur(c.install_total_brut));
+      if (c.remise_installation > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_installation), 'remise');
+      (c.extra_lines || []).forEach(e => { if (e.total_ht) rows += row(esc(e.label || 'Option'), fmtEur(e.total_ht)); });
+      if (c.surplus_difficulte > 0) rows += row('Supplément accès difficile', fmtEur(c.surplus_difficulte));
+      rows += row('Total HTVA', fmtEur(c.total_ht), 'htva');
+      rows += row('TVA ' + (c.tva_pct != null ? c.tva_pct : 6) + ' %', fmtEur(c.total_tva));
+      box.innerHTML = rows;
+      // Rappel acompte / solde (comme sur le devis officiel), hors devis informatif.
+      if (!doc.informatif && c.acompte_pct > 0 && c.acompte_montant > 0) {
+        const solde = (c.total_ttc || 0) - (c.acompte_montant || 0);
+        acompteBox.innerHTML = `Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${fmtEur(c.acompte_montant)}</strong> — solde de <strong>${fmtEur(solde)}</strong> à la pose.`;
+      } else { acompteBox.innerHTML = ''; }
     }
 
     function renderThread() {
@@ -205,7 +247,7 @@
       const info = !!doc.informatif;
       let rows = '';
       (doc.items || []).forEach((it, i) => {
-        const dims = (it.largeur && it.hauteur) ? `${it.largeur} × ${it.hauteur} mm${it.projection ? ' · proj. ' + it.projection + ' mm' : ''}` : '—';
+        const dims = window.SSUI.dimsOf(it) || '—';
         const pu = it.prix_catalogue_ht || 0, qty = it.quantite || 1;
         const coloris = (() => {
           const cais = it.couleur || '';
