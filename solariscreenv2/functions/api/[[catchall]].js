@@ -88,6 +88,39 @@ export async function onRequest(context) {
       const row = await env.DB.prepare("SELECT data FROM devis WHERE json_extract(data, '$.review_token') = ?").bind(token).first();
       if (!row) return json({ ok: false, error: 'Lien invalide ou expiré' }, 404);
       const d = safeParse(row.data) || {};
+
+      // ── Service PHOTO côté client (?photo=ownerId/photoId) ──
+      // Les photos sont servies par /api/photos/* qui est DERRIÈRE Cloudflare Access → un client
+      // non connecté ne pouvait pas les charger (vignettes cassées sur le devis). On les sert donc
+      // par CE endpoint, déjà exempté d'Access (pas de config Cloudflare à ajouter), et validé par
+      // le jeton : le client ne peut récupérer QUE les photos réellement présentes sur les ouvertures
+      // de SON devis (jamais une photo SAV interne, jamais celles d'un autre devis).
+      const photoParam = url.searchParams.get('photo');
+      if (photoParam) {
+        const wanted = '/api/photos/' + photoParam;
+        const allowed = (d.items || []).some(it => (it.photos || []).some(p => typeof p === 'string' && p.split('?')[0] === wanted));
+        if (!allowed) return json({ ok: false, error: 'Photo non autorisée' }, 403);
+        if (!env.PHOTOS) return json({ ok: false, error: 'Stockage non configuré' }, 500);
+        const slash = photoParam.indexOf('/');
+        const ownerId = photoParam.slice(0, slash), photoId = photoParam.slice(slash + 1);
+        const obj = await env.PHOTOS.get(`photos/${ownerId}/${photoId}.jpg`);
+        if (!obj) return json({ ok: false, error: 'Photo introuvable' }, 404);
+        return new Response(obj.body, {
+          headers: {
+            'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/jpeg',
+            'Cache-Control': 'private, max-age=86400',
+          },
+        });
+      }
+      // Réécrit une URL de photo interne (/api/photos/owner/id, protégée par Access) en URL publique
+      // servie par ce endpoint. Les data:URL (anciennes photos base64) et le reste passent tels quels.
+      const publicPhoto = (p) => {
+        if (typeof p !== 'string') return p;
+        const base = p.split('?')[0];
+        return base.startsWith('/api/photos/')
+          ? '/api/devis-review?t=' + encodeURIComponent(token) + '&photo=' + encodeURIComponent(base.slice('/api/photos/'.length))
+          : p;
+      };
       // Suivi d'ouverture : horodatage à chaque consultation (conservé sur les 50 dernières).
       // Débounce de 10s pour éviter qu'un simple rechargement de page (ou un aspirateur de
       // liens) ne multiplie les écritures D1 sans information supplémentaire.
@@ -105,10 +138,14 @@ export async function onRequest(context) {
       }
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
+        // projection : dimension PRINCIPALE d'une tente solaire (avec la largeur) — sans elle,
+        // la page client ne pouvait afficher aucune dimension utile pour ce type de produit.
+        projection: it.projection || null,
         quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
         // Photos d'ouverture (mesures, visualiseur couleur) uniquement — jamais les photos SAV
         // (tickets internes), qui vivent dans un tableau séparé (d.sav_tickets) jamais lu ici.
-        photos: it.photos || [],
+        // URLs réécrites en accès public par jeton (voir publicPhoto) pour être visibles sans login.
+        photos: (it.photos || []).map(publicPhoto),
       }));
       // Fil de discussion visible côté client : ses propres questions, + les réponses de
       // Nicolas/Yannick explicitement marquées `visible_client` (opt-in, jamais par défaut —
@@ -135,7 +172,8 @@ export async function onRequest(context) {
           variante: it.variante || '', combinaison: it.combinaison || '', manoeuvre: it.manoeuvre || '',
           moteur: it.moteur || it.moteur_ref || '', couleur: it.couleur || '',
           couleur_coulisses: it.couleur_coulisses || '', couleur_lame: it.couleur_lame || '',
-          toile: it.toile || it.collection || '', emplacement: it.emplacement || '', etage: it.etage || '',
+          // La COLLECTION (liste fabricant) prime sur l'ancien texte libre `toile`.
+          toile: it.collection || it.toile || '', emplacement: it.emplacement || '', etage: it.etage || '',
         })),
         calc: {
           total_ht: calc.total_ht || 0, total_tva: calc.total_tva || 0,
@@ -182,12 +220,28 @@ export async function onRequest(context) {
       // concurrente faite depuis le dashboard/vue au même moment.
       const nowIso = new Date().toISOString();
       const WHERE = "WHERE json_extract(data, '$.review_token') = ?";
+      // Trace l'action du client dans le journal d'activité, pour qu'elle remonte dans
+      // « Quoi de neuf » à la connexion (dashboard). Écriture DIRECTE en SQL : la route
+      // POST /api/activity est derrière Cloudflare Access, donc inutilisable depuis ici.
+      // Toujours en try/catch silencieux : le journal ne doit JAMAIS faire échouer la décision
+      // du client (une acceptation perdue coûte infiniment plus cher qu'une ligne de journal).
+      const cli = ((d.client && d.client.prenom) || '') + ' ' + ((d.client && d.client.nom) || '');
+      const journal = async (action, label) => {
+        try {
+          await env.DB.prepare('INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .bind(nowIso, 'client', action, 'devis', String(d.id || '').slice(0, 60), label.slice(0, 300), null).run();
+        } catch (e) { /* jamais bloquant */ }
+      };
       if (body.action === 'accept') {
         if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
         await env.DB.prepare(`UPDATE devis SET
             data = json_set(data, '$.client_accepted', json('true'), '$.client_accepted_at', ?1, '$.date_modification', ?1),
             date_modification = ?1 ${WHERE.replace('?', '?2')}`)
           .bind(nowIso, token).run();
+        // NOTE : on ne change VOLONTAIREMENT pas le statut. « signé » est contractuel (il exige
+        // une signature réelle, cf. devis.html) et compte dans le CA/les bénéfices : un simple
+        // clic web ne doit pas faire entrer un devis non signé dans la comptabilité.
+        await journal('devis.client_accept', `✅ ${cli.trim() || 'Le client'} a ACCEPTÉ le devis #${d.id} — à faire signer`);
       } else if (body.action === 'decline') {
         if (!decidable) return json({ ok: false, error: 'Ce devis a déjà été traité.' }, 409);
         const raison = (body.text || '').trim().slice(0, MAX_TEXT) || 'Pas de réponse';
@@ -205,6 +259,7 @@ export async function onRequest(context) {
                      '$.statut_history[#]', json(?3)),
             statut = 'refuse', date_modification = ?2 ${WHERE.replace('?', '?4')}`)
           .bind(raison, nowIso, histEntry, token).run();
+        await journal('devis.client_decline', `❌ ${cli.trim() || 'Le client'} a REFUSÉ le devis #${d.id}${raison ? ' — ' + raison : ''}`);
       } else if (body.action === 'question') {
         const text = (body.text || '').trim().slice(0, MAX_TEXT);
         if (!text) return json({ ok: false, error: 'Message vide' }, 400);
@@ -220,6 +275,7 @@ export async function onRequest(context) {
                      '$.date_modification', ?2),
             date_modification = ?2 ${WHERE.replace('?', '?3')}`)
           .bind(comment, nowIso, token).run();
+        await journal('devis.client_question', `💬 ${cli.trim() || 'Le client'} a posé une QUESTION sur le devis #${d.id} : ${text.slice(0, 120)}`);
       } else {
         return json({ ok: false, error: 'Action inconnue' }, 400);
       }
@@ -258,6 +314,7 @@ export async function onRequest(context) {
                json_extract(data, '$.raison_refus') AS raison_refus,
                json_extract(data, '$.probabilite') AS probabilite,
                IFNULL(CAST(json_extract(data, '$.client_accepted') AS INTEGER), 0) AS client_accepted,
+               json_extract(data, '$.client_accepted_at') AS client_accepted_at,
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                json_extract(data, '$.client') AS client_json,
@@ -351,6 +408,57 @@ export async function onRequest(context) {
          WHERE id = ?4`
       ).bind(JSON.stringify(comments), comments.length, now, id).run();
       return json({ ok: true, comments_count: comments.length });
+    }
+    // ── TICKET SAV : création / modification CIBLÉE (n'écrit que la clé $.sav_tickets) ──
+    // Même principe que les commentaires : on ne renvoie JAMAIS le devis complet depuis le
+    // navigateur. La lecture-modification-écriture se fait ici, côté serveur, en quelques
+    // millisecondes — un ticket créé par Yannick ne peut plus être écrasé par une action de
+    // Nicolas qui avait la fiche ouverte depuis 10 minutes.
+    let mSav = path.match(/^\/api\/devis\/([^/]+)\/sav$/);
+    if (mSav && method === 'POST') {
+      const id = decodeURIComponent(mSav[1]);
+      const body = await request.json().catch(() => ({}));
+      const description = (body.description || '').trim();
+      if (!description) return json({ ok: false, error: 'Description vide' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const tickets = Array.isArray(d.sav_tickets) ? d.sav_tickets.slice() : [];
+      const now = new Date().toISOString();
+      const statut = ['ouvert', 'en_cours', 'resolu'].includes(body.statut) ? body.statut : 'ouvert';
+      const idx = body.id ? tickets.findIndex(t => String(t.id) === String(body.id)) : -1;
+      const ticket = {
+        id: (idx !== -1) ? tickets[idx].id : crypto.randomUUID(),
+        probleme: String(body.probleme || 'autre').slice(0, 40),
+        description: description.slice(0, 5000),
+        statut,
+        photos: Array.isArray(body.photos) ? body.photos.slice(0, 20) : ((idx !== -1 && tickets[idx].photos) || []),
+        date_creation: (idx !== -1) ? tickets[idx].date_creation : now,
+        // Horodate la résolution au moment où le ticket passe (ou reste) « résolu ».
+        date_resolution: statut === 'resolu' ? (((idx !== -1) && tickets[idx].date_resolution) || now) : null,
+      };
+      if (idx !== -1) tickets[idx] = ticket; else tickets.push(ticket);
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.sav_tickets', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(tickets), now, id).run();
+      return json({ ok: true, ticket, sav_tickets: tickets });
+    }
+    // ── TICKET SAV : suppression CIBLÉE ──
+    let mSavDel = path.match(/^\/api\/devis\/([^/]+)\/sav\/([^/]+)$/);
+    if (mSavDel && method === 'DELETE') {
+      const id = decodeURIComponent(mSavDel[1]);
+      const tid = decodeURIComponent(mSavDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const tickets = (d.sav_tickets || []).filter(t => String(t.id) !== String(tid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.sav_tickets', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(tickets), now, id).run();
+      return json({ ok: true, sav_tickets: tickets });
     }
     let m = path.match(/^\/api\/devis\/([^/]+)$/);
     if (m) {
