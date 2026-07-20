@@ -338,6 +338,7 @@ export async function onRequest(context) {
                json_extract(data, '$.client_accepted_at') AS client_accepted_at,
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
+               IFNULL(json_array_length(data, '$.chantier_photos'), 0) AS chantier_photos_count,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
@@ -480,6 +481,66 @@ export async function onRequest(context) {
            date_modification = ?2 WHERE id = ?3`
       ).bind(JSON.stringify(tickets), now, id).run();
       return json({ ok: true, sav_tickets: tickets });
+    }
+    // ── JOURNAL DE CHANTIER : photo annotée (ajout/édition CIBLÉE, n'écrit que $.chantier_photos) ──
+    // Même architecture que les tickets SAV : les OCTETS de la photo vivent dans R2 (voir /api/photos,
+    // upload côté client avant cet appel), seule la métadonnée légère (url R2 + note + phase + date)
+    // vit dans la ligne D1. L'écriture est ciblée → un ajout ne peut jamais écraser le reste du devis
+    // ni une photo ajoutée par l'autre vendeur pendant que la fiche était ouverte. Photos INTERNES :
+    // jamais exposées sur les pages publiques (track / devis-review).
+    const JOURNAL_PHASES = ['avant', 'pendant', 'apres', 'probleme', 'reserve', 'autre'];
+    let mCp = path.match(/^\/api\/devis\/([^/]+)\/chantier-photo$/);
+    if (mCp && method === 'POST') {
+      const id = decodeURIComponent(mCp[1]);
+      const body = await request.json().catch(() => ({}));
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const entries = Array.isArray(d.chantier_photos) ? d.chantier_photos.slice() : [];
+      const idx = body.id ? entries.findIndex(e => String(e.id) === String(body.id)) : -1;
+      // Création : l'url (photo) est obligatoire. Édition : on garde l'url existante (on ne change
+      // que l'annotation / la phase / la date), donc body.url peut être absent.
+      const url = (body.url || (idx !== -1 ? entries[idx].url : '') || '').trim();
+      if (!url) return json({ ok: false, error: 'Photo manquante' }, 400);
+      const now = new Date().toISOString();
+      const phase = JOURNAL_PHASES.includes(body.phase) ? body.phase : 'pendant';
+      const entry = {
+        id: (idx !== -1) ? entries[idx].id : crypto.randomUUID(),
+        url: url.slice(0, 2000000),   // borne de sûreté (cas du repli dataURL si R2 indisponible)
+        note: String(body.note || '').slice(0, 2000),
+        phase,
+        date: (body.date && String(body.date).slice(0, 10)) || (idx !== -1 ? entries[idx].date : now.slice(0, 10)),
+        author: String(body.author || (idx !== -1 ? entries[idx].author : 'nicolas')).slice(0, 40),
+        date_creation: (idx !== -1) ? entries[idx].date_creation : now,
+      };
+      if (idx !== -1) entries[idx] = entry; else entries.push(entry);
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.chantier_photos', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(entries), now, id).run();
+      return json({ ok: true, entry, chantier_photos: entries });
+    }
+    let mCpDel = path.match(/^\/api\/devis\/([^/]+)\/chantier-photo\/([^/]+)$/);
+    if (mCpDel && method === 'DELETE') {
+      const id = decodeURIComponent(mCpDel[1]);
+      const pid = decodeURIComponent(mCpDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const target = (d.chantier_photos || []).find(e => String(e.id) === String(pid));
+      const entries = (d.chantier_photos || []).filter(e => String(e.id) !== String(pid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.chantier_photos', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(entries), now, id).run();
+      // Nettoyage R2 best-effort : si l'url pointe vers une photo R2 (et non un dataURL de repli),
+      // on supprime aussi l'objet pour ne pas laisser d'orphelin. Jamais bloquant.
+      try {
+        const mm = target && String(target.url).match(/^\/api\/photos\/([^/]+)\/([^/]+)$/);
+        if (mm && env.PHOTOS) await env.PHOTOS.delete(`photos/${decodeURIComponent(mm[1])}/${decodeURIComponent(mm[2])}.jpg`);
+      } catch (e) { /* orphelin R2 sans gravité */ }
+      return json({ ok: true, chantier_photos: entries });
     }
     let m = path.match(/^\/api\/devis\/([^/]+)$/);
     if (m) {
