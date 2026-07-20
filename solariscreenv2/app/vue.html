@@ -675,7 +675,13 @@
         ? `${icon('check', 15)} Réception signée`
         : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception`;
       const btnPf = el('btnPortfolio');
-      btnPf.classList.toggle('hidden', d.statut !== 'termine');
+      // Le portfolio est une vitrine que Nicolas cure à la main : le bouton apparaît dès qu'il y a
+      // du travail réalisé à montrer (devis signé, pose en cours ou faite, ou déjà terminé) — plus
+      // seulement sur « Terminé ». Utile pour un gros chantier posé en plusieurs fois : on peut y
+      // mettre les ouvertures déjà installées avant la fin complète (seules celles avec photos
+      // apparaissent dans le portfolio). Reste visible si déjà ajouté, pour pouvoir retirer.
+      const pfEligible = ['signe', 'termine'].includes(d.statut) || window.SSUI.isPoseDone(d) || !!d.portfolio;
+      btnPf.classList.toggle('hidden', !pfEligible);
       btnPf.classList.toggle('is-gold', !!d.portfolio);
       btnPf.innerHTML = d.portfolio
         ? `${icon('check', 15)} Dans le portfolio`
@@ -1493,14 +1499,17 @@
     window.togglePortfolio = async () => {
       const willEnable = !DEVIS.portfolio;
       if (willEnable) {
-        // Le portfolio = réalisations TERMINÉES. On ne met en avant que des chantiers réellement finis.
-        if (DEVIS.statut !== 'termine') { toast('Le portfolio ne concerne que les devis terminés (chantier posé).', 'warn', 3500); return; }
+        // Vitrine de réalisations : plus de restriction au statut « Terminé ». Seul compte le fait
+        // d'avoir des PHOTOS d'ouvertures posées — c'est ce qui apparaît dans le portfolio. On peut
+        // donc y mettre les ouvertures déjà installées d'un chantier encore en cours.
         const photoCount = (DEVIS.items || []).reduce((s, it) => s + ((it.photos || []).length), 0);
-        if (!photoCount && !confirm('Aucune photo sur ce devis — il apparaîtra sans image dans le portfolio. Continuer quand même ?')) return;
+        if (!photoCount) { toast('Ajoute d\'abord des photos des ouvertures posées — le portfolio n\'affiche que les ouvertures avec photo.', 'warn', 4500); return; }
       }
+      const prev = DEVIS.portfolio;
       DEVIS.portfolio = willEnable;
       DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { DEVIS.portfolio = prev; toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return; }
       toast(willEnable ? 'Ajouté au portfolio ✓' : 'Retiré du portfolio', 'ok');
       render();
     };

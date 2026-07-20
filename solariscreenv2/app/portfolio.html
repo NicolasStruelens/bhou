@@ -170,7 +170,10 @@
 
     async function loadEntries() {
       const raw = await SS.listDevis();
-      const eligible = (raw || []).map(normDevis).filter(d => d.statut === 'termine' && d.portfolio && !d.archive);
+      // Vitrine curée manuellement : le seul critère est le flag `portfolio` (posé depuis la fiche),
+      // + pas archivé. Plus de restriction au statut « Terminé » : on peut montrer les ouvertures
+      // déjà posées d'un chantier encore en cours (seules celles avec photos apparaissent).
+      const eligible = (raw || []).map(normDevis).filter(d => d.portfolio && !d.archive);
       const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
       const entries = [];
       fulls.filter(Boolean).forEach(d => {
@@ -232,7 +235,7 @@
 
       if (!VISIBLE.length) {
         el('grid').innerHTML = `<div class="empty"><div class="big">${icon('image', 40)}</div>
-          ${ENTRIES.length ? 'Aucune réalisation ne correspond à ta recherche.' : `Aucune réalisation dans le portfolio pour l'instant.<br>Depuis la fiche d'un devis <strong>terminé</strong> avec photos, clique « Ajouter au portfolio ».`}</div>`;
+          ${ENTRIES.length ? 'Aucune réalisation ne correspond à ta recherche.' : `Aucune réalisation dans le portfolio pour l'instant.<br>Sur la fiche d'un devis <strong>signé ou posé</strong> qui a des photos d'ouvertures, clique « <strong>Ajouter au portfolio</strong> » (colonne d'actions, à droite).`}</div>`;
         return;
       }
       el('grid').innerHTML = `<div class="pf-grid">${VISIBLE.map((e, i) => `

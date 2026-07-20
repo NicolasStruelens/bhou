@@ -134,6 +134,18 @@
     };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const keyOf = (prenom, nom) => (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
+    // Suggestion de civilité d'après le prénom — volontairement CONSERVATRICE : renvoie '' (Non
+    // précisé) dès le moindre doute, pour ne jamais risquer de mégenrer un client sur un document
+    // commercial. Ce n'est qu'une pré-sélection ; Nicolas confirme/corrige toujours dans le menu.
+    const PRENOMS_F = new Set('marie sophie julie camille sarah emma laura pauline manon lea lena clara anne catherine isabelle nathalie sandrine celine aurelie stephanie virginie sabrina patricia christine sylvie martine nicole francoise monique veronique caroline delphine elodie melanie audrey charlotte ines lucie oceane jade louise alice eva nina rose margaux amelie justine fanny elise claire helene agnes brigitte laurence corinne valerie florence beatrice chantal jacqueline'.split(' '));
+    const PRENOMS_M = new Set('jean pierre michel philippe alain patrick nicolas christophe david laurent stephane pascal frederic eric olivier thierry sebastien julien vincent francois daniel bernard claude marc antoine thomas maxime alexandre guillaume romain kevin anthony jerome gilles bruno didier yannick benoit fabrice cedric jonathan quentin hugo lucas louis arthur paul gabriel raphael nathan theo mathis enzo clement baptiste damien florian mickael jordan gerard andre rene georges robert jacques henri christian serge guy'.split(' '));
+    const normPrenom = (p) => String(p || '').trim().toLowerCase().split(/[\s-]/)[0].normalize('NFD').replace(/[̀-ͯ]/g, '');
+    function guessCivilite(prenom) {
+      const p = normPrenom(prenom);
+      if (PRENOMS_F.has(p)) return 'Madame';
+      if (PRENOMS_M.has(p)) return 'Monsieur';
+      return '';
+    }
     const TAG_PRESETS = ['Chaud', 'À relancer', 'Gros chantier', 'Client pro', 'Rénovation TVA 6%', "Difficile d'accès"];
     const initials = (p, n) => ((p || '')[0] || '') + ((n || '')[0] || '') || '?';
 
@@ -279,7 +291,19 @@
           <div class="grid grid-2">
             <div class="field"><label class="label" for="f_prenom">Prénom</label><input class="input" id="f_prenom" value="${esc(ct.prenom)}"></div>
             <div class="field"><label class="label" for="f_nom">Nom</label><input class="input" id="f_nom" value="${esc(ct.nom)}"></div>
-            <div class="field"><label class="label" for="f_tel">Téléphone</label><div class="input-copy-wrap"><input class="input" id="f_tel" value="${esc(ct.telephone)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_tel').value, 'Téléphone')" title="Copier" aria-label="Copier le téléphone">${icon('copy', 13)}</button></div></div>
+            <div class="field"><label class="label" for="f_civilite">Civilité</label>
+              <select class="select" id="f_civilite">
+                ${['', 'Monsieur', 'Madame'].map(v => `<option value="${v}" ${(ct.civilite || guessCivilite(ct.prenom)) === v ? 'selected' : ''}>${v || 'Non précisé'}</option>`).join('')}
+              </select>
+              <div class="section-sub" style="margin-top:0.2rem;">${!ct.civilite && guessCivilite(ct.prenom) ? '💡 suggéré d\'après le prénom — à confirmer' : 'sert à la formule « Professionnel »'}</div>
+            </div>
+            <div class="field"><label class="label" for="f_ton">Formule (page client)</label>
+              <select class="select" id="f_ton">
+                <option value="amical" ${(ct.ton || 'amical') === 'amical' ? 'selected' : ''}>Amical — « Bonjour Prénom »</option>
+                <option value="pro" ${ct.ton === 'pro' ? 'selected' : ''}>Professionnel — « Bonjour Monsieur/Madame Nom »</option>
+              </select>
+            </div>
+            <div class="field"><label class="label" for="f_tel">Téléphone(s)</label><div class="input-copy-wrap"><input class="input" id="f_tel" placeholder="0475 12 34 56, 02 345 67 89" value="${esc(ct.telephone)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_tel').value, 'Téléphone')" title="Copier" aria-label="Copier le téléphone">${icon('copy', 13)}</button></div></div>
             <div class="field"><label class="label" for="f_email">Email(s)</label><div class="input-copy-wrap"><input class="input" id="f_email" type="email" multiple placeholder="email@exemple.be, autre@exemple.be" value="${esc(ct.email)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_email').value, 'Email')" title="Copier" aria-label="Copier l'email">${icon('copy', 13)}</button></div></div>
             <div class="field" style="grid-column:span 2;"><label class="label" for="f_rue">Rue & numéro</label><div class="input-copy-wrap"><input class="input" id="f_rue" value="${esc((adr.rue || '') + (adr.numero ? ' ' + adr.numero : ''))}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_rue').value, 'Adresse')" title="Copier" aria-label="Copier l'adresse">${icon('copy', 13)}</button></div></div>
             <div class="field"><label class="label" for="f_cp">Code postal</label><input class="input" id="f_cp" value="${esc(adr.code_postal)}"></div>
@@ -402,6 +426,7 @@
       const client = {
         key,
         prenom: el('f_prenom').value.trim(), nom: el('f_nom').value.trim(),
+        civilite: el('f_civilite').value, ton: el('f_ton').value,   // salutation de la page client
         telephone: el('f_tel').value.trim(), email: el('f_email').value.trim(),
         adresse: { rue: m ? m[1].trim() : rue, numero: m ? (m[3] || '') : '', code_postal: el('f_cp').value.trim(), ville: el('f_ville').value.trim() },
         type_bien: el('f_bien').value.trim(),
