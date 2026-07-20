@@ -162,7 +162,7 @@
     // peut être calculée avec la police de repli du système (métriques différentes → débordement).
     window.printDoc = async function () { try { await document.fonts.ready; } catch (e) {} window.print(); };
 
-    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne', chantier: 'Chantier / pose' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     let ENTRIES = [], VISIBLE = [], activeType = 'tous';
@@ -190,6 +190,22 @@
             photos,
           });
         });
+        // Photos du JOURNAL DE CHANTIER : uniquement les phases « vitrine » (chantier en cours ou
+        // terminé) — on exclut volontairement « avant », « problème » et « réserve » (défauts /
+        // avant-travaux, jamais du beau à montrer). Regroupées en une seule carte « Chantier / pose ».
+        const journal = (d.chantier_photos || [])
+          .filter(e => ['apres', 'pendant'].includes(e.phase) && e.url)
+          .sort((a, b) => String((a.date || '') + (a.date_creation || '')).localeCompare(String((b.date || '') + (b.date_creation || ''))));
+        if (journal.length) {
+          entries.push({
+            devisId: d.id, itemIndex: -1,
+            type: 'chantier', modele: '', variante: '',
+            couleur: '', toile: '',
+            ville: adr.ville || '', client: [cl.prenom, cl.nom].filter(Boolean).join(' '),
+            date: d.date_modification || d.date_creation || '',
+            photos: journal.map(e => e.url),
+          });
+        }
       });
       return entries;
     }
@@ -198,7 +214,7 @@
       const nbPhotos = ENTRIES.reduce((s, e) => s + e.photos.length, 0);
       const villes = new Set(ENTRIES.map(e => e.ville).filter(Boolean));
       el('kpis').innerHTML = `
-        <div class="kpi ticked gold"><div class="kpi-label">Réalisations</div><div class="kpi-value">${ENTRIES.length}</div><div class="kpi-sub">ouvertures avec photos</div></div>
+        <div class="kpi ticked gold"><div class="kpi-label">Réalisations</div><div class="kpi-value">${ENTRIES.length}</div><div class="kpi-sub">réalisations photographiées</div></div>
         <div class="kpi ticked accent"><div class="kpi-label">Photos</div><div class="kpi-value">${nbPhotos}</div><div class="kpi-sub">dans le portfolio</div></div>
         <div class="kpi ticked"><div class="kpi-label">Villes</div><div class="kpi-value">${villes.size}</div><div class="kpi-sub">chantiers différents</div></div>`;
     }

@@ -766,6 +766,7 @@
                   <td class="count-pill">
                     <div class="media-icons">
                       <span class="mi-slot ${d.photos ? 'active' : ''}" ${d.photos ? `data-preview="photos" data-id="${d.id}"` : ''} title="${d.photos ? d.photos + ' photo(s) — survoler pour un aperçu' : 'Aucune photo'}">${icon('camera', 15)}${d.photos || 0}</span>
+                      ${d.chantier_photos_count ? `<span class="mi-slot active" data-preview="chantier" data-id="${d.id}" title="${d.chantier_photos_count} photo(s) de chantier — survoler pour un aperçu">${icon('image', 15)}${d.chantier_photos_count}</span>` : ''}
                       <span class="mi-slot ${d.comments ? 'active' : ''}" ${d.comments ? `data-preview="comments" data-id="${d.id}"` : ''} title="${d.comments ? d.comments + ' note(s) interne(s) — survoler pour un aperçu' : 'Aucune note'}">${icon('message', 15)}${d.comments || 0}</span>
                       ${d.note ? `<span class="note-flag" title="${esc(d.note)}">${icon('info', 14)}</span>` : ''}
                     </div>
@@ -822,6 +823,14 @@
         return `<div class="mp-title">${icon('camera', 12)} ${photos.length} photo(s)</div>
           <div class="mp-photos">${shown.map(s => `<img src="${esc(s)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
       }
+      function renderChantierPhotos(devis) {
+        const PHASE_L = { avant: 'Avant', pendant: 'En cours', apres: 'Terminé', probleme: 'Problème', reserve: 'Réserve', autre: 'Autre' };
+        const entries = (devis.chantier_photos || []).slice().sort((a, b) => String((b.date || '') + (b.date_creation || '')).localeCompare(String((a.date || '') + (a.date_creation || ''))));
+        if (!entries.length) return '<div class="mp-empty">Aucune photo de chantier.</div>';
+        const shown = entries.slice(0, 6), extra = entries.length - shown.length;
+        return `<div class="mp-title">${icon('image', 12)} ${entries.length} photo(s) de chantier</div>
+          <div class="mp-photos">${shown.map(e => `<img src="${esc(e.url)}" alt="" title="${esc((PHASE_L[e.phase] || '') + (e.note ? ' — ' + e.note : ''))}" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
+      }
       function renderNotes(devis) {
         const comments = (devis.comments || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 4);
         if (!comments.length) return '<div class="mp-empty">Aucune note interne.</div>';
@@ -846,7 +855,8 @@
         let devis = (c && Date.now() - c.t < 10000) ? c.d : null;
         if (!devis) { try { devis = await SS.getDevis(id); cache[id] = { d: devis, t: Date.now() }; } catch (e) { devis = null; } }
         if (currentSlot !== slot || !document.contains(slot)) return;   // survol changé ou ligne re-rendue
-        previewEl.innerHTML = devis ? (kind === 'photos' ? renderPhotos(devis) : renderNotes(devis)) : '<div class="mp-empty">Aperçu indisponible.</div>';
+        const preview = kind === 'photos' ? renderPhotos(devis) : (kind === 'chantier' ? renderChantierPhotos(devis) : renderNotes(devis));
+        previewEl.innerHTML = devis ? preview : '<div class="mp-empty">Aperçu indisponible.</div>';
         position(slot);
       }
       // Réinitialisation exposée : appelée au début de render() pour fermer proprement l'aperçu

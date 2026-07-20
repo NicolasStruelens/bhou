@@ -243,6 +243,22 @@
     .sav-photo-thumb { position: relative; width: 44px; height: 44px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); flex: none; }
     .sav-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .sav-photo-thumb button { position: absolute; top: 1px; right: 1px; width: 15px; height: 15px; border-radius: 50%; border: none; background: rgba(4,8,20,0.75); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
+    /* ── Journal de chantier (photos annotées) : la phase est encodée par un liseré coloré (--jc) ── */
+    .journal-entry { display: flex; gap: var(--sp-3); border: 1px solid var(--border); border-left: 3px solid var(--jc, var(--accent)); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
+    .journal-photo { width: 88px; height: 88px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); padding: 0; cursor: pointer; flex: none; background: var(--surface); }
+    .journal-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--t-base); }
+    .journal-photo:hover { border-color: var(--accent-2); box-shadow: var(--glow-soft); }
+    .journal-photo:hover img { transform: scale(1.06); }
+    .journal-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
+    .journal-line { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+    .journal-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .journal-author { font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
+    .journal-note { font-size: var(--fs-sm); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+    .journal-actions { display: flex; justify-content: flex-end; gap: 0.2rem; margin-top: 0.15rem; }
+    .journal-pending { position: relative; width: 88px; height: 88px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--accent); margin-bottom: var(--sp-2); }
+    .journal-pending img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .journal-pending button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(4,8,20,0.75); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
+    .journal-form { margin-top: var(--sp-3); border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
 
     /* ── Documents fournisseur (R2) ── */
     .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
@@ -439,6 +455,41 @@
         <div class="cc-body">
           <div class="checklist-grid" id="checklistGrid"></div>
           <div class="ck-progress" id="checklistProgress"></div>
+        </div>
+      </div>
+
+      <div class="commande-card ticked hidden" id="journalCard" style="--tick-color:var(--accent);">
+        <div class="cc-head collapsible" onclick="toggleCard('journalCard')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Journal de chantier
+          <span class="cc-head-right">
+            <span id="jCount" class="section-sub"></span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div id="journalList"></div>
+          <div class="journal-form">
+            <div id="journalPending"></div>
+            <div class="grid grid-2">
+              <div class="field"><label class="label" for="jPhase">Phase</label>
+                <select class="select" id="jPhase">
+                  <option value="avant">Avant pose</option>
+                  <option value="pendant" selected>En cours</option>
+                  <option value="apres">Terminé</option>
+                  <option value="probleme">Problème</option>
+                  <option value="reserve">Réserve / à revoir</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div class="field"><label class="label" for="jDate">Date</label><input class="input" type="date" id="jDate"></div>
+            </div>
+            <textarea class="textarea" id="jNote" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Annotation : qu'est-ce qu'on voit ? (ex : screen du salon posé, réglage moteur OK, fissure signalée au client…)"></textarea>
+            <div class="row mt-2" style="gap:var(--sp-2);">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('jPhotoInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Photo</button>
+              <input type="file" id="jPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="addJournalPhoto(this.files[0])">
+              <button type="button" class="btn btn-ghost btn-sm hidden" id="jCancelBtn" onclick="cancelJournalEdit()">Annuler</button>
+              <button type="button" class="btn btn-primary btn-sm" id="jSubmitBtn" style="margin-left:auto;" onclick="submitJournalEntry()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter au journal</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -832,6 +883,7 @@
       renderCommande();
       renderChantier();
       renderChecklist();
+      renderJournal();
       renderPaiements();
       renderReviewCard();
       renderSav();
@@ -1148,6 +1200,128 @@
       DEVIS.sav_tickets = res.sav_tickets || DEVIS.sav_tickets;
       toast('Ticket ' + (SAV_STATUT_LABEL[statut] || statut).toLowerCase() + ' ✓', 'ok');
       renderSav();
+    };
+
+    // ── JOURNAL DE CHANTIER (photos annotées prises pendant/après la pose) ──────────────
+    // La phase est encodée par une couleur (badge + liseré) : on voit l'avancement d'un coup d'œil.
+    // Chaque entrée = 1 photo (déportée dans R2) + son annotation. Écriture ciblée côté serveur
+    // (SS.saveChantierPhoto), jamais le devis complet → interopérable avec le reste sans risque
+    // d'écrasement. Photos INTERNES : elles ne partent jamais sur les pages publiques du client.
+    const JOURNAL_PHASES = [
+      { k: 'avant',    l: 'Avant pose', badge: 'badge',        color: 'var(--text-subtle)' },
+      { k: 'pendant',  l: 'En cours',   badge: 'badge-accent', color: 'var(--accent)' },
+      { k: 'apres',    l: 'Terminé',    badge: 'badge-ok',     color: 'var(--ok)' },
+      { k: 'probleme', l: 'Problème',   badge: 'badge-danger', color: 'var(--danger)' },
+      { k: 'reserve',  l: 'Réserve',    badge: 'badge-warn',   color: 'var(--warn)' },
+      { k: 'autre',    l: 'Autre',      badge: 'badge',        color: 'var(--text-subtle)' },
+    ];
+    const journalPhase = k => JOURNAL_PHASES.find(p => p.k === k) || JOURNAL_PHASES[1];
+    let PENDING_JOURNAL_PHOTO = null, EDITING_JOURNAL_ID = null;
+    async function journalAuthor() {
+      try { const id = await window.SSNav.getIdentity(); if (id && id.key) return id.key; } catch (e) {}
+      return localStorage.getItem('ss_comment_author') || 'nicolas';
+    }
+    function renderJournal() {
+      const card = el('journalCard');
+      const entries0 = DEVIS.chantier_photos || [];
+      // Pertinent dès que la pose est en jeu (devis signé / posé) — ou dès qu'il existe déjà des photos.
+      const show = ['signe', 'termine'].includes(DEVIS.statut) || window.SSUI.isPoseDone(DEVIS) || entries0.length > 0;
+      card.classList.toggle('hidden', !show);
+      if (!show) return;
+      el('jCount').textContent = entries0.length ? `${entries0.length} photo(s)` : '';
+      // Photos du journal dans la lightbox partagée : on retire d'abord nos entrées d'un rendu
+      // précédent (marquées .chantier) pour ne pas les dupliquer, sans toucher aux ouvertures ni au SAV.
+      PHOTOS = PHOTOS.filter(p => !p.chantier);
+      // Tri antéchronologique (date ; date_creation départage le même jour).
+      const entries = entries0.slice().sort((a, b) => String((b.date || '') + (b.date_creation || '')).localeCompare(String((a.date || '') + (a.date_creation || ''))));
+      el('journalList').innerHTML = entries.length ? entries.map(e => {
+        const ph = journalPhase(e.phase);
+        const idx = PHOTOS.length;
+        PHOTOS.push({ src: e.url, cap: `${ph.l}${e.note ? ' — ' + e.note : ''} · ${fmtDate(e.date)}`, chantier: true });
+        return `<div class="journal-entry" style="--jc:${ph.color};">
+          <button type="button" class="journal-photo" onclick="lbOpen(${idx})" aria-label="Agrandir la photo"><img src="${e.url}" alt="" loading="lazy"></button>
+          <div class="journal-meta">
+            <div class="journal-line">
+              <span class="badge ${ph.badge}">${ph.l}</span>
+              <span class="journal-date">${fmtDate(e.date)}</span>
+              <span class="journal-author">${e.author === 'yannick' ? 'Yannick' : 'Nicolas'}</span>
+            </div>
+            ${e.note ? `<div class="journal-note">${esc(e.note)}</div>` : ''}
+            <div class="journal-actions">
+              <button type="button" class="ci-copy" title="Modifier l'annotation" aria-label="Modifier" onclick="editJournalEntry('${e.id}')">${icon('edit', 13)}</button>
+              <button type="button" class="ci-copy" title="Supprimer la photo" aria-label="Supprimer" onclick="removeJournalEntry('${e.id}')">${icon('trash', 13)}</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucune photo de chantier pour l’instant. Prends la première ci-dessous — pendant ou après la pose, avec une annotation. Idéal pour un gros chantier posé en plusieurs passages.</div>';
+    }
+    function renderJournalPending() {
+      el('journalPending').innerHTML = PENDING_JOURNAL_PHOTO
+        ? `<div class="journal-pending"><img src="${PENDING_JOURNAL_PHOTO}" alt="Photo à ajouter"><button type="button" onclick="clearJournalPhoto()" aria-label="Retirer la photo">${icon('x', 10)}</button></div>`
+        : '';
+    }
+    window.addJournalPhoto = async (file) => {
+      if (!file) return;
+      try {
+        // Compression + déport R2 (repli automatique sur dataURL si R2 indisponible — jamais perdue).
+        const url = await window.SSUI.compressAndUploadPhoto(file, DEVIS.id);
+        PENDING_JOURNAL_PHOTO = url;
+        if (!el('jDate').value) el('jDate').value = new Date().toISOString().slice(0, 10);
+        renderJournalPending();
+      } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
+      el('jPhotoInput').value = '';
+    };
+    window.clearJournalPhoto = () => { PENDING_JOURNAL_PHOTO = null; renderJournalPending(); };
+    window.submitJournalEntry = async () => {
+      const editing = !!EDITING_JOURNAL_ID;
+      if (!editing && !PENDING_JOURNAL_PHOTO) { toast('Prends d’abord une photo.', 'warn'); return; }
+      const author = await journalAuthor();
+      const res = await SS.saveChantierPhoto(DEVIS.id, {
+        id: editing ? EDITING_JOURNAL_ID : undefined,
+        url: PENDING_JOURNAL_PHOTO || undefined,
+        note: el('jNote').value.trim(),
+        phase: el('jPhase').value,
+        date: el('jDate').value || undefined,
+        author,
+      });
+      if (res.ok === false) { toast(res.error || 'Photo NON enregistrée — réessaie.', 'error', 6000); return; }
+      // On s'aligne sur la liste renvoyée par le serveur (inclut d'éventuels ajouts de Yannick).
+      DEVIS.chantier_photos = res.chantier_photos || DEVIS.chantier_photos || [];
+      toast(editing ? 'Annotation modifiée ✓' : 'Photo ajoutée au journal ✓', 'ok');
+      cancelJournalEdit();
+      renderJournal();
+    };
+    window.editJournalEntry = (photoId) => {
+      const e = (DEVIS.chantier_photos || []).find(x => String(x.id) === String(photoId));
+      if (!e) return;
+      EDITING_JOURNAL_ID = photoId;
+      PENDING_JOURNAL_PHOTO = e.url;   // la photo ne change pas, on modifie l'annotation / la phase / la date
+      el('jPhase').value = e.phase || 'pendant';
+      el('jNote').value = e.note || '';
+      el('jDate').value = e.date || '';
+      renderJournalPending();
+      el('jSubmitBtn').innerHTML = `${icon('check', 14)} Enregistrer`;
+      el('jCancelBtn').classList.remove('hidden');
+      el('jNote').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    window.cancelJournalEdit = () => {
+      EDITING_JOURNAL_ID = null;
+      PENDING_JOURNAL_PHOTO = null;
+      el('jPhase').value = 'pendant';
+      el('jNote').value = '';
+      el('jDate').value = '';
+      renderJournalPending();
+      el('jSubmitBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter au journal`;
+      el('jCancelBtn').classList.add('hidden');
+    };
+    window.removeJournalEntry = async (photoId) => {
+      if (!confirm('Supprimer cette photo du journal de chantier ?')) return;
+      if (EDITING_JOURNAL_ID === photoId) cancelJournalEdit();
+      const res = await SS.deleteChantierPhoto(DEVIS.id, photoId);
+      if (res.ok === false) { toast(res.error || 'Photo NON supprimée — réessaie.', 'error', 6000); return; }
+      DEVIS.chantier_photos = res.chantier_photos || [];
+      toast('Photo supprimée ✓', 'ok');
+      renderJournal();
     };
 
     // ── Documents fournisseur (bon de commande / facture Harol, stockés dans R2) ──
@@ -1739,7 +1913,7 @@
     // ── Cartes repliables de la colonne latérale — repliées par défaut, mémorisées
     // par outil (pas par devis) sur ce navigateur, pour réduire le défilement une fois
     // qu'un devis a accumulé plusieurs sections (interne/commande/documents/pose/checklist/SAV).
-    const COLLAPSIBLE_CARDS = ['interneCard', 'commandeCard', 'docsCard', 'chantierCard', 'checklistCard', 'savCard'];
+    const COLLAPSIBLE_CARDS = ['interneCard', 'commandeCard', 'docsCard', 'chantierCard', 'checklistCard', 'journalCard', 'savCard'];
     function loadCardPrefs() { try { return JSON.parse(localStorage.getItem('ss_card_collapsed') || '{}'); } catch (e) { return {}; } }
     function saveCardPrefs(prefs) { try { localStorage.setItem('ss_card_collapsed', JSON.stringify(prefs)); } catch (e) {} }
     window.toggleCard = function (id) {
