@@ -582,9 +582,24 @@
     }
     window.setSellerFilter = (k) => { activeSeller = k; render(); };
 
+    // ── Cadence de relance (même règle que la fiche devis, vue.html) ────────────────────────
+    // Devis informatif : J+5 / J+12 / J+21 · devis après visite : J+4 / J+9 / J+21.
+    // Référence = date d'envoi saisie > 1er passage à « envoyé » > date de création (jamais
+    // date_modification : elle bougerait à chaque édition et fausserait la cadence).
+    const RELANCE_PLAN_DB = { informatif: [5, 12, 21], visite: [4, 9, 21] };
+    function relanceDue(d) {
+      const plan = RELANCE_PLAN_DB[d.informatif ? 'informatif' : 'visite'];
+      const faites = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+      if (faites >= plan.length) return false;                  // les 3 relances sont envoyées
+      const hist = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
+      const envoi = String(d.date_envoi || hist[0] || d.date_creation || '').slice(0, 10);
+      if (!envoi) return false;
+      const jours = Math.round((new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - new Date(envoi + 'T00:00:00Z')) / 86400000);
+      return jours >= plan[faites];                             // la prochaine relance est échue
+    }
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
-      const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
+      const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d));
       const enRetard = visible.filter(isPaymentOverdue);
       const acompteAttente = visible.filter(isAcompteUnpaid);
       const soldeAttente = visible.filter(isSoldeUnpaid);

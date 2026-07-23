@@ -259,6 +259,18 @@
     .journal-pending img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .journal-pending button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(4,8,20,0.75); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
     .journal-form { margin-top: var(--sp-3); border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
+    /* ── Suivi de relance (cadence J+5/J+12/J+21 ou J+4/J+9/J+21) ── */
+    .rl-suivi { border: 1px solid var(--border); border-left: 3px solid var(--rlc, var(--accent)); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    .rl-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+    .rl-row .rl-k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
+    .rl-row input[type="date"] { height: 30px; max-width: 160px; }
+    .rl-age { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .rl-steps { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: var(--sp-2); }
+    .rl-step { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-subtle); }
+    .rl-step.done { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+    .rl-step.due { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); font-weight: 700; }
+    .rl-step.late { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); font-weight: 700; }
+    .rl-next { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
 
     /* ── Documents fournisseur (R2) ── */
     .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
@@ -587,9 +599,12 @@
         <button class="lb-btn" style="position:static;width:34px;height:34px;" onclick="closeRelance()" aria-label="Fermer">✕</button>
       </div>
       <div style="padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-3);">
+        <div id="relanceSuivi"></div>
         <div class="field"><label class="label" for="relanceType">Type de message</label>
           <select class="select" id="relanceType" onchange="fillRelanceText()">
-            <option value="relance">Devis sans réponse</option>
+            <option value="r1">Relance 1 — premier rappel</option>
+            <option value="r2">Relance 2 — relance</option>
+            <option value="r3">Dernière relance</option>
             <option value="acompte">Rappel acompte</option>
             <option value="pose">Confirmation de pose</option>
             <option value="libre">Message libre</option>
@@ -601,6 +616,7 @@
           <button class="btn btn-ghost btn-sm" id="btnRelanceEmail">Email</button>
           <button class="btn btn-ghost btn-sm" id="btnRelanceSms">SMS</button>
           <button class="btn btn-ghost btn-sm" id="btnRelanceWa">WhatsApp</button>
+          <button class="btn btn-primary btn-sm" id="btnRelanceDone" style="margin-left:auto;" onclick="markRelanceSent()">Marquer comme relancé</button>
         </div>
       </div>
     </div>
@@ -662,10 +678,16 @@
       badge.classList.remove('hidden');
     }
     const PHOTO_CATEGORIES = ['Façade', 'Détail mesure', 'Accès', 'Obstacle', 'Avant', 'Après'];
-    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    // `volet` = ancien type (avant le renommage en volet_roulant) : encore présent sur de vrais devis
+    // de mai/juin 2026 — sans cette entrée, ils s'affichaient en brut « volet » partout.
+    const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', volet: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    // Libellés au fil du texte pour les messages clients (« 2 screens et 1 tente solaire »).
+    const TYPE_SING = { screen: 'screen', volet_roulant: 'volet roulant', volet: 'volet', tente_solaire: 'tente solaire', tablier_volet: 'tablier de volet', pergola: 'pergola', store_banne: 'store banne' };
+    const TYPE_PLUR = { screen: 'screens', volet_roulant: 'volets roulants', volet: 'volets', tente_solaire: 'tentes solaires', tablier_volet: 'tabliers de volet', pergola: 'pergolas', store_banne: 'stores bannes' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     let DEVIS = null, CALC = null, PHOTOS = [], CLIENT_FICHE = null, FACTURES = [];
+    let CONNECTED_KEY = '';   // « nicolas » / « yannick » — sert à signer les messages clients
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
 
     function getCalc(d) {
@@ -1381,6 +1403,92 @@
       }
     };
 
+    // ══════════ CADENCE DE RELANCE ════════════════════════════════════════════════════════
+    // Deux rythmes selon la nature du devis (règle métier de Nicolas) :
+    //  · devis INFORMATIF (sans visite) : J+5, J+12, puis dernière relance à J+21
+    //  · devis APRÈS VISITE (plus personnel) : J+4, J+9, puis dernière relance à J+21
+    // Le point de départ est la DATE D'ENVOI, pas la date de création : un devis peut être
+    // préparé longtemps avant d'être envoyé. Comme l'historique de statut n'existe que sur les
+    // devis récents (constat sur les données réelles : 8 devis en attente sur 10 n'ont aucune
+    // trace d'envoi), la date est DÉDUITE au mieux puis reste librement MODIFIABLE.
+    const RELANCE_PLAN = {
+      informatif: [{ n: 1, j: 5 }, { n: 2, j: 12 }, { n: 3, j: 21 }],
+      visite: [{ n: 1, j: 4 }, { n: 2, j: 9 }, { n: 3, j: 21 }],
+    };
+    const dayStr = iso => String(iso || '').slice(0, 10);
+    function relanceKind(d) { return d.informatif ? 'informatif' : 'visite'; }
+    // Date d'envoi : valeur saisie > 1er passage à « envoyé » dans l'historique > date de création.
+    // ⚠️ Surtout PAS `date_modification` comme repli : elle change à chaque édition du devis (et même
+    // à l'enregistrement d'une relance) — la cadence se réinitialiserait toute seule sans qu'on
+    // comprenne pourquoi. On prend une référence STABLE, quitte à être approximative : Nicolas
+    // corrige la date en un clic si besoin, et sa correction fait alors foi définitivement.
+    function dateEnvoiOf(d) {
+      if (d.date_envoi) return dayStr(d.date_envoi);
+      const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
+      if (h.length) return dayStr(h[0]);
+      return dayStr(d.date_creation || d.date_modification);
+    }
+    function daysBetween(fromDay, toDay) {
+      return Math.round((new Date(toDay + 'T00:00:00Z') - new Date(fromDay + 'T00:00:00Z')) / 86400000);
+    }
+    function addDays(day, n) {
+      const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    }
+    // État complet de la relance d'un devis : ce qui a été fait, ce qui est dû, et quand.
+    function relanceState(d) {
+      const kind = relanceKind(d);
+      const plan = RELANCE_PLAN[kind];
+      const envoi = dateEnvoiOf(d);
+      const today = new Date().toISOString().slice(0, 10);
+      const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
+      const doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
+      const jours = envoi ? daysBetween(envoi, today) : 0;
+      const due = step ? addDays(envoi, step.j) : null;
+      return {
+        kind, plan, envoi, today, done, doneMax, step, jours, due,
+        retard: !!(step && due && due <= today),          // relance à envoyer maintenant
+        joursRetard: (step && due) ? daysBetween(due, today) : 0,
+        epuise: !step,                                     // 3 relances envoyées → dossier à classer
+      };
+    }
+    // « 2 screens et 1 tente solaire » — repris tel quel dans le message client.
+    function produitsTxt(d) {
+      const counts = {};
+      (d.items || []).forEach(it => {
+        const t = it.type || 'autre';
+        counts[t] = (counts[t] || 0) + (Number(it.quantite) || 1);
+      });
+      const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? (TYPE_PLUR[t] || t) : (TYPE_SING[t] || t)}`);
+      if (!parts.length) return 'votre projet';
+      if (parts.length === 1) return parts[0];
+      return parts.slice(0, -1).join(', ') + ' et ' + parts[parts.length - 1];
+    }
+    // Produit dominant, pour la tournure « retirer ou ajouter des screens ».
+    function produitPrincipal(d) {
+      const counts = {};
+      (d.items || []).forEach(it => { const t = it.type || ''; counts[t] = (counts[t] || 0) + (Number(it.quantite) || 1); });
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      return top ? (TYPE_PLUR[top[0]] || 'éléments') : 'éléments';
+    }
+    // Salutation : même logique que l'espace client (fiche = source de vérité, jamais de mégenrage).
+    function relanceSalutation(d) {
+      const cl = d.client || {};
+      const fiche = CLIENT_FICHE || {};
+      const prenom = (cl.prenom || '').trim(), nom = (cl.nom || '').trim();
+      const civ = fiche.civilite || '';
+      if ((fiche.ton || 'pro') === 'amical' && prenom) return `Bonjour ${prenom},`;
+      if (civ && nom) return `Bonjour ${civ} ${nom},`;
+      if (prenom || nom) return `Bonjour ${[prenom, nom].filter(Boolean).join(' ')},`;
+      return 'Bonjour,';
+    }
+    function relanceSignature() {
+      const who = (CONNECTED_KEY === 'yannick') ? 'Yannick' : 'Nicolas';
+      const co = window.SS_COMPANY || {};
+      return [who, co.name || 'SolariScreen', co.phone || '', co.website || ''].filter(Boolean).join('\n');
+    }
+
     // ── Relances client prêtes à envoyer (email/SMS/WhatsApp) ──
     function normalizePhoneIntl(tel) {
       let t = String(tel || '').replace(/[^\d+]/g, '');
@@ -1389,14 +1497,41 @@
       if (t.startsWith('0')) return '32' + t.slice(1);
       return t;
     }
+    // Modèles de relance — repris des textes métier de Nicolas, personnalisés automatiquement
+    // (civilité + nom, produits réels du devis, n° de devis, signature du vendeur connecté).
+    // Ton volontairement non pressant : le client ne répond souvent pas parce qu'il compare,
+    // qu'il est occupé ou qu'il attend financièrement — pas parce qu'il refuse.
+    const RELANCE_QUESTION = 'Pouvez-vous simplement m’indiquer si le projet est toujours d’actualité, reporté ou abandonné ?';
     function relanceTemplate(type, d) {
       const cl = d.client || {};
-      const prenom = cl.prenom || '';
-      if (type === 'relance') return `Bonjour ${prenom},\n\nJe me permets de revenir vers vous concernant le devis SolariScreen n°${d.id} envoyé le ${fmtDate(d.date_creation)}. Restez-vous intéressé(e) par ce projet ? N'hésitez pas à me contacter pour toute question.\n\nCordialement,\nSolariScreen`;
-      if (type === 'acompte') return `Bonjour ${prenom},\n\nPetit rappel concernant l'acompte du devis n°${d.id} : n'hésitez pas à me faire signe pour organiser le règlement, cela nous permettra de lancer la commande du matériel.\n\nCordialement,\nSolariScreen`;
+      const prenom = (cl.prenom || '').trim();
+      const salut = relanceSalutation(d);
+      const sig = `\n\nBien à vous,\n${relanceSignature()}`;
+      const prods = produitsTxt(d);
+      const info = !!d.informatif;
+
+      if (type === 'r1' || type === 'r2') {
+        const relance2 = (type === 'r2') ? `\n\n${RELANCE_QUESTION}` : '';
+        if (info) {
+          return `${salut}\n\nJe me permets de revenir vers vous concernant le devis informatif n°${d.id} transmis pour votre projet de ${prods}.\n\n`
+            + `Avez-vous eu l’occasion d’en prendre connaissance ? Cette première estimation peut naturellement être adaptée selon vos dimensions définitives, vos préférences ou votre budget.\n\n`
+            + `Si la proposition correspond à vos attentes, nous pouvons convenir d’une visite sur place afin de vérifier la faisabilité, prendre les mesures et établir une offre définitive.\n\n`
+            + `Je reste à votre disposition.${relance2}${sig}`;
+        }
+        return `${salut}\n\nJe me permets de revenir vers vous à la suite de ma visite et concernant le devis n°${d.id} transmis pour votre projet de ${prods}.\n\n`
+          + `Avez-vous eu l’occasion de le consulter ? Je souhaitais m’assurer que la proposition était claire et qu’elle correspondait bien à ce que nous avions envisagé ensemble lors de la visite.\n\n`
+          + `Si vous souhaitez adapter certains éléments, retirer ou ajouter des ${produitPrincipal(d)}, ou revoir la proposition en fonction de vos priorités et de votre budget, cela reste tout à fait possible.\n\n`
+          + `N’hésitez pas à me faire part de vos questions ou de votre décision, même si le projet est reporté.${relance2}${sig}`;
+      }
+      if (type === 'r3') {
+        return `${salut}\n\nSans retour de votre part concernant le devis n°${d.id} pour votre projet de ${prods}, je me permets une dernière relance afin de savoir si votre projet est toujours d’actualité, s’il est reporté, ou si vous avez finalement retenu une autre solution.\n\n`
+          + `Il n’y a naturellement aucun souci dans les deux derniers cas ; votre retour me permettra simplement de mettre correctement mon suivi à jour.\n\n`
+          + `Je reste bien entendu disponible si vous souhaitez reprendre le projet ultérieurement.${sig}`;
+      }
+      if (type === 'acompte') return `${salut}\n\nPetit rappel concernant l’acompte du devis n°${d.id} : n’hésitez pas à me faire signe pour organiser le règlement, cela nous permettra de lancer la commande du matériel.${sig}`;
       if (type === 'pose') {
         const dateP = d.chantier && d.chantier.date_pose ? fmtDate(d.chantier.date_pose) : 'à définir ensemble';
-        return `Bonjour ${prenom},\n\nJe vous confirme le rendez-vous pour la pose de votre commande SolariScreen le ${dateP}. Merci de vérifier l'accès et la disponibilité de l'électricité pour ce jour-là.\n\nÀ bientôt,\nSolariScreen`;
+        return `${salut}\n\nJe vous confirme le rendez-vous pour la pose de votre commande SolariScreen le ${dateP}. Merci de vérifier l’accès et la disponibilité de l’électricité pour ce jour-là.\n\nÀ bientôt,\n${relanceSignature()}`;
       }
       return '';
     }
@@ -1416,13 +1551,94 @@
         window.open('https://wa.me/' + normalizePhoneIntl(cl.telephone) + '?text=' + encodeURIComponent(getText()), '_blank');
       };
     }
+    // Tableau de suivi : date d'envoi, relances faites, prochaine échéance. C'est ce qui évite de
+    // perdre un client uniquement parce qu'on a oublié de revenir vers lui.
+    function renderRelanceSuivi() {
+      const st = relanceState(DEVIS);
+      const host = el('relanceSuivi');
+      if (!host) return;
+      const color = st.epuise ? 'var(--text-subtle)' : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)');
+      const steps = st.plan.map(s => {
+        const fait = st.done.find(r => r.n === s.n);
+        if (fait) return `<span class="rl-step done">R${s.n} ✓ ${fmtDate(fait.date)}</span>`;
+        if (st.step && s.n === st.step.n) {
+          const cls = st.retard ? (st.joursRetard >= 7 ? 'late' : 'due') : '';
+          return `<span class="rl-step ${cls}">R${s.n} — ${st.retard ? 'à envoyer' : 'prévu'} le ${fmtDate(st.due)}</span>`;
+        }
+        return `<span class="rl-step">R${s.n} — J+${s.j}</span>`;
+      }).join('');
+      let next;
+      if (st.epuise) next = `Les 3 relances ont été envoyées. Sans réponse, classe le dossier (statut « Refusé » avec la raison « Sans réponse ») pour garder un suivi propre.`;
+      else if (st.retard) next = `<strong style="color:${color};">Relance ${st.step.n} à envoyer</strong> — prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ` (en retard de ${st.joursRetard} j)` : ''}.`;
+      else next = `Prochaine relance (R${st.step.n}) le <strong>${fmtDate(st.due)}</strong> — dans ${daysBetween(st.today, st.due)} j.`;
+      host.innerHTML = `
+        <div class="rl-suivi" style="--rlc:${color};">
+          <div class="rl-row">
+            <span class="rl-k">Devis envoyé le</span>
+            <input class="input" type="date" id="relDateEnvoi" value="${esc(st.envoi)}" onchange="saveDateEnvoi(this.value)">
+            <span class="rl-age">il y a ${st.jours} j · cadence ${st.kind === 'informatif' ? 'devis informatif' : 'après visite'}</span>
+          </div>
+          <div class="rl-steps">${steps}</div>
+          <div class="rl-next">${next}</div>
+        </div>`;
+    }
+    // La date d'envoi déduite n'est qu'une estimation : dès que Nicolas la corrige, elle est stockée
+    // explicitement sur le devis et fait foi pour toute la cadence.
+    window.saveDateEnvoi = async (val) => {
+      const prev = DEVIS.date_envoi;
+      DEVIS.date_envoi = dayStr(val);
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        DEVIS.date_envoi = prev;            // rien enregistré → on ne garde pas une date fantôme en mémoire
+        toast(res.error || 'Date NON enregistrée — réessaie.', 'error', 6000);
+        renderRelanceSuivi();
+        return;
+      }
+      renderRelanceSuivi();
+      window.fillRelanceText();
+      toast('Date d’envoi enregistrée ✓', res.offline ? 'warn' : 'ok');
+    };
+    window.markRelanceSent = async () => {
+      const st = relanceState(DEVIS);
+      if (st.epuise) { toast('Les 3 relances sont déjà enregistrées.', 'warn'); return; }
+      const type = el('relanceType').value;
+      // On n'enregistre dans la cadence que les VRAIES relances (r1/r2/r3), pas un rappel d'acompte.
+      const n = ({ r1: 1, r2: 2, r3: 3 })[type];
+      if (!n) { toast('Ce message n’est pas une relance de devis — rien à enregistrer dans la cadence.', 'warn', 5000); return; }
+      const prev = (DEVIS.relances || []).slice();
+      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: new Date().toISOString().slice(0, 10), by: CONNECTED_KEY || 'nicolas' }]);
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        DEVIS.relances = prev;              // non enregistré → la cadence ne doit PAS avancer en mémoire
+        toast(res.error || 'Relance NON enregistrée — réessaie.', 'error', 6000);
+        renderRelanceSuivi();
+        return;
+      }
+      SS.logActivity && SS.logActivity({ action: 'devis.relance', entity_type: 'devis', entity_id: DEVIS.id, label: `Relance ${n} envoyée — devis #${DEVIS.id}` });
+      toast(`Relance ${n} enregistrée ✓`, res.offline ? 'warn' : 'ok');
+      renderRelanceSuivi();
+      window.fillRelanceText();
+    };
     window.fillRelanceText = () => {
       const type = el('relanceType').value;
       if (type !== 'libre') el('relanceText').value = relanceTemplate(type, DEVIS);
+      const st = relanceState(DEVIS);
+      const btn = el('btnRelanceDone');
+      if (btn) {
+        const n = ({ r1: 1, r2: 2, r3: 3 })[type];
+        btn.style.display = n ? '' : 'none';
+        btn.textContent = n ? `Marquer relance ${n} envoyée` : '';
+        btn.disabled = st.epuise;
+      }
       updateRelanceLinks();
     };
     window.openRelance = () => {
-      el('relanceType').value = 'relance';
+      // Sélectionne d'office la relance que la cadence recommande aujourd'hui.
+      const st = relanceState(DEVIS);
+      el('relanceType').value = st.step ? ('r' + st.step.n) : 'r3';
+      renderRelanceSuivi();
       window.fillRelanceText();
       el('relanceModal').classList.add('open');
     };
@@ -1945,6 +2161,7 @@
       CALC = getCalc(DEVIS);
       const cl = DEVIS.client || {};
       CLIENT_FICHE = await SS.getClient(clientKeyOf(cl.prenom, cl.nom)).catch(() => null);
+      try { const idt = await window.SSNav.getIdentity(); CONNECTED_KEY = (idt && idt.key) || ''; } catch (e) {}
       FACTURES = (await SS.listFactures().catch(() => [])) || [];
       el('loading').style.display = 'none';
       el('main').style.display = '';

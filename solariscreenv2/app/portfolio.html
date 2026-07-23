@@ -15,23 +15,30 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
     .print-header { display: none; }
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+       EXPORT PDF — document d'impression DÉDIÉ (#printDoc), construit à la volée.
+       Historique : l'export imprimait directement la page vivante de l'app, en neutralisant le
+       thème sombre / les overlays / la grille à coups de !important. Approche fragile — le PDF
+       est ressorti vide deux fois (une couleur de texte héritée du thème, un conteneur masqué,
+       et tout devient invisible sur fond blanc). Ici on n'imprime QUE #printDoc : aucune variable
+       de thème, aucune couleur héritée, couleurs écrites en dur. Ça ne peut plus être cassé par
+       une évolution du CSS de l'application.
+       ═════════════════════════════════════════════════════════════════════════════════════ */
+    #printDoc { display: none; }
     @media print {
-      .no-print, .app-header, .kpis, .toolbar, .filters, .lightbox, #quickNav, #themeToggle { display: none !important; }
-      body, .container { background: #fff !important; color: #111 !important; }
-      .fx-grid { display: none !important; }
-      .print-header { display: block; text-align: center; margin-bottom: 1.5rem; }
-      .print-header .print-logo { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; }
-      .print-header .print-logo .blue { color: #2e3b8f; }
-      .print-header .print-logo .gold { color: #b8860b; }
-      .print-header .print-sub { font-family: var(--font-mono); font-size: 0.75rem; color: #555; margin-top: 0.3rem; }
-      .section { border: none !important; background: none !important; }
-      .section-head { display: none !important; }
-      .pf-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 14px !important; }
-      .pf-card { break-inside: avoid; border: 1px solid #ccc !important; background: #fff !important; box-shadow: none !important; }
-      .pf-card:hover { transform: none !important; }
-      .pf-count { background: rgba(0,0,0,0.6) !important; }
-      .pf-type { color: #111 !important; }
-      .pf-sub { color: #555 !important; }
+      @page { size: A4 portrait; margin: 12mm; }
+      html, body { background: #fff !important; }
+      body > *:not(#printDoc) { display: none !important; }
+      #printDoc { display: block !important; color: #111; font-family: Arial, Helvetica, sans-serif; }
+      #printDoc .pd-head { text-align: center; margin-bottom: 10mm; }
+      #printDoc .pd-logo { font-size: 20pt; font-weight: 800; letter-spacing: 0.03em; }
+      #printDoc .pd-sub { font-size: 9pt; color: #555; margin-top: 2mm; }
+      #printDoc .pd-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+      #printDoc .pd-item { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; }
+      #printDoc .pd-item img { display: block; width: 100%; height: auto; }
+      #printDoc .pd-cap { padding: 2mm 2.5mm; font-size: 8.5pt; line-height: 1.35; color: #111; }
+      #printDoc .pd-cap .s { color: #555; }
+      #printDoc .pd-empty { font-size: 11pt; color: #111; text-align: center; padding: 20mm 0; }
     }
     .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
     .toolbar .search { flex: 1; min-width: 220px; position: relative; }
@@ -138,6 +145,10 @@
     </section>
   </main>
 
+  <!-- Document d'impression dédié (rempli par printDoc()). DOIT rester un enfant DIRECT de <body> :
+       la règle d'impression `body > *:not(#printDoc)` s'appuie dessus pour masquer tout le reste. -->
+  <div id="printDoc" aria-hidden="true"></div>
+
   <!-- ══════ LIGHTBOX ══════ -->
   <div class="lightbox" id="lightbox" role="dialog" aria-label="Photo agrandie">
     <div class="lb-count" id="lbCount"></div>
@@ -154,13 +165,55 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, setText, normDevis, icon } = window.SSUI;
+    const { fmtDate, el, setText, normDevis, icon, toast } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
     setText('printDate', fmtDate(new Date().toISOString()));
     // Attend que la police web (Inter) soit chargée avant d'imprimer, sinon la mise en page
     // peut être calculée avec la police de repli du système (métriques différentes → débordement).
-    window.printDoc = async function () { try { await document.fonts.ready; } catch (e) {} window.print(); };
+    // ── Export PDF : on CONSTRUIT un document d'impression autonome (#printDoc) ────────────
+    // On n'imprime plus la page vivante (thème sombre, overlays, grille responsive) : on génère
+    // un balisage simple, en couleurs écrites en dur, que le CSS de l'app ne peut pas casser.
+    function buildPrintDoc() {
+      const host = el('printDoc');
+      const scope = (el('printScope') || {}).textContent || '';
+      // Max 3 photos par réalisation : au-delà le PDF devient illisible et interminable.
+      const MAX_PH = 3;
+      const blocks = VISIBLE.map(e => {
+        const title = `${TYPE_LABEL[e.type] || e.type}${e.modele ? ' — ' + e.modele : ''}`;
+        const sub = [e.couleur, e.ville].filter(Boolean).join(' · ');
+        const shown = (e.photos || []).slice(0, MAX_PH);
+        return shown.map((src, i) => `
+          <div class="pd-item">
+            <img src="${esc(src)}" alt="">
+            <div class="pd-cap"><strong>${esc(title)}</strong>${sub ? `<br><span class="s">${esc(sub)}</span>` : ''}${shown.length > 1 ? `<br><span class="s">photo ${i + 1}/${shown.length}</span>` : ''}</div>
+          </div>`).join('');
+      }).join('');
+      host.innerHTML = `
+        <div class="pd-head">
+          <div class="pd-logo"><span style="color:#2e3b8f">SOLARI</span><span style="color:#b8860b">SCREEN</span></div>
+          <div class="pd-sub">Portfolio de réalisations — imprimé le ${new Date().toLocaleDateString('fr-BE')}</div>
+          ${scope ? `<div class="pd-sub">${esc(scope)}</div>` : ''}
+        </div>
+        ${blocks ? `<div class="pd-grid">${blocks}</div>`
+                 : `<div class="pd-empty">Aucune réalisation à imprimer.<br>Ajoute des chantiers au portfolio depuis la fiche d'un devis, ou élargis ta recherche.</div>`}`;
+      return VISIBLE.length;
+    }
+    // Attend que les images du document d'impression soient réellement décodées : sans ça,
+    // Chrome/Edge peut lancer l'impression avant et sortir des cadres vides.
+    function waitImages(root) {
+      const imgs = [...root.querySelectorAll('img')];
+      return Promise.all(imgs.map(img => (img.complete && img.naturalWidth)
+        ? Promise.resolve()
+        : new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 4000); })));
+    }
+    window.printDoc = async function () {
+      const n = buildPrintDoc();
+      if (!n) toast('Aucune réalisation affichée — le PDF sera vide.', 'warn', 5000);
+      try { await document.fonts.ready; } catch (e) {}
+      await waitImages(el('printDoc'));
+      window.print();
+    };
 
     const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne', chantier: 'Chantier / pose' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
