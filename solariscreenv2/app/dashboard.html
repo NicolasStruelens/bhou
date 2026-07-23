@@ -476,7 +476,7 @@
       presque: { label: 'Presque signé', color: 'var(--accent-2)' },
     };
 
-    let DEVIS = [], FACTURES = [], CLIENT_TAGS = new Map();
+    let DEVIS = [], FACTURES = [], CLIENT_TAGS = new Map(), RDV_LIST = [];
     let activeFilter = 'tous';
     let activeSeller = 'tous';
 
@@ -596,6 +596,16 @@
       const acceptes = visible.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
       const box = el('todayBrief');
       const chips = [];
+      // ── Demandes de RDV (contacts entrants) ──────────────────────────────────────────────
+      // Elles ne filtrent PAS le tableau des devis (elles n'y sont pas) : ces pastilles renvoient
+      // vers le module concerné, d'où un `href` au lieu d'un `filter`. Placées en tête : un contact
+      // entrant que personne n'a pris est l'action la plus urgente de la journée.
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const rdvActifs = (RDV_LIST || []).filter(r => !['annule', 'converti'].includes(r.statut));
+      const nonPris = rdvActifs.filter(r => !r.assigned_to);
+      const visitesJour = rdvActifs.filter(r => r.statut === 'rdv_fixe' && String(r.date_rdv || '').slice(0, 10) === todayIso);
+      if (nonPris.length) chips.push({ label: `${nonPris.length} demande${nonPris.length > 1 ? 's' : ''} sans personne en charge`, color: 'var(--danger)', href: 'rdv.html', ic: 'warning' });
+      if (visitesJour.length) chips.push({ label: `${visitesJour.length} visite${visitesJour.length > 1 ? 's' : ''} client aujourd'hui`, color: 'var(--accent)', href: 'agenda.html', ic: 'calendar' });
       if (acceptes.length) chips.push({ label: `${acceptes.length} devis accepté${acceptes.length > 1 ? 's' : ''} par le client — à faire signer`, color: 'var(--ok)', filter: 'accepte_client', ic: 'check' });
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
@@ -607,7 +617,7 @@
       box.classList.remove('hidden');
       box.innerHTML = `
         <span class="tb-label">${icon('sliders', 13)} Aujourd'hui</span>
-        ${chips.map(c => `<button class="tb-chip" style="--tbc:${c.color}" onclick="setFilter('${c.filter}')">${icon(c.ic, 12)} ${c.label}</button>`).join('')}
+        ${chips.map(c => `<button class="tb-chip" style="--tbc:${c.color}" onclick="${c.href ? `location.href='${c.href}'` : `setFilter('${c.filter}')`}">${icon(c.ic, 12)} ${c.label}</button>`).join('')}
       `;
     }
 
@@ -1238,8 +1248,12 @@
 
     // ── Chargement ──
     async function load() {
-      const [raw, facs, clients] = await Promise.all([SS.listDevis(), SS.listFactures(), SS.listClients()]);
+      const [raw, facs, clients, rdvs] = await Promise.all([
+        SS.listDevis(), SS.listFactures(), SS.listClients(),
+        (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
+      ]);
       DEVIS = (raw || []).map(normDevis);
+      RDV_LIST = rdvs || [];
       FACTURES = facs || [];
       CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();

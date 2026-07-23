@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SolariScreen — Agenda de pose</title>
+  <title>SolariScreen — Agenda poses &amp; visites</title>
   <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,7 +42,7 @@
       <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
       <div>
         <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
-        <div class="module">Agenda de pose</div>
+        <div class="module">Agenda — poses &amp; visites</div>
       </div>
     </div>
     <div class="header-actions">
@@ -73,6 +73,7 @@
     const today = () => new Date().toISOString().slice(0, 10);
 
     let FULL = new Map(); // id -> devis complet
+    let VISITES = [];     // demandes de RDV avec une visite client FERME (statut « RDV fixé »)
 
     function itemsSummary(items) {
       const counts = {};
@@ -88,6 +89,11 @@
       const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
       FULL = new Map();
       fulls.filter(Boolean).forEach(d => FULL.set(d.id, d));
+      // Visites clients (module RDV) : une visite fixée est un rendez-vous au même titre qu'une pose.
+      // Sans ça, on fixait une visite qui n'apparaissait dans AUCUN agenda. On ne garde que les
+      // visites encore à faire (« RDV fixé ») — une fois visité/converti, ça sort de l'agenda.
+      const rdvs = (SS.listRdv ? await SS.listRdv().catch(() => []) : []) || [];
+      VISITES = rdvs.filter(r => r.statut === 'rdv_fixe' && r.date_rdv);
       render();
     }
 
@@ -130,6 +136,35 @@
           <div class="ag-actions">
             <button class="btn btn-ghost btn-sm" onclick="location.href='vue.html?id=${d.id}'">${icon('window', 14)} Voir la fiche</button>
             <button class="btn btn-primary btn-sm" onclick="markDone('${d.id}')">${icon('check', 14)} Marquer posé</button>
+          </div>
+        </div>`;
+    }
+
+    // Carte « visite client » (issue du module RDV) — volontairement plus légère qu'une carte de pose :
+    // rien n'est éditable ici, on renvoie vers la fiche de la demande où tout est déjà géré.
+    function visitCard(r) {
+      const c = r.client || {}, adr = c.adresse || {};
+      const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const mapsUrl = adresseTxt ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adresseTxt) : null;
+      const day = (r.date_rdv || '').slice(0, 10), heure = (r.date_rdv || '').slice(11, 16);
+      const days = Math.round((new Date(day) - new Date(today())) / 86400000);
+      let cls = '', badge = '';
+      if (days < 0) { cls = 'is-retard'; badge = `<span class="badge badge-danger">Passée (${-days}j)</span>`; }
+      else if (days === 0) { cls = 'is-today'; badge = `<span class="badge badge-cyan">Aujourd'hui${heure ? ' · ' + heure : ''}</span>`; }
+      else { badge = `<span class="badge badge-warn">Dans ${days}j</span>`; }
+      const qui = r.assigned_to ? (EQUIPE_LABEL[r.assigned_to] || r.assigned_to) : '⚠ non attribuée';
+      return `
+        <div class="ag-card ticked ${cls}" style="--tick-color:var(--accent);">
+          <div class="ag-head">
+            <div>
+              <div class="ag-client">${esc(c.prenom)} ${esc(c.nom) || '—'}</div>
+              <div class="ag-addr">${adresseTxt ? (mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener">${esc(adresseTxt)}</a>` : esc(adresseTxt)) : 'Adresse non renseignée'}</div>
+            </div>
+            ${badge}
+          </div>
+          <div class="ag-items">Visite client${heure ? ' à ' + esc(heure) : ''} · ${esc(qui)}${r.projet ? ' — ' + esc(String(r.projet).slice(0, 90)) : ''}</div>
+          <div class="ag-actions">
+            <button class="btn btn-ghost btn-sm" onclick="location.href='rdv.html?open=${encodeURIComponent(r.id)}'">${icon('calendar', 14)} Ouvrir la demande</button>
           </div>
         </div>`;
     }
@@ -181,8 +216,14 @@
       const wStart = startWeek.toISOString().slice(0, 10), wEnd = endWeek.toISOString().slice(0, 10);
       const cetteSemaine = [...FULL.values()].filter(d => d.chantier && d.chantier.date_pose && !window.SSUI.isPoseDone(d) &&
         d.chantier.date_pose >= wStart && d.chantier.date_pose <= wEnd).length;
+      // Visites clients de la semaine (module RDV) — même fenêtre lundi→dimanche que les poses.
+      const visSemaine = (groups.visites || []).filter(r => {
+        const d = String(r.date_rdv || '').slice(0, 10);
+        return d >= wStart && d <= wEnd;
+      }).length;
       el('kpis').innerHTML = `
         <div class="kpi ticked accent"><div class="kpi-label">Cette semaine</div><div class="kpi-value">${cetteSemaine}</div><div class="kpi-sub">pose(s) planifiée(s)</div></div>
+        <div class="kpi ticked gold"><div class="kpi-label">Visites clients</div><div class="kpi-value">${visSemaine}</div><div class="kpi-sub">cette semaine</div></div>
         <div class="kpi ticked"><div class="kpi-label">À planifier</div><div class="kpi-value">${groups.aPlanifier.length}</div><div class="kpi-sub">chantiers signés sans date</div></div>
         <div class="kpi ticked danger"><div class="kpi-label">En retard</div><div class="kpi-value">${groups.retard.length}</div><div class="kpi-sub">date de pose dépassée</div></div>`;
     }
@@ -200,18 +241,25 @@
       const byDate = (a, b) => (a.chantier.date_pose || '').localeCompare(b.chantier.date_pose || '');
       retard.sort(byDate); aujourdhui.sort(byDate); aVenir.sort(byDate);
 
-      kpis({ aPlanifier, retard });
+      // Visites clients, de la plus proche à la plus lointaine (les visites passées non traitées
+      // remontent donc en tête — c'est exactement ce qu'on veut voir en premier).
+      const visites = VISITES.slice().sort((a, b) => String(a.date_rdv).localeCompare(String(b.date_rdv)));
+      kpis({ aPlanifier, retard, visites });
 
-      if (!all.length) {
-        el('host').innerHTML = `<div class="empty">${icon('calendar', 40)}<div>Aucun chantier signé pour l'instant.<br>L'agenda se remplit dès qu'un devis passe au statut Signé.</div></div>`;
+      if (!all.length && !visites.length) {
+        el('host').innerHTML = `<div class="empty">${icon('calendar', 40)}<div>Aucun chantier signé ni visite planifiée.<br>L'agenda se remplit dès qu'un devis passe au statut Signé, ou dès qu'une visite client est fixée.</div></div>`;
         return;
       }
 
       const section = (title, n, list) => list.length ? `
         <div class="ag-section-title">${title} <span class="n">(${n})</span></div>
         <div class="ag-grid">${list.map(agCard).join('')}</div>` : '';
+      const sectionVisites = (title, list) => list.length ? `
+        <div class="ag-section-title">${title} <span class="n">(${list.length})</span></div>
+        <div class="ag-grid">${list.map(visitCard).join('')}</div>` : '';
 
       el('host').innerHTML =
+        sectionVisites('Visites clients à faire', visites) +
         section('⚠ En retard', retard.length, retard) +
         section("Aujourd'hui", aujourdhui.length, aujourdhui) +
         section('À venir', aVenir.length, aVenir) +

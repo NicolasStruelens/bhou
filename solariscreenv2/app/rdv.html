@@ -103,6 +103,24 @@
     .cm .cm-text { font-size: var(--fs-sm); line-height: 1.4; }
     .cm .cm-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); }
     .cm-empty { font-size: var(--fs-sm); color: var(--text-muted); }
+
+    /* ── Créneaux proposés (prise de RDV) ── */
+    .creneau { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--crc, var(--border-strong)); border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); }
+    .creneau .input, .creneau .select { height: 32px; font-size: var(--fs-sm); }
+    .creneau .cr-date { max-width: 150px; }
+    .creneau .cr-state { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--crc, var(--text-subtle)); margin-left: auto; white-space: nowrap; }
+    .creneau .cr-btn { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: var(--r-sm); width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer; flex: none; }
+    .creneau .cr-btn:hover { border-color: var(--ok); color: var(--ok); }
+    .creneau .cr-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+    /* ── Contacter le client (messages prêts à envoyer) ── */
+    .msg-box { border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: var(--r-sm); padding: var(--sp-3); }
+    .msg-chan { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+    .msg-chan .btn.reco { border-color: var(--accent-2); color: var(--accent-2); font-weight: 700; }
+    .msg-hint { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.3rem; }
+    /* Alerte délai de réponse (un lead web se rappelle vite) */
+    .lead-age { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.1rem 0.4rem; border-radius: var(--r-sm); border: 1px solid currentColor; }
+    .lead-age.warn { color: var(--warn); }
+    .lead-age.danger { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -155,7 +173,7 @@
         <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
         <div class="spacer"></div>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
-        <button class="btn btn-primary btn-sm" onclick="saveCurrent()">Enregistrer</button>
+        <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveCurrent()">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -183,6 +201,23 @@
     };
     const KANBAN_ORDER = ['nouveau', 'a_contacter', 'rdv_fixe', 'visite', 'converti'];
     const SOURCES = ['Téléphone', 'E-mail', 'Site web', 'Bouche à oreille', 'Salon / foire', 'Réseaux sociaux', 'Multimedian', 'Interne MM', 'Autre'];
+    // Créneaux proposables au client : on raisonne en DEMI-JOURNÉES (c'est ainsi qu'on s'accorde au
+    // téléphone), avec une heure de référence utilisée quand le créneau est accepté et devient la
+    // date de visite ferme.
+    const MOMENTS = [
+      { k: 'matin', l: 'Matin (9h — 12h)', h: '09:00' },
+      { k: 'midi', l: 'Midi (12h — 14h)', h: '12:00' },
+      { k: 'aprem', l: 'Après-midi (14h — 17h)', h: '14:00' },
+      { k: 'fin', l: 'Fin de journée (17h — 19h)', h: '17:00' },
+    ];
+    const moment = k => MOMENTS.find(m => m.k === k) || MOMENTS[0];
+    const CRENEAU_STATE = {
+      propose: { l: 'Proposé', color: 'var(--text-subtle)' },
+      accepte: { l: 'Accepté', color: 'var(--ok)' },
+      refuse: { l: 'Refusé', color: 'var(--danger)' },
+    };
+    // Délai de prise en charge d'un lead : au-delà, on alerte (un client qui attend appelle ailleurs).
+    const LEAD_WARN_H = 4, LEAD_DANGER_H = 24;
 
     let RDV = [];
     let VIEW = localStorage.getItem('ss_rdv_view') || 'kanban';
@@ -269,7 +304,10 @@
     }
     function clientName(r) { const c = r.client || {}; return ((c.prenom || '') + ' ' + (c.nom || '')).trim() || 'Sans nom'; }
     function daysSince(iso) { if (!iso) return 0; return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
+    function hoursSince(iso) { if (!iso) return 0; return Math.floor((Date.now() - new Date(iso).getTime()) / 3600000); }
+    function ageTxt(h) { return h < 1 ? 'moins d\'1 h' : (h < 24 ? h + ' h' : Math.floor(h / 24) + ' j'); }
     function todayStr() { return new Date().toISOString().slice(0, 10); }
+    function tomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
 
     // ── Filtrage ──
     function filtered() {
@@ -292,10 +330,20 @@
       const items = [];
       RDV.forEach(r => {
         if (r.statut === 'annule' || r.statut === 'converti') return;
+        // PERSONNE ne l'a prise en charge : c'est LA décision à trancher entre Nicolas et Yannick.
+        // Un contact entrant qui attend est un contact qui appelle le concurrent → priorité maximale.
+        if (!r.assigned_to) {
+          const h = hoursSince(r.date_creation);
+          items.push({ r, prio: h >= LEAD_DANGER_H ? 3 : (h >= LEAD_WARN_H ? 2 : 1), txt: `${clientName(r)} — personne ne l'a prise en charge (depuis ${ageTxt(h)})` });
+        }
+        // Visite DEMAIN : c'est le moment d'envoyer le rappel au client.
+        if (r.statut === 'rdv_fixe' && r.date_rdv && r.date_rdv.slice(0, 10) === tomorrowStr()) {
+          items.push({ r, prio: 2, txt: `${clientName(r)} — visite DEMAIN, pense au message de rappel` });
+        }
         // À contacter / nouveau depuis > 2 j sans date de visite
         if (['nouveau', 'a_contacter'].includes(r.statut) && !r.date_rdv) {
           const d = daysSince(r.date_creation);
-          if (d >= 2) items.push({ r, txt: `${clientName(r)} — à recontacter (demande depuis ${d} j, pas de RDV fixé)` });
+          if (d >= 2) items.push({ r, prio: 2, txt: `${clientName(r)} — à recontacter (demande depuis ${d} j, pas de RDV fixé)` });
         }
         // RDV fixé mais date passée sans devis
         if (r.statut === 'rdv_fixe' && r.date_rdv && r.date_rdv.slice(0, 10) < todayStr()) {
@@ -312,6 +360,8 @@
       });
       const host = el('briefHost');
       if (!items.length) { host.innerHTML = ''; return; }
+      // Le plus urgent en tête (contact entrant que personne n'a pris depuis longtemps).
+      items.sort((a, b) => (b.prio || 1) - (a.prio || 1));
       host.innerHTML = `<div class="rdv-brief">
         <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
         <ul>${items.slice(0, 8).map(it => `<li onclick="openEdit('${it.r.id}')"><span class="rb-dot"></span>${esc(it.txt)}</li>`).join('')}</ul>
@@ -333,6 +383,14 @@
       const ville = (c.adresse && c.adresse.ville) ? `${icon('pin', 11)} ${esc(c.adresse.ville)}` : '';
       const rdvDate = r.date_rdv ? `${icon('calendar', 11)} ${esc(fmtDate(r.date_rdv.slice(0, 10)))}` : '';
       const badges = [];
+      // Ancienneté d'un contact entrant que PERSONNE n'a encore pris : visible d'un coup d'œil,
+      // vire à l'orange puis au rouge. C'est le principal levier de conversion sur un lead web.
+      if (!r.assigned_to && !['converti', 'annule'].includes(r.statut)) {
+        const h = hoursSince(r.date_creation);
+        const cls = h >= LEAD_DANGER_H ? 'danger' : (h >= LEAD_WARN_H ? 'warn' : '');
+        badges.push(`<span class="lead-age ${cls}" title="Personne n'a encore pris cette demande en charge">${icon('clock', 10)} ${ageTxt(h)}</span>`);
+      }
+      if ((r.creneaux || []).some(cr => cr.statut === 'accepte')) badges.push('<span class="badge badge-ok">Créneau retenu</span>');
       if (r.pref_contact === 'tel') badges.push('<span class="badge badge-cyan">Préf. tél</span>');
       if (r.pref_contact === 'email') badges.push('<span class="badge badge-cyan">Préf. e-mail</span>');
       if ((r.photos || []).length) badges.push(`<span class="badge">${icon('camera', 10)} ${r.photos.length}</span>`);
@@ -420,7 +478,7 @@
     function blankRdv() {
       return { id: 'RDV-' + generateDevisId(), client: { nom: '', prenom: '', telephone: '', email: '', adresse: {} },
         statut: 'nouveau', assigned_to: IDENTITY.key || '', source: 'Téléphone', pref_contact: '', pref_visite: '',
-        dates_proposees: '', date_rdv: '', rappel_date: '', projet: '', comments: [], photos: [],
+        dates_proposees: '', creneaux: [], date_rdv: '', rappel_date: '', projet: '', comments: [], photos: [],
         date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
     }
     window.openNew = () => { CURRENT = blankRdv(); PENDING_PHOTOS = []; renderModal(true); };
@@ -444,10 +502,13 @@
       el('mTitle').textContent = isNew ? 'Nouvelle demande de RDV' : clientName(r);
       el('mId').textContent = '#' + r.id;
       el('btnDelete').style.display = isNew ? 'none' : '';
-      // "Créer le devis" masqué si déjà converti (devis lié OU statut converti) → évite un 2e devis.
+      // « Créer le devis » n'a AUCUN sens sur une demande qu'on est en train de saisir : à ce stade on
+      // enregistre un contact entrant (qui le prend en charge, quand le visiter). Le bouton n'apparaît
+      // donc qu'une fois la demande enregistrée — et disparaît si elle est déjà convertie (pas de 2e devis).
       const dejaConverti = !!r.devis_id || r.statut === 'converti';
-      el('btnConvert').style.display = dejaConverti ? 'none' : '';
-      el('btnConvert').innerHTML = dejaConverti ? '' : `${icon('filetext', 14)} Créer le devis`;
+      el('btnConvert').style.display = (isNew || dejaConverti) ? 'none' : '';
+      el('btnConvert').innerHTML = `${icon('filetext', 14)} Créer le devis`;
+      el('btnSave').innerHTML = isNew ? `${icon('save', 14)} Enregistrer la demande` : `${icon('save', 14)} Enregistrer`;
       // « Annuler le RDV » : caché sur une nouvelle demande, un RDV déjà annulé, ou déjà converti en devis.
       el('btnCancelRdv').style.display = (isNew || r.statut === 'annule' || r.statut === 'converti') ? 'none' : '';
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
@@ -475,7 +536,9 @@
             <option value="" ${!r.assigned_to ? 'selected' : ''}>— Non attribué —</option>
             <option value="nicolas" ${r.assigned_to === 'nicolas' ? 'selected' : ''}>Nicolas</option>
             <option value="yannick" ${r.assigned_to === 'yannick' ? 'selected' : ''}>Yannick</option>
-          </select></div>
+          </select>
+          ${(IDENTITY.key && r.assigned_to !== IDENTITY.key) ? `<button type="button" class="btn btn-ghost btn-sm mt-1" onclick="takeCharge()">${icon('check', 13)} Je prends en charge</button>` : ''}
+          </div>
           <div class="field"><label class="label">Source de la demande</label><select class="select" id="f_source">${sourceOpts}</select></div>
           <div class="field"><label class="label">Préférence de contact</label>
             <div class="radio-row" style="padding-top:0.4rem;">
@@ -489,9 +552,37 @@
         <div class="form-sec">Rendez-vous</div>
         <div class="grid grid-2">
           <div class="field" style="grid-column:span 2;"><label class="label">Préférence de visite du client</label><input class="input" id="f_prefv" value="${esc(r.pref_visite)}" placeholder="Ex : en semaine après 17h, samedi matin…"></div>
-          <div class="field" style="grid-column:span 2;"><label class="label">Dates proposées</label><input class="input" id="f_dates" value="${esc(r.dates_proposees)}" placeholder="Ex : lun 14/07 matin · mer 16/07 après-midi"></div>
+          <div class="field" style="grid-column:span 2;">
+            <label class="label">Créneaux proposés au client</label>
+            <div id="creneauxHost"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addCreneau()">${icon('plus', 13)} Ajouter un créneau</button>
+            ${r.dates_proposees ? `<div class="msg-hint">Ancienne saisie libre : ${esc(r.dates_proposees)}</div>` : ''}
+          </div>
           <div class="field"><label class="label">Date de visite fixée</label><input class="input" id="f_daterdv" type="datetime-local" value="${esc(r.date_rdv || '')}"></div>
           <div class="field"><label class="label">Rappel le (optionnel)</label><input class="input" id="f_rappel" type="date" value="${esc(r.rappel_date || '')}"></div>
+        </div>
+
+        <div class="form-sec">Contacter le client</div>
+        <div class="msg-box">
+          <div class="grid grid-2">
+            <div class="field"><label class="label" for="msgType">Message à envoyer</label>
+              <select class="select" id="msgType" onchange="fillMsg()">
+                <option value="creneaux">Proposer des créneaux</option>
+                <option value="confirmation">Confirmer le rendez-vous</option>
+                <option value="rappel">Rappel la veille</option>
+                <option value="relance">Relance (sans réponse)</option>
+              </select>
+            </div>
+            <div class="field"><label class="label">Canal préféré du client</label><div id="msgReco" style="padding-top:0.55rem;font-size:var(--fs-sm);"></div></div>
+          </div>
+          <textarea class="textarea" id="msgText" style="min-height:130px;margin-top:var(--sp-2);"></textarea>
+          <div class="msg-chan">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="copyMsg()">${icon('copy', 13)} Copier</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="msgBtnMail" onclick="sendMsg('email')">E-mail</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="msgBtnSms" onclick="sendMsg('sms')">SMS</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="msgBtnWa" onclick="sendMsg('wa')">WhatsApp</button>
+          </div>
+          <div class="msg-hint">Le texte est modifiable avant envoi — les créneaux saisis ci-dessus y sont repris automatiquement.</div>
         </div>
 
         <div class="form-sec">Projet / besoin</div>
@@ -508,6 +599,8 @@
           <input class="input" id="cmInput" placeholder="Ajouter une note…" style="flex:1;" onkeydown="if(event.key==='Enter')addNote()">
           <button class="btn btn-ghost btn-sm" onclick="addNote()">Ajouter</button>
         </div>`;
+      renderCreneaux();
+      fillMsg();
       renderPhotos();
       renderNotes();
       el('modalBg').classList.add('open');
@@ -542,6 +635,124 @@
       renderNotes();
     };
 
+    // ── Créneaux proposés ────────────────────────────────────────────────────────────────
+    // But : arrêter de négocier les dates dans un champ texte libre. Chaque créneau porte un état ;
+    // « accepter » un créneau fixe la visite (date + heure) et fait passer la demande en « RDV fixé ».
+    function renderCreneaux() {
+      const list = CURRENT.creneaux || [];
+      el('creneauxHost').innerHTML = list.length ? list.map((cr, i) => {
+        const st = CRENEAU_STATE[cr.statut] || CRENEAU_STATE.propose;
+        return `<div class="creneau" style="--crc:${st.color};">
+          <input class="input cr-date" type="date" value="${esc(cr.date || '')}" onchange="setCreneau(${i},'date',this.value)" aria-label="Date du créneau ${i + 1}">
+          <select class="select" onchange="setCreneau(${i},'moment',this.value)" aria-label="Moment du créneau ${i + 1}">
+            ${MOMENTS.map(m => `<option value="${m.k}" ${cr.moment === m.k ? 'selected' : ''}>${m.l}</option>`).join('')}
+          </select>
+          <span class="cr-state">${st.l}</span>
+          <button type="button" class="cr-btn" onclick="acceptCreneau(${i})" title="Le client a retenu ce créneau" aria-label="Retenir le créneau ${i + 1}">${icon('check', 13)}</button>
+          <button type="button" class="cr-btn del" onclick="removeCreneau(${i})" title="Retirer ce créneau" aria-label="Retirer le créneau ${i + 1}">${icon('x', 12)}</button>
+        </div>`;
+      }).join('') : '<div class="cm-empty">Aucun créneau proposé. Ajoutes-en 2 ou 3 à soumettre au client.</div>';
+    }
+    window.addCreneau = () => {
+      CURRENT.creneaux = CURRENT.creneaux || [];
+      if (CURRENT.creneaux.length >= 5) { toast('5 créneaux, c’est déjà beaucoup à proposer.', 'warn'); return; }
+      // Proposition par défaut : le prochain jour ouvré, le matin (on ne propose pas un dimanche).
+      const d = new Date(); d.setDate(d.getDate() + 1);
+      if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+      else if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+      CURRENT.creneaux.push({ date: d.toISOString().slice(0, 10), moment: 'matin', statut: 'propose' });
+      renderCreneaux(); fillMsg();
+    };
+    window.setCreneau = (i, field, val) => {
+      if (!CURRENT.creneaux || !CURRENT.creneaux[i]) return;
+      CURRENT.creneaux[i][field] = val;
+      fillMsg();
+    };
+    window.removeCreneau = (i) => { (CURRENT.creneaux || []).splice(i, 1); renderCreneaux(); fillMsg(); };
+    window.acceptCreneau = (i) => {
+      const cr = (CURRENT.creneaux || [])[i];
+      if (!cr || !cr.date) { toast('Renseigne d’abord la date de ce créneau.', 'warn'); return; }
+      // Un seul créneau retenu : les autres redeviennent de simples propositions.
+      CURRENT.creneaux.forEach((c, j) => { c.statut = (j === i) ? 'accepte' : (c.statut === 'accepte' ? 'propose' : c.statut); });
+      el('f_daterdv').value = cr.date + 'T' + moment(cr.moment).h;
+      el('f_statut').value = 'rdv_fixe';
+      renderCreneaux(); fillMsg();
+      toast('Créneau retenu → visite fixée le ' + fmtDate(cr.date) + ' (pense à enregistrer)', 'ok', 4000);
+    };
+
+    // ── Messages prêts à envoyer ─────────────────────────────────────────────────────────
+    // But : ne jamais avoir à rédiger un mail de prise de RDV. Le texte est GÉNÉRÉ depuis la fiche
+    // (prénom, créneaux, date fixée, personne en charge) puis reste modifiable avant envoi.
+    function creneauxTexte() {
+      const list = (CURRENT.creneaux || []).filter(c => c.date && c.statut !== 'refuse');
+      return list.length ? list.map(c => '  • ' + fmtDate(c.date) + ' — ' + moment(c.moment).l).join('\n') : '';
+    }
+    function signatureTxt() {
+      const who = (el('f_assigned') && el('f_assigned').value) || CURRENT.assigned_to || IDENTITY.key || '';
+      const nom = who === 'yannick' ? 'Yannick' : (who === 'nicolas' ? 'Nicolas' : '');
+      const co = window.SS_COMPANY || {};
+      return [nom, co.name || 'SolariScreen', co.phone || '', co.website || ''].filter(Boolean).join('\n');
+    }
+    function buildMsg(type) {
+      const c = CURRENT.client || {};
+      const prenom = (el('f_prenom') ? el('f_prenom').value.trim() : c.prenom) || '';
+      const hello = prenom ? `Bonjour ${prenom},` : 'Bonjour,';
+      const cr = creneauxTexte();
+      const fixee = (el('f_daterdv') && el('f_daterdv').value) || CURRENT.date_rdv || '';
+      const heure = fixee.slice(11, 16);
+      const dateTxt = fixee ? fmtDate(fixee.slice(0, 10)) + (heure ? ' à ' + heure : '') : '';
+      const sig = '\n\nBien à vous,\n' + signatureTxt();
+      if (type === 'confirmation') {
+        return `${hello}\n\nJe vous confirme notre rendez-vous${dateTxt ? ' le ' + dateTxt : ''} à votre domicile, pour la prise de mesures et l'étude de votre projet.\n\nLa visite dure environ 30 minutes et est sans engagement. En cas d'imprévu, prévenez-moi : nous reprogrammerons sans souci.${sig}`;
+      }
+      if (type === 'rappel') {
+        return `${hello}\n\nPetit rappel de notre rendez-vous${dateTxt ? ' du ' + dateTxt : ' de demain'} : je passe chez vous pour prendre les mesures et voir ensemble la solution la mieux adaptée.\n\nÀ très bientôt.${sig}`;
+      }
+      if (type === 'relance') {
+        return `${hello}\n\nJe reviens vers vous concernant votre demande pour vos protections solaires. Souhaitez-vous toujours que nous convenions d'un rendez-vous ?\n\nJe reste à votre entière disposition.${sig}`;
+      }
+      return `${hello}\n\nMerci pour votre demande. Je vous propose de passer chez vous pour prendre les mesures et vous conseiller — c'est gratuit et sans engagement.\n\n${cr ? 'Voici mes disponibilités :\n' + cr + '\n\nQuel créneau vous conviendrait le mieux ?' : 'Quelles seraient vos disponibilités dans les prochains jours ?'}${sig}`;
+    }
+    window.fillMsg = () => {
+      const sel = el('msgType'); if (!sel) return;
+      el('msgText').value = buildMsg(sel.value);
+      // Canal préféré du client : on MET EN AVANT le bouton correspondant, sans jamais bloquer les autres.
+      const pref = (document.querySelector('input[name="prefc"]:checked') || {}).value || '';
+      const reco = el('msgReco');
+      if (reco) reco.textContent = pref === 'tel' ? 'Téléphone / SMS' : (pref === 'email' ? 'E-mail' : 'Indifférent');
+      ['msgBtnMail', 'msgBtnSms', 'msgBtnWa'].forEach(id => { const b = el(id); if (b) b.classList.remove('reco'); });
+      if (pref === 'email' && el('msgBtnMail')) el('msgBtnMail').classList.add('reco');
+      if (pref === 'tel' && el('msgBtnSms')) el('msgBtnSms').classList.add('reco');
+    };
+    window.copyMsg = async () => {
+      try { await navigator.clipboard.writeText(el('msgText').value); toast('Message copié ✓', 'ok'); }
+      catch (e) { el('msgText').select(); toast('Sélectionné — fais Ctrl+C', 'warn'); }
+    };
+    window.sendMsg = (chan) => {
+      const body = el('msgText').value;
+      const email = (el('f_email').value || '').split(',')[0].trim();   // 1re adresse si plusieurs
+      const tel = (el('f_tel').value || '').split(',')[0].replace(/[^\d+]/g, '');
+      if (chan === 'email') {
+        if (!email) { toast('Pas d’adresse e-mail sur cette demande.', 'warn'); return; }
+        const subj = encodeURIComponent('Votre projet de protection solaire — SolariScreen');
+        window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subj}&body=${encodeURIComponent(body)}`;
+        return;
+      }
+      if (!tel) { toast('Pas de numéro de téléphone sur cette demande.', 'warn'); return; }
+      if (chan === 'sms') { window.location.href = `sms:${tel}?&body=${encodeURIComponent(body)}`; return; }
+      // WhatsApp (wa.me) veut l'international sans « + » ni « 0 » initial (Belgique = 32).
+      let wa = tel.replace(/^\+/, '');
+      if (wa.startsWith('0')) wa = '32' + wa.slice(1);
+      window.open(`https://wa.me/${wa}?text=${encodeURIComponent(body)}`, '_blank');
+    };
+    window.takeCharge = () => {
+      if (!IDENTITY.key) { toast('Identité inconnue — choisis dans la liste déroulante.', 'warn'); return; }
+      el('f_assigned').value = IDENTITY.key;
+      if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter';
+      fillMsg();
+      toast('Attribué à ' + (IDENTITY.key === 'yannick' ? 'Yannick' : 'Nicolas') + ' — pense à enregistrer.', 'ok');
+    };
+
     // Rassemble le formulaire dans CURRENT
     function collect() {
       const r = CURRENT, c = r.client;
@@ -560,7 +771,10 @@
       const prefc = document.querySelector('input[name="prefc"]:checked');
       r.pref_contact = prefc ? prefc.value : '';
       r.pref_visite = el('f_prefv').value.trim();
-      r.dates_proposees = el('f_dates').value.trim();
+      // `dates_proposees` = ancien champ texte libre : conservé TEL QUEL pour les demandes créées
+      // avant les créneaux structurés (affiché en lecture seule dans la fiche). Les créneaux, eux,
+      // sont modifiés directement sur CURRENT.creneaux par leurs propres boutons.
+      r.creneaux = r.creneaux || [];
       r.date_rdv = el('f_daterdv').value;
       r.rappel_date = el('f_rappel').value;
       r.projet = el('f_projet').value.trim();
