@@ -339,6 +339,8 @@ export async function onRequest(context) {
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                IFNULL(json_array_length(data, '$.chantier_photos'), 0) AS chantier_photos_count,
+               json_extract(data, '$.date_envoi') AS date_envoi,
+               json_extract(data, '$.relances') AS relances_json,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
@@ -357,8 +359,10 @@ export async function onRequest(context) {
         // (voir upsertDevis) — on n'extrait donc que ce petit tableau, jamais les items complets
         // qui contiennent les PHOTOS base64 (celles-ci alourdiraient énormément la liste).
         const item_types = safeParse(r.item_types_json) || [];
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types };
+        // Relances envoyées : nécessaires au tableau de bord pour savoir quelle relance est due.
+        const relances = safeParse(r.relances_json) || [];
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, relances };
       });
       return json({ ok: true, data });
     }
