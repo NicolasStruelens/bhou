@@ -157,6 +157,12 @@
     .client-cell .name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
     .name-badges { display: flex; align-items: center; gap: 0.3rem; flex: none; }
     .id-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; row-gap: 4px; }
+    /* « Prochaine action » : la consigne du dossier, en dessous de la référence. Discrète mais
+       colorée par l'urgence (--nac fourni par prochaineAction), lisible en un balayage vertical. */
+    .next-act { display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 3px;
+      font-size: var(--fs-3xs); font-family: var(--font-mono); letter-spacing: 0.02em;
+      color: var(--nac, var(--text-subtle)); }
+    .next-act svg { flex: none; opacity: 0.85; }
     .client-cell .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); flex: none; }
     /* Badges "type de produit" (Screen / Volet / Tente solaire / Tablier volet) : style neutre
        façon annotation technique (comme .badge de base), volontairement SANS les couleurs
@@ -532,6 +538,29 @@
       const days = daysSinceSent(d);
       return days !== null && days >= 30;
     }
+    // ── « Prochaine action » : l'ERP dit quoi faire, dossier par dossier ────────────────────
+    // Toute la logique métier existe déjà sous forme de prédicats (relance due, acompte impayé,
+    // pose à planifier…) mais restait éparpillée dans les pastilles globales du briefing. Ici on
+    // la condense en UNE phrase par ligne — l'ordre des tests EST l'ordre de priorité.
+    // Renvoie null quand il n'y a rien à faire (dossier clos, payé, refusé…).
+    function prochaineAction(d) {
+      if (d.archive || ['refuse', 'annule'].includes(d.statut)) return null;
+      if (d.statut === 'brouillon') return { txt: 'À finaliser et envoyer', color: 'var(--text-subtle)' };
+      if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return { txt: 'Accepté par le client — à faire signer', color: 'var(--ok)' };
+      if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
+        const faites = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+        return { txt: `Relance ${faites + 1} à envoyer`, color: 'var(--warn)' };
+      }
+      if (isDevisExpire(d)) return { txt: 'Devis expiré (30 j) — à relancer ou classer', color: 'var(--danger)' };
+      if (isAcompteUnpaid(d)) return { txt: 'Acompte à encaisser', color: 'var(--warn)' };
+      if (d.statut === 'signe' && !window.SSUI.isPoseDone(d) && !(d.chantier && d.chantier.date_pose)) {
+        return { txt: 'Pose à planifier', color: 'var(--accent-2)' };
+      }
+      if (isChantierAPreparer(d)) return { txt: 'Chantier à préparer', color: 'var(--accent-2)' };
+      if (isSoldeUnpaid(d)) return { txt: 'Solde à encaisser', color: 'var(--warn)' };
+      if (WAITING_STATUSES.includes(d.statut)) return { txt: 'En attente de réponse client', color: 'var(--text-subtle)' };
+      return null;
+    }
     function paymentInfo(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return '';
@@ -677,12 +706,23 @@
       // Bénéfices cumulés par vendeur, sur les devis réellement signés/terminés
       const nicolasNet = signes.reduce((s, d) => s + (d.nicolas_net || 0), 0);
       const yannickNet = signes.reduce((s, d) => s + (d.yannick_net || 0), 0);
+      // Les valeurs sont posées à 0 puis animées en « odomètre » (voir SSUI.countUp) : le relevé
+      // se stabilise sous les yeux au lieu d'apparaître d'un bloc. data-v porte la valeur réelle.
       el('kpis').innerHTML = `
-        <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value">${total}</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
-        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(caEncaisse)}</div><div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
-        <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value">${signes.length}</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
-        <div class="kpi accent"><div class="kpi-label">Bénéfice Nicolas</div><div class="kpi-value">${fmtEur(nicolasNet)}</div><div class="kpi-sub">devis signés/terminés</div></div>
-        <div class="kpi gold"><div class="kpi-label">Bénéfice Yannick</div><div class="kpi-value">${fmtEur(yannickNet)}</div><div class="kpi-sub">devis signés/terminés</div></div>`;
+        <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value" data-v="${total}" data-fmt="int">0</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
+        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div><div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
+        <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value" data-v="${signes.length}" data-fmt="int">0</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
+        <div class="kpi accent"><div class="kpi-label">Bénéfice Nicolas</div><div class="kpi-value" data-v="${nicolasNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>
+        <div class="kpi gold"><div class="kpi-label">Bénéfice Yannick</div><div class="kpi-value" data-v="${yannickNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>`;
+      // Défensif : si countUp est indisponible (ui.js périmé en cache ou non chargé), on pose la
+      // valeur finale au lieu de laisser une exception interrompre TOUT le rendu du tableau de bord.
+      const anim = window.SSUI && window.SSUI.countUp;
+      el('kpis').querySelectorAll('.kpi-value[data-v]').forEach(n => {
+        const eur = n.getAttribute('data-fmt') === 'eur';
+        const val = Number(n.getAttribute('data-v')) || 0;
+        const fmt = v => eur ? fmtEur(v) : String(Math.round(v));
+        if (anim) anim(n, val, { format: fmt }); else n.textContent = fmt(val);
+      });
     }
 
     function render() {
@@ -783,6 +823,7 @@
                       <span class="id">#${d.id}</span>
                       ${typeBadges(d)}
                     </div>
+                    ${(() => { const a = prochaineAction(d); return a ? `<div class="next-act" style="--nac:${a.color}" title="Prochaine action suggérée pour ce dossier">${icon('chevronright', 10)} ${esc(a.txt)}</div>` : ''; })()}
                   </div></td>
                   <td>${statusCell(d)}</td>
                   <td class="text-muted">${fmtDate(d.date_modification)}</td>

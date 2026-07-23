@@ -259,6 +259,35 @@
     .journal-pending img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .journal-pending button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(4,8,20,0.75); color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
     .journal-form { margin-top: var(--sp-3); border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
+    /* ══════ RÈGLE GRADUÉE — cycle de vie du dossier ══════
+       Métaphore assumée du mètre de chantier : une réglette avec ses graduations, les jalons
+       franchis en or, le jalon courant qui respire, les suivants en pointillés. */
+    .ruler { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
+      padding: var(--sp-4) var(--sp-4) var(--sp-3); margin-bottom: var(--sp-4); overflow-x: auto; }
+    .ruler-track { position: relative; display: flex; align-items: flex-start; min-width: 620px; }
+    /* La réglette elle-même : trait continu + micro-graduations régulières. */
+    .ruler-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 1px;
+      background: var(--border-strong); }
+    .ruler-track::after { content: ''; position: absolute; left: 0; right: 0; top: 4px; height: 5px;
+      background-image: repeating-linear-gradient(to right, var(--border-strong) 0 1px, transparent 1px 12px);
+      opacity: 0.5; }
+    .rl-mile { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 0.3rem; text-align: center; min-width: 0; }
+    /* Le repère : un trait vertical (graduation majeure), pas une pastille — cohérent avec l'instrument. */
+    .rl-tick { position: relative; z-index: 1; width: 2px; height: 19px; background: var(--border-strong); }
+    .rl-mile.done .rl-tick { background: var(--accent-2); box-shadow: 0 0 8px color-mix(in srgb, var(--accent-2) 55%, transparent); }
+    .rl-mile.now .rl-tick { background: var(--accent); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+    .rl-mile.todo .rl-tick { background: none; border-left: 2px dashed var(--border-strong); width: 0; }
+    .rl-lab { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-subtle); white-space: nowrap; }
+    .rl-mile.done .rl-lab { color: var(--accent-2-ink); }
+    .rl-mile.now .rl-lab { color: var(--accent); font-weight: 700; }
+    .rl-date { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); white-space: nowrap; }
+    @media (prefers-reduced-motion: no-preference) {
+      .rl-mile.now .rl-tick { animation: rlPulse 2.2s ease-in-out infinite; }
+      @keyframes rlPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    }
+
     /* ── Suivi de relance (cadence J+5/J+12/J+21 ou J+4/J+9/J+21) ── */
     .rl-suivi { border: 1px solid var(--border); border-left: 3px solid var(--rlc, var(--accent)); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
     .rl-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
@@ -329,6 +358,9 @@
   <main class="container vue-layout" id="main" style="display:none;">
     <!-- ══════ COLONNE PRINCIPALE ══════ -->
     <div>
+      <!-- Règle graduée : la vie du dossier lue d'un seul coup d'œil (voir renderRuler). -->
+      <div id="rulerHost"></div>
+
       <section class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Client</span><span class="section-code">SS // FICHE</span></div>
         <div class="section-body" id="clientHost"></div>
@@ -901,6 +933,7 @@
         ${c.remise_outillage?.amount > 0 ? `<div class="h-line"><span class="k">Outillage</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_outillage.amount)}</span></div>` : ''}` : ''}`;
       setText('interneSummary', 'Net total ' + fmtEur((c.nicolas_net || 0) + (c.yannick_net || 0)));
 
+      renderRuler();
       renderNotes();
       renderCommande();
       renderChantier();
@@ -1403,6 +1436,57 @@
       }
     };
 
+    // ══════════ RÈGLE GRADUÉE — cycle de vie du dossier ═══════════════════════════════════
+    // Toute l'information existe déjà, mais éparpillée dans une dizaine de cartes qu'il faut
+    // déplier une par une. Ici on la condense en une seule ligne lisible d'un coup d'œil.
+    // Chaque jalon est DÉDUIT des données réelles (aucun nouveau champ à saisir).
+    function renderRuler() {
+      const d = DEVIS, host = el('rulerHost');
+      if (!host) return;
+      const hist = s => {
+        const h = (d.statut_history || []).filter(x => x.statut === s).map(x => x.date).sort();
+        return h.length ? h[0] : null;
+      };
+      const totalPaye = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
+      const ttc = (CALC && CALC.total_ttc) || 0;
+      const cc = d.commande || {};
+      const poseDate = (d.reception && d.reception.date) || (d.chantier && d.chantier.date_pose) || null;
+      const nbRelances = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const derniereRelance = (d.relances || []).slice().sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+
+      const jalons = [
+        { lab: 'Créé', date: d.date_creation || null, done: true },
+        { lab: 'Envoyé', date: d.date_envoi || hist('envoye_client'), done: !!(d.date_envoi || hist('envoye_client')) || ['envoye_client', 'relance_1', 'relance_2', 'signe', 'termine'].includes(d.statut) },
+        { lab: nbRelances ? 'Relance ' + nbRelances : 'Relance', date: derniereRelance ? derniereRelance.date : null, done: nbRelances > 0 },
+        { lab: 'Signé', date: hist('signe') || (d.signature && d.signature.date) || null, done: ['signe', 'termine'].includes(d.statut) },
+        { lab: 'Commandé', date: cc.date_commande || null, done: !!cc.date_commande || ['commande', 'fabrication', 'recu', 'pose'].includes(cc.statut) },
+        { lab: 'Posé', date: poseDate, done: window.SSUI.isPoseDone(d) },
+        { lab: 'Payé', date: null, done: ttc > 0 && totalPaye >= ttc - 0.005 },
+      ];
+      // Le jalon COURANT suit le DERNIER jalon franchi — surtout pas « le premier non franchi » :
+      // une étape peut légitimement être sautée (un client qui signe sans avoir eu besoin d'une
+      // relance), et le repère « en cours » se serait alors planté sur « Relance » d'un devis
+      // déjà signé. Les étapes sautées restent simplement grisées.
+      let lastDone = -1;
+      jalons.forEach((j, i) => { if (j.done) lastDone = i; });
+      const iNow = (lastDone + 1 < jalons.length) ? lastDone + 1 : -1;
+      // Dossier refusé/annulé : la règle n'a plus de sens (le parcours s'arrête), on la masque.
+      if (['refuse', 'annule'].includes(d.statut)) { host.innerHTML = ''; return; }
+      host.innerHTML = `
+        <div class="ruler ticked" style="--tick-color:var(--accent-2);" role="group" aria-label="Avancement du dossier">
+          <div class="ruler-track">
+            ${jalons.map((j, i) => {
+              const cls = j.done ? 'done' : (i === iNow ? 'now' : 'todo');
+              return `<div class="rl-mile ${cls}">
+                <span class="rl-tick"></span>
+                <span class="rl-lab">${esc(j.lab)}</span>
+                <span class="rl-date">${j.date ? (j.done ? esc(fmtDate(j.date)) : 'prévu ' + esc(fmtDate(j.date))) : (cls === 'now' ? 'en cours' : '—')}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
     // ══════════ CADENCE DE RELANCE ════════════════════════════════════════════════════════
     // Deux rythmes selon la nature du devis (règle métier de Nicolas) :
     //  · devis INFORMATIF (sans visite) : J+5, J+12, puis dernière relance à J+21
@@ -1568,7 +1652,10 @@
         return `<span class="rl-step">R${s.n} — J+${s.j}</span>`;
       }).join('');
       let next;
-      if (st.epuise) next = `Les 3 relances ont été envoyées. Sans réponse, classe le dossier (statut « Refusé » avec la raison « Sans réponse ») pour garder un suivi propre.`;
+      if (st.epuise) next = `Les 3 relances ont été envoyées, sans retour du client.
+        <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="classerSansReponse()"
+          style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">
+          ${icon('check', 13)} Classer le dossier — pas de réponse</button>`;
       else if (st.retard) next = `<strong style="color:${color};">Relance ${st.step.n} à envoyer</strong> — prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ` (en retard de ${st.joursRetard} j)` : ''}.`;
       else next = `Prochaine relance (R${st.step.n}) le <strong>${fmtDate(st.due)}</strong> — dans ${daysBetween(st.today, st.due)} j.`;
       host.innerHTML = `
@@ -1598,6 +1685,27 @@
       renderRelanceSuivi();
       window.fillRelanceText();
       toast('Date d’envoi enregistrée ✓', res.offline ? 'warn' : 'ok');
+    };
+    // Clôture propre d'un dossier resté sans réponse après les 3 relances : statut « Refusé » +
+    // raison « Pas de réponse » (même vocabulaire que le menu de statut, pour que les statistiques
+    // de refus soient enfin alimentées — l'audit avait relevé 10 devis refusés sans aucune raison).
+    window.classerSansReponse = async () => {
+      if (!confirm('Classer ce devis comme « Refusé — Pas de réponse » ?\n\nIl sortira des devis en cours et alimentera les statistiques de refus. Réversible : tu peux rouvrir la fiche et changer le statut.')) return;
+      const prevStatut = DEVIS.statut, prevRaison = DEVIS.raison_refus, prevHist = (DEVIS.statut_history || []).slice();
+      DEVIS.statut = 'refuse';
+      DEVIS.raison_refus = 'Pas de réponse';
+      DEVIS.statut_history = prevHist.concat([{ statut: 'refuse', date: new Date().toISOString(), by: CONNECTED_KEY || null }]);
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        DEVIS.statut = prevStatut; DEVIS.raison_refus = prevRaison; DEVIS.statut_history = prevHist;
+        toast(res.error || 'Classement NON enregistré — réessaie.', 'error', 6000);
+        return;
+      }
+      SS.logActivity && SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id} classé sans réponse après 3 relances` });
+      toast('Dossier classé — pas de réponse', 'warn');
+      closeRelance();
+      render();
     };
     window.markRelanceSent = async () => {
       const st = relanceState(DEVIS);
