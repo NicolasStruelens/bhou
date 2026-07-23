@@ -42,23 +42,84 @@
       .cmdk-item .ci-t { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .cmdk-item .ci-s { font-size: 0.62rem; color: var(--text-subtle,#6675a0); font-family: var(--font-mono, monospace); flex: none; }
       .cmdk-empty { padding: 1.4rem; text-align: center; color: var(--text-subtle,#6675a0); font-size: 0.85rem; }
+      /* ── Menu groupé par métier + badges d'alerte ── */
+      .ssnav-group { font-family: var(--font-mono, monospace); font-size: 0.58rem; text-transform: uppercase;
+        letter-spacing: 0.09em; color: var(--text-subtle,#6675a0); padding: 0.55rem 0.7rem 0.25rem; }
+      .ssnav-group:first-child { padding-top: 0.25rem; }
+      .ssnav-sep { height: 1px; background: var(--border,#243056); margin: 0.3rem 0.4rem; }
+      .ssnav-count { margin-left: auto; font-family: var(--font-mono, monospace); font-size: 0.6rem; font-weight: 700;
+        min-width: 17px; height: 17px; padding: 0 0.28rem; border-radius: 999px; display: inline-flex;
+        align-items: center; justify-content: center; background: var(--danger,#ff5e7a); color: #fff; flex: none; }
+      .ssnav-count.warn { background: var(--warn,#ffb020); color: #2a1a00; }
+      /* Pastille sur le bouton du menu : on voit qu'il se passe quelque chose SANS ouvrir. */
+      .ssnav-toggle { position: relative; }
+      .ssnav-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%;
+        background: var(--danger,#ff5e7a); box-shadow: 0 0 0 2px var(--surface,#0e1530); }
+      @media (prefers-reduced-motion: no-preference) {
+        .ssnav-dot { animation: ssnavPulse 2.4s ease-in-out infinite; }
+        @keyframes ssnavPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+      }
     `;
     document.head.appendChild(style);
   }
 
-  const PAGES = [
-    { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
-    { href: 'rdv.html', label: 'Demandes de RDV', icon: 'calendar' },
-    { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
-    { href: 'factures.html', label: 'Facturation', icon: 'filetext' },
-    { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
-    { href: 'agenda.html', label: 'Agenda de pose', icon: 'calendar' },
-    { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
-    { href: 'sav.html', label: 'SAV', icon: 'warning' },
-    { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
-    { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
-    { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
+  // Navigation groupée par MÉTIER plutôt qu'en liste plate : l'ERP couvre désormais trois
+  // activités distinctes (vendre / poser / gérer) et une liste de 11 entrées obligeait à
+  // relire tout le menu à chaque fois. `badge` = clé de compteur d'alerte (voir computeBadges).
+  const NAV_GROUPS = [
+    { title: 'Vente', pages: [
+      { href: 'rdv.html', label: 'Demandes de RDV', icon: 'calendar', badge: 'rdv' },
+      { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
+      { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
+      { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
+    ] },
+    { title: 'Chantier', pages: [
+      { href: 'agenda.html', label: 'Agenda poses & visites', icon: 'calendar' },
+      { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
+      { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
+      { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
+    ] },
+    { title: 'Gestion', pages: [
+      { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
+      { href: 'factures.html', label: 'Facturation', icon: 'filetext', badge: 'factures' },
+      { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
+    ] },
   ];
+
+  // ── Compteurs d'alerte du menu ────────────────────────────────────────────────────────
+  // Jusqu'ici il fallait ALLER sur le tableau de bord pour savoir qu'il se passait quelque
+  // chose. Ces compteurs suivent l'utilisateur sur toutes les pages. Calculés une seule fois
+  // par minute, en tâche de fond, et TOUJOURS silencieux en cas d'échec (hors-ligne, session
+  // expirée) : la navigation ne doit jamais dépendre de leur disponibilité.
+  let badgesCache = null, badgesAt = 0;
+  async function computeBadges() {
+    if (badgesCache && Date.now() - badgesAt < 60000) return badgesCache;
+    const SS = window.SS;
+    if (!SS) return { rdv: 0, sav: 0, factures: 0 };
+    const today = new Date().toISOString().slice(0, 10);
+    const [devis, factures, rdv] = await Promise.all([
+      SS.listDevis().catch(function () { return []; }),
+      SS.listFactures().catch(function () { return []; }),
+      (SS.listRdv ? SS.listRdv().catch(function () { return []; }) : Promise.resolve([])),
+    ]);
+    // Demandes entrantes que personne n'a prises en charge (hors annulées/converties).
+    const nbRdv = (rdv || []).filter(function (r) {
+      return !r.assigned_to && ['annule', 'converti'].indexOf(r.statut) === -1;
+    }).length;
+    // Tickets SAV encore ouverts, tous devis confondus.
+    let nbSav = 0;
+    (devis || []).forEach(function (d) {
+      (d.sav_tickets || []).forEach(function (t) { if (t.statut !== 'resolu') nbSav++; });
+    });
+    // Factures échues et non soldées.
+    const nbFac = (factures || []).filter(function (f) {
+      const paye = (f.paiements || []).reduce(function (s, p) { return s + (Number(p.montant) || 0); }, 0);
+      return f.echeance && f.echeance < today && paye < (Number(f.total_ttc) || 0) - 0.005;
+    }).length;
+    badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac };
+    badgesAt = Date.now();
+    return badgesCache;
+  }
 
   // Identité Cloudflare Access → affichage cosmétique ("connecté en tant que…") ET
   // pré-remplissage de l'auteur des notes internes. Jamais utilisée pour une décision
@@ -194,6 +255,52 @@
     setInterval(function () { if (document.visibilityState === 'visible') sendHeartbeat(); }, HEARTBEAT_MS);
   })();
 
+  // ── Remontée des erreurs JavaScript vers le journal d'activité ────────────────────────
+  // POURQUOI : une erreur qui survient chez Nicolas ou Yannick, en production, derrière
+  // Cloudflare Access, est TOTALEMENT invisible depuis un poste de développement. On perdait
+  // le message exact et il fallait deviner. Désormais chaque erreur non rattrapée est
+  // journalisée (action `error.js`) avec le fichier, la ligne et la page.
+  // Garde-fous : maximum 5 par session, jamais deux fois la même, et l'envoi ne peut jamais
+  // casser la page (fire-and-forget, échec avalé).
+  (function reportJsErrors() {
+    const MAX_PAR_SESSION = 5;
+    let envoyees = 0;
+    const dejaVues = new Set();
+    function report(kind, msg, where) {
+      if (envoyees >= MAX_PAR_SESSION) return;
+      const sig = kind + '|' + msg + '|' + where;
+      if (dejaVues.has(sig)) return;          // une boucle de rendu ne doit pas inonder le journal
+      dejaVues.add(sig); envoyees++;
+      const page = location.pathname.split('/').pop() || 'index';
+      const label = ('⚠ ' + kind + ' — ' + msg + (where ? ' (' + where + ')' : '') + ' · page ' + page).slice(0, 400);
+      try {
+        fetch('/api/activity', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin', keepalive: true,
+          body: JSON.stringify({ action: 'error.js', entity_type: 'system', entity_id: page, label: label }),
+        }).catch(function () {});
+      } catch (e) { /* jamais bloquant */ }
+    }
+    window.addEventListener('error', function (e) {
+      if (!e) return;
+      // Échec de CHARGEMENT d'une ressource : l'événement n'a pas de message, l'info est sur la cible.
+      // On ne remonte que les scripts et feuilles de style : une image manquante (logo) est déjà
+      // gérée proprement ailleurs et polluerait le journal à chaque page.
+      const t = e.target;
+      if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+        report('Ressource non chargée', t.tagName.toLowerCase(), String(t.src || t.href || '').split('/').pop());
+        return;
+      }
+      if (t && t !== window && !e.message) return;   // autre ressource (image…) → ignoré
+      report('Erreur JS', e.message || 'inconnue',
+        (e.filename ? String(e.filename).split('/').pop() : '') + (e.lineno ? ':' + e.lineno : ''));
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      const r = e && e.reason;
+      report('Promesse rejetée', String((r && (r.message || r)) || 'inconnue').slice(0, 200), '');
+    });
+  })();
+
   function mount(container) {
     if (!container) return;
     const icon = window.SSUI.icon;
@@ -203,18 +310,53 @@
         <button class="btn btn-ghost btn-sm ssnav-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Naviguer vers une autre page">${icon('grid9', 14)}</button>
         <div class="ssnav-menu" role="menu">
           <button class="ssnav-item ssnav-search" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('search', 14)} Recherche<span style="margin-left:auto;font-family:var(--font-mono);font-size:0.58rem;opacity:0.7;border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;">Ctrl&nbsp;K</span></button>
-          ${PAGES.map(p => `<a class="ssnav-item ${p.href === cur ? 'active' : ''}" href="${p.href}" role="menuitem">${icon(p.icon, 14)} ${p.label}</a>`).join('')}
+          ${NAV_GROUPS.map((g, gi) => `
+            ${gi ? '<div class="ssnav-sep"></div>' : ''}
+            <div class="ssnav-group">${g.title}</div>
+            ${g.pages.map(p => `<a class="ssnav-item ${p.href === cur ? 'active' : ''}" href="${p.href}" role="menuitem"${p.badge ? ` data-badge="${p.badge}"` : ''}>${icon(p.icon, 14)} ${p.label}</a>`).join('')}
+          `).join('')}
         </div>
       </div>`;
     const root = container.querySelector('.ssnav');
     const btn = root.querySelector('.ssnav-toggle');
     const menu = root.querySelector('.ssnav-menu');
+
+    // Compteurs d'alerte : peints dans le menu ET résumés par une pastille sur le bouton,
+    // pour repérer une urgence sans même ouvrir le menu.
+    function paintBadges(b) {
+      if (!b) return;
+      const CLS = { rdv: '', sav: '', factures: 'warn' };   // RDV/SAV = rouge, factures = orange
+      let total = 0;
+      root.querySelectorAll('.ssnav-item[data-badge]').forEach(function (a) {
+        const k = a.getAttribute('data-badge'), n = b[k] || 0;
+        const old = a.querySelector('.ssnav-count');
+        if (old) old.remove();
+        if (!n) return;
+        total += n;
+        const s = document.createElement('span');
+        s.className = 'ssnav-count' + (CLS[k] ? ' ' + CLS[k] : '');
+        s.textContent = n > 99 ? '99+' : String(n);
+        a.appendChild(s);
+      });
+      const oldDot = btn.querySelector('.ssnav-dot');
+      if (oldDot) oldDot.remove();
+      if (total > 0) {
+        const dot = document.createElement('span');
+        dot.className = 'ssnav-dot';
+        btn.appendChild(dot);
+        btn.title = total + ' point(s) d\'attention — ouvrir le menu';
+      }
+    }
+    computeBadges().then(paintBadges).catch(function () {});
     function close() { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
     function toggle(e) {
       e.stopPropagation();
       const willOpen = !menu.classList.contains('open');
       menu.classList.toggle('open', willOpen);
       btn.setAttribute('aria-expanded', String(willOpen));
+      // À l'ouverture, on rafraîchit les compteurs (cache d'1 min) : ils restent à jour même
+      // si la page est ouverte depuis longtemps.
+      if (willOpen) computeBadges().then(paintBadges).catch(function () {});
     }
     btn.addEventListener('click', toggle);
     const searchItem = root.querySelector('.ssnav-search');

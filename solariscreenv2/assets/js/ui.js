@@ -119,6 +119,46 @@
     return uploadPhotoDataUrl(dataUrl, ownerId);
   }
 
+  // ── Compteur « odomètre » : la valeur défile de 0 jusqu'au chiffre réel ──────────────────
+  // Esprit instrument de mesure : un relevé qui se stabilise, pas un chiffre qui apparaît.
+  // `format` reçoit la valeur intermédiaire et renvoie le texte à afficher (fmtEur, arrondi…).
+  // Courbe easeOutCubic : rapide au départ, freinage net à l'arrivée.
+  // ⚠️ Respecte `prefers-reduced-motion` : dans ce cas la valeur finale est posée directement.
+  function countUp(node, value, opts) {
+    if (!node) return;
+    opts = opts || {};
+    const format = opts.format || function (v) { return String(Math.round(v)); };
+    const duration = opts.duration || 620;
+    const target = Number(value) || 0;
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // ⚠️ CORRECTNESS AVANT ESTHÉTIQUE : requestAnimationFrame ne s'exécute PAS tant que l'onglet
+    // est en arrière-plan. Sans ce garde, ouvrir le tableau de bord dans un onglet non actif
+    // laissait le compteur figé sur sa PREMIÈRE frame — soit « 0,00 € » affiché à la place d'un
+    // vrai montant. Un chiffre faux est bien pire qu'une absence d'animation.
+    const hidden = document.visibilityState && document.visibilityState !== 'visible';
+    // Animer une variation minuscule (ou nulle) n'apporte rien et fait clignoter l'affichage.
+    if (reduced || hidden || !target || Math.abs(target) < 0.005) { node.textContent = format(target); return; }
+    // Un re-rendu peut relancer l'animation sur le même nœud : on annule la précédente.
+    if (node._ssCountRaf) cancelAnimationFrame(node._ssCountRaf);
+    if (node._ssCountTimer) clearTimeout(node._ssCountTimer);
+    const finish = function () {
+      if (node._ssCountRaf) { cancelAnimationFrame(node._ssCountRaf); node._ssCountRaf = null; }
+      node._ssCountTimer = null;
+      node.textContent = format(target);
+    };
+    // Filet de sécurité : quoi qu'il arrive (onglet masqué en cours de route, frames perdues),
+    // la valeur exacte est posée après la durée prévue.
+    node._ssCountTimer = setTimeout(finish, duration + 250);
+    const t0 = performance.now();
+    (function step(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      node.textContent = format(target * eased);
+      if (p < 1) node._ssCountRaf = requestAnimationFrame(step);
+      else finish();
+    })(t0);
+  }
+
   // ── Normalisation d'un devis (résumé API ou cache local complet) ──
   // Centralisé ici : évite de dupliquer cette fonction dans chaque page.
   function normDevis(d) {
@@ -339,6 +379,7 @@
     coin:       '<circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/>',
     x:          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
     check:      '<polyline points="20 6 9 17 4 12"/>',
+    chevronright: '<polyline points="9 18 15 12 9 6"/>',
     chevrondown:'<polyline points="6 9 12 15 18 9"/>',
     arrowleft:  '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
     sliders:    '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
@@ -375,7 +416,7 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
-    showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage,
+    showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
