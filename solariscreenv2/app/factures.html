@@ -155,9 +155,13 @@
     function renderKPIs() {
       const totalTTC = FACTURES.reduce((s, f) => s + (f.total_ttc || 0), 0);
       const encaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
-      const reste = totalTTC - encaisse;
+      // Reste dû = somme des restes POSITIFS, facture par facture. Un trop-perçu sur une facture
+      // (client qui règle tout d'un coup sur la facture d'acompte) ne doit PAS venir effacer la
+      // dette d'une autre facture : la simple soustraction totalTTC − encaissé sous-évaluait la
+      // créance réelle (constaté sur les données réelles : 12 784 € affichés au lieu de 22 258 €).
+      const reste = FACTURES.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
       const retard = FACTURES.filter(isOverdue);
-      const resteRetard = retard.reduce((s, f) => s + ((f.total_ttc || 0) - paidSum(f)), 0);
+      const resteRetard = retard.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
       el('kpis').innerHTML = `
         <div class="kpi gold"><div class="kpi-label">Total facturé</div><div class="kpi-value">${fmtEur(totalTTC)}</div></div>
         <div class="kpi ok"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(encaisse)}</div></div>
@@ -349,6 +353,19 @@
       if (!payTarget) return;
       const montant = Number(el('payMontant').value) || 0;
       if (montant <= 0) { toast('Montant invalide', 'warn'); return; }
+      // Garde-fou comptable : encaisser PLUS que le montant facturé rend le « reste dû » négatif et
+      // gonfle le CA encaissé. Cas réel rencontré : le client règle tout d'un coup et la somme est
+      // saisie sur la facture d'acompte. On ne bloque pas (ça arrive), on demande confirmation et on
+      // rappelle la bonne pratique : créer la facture de solde pour le complément.
+      const resteDu = Math.round(((payTarget.total_ttc || 0) - paidSum(payTarget)) * 100) / 100;
+      if (montant > resteDu + 0.01) {
+        const ok = confirm(
+          `Ce paiement (${fmtEur(montant)}) dépasse le reste dû de cette facture (${fmtEur(resteDu)}).\n\n` +
+          `Le trop-perçu apparaîtra comme un solde négatif et faussera le CA encaissé.\n\n` +
+          `OK = enregistrer quand même · Annuler = corriger (et facturer le solde à part)`
+        );
+        if (!ok) return;
+      }
       payTarget.paiements = payTarget.paiements || [];
       payTarget.paiements.push({ date: el('payDate').value || today(), montant, moyen: el('payMoyen').value });
       payTarget.date_modification = new Date().toISOString();

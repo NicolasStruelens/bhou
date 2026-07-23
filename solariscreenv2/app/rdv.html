@@ -226,6 +226,7 @@
     let CURRENT = null;         // RDV en cours d'édition dans la modale
     let PENDING_PHOTOS = [];    // photos de la fiche ouverte
     let CLIENT_DIRECTORY = [];  // annuaire clients (base CRM + clients des devis) pour l'autocomplétion
+    let DEVIS_IDS = new Set();  // ids des devis existants → détecte un devis lié qui a été supprimé
 
     // ── Chargement ──
     async function load() {
@@ -246,6 +247,7 @@
     // devis existants — même logique que le simulateur, pour relier la base clients aux RDV.
     async function buildClientDirectory() {
       const [clients, devisList] = await Promise.all([SS.listClients(), SS.listDevis()]);
+      DEVIS_IDS = new Set((devisList || []).map(d => String(d.id)));
       const map = new Map();
       (devisList || []).forEach(d => {
         const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
@@ -505,7 +507,11 @@
       // « Créer le devis » n'a AUCUN sens sur une demande qu'on est en train de saisir : à ce stade on
       // enregistre un contact entrant (qui le prend en charge, quand le visiter). Le bouton n'apparaît
       // donc qu'une fois la demande enregistrée — et disparaît si elle est déjà convertie (pas de 2e devis).
-      const dejaConverti = !!r.devis_id || r.statut === 'converti';
+      // Un devis lié PUIS SUPPRIMÉ laissait la demande verrouillée à vie (bouton masqué, aucun moyen
+      // de refaire un devis) — cas constaté sur 2 demandes réelles. Si l'id ne correspond à aucun
+      // devis existant, on considère la demande comme NON convertie et on rend le bouton.
+      const devisPerdu = !!r.devis_id && DEVIS_IDS.size > 0 && !DEVIS_IDS.has(String(r.devis_id));
+      const dejaConverti = (!!r.devis_id && !devisPerdu) || (r.statut === 'converti' && !devisPerdu);
       el('btnConvert').style.display = (isNew || dejaConverti) ? 'none' : '';
       el('btnConvert').innerHTML = `${icon('filetext', 14)} Créer le devis`;
       el('btnSave').innerHTML = isNew ? `${icon('save', 14)} Enregistrer la demande` : `${icon('save', 14)} Enregistrer`;
@@ -832,7 +838,8 @@
       collect();
       const cur = CURRENT;   // capturé AVANT tout await (voir saveCurrent)
       if (!cur.client.nom && !cur.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
-      if (cur.devis_id) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
+      // Même règle que l'affichage du bouton : un devis lié mais SUPPRIMÉ ne doit plus bloquer.
+      if (cur.devis_id && !(DEVIS_IDS.size > 0 && !DEVIS_IDS.has(String(cur.devis_id)))) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
       CONVERTING = true;   // verrou synchrone : devis_id n'est posé qu'APRÈS l'await → sans lui, un double-clic crée 2 devis orphelins
       const devisId = generateDevisId();
       const now = new Date().toISOString();
