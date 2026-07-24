@@ -2141,11 +2141,14 @@
     window.togglePortfolio = async () => {
       const willEnable = !DEVIS.portfolio;
       if (willEnable) {
-        // Vitrine de réalisations : plus de restriction au statut « Terminé ». Seul compte le fait
-        // d'avoir des PHOTOS d'ouvertures posées — c'est ce qui apparaît dans le portfolio. On peut
-        // donc y mettre les ouvertures déjà installées d'un chantier encore en cours.
-        const photoCount = (DEVIS.items || []).reduce((s, it) => s + ((it.photos || []).length), 0);
-        if (!photoCount) { toast('Ajoute d\'abord des photos des ouvertures posées — le portfolio n\'affiche que les ouvertures avec photo.', 'warn', 4500); return; }
+        // Le portfolio se remplit à partir de DEUX sources (voir portfolio.html loadEntries) :
+        //  1) les photos des OUVERTURES (une carte par ouverture)
+        //  2) les photos du JOURNAL DE CHANTIER en phase « En cours » / « Terminé » (carte « Chantier / pose »)
+        // Le bouton doit donc accepter l'une OU l'autre — il ne comptait que la 1re, d'où le refus
+        // alors que le devis avait 6 photos de chantier montrables.
+        const photosOuvertures = (DEVIS.items || []).reduce((s, it) => s + ((it.photos || []).length), 0);
+        const photosChantier = (DEVIS.chantier_photos || []).filter(e => ['apres', 'pendant'].includes(e.phase) && e.url).length;
+        if (!photosOuvertures && !photosChantier) { toast('Ajoute d\'abord des photos — soit sur une ouverture, soit dans le journal de chantier (phase « En cours » ou « Terminé »).', 'warn', 5500); return; }
       }
       const prev = DEVIS.portfolio;
       DEVIS.portfolio = willEnable;
