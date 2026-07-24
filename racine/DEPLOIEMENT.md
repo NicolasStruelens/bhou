@@ -187,3 +187,37 @@ Checklist spécifique après déploiement :
 - [ ] La Constellation, les rappels, les recherches et la Boussole n’affichent aucun élément récolté.
 - [ ] Sur un écran de 390 px, Récolte et le rituel de fermeture restent lisibles, atteignables au pouce et ne passent pas sous la navigation.
 - [ ] Après actualisation forcée, aucun ancien fichier v51 ne reste chargé par le service worker.
+## Version 53 — Univers neuronal réactif
+
+La v53 transforme l’ambiance visuelle de Racine en un univers vivant, sans modifier la structure de la base de données.
+
+- Réseau neuronal ambiant plus organique, avec courbes, respirations, impulsions et profondeur.
+- Atmosphère propre à chaque espace : Clairière, Racines, Constellation, Captures, Recettes, Rappels, Récolte et Corbeille.
+- Réactions visuelles pendant l’écriture, la création, la liaison, la récolte, la restauration, la mise au repos et la suppression.
+- Rendu adapté aux thèmes clair et sombre.
+- Effets allégés sur mobile, écrans à forte densité et connexions en économie de données.
+- Animations neutralisées lorsque l’option système « réduire les animations » est active.
+- Mise en pause automatique lorsque l’onglet n’est plus visible.
+- Correction du changement de thème depuis l’Atelier mobile, qui pouvait masquer la vue active.
+
+### Déploiement v53
+
+1. Envoyer tout le contenu du dossier `Racine` sur GitHub.
+2. Attendre la fin du déploiement Cloudflare Pages.
+3. Recharger l’application avec `Ctrl + F5`.
+4. Ouvrir **Atelier → État du système** et vérifier :
+   - **App v53**
+   - **Schéma v12**
+
+Cette version ne nécessite **aucune migration SQL**.
+
+### Contrôle visuel conseillé
+
+- Passer dans chaque vue et vérifier que sa couleur d’atmosphère évolue.
+- Écrire dans la barre de capture : le champ doit respirer légèrement.
+- Créer une idée : une poussée lumineuse doit apparaître.
+- Lier, terminer, restaurer ou supprimer un élément : le geste doit avoir une signature visuelle distincte.
+- Tester les thèmes clair et sombre.
+- Sur mobile, changer de thème depuis l’Atelier sans perdre la vue affichée.
+- Vérifier qu’aucun défilement horizontal n’apparaît à 390 px de large.
+- Avec « réduire les animations » activé dans le système, vérifier que Racine reste calme et lisible.
