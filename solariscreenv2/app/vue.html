@@ -83,6 +83,15 @@
     }
     .client-hero h2 { font-family: var(--font-display); font-size: var(--fs-xl); line-height: 1.2; }
     .client-hero .sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    /* Contrôle salutation espace client (amical / pro) + rattrapage fiche CRM */
+    .salut-box { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: var(--sp-3); padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
+    .salut-box.no-fiche { border-style: dashed; color: var(--text-muted); font-size: var(--fs-xs); }
+    .salut-lbl { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+    .salut-seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; }
+    .salut-seg button { border: none; background: transparent; color: var(--text-muted); padding: 0.22rem 0.7rem; cursor: pointer; font-size: var(--fs-2xs); font-family: var(--font-mono); transition: background var(--t-fast), color var(--t-fast); }
+    .salut-seg button:hover { color: var(--accent-2-ink); }
+    .salut-seg button.on { background: var(--accent-2); color: var(--bg); font-weight: 700; }
+    .salut-hint { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
     .client-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
     .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
     .client-weather { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
@@ -864,7 +873,9 @@
           ${contactItem(icon('grid', 18), 'Adresse', adresseTxt, mapsUrl)}
         </div>
         <div class="client-weather hidden" id="clientWeather" title="Météo actuelle chez le client"></div>
+        <div id="salutationHost"></div>
         <button class="btn btn-ghost btn-sm mt-3" onclick="openRelance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Relancer le client</button>`;
+      renderSalutation();
 
       // Météo actuelle chez le client (ambiance, jamais bloquant) — ville/code postal du devis.
       if (adr.ville || adr.code_postal) {
@@ -1917,6 +1928,74 @@
       });
       return lastQ;
     }
+
+    // ── Salutation espace client (amical / pro) + rattrapage fiche CRM manquante ────────────────
+    // La formule de salutation vit sur la FICHE client (source de vérité) : on l'affiche et on la
+    // change ici, sans quitter le devis. Empêche le piège « je mets pro mais ça reste Bonjour Prénom »
+    // (il fallait ouvrir le CRM). Et si le client n'a PAS de fiche (cas fréquent des devis importés,
+    // ou d'un client qui a accepté sans fiche), un bouton la crée en un clic depuis les données du devis.
+    function greetingPreview(ton) {
+      const cl = DEVIS.client || {};
+      const f = CLIENT_FICHE || {};
+      if (ton === 'pro') {
+        if (f.civilite && cl.nom) return `« Bonjour ${f.civilite} ${cl.nom} »`;
+        const full = [cl.prenom, cl.nom].filter(Boolean).join(' ');
+        return full ? `« Bonjour ${full} »` : '« Bonjour »';
+      }
+      return cl.prenom ? `« Bonjour ${cl.prenom} »` : '« Bonjour »';
+    }
+    function renderSalutation() {
+      const host = el('salutationHost');
+      if (!host) return;
+      const cl = DEVIS.client || {};
+      if (!cl.prenom && !cl.nom) { host.innerHTML = ''; return; }
+      if (!CLIENT_FICHE) {
+        host.innerHTML = `<div class="salut-box no-fiche">${icon('user', 13)} <span>Pas encore de fiche CRM pour ce client.</span>
+          <button class="btn btn-ghost btn-sm" onclick="createClientFiche()">${icon('plus', 12)} Créer la fiche</button></div>`;
+        return;
+      }
+      const ton = CLIENT_FICHE.ton || 'amical';
+      const needCiv = ton === 'pro' && !CLIENT_FICHE.civilite;
+      host.innerHTML = `<div class="salut-box">
+        <span class="salut-lbl">${icon('message', 12)} Salutation en ligne</span>
+        <div class="salut-seg" role="group" aria-label="Formule de salutation">
+          <button type="button" class="${ton === 'amical' ? 'on' : ''}" onclick="setFormule('amical')">Amical</button>
+          <button type="button" class="${ton === 'pro' ? 'on' : ''}" onclick="setFormule('pro')">Professionnel</button>
+        </div>
+        <span class="salut-hint">${esc(greetingPreview(ton))}${needCiv ? ' · ⚠ précise la civilité dans le CRM' : ''}</span>
+      </div>`;
+    }
+    window.setFormule = async (ton) => {
+      if (!CLIENT_FICHE) return;
+      if ((CLIENT_FICHE.ton || 'amical') === ton) return;
+      const prev = CLIENT_FICHE.ton;
+      CLIENT_FICHE.ton = ton;
+      CLIENT_FICHE.date_modification = new Date().toISOString();
+      renderSalutation();   // retour visuel immédiat
+      const res = await SS.saveClient(CLIENT_FICHE);
+      if (res.ok === false) { CLIENT_FICHE.ton = prev; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); return; }
+      toast('Salutation : ' + (ton === 'pro' ? 'Professionnel' : 'Amical') + ' ✓', res.offline ? 'warn' : 'ok');
+    };
+    window.createClientFiche = async () => {
+      const cl = DEVIS.client || {};
+      const key = clientKeyOf(cl.prenom, cl.nom);
+      if (!key || key === '|') { toast('Nom/prénom manquant sur le devis.', 'warn'); return; }
+      const adr = cl.adresse || {};
+      const now = new Date().toISOString();
+      const fiche = {
+        key, prenom: cl.prenom || '', nom: cl.nom || '', civilite: '', ton: 'amical',
+        telephone: cl.telephone || '', email: cl.email || '',
+        adresse: { rue: adr.rue || '', numero: adr.numero || '', code_postal: adr.code_postal || '', ville: adr.ville || '' },
+        type_bien: '', tags: [], notes: '', date_creation: now, date_modification: now,
+      };
+      const res = await SS.saveClient(fiche);
+      if (res.ok === false) { toast(res.error || 'Fiche non créée — réessaie.', 'error', 6000); return; }
+      CLIENT_FICHE = fiche;
+      SS.logActivity({ action: 'client.create', entity_type: 'client', entity_id: key, label: `Fiche CRM créée depuis le devis #${DEVIS.id} — ${(cl.prenom || '') + ' ' + (cl.nom || '')}`.trim() });
+      toast(res.offline ? 'Fiche créée (hors-ligne)' : 'Fiche CRM créée ✓ — précise civilité / formule', res.offline ? 'warn' : 'ok');
+      renderSalutation();
+    };
+
     function renderReviewCard() {
       const card = el('reviewCard');
       // Visible tant que le devis attend une décision — OU s'il y a une question client en attente,
@@ -2062,8 +2141,12 @@
     const RAISON_REFUS = ['Prix', 'Délai', 'Concurrent', 'Projet reporté', 'Pas de réponse', 'Autre'];
     window.pickStatus = async (statut) => {
       if (statut === 'refuse' && DEVIS.statut !== 'refuse') {
-        stMenuEl.innerHTML = RAISON_REFUS.map(r => `<button onclick="pickRaisonRefus('${r}')">${r}</button>`).join('')
-          + `<button onclick="pickRaisonRefus('')" style="color:var(--text-subtle);">Passer</button>`;
+        // Nudge : on demande TOUJOURS une raison (100 % des refus étaient sans raison → stats faussées).
+        // « Autre » ouvre une saisie libre ; le repli n'est plus vide mais « Non précisée » (catégorie
+        // comptable honnête, distincte d'une donnée manquante).
+        stMenuEl.innerHTML = `<div style="padding:0.45rem 0.7rem;font-size:var(--fs-2xs);color:var(--text-subtle);border-bottom:1px solid var(--border);">Pourquoi ce refus&nbsp;? <span style="opacity:.7;">(améliore tes stats)</span></div>`
+          + RAISON_REFUS.map(r => `<button onclick="pickRaisonRefus('${r}')">${r}</button>`).join('')
+          + `<button onclick="pickRaisonRefus('Non précisée')" style="color:var(--text-subtle);">Je ne sais pas</button>`;
         return;
       }
       if (stMenuEl) stMenuEl.classList.remove('open');
@@ -2104,6 +2187,12 @@
       await finishSave(false);
     };
     window.pickRaisonRefus = async (raison) => {
+      // « Autre » → saisie libre. Annulation du prompt = on n'enregistre rien (menu reste fermé).
+      if (raison === 'Autre') {
+        const t = prompt('Précise la raison du refus :');
+        if (t === null) { if (stMenuEl) stMenuEl.classList.remove('open'); return; }
+        raison = t.trim() || 'Autre';
+      }
       if (stMenuEl) stMenuEl.classList.remove('open');
       const identity = await window.SSNav.getIdentity();
       const expected = DEVIS.date_modification;   // baseline connu AVANT mutation (détection de conflit)

@@ -528,7 +528,9 @@
       if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return { txt: 'Accepté par le client — à faire signer', color: 'var(--ok)' };
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
         const faites = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
-        return { txt: `Relance ${faites + 1} à envoyer`, color: 'var(--warn)' };
+        // Un client qui a rouvert son devis plusieurs fois est chaud → on le signale et on passe en or.
+        const hot = d.review_views >= 5;
+        return { txt: `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, color: hot ? 'var(--accent-2)' : 'var(--warn)' };
       }
       if (isDevisExpire(d)) return { txt: 'Devis expiré (30 j) — à relancer ou classer', color: 'var(--danger)' };
       if (isAcompteUnpaid(d)) return { txt: 'Acompte à encaisser', color: 'var(--warn)' };
@@ -739,6 +741,12 @@
       if (q) rows = rows.filter(d => (`${d.prenom} ${d.nom} ${d.id} ${d.ville} ${d.telephone} ${d.email}`).toLowerCase().includes(q));
       rows = applyAdvFilters(rows);
       rows.sort((a, b) => {
+        // Filtre « à relancer » : on remonte les devis les plus CONSULTÉS en ligne (l'engagement
+        // prédit la signature — un client qui rouvre son devis 24× est chaud). Puis le tri normal.
+        if (activeFilter === 'a_relancer') {
+          const dv = (b.review_views || 0) - (a.review_views || 0);
+          if (dv) return dv;
+        }
         if (sort === 'montant') return b.ttc - a.ttc;
         if (sort === 'nom') return (a.nom || '').localeCompare(b.nom || '');
         return (b.date_modification || '').localeCompare(a.date_modification || '');
@@ -797,8 +805,18 @@
         const declineB = (d.statut === 'refuse' && d.client_declined)
           ? `<span class="badge badge-danger" title="Le client a refusé ce devis en ligne${d.raison_refus ? ' — ' + esc(d.raison_refus) : ''}">${icon('warning', 10)} Refusé par le client</span>`
           : '';
+        const isWaiting = WAITING_STATUSES.includes(d.statut);
+        // Engagement espace client : nombre de fois où le CLIENT a ouvert son devis en ligne.
+        // ≥ 5 vues = très intéressé (l'engagement prédit la signature) → badge doré « à relancer en priorité ».
+        const viewsB = (isWaiting && !d.client_accepted && d.review_views > 0)
+          ? `<span class="badge ${d.review_views >= 5 ? 'badge-gold' : ''}" title="Le client a ouvert son devis en ligne ${d.review_views} fois${d.review_views >= 5 ? ' — très intéressé, à relancer en priorité' : ''}">${icon('window', 10)} ${d.review_views} vue${d.review_views > 1 ? 's' : ''}</span>`
+          : '';
+        // Lien créé mais JAMAIS ouvert : soit le client ne l'a pas reçu, soit il n'a pas cliqué.
+        const neverOpenedB = (isWaiting && !d.client_accepted && d.has_review_link && d.review_views === 0)
+          ? `<span class="badge" style="opacity:.8;" title="Le lien espace client a été créé mais jamais ouvert par le client — vérifie qu'il l'a bien reçu">${icon('lock', 10)} Lien jamais ouvert</span>`
+          : '';
         const waitB = waitingBadge(d);
-        const secondary = (questionB || acceptB || declineB || waitB || infoB) ? `<div class="status-badges">${questionB}${acceptB}${declineB}${waitB}${infoB}</div>` : '';
+        const secondary = (questionB || acceptB || viewsB || neverOpenedB || declineB || waitB || infoB) ? `<div class="status-badges">${questionB}${acceptB}${viewsB}${neverOpenedB}${declineB}${waitB}${infoB}</div>` : '';
         return `<div class="status-cell">${pill(d)}${secondary}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
