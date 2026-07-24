@@ -159,6 +159,53 @@
     })(t0);
   }
 
+  // ── Anime tous les .kpi-value d'un conteneur en « odomètre » ────────────────────────────
+  // Générique pour TOUTES les pages à KPI : lit le texte déjà rendu (montant €, entier ou %)
+  // et le rejoue de 0 à sa valeur — aucune page n'a besoin de restructurer son template.
+  // Les textes non numériques (« 12/33 », « — », un nom de client) sont laissés tels quels.
+  function animateKpis(root) {
+    (root || document).querySelectorAll('.kpi-value').forEach(function (node) {
+      const txt = (node.textContent || '').trim();
+      // Montant « 24 854,07 € » (séparateurs de milliers : espace, insécable, fine, point)
+      let m = txt.match(/^([\d\s  .]+(?:,\d+)?)\s*€$/);
+      if (m) {
+        const val = parseFloat(m[1].replace(/[\s  .]/g, '').replace(',', '.'));
+        if (isFinite(val)) countUp(node, val, { format: fmtEur });
+        return;
+      }
+      // Pourcentage « 38 % »
+      m = txt.match(/^(\d+(?:[.,]\d+)?)\s*%$/);
+      if (m) {
+        const val = parseFloat(m[1].replace(',', '.'));
+        if (isFinite(val)) countUp(node, val, { format: function (v) { return Math.round(v) + ' %'; } });
+        return;
+      }
+      // Entier simple « 25 »
+      if (/^\d{1,6}$/.test(txt)) countUp(node, parseInt(txt, 10), { format: function (v) { return String(Math.round(v)); } });
+    });
+  }
+
+  // ── Mini-courbe « sparkline » (SVG inline, trait fin façon relevé sismique) ─────────────
+  // Renvoie '' si la série est trop courte ou entièrement nulle (pas de courbe mensongère).
+  // La couleur suit currentColor : on la pilote depuis le conteneur (ex. or du KPI Encaissé).
+  function sparkline(values, opts) {
+    opts = opts || {};
+    const w = opts.width || 116, h = opts.height || 26, p = 3;
+    const vals = (values || []).map(Number);
+    if (vals.length < 2 || !vals.some(function (v) { return v > 0; })) return '';
+    const max = Math.max.apply(null, vals), min = Math.min.apply(null, vals);
+    const span = (max - min) || 1;
+    const pts = vals.map(function (v, i) {
+      const x = p + (i * (w - 2 * p)) / (vals.length - 1);
+      const y = h - p - ((v - min) / span) * (h - 2 * p);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    const last = pts[pts.length - 1].split(',');
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" style="display:block;">' +
+      '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>' +
+      '<circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.2" fill="currentColor"/></svg>';
+  }
+
   // ── Normalisation d'un devis (résumé API ou cache local complet) ──
   // Centralisé ici : évite de dupliquer cette fonction dans chaque page.
   function normDevis(d) {
@@ -416,7 +463,7 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
-    showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp,
+    showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf,
