@@ -72,6 +72,18 @@ CREATE TABLE IF NOT EXISTS activity (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity(ts DESC);
 
+-- ── OUTILLAGE (carnet de références perso : visserie, fixations, outils — photo + réf + lien d'achat) ──
+-- Créée aussi à la volée par le backend (CREATE TABLE IF NOT EXISTS) : la migration n'est donc pas
+-- indispensable, mais on la garde ici pour documenter le schéma complet.
+CREATE TABLE IF NOT EXISTS outillage (
+  id                TEXT PRIMARY KEY,
+  nom               TEXT NOT NULL DEFAULT '',
+  categorie         TEXT,
+  date_modification TEXT,
+  data              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outillage_modif ON outillage(date_modification DESC);
+
 -- ── CONNEXIONS (historique de connexion Nicolas / Yannick, alimenté par nav.js) ──
 CREATE TABLE IF NOT EXISTS connections (
   session_id        TEXT PRIMARY KEY,

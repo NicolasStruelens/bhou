@@ -21,7 +21,13 @@
     @media (prefers-reduced-motion: no-preference) {
       .track-hero, .track-card { animation: trackRise 0.55s cubic-bezier(.16,.8,.3,1) both; }
       .track-card:nth-of-type(2) { animation-delay: 0.08s; }
+      .tl-step { animation: trackRise 0.5s cubic-bezier(.16,.8,.3,1) both; animation-delay: calc(0.06s * var(--i, 0)); }
+      .tl-step.active .dot { animation: tlPulse 2.4s ease-in-out infinite; }
       .track-items .track-item { animation: trackRise 0.5s cubic-bezier(.16,.8,.3,1) both; }
+    }
+    @keyframes tlPulse {
+      0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 45%, transparent); }
+      55% { box-shadow: 0 0 0 7px transparent; }
     }
 
     .track-hero { text-align: center; margin-bottom: var(--sp-6); }
@@ -33,22 +39,30 @@
     /* Carte englobante pour la timeline : la sépare visuellement du fond, comme le reste de l'appli */
     .track-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-5) var(--sp-4) var(--sp-4); margin-bottom: var(--sp-4); box-shadow: var(--shadow); }
 
-    /* Ligne de fond + remplissage positionnés en ABSOLU, indépendamment du texte des libellés en
-       dessous — évite le chevauchement que causait l'ancienne marge négative fixe dès qu'un libellé
-       (ex. "Fabrication") passait sur deux lignes. */
-    .track-line-wrap { position: relative; padding: 0 6%; }
-    .track-line-bg, .track-line-fill { position: absolute; top: 18px; left: 6%; right: 6%; height: 3px; border-radius: 2px; }
-    .track-line-bg { background: var(--border); }
-    .track-line-fill { right: auto; background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 70%, var(--accent-2))); transition: width 0.5s ease; }
-
-    .track-dots { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); }
-    .track-step { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-2); }
-    .track-step .dot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text-subtle); font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-xs); transition: all var(--t-base); }
-    .track-step .lbl { font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); line-height: 1.3; padding: 0 2px; }
-    .track-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
-    .track-step.done .lbl { color: var(--ok); }
-    .track-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2-ink); box-shadow: var(--glow-soft); transform: scale(1.08); }
-    .track-step.active .lbl { color: var(--accent-2-ink); font-weight: 700; }
+    /* Timeline VERTICALE : chaque étape est une rangée (pastille + libellé), reliées par un segment
+       vertical à gauche. Plus de longue ligne horizontale en travers de la carte (que Nicolas
+       trouvait disgracieuse) et, en prime, aucun risque de chevauchement quand un libellé est long
+       ou passe sur mobile — chaque étape occupe sa propre rangée. */
+    .tl { list-style: none; margin: 0; padding: 0; }
+    .tl-step { display: grid; grid-template-columns: 38px 1fr; align-items: stretch; }
+    .tl-rail { display: flex; flex-direction: column; align-items: center; }
+    .tl-rail .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text-subtle); font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-xs); transition: all var(--t-base); }
+    /* Le segment vertical remplit tout l'espace restant de la rangée (flex:1) → il rejoint pile la
+       pastille suivante quel que soit le nombre de lignes du libellé. Masqué sur la dernière étape. */
+    .tl-rail .bar { width: 3px; flex: 1; min-height: 20px; margin: 5px 0; border-radius: 2px; background: var(--border); }
+    .tl-step:last-child .tl-rail .bar { display: none; }
+    .tl-body { min-width: 0; padding: 5px 0 var(--sp-5) var(--sp-3); }
+    .tl-step:last-child .tl-body { padding-bottom: 5px; }
+    .tl-lbl { font-family: var(--font-mono); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); font-weight: 600; line-height: 1.25; }
+    .tl-sub { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 3px; }
+    /* Étapes franchies */
+    .tl-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+    .tl-step.done .tl-rail .bar { background: var(--ok); }
+    .tl-step.done .tl-lbl { color: var(--text); }
+    /* Étape en cours : mise en avant (couleur marque + halo pulsé) */
+    .tl-step.active .dot { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 20%, transparent); color: var(--accent-2-ink); box-shadow: var(--glow-soft); }
+    .tl-step.active .tl-lbl { color: var(--accent-2-ink); font-size: var(--fs-md); font-weight: 700; }
+    .tl-step.active .tl-sub { color: var(--accent-2-ink); }
 
     .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px dashed var(--border); }
     .track-eta strong { color: var(--text); }
@@ -64,9 +78,8 @@
 
     .track-foot a { color: var(--accent-2-ink); }
     @media (max-width: 420px) {
-      .track-step .dot { width: 30px; height: 30px; }
-      .track-step .lbl { font-size: var(--fs-3xs); }   /* plancher lisible (0,62rem) au lieu de 0,56rem */
-      .track-line-bg, .track-line-fill { top: 15px; }
+      .tl-step { grid-template-columns: 34px 1fr; }
+      .tl-rail .dot { width: 30px; height: 30px; }
     }
   </style>
 </head>
@@ -82,11 +95,7 @@
     </div>
 
     <div class="track-card">
-      <div class="track-line-wrap">
-        <div class="track-line-bg"></div>
-        <div class="track-line-fill" id="trackBarFill"></div>
-        <div class="track-dots" id="trackSteps"></div>
-      </div>
+      <ol class="tl" id="trackSteps"></ol>
       <div class="track-eta" id="trackEta"></div>
     </div>
 
@@ -112,7 +121,9 @@
     // Pied de page joignable (présent aussi sur l'écran d'erreur : un lien expiré ne doit pas
     // laisser le client sans moyen de nous contacter).
     function contactFootHtml() {
-      const mail = COMPANY.email ? `Une question ? <a href="mailto:${esc(COMPANY.email)}">${esc(COMPANY.email)}</a>` : '';
+      const mails = [COMPANY.email, COMPANY.email2].filter(Boolean)
+        .map(m => `<a href="mailto:${esc(m)}">${esc(m)}</a>`).join(' · ');
+      const mail = mails ? `Une question ? ${mails}` : '';
       const tel = COMPANY.phone ? ` · <a href="tel:${esc(COMPANY.phone.replace(/\s/g, ''))}">${esc(COMPANY.phone)}</a>` : '';
       const web = COMPANY.web ? `<a href="https://${esc(COMPANY.web)}" target="_blank" rel="noopener">${esc(COMPANY.web)}</a>` : '';
       return `SolariScreen${web ? ' · ' + web : ''}${mail ? '<br>' + mail + tel : ''}`;
@@ -126,6 +137,14 @@
       { k: 'recu', l: 'Reçu' },
       { k: 'pose', l: 'Posé' },
     ];
+    // Micro-statut affiché sous l'étape en cours (uniquement), pour donner du contexte au client.
+    const ACTIVE_SUB = {
+      a_commander: 'Votre commande est en préparation',
+      commande: 'Commande transmise au fournisseur',
+      fabrication: 'Vos produits sont en fabrication',
+      recu: 'Matériel réceptionné — pose à planifier',
+      pose: 'Installation en cours',
+    };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     function showError(msg) {
@@ -165,13 +184,18 @@
 
       const cc = d.commande || {};
       const idx = Math.max(0, STAGES.findIndex(s => s.k === (cc.statut || 'a_commander')));
-      document.getElementById('trackSteps').innerHTML = STAGES.map((s, i) => `
-        <div class="track-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}">
-          <div class="dot">${i < idx ? icon('check', 14) : (i + 1)}</div>
-          <div class="lbl">${s.l}</div>
-        </div>`).join('');
-      const pct = STAGES.length > 1 ? Math.round((idx / (STAGES.length - 1)) * 100) : 0;
-      document.getElementById('trackBarFill').style.width = pct + '%';
+      // Étape « Posé » atteinte = commande terminée → toutes les étapes en vert (aucune « en cours »).
+      const isComplete = idx >= STAGES.length - 1;
+      document.getElementById('trackSteps').innerHTML = STAGES.map((s, i) => {
+        const done = i < idx || (isComplete && i === idx);
+        const active = !isComplete && i === idx;
+        const cls = done ? 'done' : (active ? 'active' : 'todo');
+        const sub = active ? `<div class="tl-sub">${esc(ACTIVE_SUB[s.k] || 'En cours')}</div>` : '';
+        return `<li class="tl-step ${cls}" style="--i:${i}">
+          <div class="tl-rail"><span class="dot">${done ? icon('check', 14) : (i + 1)}</span><span class="bar"></span></div>
+          <div class="tl-body"><div class="tl-lbl">${esc(s.l)}</div>${sub}</div>
+        </li>`;
+      }).join('');
 
       let etaTxt = "L'installateur planifiera prochainement la suite de votre commande.";
       if (cc.date_commande) {
