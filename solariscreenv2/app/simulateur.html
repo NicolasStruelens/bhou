@@ -20,7 +20,16 @@
     .sim-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
     @media (max-width: 1040px) { .sim-layout { grid-template-columns: 1fr; } .sim-aside { position: static; } }
 
-    .item-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding: var(--sp-4); margin-bottom: var(--sp-4); }
+    /* Carte d'ouverture : réagit au survol (cadre accent + halo léger) et met en avant la carte en
+       cours d'édition (focus-within) — on voit d'un coup d'œil quelle ouverture on remplit. */
+    .item-card { position: relative; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding: var(--sp-4); margin-bottom: var(--sp-4);
+      transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+    .item-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); box-shadow: var(--glow-soft); }
+    .item-card:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: var(--glow-soft); }
+    /* Filet vertical d'accent à gauche — matérialise l'ouverture comme un « module » distinct. */
+    .item-card::before { content: ''; position: absolute; left: 0; top: var(--sp-4); bottom: var(--sp-4); width: 2px; border-radius: 2px;
+      background: color-mix(in srgb, var(--accent) 35%, transparent); opacity: 0; transition: opacity var(--t-fast); }
+    .item-card:hover::before, .item-card:focus-within::before { opacity: 1; }
     .item-card-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
     .item-no { font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: var(--fs-md); }
     .item-sub { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
@@ -44,13 +53,15 @@
     .sc-acompte { text-align: right; font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.2rem; }
 
     .commission-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
-    .commission-box { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    .commission-box { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); transition: border-color var(--t-fast); }
+    .commission-box:hover { border-color: color-mix(in srgb, var(--accent-3) 50%, var(--border)); }
     .commission-box h4 { font-size: var(--fs-xs); color: var(--accent-3); margin-bottom: var(--sp-2); display: flex; justify-content: space-between; }
     .commission-box .cb-row { display: flex; justify-content: space-between; font-size: var(--fs-2xs); color: var(--text-muted); font-family: var(--font-mono); }
     .commission-box .cb-row .gross { color: var(--text); } .commission-box .cb-row .net { color: var(--accent-2); }
 
     .install-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
-    .install-panel { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); text-align: center; }
+    .install-panel { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); text-align: center; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+    .install-panel:hover { border-color: color-mix(in srgb, var(--accent-2) 45%, var(--border)); box-shadow: var(--glow-soft); }
     .install-panel .ip-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
     .install-panel .ip-gross { font-family: var(--font-mono); font-size: var(--fs-md); color: var(--text); margin-top: 0.2rem; }
     .install-panel .ip-net { font-size: var(--fs-2xs); color: var(--accent-2); font-family: var(--font-mono); }
@@ -300,7 +311,7 @@
           <div class="sc-line sep"><span class="k">Total HTVA</span><span class="v" id="sTotalHT">0,00 €</span></div>
           <div class="sc-line"><span class="k">TVA <span id="sTvaRate">6</span>%</span><span class="v" id="sTotalTVA">0,00 €</span></div>
           <div class="sc-ttc"><span class="k">Total TVAC</span><span class="v" id="sTotalTTC">0,00 €</span></div>
-          <div class="sc-acompte">Acompte <span id="sAcomptePct">30</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
+          <div class="sc-acompte">Acompte <span id="sAcomptePct">50</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
         </div>
       </div>
       <button class="btn btn-primary" style="width:100%;padding:0.85rem;" onclick="saveDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer le devis</button>
@@ -683,10 +694,15 @@
     window.ui_recalc = function ui_recalc() {
       const input = buildInput();
 
-      // Les quantités d'installation suivent le nombre d'ouvertures
-      // tant que l'utilisateur ne les a pas modifiées à la main.
-      const openings = input.items.reduce((s, i) => s + (i.quantite || 1), 0);
-      if (!_qtyManual && openings > 0 && getInt('installQty') !== openings) {
+      // Les quantités d'installation suivent le nombre d'ouvertures RÉELLES (au moins une dimension
+      // ou un prix saisi), tant que l'utilisateur ne les a pas modifiées à la main. Une carte
+      // d'ouverture encore vierge ne facture donc AUCUNE pose → un devis vide démarre à 0 € (et non
+      // à 280 €). Dès qu'une ouverture est renseignée, la pose se recale toute seule.
+      // ⚠️ On ne touche PAS au moteur de calcul : on ajuste seulement la quantité passée en entrée
+      // (0 pose pour 0 ouverture réelle) ; computeDevis gère qty=0 → installation 0 € proprement.
+      const meaningful = state.items.filter(i => i.largeur || i.hauteur || i.projection || i.prix_catalogue_ht);
+      const openings = meaningful.reduce((s, i) => s + (i.quantite || 1), 0);
+      if (!_qtyManual && getInt('installQty') !== openings) {
         setVal('installQty', openings); setVal('tech1Qty', openings); setVal('tech2Qty', openings); setVal('toolsQty', openings);
         input.installation.install_qty = input.installation.tech1_qty = input.installation.tech2_qty = input.installation.tools_qty = openings;
       }
