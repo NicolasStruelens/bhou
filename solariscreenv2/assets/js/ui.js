@@ -241,7 +241,12 @@
       client_accepted_at: d.client_accepted_at || '',
       client_declined: !!d.client_declined,
       client_question_open: !!d.client_question_open,
-      review_views: d.review_views || 0,
+      // Toujours un NOMBRE : l'API liste renvoie déjà un compteur, mais le cache local garde le
+      // tableau d'horodatages → on prend sa longueur pour que `review_views > 0` marche partout.
+      review_views: Array.isArray(d.review_views) ? d.review_views.length : (Number(d.review_views) || 0),
+      // Un lien espace client a-t-il été créé ? (distinguer « jamais ouvert » de « pas de lien »).
+      has_review_link: (d.has_review_link != null) ? !!d.has_review_link
+        : (!!d.review_token || (Array.isArray(d.review_views) && d.review_views.length > 0)),
       sav_tickets: d.sav_tickets || [],
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       date_envoi: d.date_envoi || '',
