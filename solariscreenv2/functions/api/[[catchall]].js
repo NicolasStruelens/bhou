@@ -53,12 +53,16 @@ function clientKey(prenom, nom) {
 // pour ne pas dépendre de la copie figée dans le devis (qui pourrait être réécrite par le simulateur).
 async function resolveGreeting(env, d) {
   const cl = (d && d.client) || {};
+  // Valeurs de repli = copie figée dans le devis (peut être obsolète ou vide).
   let civilite = cl.civilite || '', ton = cl.ton || '';
-  if ((!civilite || !ton) && (cl.prenom || cl.nom)) {
+  // La FICHE client (clients.html) est la SOURCE DE VÉRITÉ : on la relit toujours et on la laisse
+  // GAGNER. Sans ça, une copie « amical » restée sur le devis empêchait le « pro » réglé sur la fiche
+  // de s'appliquer (c'était le bug « je mets pro mais ça reste Bonjour Prénom »).
+  if (cl.prenom || cl.nom) {
     try {
       const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(clientKey(cl.prenom, cl.nom)).first();
-      if (row) { const f = safeParse(row.data) || {}; civilite = civilite || f.civilite || ''; ton = ton || f.ton || ''; }
-    } catch (e) { /* jamais bloquant : on retombe sur le prénom seul */ }
+      if (row) { const f = safeParse(row.data) || {}; if (f.civilite) civilite = f.civilite; if (f.ton) ton = f.ton; }
+    } catch (e) { /* jamais bloquant : on retombe sur la copie du devis / le prénom seul */ }
   }
   return { prenom: cl.prenom || '', nom: cl.nom || '', civilite: civilite || '', ton: ton || 'amical' };
 }
@@ -754,6 +758,38 @@ export async function onRequest(context) {
       }
     }
 
+    // ══════════ OUTILLAGE (catalogue perso de références : visserie, fixations, outils…) ══════════
+    // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle à lancer avant de déployer.
+    // C'est le carnet de références personnel de Nicolas (photo + réf. + fournisseur + lien d'achat),
+    // pas une donnée client : rien de sensible, jamais exposé sur les pages publiques.
+    if (path === '/api/outillage' || path.indexOf('/api/outillage/') === 0) {
+      await env.DB.prepare("CREATE TABLE IF NOT EXISTS outillage (id TEXT PRIMARY KEY, nom TEXT NOT NULL DEFAULT '', categorie TEXT, date_modification TEXT, data TEXT NOT NULL)").run();
+    }
+    if (path === '/api/outillage' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT data FROM outillage ORDER BY date_modification DESC').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/outillage' && method === 'POST') {
+      const o = await request.json();
+      if (!o.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      await upsertOutillage(env.DB, o);
+      return json({ ok: true, id: o.id });
+    }
+    m = path.match(/^\/api\/outillage\/([^/]+)$/);
+    if (m) {
+      const id = decodeURIComponent(m[1]);
+      if (method === 'GET') {
+        const row = await env.DB.prepare('SELECT data FROM outillage WHERE id = ?').bind(id).first();
+        if (!row) return json({ ok: false, error: 'Référence introuvable' }, 404);
+        const d = safeParse(row.data);
+        return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Donnée illisible' }, 500);
+      }
+      if (method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM outillage WHERE id = ?').bind(id).run();
+        return json({ ok: true });
+      }
+    }
+
     // ══════════ JOURNAL D'ACTIVITÉ ══════════
     // L'acteur (nicolas/yannick) est déterminé côté SERVEUR via Cloudflare Access — non
     // falsifiable depuis le navigateur. Le client n'envoie que l'action et son libellé.
@@ -950,6 +986,16 @@ async function upsertRdv(db, r) {
       devis_id=excluded.devis_id, date_modification=excluded.date_modification, data=excluded.data
   `).bind(r.id, cl.nom || '', cl.prenom || '', r.statut || 'nouveau', r.assigned_to || null,
     r.date_rdv || null, r.devis_id || null, r.date_creation || now, r.date_modification || now, JSON.stringify(r)).run();
+}
+
+async function upsertOutillage(db, o) {
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO outillage (id, nom, categorie, date_modification, data)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET nom=excluded.nom, categorie=excluded.categorie,
+      date_modification=excluded.date_modification, data=excluded.data
+  `).bind(o.id, o.nom || '', o.categorie || '', o.date_modification || now, JSON.stringify(o)).run();
 }
 
 async function upsertFacture(db, f) {
