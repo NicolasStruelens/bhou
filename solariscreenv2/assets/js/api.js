@@ -9,6 +9,7 @@
   const LS_CLIENTS = 'ss_clients_cache';
   const LS_FACTURES = 'ss_factures_cache';
   const LS_RDV = 'ss_rdv_cache';
+  const LS_OUTILLAGE = 'ss_outillage_cache';
 
   async function req(path, options) {
     // Cache-buster : un paramètre unique par appel rend chaque URL inédite → aucun cache
@@ -424,6 +425,34 @@
         return { ok: true, offline: true };
       }
     },
+
+    // ── OUTILLAGE (carnet de références perso : visserie, fixations, outils…) ──
+    async listOutillage() {
+      try { return (await req('/outillage')).data; }
+      catch (e) { console.warn('[SS] listOutillage → cache local:', e.message); return localOutillage.list(); }
+    },
+    async saveOutillage(o) {
+      localOutillage.save(o);
+      try { return await req('/outillage', { method: 'POST', body: JSON.stringify(o) }); }
+      catch (e) {
+        if (e && e.serverRejected) { console.warn('[SS] saveOutillage rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        console.warn('[SS] saveOutillage hors-ligne:', e.message);
+        return { ok: true, id: o.id, offline: true };
+      }
+    },
+    async deleteOutillage(id) {
+      try {
+        const r = await req('/outillage/' + encodeURIComponent(id), { method: 'DELETE' });
+        localOutillage.delete(id);   // suppression locale seulement APRÈS confirmation du serveur
+        return r;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        localOutillage.delete(id);
+        return { ok: true, offline: true };
+      }
+    },
   };
 
   const localRdv = {
@@ -439,6 +468,22 @@
     },
     delete: function (id) {
       localStorage.setItem(LS_RDV, JSON.stringify(localRdv.list().filter(function (r) { return r.id !== id; })));
+    },
+  };
+
+  const localOutillage = {
+    list: function () { try { return JSON.parse(localStorage.getItem(LS_OUTILLAGE) || '[]'); } catch (e) { return []; } },
+    get: function (id) { return localOutillage.list().find(function (o) { return o.id === id; }) || null; },
+    save: function (o) {
+      try {
+        const all = localOutillage.list();
+        const i = all.findIndex(function (x) { return x.id === o.id; });
+        if (i !== -1) all[i] = o; else all.unshift(o);
+        localStorage.setItem(LS_OUTILLAGE, JSON.stringify(all));
+      } catch (e) { console.warn('[SS] cache outillage plein:', e.message); }
+    },
+    delete: function (id) {
+      localStorage.setItem(LS_OUTILLAGE, JSON.stringify(localOutillage.list().filter(function (o) { return o.id !== id; })));
     },
   };
 

@@ -78,6 +78,7 @@
       { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
       { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
       { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
+      { href: 'outillage.html', label: 'Outillage & références', icon: 'hammer' },
     ] },
     { title: 'Gestion', pages: [
       { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
