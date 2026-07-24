@@ -163,6 +163,26 @@
     .mi-slot[data-preview]:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
     .note-flag { display: inline-flex; align-items: center; color: var(--accent-2); margin-left: 2px; }
 
+    /* ══════════ KPI enrichis : anneau (encaissé/facturé) + barres comparatives (bénéfices) ══════ */
+    .kpi.warn { --tick-color: var(--warn); } .kpi.warn .kpi-value { color: var(--warn); }
+    .kpi.hero .kpi-value { font-size: clamp(1.15rem, 4.8vw, 2.25rem); }
+    .kpi-ring-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+    .kpi-ring-wrap .kpi-value { margin-top: 0; }
+    .kpi-ring { flex: none; }
+    .kpi-ring .rbg { stroke: color-mix(in srgb, var(--text-subtle) 28%, transparent); }
+    .kpi-ring .rfg { stroke: var(--accent-2); }
+    .kpi-ring .rtxt { fill: var(--accent-2-ink); font-family: var(--font-mono); font-size: 9px; font-weight: 700; }
+    @media (prefers-reduced-motion: no-preference) { .kpi-ring .rfg { animation: kpiRing .9s cubic-bezier(.2,.8,.2,1) both; } }
+    @keyframes kpiRing { from { stroke-dashoffset: 97.4; } }
+    .kpi-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .kb-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 9px; }
+    .kb-l { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .kb-track { height: 8px; border-radius: 5px; background: color-mix(in srgb, var(--text-subtle) 20%, transparent); overflow: hidden; }
+    .kb-track i { display: block; height: 100%; border-radius: 5px; }
+    @media (prefers-reduced-motion: no-preference) { .kb-track i { animation: kbFill .9s cubic-bezier(.2,.8,.2,1) both; } }
+    @keyframes kbFill { from { width: 0; } }
+    .kb-v { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--text); white-space: nowrap; }
+
     /* ══════════ LIGNES « MIX » (refonte 2026-07-24) ══════════════════════════════════════════
        Chaque devis = une carte fine. Filet de couleur à gauche (urgence), UN signal fort à droite,
        micro-jalons + jauge d'engagement dans le sous-titre, actions au survol. Thème-aware. */
@@ -834,12 +854,29 @@
       })();
       // Les valeurs sont posées à 0 puis animées en « odomètre » (voir SSUI.countUp) : le relevé
       // se stabilise sous les yeux au lieu d'apparaître d'un bloc. data-v porte la valeur réelle.
+      // Chiffres métier ajoutés : CA en jeu (pipeline des devis en attente), reste à encaisser,
+      // % encaissé/facturé (anneau), répartition des bénéfices (barres).
+      const caEnJeu = envoyes.reduce((s, d) => s + d.ttc, 0);
+      const resteEncaisser = Math.max(0, totalFacture - caEncaisse);
+      const encPct = totalFacture > 0 ? Math.min(100, Math.round(caEncaisse / totalFacture * 100)) : 0;
+      const beneTotal = nicolasNet + yannickNet;
+      const beneMax = Math.max(nicolasNet, yannickNet, 1);
+      const ringOffset = (97.4 * (1 - encPct / 100)).toFixed(1);
       el('kpis').innerHTML = `
-        <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value" data-v="${total}" data-fmt="int">0</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
-        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div>${sparkEncaisse ? `<div style="margin-top:4px;color:var(--accent-2);">${sparkEncaisse}</div>` : ''}<div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
-        <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value" data-v="${signes.length}" data-fmt="int">0</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
-        <div class="kpi accent"><div class="kpi-label">Bénéfice Nicolas</div><div class="kpi-value" data-v="${nicolasNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>
-        <div class="kpi gold"><div class="kpi-label">Bénéfice Yannick</div><div class="kpi-value" data-v="${yannickNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>`;
+        <div class="kpi gold hero"><div class="kpi-label">CA signé &amp; terminé</div><div class="kpi-value" data-v="${caSigne}" data-fmt="eur">—</div><div class="kpi-sub">${signes.length} devis · bénéfice ${fmtEur(beneTotal)}</div></div>
+        <div class="kpi accent"><div class="kpi-label">CA en jeu</div><div class="kpi-value" data-v="${caEnJeu}" data-fmt="eur">—</div><div class="kpi-sub">${envoyes.length} devis en attente client</div></div>
+        <div class="kpi gold"><div class="kpi-label">Encaissé</div>
+          <div class="kpi-ring-wrap">
+            <svg class="kpi-ring" width="46" height="46" viewBox="0 0 36 36" aria-hidden="true"><circle class="rbg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.2"/><circle class="rfg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="${ringOffset}" transform="rotate(-90 18 18)"/><text class="rtxt" x="18" y="18" text-anchor="middle" dominant-baseline="central">${encPct}%</text></svg>
+            <div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div>
+          </div>
+          <div class="kpi-sub">sur ${fmtEur(totalFacture)} facturé</div></div>
+        <div class="kpi ${resteEncaisser > 0.005 ? 'warn' : 'ok'}"><div class="kpi-label">Reste à encaisser</div><div class="kpi-value" data-v="${resteEncaisser}" data-fmt="eur">—</div><div class="kpi-sub">${resteEncaisser > 0.005 ? 'facturé − déjà payé' : (totalFacture > 0 ? 'tout est encaissé ✓' : 'aucune facture')}</div></div>
+        <div class="kpi"><div class="kpi-label">Bénéfices vendeurs</div>
+          <div class="kpi-bars">
+            <div class="kb-row"><span class="kb-l">Nicolas</span><span class="kb-track"><i style="width:${Math.round(nicolasNet / beneMax * 100)}%;background:var(--accent)"></i></span><span class="kb-v">${fmtEur(nicolasNet)}</span></div>
+            <div class="kb-row"><span class="kb-l">Yannick</span><span class="kb-track"><i style="width:${Math.round(yannickNet / beneMax * 100)}%;background:var(--accent-2)"></i></span><span class="kb-v">${fmtEur(yannickNet)}</span></div>
+          </div></div>`;
       // Défensif : si countUp est indisponible (ui.js périmé en cache ou non chargé), on pose la
       // valeur finale au lieu de laisser une exception interrompre TOUT le rendu du tableau de bord.
       const anim = window.SSUI && window.SSUI.countUp;
