@@ -32,7 +32,22 @@
     .cf-warn-list { margin-top: var(--sp-4); }
     .cf-warn-row { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 0.5rem 0.9rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
     .cf-warn-row .v { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
-    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
+    /* ── Balayage radar (thème sombre uniquement) : un faisceau conique très discret qui tourne
+       au-dessus de la carte, façon écran sonar — l'ambiance « instrument » du Cadastre solaire. ── */
+    .map-wrap { position: relative; overflow: hidden; border-radius: var(--r-md); }
+    .radar-sweep {
+      position: absolute; left: 50%; top: 50%; width: 170vmax; height: 170vmax;
+      transform: translate(-50%, -50%); transform-origin: center;
+      pointer-events: none; z-index: 800; display: none; border-radius: 50%;
+      background: conic-gradient(from 0deg,
+        rgba(77,139,255,0) 0deg 330deg,
+        rgba(77,139,255,0.04) 342deg,
+        rgba(77,139,255,0.16) 358deg,
+        rgba(77,139,255,0) 360deg);
+    }
+    [data-theme="dark"] .radar-sweep { display: block; animation: radar-spin 9s linear infinite; }
+    @keyframes radar-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .radar-sweep { display: none !important; } }
   </style>
 </head>
 <body>
@@ -56,7 +71,12 @@
   <main class="container">
     <div class="kpis" id="kpis"></div>
     <div class="cf-toolbar" id="toolbar"></div>
-    <div id="map"></div>
+    <!-- Le balayage radar vit dans un cadre qui rogne (overflow hidden) AU-DESSUS des tuiles
+         Leaflet (z-index 800 < contrôles à 1000) — jamais dans #map, que Leaflet réorganise. -->
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="radar-sweep" aria-hidden="true"></div>
+    </div>
     <div id="warnHost"></div>
   </main>
 
@@ -147,6 +167,7 @@
         <div class="kpi ticked accent"><div class="kpi-label">Chantiers</div><div class="kpi-value">${total}</div><div class="kpi-sub">envoyés, signés ou terminés</div></div>
         <div class="kpi ticked ok"><div class="kpi-label">Localisés</div><div class="kpi-value">${localises}</div><div class="kpi-sub">affichés sur la carte</div></div>
         <div class="kpi ticked ${nonLocalises ? 'danger' : ''}"><div class="kpi-label">Non localisés</div><div class="kpi-value">${nonLocalises}</div><div class="kpi-sub">ville manquante ou introuvable</div></div>`;
+      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
     function renderMarkers(geocoded) {

@@ -24,18 +24,12 @@
     .adv-panel.hidden { display: none; }
     .adv-panel .field { margin: 0; min-width: 130px; }
     .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .chip { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; padding: 0.4rem 0.7rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); white-space: nowrap; }
-    .chip:hover { border-color: var(--accent); color: var(--accent); }
-    .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
     .chip-archive { margin-left: var(--sp-3); border-color: var(--accent-2); color: var(--accent-2-ink); background: color-mix(in srgb, var(--accent-2) 14%, transparent); font-weight: 700; }
     .chip-archive:hover { border-color: var(--accent-2); color: var(--accent-2-ink); box-shadow: var(--glow-soft); }
     /* Actif : encre sombre garantie sur le fond or plein (le texte quasi-blanc était illisible). */
     .chip-archive.active { background: var(--accent-2); color: #1a1200; border-color: var(--accent-2); }
 
     /* Accès Mode Terrain mis en avant (couleur signature or) — usage tactile fréquent depuis le téléphone */
-    .btn-terrain { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); font-weight: 700; }
-    .btn-terrain:hover { background: color-mix(in srgb, var(--accent-2) 18%, transparent); box-shadow: var(--glow-soft); color: var(--accent-2); }
-    @media (max-width: 640px) { .btn-terrain { padding: 0.55rem 0.9rem; font-size: var(--fs-sm); } }
 
     /* ── Pastilles de statut colorées (menu custom) ── */
     table.data tbody tr { cursor: pointer; }
@@ -61,19 +55,6 @@
     .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--st, var(--text-muted)); box-shadow: 0 0 6px color-mix(in srgb, var(--st, transparent) 60%, transparent); }
     .status-pill svg { opacity: 0.55; }
     .status-pill:hover { box-shadow: var(--glow-soft); }
-    .status-menu {
-      position: fixed; z-index: 5000; display: none; min-width: 175px; padding: 4px;
-      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
-    }
-    .status-menu.open { display: block; }
-    .status-menu button {
-      display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left;
-      background: none; border: none; border-radius: var(--r-sm); padding: 0.45rem 0.6rem;
-      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
-      color: var(--text-muted); cursor: pointer;
-    }
-    .status-menu button:hover { background: var(--surface-2); color: var(--text); }
-    .status-menu .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
     /* ── Vue "Aujourd'hui" : briefing discret, uniquement s'il y a quelque chose à signaler ── */
     .today-brief {
@@ -97,8 +78,6 @@
     .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
     .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 
-    .empty { text-align: center; padding: var(--sp-7) var(--sp-5); color: var(--text-muted); }
-    .empty .big { display: flex; justify-content: center; margin-bottom: var(--sp-3); color: var(--text-subtle); }
 
     /* Pensée de la session — remplace la date au centre du header.
        flex:1 = occupe l'espace restant entre le brand et les actions et centre son
@@ -347,7 +326,7 @@
         <span class="mid" id="cmDevisId">—</span>
         <button class="btn btn-ghost btn-sm" onclick="closeComments()" aria-label="Fermer" style="margin-left:var(--sp-2);">✕</button>
       </div>
-      <div class="mbody" id="cmList"><div class="empty-comments">Chargement…</div></div>
+      <div class="mbody" id="cmList"><div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div></div>
       <div class="mfoot">
         <div class="comment-form">
           <div class="field">
@@ -385,7 +364,7 @@
         <span id="actTitle">Journal d'activité</span>
         <button class="btn btn-ghost btn-sm" onclick="closeActivity()" aria-label="Fermer" style="margin-left:auto;">✕</button>
       </div>
-      <div class="mbody" id="actBody"><div class="empty-comments">Chargement…</div></div>
+      <div class="mbody" id="actBody"><div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div></div>
       <div class="mfoot" id="actFoot"></div>
     </div>
   </div>
@@ -706,11 +685,22 @@
       // Bénéfices cumulés par vendeur, sur les devis réellement signés/terminés
       const nicolasNet = signes.reduce((s, d) => s + (d.nicolas_net || 0), 0);
       const yannickNet = signes.reduce((s, d) => s + (d.yannick_net || 0), 0);
+      // Sparkline « encaissé sur 6 mois » sous le KPI or : la tendance en un regard.
+      // Série depuis les paiements réels des factures — '' si tout est à zéro (pas de fausse courbe).
+      const sparkEncaisse = (() => {
+        if (!window.SSUI.sparkline) return '';
+        const keys = [];
+        const d0 = new Date();
+        for (let i = 5; i >= 0; i--) { const d = new Date(d0.getFullYear(), d0.getMonth() - i, 1); keys.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); }
+        const by = {}; keys.forEach(k => by[k] = 0);
+        FACTURES.forEach(f => (f.paiements || []).forEach(p => { const k = String(p.date || '').slice(0, 7); if (by[k] != null) by[k] += Number(p.montant) || 0; }));
+        return window.SSUI.sparkline(keys.map(k => by[k]));
+      })();
       // Les valeurs sont posées à 0 puis animées en « odomètre » (voir SSUI.countUp) : le relevé
       // se stabilise sous les yeux au lieu d'apparaître d'un bloc. data-v porte la valeur réelle.
       el('kpis').innerHTML = `
         <div class="kpi accent"><div class="kpi-label">Devis</div><div class="kpi-value" data-v="${total}" data-fmt="int">0</div><div class="kpi-sub">${envoyes.length} en attente client</div></div>
-        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div><div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
+        <div class="kpi gold"><div class="kpi-label">Encaissé</div><div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div>${sparkEncaisse ? `<div style="margin-top:4px;color:var(--accent-2);">${sparkEncaisse}</div>` : ''}<div class="kpi-sub">déjà payé par les clients${totalFacture ? ' · ' + fmtEur(totalFacture) + ' facturé' : ''}</div></div>
         <div class="kpi ok"><div class="kpi-label">Signés / terminés</div><div class="kpi-value" data-v="${signes.length}" data-fmt="int">0</div><div class="kpi-sub">${fmtEur(caSigne)} signés</div></div>
         <div class="kpi accent"><div class="kpi-label">Bénéfice Nicolas</div><div class="kpi-value" data-v="${nicolasNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>
         <div class="kpi gold"><div class="kpi-label">Bénéfice Yannick</div><div class="kpi-value" data-v="${yannickNet}" data-fmt="eur">—</div><div class="kpi-sub">devis signés/terminés</div></div>`;
@@ -913,7 +903,7 @@
         if (!id || !kind || !document.contains(slot)) return;
         ensureEl();
         previewEl.classList.add('open');
-        previewEl.innerHTML = '<div class="mp-empty">Chargement…</div>';
+        previewEl.innerHTML = '<div style="padding:6px"><div class="skl" style="height:64px;width:224px"></div></div>';
         position(slot);
         // Cache court (10 s) : évite de recharger le devis à chaque survol, mais se rafraîchit
         // rapidement après un ajout/suppression de note ou un changement de statut.
@@ -1106,7 +1096,7 @@
     window.openComments = async (id) => {
       cmDevisId = id;
       setText('cmDevisId', '#' + id);
-      el('cmList').innerHTML = '<div class="empty-comments">Chargement…</div>';
+      el('cmList').innerHTML = '<div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div>';
       el('modalComments').classList.add('open');
       // priorité à l'identité Cloudflare Access détectée ; sinon dernier auteur mémorisé
       window.SSNav.getIdentity().then((identity) => {
@@ -1279,7 +1269,7 @@
     window.openActivity = async (mode, preloaded) => {
       el('actTitle').textContent = mode === 'news' ? 'Quoi de neuf depuis ta dernière visite' : "Journal d'activité";
       el('actFoot').innerHTML = '';
-      el('actBody').innerHTML = '<div class="empty-comments">Chargement…</div>';
+      el('actBody').innerHTML = '<div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div>';
       el('modalActivity').classList.add('open');
       const list = preloaded || await SS.listActivity(mode === 'news' ? localStorage.getItem('ss_activity_seen') : null);
       renderActivity(list, mode);

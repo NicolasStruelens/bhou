@@ -108,12 +108,18 @@
       </section>
 
       <section class="section ticked" style="grid-column:1 / -1;">
-        <div class="section-head"><span class="section-title">Devis créés par mois</span><span class="section-code">SS // 12 MOIS</span></div>
+        <div class="section-head"><span class="section-title">Devis créés par mois</span>
+          <span style="display:inline-flex;gap:0.35rem;margin-left:auto;margin-right:var(--sp-3);">
+            <button class="chip" data-p="3" onclick="setPeriod(3)">3 mois</button>
+            <button class="chip" data-p="6" onclick="setPeriod(6)">6 mois</button>
+            <button class="chip active" data-p="12" onclick="setPeriod(12)">12 mois</button>
+          </span>
+          <span class="section-code" id="mcCode1">SS // 12 MOIS</span></div>
         <div class="section-body" id="monthlyCreated"></div>
       </section>
 
       <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-2);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Encaissé par mois (paiements reçus)</span><span class="section-code">SS // 12 MOIS</span></div>
+        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Encaissé par mois (paiements reçus)</span><span class="section-code" id="mcCode2">SS // 12 MOIS</span></div>
         <div class="section-body" id="monthlyPaid"></div>
       </section>
 
@@ -219,8 +225,19 @@
       `;
     }
 
+    // Période affichée sur les graphiques mensuels (3 / 6 / 12 mois). Les données restent en
+    // mémoire (_DF/_FA) : changer de période ne recharge rien, on ne fait que re-trancher.
+    let PERIOD = 12, _DF = [], _FA = [];
+    window.setPeriod = (n) => {
+      PERIOD = n;
+      document.querySelectorAll('[data-p]').forEach(c => c.classList.toggle('active', Number(c.dataset.p) === n));
+      const code = 'SS // ' + n + ' MOIS';
+      if (el('mcCode1')) el('mcCode1').textContent = code;
+      if (el('mcCode2')) el('mcCode2').textContent = code;
+      renderMonthly(_DF, _FA);
+    };
     function renderMonthly(devisFull, factures) {
-      const keys = last12MonthKeys();
+      const keys = last12MonthKeys().slice(-PERIOD);
       const createdCounts = {}; keys.forEach(k => createdCounts[k] = 0);
       devisFull.forEach(d => { const k = monthKey(d.date_creation); if (k && createdCounts[k] != null) createdCounts[k]++; });
       const maxCreated = Math.max(1, ...keys.map(k => createdCounts[k]));
@@ -322,6 +339,7 @@
         <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub">${signes.length} devis signés/terminés</div></div>
         <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
         <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
+      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
     // Marge (nicolas_net + yannick_net) répartie au prorata de la valeur catalogue de chaque
@@ -486,7 +504,8 @@
       renderKPIs(devisFull);
       renderByStatus(devisFull);
       renderPayments(factures || []);
-      renderMonthly(devisFull, factures || []);
+      _DF = devisFull; _FA = factures || [];   // conservés pour le sélecteur de période
+      renderMonthly(_DF, _FA);
       renderByType(devisFull);
       renderMargeByType(devisFull);
       renderBySeller(devisFull);

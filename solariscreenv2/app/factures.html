@@ -21,8 +21,6 @@
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; }
     .icon-btn:hover { border-color: var(--accent); color: var(--accent); } .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
-    .empty { text-align: center; padding: var(--sp-7); color: var(--text-muted); }
-    .empty svg { display: block; margin: 0 auto var(--sp-3); color: var(--text-subtle); }
 
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
     .modal-bg.open { display: flex; }
@@ -167,6 +165,7 @@
         <div class="kpi ok"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(encaisse)}</div></div>
         <div class="kpi"><div class="kpi-label">Restant dû</div><div class="kpi-value">${fmtEur(reste)}</div></div>
         <div class="kpi danger"><div class="kpi-label">En retard (${retard.length})</div><div class="kpi-value">${fmtEur(resteRetard)}</div></div>`;
+      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
     function render() {
@@ -179,7 +178,7 @@
       el('count').textContent = `${rows.length} facture(s)`;
 
       if (!rows.length) {
-        el('tableHost').innerHTML = `<div class="empty">${icon('filetext', 34)}${FACTURES.length ? 'Aucune facture ne correspond.' : 'Aucune facture. Clique sur <strong>+ Nouvelle facture</strong>.'}</div>`;
+        el('tableHost').innerHTML = `<div class="empty">${icon('filetext', 34)}${FACTURES.length ? 'Aucune facture ne correspond.' : `Aucune facture pour l'instant.<br><button class="btn btn-ghost btn-sm" onclick="openNew()">${icon('plus', 13)} Créer une facture</button>`}</div>`;
         return;
       }
 
@@ -198,6 +197,7 @@
                 <td class="num text-muted">${fmtEur(paidSum(f))}</td>
                 <td>${badgeFor(f)}</td>
                 <td><div class="actions">
+                  ${isOverdue(f) ? `<button class="icon-btn" title="Relancer le client par email (texte prêt)" aria-label="Relancer la facture ${f.id}" onclick="relancerFacture('${encodeURIComponent(f.id)}')" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);">${icon('clock', 15)}</button>` : ''}
                   <button class="icon-btn" title="Voir / PDF" aria-label="Voir la facture ${f.id} en PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 15)}</button>
                   <button class="icon-btn" title="Paiement" aria-label="Enregistrer un paiement pour ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>
                   <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer la facture ${f.id}" onclick="delFacture('${encodeURIComponent(f.id)}')">${icon('trash', 15)}</button>
@@ -378,6 +378,32 @@
       closeModal('modalPay');
       toast(resPay.offline ? 'Paiement enregistré (hors-ligne)' : 'Paiement enregistré ✓', resPay.offline ? 'warn' : 'ok');
       await load();
+    };
+
+    // ── Relance d'une facture en retard : email prêt à envoyer ──────────────────────────────
+    // Pendant financier des relances de devis : texte poli généré depuis la facture (montant,
+    // échéance, reste dû, IBAN, communication), copié dans le presse-papier ET ouvert dans le
+    // client mail. Sans email sur la fiche, le texte copié se colle dans un SMS/WhatsApp.
+    window.relancerFacture = (encId) => {
+      const f = FACTURES.find(x => x.id === decodeURIComponent(encId));
+      if (!f) return;
+      const cl = f.client || {};
+      const paye = paidSum(f);
+      const reste = Math.max(0, (f.total_ttc || 0) - paye);
+      const co = window.SS_COMPANY || {};
+      const body = `Bonjour ${[cl.prenom, cl.nom].filter(Boolean).join(' ')},\n\n`
+        + `Sauf erreur de notre part, la facture n°${f.id} d'un montant de ${fmtEur(f.total_ttc || 0)} (échéance le ${fmtDate(f.echeance)}) reste en attente de paiement`
+        + (paye > 0 ? ` — il reste ${fmtEur(reste)} à percevoir` : '') + `.\n\n`
+        + `Le règlement peut être effectué sur le compte ${co.iban || 'BE82 7320 7855 2368'} avec la communication « ${f.id} ».\n\n`
+        + `Si le paiement a été effectué ces derniers jours, merci de ne pas tenir compte de ce message.\n\nBien à vous,\n${co.name || 'SolariScreen'}`;
+      try { navigator.clipboard.writeText(body); } catch (e) {}
+      const email = String(cl.email || '').split(',')[0].trim();
+      if (email) {
+        location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Rappel de paiement — facture ' + f.id + ' (SolariScreen)') + '&body=' + encodeURIComponent(body);
+        toast('Email de rappel préparé — le texte est aussi copié ✓', 'ok', 3500);
+      } else {
+        toast('Pas d\'email sur cette facture — texte de rappel copié : colle-le dans un SMS ou WhatsApp.', 'warn', 6000);
+      }
     };
 
     window.delFacture = async (encId) => {
