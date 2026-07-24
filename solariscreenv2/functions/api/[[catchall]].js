@@ -348,6 +348,7 @@ export async function onRequest(context) {
                IFNULL(CAST(json_extract(data, '$.client_declined')      AS INTEGER), 0) AS client_declined,
                IFNULL(CAST(json_extract(data, '$.client_question_open') AS INTEGER), 0) AS client_question_open,
                json_extract(data, '$.review_views') AS review_views_json,
+               (json_extract(data, '$.review_token') IS NOT NULL) AS has_review_link,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                IFNULL(json_array_length(data, '$.chantier_photos'), 0) AS chantier_photos_count,
                json_extract(data, '$.date_envoi') AS date_envoi,
