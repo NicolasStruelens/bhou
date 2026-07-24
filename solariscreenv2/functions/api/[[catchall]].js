@@ -147,7 +147,11 @@ export async function onRequest(context) {
       const now = new Date();
       const views = d.review_views || [];
       const last = views.length ? new Date(views[views.length - 1]) : null;
-      if (!last || (now - last) > 10000) {
+      // On NE compte PAS les consultations de Nicolas/Yannick eux-mêmes (ils ouvrent le lien pour
+      // vérifier la page). Leur navigateur signale `staff=1` (posé une fois qu'ils se sont
+      // authentifiés dans l'ERP — voir nav.js). Un client, lui, n'a jamais ce marqueur → compté.
+      const isStaff = url.searchParams.get('staff') === '1';
+      if (!isStaff && (!last || (now - last) > 10000)) {
         d.review_views = views.concat([now.toISOString()]).slice(-50);
         // Écriture CIBLÉE de la seule clé review_views — surtout PAS upsertDevis(d), qui
         // réécrirait le devis ENTIER depuis notre lecture : toute note/statut enregistré par
@@ -293,6 +297,7 @@ export async function onRequest(context) {
                        json_set(data, '$.comments', json(COALESCE(json_extract(data, '$.comments'), '[]'))),
                        '$.comments[#]', json(?1)),
                      '$.comments_count', COALESCE(json_array_length(data, '$.comments'), 0) + 1,
+                     '$.client_question_open', json('true'),
                      '$.date_modification', ?2),
             date_modification = ?2 ${WHERE.replace('?', '?3')}`)
           .bind(comment, nowIso, token).run();
@@ -336,6 +341,8 @@ export async function onRequest(context) {
                json_extract(data, '$.probabilite') AS probabilite,
                IFNULL(CAST(json_extract(data, '$.client_accepted') AS INTEGER), 0) AS client_accepted,
                json_extract(data, '$.client_accepted_at') AS client_accepted_at,
+               IFNULL(CAST(json_extract(data, '$.client_declined')      AS INTEGER), 0) AS client_declined,
+               IFNULL(CAST(json_extract(data, '$.client_question_open') AS INTEGER), 0) AS client_question_open,
                json_extract(data, '$.review_views') AS review_views_json,
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                IFNULL(json_array_length(data, '$.chantier_photos'), 0) AS chantier_photos_count,
@@ -402,12 +409,16 @@ export async function onRequest(context) {
       };
       if (body.visible_client === true) comment.visible_client = true;
       const now = comment.date;
+      // Une réponse VISIBLE PAR LE CLIENT referme la question en attente (le voyant « question
+      // client sans réponse » du dashboard s'éteint). Une note interne ne touche pas ce flag.
+      const closeQ = comment.visible_client ? "'$.client_question_open', json('false')," : '';
       const r = await env.DB.prepare(
         `UPDATE devis SET
            data = json_set(
                     json_insert(
                       json_set(data, '$.comments', json(COALESCE(json_extract(data, '$.comments'), '[]'))),
                       '$.comments[#]', json(?1)),
+                    ${closeQ}
                     '$.comments_count', COALESCE(json_array_length(data, '$.comments'), 0) + 1,
                     '$.date_modification', ?2),
            date_modification = ?2
