@@ -120,6 +120,7 @@
     };
     if (!editSpace.disabled) patch.space = editSpace.value;
     RA.updateNote(editTargetId, patch).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('edit', editModal.querySelector('.modal-card'));
       editModal.classList.remove('show');
       loadNotes();
       toast('Note mise à jour');
@@ -382,6 +383,7 @@
         if (!title || !title.trim()) return;
         state.collapsed.delete(n.id);
         RA.createNote({ title: title.trim(), kind: n.kind, parent_id: n.id }).then(function (res) {
+          if (window.RAUniverse) window.RAUniverse.emit('create', addChildBtn);
           state.lastAddedId = res.id;
           loadNotes();
         }).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -397,6 +399,7 @@
     delBtn.addEventListener('click', function () {
       if (!confirm('Mettre « ' + n.title + ' » (et ses branches) à la corbeille ?')) return;
       var row = delBtn.closest('.node, .root-card, .branch-row');
+      if (window.RAUniverse) window.RAUniverse.emit('delete', row || delBtn);
       if (row) row.classList.add('removing');
       setTimeout(function () {
         RA.deleteNote(n.id).then(function () {

@@ -4,7 +4,7 @@
   var systemModal = document.getElementById('systemModal');
   var systemInfo = document.getElementById('systemInfo');
   var backupList = document.getElementById('backupList');
-  var APP_VERSION = '52';
+  var APP_VERSION = '53';
 
   function statChip(value, label, warn) {
     var div = document.createElement('div');

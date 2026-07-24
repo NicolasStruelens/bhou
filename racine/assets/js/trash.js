@@ -28,6 +28,7 @@
     restoreBtn.title = 'Restaurer';
     restoreBtn.setAttribute('aria-label', 'Restaurer');
     restoreBtn.addEventListener('click', function () {
+      if (window.RAUniverse) window.RAUniverse.emit('restore', el);
       RA.restoreNote(n.id).then(function () { loadTrash(); loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(restoreBtn);
@@ -39,6 +40,7 @@
     purgeBtn.setAttribute('aria-label', 'Supprimer définitivement « ' + n.title + ' »');
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + n.title + ' » ?')) return;
+      if (window.RAUniverse) window.RAUniverse.emit('delete', el);
       el.classList.add('removing');
       setTimeout(function () {
         RA.purgeNote(n.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); el.classList.remove('removing'); });
@@ -78,6 +80,7 @@
     restoreBtn.className = 'btn restore-btn';
     restoreBtn.textContent = 'Restaurer';
     restoreBtn.addEventListener('click', function () {
+      if (window.RAUniverse) window.RAUniverse.emit('restore', card);
       RA.restoreClip(c.id).then(function () { loadTrash(); loadClips(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(restoreBtn);
@@ -87,6 +90,7 @@
     purgeBtn.textContent = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement cette entrée ?')) return;
+      if (window.RAUniverse) window.RAUniverse.emit('delete', card);
       card.classList.add('removing');
       setTimeout(function () {
         RA.purgeClip(c.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); card.classList.remove('removing'); });
@@ -124,6 +128,7 @@
     restoreBtn.className = 'btn restore-btn';
     restoreBtn.textContent = 'Restaurer';
     restoreBtn.addEventListener('click', function () {
+      if (window.RAUniverse) window.RAUniverse.emit('restore', card);
       RA.restoreRecipe(r.id).then(function () { loadTrash(); loadRecipes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(restoreBtn);
@@ -133,6 +138,7 @@
     purgeBtn.textContent = 'Supprimer définitivement';
     purgeBtn.addEventListener('click', function () {
       if (!confirm('Supprimer définitivement « ' + r.title + ' » ?')) return;
+      if (window.RAUniverse) window.RAUniverse.emit('delete', card);
       card.classList.add('removing');
       setTimeout(function () {
         RA.purgeRecipe(r.id).then(loadTrash).catch(function (err) { toast('Erreur : ' + err.message); card.classList.remove('removing'); });

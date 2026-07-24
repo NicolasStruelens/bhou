@@ -63,6 +63,7 @@
     var changedIds = ids.filter(function (id) { var n = byId(id); return n && !n.done; });
     if (!changedIds.length) return Promise.resolve();
     var element = options.element;
+    if (window.RAUniverse) window.RAUniverse.emit('harvest', element || document.querySelector('#finishModal .finish-root-card'));
     if (element) { bloom(element); element.classList.add('harvest-away'); }
     var delay = element ? 210 : 0;
     return new Promise(function (resolve) { setTimeout(resolve, delay); }).then(function () {
@@ -84,7 +85,8 @@
       throw err;
     });
   }
-  function reopenIds(ids) {
+  function reopenIds(ids, source) {
+    if (window.RAUniverse) window.RAUniverse.emit('restore', source);
     return Promise.all(ids.map(function (id) { return RA.updateNote(id, { done: false }); })).then(function () {
       optimisticDone(ids, false);
       return refreshAfterMutation();
@@ -158,6 +160,7 @@
     var root = byId(currentFinishId); if (!root) return;
     var branch = [root].concat(descendants(root.id)).filter(isActive);
     var previous = branch.map(function (n) { return { id: n.id, status: n.status || 'active' }; });
+    if (window.RAUniverse) window.RAUniverse.emit('rest', finishModal.querySelector('.finish-root-card'));
     finishModal.classList.remove('show');
     Promise.all(branch.map(function (n) { return RA.updateNote(n.id, { status: 'someday' }); })).then(function () {
       branch.forEach(function (n) { n.status = 'someday'; }); return refreshAfterMutation();
@@ -188,7 +191,7 @@
     var meta = document.createElement('p'); meta.textContent = spaceOf(note) + ' · ' + harvestDate(note) + (branchIds.length > 1 ? ' · branche de ' + branchIds.length + ' éléments' : ''); copy.appendChild(meta);
     if (note.content) { var snippet = document.createElement('small'); snippet.textContent = note.content.slice(0, 120); copy.appendChild(snippet); }
     card.appendChild(copy);
-    var reopen = document.createElement('button'); reopen.className = 'btn'; reopen.type = 'button'; reopen.textContent = branchIds.length > 1 ? 'Réouvrir la branche' : 'Réouvrir'; reopen.addEventListener('click', function () { reopenIds(branchIds).catch(function (err) { toast('Erreur : ' + err.message); }); }); card.appendChild(reopen);
+    var reopen = document.createElement('button'); reopen.className = 'btn'; reopen.type = 'button'; reopen.textContent = branchIds.length > 1 ? 'Réouvrir la branche' : 'Réouvrir'; reopen.addEventListener('click', function () { reopenIds(branchIds, card).catch(function (err) { toast('Erreur : ' + err.message); }); }); card.appendChild(reopen);
     return card;
   }
   function harvestGroup(container, title, items) {

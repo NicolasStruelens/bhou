@@ -17,7 +17,10 @@
     Promise.all([
       RA.updateNote(aId, { links: aLinks.join(',') }),
       RA.updateNote(bId, { links: bLinks.join(',') }),
-    ]).then(function () { loadNotes(); toast('Notes liées'); }).catch(function (err) { toast('Erreur : ' + err.message); });
+    ]).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('link', document.querySelector('.modal-backdrop.show .modal-card') || document.getElementById('graphCanvas'));
+      loadNotes(); toast('Notes liées');
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   function removeLink(aId, bId) {

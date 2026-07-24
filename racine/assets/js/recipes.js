@@ -108,6 +108,7 @@
     if (!title) { toast('Donne un nom à la recette'); titleInput.focus(); return; }
     if (!recipeDraftIngredients.length) { toast('Ajoute au moins un ingrédient'); recipeIngredientInput.focus(); return; }
     RA.createRecipe({ title: title, ingredients: recipeDraftIngredients }).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('create', document.querySelector('.recipe-form'));
       titleInput.value = '';
       recipeDraftIngredients = [];
       renderIngredientDraft();
@@ -167,6 +168,7 @@
     delBtn.setAttribute('aria-label', 'Mettre à la corbeille');
     delBtn.appendChild(icon('x'));
     delBtn.addEventListener('click', function () {
+      if (window.RAUniverse) window.RAUniverse.emit('delete', card);
       card.classList.add('removing');
       setTimeout(function () {
         RA.deleteRecipe(r.id).then(function () {

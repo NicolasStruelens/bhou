@@ -60,6 +60,7 @@
     payload.no_export = noExport;
 
     RA.createClip(payload).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('create', document.querySelector('.clip-form'));
       document.getElementById('clipContent').value = '';
       document.getElementById('clipLabel').value = '';
       document.getElementById('clipFile').value = '';
@@ -142,6 +143,7 @@
     delBtn.title = 'Mettre à la corbeille';
     delBtn.setAttribute('aria-label', 'Mettre à la corbeille');
     delBtn.addEventListener('click', function () {
+      if (window.RAUniverse) window.RAUniverse.emit('delete', card);
       card.classList.add('removing');
       setTimeout(function () {
         RA.deleteClip(c.id).then(function () {
@@ -340,4 +342,3 @@
       toast('Autorisation refusée pour lire le presse-papier');
     });
   });
-

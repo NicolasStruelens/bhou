@@ -241,8 +241,12 @@
     if (name === 'today') renderToday();
     if (name === 'graph') window.renderGraph();
     if (name === 'recipes') loadRecipes();
+    if (window.RAUniverse) {
+      var sceneSource = document.querySelector('.tab[data-view="' + name + '"]') || atelierToggle;
+      window.RAUniverse.setScene(name, sceneSource);
+    }
   }
-  document.querySelectorAll('.tab:not(.atelier-toggle)').forEach(function (tab) {
+  document.querySelectorAll('.tab[data-view]:not(.atelier-toggle)').forEach(function (tab) {
     tab.addEventListener('click', function () { switchTab(tab.dataset.view); });
   });
 

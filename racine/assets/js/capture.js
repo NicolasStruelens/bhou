@@ -148,6 +148,7 @@
       inbox: false,
     };
     RA.createNote(notePayload).then(function (res) {
+      if (window.RAUniverse) window.RAUniverse.emit('create', captureBar);
       captureInput.value = '';
       captureDetails.value = '';
       captureTags.value = '';
@@ -225,6 +226,7 @@
     if (!payload.title) return;
     document.getElementById('depositSave').disabled = true;
     RA.createNote(payload).then(function (res) {
+      if (window.RAUniverse) window.RAUniverse.emit('create', depositModal.querySelector('.deposit-card'));
       closeDepositModal();
       depositInput.value = '';
       if (res.queued) {

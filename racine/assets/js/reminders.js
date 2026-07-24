@@ -109,6 +109,7 @@
     if (!remindInput.value) { toast('Choisis une date'); return; }
     var ts = new Date(remindInput.value).getTime();
     RA.updateNote(remindTargetId, { remind_at: ts }).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('reminder', remindModal.querySelector('.modal-card'));
       remindModal.classList.remove('show');
       toast('Rappel programmé');
       loadNotes();

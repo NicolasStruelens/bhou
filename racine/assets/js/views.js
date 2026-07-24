@@ -148,6 +148,7 @@
     actionBtn(secondary, 'Pas aujourd\'hui', function () { skipToday(n.id); renderClairiere(); });
     actionBtn(secondary, 'Ne plus proposer', function () {
       if (!confirm('Mettre « ' + n.title + ' » à la corbeille ?')) return;
+      if (window.RAUniverse) window.RAUniverse.emit('delete', card);
       RA.deleteNote(n.id).then(function () { loadNotes(); }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
 
@@ -223,6 +224,7 @@
     RA.createNote({ title: title, kind: 'idee', space: effectiveSpace(bundle.notes[0]) }).then(function (res) {
       return Promise.all(bundle.notes.map(function (n) { return RA.updateNote(n.id, { parent_id: res.id, inbox: false }); }));
     }).then(function () {
+      if (window.RAUniverse) window.RAUniverse.emit('create', document.getElementById('bundleSuggestion'));
       loadNotes();
       toast(bundle.notes.length + ' idées regroupées sous « ' + title + ' »');
     }).catch(function (err) { toast('Erreur : ' + err.message); });

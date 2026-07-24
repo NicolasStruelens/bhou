@@ -94,6 +94,7 @@
   }
 
   document.getElementById('focusModeBtn').addEventListener('click', function () {
+    if (window.RAUniverse) window.RAUniverse.emit('focus', document.getElementById('focusModeBtn'));
     focusIntro.classList.remove('hidden');
     focusQueueView.classList.add('hidden');
     focusModal.classList.add('show');
