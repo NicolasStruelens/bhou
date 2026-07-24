@@ -206,15 +206,25 @@
     .m-sig.muted { color: var(--text-muted); border-color: var(--border-strong); background: transparent; }
     @media (prefers-reduced-motion: no-preference) { .m-sig.hot { animation: mHotChip 2.6s ease-in-out infinite; } }
     @keyframes mHotChip { 0%,100% { box-shadow: 0 0 14px -3px color-mix(in srgb, var(--accent-2) 55%, transparent); } 50% { box-shadow: 0 0 0 0 transparent; } }
-    .m-right { min-width: 116px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .m-right { min-width: 116px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+    .m-right-top { display: flex; align-items: center; gap: 9px; }
     .m-right .price { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-md); color: var(--text); white-space: nowrap; }
-    /* Actions = barre FLOTTANTE (position:absolute) révélée au survol. Absolue = hors du flux → elle
-       ne pousse plus la hauteur de la ligne (sinon 8 boutons empilés dans la colonne étroite = ligne
-       de 260 px). Au repos : invisible et non cliquable ; au survol : apparaît en haut à droite. */
-    .mrow .actions { position: absolute; top: 8px; right: 12px; display: flex; gap: 5px; flex-wrap: nowrap; align-items: center;
-      padding: 5px 6px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
-      opacity: 0; pointer-events: none; transform: translateY(-4px); transition: opacity var(--t-fast), transform var(--t-fast); z-index: 3; }
-    .mrow:hover .actions, .mrow:focus-within .actions { opacity: 1; pointer-events: auto; transform: none; }
+    /* Bouton ⋯ (ouvre le menu d'actions) — discret au repos, se réveille au survol de la ligne.
+       Plus de barre flottante qui recouvrait le prix : un seul point d'entrée, un menu propre à libellés. */
+    .m-more { width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-subtle);
+      cursor: pointer; display: grid; place-items: center; flex: none; transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast); }
+    .mrow:hover .m-more { border-color: var(--border); color: var(--text-muted); }
+    .m-more:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+    /* Menu d'actions flottant (mêmes codes visuels que le menu de statut) */
+    .actions-menu { position: fixed; z-index: 1300; min-width: 210px; background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: var(--r-md); box-shadow: var(--shadow); padding: 5px; display: none; flex-direction: column; }
+    .actions-menu.open { display: flex; }
+    .actions-menu button { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 8px 11px; border: 0;
+      background: transparent; color: var(--text); font-size: var(--fs-sm); border-radius: var(--r-sm); cursor: pointer; }
+    .actions-menu button:hover { background: var(--surface-2); }
+    .actions-menu button svg { width: 16px; height: 16px; color: var(--text-subtle); flex: none; }
+    .actions-menu button.danger { color: var(--danger); } .actions-menu button.danger svg { color: var(--danger); }
+    .actions-menu .am-sep { height: 1px; background: var(--border); margin: 4px 3px; }
     @media (max-width: 860px) {
       .mrow { grid-template-columns: auto minmax(0, 1fr) auto; }
       .m-signal { grid-column: 2 / -1; justify-self: start; margin-top: 6px; }
@@ -222,9 +232,6 @@
     @media (max-width: 560px) {
       .mrow { grid-template-columns: auto minmax(0, 1fr); }
       .m-right { grid-column: 1 / -1; align-items: flex-start; margin-top: 8px; }
-      /* Tactile : pas de survol → actions visibles en ligne normale (pas de barre flottante). */
-      .mrow .actions { position: static; opacity: 1; pointer-events: auto; transform: none; background: transparent;
-        border: 0; box-shadow: none; padding: 0; margin-top: 8px; flex-wrap: wrap; }
     }
 
     /* Aperçu flottant au survol des médias (miniatures photos / fil de notes) — chargé à la demande. */
@@ -977,18 +984,11 @@
           </div>
           <div class="m-signal">${signalChip(d)}</div>
           <div class="m-right">
-            <span class="price">${fmtEur(d.ttc)}</span>
-            ${pay ? `<div class="m-pay">${pay}</div>` : ''}
-            <div class="actions">
-              <button class="icon-btn" title="Notes internes" aria-label="Notes internes du devis ${d.id}" onclick="openComments('${d.id}')" style="${d.comments ? 'color:var(--accent-2);border-color:color-mix(in srgb, var(--accent-2) 45%, transparent);' : ''}">${icon('message', 15)}</button>
-              <button class="icon-btn" title="Éditer" aria-label="Éditer le devis ${d.id}" onclick="location.href='simulateur.html?id=${d.id}'">${icon('edit', 15)}</button>
-              <button class="icon-btn" title="Dupliquer" aria-label="Dupliquer le devis ${d.id}" onclick="duplicate('${d.id}')">${icon('copy', 15)}</button>
-              <button class="icon-btn" title="Devis / PDF" aria-label="Voir le devis ${d.id} en PDF" onclick="location.href='devis.html?id=${d.id}'">${icon('filetext', 15)}</button>
-              ${['signe', 'termine'].includes(d.statut) ? `<button class="icon-btn" title="Liste de pose" aria-label="Liste de pose du devis ${d.id}" onclick="location.href='picking.html?id=${d.id}'">${icon('list', 15)}</button>` : ''}
-              ${d.statut === 'refuse' && !d.archive ? `<button class="icon-btn" title="Archiver" aria-label="Archiver le devis ${d.id}" onclick="archiveDevis('${d.id}', true)">${icon('download', 15)}</button>` : ''}
-              ${d.archive ? `<button class="icon-btn" title="Désarchiver" aria-label="Désarchiver le devis ${d.id}" onclick="archiveDevis('${d.id}', false)">${icon('upload', 15)}</button>` : ''}
-              <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer le devis ${d.id}" onclick="del('${d.id}')">${icon('trash', 15)}</button>
+            <div class="m-right-top">
+              <button class="m-more" onclick="event.stopPropagation();openActionsMenu(event,'${d.id}')" title="Actions" aria-label="Actions du devis ${d.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+              <span class="price">${fmtEur(d.ttc)}</span>
             </div>
+            ${pay ? `<div class="m-pay">${pay}</div>` : ''}
           </div>
         </div>`;
       }).join('')}</div>`;
@@ -1127,6 +1127,43 @@
       stMenuEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 195)) + 'px';
       stMenuEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 320) + 'px';
       stMenuEl.classList.add('open');
+    };
+
+    // ── Menu d'actions par devis (bouton ⋯) — remplace la barre d'icônes flottante ────────────
+    let amEl = null;
+    function ensureActionsMenu() {
+      if (amEl) return;
+      amEl = document.createElement('div');
+      amEl.className = 'actions-menu';
+      document.body.appendChild(amEl);
+      document.addEventListener('click', (e) => {
+        if (amEl.classList.contains('open') && !amEl.contains(e.target) && !e.target.closest('.m-more')) amEl.classList.remove('open');
+      }, true);
+      window.addEventListener('scroll', () => amEl.classList.remove('open'), true);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') amEl.classList.remove('open'); });
+    }
+    window.closeActionsMenu = () => { if (amEl) amEl.classList.remove('open'); };
+    window.openActionsMenu = (e, id) => {
+      e.stopPropagation();
+      ensureActionsMenu();
+      const d = DEVIS.find(x => x.id === id) || {};
+      const it = (ic, label, act, danger) => `<button class="${danger ? 'danger' : ''}" onclick="closeActionsMenu();${act}">${icon(ic, 16)} ${label}</button>`;
+      let html = it('message', 'Notes internes', `openComments('${id}')`)
+        + it('edit', 'Éditer le devis', `location.href='simulateur.html?id=${id}'`)
+        + it('copy', 'Dupliquer', `duplicate('${id}')`)
+        + it('filetext', 'Devis / PDF', `location.href='devis.html?id=${id}'`);
+      if (['signe', 'termine'].includes(d.statut)) html += it('list', 'Liste de pose', `location.href='picking.html?id=${id}'`);
+      if (d.statut === 'refuse' && !d.archive) html += it('download', 'Archiver', `archiveDevis('${id}', true)`);
+      if (d.archive) html += it('upload', 'Désarchiver', `archiveDevis('${id}', false)`);
+      html += '<div class="am-sep"></div>' + it('trash', 'Supprimer', `del('${id}')`, true);
+      amEl.innerHTML = html;
+      amEl.classList.add('open');   // ouvrir d'abord pour connaître les dimensions
+      const r = e.currentTarget.getBoundingClientRect();
+      const mw = amEl.offsetWidth, mh = amEl.offsetHeight;
+      let left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8));   // bord droit du menu aligné sur le bouton
+      let top = (r.bottom + 6 + mh > window.innerHeight - 8) ? Math.max(8, r.top - mh - 6) : r.bottom + 6;   // bascule au-dessus si pas de place
+      amEl.style.left = left + 'px';
+      amEl.style.top = top + 'px';
     };
     const RAISON_REFUS = ['Prix', 'Délai', 'Concurrent', 'Projet reporté', 'Pas de réponse', 'Autre'];
     window.pickStatus = async (st) => {
