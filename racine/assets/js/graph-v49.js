@@ -22,6 +22,20 @@
   var inspector = document.getElementById('graphInspector');
   var nodeList = document.getElementById('graphNodeList');
   var stats = document.getElementById('graphStats');
+  var listWrap = document.querySelector('.graph-accessible-list-wrap');
+  var listToggle = document.getElementById('graphListToggle');
+
+  function setListCollapsed(collapsed) {
+    listWrap.classList.toggle('is-collapsed', collapsed);
+    listToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    listToggle.textContent = collapsed ? 'Afficher la liste' : 'Réduire';
+    try { localStorage.setItem('racine_graph_list_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+  }
+
+  listToggle.addEventListener('click', function () {
+    setListCollapsed(!listWrap.classList.contains('is-collapsed'));
+  });
+  try { setListCollapsed(localStorage.getItem('racine_graph_list_collapsed') === '1'); } catch (e) {}
 
   function rootOf(n) {
     var byId = {};

@@ -15,6 +15,8 @@
   // ================= CLIPS =================
 
   var clipFileData = null;
+  var clipQuery = '';
+  var clipFilter = 'all';
 
   document.getElementById('clipFile').addEventListener('change', function (e) {
     var file = e.target.files[0];
@@ -67,6 +69,7 @@
       document.getElementById('clipBurn').checked = false;
       document.getElementById('clipNoExport').checked = false;
       clipFileData = null;
+      updateClipSafety();
       loadClips();
       toast('Envoyé — récupérable sur tes autres appareils');
     }).catch(function (err) { toast('Erreur : ' + err.message); });
@@ -85,15 +88,56 @@
     return null;
   }
 
+  function clipTypeKey(c) {
+    if (c.kind === 'file') return 'file';
+    var detected = detectClipType(c.preview);
+    if (!detected) return 'text';
+    if (detected.label === 'URL') return 'url';
+    if (detected.label === 'commande') return 'command';
+    if (detected.label === 'probable secret') return 'secret';
+    if (detected.label === 'JSON') return 'json';
+    return 'text';
+  }
+
+  function updateClipSafety() {
+    var text = document.getElementById('clipContent').value;
+    var detected = detectClipType(text);
+    var hint = document.getElementById('clipSafetyHint');
+    var sensitive = detected && detected.secret;
+    hint.classList.toggle('hidden', !sensitive);
+    var applyBtn = document.getElementById('clipSafetyApply');
+    if (!sensitive) {
+      applyBtn.textContent = 'Protéger automatiquement';
+      return;
+    }
+    document.getElementById('clipSafetyTitle').textContent = 'Ce texte ressemble à un secret';
+    document.getElementById('clipSafetyText').textContent = 'Un clic active expiration 1 h, lecture unique et exclusion des sauvegardes.';
+    applyBtn.textContent = document.getElementById('clipBurn').checked && document.getElementById('clipNoExport').checked
+      ? 'Protection appliquée'
+      : 'Protéger automatiquement';
+  }
+
+  document.getElementById('clipContent').addEventListener('input', updateClipSafety);
+  document.getElementById('clipSafetyApply').addEventListener('click', function () {
+    document.getElementById('clipTtl').value = '3600000';
+    document.getElementById('clipBurn').checked = true;
+    document.getElementById('clipNoExport').checked = true;
+    document.getElementById('clipSafetyApply').textContent = 'Protection appliquée';
+    if (window.RAUniverse) window.RAUniverse.emit('focus', document.getElementById('clipSafetyHint'));
+    toast('Protégé : 1 h, lecture unique, jamais exporté');
+  });
+
   function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' o';
     return (bytes / 1024).toFixed(1) + ' Ko';
   }
 
   function renderClip(c) {
+    var typeKey = clipTypeKey(c);
     var card = document.createElement('div');
-    card.className = 'clip-card' + (c.pinned ? ' pinned' : '');
+    card.className = 'clip-card clip-' + typeKey + (c.pinned ? ' pinned' : '');
     card.dataset.clipId = c.id;
+    card.dataset.clipType = typeKey;
 
     var head = document.createElement('div');
     head.className = 'clip-card-head';
@@ -163,10 +207,27 @@
     if (c.kind === 'file') {
       preview.appendChild(icon('paperclip', 'icon-inline'));
       preview.appendChild(document.createTextNode(' ' + c.filename + ' · ' + formatSize(c.size)));
+    } else if (typeKey === 'secret') {
+      preview.className = 'clip-preview secret-mask';
+      preview.title = 'Cliquer pour afficher pendant 5 secondes';
+      preview.setAttribute('aria-label', 'Secret masqué. Cliquer pour afficher pendant cinq secondes.');
+      preview.addEventListener('click', function () {
+        if (preview.classList.contains('revealed')) {
+          preview.classList.remove('revealed');
+          preview.textContent = '';
+          return;
+        }
+        preview.textContent = c.preview || '';
+        preview.classList.add('revealed');
+        setTimeout(function () {
+          preview.classList.remove('revealed');
+          preview.textContent = '';
+        }, 5000);
+      });
     } else {
       preview.textContent = c.preview || '';
     }
-    if (isLong) preview.addEventListener('click', function () { preview.classList.toggle('expanded'); });
+    if (isLong && typeKey !== 'secret') preview.addEventListener('click', function () { preview.classList.toggle('expanded'); });
     card.appendChild(preview);
 
     var meta = document.createElement('div');
@@ -202,6 +263,36 @@
       }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(copyBtn);
+
+    if (typeKey === 'url') {
+      var openBtn = document.createElement('button');
+      openBtn.className = 'btn';
+      openBtn.textContent = 'Ouvrir';
+      openBtn.addEventListener('click', function () {
+        var a = document.createElement('a');
+        a.href = c.preview;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.click();
+      });
+      actions.appendChild(openBtn);
+    }
+
+    if (typeKey === 'json') {
+      var formatBtn = document.createElement('button');
+      formatBtn.className = 'btn';
+      formatBtn.textContent = 'Formater JSON';
+      formatBtn.addEventListener('click', function () {
+        RA.getClip(c.id).then(function (data) {
+          return navigator.clipboard.writeText(JSON.stringify(JSON.parse(data.clip.content), null, 2));
+        }).then(function () {
+          toast('JSON formaté et copié');
+        }).catch(function () {
+          toast('Impossible de formater ce JSON');
+        });
+      });
+      actions.appendChild(formatBtn);
+    }
 
     if (c.kind !== 'file') {
       var copyDelBtn = document.createElement('button');
@@ -296,15 +387,48 @@
     return card;
   }
 
+  function clipMatches(c) {
+    var type = clipTypeKey(c);
+    var hay = ((c.label || '') + ' ' + (c.preview || '') + ' ' + (c.filename || '') + ' ' + (c.device || '')).toLowerCase();
+    if (clipQuery && hay.indexOf(clipQuery) === -1) return false;
+    if (clipFilter === 'pinned') return !!c.pinned;
+    if (clipFilter !== 'all') return type === clipFilter;
+    return true;
+  }
+
+  function renderClipOverview(clips) {
+    var favorites = clips.filter(function (c) { return !!c.pinned; }).length;
+    var secrets = clips.filter(function (c) { return clipTypeKey(c) === 'secret'; }).length;
+    var soon = clips.filter(function (c) { return c.expires_at && c.expires_at > Date.now() && c.expires_at - Date.now() < 6 * 60 * 60 * 1000; }).length;
+    var bits = [clips.length + (clips.length > 1 ? ' transferts' : ' transfert')];
+    if (favorites) bits.push(favorites + (favorites > 1 ? ' favoris' : ' favori'));
+    if (secrets) bits.push(secrets + (secrets > 1 ? ' secrets masqués' : ' secret masqué'));
+    if (soon) bits.push(soon + (soon > 1 ? ' expirent bientôt' : ' expire bientôt'));
+    document.getElementById('clipOverview').textContent = bits.join(' · ');
+  }
+
+  function renderClipsView() {
+    var clips = state.clips || [];
+    var visible = clips.filter(clipMatches);
+    var grid = document.getElementById('clipGrid');
+    grid.innerHTML = '';
+    document.getElementById('clipEmpty').style.display = clips.length ? 'none' : 'block';
+    document.getElementById('clipCount').textContent = clips.length ? clips.length : '';
+    visible.forEach(function (c) { grid.appendChild(renderClip(c)); });
+    if (clips.length && !visible.length) {
+      var noMatch = document.createElement('div');
+      noMatch.className = 'clip-filter-empty';
+      noMatch.textContent = 'Aucun transfert ici. Change le filtre ou la recherche.';
+      grid.appendChild(noMatch);
+    }
+    renderClipOverview(clips);
+    updateClipCountdowns();
+  }
+
   function loadClips() {
     return RA.listClips().then(function (data) {
       state.clips = data.clips;
-      var grid = document.getElementById('clipGrid');
-      grid.innerHTML = '';
-      document.getElementById('clipEmpty').style.display = data.clips.length ? 'none' : 'block';
-      document.getElementById('clipCount').textContent = data.clips.length ? data.clips.length : '';
-      data.clips.forEach(function (c) { grid.appendChild(renderClip(c)); });
-      updateClipCountdowns();
+      renderClipsView();
       if (document.getElementById('view-today').classList.contains('active')) renderToday();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
@@ -337,8 +461,31 @@
     navigator.clipboard.readText().then(function (text) {
       if (!text) { toast('Le presse-papier est vide'); return; }
       document.getElementById('clipContent').value = text;
+      updateClipSafety();
       toast('Collé depuis le presse-papier');
     }).catch(function () {
       toast('Autorisation refusée pour lire le presse-papier');
     });
+  });
+
+  document.getElementById('clipSearch').addEventListener('input', function (e) {
+    clipQuery = e.target.value.trim().toLowerCase();
+    renderClipsView();
+  });
+  document.querySelectorAll('[data-clip-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      clipFilter = btn.dataset.clipFilter;
+      document.querySelectorAll('[data-clip-filter]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      renderClipsView();
+    });
+  });
+  document.getElementById('clipCopyLatest').addEventListener('click', function () {
+    var latest = (state.clips || []).filter(function (c) { return c.kind !== 'file'; }).slice().sort(function (a, b) { return b.created_at - a.created_at; })[0];
+    if (!latest) { toast('Aucun texte récent à copier'); return; }
+    RA.getClip(latest.id).then(function (data) {
+      return navigator.clipboard.writeText(data.clip.content);
+    }).then(function () {
+      toast('Dernier transfert copié');
+      if (window.RAUniverse) window.RAUniverse.emit('link', document.getElementById('clipCopyLatest'));
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
   });

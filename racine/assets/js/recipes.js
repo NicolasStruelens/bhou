@@ -51,16 +51,73 @@
     return String(Math.round(qty * 100) / 100);
   }
 
-  function formatIngredientLabel(ing) {
+  function formatIngredientLabel(ing, scale) {
+    scale = scale || 1;
     if (!ing.qty) return ing.name;
-    if (ing.unit === 'g' || ing.unit === 'kg') return formatQty(ing.qty) + ' ' + ing.unit + ' ' + ing.name;
-    return formatQty(ing.qty) + ' ' + ing.name;
+    var qty = Number(ing.qty) * scale;
+    if (ing.unit === 'g' || ing.unit === 'kg') return formatQty(qty) + ' ' + ing.unit + ' ' + ing.name;
+    return formatQty(qty) + ' ' + ing.name;
   }
 
   var recipeDraftIngredients = [];
   var recipeIngredientInput = document.getElementById('recipeIngredientInput');
   var recipeIngredientQty = document.getElementById('recipeIngredientQty');
   var recipeIngredientUnit = document.getElementById('recipeIngredientUnit');
+  var recipeQuery = '';
+  var recipeFilter = 'all';
+  var recipeSuggestionCursor = 0;
+  var recipeSuggestionId = null;
+  var recipeMultipliers = {};
+  var cookingRecipe = null;
+  var cookingWakeLock = null;
+
+  function recipeReadiness(ingredients) {
+    var total = ingredients.length;
+    var have = ingredients.filter(function (i) { return !!i.have; }).length;
+    var missing = total - have;
+    return { total: total, have: have, missing: missing, ratio: total ? have / total : 0 };
+  }
+
+  function recipeMatches(r) {
+    var ingredients = parseIngredients(r);
+    var readiness = recipeReadiness(ingredients);
+    var hay = (r.title + ' ' + ingredients.map(function (i) { return i.name; }).join(' ')).toLowerCase();
+    if (recipeQuery && hay.indexOf(recipeQuery) === -1) return false;
+    if (recipeFilter === 'ready') return readiness.total > 0 && readiness.missing === 0;
+    if (recipeFilter === 'close') return readiness.missing > 0 && readiness.missing <= 2;
+    return true;
+  }
+
+  function rankedRecipes(recipes) {
+    return recipes.slice().sort(function (a, b) {
+      var ar = recipeReadiness(parseIngredients(a));
+      var br = recipeReadiness(parseIngredients(b));
+      return ar.missing - br.missing || br.ratio - ar.ratio || br.total - ar.total || a.title.localeCompare(b.title, 'fr');
+    });
+  }
+
+  function renderRecipeOracle(recipes) {
+    var title = document.getElementById('recipeSuggestionTitle');
+    var meta = document.getElementById('recipeSuggestionMeta');
+    var openBtn = document.getElementById('recipeSuggestionOpen');
+    var ranked = rankedRecipes(recipes);
+    if (!ranked.length) {
+      recipeSuggestionId = null;
+      title.textContent = 'Racine cherche ce que tu peux cuisiner sans te disperser.';
+      meta.textContent = 'Ajoute tes recettes : la meilleure option apparaîtra ici.';
+      openBtn.disabled = true;
+      return;
+    }
+    recipeSuggestionCursor = recipeSuggestionCursor % ranked.length;
+    var choice = ranked[recipeSuggestionCursor];
+    var readiness = recipeReadiness(parseIngredients(choice));
+    recipeSuggestionId = choice.id;
+    title.textContent = choice.title;
+    if (!readiness.missing) meta.textContent = 'Tout est déjà là. Tu peux commencer sans passer par les courses.';
+    else if (readiness.missing === 1) meta.textContent = 'Il manque une seule chose : c’est la branche la plus facile à terminer.';
+    else meta.textContent = readiness.missing + ' ingrédients manquent sur ' + readiness.total + ' — la meilleure option disponible.';
+    openBtn.disabled = false;
+  }
 
   function renderIngredientDraft() {
     var el = document.getElementById('recipeIngredientDraft');
@@ -121,11 +178,44 @@
     try { return JSON.parse(r.ingredients || '[]'); } catch (e) { return []; }
   }
 
-  function formatMissingList(title, ingredients) {
+  function formatMissingList(title, ingredients, scale) {
     var missing = ingredients.filter(function (i) { return !i.have; });
     if (!missing.length) return null;
     var lines = ['Liste de courses' + (title ? ' — ' + title : '') + ' :'];
-    missing.forEach(function (i) { lines.push('* ' + formatIngredientLabel(i)); });
+    missing.forEach(function (i) { lines.push('* ' + formatIngredientLabel(i, scale)); });
+    return lines.join('\n');
+  }
+
+  function ingredientSection(name) {
+    var n = name.toLowerCase();
+    if (/(pomme|poire|banane|orange|citron|fraise|framboise|tomate|concombre|courgette|aubergine|poivron|oignon|ail|pomme de terre|carotte|poireau|chou|brocoli|épinard|salade|radis|champignon|avocat|herbe|persil|basilic)/.test(n)) return 'Fruits et légumes';
+    if (/(lait|crème|beurre|œuf|oeuf|yaourt|fromage|mozzarella|parmesan|feta|poulet|bœuf|boeuf|porc|jambon|saumon|poisson|crevette)/.test(n)) return 'Frais';
+    if (/(surgelé|surgelée|glace)/.test(n)) return 'Surgelés';
+    return 'Placard et autres';
+  }
+
+  function aggregateMissingList(recipes) {
+    var grouped = {};
+    recipes.forEach(function (r) {
+      var scale = recipeMultipliers[r.id] || 1;
+      parseIngredients(r).filter(function (i) { return !i.have; }).forEach(function (i) {
+        var unit = i.unit || 'piece';
+        var key = i.name.trim().toLowerCase() + '|' + unit;
+        if (!grouped[key]) grouped[key] = { name: i.name.trim(), unit: unit, qty: i.qty ? 0 : null, section: ingredientSection(i.name) };
+        if (i.qty && grouped[key].qty !== null) grouped[key].qty += Number(i.qty) * scale;
+        else if (!i.qty) grouped[key].qty = null;
+      });
+    });
+    var items = Object.keys(grouped).map(function (key) { return grouped[key]; });
+    if (!items.length) return null;
+    var order = ['Fruits et légumes', 'Frais', 'Surgelés', 'Placard et autres'];
+    var lines = ['Courses intelligentes :'];
+    order.forEach(function (section) {
+      var sectionItems = items.filter(function (i) { return i.section === section; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'fr'); });
+      if (!sectionItems.length) return;
+      lines.push('', section);
+      sectionItems.forEach(function (i) { lines.push('• ' + formatIngredientLabel(i, 1)); });
+    });
     return lines.join('\n');
   }
 
@@ -139,9 +229,12 @@
 
   function renderRecipeCard(r) {
     var ingredients = parseIngredients(r);
+    var readiness = recipeReadiness(ingredients);
+    var multiplier = recipeMultipliers[r.id] || 1;
 
     var card = document.createElement('div');
     card.className = 'recipe-card';
+    card.dataset.recipeId = r.id;
 
     var head = document.createElement('div');
     head.className = 'recipe-card-head';
@@ -149,6 +242,24 @@
     title.className = 'recipe-title';
     title.textContent = r.title;
     head.appendChild(title);
+
+    var scaleWrap = document.createElement('label');
+    scaleWrap.className = 'recipe-scale';
+    scaleWrap.appendChild(document.createTextNode('Quantités'));
+    var scaleSelect = document.createElement('select');
+    scaleSelect.setAttribute('aria-label', 'Multiplier les quantités de ' + r.title);
+    [1, 2, 3, 4].forEach(function (value) {
+      var scaleOption = document.createElement('option');
+      scaleOption.value = String(value);
+      scaleOption.textContent = '×' + value;
+      scaleOption.selected = value === multiplier;
+      scaleSelect.appendChild(scaleOption);
+    });
+    scaleSelect.addEventListener('change', function () {
+      recipeMultipliers[r.id] = Number(scaleSelect.value);
+      renderRecipesView();
+    });
+    scaleWrap.appendChild(scaleSelect);
 
     var editBtn = document.createElement('button');
     editBtn.className = 'icon-btn';
@@ -180,6 +291,20 @@
       }, 190);
     });
     head.appendChild(delBtn);
+
+    var readinessEl = document.createElement('div');
+    readinessEl.className = 'recipe-readiness';
+    var readinessTrack = document.createElement('div');
+    readinessTrack.className = 'recipe-readiness-track';
+    readinessTrack.style.setProperty('--recipe-ready', Math.round(readiness.ratio * 100) + '%');
+    var readinessBar = document.createElement('span');
+    readinessTrack.appendChild(readinessBar);
+    readinessEl.appendChild(readinessTrack);
+    var readinessCopy = document.createElement('small');
+    readinessCopy.textContent = readiness.missing ? readiness.missing + ' à trouver' : 'prête à cuisiner';
+    readinessEl.appendChild(readinessCopy);
+    readinessEl.appendChild(scaleWrap);
+    head.appendChild(readinessEl);
     card.appendChild(head);
 
     var list = document.createElement('div');
@@ -196,7 +321,7 @@
       });
       row.appendChild(cb);
       var name = document.createElement('span');
-      name.textContent = formatIngredientLabel(ing);
+      name.textContent = formatIngredientLabel(ing, multiplier);
       row.appendChild(name);
       var rm = document.createElement('button');
       rm.type = 'button';
@@ -259,14 +384,20 @@
     addRow.appendChild(addBtn);
     card.appendChild(addRow);
 
-    var missingText = formatMissingList(r.title, ingredients);
+    var missingText = formatMissingList(r.title, ingredients, multiplier);
     var footer = document.createElement('div');
     footer.className = 'recipe-actions';
+    var cookBtn = document.createElement('button');
+    cookBtn.className = 'btn btn-primary';
+    cookBtn.appendChild(icon('pot'));
+    cookBtn.appendChild(document.createTextNode(' Mode cuisine'));
+    cookBtn.addEventListener('click', function () { openCookingMode(r); });
+    footer.appendChild(cookBtn);
     if (missingText) {
       var shareBtn = document.createElement('button');
-      shareBtn.className = 'btn btn-primary';
+      shareBtn.className = 'btn';
       shareBtn.appendChild(icon('cart'));
-      shareBtn.appendChild(document.createTextNode(' Copier / partager ce qui manque'));
+      shareBtn.appendChild(document.createTextNode(' Ce qui manque'));
       shareBtn.addEventListener('click', function () { shareText(missingText); });
       footer.appendChild(shareBtn);
     } else if (ingredients.length) {
@@ -281,27 +412,135 @@
     return card;
   }
 
+  var cookingModal = document.getElementById('cookingModal');
+  var cookingList = document.getElementById('cookingIngredients');
+
+  function updateCookingProgress() {
+    var boxes = cookingList.querySelectorAll('input[type="checkbox"]');
+    var done = cookingList.querySelectorAll('input[type="checkbox"]:checked').length;
+    var total = boxes.length;
+    var percent = total ? Math.round(done / total * 100) : 0;
+    document.getElementById('cookingProgress').textContent = done === total && total
+      ? 'Tout est prêt. Tu peux cuisiner sans perdre le fil.'
+      : done + ' sur ' + total + ' ingrédients préparés';
+    document.getElementById('cookingProgressBar').style.width = percent + '%';
+  }
+
+  function openCookingMode(r) {
+    cookingRecipe = r;
+    var ingredients = parseIngredients(r);
+    var multiplier = recipeMultipliers[r.id] || 1;
+    document.getElementById('cookingTitle').textContent = r.title;
+    cookingList.innerHTML = '';
+    ingredients.forEach(function (ing) {
+      var row = document.createElement('label');
+      row.className = 'cooking-ingredient';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.addEventListener('change', function () {
+        row.classList.toggle('done', cb.checked);
+        updateCookingProgress();
+      });
+      var copy = document.createElement('span');
+      copy.textContent = formatIngredientLabel(ing, multiplier);
+      row.appendChild(cb);
+      row.appendChild(copy);
+      cookingList.appendChild(row);
+    });
+    document.getElementById('cookingWakeLock').disabled = !('wakeLock' in navigator);
+    document.getElementById('cookingWakeLock').textContent = 'wakeLock' in navigator ? 'Garder l’écran allumé' : 'Écran allumé indisponible';
+    updateCookingProgress();
+    cookingModal.classList.add('show');
+    if (window.RAUniverse) window.RAUniverse.emit('focus', cookingModal.querySelector('.cooking-modal-card'));
+  }
+
+  function releaseCookingWakeLock() {
+    if (!cookingWakeLock) return;
+    cookingWakeLock.release().catch(function () {});
+    cookingWakeLock = null;
+    document.getElementById('cookingWakeLock').textContent = 'Garder l’écran allumé';
+  }
+
+  function closeCookingMode() {
+    cookingModal.classList.remove('show');
+    releaseCookingWakeLock();
+    cookingRecipe = null;
+  }
+
+  document.getElementById('cookingClose').addEventListener('click', closeCookingMode);
+  cookingModal.addEventListener('click', function (e) { if (e.target === cookingModal) closeCookingMode(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && cookingRecipe) closeCookingMode(); });
+  document.getElementById('cookingDone').addEventListener('click', function () {
+    if (window.RAUniverse) window.RAUniverse.emit('harvest', cookingModal.querySelector('.cooking-modal-card'));
+    toast('Cuisine terminée — la boucle est fermée');
+    closeCookingMode();
+  });
+  document.getElementById('cookingCopy').addEventListener('click', function () {
+    if (!cookingRecipe) return;
+    var missing = formatMissingList(cookingRecipe.title, parseIngredients(cookingRecipe), recipeMultipliers[cookingRecipe.id] || 1);
+    if (!missing) { toast('Tu as déjà tout à la maison'); return; }
+    shareText(missing);
+  });
+  document.getElementById('cookingWakeLock').addEventListener('click', function () {
+    if (!('wakeLock' in navigator)) return;
+    if (cookingWakeLock) { releaseCookingWakeLock(); return; }
+    navigator.wakeLock.request('screen').then(function (lock) {
+      cookingWakeLock = lock;
+      document.getElementById('cookingWakeLock').textContent = 'Écran maintenu allumé';
+      lock.addEventListener('release', function () {
+        cookingWakeLock = null;
+        document.getElementById('cookingWakeLock').textContent = 'Garder l’écran allumé';
+      });
+    }).catch(function () { toast('Impossible de maintenir l’écran allumé'); });
+  });
+
+  function renderRecipesView() {
+    var grid = document.getElementById('recipeGrid');
+    grid.innerHTML = '';
+    var allRecipes = state.recipes || [];
+    var visible = allRecipes.filter(recipeMatches);
+    document.getElementById('recipeEmpty').style.display = allRecipes.length ? 'none' : 'block';
+    visible.forEach(function (r) { grid.appendChild(renderRecipeCard(r)); });
+    if (allRecipes.length && !visible.length) {
+      var noMatch = document.createElement('div');
+      noMatch.className = 'recipe-filter-empty';
+      noMatch.textContent = 'Aucune recette dans cette direction. Change le filtre ou la recherche.';
+      grid.appendChild(noMatch);
+    }
+    renderRecipeOracle(allRecipes);
+  }
+
   function loadRecipes() {
     return RA.listRecipes().then(function (data) {
       state.recipes = data.recipes;
-      var grid = document.getElementById('recipeGrid');
-      grid.innerHTML = '';
-      document.getElementById('recipeEmpty').style.display = data.recipes.length ? 'none' : 'block';
-      data.recipes.forEach(function (r) { grid.appendChild(renderRecipeCard(r)); });
+      renderRecipesView();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
 
   document.getElementById('shoppingListBtn').addEventListener('click', function () {
-    var lines = ['Liste de courses :'];
-    var seen = {};
-    state.recipes.forEach(function (r) {
-      parseIngredients(r).filter(function (i) { return !i.have; }).forEach(function (i) {
-        var key = i.name.trim().toLowerCase();
-        if (seen[key]) return;
-        seen[key] = true;
-        lines.push('* ' + formatIngredientLabel(i));
-      });
+    var list = aggregateMissingList(state.recipes || []);
+    if (!list) { toast('Rien à acheter — tout est déjà à la maison !'); return; }
+    shareText(list);
+  });
+
+  document.getElementById('recipeSearch').addEventListener('input', function (e) {
+    recipeQuery = e.target.value.trim().toLowerCase();
+    renderRecipesView();
+  });
+  document.querySelectorAll('[data-recipe-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      recipeFilter = btn.dataset.recipeFilter;
+      document.querySelectorAll('[data-recipe-filter]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      renderRecipesView();
     });
-    if (lines.length === 1) { toast('Rien à acheter — tout est déjà à la maison !'); return; }
-    shareText(lines.join('\n'));
+  });
+  document.getElementById('recipeSurprise').addEventListener('click', function () {
+    if (!(state.recipes || []).length) { toast('Ajoute d’abord une recette'); return; }
+    recipeSuggestionCursor += 1;
+    renderRecipeOracle(state.recipes);
+    if (window.RAUniverse) window.RAUniverse.emit('view', document.querySelector('.recipe-oracle'));
+  });
+  document.getElementById('recipeSuggestionOpen').addEventListener('click', function () {
+    var recipe = (state.recipes || []).find(function (r) { return r.id === recipeSuggestionId; });
+    if (recipe) openCookingMode(recipe);
   });
