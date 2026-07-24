@@ -54,6 +54,7 @@
     .rv-accept:hover:not(:disabled) { background: var(--accent-strong); color: var(--on-accent); }
     .rv-decline-btn { width: 100%; }
     .rv-decline { margin-top: var(--sp-1); }
+    .rv-staff-banner { background: color-mix(in srgb, var(--accent-2) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); color: var(--accent-2-ink); border-radius: var(--r-sm); padding: 0.55rem 0.8rem; margin-bottom: var(--sp-4); font-size: var(--fs-2xs); font-family: var(--font-mono); text-align: center; }
     .rv-question { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); margin-bottom: var(--sp-5); }
     .rv-question h3 { font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
     .rv-status-msg { text-align: center; padding: var(--sp-5); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); margin-bottom: var(--sp-5); }
@@ -91,6 +92,7 @@
   <div class="topbar"><span id="themeToggle"></span></div>
 
   <div class="rv-wrap" id="main" style="display:none;">
+    <div id="staffBanner" class="rv-staff-banner hidden">👁 Aperçu interne — cette consultation n'est pas comptée dans les vues du client. Le client verra cette page sans ce bandeau.</div>
     <div class="rv-hero">
       <div class="logo"><img src="assets/img/logo-solariscreen.png" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
       <h1 id="greeting">Votre devis SolariScreen</h1>
@@ -181,7 +183,10 @@
       if (!token) { showError('Lien invalide.'); return; }
       let res;
       try {
-        res = await fetch('/api/devis-review?t=' + encodeURIComponent(token), { credentials: 'same-origin' }).then(r => r.json());
+        // `staff=1` si ce navigateur s'est déjà authentifié dans l'ERP (Nicolas/Yannick) : le
+        // serveur ne comptera PAS cette consultation dans le compteur de vues du client.
+        const staff = (() => { try { return localStorage.getItem('ss_staff') === '1'; } catch (e) { return false; } })();
+        res = await fetch('/api/devis-review?t=' + encodeURIComponent(token) + (staff ? '&staff=1' : ''), { credentials: 'same-origin' }).then(r => r.json());
       } catch (e) {
         showError('Impossible de charger votre devis pour le moment. Réessayez un peu plus tard.');
         return;
@@ -228,6 +233,8 @@
       }
       document.getElementById('rvActions').classList.toggle('hidden', !decidable);
       document.getElementById('rvQuestionBox').classList.toggle('hidden', false);
+      // Bandeau « aperçu interne » : visible seulement pour Nicolas/Yannick (marqueur ss_staff).
+      try { document.getElementById('staffBanner').classList.toggle('hidden', localStorage.getItem('ss_staff') !== '1'); } catch (e) {}
     }
 
     // Récapitulatif détaillé : rend visibles les lignes qui expliquent l'écart entre la somme des
