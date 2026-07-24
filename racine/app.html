@@ -15,9 +15,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/favicon-48.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="assets/css/tokens.css?v=50">
-<link rel="stylesheet" href="assets/css/base.css?v=50.1">
-<script src="assets/js/theme-init.js?v=50"></script>
+<link rel="stylesheet" href="assets/css/tokens.css?v=52">
+<link rel="stylesheet" href="assets/css/base.css?v=52">
+<script src="assets/js/theme-init.js?v=52"></script>
 </head>
 <body>
 <svg class="hidden" aria-hidden="true" focusable="false">
@@ -103,6 +103,7 @@
           <button class="tab atelier-item" data-view="clips" role="menuitem">Presse-papier<span class="badge" id="clipCount"></span></button>
           <button class="tab atelier-item" data-view="recipes" role="menuitem">Recettes</button>
           <button class="tab atelier-item" data-view="reminders" role="menuitem">Rappels<span class="badge" id="reminderCount"></span></button>
+          <button class="tab atelier-item" data-view="completed" role="menuitem">Récolte</button>
           <button class="tab atelier-item" data-view="trash" role="menuitem">Corbeille<span class="badge" id="trashCount"></span></button>
           <div class="atelier-mobile-separator" aria-hidden="true"></div>
           <button class="tab atelier-item atelier-mobile-tool" id="mobileReminderAction" type="button" role="menuitem">Activer les rappels</button>
@@ -176,6 +177,27 @@
           <div id="projectRadarList" class="project-radar-list"></div>
         </section>
       </div>
+      <section class="mind-compass" aria-label="Boussole mentale">
+        <div class="mind-compass-copy">
+          <div class="daily-command-kicker">Boussole mentale</div>
+          <strong>Retrouver une direction sans couper les branches</strong>
+        </div>
+        <div class="mind-compass-actions">
+          <button class="mind-tool" id="threadOpen" type="button"><svg class="icon"><use href="#i-node3"/></svg><span><strong>Retrouver un fil</strong><small>Suivre une pensée</small></span></button>
+          <button class="mind-tool mind-tool-primary" id="lostOpen" type="button"><svg class="icon"><use href="#i-target"/></svg><span><strong>Je suis perdu</strong><small>Voir 3 directions</small></span></button>
+          <button class="mind-tool" id="journalOpen" type="button"><svg class="icon"><use href="#i-history"/></svg><span><strong>Journal vivant</strong><small id="journalSummary">Aujourd'hui</small></span></button>
+        </div>
+      </section>
+      <section class="finish-pulse hidden" id="finishPulse" aria-label="Branche proche de la fin">
+        <div class="finish-pulse-orbit" aria-hidden="true"><svg class="icon"><use href="#i-check"/></svg></div>
+        <div class="finish-pulse-copy">
+          <div class="daily-command-kicker">Une boucle peut se fermer</div>
+          <strong id="finishPulseTitle"></strong>
+          <span id="finishPulseHint"></span>
+        </div>
+        <div class="finish-pulse-progress" aria-hidden="true"><span id="finishPulseBar"></span></div>
+        <button class="btn" id="finishPulseOpen" type="button">Fermer la boucle</button>
+      </section>
       <div id="growthOfWeek" class="growth-of-week hidden"></div>
       <div id="bundleSuggestion" class="bundle-suggestion hidden"></div>
       <div id="clairiereCards" class="clairiere-cards"></div>
@@ -448,6 +470,27 @@
       </div>
     </section>
 
+    <!-- ===== Vue Récolte : tout ce qui est vraiment terminé ===== -->
+    <section class="view" id="view-completed">
+      <div class="harvest-hero">
+        <div>
+          <div class="clairiere-kicker">Hors de tes vues actives</div>
+          <h2>Récolte</h2>
+          <p>Ce qui est terminé disparaît du chemin quotidien, mais rien n'est perdu.</p>
+        </div>
+        <div class="harvest-hero-stats" id="harvestStats"></div>
+      </div>
+      <input class="field harvest-search" id="harvestSearch" type="search" placeholder="Retrouver un élément terminé…" aria-label="Rechercher dans la Récolte">
+      <div class="harvest-groups" id="harvestGroups"></div>
+      <div class="empty-state hidden" id="harvestEmpty">
+        <svg class="neuron-flourish" viewBox="0 0 80 20" aria-hidden="true" focusable="false">
+          <path class="bn-link" d="M6,14 Q20,4 34,10"/><path class="bn-link" d="M34,10 Q47,16 60,6"/><path class="bn-link" d="M60,6 Q68,2 74,10"/>
+          <circle class="bn-node n1" cx="6" cy="14" r="2.6"/><circle class="bn-node n2" cx="34" cy="10" r="2.6"/><circle class="bn-node n3" cx="60" cy="6" r="2.6"/><circle class="bn-node n4" cx="74" cy="10" r="2.6"/>
+        </svg>
+        <p>La Récolte est vide. Les prochains éléments terminés viendront se poser ici.</p>
+      </div>
+    </section>
+
     <!-- ===== Vue corbeille ===== -->
     <section class="view" id="view-trash">
       <p class="trash-hint">Les éléments supprimés restent ici 30 jours avant suppression définitive automatique.</p>
@@ -500,6 +543,71 @@
     <button class="triage-skip" id="triageSkip" type="button">Passer pour l'instant</button>
   </div>
 </div>
+</div>
+
+<!-- ===== Boussole mentale v51 ===== -->
+<div class="modal-backdrop" id="lostModal">
+  <div class="modal-card mental-modal-card" role="dialog" aria-modal="true" aria-labelledby="lostTitle">
+    <div class="modal-head">
+      <div><div class="daily-command-kicker">Quand tout part dans tous les sens</div><h2 id="lostTitle">Trois directions. Pas davantage.</h2></div>
+      <button class="icon-btn" id="lostClose" type="button" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <p class="mental-intro">Racine a réduit le bruit à partir de ce qui presse, de ce qui bloque et de ce qui peut remettre en mouvement.</p>
+    <div class="lost-directions" id="lostDirections"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="threadModal">
+  <div class="modal-card mental-modal-card thread-modal-card" role="dialog" aria-modal="true" aria-labelledby="threadTitle">
+    <div class="modal-head">
+      <div><div class="daily-command-kicker">Promenade guidée</div><h2 id="threadTitle">Retrouver le fil</h2></div>
+      <button class="icon-btn" id="threadClose" type="button" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <label class="thread-search-wrap"><span class="sr-only">Changer de point de départ</span><input class="field" id="threadSearch" type="search" placeholder="Changer de point de départ…" autocomplete="off"></label>
+    <div class="thread-search-results hidden" id="threadSearchResults"></div>
+    <div class="thread-trail" id="threadTrail" aria-label="Chemin parcouru"></div>
+    <article class="thread-current" id="threadCurrent"></article>
+    <div class="thread-branches" id="threadBranches"></div>
+    <div class="thread-footer">
+      <button class="btn" id="threadBack" type="button">Revenir d'une branche</button>
+      <button class="btn" id="threadEdit" type="button">Développer</button>
+      <button class="btn btn-primary" id="threadGo" type="button">Ouvrir dans Racines</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="journalModal">
+  <div class="modal-card mental-modal-card journal-modal-card" role="dialog" aria-modal="true" aria-labelledby="journalTitle">
+    <div class="modal-head">
+      <div><div class="daily-command-kicker">Sans rien remplir</div><h2 id="journalTitle">Ce que ta journée a fait pousser</h2></div>
+      <button class="icon-btn" id="journalClose" type="button" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <p class="journal-lead" id="journalLead"></p>
+    <div class="journal-stats" id="journalStats"></div>
+    <div class="journal-sections" id="journalSections"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="finishModal">
+  <div class="modal-card finish-modal-card" role="dialog" aria-modal="true" aria-labelledby="finishTitle">
+    <div class="modal-head">
+      <div><div class="daily-command-kicker">Rituel de fermeture</div><h2 id="finishTitle">Fermer une branche sans rien laisser derrière</h2></div>
+      <button class="icon-btn" id="finishClose" type="button" title="Fermer" aria-label="Fermer"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <article class="finish-root-card">
+      <div class="finish-root-head"><span id="finishRootSpace"></span><strong id="finishProgressText"></strong></div>
+      <h3 id="finishRootTitle"></h3>
+      <div class="finish-progress-track"><span id="finishProgressBar"></span></div>
+    </article>
+    <div class="finish-open-head"><strong>Ce qui reste réellement ouvert</strong><span id="finishOpenCount"></span></div>
+    <div class="finish-open-list" id="finishOpenList"></div>
+    <p class="finish-calm-note" id="finishCalmNote"></p>
+    <div class="finish-modal-actions">
+      <button class="btn" id="finishGo" type="button">Voir dans Racines</button>
+      <button class="btn" id="finishRest" type="button">Mettre la branche au repos</button>
+      <button class="btn btn-primary" id="finishHarvestAll" type="button"><svg class="icon"><use href="#i-check"/></svg> Récolter toute la branche</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== Modale QR ===== -->
@@ -643,7 +751,7 @@
     <div id="weeklyMatured" class="weekly-list"></div>
     <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-hourglass"/></svg> Dormant (non touché depuis un moment)</h3>
     <div id="weeklyStuck" class="weekly-list"></div>
-    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-check"/></svg> Abandonné (terminé depuis longtemps)</h3>
+    <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-check"/></svg> Récolté (terminé et sorti des vues actives)</h3>
     <div id="weeklyArchive" class="weekly-list"></div>
     <h3 class="trash-heading"><svg class="icon icon-inline"><use href="#i-sunrise"/></svg> Une pensée oubliée</h3>
     <div id="weeklyRandomCard" class="weekly-random-card"></div>
@@ -725,26 +833,28 @@
   <button class="toast-action hidden" id="toastAction"></button>
 </div>
 
-<script src="assets/js/starfield.js?v=50"></script>
-<script src="assets/js/offline-queue.js?v=50"></script>
-<script src="assets/js/api.js?v=50"></script>
-<script src="assets/js/preferences.js?v=50"></script>
-<script src="assets/js/shell.js?v=50"></script>
-<script src="assets/js/capture.js?v=50"></script>
-<script src="assets/js/search.js?v=50"></script>
-<script src="assets/js/links.js?v=50"></script>
-<script src="assets/js/tree.js?v=50"></script>
-<script src="assets/js/notes.js?v=50"></script>
-<script src="assets/js/reminders.js?v=50"></script>
-<script src="assets/js/importexport.js?v=50"></script>
-<script src="assets/js/system.js?v=50"></script>
-<script src="assets/js/focus.js?v=50"></script>
-<script src="assets/js/clips.js?v=50"></script>
-<script src="assets/js/views.js?v=50"></script>
-<script src="assets/js/graph-v49.js?v=50.1"></script>
-<script src="assets/js/daily-v50.js?v=50"></script>
-<script src="assets/js/recipes.js?v=50"></script>
-<script src="assets/js/trash.js?v=50"></script>
-<script src="assets/js/main.js?v=50"></script>
+<script src="assets/js/starfield.js?v=52"></script>
+<script src="assets/js/offline-queue.js?v=52"></script>
+<script src="assets/js/api.js?v=52"></script>
+<script src="assets/js/preferences.js?v=52"></script>
+<script src="assets/js/shell.js?v=52"></script>
+<script src="assets/js/capture.js?v=52"></script>
+<script src="assets/js/search.js?v=52"></script>
+<script src="assets/js/links.js?v=52"></script>
+<script src="assets/js/tree.js?v=52"></script>
+<script src="assets/js/notes.js?v=52"></script>
+<script src="assets/js/reminders.js?v=52"></script>
+<script src="assets/js/importexport.js?v=52"></script>
+<script src="assets/js/system.js?v=52"></script>
+<script src="assets/js/focus.js?v=52"></script>
+<script src="assets/js/clips.js?v=52"></script>
+<script src="assets/js/views.js?v=52"></script>
+<script src="assets/js/graph-v49.js?v=52"></script>
+<script src="assets/js/daily-v50.js?v=52"></script>
+<script src="assets/js/mental-v51.js?v=52"></script>
+<script src="assets/js/harvest-v52.js?v=52"></script>
+<script src="assets/js/recipes.js?v=52"></script>
+<script src="assets/js/trash.js?v=52"></script>
+<script src="assets/js/main.js?v=52"></script>
 </body>
 </html>

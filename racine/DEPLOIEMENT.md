@@ -89,7 +89,7 @@ Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) 
 - [ ] Capture rapide (⚙ → section iOS Raccourcis) : générer le lien, faire un `curl -X POST <lien> -d '{"text":"test"}'` (ou un vrai raccourci iOS) et vérifier qu'une nouvelle idée taguée #raccourci apparaît ; révoquer le lien et vérifier que l'appel échoue ensuite
 - [ ] Navigation au clavier uniquement (Tab/Entrée/Espace, sans souris) : ouvrir/fermer une modale, cocher une tâche, épingler, retirer un ingrédient de recette, ouvrir une note liée depuis un rappel — tout doit être atteignable et un contour de focus doit rester visible
 - [ ] Hors-ligne : charger l'app une première fois en ligne, puis couper le réseau et recharger la page → l'app doit s'ouvrir et montrer les dernières données connues ; déposer une pensée, cocher une tâche ou supprimer un élément doit afficher « sera synchronisé au retour du réseau » ; remettre le réseau → les actions se synchronisent automatiquement sans doublon
-- [ ] Navigation simplifiée : la barre du haut montre Clairière / Racines / Graphe / Atelier ; cliquer « Atelier » ouvre un menu avec Presse-papier, Recettes, Rappels, Corbeille ; cliquer un élément y navigue et referme le menu ; cliquer ailleurs ou Échap referme aussi ; le bouton Atelier reste visuellement actif tant qu'on est dans une de ces 4 vues
+- [ ] Navigation simplifiée : la barre du haut montre Clairière / Racines / Graphe / Atelier ; cliquer « Atelier » ouvre un menu avec Presse-papier, Recettes, Rappels, Récolte, Corbeille ; cliquer un élément y navigue et referme le menu ; cliquer ailleurs ou Échap referme aussi ; le bouton Atelier reste visuellement actif tant qu'on est dans une de ces vues
 - [ ] Mode Focus : les notes en someday n'apparaissent jamais, celles marquées énergie "attente" non plus ; un rappel en retard passe en premier ; la session s'arrête à 7 éléments maximum avec un message indiquant combien attendent la prochaine fois ; si un filtre d'énergie est actif dans la barre de recherche, Focus le respecte aussi
 - [ ] La Clairière (onglet Aujourd'hui) : affiche jusqu'à 4 cartes (Maintenant / À faire germer / Résonance / En attente), jamais de note someday dedans ; tester chaque bouton de décision (Faire maintenant, Garder pour plus tard, Développer, Relier, Pas aujourd'hui, Ne m'intéresse plus) ; « Pas aujourd'hui » ne doit plus proposer la même note avant le lendemain ; le reste (rappels dus/tâches/épinglés/presse-papier récent) continue d'apparaître en dessous sous « Le reste »
 - [ ] Mode Agir (Focus) : cliquer sur le bouton cible ouvre maintenant un choix de temps (5/15/30/60 min) et d'énergie avant de démarrer ; vérifier que le nombre de cartes proposées varie selon le temps choisi et que l'énergie choisie filtre bien les tâches proposées
@@ -97,7 +97,7 @@ Pas de suite de tests automatisés (pas d'exécuteur JS dans cet environnement) 
 - [ ] La Constellation (onglet Graphe) : les notes sont regroupées visuellement par tag/espace (max 8 groupes, le reste sous "Divers") ; aucun nœud ne doit se chevaucher, même avec beaucoup de notes ; les libellés ne s'affichent PAS tous en permanence — seulement au survol/sélection, ou si peu de notes (≤6), ou à fort zoom (>2.2x) ; les notes isolées ont un contour en pointillés ; une note modifiée dans les 3 derniers jours a un halo qui pulse ; des lignes en pointillés jaunes proposent des liens (max 2 par note, pour éviter l'effet toile d'araignée) — cliquer dessus crée le lien ; cliquer un nœud puis un second affiche le chemin entre les deux ; cliquer deux fois le même nœud l'ouvre ; molette pour zoomer, glisser pour déplacer, bouton "Recentrer" ; le filtre temporel doit changer les notes affichées ; le bouton "Mode promenade" cache la barre d'outils et affiche un message calme
 - [ ] Trois modes (Déposer/Déplier/Agir) : une barre visible sur tous les écrans propose ces 3 raccourcis — Déposer ouvre la boîte de dépôt sans rangement, Déplier ouvre le Graphe, Agir ouvre directement le choix temps/énergie du mode Focus
 - [ ] Pousse de la semaine : dans l'onglet Aujourd'hui, si une racine a gagné des branches cette semaine, un bandeau doit l'indiquer et cliquer dessus doit ouvrir cette note
-- [ ] Les Saisons (bouton calendrier) : la revue hebdomadaire a maintenant 4 catégories (Germé/Mûri/Dormant/Abandonné) plus une carte "pensée oubliée" tirée au hasard parmi les notes non touchées depuis 6 mois, avec un bouton pour en tirer une autre
+- [ ] Les Saisons (bouton calendrier) : la revue hebdomadaire a maintenant 4 catégories (Germé/Mûri/Dormant/Récolté) plus une carte "pensée oubliée" tirée au hasard parmi les notes non touchées depuis 6 mois, avec un bouton pour en tirer une autre
 - [ ] Regroupement de graines : si 3 idées récentes ou plus partagent un tag, un bandeau doit proposer de les regrouper sous une nouvelle racine ("Regrouper") ou d'ignorer la suggestion ("Pas maintenant", ne doit plus jamais réapparaître pour ce groupe précis)
 - [ ] Recharger l'app après un déploiement ne montre pas d'anciens fichiers (vérifier que les `?v=N` ont bien été incrémentés)
 
@@ -143,3 +143,47 @@ Checklist spécifique après déploiement :
 - [ ] Sur un écran de 390 px, les quatre onglets restent sur une ligne et Atelier est entièrement parcourable.
 - [ ] Sur mobile, les cartes de Clairière se parcourent horizontalement et les filtres de Racines restent repliés au départ.
 - [ ] Après actualisation forcée, aucun ancien fichier v49 ne reste chargé par le service worker.
+
+## Version 51 — Boussole pour esprit en arborescence
+
+La v51 ne change pas le schéma D1 : **aucune migration SQL supplémentaire**. La base doit simplement rester en version 12. Publier tous les fichiers, dont le nouveau `assets/js/mental-v51.js`, puis forcer l’actualisation de l’application.
+
+La Boussole mentale ajoute trois outils sans nouveau formulaire :
+- **Je suis perdu** réduit le bruit à trois directions distinctes : protéger, débloquer, remettre en mouvement ou vider la boîte d’entrée selon les données présentes ;
+- **Retrouver un fil** permet de suivre parent, branches, liens choisis et proximités de sens en conservant le chemin parcouru ;
+- **Journal vivant** raconte automatiquement les pensées capturées ou revisitées et les racines ayant poussé dans la journée.
+
+Checklist spécifique après déploiement :
+- [ ] État du système affiche **App v51** et **Schéma v12**.
+- [ ] La Boussole mentale apparaît dans la Clairière sous le radar quotidien.
+- [ ] « Je suis perdu » propose au maximum trois directions différentes et chacune mène à la bonne pensée ou à la boîte d’entrée.
+- [ ] « Retrouver un fil » ouvre une pensée, permet de suivre une branche puis de revenir en arrière.
+- [ ] La recherche du Fil change correctement le point de départ sans perdre l’interface.
+- [ ] Le Fil distingue la pensée parente, les branches, les liens déjà choisis et les résonances proposées.
+- [ ] Le Journal vivant s’ouvre sans saisie et ses compteurs correspondent aux mouvements du jour.
+- [ ] Sur GSM, « Je suis perdu » est le premier bouton de la Boussole et les trois modales s’ouvrent en panneau bas parcourable.
+- [ ] Échap ferme la dernière fenêtre de la Boussole ouverte.
+
+## Version 52 — Récolte et fermeture des branches
+
+La v52 ne change pas le schéma D1 : **aucune migration SQL supplémentaire**. La base reste en version 12. Publier tous les fichiers, dont le nouveau `assets/js/harvest-v52.js`, puis forcer l’actualisation de l’application.
+
+Le statut terminé devient une vraie transition mentale :
+- une tâche récoltée disparaît des Racines, de la Clairière, des recherches, des rappels et de la Constellation ;
+- elle reste conservée, datée, recherchable et réouvrable dans **Atelier → Récolte** ;
+- terminer une racine qui contient encore des actions ouvre un rituel de fermeture au lieu de masquer silencieusement ce qui reste ;
+- la Clairière peut proposer une seule branche presque finie à libérer ;
+- une branche entière peut être récoltée ou mise au repos, avec annulation immédiate ;
+- l’animation de récolte est brève et respecte le réglage système de réduction des mouvements.
+
+Checklist spécifique après déploiement :
+- [ ] État du système affiche **App v52** et **Schéma v12**.
+- [ ] Terminer une tâche feuille la retire immédiatement de toutes les vues actives.
+- [ ] Le message de confirmation permet d’annuler et la tâche réapparaît.
+- [ ] Atelier → Récolte regroupe les éléments par date et permet de rechercher puis rouvrir un élément ou une branche.
+- [ ] Terminer une racine qui contient encore des actions ouvre le rituel de fermeture sans faire disparaître ces actions.
+- [ ] Dans le rituel, une action peut être récoltée seule ; « Voir dans Racines », « Mettre la branche au repos » et « Récolter toute la branche » font chacun ce qu’ils annoncent.
+- [ ] Une branche mise au repos disparaît des sollicitations quotidiennes, mais reste conservée.
+- [ ] La Constellation, les rappels, les recherches et la Boussole n’affichent aucun élément récolté.
+- [ ] Sur un écran de 390 px, Récolte et le rituel de fermeture restent lisibles, atteignables au pouce et ne passent pas sous la navigation.
+- [ ] Après actualisation forcée, aucun ancien fichier v51 ne reste chargé par le service worker.
