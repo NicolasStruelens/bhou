@@ -239,6 +239,8 @@
       probabilite: d.probabilite || '',
       client_accepted: !!d.client_accepted,
       client_accepted_at: d.client_accepted_at || '',
+      client_declined: !!d.client_declined,
+      client_question_open: !!d.client_question_open,
       review_views: d.review_views || 0,
       sav_tickets: d.sav_tickets || [],
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
@@ -294,6 +296,18 @@
   // (saisie libre, fautes d'orthographe/variantes possibles — ex: "Chapelle-les-Herlaimont" au lieu
   // du vrai "Chapelle-lez-Herlaimont", qui fait échouer toute recherche par nom), un code postal belge
   // est sans ambiguïté. zippopotam.us est gratuit, sans clé, et couvre les codes postaux belges.
+  // Distance à vol d'oiseau entre deux points (km) — formule haversine. Assez précise pour
+  // trancher « qui est le plus proche » à l'échelle d'un déplacement (la route réelle est ~20-30 %
+  // plus longue, mais dans le même ordre pour les deux vendeurs → le classement ne change pas).
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    if ([lat1, lon1, lat2, lon2].some(function (v) { return v == null || isNaN(v); })) return null;
+    const R = 6371, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   async function geocodeVille(ville, codePostal) {
     if (!ville && !codePostal) return null;
     const key = codePostal ? 'cp:' + String(codePostal).trim() : 'v:' + String(ville).trim().toLowerCase();
@@ -473,7 +487,7 @@
     reverseGeocodeCity: reverseGeocodeCity,
     weatherLabel: weatherLabel,
     weatherIconName: weatherIconName,
-    geocodeVille: geocodeVille,
+    geocodeVille: geocodeVille, distanceKm: distanceKm,
   };
   // Raccourci global utilisable directement dans les attributs onclick="..." inline
   window.ssCopy = function (text, label) { copyText(text, label); };

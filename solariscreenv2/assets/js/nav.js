@@ -147,6 +147,9 @@
     if (!anchor) return;
     getIdentity().then(function (identity) {
       if (!identity.email) return; // pas derrière Cloudflare Access (dev local) → rien à afficher
+      // Marque ce navigateur comme « staff » (même origine que la page client devis-review.html) :
+      // sert à NE PAS compter les consultations de Nicolas/Yannick dans le compteur de vues du client.
+      try { localStorage.setItem('ss_staff', '1'); } catch (e) {}
       const label = identity.name || identity.email;
       const colorVar = 'var(' + identity.colorVar + ')';
       const span = document.createElement('button');
