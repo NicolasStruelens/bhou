@@ -14,9 +14,51 @@
   <link rel="stylesheet" href="../assets/css/theme-light.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .vue-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--sp-5); align-items: start; }
+    /* ══════ POSTE DE PILOTAGE ══════
+       Règle graduée + barre d'actions en PLEINE LARGEUR (les instruments), colonne droite réduite
+       à l'essentiel (Total / Prochaine action / Paiements), et toutes les cartes de suivi en
+       grille 2 colonnes sous le contenu — deux fois moins haut, tout visible. */
+    .vue-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-5); align-items: start; }
+    .vue-layout > .span-all { grid-column: 1 / -1; }
     .vue-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
-    @media (max-width: 1040px) { .vue-layout { grid-template-columns: 1fr; } .vue-aside { position: static; } }
+    @media (max-width: 1040px) {
+      .vue-layout { grid-template-columns: 1fr; }
+      .vue-aside { position: static; }
+      /* Sur mobile, le total et la prochaine action remontent JUSTE sous la barre d'actions —
+         sinon ils se retrouvaient enterrés sous toutes les cartes de suivi. */
+      #rulerHost { order: 1; } .action-bar { order: 2; } .vue-aside { order: 3; } .vue-main { order: 4; }
+    }
+
+    /* ── Barre d'actions : un seul instrument segmenté (l'astuce gap 1px sur fond bordure
+       dessine les filets de séparation dans les deux sens, même quand la barre replie). ── */
+    .action-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+      background: var(--border-strong); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      overflow: hidden; box-shadow: var(--shadow-sm); }
+    .ab-item { display: flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.7rem 0.5rem;
+      background: var(--surface); border: none; color: var(--text-muted); cursor: pointer;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; text-decoration: none; white-space: nowrap; transition: all var(--t-fast); }
+    .ab-item:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); text-decoration: none; }
+    .ab-item svg { flex: none; }
+    .ab-item.is-primary { color: var(--on-accent); background: var(--accent); font-weight: 700; }
+    .ab-item.is-primary:hover { background: var(--accent-strong); color: var(--on-accent); }
+    .ab-item.is-gold { color: var(--accent-2-ink); background: color-mix(in srgb, var(--accent-2) 12%, var(--surface)); }
+    .ab-item.is-gold:hover { background: color-mix(in srgb, var(--accent-2) 20%, var(--surface)); color: var(--accent-2-ink); }
+
+    /* ── Grille des cartes de suivi : 2 colonnes en maçonnerie (chaque carte garde sa hauteur
+       naturelle, pas de trous), repli en 1 colonne sur petit écran. ── */
+    .fiche-grid { columns: 2; column-gap: var(--sp-4); margin-top: var(--sp-5); }
+    .fiche-grid > * { break-inside: avoid; margin-bottom: var(--sp-4); }
+    @media (max-width: 760px) { .fiche-grid { columns: 1; } }
+
+    /* ── Prochaine action : LA consigne du dossier, juste sous le total. --nc = couleur d'urgence. ── */
+    .next-card { background: var(--surface); border: 1px solid color-mix(in srgb, var(--nc, var(--accent)) 40%, transparent);
+      border-left: 3px solid var(--nc, var(--accent)); border-radius: var(--r-md); padding: var(--sp-4); }
+    .next-card .nc-label { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-subtle); margin-bottom: 0.35rem; }
+    .next-card .nc-text { font-size: var(--fs-md); font-weight: 700; color: var(--nc, var(--text)); line-height: 1.35; }
+    .next-card .nc-sub { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.3rem; }
+    .next-card .nc-act { margin-top: var(--sp-3); }
 
     /* ── Fiche client ── */
     .client-hero { display: flex; gap: var(--sp-4); align-items: flex-start; flex-wrap: wrap; }
@@ -176,10 +218,6 @@
     .hist-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-subtle); margin-top: 0.1rem; }
     .hist-empty { font-size: var(--fs-xs); color: var(--text-muted); padding: var(--sp-2) 0; }
 
-    .action-col { display: flex; flex-direction: column; gap: var(--sp-2); }
-    .action-col .btn { justify-content: flex-start; padding: 0.75rem 1rem; }
-    .action-col .btn.is-gold { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); font-weight: 700; }
-    .action-col .btn.is-gold:hover { background: color-mix(in srgb, var(--accent-2) 18%, transparent); box-shadow: var(--glow-soft); color: var(--accent-2); }
 
     .interne-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent-3); padding: var(--sp-4) var(--sp-5); }
     .interne-card .h-line { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: var(--fs-xs); }
@@ -263,7 +301,11 @@
        Métaphore assumée du mètre de chantier : une réglette avec ses graduations, les jalons
        franchis en or, le jalon courant qui respire, les suivants en pointillés. */
     .ruler { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
-      padding: var(--sp-4) var(--sp-4) var(--sp-3); margin-bottom: var(--sp-4); overflow-x: auto; }
+      padding: var(--sp-4) var(--sp-4) var(--sp-3); margin-bottom: 0; overflow-x: auto;
+      scrollbar-width: thin; }
+    .ruler::-webkit-scrollbar { height: 7px; }
+    .ruler::-webkit-scrollbar-track { background: transparent; }
+    .ruler::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
     .ruler-track { position: relative; display: flex; align-items: flex-start; min-width: 620px; }
     /* La réglette elle-même : trait continu + micro-graduations régulières. */
     .ruler-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 1px;
@@ -356,11 +398,21 @@
   </header>
 
   <main class="container vue-layout" id="main" style="display:none;">
-    <!-- ══════ COLONNE PRINCIPALE ══════ -->
-    <div>
-      <!-- Règle graduée : la vie du dossier lue d'un seul coup d'œil (voir renderRuler). -->
-      <div id="rulerHost"></div>
+    <!-- ══════ INSTRUMENTS (pleine largeur) : règle graduée + barre d'actions ══════ -->
+    <div id="rulerHost" class="span-all"></div>
 
+    <div class="action-bar span-all" role="toolbar" aria-label="Actions du devis">
+      <a class="ab-item is-primary" id="btnEdit" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Modifier</a>
+      <a class="ab-item" id="btnDoc" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Document PDF</a>
+      <a class="ab-item" id="btnPicking" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Liste de pose</a>
+      <a class="ab-item" id="btnVisite" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Rapport visite</a>
+      <a class="ab-item" id="btnFacturer" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Facturer</a>
+      <a class="ab-item hidden" id="btnReception" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception</a>
+      <button class="ab-item hidden" id="btnPortfolio" onclick="togglePortfolio()"></button>
+    </div>
+
+    <!-- ══════ COLONNE PRINCIPALE ══════ -->
+    <div class="vue-main">
       <section class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Client</span><span class="section-code">SS // FICHE</span></div>
         <div class="section-body" id="clientHost"></div>
@@ -373,54 +425,13 @@
         </div>
         <div class="section-body" id="ouvHost"></div>
       </section>
-    </div>
-
-    <!-- ══════ COLONNE LATÉRALE ══════ -->
-    <aside class="vue-aside">
-      <div class="hero-card ticked">
-        <div class="h-label">Total TVAC</div>
-        <div class="h-ttc-row">
-          <div class="h-ttc" id="hTTC">—</div>
-          <button class="ci-copy" onclick="ssCopy(document.getElementById('hTTC').textContent, 'Total TVAC')" title="Copier le montant total" aria-label="Copier le montant total"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-        </div>
-        <div class="h-sep"></div>
-        <div id="hLines"></div>
-      </div>
-
-      <div class="action-col">
-        <a class="btn btn-primary" id="btnEdit" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Modifier le devis</a>
-        <a class="btn btn-ghost" id="btnDoc" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Document client / PDF</a>
-        <a class="btn btn-ghost" id="btnPicking" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Liste de pose</a>
-        <a class="btn btn-ghost" id="btnVisite" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Rapport de visite</a>
-        <a class="btn btn-ghost" id="btnFacturer" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Facturer</a>
-        <a class="btn btn-ghost hidden" id="btnReception" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception</a>
-        <button class="btn btn-ghost hidden" id="btnPortfolio" onclick="togglePortfolio()"></button>
-      </div>
+      <!-- ══════ CARTES DE SUIVI : grille 2 colonnes (maçonnerie CSS) ══════ -->
+      <div class="fiche-grid">
 
       <div class="commande-card ticked hidden" id="reviewCard" style="--tick-color:var(--accent);">
         <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Espace client</div>
         <div class="cc-eta" id="reviewInfo"></div>
         <button class="btn btn-ghost btn-sm mt-3" onclick="copyReviewLink()" style="width:100%;height:auto;white-space:normal;line-height:1.4;padding-top:0.6rem;padding-bottom:0.6rem;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier le lien espace client (revoir / accepter / question)</button>
-      </div>
-
-      <div class="interne-card ticked" id="interneCard">
-        <div class="row cc-head-row collapsible" onclick="toggleCard('interneCard')" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
-          <span class="badge badge-purple">Interne</span>
-          <span class="cc-head-right">
-            <span id="interneSummary" class="section-sub"></span>
-            <span class="section-sub">jamais visible client</span>
-            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-        <div class="cc-body">
-          <div id="pricingNoteHost"></div>
-          <div id="interneHost"></div>
-        </div>
-      </div>
-
-      <div class="commande-card ticked" id="paiementsCard" style="--tick-color:var(--ok);">
-        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Suivi des paiements</div>
-        <div id="paiementsList"></div>
       </div>
 
       <div class="commande-card ticked hidden" id="commandeCard">
@@ -528,8 +539,11 @@
             </div>
             <textarea class="textarea" id="jNote" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Annotation : qu'est-ce qu'on voit ? (ex : screen du salon posé, réglage moteur OK, fissure signalée au client…)"></textarea>
             <div class="row mt-2" style="gap:var(--sp-2);">
-              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('jPhotoInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Photo</button>
-              <input type="file" id="jPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="addJournalPhoto(this.files[0])">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('jPhotoInput').click()" title="Appareil photo, photothèque ou fichier du PC — plusieurs photos possibles"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Photos</button>
+              <!-- PAS de capture="environment" : sur iPhone cet attribut force l'appareil photo et
+                   court-circuite la photothèque. Sans lui, iOS propose le choix (photothèque /
+                   prendre une photo / fichier) et le PC ouvre l'explorateur — les deux usages demandés. -->
+              <input type="file" id="jPhotoInput" accept="image/*" multiple style="display:none;" onchange="addJournalPhoto(this.files)">
               <button type="button" class="btn btn-ghost btn-sm hidden" id="jCancelBtn" onclick="cancelJournalEdit()">Annuler</button>
               <button type="button" class="btn btn-primary btn-sm" id="jSubmitBtn" style="margin-left:auto;" onclick="submitJournalEntry()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter au journal</button>
             </div>
@@ -563,7 +577,8 @@
             <div class="sav-photos-preview" id="savPhotosPreview"></div>
             <div class="row mt-2" style="gap:var(--sp-2);">
               <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('savPhotoInput').click()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Photo</button>
-              <input type="file" id="savPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="addPendingSavPhoto(this.files[0])">
+              <!-- Sans capture="environment" : iPhone propose photothèque OU appareil photo (voir journal). -->
+              <input type="file" id="savPhotoInput" accept="image/*" style="display:none;" onchange="addPendingSavPhoto(this.files[0])">
               <button type="button" class="btn btn-ghost btn-sm hidden" id="savCancelBtn" onclick="cancelSavEdit()">Annuler</button>
               <button type="button" class="btn btn-ghost btn-sm" id="savSubmitBtn" style="margin-left:auto;" onclick="submitSavTicket()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket</button>
             </div>
@@ -585,6 +600,44 @@
             <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="sendNote()">Ajouter</button>
           </div>
         </div>
+      </div>
+
+      <!-- Interne volontairement en DERNIER : les marges ne sont pas l'info du quotidien. -->
+      <div class="interne-card ticked" id="interneCard">
+        <div class="row cc-head-row collapsible" onclick="toggleCard('interneCard')" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
+          <span class="badge badge-purple">Interne</span>
+          <span class="cc-head-right">
+            <span id="interneSummary" class="section-sub"></span>
+            <span class="section-sub">jamais visible client</span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div id="pricingNoteHost"></div>
+          <div id="interneHost"></div>
+        </div>
+      </div>
+
+      </div><!-- /fiche-grid -->
+    </div><!-- /vue-main -->
+
+    <!-- ══════ COLONNE LATÉRALE (réduite à l'essentiel) ══════ -->
+    <aside class="vue-aside">
+      <div class="hero-card ticked">
+        <div class="h-label">Total TVAC</div>
+        <div class="h-ttc-row">
+          <div class="h-ttc" id="hTTC">—</div>
+          <button class="ci-copy" onclick="ssCopy(document.getElementById('hTTC').textContent, 'Total TVAC')" title="Copier le montant total" aria-label="Copier le montant total"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        </div>
+        <div class="h-sep"></div>
+        <div id="hLines"></div>
+      </div>
+
+      <div class="next-card ticked" id="nextCard" style="--tick-color:var(--accent);"></div>
+
+      <div class="commande-card ticked" id="paiementsCard" style="--tick-color:var(--ok);">
+        <div class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg> Suivi des paiements</div>
+        <div id="paiementsList"></div>
       </div>
     </aside>
   </main>
@@ -934,6 +987,7 @@
       setText('interneSummary', 'Net total ' + fmtEur((c.nicolas_net || 0) + (c.yannick_net || 0)));
 
       renderRuler();
+      renderNextAction();
       renderNotes();
       renderCommande();
       renderChantier();
@@ -1271,7 +1325,9 @@
       { k: 'autre',    l: 'Autre',      badge: 'badge',        color: 'var(--text-subtle)' },
     ];
     const journalPhase = k => JOURNAL_PHASES.find(p => p.k === k) || JOURNAL_PHASES[1];
-    let PENDING_JOURNAL_PHOTO = null, EDITING_JOURNAL_ID = null;
+    // Plusieurs photos sélectionnables d'un coup (PC, photothèque iPhone, appareil) : chacune
+    // deviendra SA PROPRE entrée du journal, partageant l'annotation/phase/date saisies une fois.
+    let PENDING_JOURNAL_PHOTOS = [], EDITING_JOURNAL_ID = null;
     async function journalAuthor() {
       try { const id = await window.SSNav.getIdentity(); if (id && id.key) return id.key; } catch (e) {}
       return localStorage.getItem('ss_comment_author') || 'nicolas';
@@ -1311,38 +1367,60 @@
       }).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucune photo de chantier pour l’instant. Prends la première ci-dessous — pendant ou après la pose, avec une annotation. Idéal pour un gros chantier posé en plusieurs passages.</div>';
     }
     function renderJournalPending() {
-      el('journalPending').innerHTML = PENDING_JOURNAL_PHOTO
-        ? `<div class="journal-pending"><img src="${PENDING_JOURNAL_PHOTO}" alt="Photo à ajouter"><button type="button" onclick="clearJournalPhoto()" aria-label="Retirer la photo">${icon('x', 10)}</button></div>`
-        : '';
+      // En mode édition la photo est FIXE (on ne modifie que l'annotation) : pas de bouton retirer.
+      el('journalPending').innerHTML = PENDING_JOURNAL_PHOTOS.map((p, i) =>
+        `<div class="journal-pending" style="display:inline-block;margin-right:0.4rem;"><img src="${p}" alt="Photo à ajouter">${EDITING_JOURNAL_ID ? '' : `<button type="button" onclick="clearJournalPhoto(${i})" aria-label="Retirer cette photo">${icon('x', 10)}</button>`}</div>`
+      ).join('');
     }
-    window.addJournalPhoto = async (file) => {
-      if (!file) return;
-      try {
-        // Compression + déport R2 (repli automatique sur dataURL si R2 indisponible — jamais perdue).
-        const url = await window.SSUI.compressAndUploadPhoto(file, DEVIS.id);
-        PENDING_JOURNAL_PHOTO = url;
-        if (!el('jDate').value) el('jDate').value = new Date().toISOString().slice(0, 10);
-        renderJournalPending();
-      } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
+    window.addJournalPhoto = async (files) => {
+      if (EDITING_JOURNAL_ID) { toast('Termine (ou annule) la modification en cours avant d’ajouter des photos.', 'warn'); el('jPhotoInput').value = ''; return; }
+      const list = [...(files || [])];
+      if (!list.length) return;
+      let ratees = 0;
+      for (const file of list) {
+        try {
+          // Compression + déport R2 (repli automatique sur dataURL si R2 indisponible — jamais perdue).
+          const url = await window.SSUI.compressAndUploadPhoto(file, DEVIS.id);
+          PENDING_JOURNAL_PHOTOS.push(url);
+        } catch (e) { ratees++; }
+      }
+      if (ratees) toast(ratees + ' photo(s) illisible(s) ignorée(s).', 'warn');
+      if (!el('jDate').value) el('jDate').value = new Date().toISOString().slice(0, 10);
+      renderJournalPending();
       el('jPhotoInput').value = '';
     };
-    window.clearJournalPhoto = () => { PENDING_JOURNAL_PHOTO = null; renderJournalPending(); };
+    window.clearJournalPhoto = (i) => { PENDING_JOURNAL_PHOTOS.splice(i, 1); renderJournalPending(); };
     window.submitJournalEntry = async () => {
       const editing = !!EDITING_JOURNAL_ID;
-      if (!editing && !PENDING_JOURNAL_PHOTO) { toast('Prends d’abord une photo.', 'warn'); return; }
+      if (!editing && !PENDING_JOURNAL_PHOTOS.length) { toast('Ajoute d’abord au moins une photo.', 'warn'); return; }
       const author = await journalAuthor();
-      const res = await SS.saveChantierPhoto(DEVIS.id, {
-        id: editing ? EDITING_JOURNAL_ID : undefined,
-        url: PENDING_JOURNAL_PHOTO || undefined,
-        note: el('jNote').value.trim(),
-        phase: el('jPhase').value,
-        date: el('jDate').value || undefined,
-        author,
-      });
-      if (res.ok === false) { toast(res.error || 'Photo NON enregistrée — réessaie.', 'error', 6000); return; }
-      // On s'aligne sur la liste renvoyée par le serveur (inclut d'éventuels ajouts de Yannick).
-      DEVIS.chantier_photos = res.chantier_photos || DEVIS.chantier_photos || [];
-      toast(editing ? 'Annotation modifiée ✓' : 'Photo ajoutée au journal ✓', 'ok');
+      const commun = { note: el('jNote').value.trim(), phase: el('jPhase').value, date: el('jDate').value || undefined, author };
+      if (editing) {
+        // Édition : on ne touche qu'à l'annotation/phase/date — url absente = photo conservée côté serveur.
+        const res = await SS.saveChantierPhoto(DEVIS.id, { id: EDITING_JOURNAL_ID, ...commun });
+        if (res.ok === false) { toast(res.error || 'Photo NON enregistrée — réessaie.', 'error', 6000); return; }
+        DEVIS.chantier_photos = res.chantier_photos || DEVIS.chantier_photos || [];
+        toast('Annotation modifiée ✓', 'ok');
+        cancelJournalEdit();
+        renderJournal();
+        return;
+      }
+      // Ajout : UNE entrée par photo, même annotation. En cas d'échec en cours de route, on
+      // s'arrête net et on garde les photos NON envoyées dans le panneau — rien n'est perdu,
+      // et rien n'est compté deux fois au nouvel essai.
+      let envoyees = 0;
+      while (PENDING_JOURNAL_PHOTOS.length) {
+        const res = await SS.saveChantierPhoto(DEVIS.id, { url: PENDING_JOURNAL_PHOTOS[0], ...commun });
+        if (res.ok === false) {
+          renderJournalPending(); renderJournal();
+          toast((envoyees ? envoyees + ' photo(s) enregistrée(s), puis échec : ' : '') + (res.error || 'réessaie.'), 'error', 7000);
+          return;
+        }
+        PENDING_JOURNAL_PHOTOS.shift();
+        envoyees++;
+        DEVIS.chantier_photos = res.chantier_photos || DEVIS.chantier_photos || [];
+      }
+      toast(envoyees > 1 ? envoyees + ' photos ajoutées au journal ✓' : 'Photo ajoutée au journal ✓', 'ok');
       cancelJournalEdit();
       renderJournal();
     };
@@ -1350,7 +1428,7 @@
       const e = (DEVIS.chantier_photos || []).find(x => String(x.id) === String(photoId));
       if (!e) return;
       EDITING_JOURNAL_ID = photoId;
-      PENDING_JOURNAL_PHOTO = e.url;   // la photo ne change pas, on modifie l'annotation / la phase / la date
+      PENDING_JOURNAL_PHOTOS = [e.url];   // la photo ne change pas, on modifie l'annotation / la phase / la date
       el('jPhase').value = e.phase || 'pendant';
       el('jNote').value = e.note || '';
       el('jDate').value = e.date || '';
@@ -1361,7 +1439,7 @@
     };
     window.cancelJournalEdit = () => {
       EDITING_JOURNAL_ID = null;
-      PENDING_JOURNAL_PHOTO = null;
+      PENDING_JOURNAL_PHOTOS = [];
       el('jPhase').value = 'pendant';
       el('jNote').value = '';
       el('jDate').value = '';
@@ -1470,8 +1548,10 @@
       let lastDone = -1;
       jalons.forEach((j, i) => { if (j.done) lastDone = i; });
       const iNow = (lastDone + 1 < jalons.length) ? lastDone + 1 : -1;
-      // Dossier refusé/annulé : la règle n'a plus de sens (le parcours s'arrête), on la masque.
-      if (['refuse', 'annule'].includes(d.statut)) { host.innerHTML = ''; return; }
+      // Dossier refusé/annulé : la règle n'a plus de sens (le parcours s'arrête), on la masque —
+      // display:none pour que la rangée de grille disparaisse aussi (pas de double espace vide).
+      if (['refuse', 'annule'].includes(d.statut)) { host.innerHTML = ''; host.style.display = 'none'; return; }
+      host.style.display = '';
       host.innerHTML = `
         <div class="ruler ticked" style="--tick-color:var(--accent-2);" role="group" aria-label="Avancement du dossier">
           <div class="ruler-track">
@@ -1485,6 +1565,70 @@
             }).join('')}
           </div>
         </div>`;
+    }
+
+    // ══════════ PROCHAINE ACTION — la consigne du dossier, sous le total ═══════════════════
+    // Même philosophie que la colonne « prochaine action » du tableau de bord, mais ici avec les
+    // données COMPLÈTES du devis (cadence de relance précise, paiements réels) et un bouton qui
+    // mène directement au bon endroit. L'ordre des tests EST l'ordre de priorité métier.
+    function openCardAndScroll(id) {
+      const c = el(id);
+      if (!c || c.classList.contains('hidden')) return;
+      c.classList.remove('collapsed');
+      c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    window.openCardAndScroll = openCardAndScroll;
+    function renderNextAction() {
+      const host = el('nextCard');
+      if (!host) return;
+      const d = DEVIS;
+      const ttc = (CALC && CALC.total_ttc) || 0;
+      const acompte = (CALC && CALC.acompte_montant) || 0;
+      const totalPaye = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
+      const poseFaite = window.SSUI.isPoseDone(d);
+      const datePose = d.chantier && d.chantier.date_pose;
+      const attente = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut);
+      let nc;   // { color, text, sub, btn: { label, on } }
+
+      if (['refuse', 'annule'].includes(d.statut)) {
+        nc = { color: 'var(--text-subtle)', text: 'Dossier classé', sub: d.raison_refus ? 'Raison : ' + d.raison_refus : '' };
+      } else if (d.statut === 'brouillon') {
+        nc = { color: 'var(--text-subtle)', text: 'Finaliser et envoyer le devis', btn: { label: 'Ouvrir le simulateur', on: `location.href='simulateur.html?id=${d.id}'` } };
+      } else if (d.client_accepted && attente) {
+        nc = { color: 'var(--ok)', text: 'Accepté par le client — à faire signer', btn: { label: 'Ouvrir le document', on: `location.href='devis.html?id=${d.id}'` } };
+      } else if (attente) {
+        const st = relanceState(d);
+        if (st.epuise) nc = { color: 'var(--danger)', text: '3 relances sans réponse', sub: 'À classer si le client ne revient pas.', btn: { label: 'Ouvrir les relances', on: 'openRelance()' } };
+        else if (st.retard) nc = { color: st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)', text: `Relance ${st.step.n} à envoyer`, sub: `prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ' — retard de ' + st.joursRetard + ' j' : ''}`, btn: { label: 'Préparer la relance', on: 'openRelance()' } };
+        else nc = { color: 'var(--accent)', text: 'En attente de réponse client', sub: st.step ? `Relance ${st.step.n} prévue le ${fmtDate(st.due)}` : '' };
+      } else if (d.statut === 'signe' && !poseFaite && acompte > 0 && totalPaye < acompte - 0.005) {
+        nc = { color: 'var(--warn)', text: 'Encaisser l’acompte', sub: `${fmtEur(Math.max(0, acompte - totalPaye))} attendus avant de commander`, btn: { label: 'Facturer l’acompte', on: `location.href='factures.html?devis=${d.id}&type=acompte'` } };
+      } else if (d.statut === 'signe' && !poseFaite && !datePose) {
+        nc = { color: 'var(--accent-2)', text: 'Planifier la pose', sub: 'Aucune date de pose fixée.', btn: { label: 'Planifier', on: `openCardAndScroll('chantierCard')` } };
+      } else if (isChantierAPreparerFiche()) {
+        nc = { color: 'var(--accent-2)', text: 'Préparer le chantier', sub: `Pose le ${fmtDate(datePose)}.`, btn: { label: 'Ouvrir la checklist', on: `openCardAndScroll('checklistCard')` } };
+      } else if (d.statut === 'signe' && !poseFaite) {
+        nc = { color: 'var(--accent)', text: 'Pose prévue le ' + fmtDate(datePose), sub: 'Rien d’urgent d’ici là.' };
+      } else if (poseFaite && ttc > 0 && totalPaye < ttc - 0.005) {
+        nc = { color: 'var(--warn)', text: 'Encaisser le solde', sub: `${fmtEur(ttc - totalPaye)} restants à percevoir`, btn: { label: 'Facturer le solde', on: `location.href='factures.html?devis=${d.id}&type=solde'` } };
+      } else {
+        nc = { color: 'var(--ok)', text: 'Dossier en ordre ✓', sub: 'Rien à faire pour le moment.' };
+      }
+
+      host.style.setProperty('--nc', nc.color);
+      host.style.setProperty('--tick-color', nc.color);
+      host.innerHTML = `
+        <div class="nc-label">Prochaine action</div>
+        <div class="nc-text">${nc.text}</div>
+        ${nc.sub ? `<div class="nc-sub">${nc.sub}</div>` : ''}
+        ${nc.btn ? `<div class="nc-act"><button type="button" class="btn btn-ghost btn-sm" style="color:${nc.color};border-color:color-mix(in srgb,${nc.color} 40%,transparent);" onclick="${nc.btn.on}">${nc.btn.label}</button></div>` : ''}`;
+    }
+    // Pose dans les 7 prochains jours et pas encore faite → il faut préparer le chantier.
+    function isChantierAPreparerFiche() {
+      const d = DEVIS;
+      if (d.statut !== 'signe' || window.SSUI.isPoseDone(d) || !(d.chantier && d.chantier.date_pose)) return false;
+      const days = Math.round((new Date(d.chantier.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+      return days >= 0 && days <= 7;
     }
 
     // ══════════ CADENCE DE RELANCE ════════════════════════════════════════════════════════

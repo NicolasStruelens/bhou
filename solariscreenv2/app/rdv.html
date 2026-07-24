@@ -41,7 +41,13 @@
     .st-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--st, var(--text-muted)); box-shadow: 0 0 6px color-mix(in srgb, var(--st, transparent) 60%, transparent); }
 
     /* ── Vue KANBAN ── */
-    .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: var(--sp-3); overflow-x: auto; padding-bottom: var(--sp-3); align-items: start; }
+    /* Colonnes à 205px mini (au lieu de 240) : les 5 colonnes tiennent dans le conteneur de 1240px
+       et l'ascenseur horizontal — la grosse barre bleue signalée par Nicolas — disparaît dans le cas
+       courant. Quand il doit exister (colonne « Annulé » affichée, petit écran), il est discret. */
+    .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(205px, 1fr); gap: var(--sp-3); overflow-x: auto; padding-bottom: var(--sp-3); align-items: start; scrollbar-width: thin; }
+    .kanban::-webkit-scrollbar { height: 7px; }
+    .kanban::-webkit-scrollbar-track { background: transparent; }
+    .kanban::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
     .kcol { background: color-mix(in srgb, var(--surface) 60%, transparent); border: 1px solid var(--border); border-radius: var(--r-md); min-height: 120px; display: flex; flex-direction: column; }
     .kcol.drag-over { border-color: var(--accent); box-shadow: var(--glow-soft); }
     .kcol-head { display: flex; align-items: center; gap: 0.5rem; padding: var(--sp-3); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
@@ -58,6 +64,14 @@
     .who-ava.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
     .who-ava.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
     .who-ava.none { background: var(--bg); color: var(--text-subtle); border: 1px solid var(--border-strong); }
+    /* Raccourci « Visite faite » sur la carte : action franche, verte, pleine largeur. */
+    .rc-visite-btn { display: flex; align-items: center; justify-content: center; gap: 0.35rem; width: 100%;
+      margin-top: 0.5rem; padding: 0.35rem 0.5rem; cursor: pointer;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); border-radius: var(--r-sm);
+      transition: all var(--t-fast); }
+    .rc-visite-btn:hover { background: color-mix(in srgb, var(--ok) 18%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent); }
 
     /* ── Vue LISTE ── */
     .rdv-table { width: 100%; border-collapse: collapse; }
@@ -172,6 +186,7 @@
         <button class="btn btn-ghost btn-sm" id="btnDelete" onclick="deleteCurrent()" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">Supprimer</button>
         <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
         <div class="spacer"></div>
+        <button class="btn btn-ghost btn-sm" id="btnVisiteOk" onclick="visiteFaiteModal()" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);">Visite faite</button>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
         <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveCurrent()">Enregistrer</button>
       </div>
@@ -398,13 +413,41 @@
       if ((r.photos || []).length) badges.push(`<span class="badge">${icon('camera', 10)} ${r.photos.length}</span>`);
       if ((r.comments || []).length) badges.push(`<span class="badge">${icon('message', 10)} ${r.comments.length}</span>`);
       if (r.devis_id) badges.push('<span class="badge badge-ok">Devis lié</span>');
+      // « Visite faite » en UN clic, directement sur la carte : le glisser-déposer vers la colonne
+      // « Visité » existe mais personne ne le devine — résultat, les visites passées restaient
+      // coincées en « RDV fixé » (constaté en prod avec une vraie visite du 20/07).
+      const visiteBtn = r.statut === 'rdv_fixe'
+        ? `<button type="button" class="rc-visite-btn" onclick="marquerVisite(event,'${r.id}')" title="La visite a eu lieu — passer en « Visité »">${icon('check', 12)} Visite faite</button>`
+        : '';
       return `<div class="rdv-card" draggable="true" data-id="${r.id}"
           ondragstart="dragStart(event,'${r.id}')" ondragend="dragEnd(event)" onclick="openEdit('${r.id}')">
         <div class="rc-top"><span class="rc-name">${esc(clientName(r))}</span>${whoAva(r.assigned_to)}</div>
         <div class="rc-meta">${[tel, ville, rdvDate].filter(Boolean).join('')}</div>
         ${badges.length ? `<div class="rc-badges">${badges.join('')}</div>` : ''}
+        ${visiteBtn}
       </div>`;
     }
+
+    // Passe une demande en « Visité » (depuis la carte Kanban ou la fiche). Rollback si le
+    // serveur refuse : le statut ne doit jamais avancer à l'écran sans être persisté.
+    window.marquerVisite = async (e, id) => {
+      if (e) e.stopPropagation();
+      const r = RDV.find(x => x.id === id);
+      if (!r || r.statut === 'visite') return;
+      const prev = r.statut;
+      r.statut = 'visite';
+      r.date_modification = new Date().toISOString();
+      render();
+      const res = await SS.saveRdv(r);
+      if (res.ok === false) {
+        r.statut = prev;
+        render();
+        toast(res.error || 'Statut NON enregistré — réessaie.', 'error', 6000);
+        return;
+      }
+      if (SS.logActivity) SS.logActivity({ action: 'rdv.visite', entity_type: 'rdv', entity_id: r.id, label: `Visite effectuée — ${clientName(r)}` });
+      toast('Visite marquée ✓ — pense au devis !', 'ok', 3000);
+    };
 
     function renderKanban(rows) {
       // Colonne "Annulé" ajoutée seulement si la case "Voir annulés" est cochée (sinon les annulés
@@ -517,6 +560,8 @@
       el('btnSave').innerHTML = isNew ? `${icon('save', 14)} Enregistrer la demande` : `${icon('save', 14)} Enregistrer`;
       // « Annuler le RDV » : caché sur une nouvelle demande, un RDV déjà annulé, ou déjà converti en devis.
       el('btnCancelRdv').style.display = (isNew || r.statut === 'annule' || r.statut === 'converti') ? 'none' : '';
+      // « Visite faite » : uniquement quand une visite est fixée — le raccourci du retour de terrain.
+      el('btnVisiteOk').style.display = (!isNew && r.statut === 'rdv_fixe') ? '' : 'none';
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
       const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
       el('mBody').innerHTML = `
@@ -757,6 +802,14 @@
       if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter';
       fillMsg();
       toast('Attribué à ' + (IDENTITY.key === 'yannick' ? 'Yannick' : 'Nicolas') + ' — pense à enregistrer.', 'ok');
+    };
+
+    // « Visite faite » depuis la fiche ouverte : on garde toutes les saisies en cours (collect via
+    // saveCurrent), seul le statut est forcé — le select reflète le changement avant l'enregistrement.
+    window.visiteFaiteModal = () => {
+      if (!CURRENT) return;
+      el('f_statut').value = 'visite';
+      saveCurrent();
     };
 
     // Rassemble le formulaire dans CURRENT
