@@ -163,25 +163,34 @@
     .mi-slot[data-preview]:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
     .note-flag { display: inline-flex; align-items: center; color: var(--accent-2); margin-left: 2px; }
 
-    /* ══════════ KPI enrichis : anneau (encaissé/facturé) + barres comparatives (bénéfices) ══════ */
-    .kpi.warn { --tick-color: var(--warn); } .kpi.warn .kpi-value { color: var(--warn); }
-    .kpi.hero .kpi-value { font-size: clamp(1.15rem, 4.8vw, 2.25rem); }
-    .kpi-ring-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
-    .kpi-ring-wrap .kpi-value { margin-top: 0; }
-    .kpi-ring { flex: none; }
-    .kpi-ring .rbg { stroke: color-mix(in srgb, var(--text-subtle) 28%, transparent); }
-    .kpi-ring .rfg { stroke: var(--accent-2); }
-    .kpi-ring .rtxt { fill: var(--accent-2-ink); font-family: var(--font-mono); font-size: 9px; font-weight: 700; }
-    @media (prefers-reduced-motion: no-preference) { .kpi-ring .rfg { animation: kpiRing .9s cubic-bezier(.2,.8,.2,1) both; } }
+    /* ══════════ KPI — bandeau COMPACT (gagne de la hauteur : la liste des devis remonte) ════════
+       5 tuiles serrées séparées par des filets fins (au lieu de 5 grosses cartes de ~166 px).
+       Mêmes chiffres, mêmes visuels (anneau + barres), ~2× moins haut. */
+    #kpis { display: block; }
+    .kpi-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px;
+      background: var(--border); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+    .kt { background: var(--surface); padding: 11px 15px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .kt-l { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kt-v { font-family: var(--font-mono); font-size: clamp(0.95rem, 1.9vw, 1.4rem); font-weight: 700; color: var(--text); line-height: 1.15; white-space: nowrap; }
+    .kt-s { font-size: var(--fs-2xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kt.gold .kt-v { color: var(--accent-2-ink); } .kt.accent .kt-v { color: var(--accent); } .kt.warn .kt-v { color: var(--warn); } .kt.ok .kt-v { color: var(--ok); }
+    .kt-vr { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .kt-ring { flex: none; }
+    .kt-ring .rbg { stroke: color-mix(in srgb, var(--text-subtle) 28%, transparent); }
+    .kt-ring .rfg { stroke: var(--accent-2); }
+    .kt-ring .rtxt { fill: var(--accent-2-ink); font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
+    @media (prefers-reduced-motion: no-preference) { .kt-ring .rfg { animation: kpiRing .9s cubic-bezier(.2,.8,.2,1) both; } }
     @keyframes kpiRing { from { stroke-dashoffset: 97.4; } }
-    .kpi-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-    .kb-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 9px; }
-    .kb-l { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
-    .kb-track { height: 8px; border-radius: 5px; background: color-mix(in srgb, var(--text-subtle) 20%, transparent); overflow: hidden; }
-    .kb-track i { display: block; height: 100%; border-radius: 5px; }
-    @media (prefers-reduced-motion: no-preference) { .kb-track i { animation: kbFill .9s cubic-bezier(.2,.8,.2,1) both; } }
+    .kt-bars { display: flex; flex-direction: column; gap: 5px; margin-top: 3px; }
+    .ktb { display: grid; grid-template-columns: 13px 1fr auto; align-items: center; gap: 7px; }
+    .ktb > span:first-child { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .ktb-t { height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--text-subtle) 20%, transparent); overflow: hidden; }
+    .ktb-t i { display: block; height: 100%; border-radius: 4px; }
+    @media (prefers-reduced-motion: no-preference) { .ktb-t i { animation: kbFill .9s cubic-bezier(.2,.8,.2,1) both; } }
     @keyframes kbFill { from { width: 0; } }
-    .kb-v { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--text); white-space: nowrap; }
+    .ktb b { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--text); white-space: nowrap; }
+    @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
     /* ══════════ LIGNES « MIX » (refonte 2026-07-24) ══════════════════════════════════════════
        Chaque devis = une carte fine. Filet de couleur à gauche (urgence), UN signal fort à droite,
@@ -862,25 +871,23 @@
       const beneTotal = nicolasNet + yannickNet;
       const beneMax = Math.max(nicolasNet, yannickNet, 1);
       const ringOffset = (97.4 * (1 - encPct / 100)).toFixed(1);
-      el('kpis').innerHTML = `
-        <div class="kpi gold hero"><div class="kpi-label">CA signé &amp; terminé</div><div class="kpi-value" data-v="${caSigne}" data-fmt="eur">—</div><div class="kpi-sub">${signes.length} devis · bénéfice ${fmtEur(beneTotal)}</div></div>
-        <div class="kpi accent"><div class="kpi-label">CA en jeu</div><div class="kpi-value" data-v="${caEnJeu}" data-fmt="eur">—</div><div class="kpi-sub">${envoyes.length} devis en attente client</div></div>
-        <div class="kpi gold"><div class="kpi-label">Encaissé</div>
-          <div class="kpi-ring-wrap">
-            <svg class="kpi-ring" width="46" height="46" viewBox="0 0 36 36" aria-hidden="true"><circle class="rbg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.2"/><circle class="rfg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="${ringOffset}" transform="rotate(-90 18 18)"/><text class="rtxt" x="18" y="18" text-anchor="middle" dominant-baseline="central">${encPct}%</text></svg>
-            <div class="kpi-value" data-v="${caEncaisse}" data-fmt="eur">—</div>
-          </div>
-          <div class="kpi-sub">sur ${fmtEur(totalFacture)} facturé</div></div>
-        <div class="kpi ${resteEncaisser > 0.005 ? 'warn' : 'ok'}"><div class="kpi-label">Reste à encaisser</div><div class="kpi-value" data-v="${resteEncaisser}" data-fmt="eur">—</div><div class="kpi-sub">${resteEncaisser > 0.005 ? 'facturé − déjà payé' : (totalFacture > 0 ? 'tout est encaissé ✓' : 'aucune facture')}</div></div>
-        <div class="kpi"><div class="kpi-label">Bénéfices vendeurs</div>
-          <div class="kpi-bars">
-            <div class="kb-row"><span class="kb-l">Nicolas</span><span class="kb-track"><i style="width:${Math.round(nicolasNet / beneMax * 100)}%;background:var(--accent)"></i></span><span class="kb-v">${fmtEur(nicolasNet)}</span></div>
-            <div class="kb-row"><span class="kb-l">Yannick</span><span class="kb-track"><i style="width:${Math.round(yannickNet / beneMax * 100)}%;background:var(--accent-2)"></i></span><span class="kb-v">${fmtEur(yannickNet)}</span></div>
-          </div></div>`;
+      el('kpis').innerHTML = `<div class="kpi-strip">
+        <div class="kt gold"><div class="kt-l">CA signé &amp; terminé</div><div class="kt-v" data-v="${caSigne}" data-fmt="eur">—</div><div class="kt-s">${signes.length} devis · bénéf. ${fmtEur(beneTotal)}</div></div>
+        <div class="kt accent"><div class="kt-l">CA en jeu</div><div class="kt-v" data-v="${caEnJeu}" data-fmt="eur">—</div><div class="kt-s">${envoyes.length} devis en attente</div></div>
+        <div class="kt gold"><div class="kt-l">Encaissé</div>
+          <div class="kt-vr"><svg class="kt-ring" width="34" height="34" viewBox="0 0 36 36" aria-hidden="true"><circle class="rbg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.4"/><circle class="rfg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="${ringOffset}" transform="rotate(-90 18 18)"/><text class="rtxt" x="18" y="18" text-anchor="middle" dominant-baseline="central">${encPct}%</text></svg><div class="kt-v" data-v="${caEncaisse}" data-fmt="eur">—</div></div>
+          <div class="kt-s">sur ${fmtEur(totalFacture)} facturé</div></div>
+        <div class="kt ${resteEncaisser > 0.005 ? 'warn' : 'ok'}"><div class="kt-l">Reste à encaisser</div><div class="kt-v" data-v="${resteEncaisser}" data-fmt="eur">—</div><div class="kt-s">${resteEncaisser > 0.005 ? 'facturé − déjà payé' : (totalFacture > 0 ? 'tout encaissé ✓' : 'aucune facture')}</div></div>
+        <div class="kt"><div class="kt-l">Bénéfices vendeurs</div>
+          <div class="kt-bars">
+            <div class="ktb"><span>N</span><span class="ktb-t"><i style="width:${Math.round(nicolasNet / beneMax * 100)}%;background:var(--accent)"></i></span><b>${fmtEur(nicolasNet)}</b></div>
+            <div class="ktb"><span>Y</span><span class="ktb-t"><i style="width:${Math.round(yannickNet / beneMax * 100)}%;background:var(--accent-2)"></i></span><b>${fmtEur(yannickNet)}</b></div>
+          </div></div>
+      </div>`;
       // Défensif : si countUp est indisponible (ui.js périmé en cache ou non chargé), on pose la
       // valeur finale au lieu de laisser une exception interrompre TOUT le rendu du tableau de bord.
       const anim = window.SSUI && window.SSUI.countUp;
-      el('kpis').querySelectorAll('.kpi-value[data-v]').forEach(n => {
+      el('kpis').querySelectorAll('[data-v]').forEach(n => {
         const eur = n.getAttribute('data-fmt') === 'eur';
         const val = Number(n.getAttribute('data-v')) || 0;
         const fmt = v => eur ? fmtEur(v) : String(Math.round(v));
