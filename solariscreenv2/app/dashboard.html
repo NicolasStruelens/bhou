@@ -617,6 +617,8 @@
       // de la journée. Le prédicat sur WAITING_STATUSES fait que le chip disparaît tout seul une
       // fois le devis passé en « signé » — pas de compteur qui s'accumule.
       const acceptes = visible.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
+      // Question posée par le client (via l'espace client) et pas encore répondue → à traiter vite.
+      const questionsClient = visible.filter(d => d.client_question_open);
       const box = el('todayBrief');
       const chips = [];
       // ── Demandes de RDV (contacts entrants) ──────────────────────────────────────────────
@@ -629,6 +631,7 @@
       const visitesJour = rdvActifs.filter(r => r.statut === 'rdv_fixe' && String(r.date_rdv || '').slice(0, 10) === todayIso);
       if (nonPris.length) chips.push({ label: `${nonPris.length} demande${nonPris.length > 1 ? 's' : ''} sans personne en charge`, color: 'var(--danger)', href: 'rdv.html', ic: 'warning' });
       if (visitesJour.length) chips.push({ label: `${visitesJour.length} visite${visitesJour.length > 1 ? 's' : ''} client aujourd'hui`, color: 'var(--accent)', href: 'agenda.html', ic: 'calendar' });
+      if (questionsClient.length) chips.push({ label: `${questionsClient.length} question${questionsClient.length > 1 ? 's' : ''} client — à répondre`, color: 'var(--warn)', filter: 'question_client', ic: 'message' });
       if (acceptes.length) chips.push({ label: `${acceptes.length} devis accepté${acceptes.length > 1 ? 's' : ''} par le client — à faire signer`, color: 'var(--ok)', filter: 'accepte_client', ic: 'check' });
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
@@ -724,6 +727,7 @@
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
       if (activeFilter === 'accepte_client') rows = rows.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
+      else if (activeFilter === 'question_client') rows = rows.filter(d => d.client_question_open);
       else if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
       else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
       else if (activeFilter === 'acompte_attente') rows = rows.filter(isAcompteUnpaid);
@@ -785,8 +789,16 @@
         const acceptB = (d.client_accepted && WAITING_STATUSES.includes(d.statut))
           ? `<span class="badge badge-ok" title="Le client a accepté ce devis en ligne${d.client_accepted_at ? ' le ' + fmtDate(d.client_accepted_at) : ''} — reste à faire signer">${icon('check', 10)} Accepté client</span>`
           : '';
+        // Question client sans réponse (or) : à traiter. Refus VENU du client (rouge) : distinct
+        // d'un « refusé » posé à la main, pour savoir que c'est le client qui a décliné en ligne.
+        const questionB = d.client_question_open
+          ? `<span class="badge badge-warn" title="Le client a posé une question sur son espace en ligne — à répondre">${icon('message', 10)} Question client</span>`
+          : '';
+        const declineB = (d.statut === 'refuse' && d.client_declined)
+          ? `<span class="badge badge-danger" title="Le client a refusé ce devis en ligne${d.raison_refus ? ' — ' + esc(d.raison_refus) : ''}">${icon('warning', 10)} Refusé par le client</span>`
+          : '';
         const waitB = waitingBadge(d);
-        const secondary = (acceptB || waitB || infoB) ? `<div class="status-badges">${acceptB}${waitB}${infoB}</div>` : '';
+        const secondary = (questionB || acceptB || declineB || waitB || infoB) ? `<div class="status-badges">${questionB}${acceptB}${declineB}${waitB}${infoB}</div>` : '';
         return `<div class="status-cell">${pill(d)}${secondary}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau

@@ -123,6 +123,14 @@
     .msg-chan { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
     .msg-chan .btn.reco { border-color: var(--accent-2); color: var(--accent-2); font-weight: 700; }
     .msg-hint { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.3rem; }
+    /* ── Suggestion « qui est le plus proche » ── */
+    .proxi { margin-top: var(--sp-2); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; }
+    .proxi-line { font-size: var(--fs-sm); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .proxi-line svg { color: var(--accent); flex: none; }
+    .proxi-km { font-family: var(--font-mono); font-weight: 700; color: var(--accent); }
+    .proxi-detail { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .proxi-ok { font-size: var(--fs-2xs); color: var(--ok); display: flex; align-items: center; gap: 0.3rem; margin-top: 0.35rem; }
+    .proxi-loading, .proxi-none { font-size: var(--fs-2xs); color: var(--text-subtle); }
     /* Alerte délai de réponse (un lead web se rappelle vite) */
     .lead-age { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.1rem 0.4rem; border-radius: var(--r-sm); border: 1px solid currentColor; }
     .lead-age.warn { color: var(--warn); }
@@ -297,6 +305,7 @@
       el('f_rue').value = ((a.rue || '') + (a.numero ? ' ' + a.numero : '')).trim();
       el('f_ville').value = ((a.code_postal || '') + ' ' + (a.ville || '')).trim();
       el('rdvClientSearch').value = ''; el('rdvClientHits').innerHTML = '';
+      renderProximite();   // l'onchange ne se déclenche pas sur un remplissage programmatique
       toast('Client pré-rempli ✓', 'ok');
     };
 
@@ -569,7 +578,7 @@
           <div class="field"><label class="label">Téléphone</label><input class="input" id="f_tel" value="${esc(c.telephone)}"></div>
           <div class="field"><label class="label">Email(s)</label><input class="input" id="f_email" type="email" multiple value="${esc(c.email)}" placeholder="email@exemple.be"></div>
           <div class="field"><label class="label">Rue et n°</label><input class="input" id="f_rue" value="${esc((a.rue || '') + (a.numero ? ' ' + a.numero : ''))}" placeholder="Rue des Fleurs 12"></div>
-          <div class="field"><label class="label">Code postal + ville</label><input class="input" id="f_ville" value="${esc(((a.code_postal || '') + ' ' + (a.ville || '')).trim())}" placeholder="7000 Mons"></div>
+          <div class="field"><label class="label">Code postal + ville</label><input class="input" id="f_ville" value="${esc(((a.code_postal || '') + ' ' + (a.ville || '')).trim())}" placeholder="7000 Mons" onchange="renderProximite()"></div>
         </div>
 
         <div class="form-sec">Suivi de la demande</div>
@@ -581,6 +590,7 @@
             <option value="yannick" ${r.assigned_to === 'yannick' ? 'selected' : ''}>Yannick</option>
           </select>
           ${(IDENTITY.key && r.assigned_to !== IDENTITY.key) ? `<button type="button" class="btn btn-ghost btn-sm mt-1" onclick="takeCharge()">${icon('check', 13)} Je prends en charge</button>` : ''}
+          <div id="proximiteHost"></div>
           </div>
           <div class="field"><label class="label">Source de la demande</label><select class="select" id="f_source">${sourceOpts}</select></div>
           <div class="field"><label class="label">Préférence de contact</label>
@@ -643,6 +653,7 @@
           <button class="btn btn-ghost btn-sm" onclick="addNote()">Ajouter</button>
         </div>`;
       renderCreneaux();
+      renderProximite();
       fillMsg();
       renderPhotos();
       renderNotes();
@@ -787,6 +798,49 @@
       let wa = tel.replace(/^\+/, '');
       if (wa.startsWith('0')) wa = '32' + wa.slice(1);
       window.open(`https://wa.me/${wa}?text=${encodeURIComponent(body)}`, '_blank');
+    };
+    // ── Qui est le plus proche ? ────────────────────────────────────────────────────────────
+    // Aide à la décision « qui fait quoi » : distance à vol d'oiseau depuis la base de chaque
+    // vendeur (SS_VENDEURS, code postal géocodé) jusqu'au client. On classe, on met le plus proche
+    // en avant, avec un bouton pour l'attribuer — sans jamais forcer le choix.
+    // Un jeton anti-course (PROXI_TOKEN) garantit qu'un géocodage lent d'un ancien code postal
+    // n'écrase pas l'affichage du code postal courant.
+    let PROXI_TOKEN = 0;
+    // Extrait le code postal belge (4 chiffres) de « 1651 Lot » ou « Lot 1651 ».
+    function cpFromField(val) { const m = String(val || '').match(/\b(\d{4})\b/); return m ? m[1] : ''; }
+    window.renderProximite = async () => {
+      const host = el('proximiteHost');
+      if (!host) return;
+      const V = window.SS_VENDEURS;
+      const cp = cpFromField(el('f_ville') && el('f_ville').value);
+      if (!V || !cp) { host.innerHTML = ''; return; }
+      const token = ++PROXI_TOKEN;
+      host.innerHTML = '<div class="proxi proxi-loading">Distance en cours…</div>';
+      let loc = null;
+      try { loc = await window.SSUI.geocodeVille('', cp); } catch (e) {}
+      if (token !== PROXI_TOKEN) return;                 // un code postal plus récent a pris la main
+      if (!loc) { host.innerHTML = `<div class="proxi proxi-none">${icon('pin', 11)} Distance indisponible pour le code postal ${esc(cp)}.</div>`; return; }
+      const rows = Object.keys(V).map(k => ({
+        key: k, label: V[k].label,
+        km: window.SSUI.distanceKm(V[k].lat, V[k].lon, loc.latitude, loc.longitude),
+      })).filter(x => x.km != null).sort((a, b) => a.km - b.km);
+      if (!rows.length) { host.innerHTML = ''; return; }
+      const near = rows[0];
+      const assigned = (el('f_assigned') && el('f_assigned').value) || '';
+      // Le détail ne liste que les AUTRES vendeurs (le plus proche est déjà mis en avant).
+      const detail = rows.slice(1).map(x => `${esc(x.label)} ${Math.round(x.km)} km`).join(' · ');
+      host.innerHTML = `
+        <div class="proxi">
+          <div class="proxi-line">${icon('pin', 12)} Plus proche : <strong>${esc(near.label)}</strong> <span class="proxi-km">${Math.round(near.km)} km</span>${detail ? ` <span class="proxi-detail">· ${detail}</span>` : ''}</div>
+          ${assigned === near.key ? `<div class="proxi-ok">${icon('check', 11)} déjà attribué au plus proche</div>`
+            : `<button type="button" class="btn btn-ghost btn-sm mt-1" onclick="attribuerProche('${near.key}')">${icon('check', 13)} Attribuer à ${esc(near.label)}</button>`}
+        </div>`;
+    };
+    window.attribuerProche = (key) => {
+      if (el('f_assigned')) el('f_assigned').value = key;
+      if (typeof fillMsg === 'function') fillMsg();   // la signature du message suit la personne en charge
+      renderProximite();
+      toast('Attribué à ' + ((window.SS_VENDEURS[key] || {}).label || key) + ' (le plus proche) — pense à enregistrer.', 'ok');
     };
     window.takeCharge = () => {
       if (!IDENTITY.key) { toast('Identité inconnue — choisis dans la liste déroulante.', 'warn'); return; }

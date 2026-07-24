@@ -59,6 +59,19 @@
     .next-card .nc-text { font-size: var(--fs-md); font-weight: 700; color: var(--nc, var(--text)); line-height: 1.35; }
     .next-card .nc-sub { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.3rem; }
     .next-card .nc-act { margin-top: var(--sp-3); }
+    /* ── Espace client : alertes (question / refus / acceptation) + compteur de vues ── */
+    .rv-alert { display: flex; gap: 0.5rem; align-items: flex-start; border-radius: var(--r-sm); padding: 0.6rem 0.7rem; margin-bottom: var(--sp-2); font-size: var(--fs-sm); }
+    .rv-alert svg { flex: none; margin-top: 2px; }
+    .rv-alert.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+    .rv-alert.danger { background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
+    .rv-alert.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+    .rv-alert-sub { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 0.2rem; font-style: italic; }
+    .rv-views { display: flex; align-items: center; gap: 0.35rem; font-size: var(--fs-xs); color: var(--text-muted); }
+    .rv-views svg { flex: none; color: var(--accent); }
+    /* Composeur de note en « mode réponse client » : liseré doré franc, pour ne jamais confondre. */
+    .n-mode-banner { background: color-mix(in srgb, var(--accent-2) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); color: var(--accent-2-ink); border-radius: var(--r-sm); padding: 0.4rem 0.6rem; margin-bottom: var(--sp-2); font-size: var(--fs-2xs); }
+    .n-foot.reply-mode { outline: 2px solid color-mix(in srgb, var(--accent-2) 55%, transparent); outline-offset: 4px; border-radius: var(--r-sm); }
+    .n-foot.reply-mode #nSendBtn { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 22%, transparent); color: var(--accent-2-ink); }
 
     /* ── Fiche client ── */
     .client-hero { display: flex; gap: var(--sp-4); align-items: flex-start; flex-wrap: wrap; }
@@ -560,15 +573,16 @@
       <div class="notes-card ticked">
         <div class="n-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Notes internes <span id="nCount" class="section-sub" style="margin-left:auto;"></span></div>
         <div class="n-body" id="nList"></div>
-        <div class="n-foot">
+        <div class="n-foot" id="nFoot">
+          <div id="nModeBanner" class="n-mode-banner hidden"></div>
           <textarea class="textarea" id="nText" style="min-height:52px;" placeholder="Note rapide pour Yannick / toi-même…"></textarea>
           <label class="check" style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-top:0.3rem;" title="Coché, ce message apparaît sur l'espace client (devis-review) — ex. réponse à une question posée par le client. Décoché par défaut.">
-            <input type="checkbox" id="nVisibleClient"> Visible pour le client (réponse à sa question)
+            <input type="checkbox" id="nVisibleClient" onchange="syncNoteComposer()"> Visible pour le client (réponse à sa question)
           </label>
           <div class="send-row">
             <select class="select" id="nAuthor" aria-label="Auteur de la note"><option value="nicolas">Nicolas</option><option value="yannick">Yannick</option></select>
             <select class="select" id="nType" aria-label="Type de note" style="max-width:120px;"><option value="note">Note</option><option value="question">Question</option><option value="important">Important</option></select>
-            <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="sendNote()">Ajouter</button>
+            <button class="btn btn-primary btn-sm" id="nSendBtn" style="margin-left:auto;" onclick="sendNote()">Ajouter</button>
           </div>
         </div>
       </div>
@@ -1569,7 +1583,9 @@
       let nc;   // { color, text, sub, btn: { label, on } }
 
       if (['refuse', 'annule'].includes(d.statut)) {
-        nc = { color: 'var(--text-subtle)', text: 'Dossier classé', sub: d.raison_refus ? 'Raison : ' + d.raison_refus : '' };
+        nc = d.client_declined
+          ? { color: 'var(--danger)', text: 'Refusé par le client en ligne', sub: d.raison_refus ? 'Raison : ' + d.raison_refus : '' }
+          : { color: 'var(--text-subtle)', text: 'Dossier classé', sub: d.raison_refus ? 'Raison : ' + d.raison_refus : '' };
       } else if (d.statut === 'brouillon') {
         nc = { color: 'var(--text-subtle)', text: 'Finaliser et envoyer le devis', btn: { label: 'Ouvrir le simulateur', on: `location.href='simulateur.html?id=${d.id}'` } };
       } else if (d.client_accepted && attente) {
@@ -1883,25 +1899,59 @@
       await SS.saveDevis(DEVIS);
     };
     // ── Espace client (revoir le devis, accepter/refuser, poser une question) ──
+    // Dernière QUESTION du client restée sans réponse (aucune note « visible client » postée
+    // après elle). Renvoie l'objet commentaire, ou null. Calcul robuste depuis les commentaires
+    // complets (indépendant du flag dénormalisé, valable aussi pour les anciens devis).
+    function unansweredClientQuestion(d) {
+      const cs = (d.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      let lastQ = null;
+      cs.forEach(c => {
+        if (c.author === 'client') lastQ = c;
+        else if (c.visible_client === true && lastQ) lastQ = null;   // une réponse visible referme
+      });
+      return lastQ;
+    }
     function renderReviewCard() {
       const card = el('reviewCard');
-      const show = WAITING_STATUSES_ALL.includes(DEVIS.statut) && DEVIS.statut !== 'brouillon';
+      // Visible tant que le devis attend une décision — OU s'il y a une question client en attente,
+      // OU si le client a refusé (pour afficher l'alerte de refus, même hors statut « en attente »).
+      const openQ = unansweredClientQuestion(DEVIS);
+      const declined = !!DEVIS.client_declined;
+      const show = (WAITING_STATUSES_ALL.includes(DEVIS.statut) && DEVIS.statut !== 'brouillon') || !!openQ || declined;
       card.classList.toggle('hidden', !show);
       if (!show) return;
-      let infoTxt = "Copie ce lien et envoie-le au client pour qu'il puisse revoir son devis en ligne.";
-      // Acceptation en ligne : on la met en évidence (carte verte) au lieu d'une ligne de texte gris
-      // noyée dans la fiche — c'est l'information la plus actionnable (il reste à faire signer).
-      card.style.setProperty('--tick-color', DEVIS.client_accepted ? 'var(--ok)' : '');
-      if (DEVIS.client_accepted) infoTxt = `✅ Le client a ACCEPTÉ ce devis le ${fmtDate(DEVIS.client_accepted_at)} — il reste à le faire signer.`;
-      // review_views est un TABLEAU d'horodatages dans le devis complet (c'est la liste /api/devis
-      // qui en expose le nombre). Comparer le tableau à un nombre donnait toujours faux → le
-      // compteur de consultations n'apparaissait jamais.
-      else {
-        const views = Array.isArray(DEVIS.review_views) ? DEVIS.review_views.length : (Number(DEVIS.review_views) || 0);
-        if (views > 0) infoTxt = `Le client a consulté ce lien ${views} fois.`;
+
+      const views = Array.isArray(DEVIS.review_views) ? DEVIS.review_views.length : (Number(DEVIS.review_views) || 0);
+      const lastView = Array.isArray(DEVIS.review_views) && DEVIS.review_views.length ? DEVIS.review_views[DEVIS.review_views.length - 1] : null;
+      const viewLine = views > 0
+        ? `<div class="rv-views">${icon('window', 12)} Consulté <strong>${views}</strong> fois par le client${lastView ? ' · dernière le ' + fmtDate(lastView) : ''}</div>`
+        : `<div class="rv-views" style="color:var(--text-subtle);">${icon('window', 12)} Lien pas encore ouvert par le client.</div>`;
+
+      // Couleur du repère selon l'état le plus important : refus (rouge) > question (or) > accepté (vert).
+      const tick = declined ? 'var(--danger)' : (openQ ? 'var(--accent-2)' : (DEVIS.client_accepted ? 'var(--ok)' : 'var(--accent)'));
+      card.style.setProperty('--tick-color', tick);
+
+      let alertHtml = '';
+      if (declined) {
+        alertHtml = `<div class="rv-alert danger">${icon('warning', 13)} <div><strong>Le client a REFUSÉ ce devis en ligne.</strong>${DEVIS.raison_refus ? `<div class="rv-alert-sub">Raison : ${esc(DEVIS.raison_refus)}</div>` : ''}</div></div>`;
+      } else if (openQ) {
+        alertHtml = `<div class="rv-alert warn">${icon('message', 13)} <div><strong>Question du client — en attente de réponse</strong>
+          <div class="rv-alert-sub">« ${esc(openQ.text)} »</div>
+          <button type="button" class="btn btn-primary btn-sm mt-2" onclick="replyToClient()">${icon('message', 13)} Répondre au client</button></div></div>`;
+      } else if (DEVIS.client_accepted) {
+        alertHtml = `<div class="rv-alert ok">${icon('check', 13)} <div><strong>Le client a ACCEPTÉ ce devis</strong> le ${fmtDate(DEVIS.client_accepted_at)} — il reste à le faire signer.</div></div>`;
       }
-      el('reviewInfo').textContent = infoTxt;
+      el('reviewInfo').innerHTML = alertHtml + viewLine;
     }
+    // Répondre à une question du client : ouvre la carte Notes, coche « visible client », place le
+    // curseur dans le champ. Garantit que la réponse partira BIEN vers le client (pas en note interne).
+    window.replyToClient = () => {
+      const chk = el('nVisibleClient');
+      if (chk) { chk.checked = true; syncNoteComposer(); }
+      const notesCard = document.querySelector('.notes-card');
+      if (notesCard) notesCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => { const f = el('nText'); if (f) f.focus({ preventScroll: true }); }, 300);
+    };
     // Le jeton doit être ENREGISTRÉ avant qu'on copie le lien : sinon il n'existe que dans ce
     // navigateur et le client reçoit un lien qui affiche « Lien invalide ou expiré ».
     window.copyReviewLink = async () => {
@@ -2144,6 +2194,20 @@
       toast('Devis repassé en formel ✓', 'ok');
       render();
     };
+    // Bascule visuelle du composeur : « note interne » (défaut) vs « réponse visible par le client ».
+    // Objectif anti-erreur : impossible d'envoyer un message au client sans le voir clairement, et
+    // impossible de croire qu'on répond au client alors que c'est resté interne.
+    window.syncNoteComposer = () => {
+      const on = el('nVisibleClient') && el('nVisibleClient').checked;
+      const foot = el('nFoot'), banner = el('nModeBanner'), btn = el('nSendBtn'), ta = el('nText');
+      if (foot) foot.classList.toggle('reply-mode', !!on);
+      if (banner) {
+        banner.classList.toggle('hidden', !on);
+        banner.innerHTML = on ? `${icon('message', 12)} Ce message sera <strong>visible par le client</strong> sur son espace en ligne.` : '';
+      }
+      if (btn) btn.textContent = on ? 'Envoyer au client' : 'Ajouter';
+      if (ta) ta.placeholder = on ? 'Votre réponse au client (visible sur son espace)…' : 'Note rapide pour Yannick / toi-même…';
+    };
     window.sendNote = async () => {
       const text = el('nText').value.trim();
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
@@ -2151,14 +2215,19 @@
       const visibleClient = el('nVisibleClient').checked;
       const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value, visible_client: visibleClient });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
+      // Une réponse visible client referme la question en attente (miroir du backend), pour que
+      // l'alerte de la carte « Espace client » disparaisse immédiatement sans recharger.
+      if (visibleClient) DEVIS.client_question_open = false;
       el('nText').value = '';
       el('nVisibleClient').checked = false;
+      syncNoteComposer();
       // La note vient d'être écrite CÔTÉ SERVEUR de façon ciblée (route /comment). On l'ajoute
       // simplement à l'affichage local — pas de re-fetch du devis (inutile, et un GET immédiat
       // après écriture peut renvoyer une version D1 pas encore propagée).
       if (res.comment) { DEVIS.comments = DEVIS.comments || []; DEVIS.comments.push(res.comment); }
       renderNotes();
-      toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée ✓', res.offline ? 'warn' : 'ok');
+      renderReviewCard();   // l'alerte « question en attente » s'éteint si on vient de répondre au client
+      toast(res.offline ? (visibleClient ? 'Réponse enregistrée (hors-ligne)' : 'Note enregistrée (hors-ligne)') : (visibleClient ? 'Réponse envoyée au client ✓' : 'Note ajoutée ✓'), res.offline ? 'warn' : 'ok');
     };
 
     // ── Lightbox ──
