@@ -221,3 +221,43 @@ Cette version ne nécessite **aucune migration SQL**.
 - Sur mobile, changer de thème depuis l’Atelier sans perdre la vue affichée.
 - Vérifier qu’aucun défilement horizontal n’apparaît à 390 px de large.
 - Avec « réduire les animations » activé dans le système, vérifier que Racine reste calme et lisible.
+
+## Version 54 — Constellation aérienne, cuisine guidée et sas intelligent
+
+La v54 ne change pas le schéma D1 : **aucune migration SQL supplémentaire**. La base reste en version 12.
+
+### Constellation
+
+- En thème clair, la liste sous le graphe devient un panneau translucide et léger au lieu d’un bloc gris opaque.
+- Les pensées visibles sont présentées dans des cartes blanches lisibles, avec des contrastes adaptés au mode clair.
+- La liste peut être réduite puis réaffichée ; le choix est mémorisé sur l’appareil.
+
+### Recettes
+
+- « Le choix du moment » recommande automatiquement la recette la plus facile à lancer selon les ingrédients disponibles.
+- « Une autre idée » fait circuler les propositions sans imposer un nouveau formulaire.
+- Recherche et filtres **Toutes / Prêtes / Presque prêtes**.
+- Indicateur de préparation sur chaque recette.
+- Multiplicateur de quantités ×1 à ×4.
+- Mode cuisine avec grande checklist, progression et maintien optionnel de l’écran allumé.
+- Courses intelligentes : les ingrédients manquants identiques sont regroupés, leurs quantités additionnées et la liste organisée par rayon.
+
+### Presse-papier
+
+- Tableau de bord du sas : transferts, favoris, secrets masqués et éléments qui expirent bientôt.
+- Recherche et filtres **Tout / Favoris / Liens / Commandes / Secrets / Fichiers**.
+- Bouton pour copier immédiatement le dernier transfert texte.
+- Détection d’un secret pendant la saisie, avec protection en un clic : expiration 1 h, lecture unique et exclusion des exports.
+- Les secrets présents dans la grille sont masqués et ne s’affichent que cinq secondes sur demande.
+- Actions contextuelles : ouvrir directement une URL ou copier un JSON remis en forme.
+
+### Vérifications après déploiement
+
+- [ ] État du système affiche **App v54** et **Schéma v12**.
+- [ ] En thème clair, le cadre sous la Constellation est translucide, lisible et repliable.
+- [ ] « Le choix du moment » affiche une recette et ouvre le mode cuisine.
+- [ ] Les filtres Recettes et Presse-papier réduisent correctement les cartes visibles.
+- [ ] Un texte ressemblant à un secret déclenche la recommandation de protection.
+- [ ] « Protéger automatiquement » sélectionne 1 h, lecture unique et ne jamais exporter.
+- [ ] Sur un écran de 390 px, les trois espaces n’ont aucun débordement horizontal.
+- [ ] Après actualisation forcée, aucun ancien fichier v53 ne reste chargé.
