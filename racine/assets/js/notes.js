@@ -295,7 +295,9 @@
     doneBtn.setAttribute('aria-label', doneBtn.title);
     doneBtn.appendChild(icon(n.done ? 'history' : 'check'));
     doneBtn.addEventListener('click', function () {
-      RA.updateNote(n.id, { done: !n.done }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
+      var row = doneBtn.closest('.node, .root-card, .branch-row');
+      if (window.RAHarvest && !n.done) window.RAHarvest.complete(n, row).catch(function () {});
+      else RA.updateNote(n.id, { done: !n.done }).then(loadNotes).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(doneBtn);
 
@@ -585,7 +587,7 @@
       statsChip.appendChild(document.createTextNode(' créées · '));
       var s2 = document.createElement('strong'); s2.textContent = doneWeek;
       statsChip.appendChild(s2);
-      statsChip.appendChild(document.createTextNode(' terminées cette semaine'));
+      statsChip.appendChild(document.createTextNode(' récoltées cette semaine'));
       el.appendChild(statsChip);
     }
 
@@ -641,8 +643,8 @@
       });
     } else {
       document.getElementById('overviewSummary').innerHTML = '';
-      var poolNotes = state.notes.filter(function (n) { return state.filterSomeday ? n.status === 'someday' : n.status !== 'someday'; });
-      var roots = buildTree(poolNotes).filter(function (r) { return (r.space || 'Général') === state.activeSpace; });
+      var poolNotes = state.notes.filter(function (n) { return !n.done && (state.filterSomeday ? n.status === 'someday' : n.status !== 'someday'); });
+      var roots = buildTree(poolNotes).filter(function (r) { return effectiveSpace(r) === state.activeSpace; });
       document.getElementById('emptyState').style.display = roots.length ? 'none' : 'block';
       if (emptyMsg) emptyMsg.textContent = 'Rien pour l\'instant dans « ' + state.activeSpace + ' ». Écris ta première idée ci-dessus.';
       roots.forEach(function (n) { renderRootCard(n, treeEl); });
@@ -672,11 +674,13 @@
       renderTagBar();
       renderNotesView();
       checkReminders();
-      var reminderCount = data.notes.filter(function (n) { return n.remind_at; }).length;
+      var reminderCount = data.notes.filter(function (n) { return !n.done && n.remind_at; }).length;
       document.getElementById('reminderCount').textContent = reminderCount ? reminderCount : '';
       if (document.getElementById('view-reminders').classList.contains('active')) renderReminders();
+      if (document.getElementById('view-completed').classList.contains('active') && window.RAHarvest) window.RAHarvest.renderCompleted();
       if (document.getElementById('view-today').classList.contains('active')) renderToday();
       if (document.getElementById('view-graph').classList.contains('active')) window.renderGraph();
       if (window.RAStarfield) window.RAStarfield.setNodeCount(12 + data.notes.length);
+      if (window.RAHarvest) window.RAHarvest.render();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }

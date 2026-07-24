@@ -48,6 +48,7 @@
     var term = searchInputGraph.value.trim().toLowerCase();
     var lens = lensSelect.value;
     var pool = state.notes.filter(function (n) {
+      if (n.done) return false;
       if (cutoff && n.updated_at < cutoff) return false;
       if (term) {
         var hay = (n.title + ' ' + (n.content || '') + ' ' + (n.tags || '') + ' ' + effectiveSpace(n)).toLowerCase();

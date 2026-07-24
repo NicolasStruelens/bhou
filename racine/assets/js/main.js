@@ -12,7 +12,7 @@
     }
     // La Clairière est l'entrée normale. Les liens directs restent prioritaires.
     var requestedTab = params.get('tab');
-    if (['today', 'notes', 'graph', 'clips', 'recipes', 'reminders', 'trash'].indexOf(requestedTab) !== -1) switchTab(requestedTab);
+    if (['today', 'notes', 'graph', 'clips', 'recipes', 'reminders', 'completed', 'trash'].indexOf(requestedTab) !== -1) switchTab(requestedTab);
     else if (!params.get('focus') && !params.get('clip')) switchTab('today');
     if (params.get('focus') === 'capture') openDepositModal();
     var clipId = params.get('clip');

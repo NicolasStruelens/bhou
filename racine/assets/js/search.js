@@ -145,6 +145,7 @@
   }
 
   function matchesFilter(n) {
+    if (n.done) return false;
     if (state.filterKind !== 'all' && n.kind !== state.filterKind) return false;
     if (state.filterPinned && !n.pinned) return false;
     if (state.filterEnergy && (n.energy || '') !== state.filterEnergy) return false;
@@ -175,7 +176,7 @@
   function renderTagBar() {
     var bar = document.getElementById('tagBar');
     bar.innerHTML = '';
-    var scoped = state.notes.filter(function (n) { return effectiveSpace(n) === state.activeSpace; });
+    var scoped = state.notes.filter(function (n) { return !n.done && effectiveSpace(n) === state.activeSpace; });
     var set = {};
     scoped.forEach(function (n) { parseTags(n.tags).forEach(function (t) { set[t] = true; }); });
     var tags = Object.keys(set).sort();

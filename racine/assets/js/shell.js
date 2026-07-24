@@ -191,6 +191,7 @@
     var duration = actionFn ? 5000 : 2200;
     if (actionLabel && actionFn) {
       toastActionEl.textContent = actionLabel;
+      toastActionEl.classList.remove('hidden');
       toastActionEl.style.display = '';
       toastActionEl.onclick = function () {
         clearTimeout(toastTimer);
@@ -198,6 +199,7 @@
         actionFn();
       };
     } else {
+      toastActionEl.classList.add('hidden');
       toastActionEl.style.display = 'none';
       toastActionEl.onclick = null;
     }
@@ -225,7 +227,7 @@
   // ---------- tabs ----------
   var captureInput = document.getElementById('captureInput');
 
-  var ATELIER_VIEWS = ['clips', 'recipes', 'reminders', 'trash'];
+  var ATELIER_VIEWS = ['clips', 'recipes', 'reminders', 'completed', 'trash'];
   var atelierToggle = document.getElementById('atelierToggle');
   var atelierDropdown = document.getElementById('atelierDropdown');
 
@@ -235,6 +237,7 @@
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + name); });
     if (name === 'trash') loadTrash();
     if (name === 'reminders') renderReminders();
+    if (name === 'completed' && window.RAHarvest) window.RAHarvest.renderCompleted();
     if (name === 'today') renderToday();
     if (name === 'graph') window.renderGraph();
     if (name === 'recipes') loadRecipes();

@@ -61,7 +61,7 @@
     var source = state.notes.find(function (n) { return n.id === linkSourceId; });
     var already = source ? parseLinks(source.links) : [];
     var results = state.notes.filter(function (n) {
-      if (n.id === linkSourceId || already.indexOf(n.id) !== -1) return false;
+      if (n.done || n.id === linkSourceId || already.indexOf(n.id) !== -1) return false;
       if (!term) return true;
       return n.title.toLowerCase().indexOf(term) !== -1;
     }).slice(0, 30);

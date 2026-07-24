@@ -159,10 +159,10 @@
   // ce n'est pas un compteur de productivité : juste un signe visible que quelque chose grandit
   function computeGrowthOfWeek() {
     var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    var roots = state.notes.filter(function (n) { return !n.parent_id && n.status !== 'someday'; });
+    var roots = state.notes.filter(function (n) { return !n.parent_id && !n.done && n.status !== 'someday'; });
     var best = null, bestCount = 0;
     roots.forEach(function (r) {
-      var count = state.notes.filter(function (n) { return n.parent_id === r.id && n.created_at >= weekAgo; }).length;
+      var count = state.notes.filter(function (n) { return n.parent_id === r.id && !n.done && n.created_at >= weekAgo; }).length;
       if (count > bestCount) { bestCount = count; best = r; }
     });
     return bestCount > 0 ? { note: best, count: bestCount } : null;
@@ -199,7 +199,7 @@
     var weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     var dismissed = dismissedBundles();
     var candidates = state.notes.filter(function (n) {
-      return !n.parent_id && n.kind === 'idee' && n.status !== 'someday' && n.created_at >= weekAgo;
+      return !n.parent_id && !n.done && n.kind === 'idee' && n.status !== 'someday' && n.created_at >= weekAgo;
     });
     var byTag = {};
     candidates.forEach(function (n) {
@@ -284,11 +284,11 @@
     var container = document.getElementById('todayContent');
     container.innerHTML = '';
     var now = Date.now();
-    var due = state.notes.filter(function (n) { return n.remind_at && n.remind_at <= now; })
+    var due = state.notes.filter(function (n) { return !n.done && n.remind_at && n.remind_at <= now; })
       .sort(function (a, b) { return a.remind_at - b.remind_at; });
     var openTodos = state.notes.filter(function (n) { return n.kind === 'todo' && !n.done && n.status !== 'someday'; })
       .sort(function (a, b) { return (b.pinned - a.pinned) || (a.created_at - b.created_at); });
-    var pinned = state.notes.filter(function (n) { return n.pinned && n.kind !== 'todo'; });
+    var pinned = state.notes.filter(function (n) { return !n.done && n.pinned && n.kind !== 'todo'; });
     var recentClips = state.clips.slice(0, 5);
     var any = due.length || openTodos.length || pinned.length || recentClips.length;
     document.getElementById('todayEmpty').style.display = (any || clairiereHasContent) ? 'none' : 'block';
@@ -360,6 +360,8 @@
       container.appendChild(block2);
     }
     if (window.RAV50) window.RAV50.render();
+    if (window.RAV51) window.RAV51.render();
+    if (window.RAHarvest) window.RAHarvest.render();
   }
 
   var todayRestToggle = document.getElementById('todayRestToggle');
@@ -390,7 +392,16 @@
     meta.className = 'weekly-item-meta';
     meta.textContent = extra;
     row.appendChild(meta);
-    row.addEventListener('click', function () { weeklyModal.classList.remove('show'); jumpToNote(n.id); });
+    row.addEventListener('click', function () {
+      weeklyModal.classList.remove('show');
+      if (n.done && window.RAHarvest) {
+        switchTab('completed');
+        document.getElementById('harvestSearch').value = n.title;
+        window.RAHarvest.renderCompleted();
+      } else {
+        jumpToNote(n.id);
+      }
+    });
     container.appendChild(row);
   }
 
@@ -400,15 +411,15 @@
 
     var addedEl = document.getElementById('weeklyAdded');
     addedEl.innerHTML = '';
-    state.notes.filter(function (n) { return n.created_at >= weekAgo; })
+    state.notes.filter(function (n) { return !n.done && n.created_at >= weekAgo; })
       .sort(function (a, b) { return b.created_at - a.created_at; })
       .forEach(function (n) { weeklyRow(n, addedEl, noteMeta(n)); });
 
     var maturedEl = document.getElementById('weeklyMatured');
     maturedEl.innerHTML = '';
     state.notes.filter(function (n) {
-      if (n.parent_id || n.created_at >= weekAgo) return false; // seulement les racines déjà là avant cette semaine
-      var recentChildren = state.notes.filter(function (x) { return x.parent_id === n.id && x.created_at >= weekAgo; }).length;
+      if (n.done || n.parent_id || n.created_at >= weekAgo) return false; // seulement les racines actives déjà là avant cette semaine
+      var recentChildren = state.notes.filter(function (x) { return x.parent_id === n.id && !x.done && x.created_at >= weekAgo; }).length;
       var recentLink = parseLinks(n.links).length > 0 && n.updated_at >= weekAgo;
       return recentChildren > 0 || recentLink;
     }).sort(function (a, b) { return b.updated_at - a.updated_at; })
@@ -424,7 +435,7 @@
     archiveEl.innerHTML = '';
     state.notes.filter(function (n) { return n.done && n.updated_at < monthAgo; })
       .sort(function (a, b) { return a.updated_at - b.updated_at; })
-      .forEach(function (n) { weeklyRow(n, archiveEl, 'terminé le ' + noteMeta(n)); });
+      .forEach(function (n) { weeklyRow(n, archiveEl, 'récolté le ' + noteMeta(n)); });
 
     renderRandomForgottenNote();
   }
@@ -497,7 +508,7 @@
 
   function computeGraphLayout(rect) {
     var cutoff = graphTimeCutoff();
-    var pool = state.notes.filter(function (n) { return !cutoff || n.created_at >= cutoff; });
+    var pool = state.notes.filter(function (n) { return !n.done && (!cutoff || n.created_at >= cutoff); });
     var clusters = {};
     pool.forEach(function (n) {
       var key = graphClusterKey(n);

@@ -16,7 +16,7 @@
     var canNotify = 'Notification' in window && Notification.permission === 'granted';
 
     // rappels datés précis, sur une note donnée — indépendants du réglage global
-    var due = state.notes.filter(function (n) { return n.remind_at && n.remind_at <= Date.now(); });
+    var due = state.notes.filter(function (n) { return !n.done && n.remind_at && n.remind_at <= Date.now(); });
     var dueToNotify = due.filter(function (n) { return notifiedMap['r:' + n.id] !== today; });
     if (dueToNotify.length) {
       if (canNotify) {
@@ -32,7 +32,7 @@
       var days = reminderDays();
       var cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
       var overdue = state.notes.filter(function (n) {
-        var relevant = n.pinned || (n.kind === 'todo' && !n.done);
+        var relevant = !n.done && (n.pinned || n.kind === 'todo');
         return relevant && n.created_at <= cutoff;
       });
       if (overdue.length) {
@@ -120,4 +120,3 @@
       loadNotes();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
-

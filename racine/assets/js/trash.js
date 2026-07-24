@@ -147,7 +147,7 @@
   function renderReminders() {
     var list = document.getElementById('reminderList');
     list.innerHTML = '';
-    var withReminder = state.notes.filter(function (n) { return n.remind_at; })
+    var withReminder = state.notes.filter(function (n) { return !n.done && n.remind_at; })
       .sort(function (a, b) { return a.remind_at - b.remind_at; });
     document.getElementById('reminderEmpty').style.display = withReminder.length ? 'none' : 'block';
     withReminder.forEach(function (n) {
@@ -199,4 +199,3 @@
       document.getElementById('trashEmpty').style.display = total ? 'none' : 'block';
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   }
-

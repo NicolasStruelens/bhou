@@ -40,6 +40,7 @@
   function focusCandidates() {
     var now = Date.now();
     var pool = state.notes.filter(function (n) {
+      if (n.done) return false;
       if (n.status === 'someday') return false; // le parking mental ne doit jamais s'imposer en Focus
       if (n.energy === 'attente') return false; // bloqué sur quelqu'un d'autre : rien à faire maintenant
       if (!(n.pinned || (n.kind === 'todo' && !n.done))) return false;
@@ -118,8 +119,9 @@
   });
   document.getElementById('focusDone').addEventListener('click', function () {
     var n = focusQueue[focusIndex];
-    RA.updateNote(n.id, { done: true }).then(function () {
-      loadNotes();
+    var completion = window.RAHarvest ? window.RAHarvest.complete(n, null) : RA.updateNote(n.id, { done: true }).then(loadNotes);
+    completion.then(function (result) {
+      if (result && result.guided) { focusModal.classList.remove('show'); return; }
       focusIndex++;
       showFocusCard();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
