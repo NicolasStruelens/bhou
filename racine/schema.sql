@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS notes (
   inbox INTEGER DEFAULT 0,          -- pensée déposée sans rangement, à faire germer plus tard
   effort_minutes INTEGER,           -- durée approximative pour les sessions Agir
   history TEXT DEFAULT '[]',        -- versions précédentes (JSON, 10 max) : [{title,content,tags,energy,updated_at}]
+  completed_at INTEGER,              -- date de clôture réelle (NULL = encore actif)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
@@ -103,4 +104,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (9, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (10, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (11, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (12, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (12, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (13, CAST(strftime('%s','now') AS INTEGER) * 1000);

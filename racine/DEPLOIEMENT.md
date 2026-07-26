@@ -44,6 +44,7 @@ Si `racine-db` existe déjà (déploiement initial fait avant une évolution du 
 9. `migration_v10.sql` — recettes et listes de courses
 10. `migration_v11.sql` — préférences synchronisées entre appareils
 11. `migration_v12.sql` — boîte de dépôt et durée estimée des pensées
+12. `migration_v13.sql` — date réelle de clôture et extinction des rappels terminés
 
 Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
 
@@ -261,3 +262,52 @@ La v54 ne change pas le schéma D1 : **aucune migration SQL supplémentaire**. L
 - [ ] « Protéger automatiquement » sélectionne 1 h, lecture unique et ne jamais exporter.
 - [ ] Sur un écran de 390 px, les trois espaces n’ont aucun débordement horizontal.
 - [ ] Après actualisation forcée, aucun ancien fichier v53 ne reste chargé.
+
+## Version 55 — socle fiable, confidentiel et responsive
+
+La v55 fait évoluer la base D1 de **v12 vers v13**. Elle ajoute la date réelle de clôture
+`completed_at` et éteint les rappels encore attachés à des éléments déjà terminés.
+
+### Ordre exact de déploiement
+
+1. Dans la version actuellement en ligne, télécharger un export JSON récent.
+2. Dans Cloudflare → **D1** → `racine-db` → **Console**, exécuter :
+
+```sql
+SELECT MAX(version) AS version FROM schema_migrations;
+```
+
+3. Si le résultat est `12`, copier tout le contenu de `migration_v13.sql` dans la Console
+   et cliquer une seule fois sur **Exécuter**. Si le résultat est déjà `13`, ne pas rejouer
+   la migration.
+4. Vérifier :
+
+```sql
+SELECT version FROM schema_migrations ORDER BY version DESC;
+```
+
+   La première ligne doit être `13`.
+5. Sur GitHub, ouvrir le dépôt qui alimente Cloudflare Pages et le dossier **`/racine`**.
+   Remplacer son contenu par celui du dossier local
+   `C:\Users\Nicolas\Desktop\CODAGE CLAUDE\Racine`.
+6. Vérifier en particulier la présence des nouveaux fichiers :
+   - `migration_v13.sql`
+   - `assets/js/modal-manager.js`
+7. Valider le commit sur la branche `main`, puis attendre que le déploiement Cloudflare
+   Pages soit terminé avec le statut **Success**.
+8. Fermer puis rouvrir la PWA Racine, ou faire `Ctrl + F5` dans le navigateur.
+9. Ouvrir **Atelier → État du système** et vérifier :
+   - **App v55**
+   - **Schéma v13**
+
+### Contrôles rapides après mise en ligne
+
+- [ ] Terminer une tâche la retire des vues actives et la place dans **Atelier → Récolte**.
+- [ ] La date affichée dans Récolte ne change plus lorsqu’un autre champ est modifié.
+- [ ] Un rappel attaché à une tâche terminée est automatiquement éteint.
+- [ ] À 390, 768, 844 et 900 px, aucun défilement horizontal n’apparaît.
+- [ ] Sur le graphe mobile/tablette, un doigt ou la molette fait défiler la page ; deux doigts explorent la constellation.
+- [ ] Une fenêtre ouverte bloque le fond, garde le focus clavier et rend le focus au bouton d’origine après fermeture.
+- [ ] L’import affiche un aperçu et propose **Fusionner sans doublons** ou **Remplacer après sauvegarde**.
+- [ ] Un texte détecté comme secret impose 1 h, lecture unique et exclusion des exports.
+- [ ] Après déconnexion, les données API et la file hors ligne ne restent pas dans les caches du navigateur.
