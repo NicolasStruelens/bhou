@@ -92,6 +92,13 @@
     .salut-seg button:hover { color: var(--accent-2-ink); }
     .salut-seg button.on { background: var(--accent-2); color: var(--bg); font-weight: 700; }
     .salut-hint { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
+    #salutationHost .salut-box + .salut-box { margin-top: var(--sp-2); }
+    /* Étiquettes cliquables (#2) */
+    .tag-pick { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tagp { font-family: var(--font-mono); font-size: var(--fs-2xs); border: 1px solid var(--border-strong); background: transparent;
+      color: var(--text-muted); border-radius: var(--r-sm); padding: 3px 8px; cursor: pointer; transition: all var(--t-fast); }
+    .tagp:hover { border-color: var(--accent-3); color: var(--accent-3); }
+    .tagp.on { background: var(--accent-3); border-color: var(--accent-3); color: var(--bg); font-weight: 700; }
     .client-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
     .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
     .client-weather { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
@@ -1944,28 +1951,126 @@
       }
       return cl.prenom ? `« Bonjour ${cl.prenom} »` : '« Bonjour »';
     }
+    // ── Réglages rapides (#1 vendeur · #2 étiquettes · #4 canal préféré) ────────────────────────
+    // Même esprit que le sélecteur de salutation : régler la chose là où on la voit.
+    const TAG_PRESETS_V = ['Chaud', 'À relancer', 'Gros chantier', 'Client pro', 'Rénovation TVA 6%', "Difficile d'accès"];
+    const PREF_CONTACT = { tel: 'Téléphone', email: 'E-mail', whatsapp: 'WhatsApp' };
+    const SELLER_LB = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Personnalisée' };
+
+    // Recalcul COMPLET après changement de vendeur : les commissions en dépendent directement.
+    // On reconstruit l'input exactement comme le simulateur (remises incluses — `getCalc` ne les
+    // passe pas car il ne sert que de repli) pour ne pas laisser `calculs` incohérent.
+    function recomputeDevis(d) {
+      const p = d.pricing_v2 || {}, c = d.calculs || {};
+      const inst = (p.installation && p.installation.per_opening) || {};
+      const pick = (a, b) => (a !== undefined && a !== null) ? a : b;
+      return computeDevis({
+        items: d.items || [],
+        sellers: (p.material && p.material.sellers) || {},
+        installation: {
+          install_gross: inst.install_gross, tech1_gross: inst.tech1_gross, tech2_gross: inst.tech2_gross, tools_gross: inst.tools_gross,
+          install_qty: pick(p.installation && p.installation.install_qty, inst.install_qty),
+          tech1_qty: pick(p.installation && p.installation.tech1_qty, inst.tech1_qty),
+          tech2_qty: pick(p.installation && p.installation.tech2_qty, inst.tech2_qty),
+          tools_qty: pick(p.installation && p.installation.tools_qty, inst.tools_qty),
+        },
+        extras: p.extras || [], tva_pct: p.tva_pct, acompte_pct: p.acompte_pct, surplus_difficulte: p.surplus_difficulte,
+        remise_catalogue: c.remise_catalogue && { mode: c.remise_catalogue.mode, value: c.remise_catalogue.value },
+        remise_installation: c.remise_installation && { mode: c.remise_installation.mode, value: c.remise_installation.value },
+        remise_outillage: c.remise_outillage && { mode: c.remise_outillage.mode, value: c.remise_outillage.value },
+      });
+    }
+    window.setSellerPrincipal = async (key) => {
+      const p2 = DEVIS.pricing_v2 = DEVIS.pricing_v2 || {};
+      const mat = p2.material = p2.material || {};
+      const sellers = mat.sellers = mat.sellers || {};
+      const prev = sellers.principal, prevCalc = DEVIS.calculs;
+      if (prev === key) return;
+      sellers.principal = key;
+      // Les pourcentages suivent le vendeur principal (mêmes valeurs que le simulateur : 18 % / 5 %).
+      if (key === 'nicolas') { sellers.nicolas_pct = 18; sellers.yannick_pct = 5; }
+      else if (key === 'yannick') { sellers.nicolas_pct = 5; sellers.yannick_pct = 18; }
+      DEVIS.calculs = recomputeDevis(DEVIS);
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) { sellers.principal = prev; DEVIS.calculs = prevCalc; toast(res.error || 'Non enregistré', 'error'); render(); return; }
+      CALC = getCalc(DEVIS);
+      toast('Vendeur principal : ' + (SELLER_LB[key] || key) + ' ✓ — commissions recalculées', res.offline ? 'warn' : 'ok');
+      render();
+    };
+    window.setPrefContact = async (v) => {
+      if (!CLIENT_FICHE) return;
+      const prev = CLIENT_FICHE.pref_contact || '';
+      CLIENT_FICHE.pref_contact = (prev === v) ? '' : v;   // re-cliquer désélectionne
+      CLIENT_FICHE.date_modification = new Date().toISOString();
+      renderSalutation();
+      const res = await SS.saveClient(CLIENT_FICHE);
+      if (res.ok === false) { CLIENT_FICHE.pref_contact = prev; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); }
+    };
+    window.toggleClientTag = async (tag) => {
+      if (!CLIENT_FICHE) return;
+      const tags = CLIENT_FICHE.tags = Array.isArray(CLIENT_FICHE.tags) ? CLIENT_FICHE.tags : [];
+      const i = tags.findIndex(t => String(t).toLowerCase() === tag.toLowerCase());
+      const before = tags.slice();
+      if (i !== -1) tags.splice(i, 1); else tags.push(tag);
+      CLIENT_FICHE.date_modification = new Date().toISOString();
+      renderSalutation();
+      const res = await SS.saveClient(CLIENT_FICHE);
+      if (res.ok === false) { CLIENT_FICHE.tags = before; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); return; }
+      render();   // les étiquettes s'affichent aussi dans l'en-tête client
+    };
+
     function renderSalutation() {
       const host = el('salutationHost');
       if (!host) return;
       const cl = DEVIS.client || {};
       if (!cl.prenom && !cl.nom) { host.innerHTML = ''; return; }
+      // Vendeur principal : porté par le DEVIS (pas la fiche client) → toujours affiché. En mode
+      // « Personnalisée », on n'affiche pas les boutons (basculer écraserait la répartition sur mesure).
+      const seller = ((DEVIS.pricing_v2 || {}).material || {}).sellers || {};
+      const sp = seller.principal || 'nicolas';
+      const sellerRow = `<div class="salut-box">
+        <span class="salut-lbl">${icon('user', 12)} Vendeur principal</span>
+        ${sp === 'autre'
+          ? `<span class="salut-hint">Répartition personnalisée (${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} %) — modifiable dans le simulateur</span>`
+          : `<div class="salut-seg" role="group" aria-label="Vendeur principal">
+              <button type="button" class="${sp === 'nicolas' ? 'on' : ''}" onclick="setSellerPrincipal('nicolas')">Nicolas</button>
+              <button type="button" class="${sp === 'yannick' ? 'on' : ''}" onclick="setSellerPrincipal('yannick')">Yannick</button>
+            </div>
+            <span class="salut-hint">${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} % · commissions recalculées</span>`}
+      </div>`;
+
       if (!CLIENT_FICHE) {
         // Le client EXISTE bien dans le CRM (il est déduit de ses devis) — ce qui manque, c'est sa
         // fiche d'enrichissement (civilité, formule, étiquettes, notes). Le libellé le dit ainsi :
         // « pas de fiche CRM » laissait croire à un bug puisqu'on voit le client dans la page Clients.
-        host.innerHTML = `<div class="salut-box no-fiche">${icon('user', 13)} <span>Fiche client à compléter <span style="opacity:.75;">(civilité, formule, étiquettes, notes)</span></span>
+        host.innerHTML = sellerRow + `<div class="salut-box no-fiche">${icon('user', 13)} <span>Fiche client à compléter <span style="opacity:.75;">(civilité, formule, étiquettes, notes)</span></span>
           <button class="btn btn-ghost btn-sm" onclick="createClientFiche()">${icon('plus', 12)} Compléter la fiche</button></div>`;
         return;
       }
       const ton = CLIENT_FICHE.ton || 'amical';
       const needCiv = ton === 'pro' && !CLIENT_FICHE.civilite;
-      host.innerHTML = `<div class="salut-box">
+      const pref = CLIENT_FICHE.pref_contact || '';
+      const tags = Array.isArray(CLIENT_FICHE.tags) ? CLIENT_FICHE.tags : [];
+      const hasTag = t => tags.some(x => String(x).toLowerCase() === t.toLowerCase());
+      host.innerHTML = sellerRow + `<div class="salut-box">
         <span class="salut-lbl">${icon('message', 12)} Salutation en ligne</span>
         <div class="salut-seg" role="group" aria-label="Formule de salutation">
           <button type="button" class="${ton === 'amical' ? 'on' : ''}" onclick="setFormule('amical')">Amical</button>
           <button type="button" class="${ton === 'pro' ? 'on' : ''}" onclick="setFormule('pro')">Professionnel</button>
         </div>
         <span class="salut-hint">${esc(greetingPreview(ton))}${needCiv ? ' · ⚠ précise la civilité dans le CRM' : ''}</span>
+      </div>
+      <div class="salut-box">
+        <span class="salut-lbl">${icon('phone', 12)} Contact préféré</span>
+        <div class="salut-seg" role="group" aria-label="Canal de contact préféré">
+          ${Object.entries(PREF_CONTACT).map(([k, lb]) => `<button type="button" class="${pref === k ? 'on' : ''}" onclick="setPrefContact('${k}')">${lb}</button>`).join('')}
+        </div>
+        <span class="salut-hint">${pref ? 'canal mis en avant pour les relances' : 'aucun canal privilégié'}</span>
+      </div>
+      <div class="salut-box">
+        <span class="salut-lbl">${icon('tag', 12)} Étiquettes</span>
+        <div class="tag-pick">${TAG_PRESETS_V.map(t => `<button type="button" class="tagp ${hasTag(t) ? 'on' : ''}" onclick="toggleClientTag(${SSUI.jsAttr(t)})">${esc(t)}</button>`).join('')}</div>
       </div>`;
     }
     window.setFormule = async (ton) => {
