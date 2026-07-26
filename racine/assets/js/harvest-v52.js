@@ -180,7 +180,7 @@
     });
   }
   function harvestDate(n) {
-    return new Intl.DateTimeFormat('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(ts(n.updated_at) || Date.now()));
+    return new Intl.DateTimeFormat('fr-BE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(ts(n.completed_at || n.updated_at) || Date.now()));
   }
   function harvestCard(note) {
     var card = document.createElement('article'); card.className = 'harvest-card';
@@ -203,11 +203,11 @@
   function renderCompleted() {
     var container = document.getElementById('harvestGroups'); if (!container) return;
     var term = document.getElementById('harvestSearch').value.trim().toLowerCase();
-    var roots = harvestedRoots().filter(function (n) { return !term || ((n.title || '') + ' ' + (n.content || '') + ' ' + spaceOf(n)).toLowerCase().indexOf(term) !== -1; }).sort(function (a, b) { return ts(b.updated_at) - ts(a.updated_at); });
+    var roots = harvestedRoots().filter(function (n) { return !term || ((n.title || '') + ' ' + (n.content || '') + ' ' + spaceOf(n)).toLowerCase().indexOf(term) !== -1; }).sort(function (a, b) { return ts(b.completed_at || b.updated_at) - ts(a.completed_at || a.updated_at); });
     var today = new Date(); today.setHours(0, 0, 0, 0); var start = today.getTime(), week = start - 6 * DAY;
-    var recent = roots.filter(function (n) { return ts(n.updated_at) >= start; });
-    var thisWeek = roots.filter(function (n) { return ts(n.updated_at) < start && ts(n.updated_at) >= week; });
-    var older = roots.filter(function (n) { return ts(n.updated_at) < week; });
+    var recent = roots.filter(function (n) { return ts(n.completed_at || n.updated_at) >= start; });
+    var thisWeek = roots.filter(function (n) { var doneAt = ts(n.completed_at || n.updated_at); return doneAt < start && doneAt >= week; });
+    var older = roots.filter(function (n) { return ts(n.completed_at || n.updated_at) < week; });
     container.innerHTML = ''; harvestGroup(container, 'Aujourd’hui', recent); harvestGroup(container, 'Cette semaine', thisWeek); harvestGroup(container, 'Plus ancien', older);
     document.getElementById('harvestEmpty').classList.toggle('hidden', roots.length > 0);
     var stats = document.getElementById('harvestStats'); stats.innerHTML = '';

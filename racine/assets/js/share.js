@@ -45,7 +45,7 @@
     statusEl.className = 'share-error';
     statusEl.textContent = err.message === 'ce lien de partage a expiré' || err.message === 'expired'
       ? 'Ce lien a expiré.'
-      : 'Élément introuvable (lien invalide, révoqué ou expiré).';
+      : 'Élément introuvable (lien déjà utilisé, révoqué ou expiré).';
     card.innerHTML = '';
     card.appendChild(statusEl);
   });

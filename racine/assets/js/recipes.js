@@ -310,8 +310,10 @@
     var list = document.createElement('div');
     list.className = 'recipe-ingredients';
     ingredients.forEach(function (ing, idx) {
-      var row = document.createElement('label');
+      var row = document.createElement('div');
       row.className = 'recipe-ingredient-row' + (ing.have ? ' have' : '');
+      var checkLabel = document.createElement('label');
+      checkLabel.className = 'recipe-ingredient-check';
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = !!ing.have;
@@ -319,10 +321,11 @@
         var next = ingredients.map(function (x, i) { return i === idx ? { name: x.name, have: cb.checked, qty: x.qty, unit: x.unit } : x; });
         RA.updateRecipe(r.id, { ingredients: next }).then(loadRecipes).catch(function (err) { toast('Erreur : ' + err.message); });
       });
-      row.appendChild(cb);
+      checkLabel.appendChild(cb);
       var name = document.createElement('span');
       name.textContent = formatIngredientLabel(ing, multiplier);
-      row.appendChild(name);
+      checkLabel.appendChild(name);
+      row.appendChild(checkLabel);
       var rm = document.createElement('button');
       rm.type = 'button';
       rm.className = 'ingredient-remove';

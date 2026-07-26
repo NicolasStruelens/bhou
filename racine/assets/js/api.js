@@ -64,6 +64,7 @@ window.RA = (function () {
     listClips: function () { return req('/clips'); },
     trashClips: function () { return req('/clips/trash'); },
     getClip: function (id) { return req('/clips/' + id); },
+    consumeClip: function (id) { return req('/clips/' + id + '/consume', { method: 'POST' }); },
     createClip: function (clip) { return req('/clips', { method: 'POST', body: clip }); },
     updateClip: function (id, patch) { return req('/clips/' + id, { method: 'PUT', body: patch, offlineQueueable: true }); },
     deleteClip: function (id) { return req('/clips/' + id, { method: 'DELETE', offlineQueueable: true }); },
@@ -71,14 +72,18 @@ window.RA = (function () {
     purgeClip: function (id) { return req('/clips/' + id + '/purge', { method: 'DELETE' }); },
 
     exportAll: function () { return req('/export'); },
+    importAll: function (data, mode, dryRun) {
+      return req('/import', { method: 'POST', body: { data: data, mode: mode || 'merge', dry_run: !!dryRun } });
+    },
 
     getPreferences: function () { return req('/preferences'); },
     setPreferences: function (patch) { return req('/preferences', { method: 'PUT', body: patch }); },
 
     health: function () { return req('/health'); },
     listBackups: function () { return req('/backups'); },
-    createBackup: function () { return req('/backups', { method: 'POST' }); },
+    createBackup: function (force) { return req('/backups', { method: 'POST', body: { force: !!force } }); },
     getBackup: function (id) { return req('/backups/' + id); },
+    repairDataHealth: function () { return req('/maintenance/repair', { method: 'POST' }); },
 
     // partage public : volontairement en dehors du wrapper req() authentifié
     // (pas de redirection vers login.html en cas d'échec — la page publique affiche son propre message)

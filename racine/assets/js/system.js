@@ -4,7 +4,7 @@
   var systemModal = document.getElementById('systemModal');
   var systemInfo = document.getElementById('systemInfo');
   var backupList = document.getElementById('backupList');
-  var APP_VERSION = '54';
+  var APP_VERSION = '55';
 
   function statChip(value, label, warn) {
     var div = document.createElement('div');
@@ -54,22 +54,70 @@
       var restoreBtn = document.createElement('button');
       restoreBtn.textContent = 'Restaurer';
       restoreBtn.addEventListener('click', function () {
-        if (!confirm('Restaurer cette sauvegarde du ' + new Date(b.created_at).toLocaleString('fr-FR') + ' ? Son contenu sera ajouté à tes données actuelles (rien n\'est remplacé).')) return;
         RA.getBackup(b.id).then(function (data) {
-          toast('Restauration en cours…');
-          return runImport(data);
-        }).then(function () {
-          toast('Sauvegarde restaurée');
-          loadNotes();
-          loadClips();
-          loadRecipes();
           systemModal.classList.remove('show');
+          return openImportPreview(data, 'Sauvegarde du ' + new Date(b.created_at).toLocaleString('fr-FR'));
         }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       row.appendChild(restoreBtn);
 
       backupList.appendChild(row);
     });
+  }
+
+  function descendantsOf(id) {
+    var found = [];
+    var frontier = [id];
+    var seen = {};
+    seen[id] = true;
+    while (frontier.length) {
+      var current = frontier.shift();
+      state.notes.forEach(function (note) {
+        if (note.parent_id === current && !seen[note.id]) {
+          seen[note.id] = true;
+          found.push(note);
+          frontier.push(note.id);
+        }
+      });
+    }
+    return found;
+  }
+
+  function renderDataHealth(serverHealth) {
+    var panel = document.getElementById('dataHealth');
+    panel.innerHTML = '';
+    var doneOpen = state.notes.filter(function (note) {
+      return !!note.done && state.notes.some(function (child) { return child.parent_id === note.id && !child.done; });
+    }).length;
+    var rootsWithoutAction = state.notes.filter(function (note) {
+      if (note.parent_id || note.done || note.status === 'someday') return false;
+      var branch = [note].concat(descendantsOf(note.id));
+      return !branch.some(function (item) {
+        return !item.done && item.status !== 'someday' && item.kind === 'todo';
+      });
+    }).length;
+    var inbox = state.notes.filter(function (note) { return !!note.inbox && !note.done; }).length;
+    var secretRisk = (state.clips || []).filter(function (clip) {
+      return clip.type_hint === 'secret' && (!clip.burn || !clip.no_export || !clip.expires_at);
+    }).length;
+    var rows = [
+      { count: inbox, label: 'pensée(s) encore dans le sas', tone: inbox ? 'attention' : 'ok' },
+      { count: rootsWithoutAction, label: 'racine(s) sans prochaine action', tone: rootsWithoutAction ? 'attention' : 'ok' },
+      { count: doneOpen || serverHealth.completed_with_open_children || 0, label: 'branche(s) terminée(s) avec enfant actif', tone: doneOpen ? 'attention' : 'ok' },
+      { count: secretRisk, label: 'secret(s) insuffisamment protégé(s)', tone: secretRisk ? 'danger' : 'ok' },
+    ];
+    rows.forEach(function (row) {
+      var item = document.createElement('div');
+      item.className = 'data-health-row ' + row.tone;
+      var count = document.createElement('strong'); count.textContent = row.count;
+      var label = document.createElement('span'); label.textContent = row.label;
+      item.appendChild(count); item.appendChild(label); panel.appendChild(item);
+    });
+    var reminders = Number(serverHealth.completed_with_reminder || 0);
+    var repair = document.getElementById('repairDataHealthBtn');
+    var repairs = reminders + secretRisk;
+    repair.classList.toggle('hidden', repairs === 0);
+    repair.textContent = repairs ? 'Appliquer ' + repairs + ' correction(s) sûre(s)' : '';
   }
 
   function refreshSystemModal() {
@@ -84,6 +132,7 @@
       systemInfo.appendChild(statChip(h.clips, 'Clips actifs'));
       systemInfo.appendChild(statChip(h.reminders, 'Rappels programmés'));
       systemInfo.appendChild(statChip(h.last_backup ? new Date(h.last_backup).toLocaleDateString('fr-FR') : 'Aucune', 'Dernière sauvegarde', !h.last_backup));
+      renderDataHealth(h);
       renderBackupList(backups);
     }).catch(function (err) {
       systemInfo.textContent = 'Erreur : ' + err.message;
@@ -98,8 +147,16 @@
   document.getElementById('systemClose').addEventListener('click', function () { systemModal.classList.remove('show'); });
   systemModal.addEventListener('click', function (e) { if (e.target === systemModal) systemModal.classList.remove('show'); });
   document.getElementById('backupNowBtn').addEventListener('click', function () {
-    RA.createBackup().then(function () {
+    RA.createBackup(true).then(function () {
       toast('Sauvegarde créée');
+      refreshSystemModal();
+    }).catch(function (err) { toast('Erreur : ' + err.message); });
+  });
+  document.getElementById('repairDataHealthBtn').addEventListener('click', function () {
+    RA.repairDataHealth().then(function (result) {
+      toast((result.reminders_cleared || 0) + ' rappel(s) éteint(s), ' + (result.secrets_protected || 0) + ' secret(s) protégé(s)');
+      return loadNotes();
+    }).then(function () {
       refreshSystemModal();
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
@@ -115,7 +172,7 @@
         return;
       }
       var url = location.origin + '/api/quick/' + data.token;
-      quickCaptureInfo.textContent = url + ' (créé le ' + new Date(data.created_at).toLocaleString('fr-FR') + ')';
+      quickCaptureInfo.textContent = url + ' · expire le ' + new Date(data.expires_at).toLocaleDateString('fr-FR');
     }).catch(function (err) { quickCaptureInfo.textContent = 'Erreur : ' + err.message; });
   }
 

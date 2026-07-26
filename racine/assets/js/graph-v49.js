@@ -337,25 +337,29 @@
       if (!document.getElementById('view-graph').classList.contains('active')) { graph49.rafId = null; return; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, rect.width, rect.height);
       ctx.save(); ctx.translate(graph49.offsetX, graph49.offsetY); ctx.scale(graph49.scale, graph49.scale);
+      var lightTheme = document.documentElement.getAttribute('data-theme') === 'light';
 
       graph49.clusterLabels.forEach(function (c) {
-        ctx.font = '700 ' + (11 / graph49.scale) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(127,169,152,0.88)';
+        ctx.font = '700 ' + (11 / graph49.scale) + 'px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillStyle = lightTheme ? 'rgba(31,91,78,0.9)' : 'rgba(127,169,152,0.88)';
         ctx.fillText(c.key + ' · ' + c.count, c.x, c.y);
       });
 
       ids.forEach(function (id) {
         var p = graph49.positions[id], parent = p.n.parent_id && graph49.positions[p.n.parent_id];
-        if (parent) line(parent, p, 'rgba(167,139,250,0.58)', 1.8, []);
+        if (parent) line(parent, p, lightTheme ? 'rgba(109,72,190,0.58)' : 'rgba(167,139,250,0.58)', 1.8, []);
       });
       var drawn = {};
       ids.forEach(function (id) {
         parseLinks(graph49.positions[id].n.links).forEach(function (lid) {
           if (!graph49.positions[lid]) return;
           var key = [id, lid].sort().join('|'); if (drawn[key]) return; drawn[key] = true;
-          line(graph49.positions[id], graph49.positions[lid], 'rgba(52,211,153,0.48)', 1.35, []);
+          line(graph49.positions[id], graph49.positions[lid], lightTheme ? 'rgba(9,121,92,0.58)' : 'rgba(52,211,153,0.48)', 1.35, []);
         });
       });
-      graph49.suggestedLinks.forEach(function (s) { line(graph49.positions[s.a], graph49.positions[s.b], 'rgba(255,210,63,0.62)', 1, [4, 5]); });
+      graph49.suggestedLinks.forEach(function (s) {
+        line(graph49.positions[s.a], graph49.positions[s.b], lightTheme ? 'rgba(166,103,0,0.72)' : 'rgba(255,210,63,0.62)', 1, [4, 5]);
+      });
 
       var now = Date.now();
       ids.forEach(function (id) {
@@ -367,14 +371,16 @@
         }
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = nodeColor(n); ctx.globalAlpha = n.done ? 0.35 : 0.92; ctx.fill(); ctx.globalAlpha = 1;
         if (id === graph49.selectedId || id === graph49.hoveredId) {
-          ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / graph49.scale; ctx.stroke();
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = lightTheme ? '#123f35' : '#fff'; ctx.lineWidth = 1.5 / graph49.scale; ctx.stroke();
         }
         // La carte donne d'abord la forme générale. Les noms apparaissent seulement
         // quand ils sont réellement utiles : petit ensemble, sélection/survol, ou
         // racines lorsque l'utilisateur a volontairement zoomé.
         var showLabel = ids.length <= 8 || id === graph49.selectedId || id === graph49.hoveredId || (graph49.scale >= 1.6 && !n.parent_id);
         if (showLabel) {
-          ctx.font = (10.5 / graph49.scale) + 'px sans-serif'; ctx.fillStyle = '#e2f5ec'; ctx.textAlign = 'center';
+          ctx.font = (10.5 / graph49.scale) + 'px sans-serif';
+          ctx.fillStyle = lightTheme ? '#174d40' : '#e2f5ec'; ctx.textAlign = 'center';
           var label = n.title.length > 24 ? n.title.slice(0, 23) + '…' : n.title; ctx.fillText(label, p.x, p.y - p.radius - 6);
         }
         if (now - n.updated_at < 3 * 86400000 && !n.done) {
@@ -408,6 +414,7 @@
   });
   canvas.addEventListener('dblclick', function (e) { var id = hitNode(toGraph(e.clientX, e.clientY)); if (id) jumpToNote(id); });
   canvas.addEventListener('wheel', function (e) {
+    if (window.matchMedia('(max-width: 980px)').matches && !e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect(), sx = e.clientX - rect.left, sy = e.clientY - rect.top;
     var gx = (sx - graph49.offsetX) / graph49.scale, gy = (sy - graph49.offsetY) / graph49.scale;
@@ -415,14 +422,33 @@
     graph49.offsetX = sx - gx * next; graph49.offsetY = sy - gy * next; graph49.scale = next;
   }, { passive: false });
   canvas.addEventListener('touchstart', function (e) {
-    e.preventDefault(); graph49.didDrag = false;
-    if (e.touches.length === 2) { pinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); pinchScale = graph49.scale; panning = false; return; }
-    if (e.touches.length === 1) { panning = true; startX = e.touches[0].clientX; startY = e.touches[0].clientY; startOX = graph49.offsetX; startOY = graph49.offsetY; }
+    graph49.didDrag = false;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      pinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      pinchScale = graph49.scale; panning = false; return;
+    }
+    if (e.touches.length === 1) {
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      startOX = graph49.offsetX; startOY = graph49.offsetY;
+      // Sur GSM, un doigt fait défiler la page. Deux doigts explorent la constellation.
+      panning = !window.matchMedia('(max-width: 980px)').matches;
+      if (panning) e.preventDefault();
+    }
   }, { passive: false });
   canvas.addEventListener('touchmove', function (e) {
-    e.preventDefault();
-    if (e.touches.length === 2 && pinchDistance) { var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); graph49.scale = Math.max(0.65, Math.min(2.8, pinchScale * dist / pinchDistance)); graph49.didDrag = true; return; }
-    if (panning && e.touches.length === 1) { var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY; if (Math.abs(dx) > 3 || Math.abs(dy) > 3) graph49.didDrag = true; graph49.offsetX = startOX + dx; graph49.offsetY = startOY + dy; }
+    if (e.touches.length === 2 && pinchDistance) {
+      e.preventDefault();
+      var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      graph49.scale = Math.max(0.65, Math.min(2.8, pinchScale * dist / pinchDistance)); graph49.didDrag = true; return;
+    }
+    if (e.touches.length === 1) {
+      var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) graph49.didDrag = true;
+      if (!panning) return;
+      e.preventDefault();
+      graph49.offsetX = startOX + dx; graph49.offsetY = startOY + dy;
+    }
   }, { passive: false });
   canvas.addEventListener('touchend', function (e) { panning = false; pinchDistance = 0; if (!graph49.didDrag && e.changedTouches.length) { var g = toGraph(e.changedTouches[0].clientX, e.changedTouches[0].clientY), id = hitNode(g); if (id) renderInspector(graph49.positions[id].n); } });
   canvas.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && graph49.notes.length) { e.preventDefault(); renderInspector(graph49.notes[0]); } });

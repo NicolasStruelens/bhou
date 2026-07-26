@@ -1,6 +1,5 @@
-// Racine — file d'attente hors-ligne pour les actions courantes sur des éléments déjà créés
-// (cocher, éditer, supprimer, restaurer). Volontairement limité : créer un élément tout neuf
-// nécessite encore une connexion dans cette première version (pas d'ID temporaire à réconcilier).
+// Racine — file d'attente hors-ligne. Les créations possèdent un UUID client stable ;
+// les éditions répétées d'un même élément sont regroupées avant synchronisation.
 
 var OfflineQueue = (function () {
   var DB_NAME = 'racine-offline';
@@ -22,12 +21,23 @@ var OfflineQueue = (function () {
   }
 
   function enqueue(path, method, body) {
-    return openDb().then(function (db) {
+    return getAll().catch(function () { return []; }).then(function (items) {
+      return openDb().then(function (db) {
       return new Promise(function (resolve, reject) {
         var tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).add({ path: path, method: method, body: body === undefined ? null : body, ts: Date.now() });
+        var store = tx.objectStore(STORE);
+        var payload = body === undefined ? null : body;
+        // Plusieurs PUT successifs vers la même ressource n'ont pas besoin d'être rejoués un par un.
+        if (method === 'PUT') {
+          items.filter(function (item) { return item.path === path && item.method === 'PUT'; }).forEach(function (item) {
+            payload = Object.assign({}, item.body || {}, payload || {});
+            store.delete(item.id);
+          });
+        }
+        store.add({ path: path, method: method, body: payload, ts: Date.now() });
         tx.oncomplete = function () { resolve(); };
         tx.onerror = function () { reject(tx.error); };
+      });
       });
     });
   }
@@ -54,6 +64,17 @@ var OfflineQueue = (function () {
     });
   }
 
+  function clear() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).clear();
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function () {});
+  }
+
   function count() { return getAll().then(function (all) { return all.length; }).catch(function () { return 0; }); }
 
   var flushing = false;
@@ -71,7 +92,8 @@ var OfflineQueue = (function () {
             body: item.body !== null ? JSON.stringify(item.body) : undefined,
             credentials: 'same-origin',
           }).then(function (res) {
-            if (!res.ok && res.status !== 404) throw new Error('sync failed');
+            var harmlessMissingDelete = item.method === 'DELETE' && res.status === 404;
+            if (!res.ok && !harmlessMissingDelete) throw new Error('sync failed');
             return remove(item.id);
           }).then(function () { synced++; });
         });
@@ -82,7 +104,7 @@ var OfflineQueue = (function () {
     });
   }
 
-  return { enqueue: enqueue, count: count, flush: flush };
+  return { enqueue: enqueue, count: count, flush: flush, clear: clear };
 })();
 
 function updateOfflineBadge() {

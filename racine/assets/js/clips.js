@@ -6,7 +6,12 @@
   document.getElementById('qrClose').addEventListener('click', function () { qrModal.classList.remove('show'); });
   qrModal.addEventListener('click', function (e) { if (e.target === qrModal) qrModal.classList.remove('show'); });
 
-  function openQr(url) {
+  function openQr(url, sensitive) {
+    if (sensitive) {
+      navigator.clipboard.writeText(url).catch(function () {});
+      toast('QR externe désactivé pour protéger ce lien — lien copié');
+      return;
+    }
     qrImage.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(url);
     qrModal.classList.add('show');
   }
@@ -61,7 +66,7 @@
     payload.burn = burn;
     payload.no_export = noExport;
 
-    RA.createClip(payload).then(function () {
+    RA.createClip(payload).then(function (result) {
       if (window.RAUniverse) window.RAUniverse.emit('create', document.querySelector('.clip-form'));
       document.getElementById('clipContent').value = '';
       document.getElementById('clipLabel').value = '';
@@ -71,7 +76,9 @@
       clipFileData = null;
       updateClipSafety();
       loadClips();
-      toast('Envoyé — récupérable sur tes autres appareils');
+      toast(result.protected_secret
+        ? 'Secret protégé : 1 h, lecture unique, jamais exporté'
+        : 'Envoyé — récupérable sur tes autres appareils');
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   });
 
@@ -79,7 +86,21 @@
   function detectClipType(text) {
     if (!text) return null;
     var t = text.trim();
-    if (/^https?:\/\/\S+$/.test(t)) return { label: 'URL', secret: false };
+    if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i.test(t) ||
+        /\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|authorization)\s*[:=]\s*\S+/i.test(t) ||
+        /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(t)) {
+      return { label: 'probable secret', secret: true };
+    }
+    if (/^https?:\/\/\S+$/.test(t)) {
+      try {
+        var url = new URL(t);
+        var sensitiveKeys = ['token', 'key', 'secret', 'password', 'signature', 'sig', 'access_token', 'api_key'];
+        if (sensitiveKeys.some(function (key) { return (url.searchParams.get(key) || '').length >= 8; })) {
+          return { label: 'probable secret', secret: true };
+        }
+      } catch (e) {}
+      return { label: 'URL', secret: false };
+    }
     if (/^\{[\s\S]*\}$|^\[[\s\S]*\]$/.test(t)) { try { JSON.parse(t); return { label: 'JSON', secret: false }; } catch (e) {} }
     if (/^(sudo\s|ssh\s|curl\s|git\s|npm\s|docker\s|powershell|\$\s|>\s)/i.test(t) || /^[A-Za-z0-9_.\/-]+\s+--?[a-z]/.test(t)) return { label: 'commande', secret: false };
     var looksSecret = t.indexOf('\n') === -1 && t.length >= 8 && t.length <= 100
@@ -90,6 +111,7 @@
 
   function clipTypeKey(c) {
     if (c.kind === 'file') return 'file';
+    if (c.type_hint) return c.type_hint;
     var detected = detectClipType(c.preview);
     if (!detected) return 'text';
     if (detected.label === 'URL') return 'url';
@@ -111,10 +133,11 @@
       return;
     }
     document.getElementById('clipSafetyTitle').textContent = 'Ce texte ressemble à un secret';
-    document.getElementById('clipSafetyText').textContent = 'Un clic active expiration 1 h, lecture unique et exclusion des sauvegardes.';
-    applyBtn.textContent = document.getElementById('clipBurn').checked && document.getElementById('clipNoExport').checked
-      ? 'Protection appliquée'
-      : 'Protéger automatiquement';
+    document.getElementById('clipSafetyText').textContent = 'Protection automatique obligatoire : expiration 1 h, lecture unique et exclusion des sauvegardes.';
+    document.getElementById('clipTtl').value = '3600000';
+    document.getElementById('clipBurn').checked = true;
+    document.getElementById('clipNoExport').checked = true;
+    applyBtn.textContent = 'Protection appliquée';
   }
 
   document.getElementById('clipContent').addEventListener('input', updateClipSafety);
@@ -130,6 +153,22 @@
   function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' o';
     return (bytes / 1024).toFixed(1) + ' Ko';
+  }
+
+  function typeLabel(typeKey) {
+    return {
+      url: 'URL',
+      json: 'JSON',
+      command: 'commande',
+      secret: 'probable secret',
+    }[typeKey] || null;
+  }
+
+  function consumeAfterUse(c) {
+    if (!c.burn) return Promise.resolve(false);
+    return RA.consumeClip(c.id).then(function () {
+      return loadClips().then(function () { return true; });
+    });
   }
 
   function renderClip(c) {
@@ -158,12 +197,12 @@
     label.textContent = c.label || (c.kind === 'file' ? 'Fichier' : 'Texte');
     headLeft.appendChild(label);
 
-    var detected = c.kind === 'file' ? null : detectClipType(c.preview);
-    if (detected) {
+    var detectedLabel = typeLabel(typeKey);
+    if (detectedLabel) {
       var typeBadge = document.createElement('span');
-      typeBadge.className = 'clip-badge' + (detected.secret ? ' secret' : '');
-      if (detected.secret) typeBadge.appendChild(icon('warning', 'icon-inline'));
-      typeBadge.appendChild(document.createTextNode((detected.secret ? ' ' : '') + detected.label));
+      typeBadge.className = 'clip-badge' + (typeKey === 'secret' ? ' secret' : '');
+      if (typeKey === 'secret') typeBadge.appendChild(icon('warning', 'icon-inline'));
+      typeBadge.appendChild(document.createTextNode((typeKey === 'secret' ? ' ' : '') + detectedLabel));
       headLeft.appendChild(typeBadge);
     }
     if (c.burn) {
@@ -202,7 +241,7 @@
     card.appendChild(head);
 
     var preview = document.createElement('div');
-    var isLong = c.kind !== 'file' && c.preview && c.preview.length > 280;
+    var isLong = c.kind !== 'file' && (c.preview_truncated || (c.preview && c.preview.length > 280));
     preview.className = 'clip-preview' + (isLong ? '' : ' expanded');
     if (c.kind === 'file') {
       preview.appendChild(icon('paperclip', 'icon-inline'));
@@ -217,12 +256,15 @@
           preview.textContent = '';
           return;
         }
-        preview.textContent = c.preview || '';
-        preview.classList.add('revealed');
-        setTimeout(function () {
-          preview.classList.remove('revealed');
-          preview.textContent = '';
-        }, 5000);
+        RA.getClip(c.id).then(function (data) {
+          preview.textContent = data.clip.content;
+          preview.classList.add('revealed');
+          setTimeout(function () {
+            preview.classList.remove('revealed');
+            preview.textContent = '';
+            consumeAfterUse(c).catch(function () {});
+          }, 5000);
+        }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
     } else {
       preview.textContent = c.preview || '';
@@ -255,11 +297,13 @@
           a.href = data.clip.content;
           a.download = data.clip.filename || 'fichier';
           a.click();
+          return Promise.resolve();
         } else {
-          navigator.clipboard.writeText(data.clip.content).then(function () {
-            toast('Copié dans le presse-papier');
-          });
+          return navigator.clipboard.writeText(data.clip.content);
         }
+      }).then(function () {
+        toast(c.burn ? 'Copié — transfert à lecture unique consommé' : 'Copié dans le presse-papier');
+        return consumeAfterUse(c);
       }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
     actions.appendChild(copyBtn);
@@ -287,6 +331,7 @@
           return navigator.clipboard.writeText(JSON.stringify(JSON.parse(data.clip.content), null, 2));
         }).then(function () {
           toast('JSON formaté et copié');
+          return consumeAfterUse(c);
         }).catch(function () {
           toast('Impossible de formater ce JSON');
         });
@@ -304,10 +349,14 @@
           return navigator.clipboard.writeText(data.clip.content);
         }).then(function () {
           toast('Copié — suppression…');
-          return RA.deleteClip(c.id);
+          return c.burn ? RA.consumeClip(c.id) : RA.deleteClip(c.id);
         }).then(function () {
           loadClips();
-          toast('Copié et mis à la corbeille', 'Annuler', function () { RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); }); });
+          if (c.burn) {
+            toast('Copié et supprimé définitivement (lecture unique)');
+          } else {
+            toast('Copié et mis à la corbeille', 'Annuler', function () { RA.restoreClip(c.id).then(loadClips).catch(function (err) { toast('Erreur : ' + err.message); }); });
+          }
         }).catch(function (err) { toast('Erreur : ' + err.message); });
       });
       actions.appendChild(copyDelBtn);
@@ -316,7 +365,7 @@
     var shareBtn = document.createElement('button');
     shareBtn.className = 'btn';
     shareBtn.textContent = c.share_token && c.share_expires_at > Date.now() ? 'Partagé' : 'Partager';
-    shareBtn.title = 'Créer un lien public temporaire (accessible sans mot de passe, 24h max)';
+    shareBtn.title = 'Créer un lien public temporaire à usage unique (accessible sans mot de passe, 24h max)';
     shareBtn.addEventListener('click', function () {
       if (c.share_token && c.share_expires_at > Date.now()) {
         RA.updateClip(c.id, { share: false }).then(function () { toast('Partage révoqué'); loadClips(); });
@@ -325,7 +374,7 @@
       RA.updateClip(c.id, { share: true, share_ttl_ms: 60 * 60 * 1000 }).then(function (res) {
         var url = location.origin + '/share.html#' + res.share_token;
         navigator.clipboard.writeText(url).catch(function () {});
-        toast('Lien public créé et copié (expire dans 1h)');
+        toast('Lien public à usage unique créé et copié (expire dans 1 h)');
         loadClips();
       }).catch(function (err) { toast('Erreur : ' + err.message); });
     });
@@ -337,6 +386,7 @@
     var noExportInput = document.createElement('input');
     noExportInput.type = 'checkbox';
     noExportInput.checked = !!c.no_export;
+    noExportInput.disabled = typeKey === 'secret';
     noExportInput.addEventListener('change', function () {
       RA.updateClip(c.id, { no_export: noExportInput.checked }).then(function () { toast(noExportInput.checked ? 'Exclu des exports' : 'Inclus dans les exports'); });
     });
@@ -350,7 +400,7 @@
     qrBtn.textContent = 'QR';
     qrBtn.title = 'Ouvrir sur un autre appareil via QR code';
     qrBtn.addEventListener('click', function () {
-      openQr(location.origin + '/app.html?clip=' + c.id);
+      openQr(location.origin + '/app.html?clip=' + c.id, typeKey === 'secret');
     });
     actions.appendChild(qrBtn);
 
@@ -379,7 +429,7 @@
       var shareQr = document.createElement('button');
       shareQr.className = 'btn';
       shareQr.textContent = 'QR';
-      shareQr.addEventListener('click', function () { openQr(shareInput.value); });
+      shareQr.addEventListener('click', function () { openQr(shareInput.value, true); });
       shareRow.appendChild(shareQr);
       card.appendChild(shareRow);
     }
@@ -389,7 +439,7 @@
 
   function clipMatches(c) {
     var type = clipTypeKey(c);
-    var hay = ((c.label || '') + ' ' + (c.preview || '') + ' ' + (c.filename || '') + ' ' + (c.device || '')).toLowerCase();
+    var hay = ((c.label || '') + ' ' + (c.preview || '') + ' ' + (c.filename || '') + ' ' + (c.device || '') + ' ' + type).toLowerCase();
     if (clipQuery && hay.indexOf(clipQuery) === -1) return false;
     if (clipFilter === 'pinned') return !!c.pinned;
     if (clipFilter !== 'all') return type === clipFilter;
@@ -487,5 +537,6 @@
     }).then(function () {
       toast('Dernier transfert copié');
       if (window.RAUniverse) window.RAUniverse.emit('link', document.getElementById('clipCopyLatest'));
+      return consumeAfterUse(latest);
     }).catch(function (err) { toast('Erreur : ' + err.message); });
   });

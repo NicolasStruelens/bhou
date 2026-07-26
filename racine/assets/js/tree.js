@@ -61,18 +61,24 @@
     bar.appendChild(overviewBtn);
 
     allSpaces().forEach(function (name) {
-      var btn = document.createElement('button');
+      var btn = document.createElement('div');
       btn.className = 'space-pill' + (state.activeSpace === name ? ' active' : '');
+      btn.setAttribute('role', 'group');
+      btn.setAttribute('aria-label', 'Espace ' + name);
       applySpaceColorVars(btn, name);
+      var selectBtn = document.createElement('button');
+      selectBtn.type = 'button';
+      selectBtn.className = 'space-pill-main';
+      selectBtn.setAttribute('aria-pressed', state.activeSpace === name ? 'true' : 'false');
       var dot = document.createElement('span'); dot.className = 'dot';
-      btn.appendChild(dot);
-      btn.appendChild(document.createTextNode(name));
-      btn.addEventListener('click', function () { setActiveSpace(name); });
+      selectBtn.appendChild(dot);
+      selectBtn.appendChild(document.createTextNode(name));
+      selectBtn.addEventListener('click', function () { setActiveSpace(name); });
+      btn.appendChild(selectBtn);
 
-      var colorBtn = document.createElement('span');
+      var colorBtn = document.createElement('button');
+      colorBtn.type = 'button';
       colorBtn.className = 'space-pill-color';
-      colorBtn.tabIndex = 0;
-      colorBtn.setAttribute('role', 'button');
       colorBtn.appendChild(icon('droplet'));
       colorBtn.title = 'Choisir une couleur';
       colorBtn.setAttribute('aria-label', 'Choisir une couleur pour « ' + name + ' »');
@@ -82,32 +88,27 @@
         colorModal.classList.add('show');
       }
       colorBtn.addEventListener('click', openColorFor);
-      colorBtn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openColorFor(e); } });
       btn.appendChild(colorBtn);
 
       if (name !== 'Général') {
-        var editBtn = document.createElement('span');
+        var editBtn = document.createElement('button');
+        editBtn.type = 'button';
         editBtn.className = 'space-pill-edit';
-        editBtn.tabIndex = 0;
-        editBtn.setAttribute('role', 'button');
         editBtn.appendChild(icon('pencil'));
         editBtn.title = 'Renommer l\'espace « ' + name + ' »';
         editBtn.setAttribute('aria-label', editBtn.title);
         function renameFor(e) { e.stopPropagation(); renameSpace(name); }
         editBtn.addEventListener('click', renameFor);
-        editBtn.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); renameFor(e); } });
         btn.appendChild(editBtn);
 
-        var delX = document.createElement('span');
+        var delX = document.createElement('button');
+        delX.type = 'button';
         delX.className = 'space-pill-del';
-        delX.tabIndex = 0;
-        delX.setAttribute('role', 'button');
         delX.appendChild(icon('x'));
         delX.title = 'Supprimer l\'espace « ' + name + ' »';
         delX.setAttribute('aria-label', delX.title);
         function deleteFor(e) { e.stopPropagation(); deleteSpace(name); }
         delX.addEventListener('click', deleteFor);
-        delX.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); deleteFor(e); } });
         btn.appendChild(delX);
       }
       bar.appendChild(btn);

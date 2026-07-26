@@ -290,7 +290,11 @@
   });
 
   document.getElementById('logoutBtn').addEventListener('click', function () {
-    RA.logout().then(function () { location.href = 'login.html'; });
+    var clearCaches = typeof caches !== 'undefined'
+      ? caches.keys().then(function (keys) { return Promise.all(keys.map(function (key) { return caches.delete(key); })); })
+      : Promise.resolve();
+    var clearQueue = typeof OfflineQueue !== 'undefined' ? OfflineQueue.clear() : Promise.resolve();
+    Promise.all([RA.logout(), clearCaches, clearQueue]).then(function () { location.href = 'login.html'; });
   });
 
   // ---------- trois modes mentaux : Déposer / Déplier / Agir ----------
