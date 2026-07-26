@@ -1903,7 +1903,15 @@
         return;
       }
       SS.logActivity && SS.logActivity({ action: 'devis.relance', entity_type: 'devis', entity_id: DEVIS.id, label: `Relance ${n} envoyée — devis #${DEVIS.id}` });
-      toast(`Relance ${n} enregistrée ✓`, res.offline ? 'warn' : 'ok');
+      toast(`Relance ${n} enregistrée ✓ — prochaine relance recalculée`, res.offline ? 'warn' : 'ok');
+      // ⚠️ Il ne suffit PAS de rafraîchir la fenêtre : la carte « Prochaine action » et la réglette
+      // d'avancement vivent DERRIÈRE la modale et affichaient encore « Relance 1 à envoyer » —
+      // on avait l'impression que le clic n'avait rien fait. render() remet toute la fiche à jour.
+      render();
+      // Le sélecteur doit AVANCER sur la relance suivante : sinon un 2e clic (sans refermer la
+      // fenêtre) ré-écrasait la relance qu'on vient d'enregistrer, et la cadence n'avançait plus.
+      const next = relanceState(DEVIS);
+      el('relanceType').value = next.step ? ('r' + next.step.n) : 'r3';
       renderRelanceSuivi();
       window.fillRelanceText();
     };
