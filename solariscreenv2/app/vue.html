@@ -68,6 +68,22 @@
     .rv-alert-sub { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 0.2rem; font-style: italic; }
     .rv-views { display: flex; align-items: center; gap: 0.35rem; font-size: var(--fs-xs); color: var(--text-muted); }
     .rv-views svg { flex: none; color: var(--accent); }
+    /* Historique des consultations du lien client (date + heure) */
+    .rv-hist-btn { border: 1px solid var(--border); background: transparent; color: var(--text-subtle); cursor: pointer;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); border-radius: var(--r-sm); padding: 2px 7px; margin-left: 4px;
+      display: inline-flex; align-items: center; gap: 4px; }
+    .rv-hist-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .rv-hist { margin-top: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2);
+      max-height: 220px; overflow-y: auto; scrollbar-width: thin; }
+    .rv-hist-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 10px; align-items: baseline;
+      padding: 7px 11px; font-size: var(--fs-2xs); }
+    .rv-hist-row + .rv-hist-row { border-top: 1px solid var(--border); }
+    .rv-hist-day { font-weight: 600; color: var(--text); text-transform: capitalize; }
+    .rv-hist-n { font-family: var(--font-mono); color: var(--accent); white-space: nowrap; }
+    .rv-hist-hours { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+    .rv-hist-hours span { font-family: var(--font-mono); color: var(--text-muted); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 1px 6px; }
+    .rv-hist-note { padding: 6px 11px; font-size: var(--fs-3xs); color: var(--text-subtle); border-top: 1px dashed var(--border); }
     /* Composeur de note en « mode réponse client » : liseré doré franc, pour ne jamais confondre. */
     .n-mode-banner { background: color-mix(in srgb, var(--accent-2) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); color: var(--accent-2-ink); border-radius: var(--r-sm); padding: 0.4rem 0.6rem; margin-bottom: var(--sp-2); font-size: var(--fs-2xs); }
     .n-foot.reply-mode { outline: 2px solid color-mix(in srgb, var(--accent-2) 55%, transparent); outline-offset: 4px; border-radius: var(--r-sm); }
@@ -2104,6 +2120,46 @@
       renderSalutation();
     };
 
+    // ── Historique des consultations du lien client (date + heure) ──────────────────────────────
+    // `review_views` est un tableau d'horodatages ISO écrits par le serveur à chaque ouverture du
+    // lien par le CLIENT (les consultations internes Nicolas/Yannick ne sont pas comptées, cf.
+    // le marqueur `ss_staff`). Capé à 50 côté serveur → on le signale si la limite est atteinte.
+    function fmtDateTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d)) return '—';
+      return d.toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    let VIEW_HIST_OPEN = false;
+    window.toggleViewHistory = () => {
+      VIEW_HIST_OPEN = !VIEW_HIST_OPEN;
+      const box = el('rvHist'), lb = el('rvHistLabel');
+      if (box) box.classList.toggle('hidden', !VIEW_HIST_OPEN);
+      if (lb) lb.textContent = VIEW_HIST_OPEN ? "masquer l'historique" : "voir l'historique";
+    };
+    function viewHistoryHtml() {
+      const list = Array.isArray(DEVIS.review_views) ? DEVIS.review_views.slice() : [];
+      if (!list.length) return '';
+      // Regroupé par jour, du plus récent au plus ancien : « 19/07/2026 — 09:12 · 14:33 · 20:01 »
+      const byDay = new Map();
+      list.slice().sort((a, b) => String(b).localeCompare(String(a))).forEach(iso => {
+        const d = new Date(iso);
+        if (isNaN(d)) return;
+        const day = d.toLocaleDateString('fr-BE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        const hm = d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push(hm);
+      });
+      if (!byDay.size) return '';
+      const rows = [...byDay.entries()].map(([day, hours]) =>
+        `<div class="rv-hist-row"><span class="rv-hist-day">${esc(day)}</span>
+           <span class="rv-hist-hours">${hours.map(h => `<span>${esc(h)}</span>`).join('')}</span>
+           <span class="rv-hist-n">${hours.length} vue${hours.length > 1 ? 's' : ''}</span></div>`).join('');
+      const capped = list.length >= 50 ? `<div class="rv-hist-note">Seules les 50 dernières consultations sont conservées.</div>` : '';
+      // On respecte l'état ouvert/fermé au re-render (sinon l'historique se referme tout seul).
+      return `<div class="rv-hist ${VIEW_HIST_OPEN ? '' : 'hidden'}" id="rvHist">${rows}${capped}</div>`;
+    }
+
     function renderReviewCard() {
       const card = el('reviewCard');
       // Visible tant que le devis attend une décision — OU s'il y a une question client en attente,
@@ -2117,7 +2173,9 @@
       const views = Array.isArray(DEVIS.review_views) ? DEVIS.review_views.length : (Number(DEVIS.review_views) || 0);
       const lastView = Array.isArray(DEVIS.review_views) && DEVIS.review_views.length ? DEVIS.review_views[DEVIS.review_views.length - 1] : null;
       const viewLine = views > 0
-        ? `<div class="rv-views">${icon('window', 12)} Consulté <strong>${views}</strong> fois par le client${lastView ? ' · dernière le ' + fmtDate(lastView) : ''}</div>`
+        ? `<div class="rv-views">${icon('window', 12)} Consulté <strong>${views}</strong> fois par le client${lastView ? ' · dernière le ' + fmtDateTime(lastView) : ''}
+             ${Array.isArray(DEVIS.review_views) && DEVIS.review_views.length ? `<button type="button" class="rv-hist-btn" onclick="toggleViewHistory()">${icon('clock', 11)} <span id="rvHistLabel">${VIEW_HIST_OPEN ? "masquer l'historique" : "voir l'historique"}</span></button>` : ''}
+           </div>${viewHistoryHtml()}`
         : `<div class="rv-views" style="color:var(--text-subtle);">${icon('window', 12)} Lien pas encore ouvert par le client.</div>`;
 
       // Couleur du repère selon l'état le plus important : refus (rouge) > question (or) > accepté (vert).
@@ -2713,6 +2771,15 @@
           card.scrollIntoView({ behavior: 'smooth', block: 'center' });
           setTimeout(() => { const f = el('savDescription'); if (f) f.focus({ preventScroll: true }); }, 400);
         }
+      }
+      // Arrivée depuis le tableau de bord en cliquant le signal de la ligne :
+      //   #relance  → ouvre directement la fenêtre de relance (message prêt à envoyer)
+      //   #question → amène aux notes en mode « réponse au client »
+      // Sans ces branches, le clic ouvrait la fiche et ne faisait RIEN de plus.
+      if (location.hash === '#relance' && typeof window.openRelance === 'function') {
+        setTimeout(() => window.openRelance(), 250);
+      } else if (location.hash === '#question' && typeof window.replyToClient === 'function') {
+        setTimeout(() => window.replyToClient(), 250);
       }
     })();
   </script>

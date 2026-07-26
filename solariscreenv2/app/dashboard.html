@@ -742,6 +742,12 @@
       if (color.includes('--warn')) return icon('clock', 12);
       return icon('chevronright', 12);
     }
+    // Date affichée sur la ligne : jamais une valeur illisible. `fmtDate` renvoie l'entrée BRUTE
+    // quand elle n'est pas parsable (ex. « zz ») — ici on préfère un tiret discret.
+    function safeDate(iso) {
+      if (!iso) return '—';
+      return isNaN(new Date(iso).getTime()) ? '—' : fmtDate(iso);
+    }
     // Temps relatif court (#20) : « il y a 2 h », « il y a 3 j » — plus parlant qu'une date brute.
     function relTime(iso) {
       if (!iso) return '';
@@ -832,7 +838,7 @@
       archives: 'Archivés', accepte_client: 'Accepté par le client', question_client: 'Question client',
       a_relancer: 'À relancer', en_retard: 'Paiement en retard', acompte_attente: 'Acompte non payé',
       solde_attente: 'Solde à encaisser', a_preparer: 'Chantier à préparer', expire: 'Devis expiré',
-      lien_jamais_ouvert: 'Lien jamais ouvert',
+      lien_jamais_ouvert: 'Lien jamais ouvert', kpi_signes: 'Signés & terminés', kpi_en_jeu: 'En attente client',
       brouillon: 'Brouillon', envoye_client: 'Envoyé', signe: 'Signé', termine: 'Terminé', refuse: 'Refusé', annule: 'Annulé',
     };
     function renderSellerFilters() {
@@ -999,21 +1005,25 @@
       // Chiffres métier ajoutés : CA en jeu (pipeline des devis en attente), reste à encaisser,
       // % encaissé/facturé (anneau), répartition des bénéfices (barres).
       const caEnJeu = envoyes.reduce((s, d) => s + d.ttc, 0);
-      const resteEncaisser = Math.max(0, totalFacture - caEncaisse);
+      // ⚠️ Le reste dû se calcule FACTURE PAR FACTURE (chaque reste plancheté à 0), jamais en
+      // « total facturé − total encaissé » : un trop-perçu sur une facture viendrait effacer la
+      // dette d'une autre et sous-évaluerait le montant réellement à récupérer (bug déjà corrigé
+      // dans factures.html — les deux pages doivent afficher le MÊME chiffre).
+      const resteEncaisser = FACTURES.reduce((s, f) => s + Math.max(0, (Number(f.total_ttc) || 0) - paidSum(f)), 0);
       const encPct = totalFacture > 0 ? Math.min(100, Math.round(caEncaisse / totalFacture * 100)) : 0;
       const beneTotal = nicolasNet + yannickNet;
       const beneMax = Math.max(nicolasNet, yannickNet, 1);
       const ringOffset = (97.4 * (1 - encPct / 100)).toFixed(1);
       el('kpis').innerHTML = `<div class="kpi-strip">
-        <div class="kt gold ${activeFilter === 'signe' ? 'on' : ''}" data-filter="signe" onclick="setFilter('signe')" title="Voir les devis signés">
+        <div class="kt gold ${activeFilter === 'kpi_signes' ? 'on' : ''}" data-filter="kpi_signes" onclick="setFilter('kpi_signes')" title="Voir ces ${signes.length} devis signés et terminés">
           <div class="kt-l">CA signé &amp; terminé</div><div class="kt-v" data-v="${caSigne}" data-fmt="eur">—</div><div class="kt-s">${signes.length} devis · bénéf. ${fmtEur(beneTotal)}</div></div>
-        <div class="kt accent ${activeFilter === 'envoye_client' ? 'on' : ''}" data-filter="envoye_client" onclick="setFilter('envoye_client')" title="Voir les devis en attente de réponse">
+        <div class="kt accent ${activeFilter === 'kpi_en_jeu' ? 'on' : ''}" data-filter="kpi_en_jeu" onclick="setFilter('kpi_en_jeu')" title="Voir ces ${envoyes.length} devis en attente de réponse">
           <div class="kt-l">CA en jeu</div><div class="kt-v" data-v="${caEnJeu}" data-fmt="eur">—</div><div class="kt-s">${envoyes.length} devis en attente</div></div>
         <div class="kt gold"><div class="kt-l">Encaissé</div>
           <div class="kt-vr"><svg class="kt-ring" width="34" height="34" viewBox="0 0 36 36" aria-hidden="true"><circle class="rbg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.4"/><circle class="rfg" cx="18" cy="18" r="15.5" fill="none" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="${ringOffset}" transform="rotate(-90 18 18)"/><text class="rtxt" x="18" y="18" text-anchor="middle" dominant-baseline="central">${encPct}%</text></svg><div class="kt-v" data-v="${caEncaisse}" data-fmt="eur">—</div></div>
           <div class="kt-s">sur ${fmtEur(totalFacture)} facturé</div></div>
         <div class="kt ${resteEncaisser > 0.005 ? 'warn' : 'ok'} ${activeFilter === 'solde_attente' ? 'on' : ''}" data-filter="solde_attente" onclick="setFilter('solde_attente')" title="Voir les soldes à encaisser">
-          <div class="kt-l">Reste à encaisser</div><div class="kt-v" data-v="${resteEncaisser}" data-fmt="eur">—</div><div class="kt-s">${resteEncaisser > 0.005 ? 'facturé − déjà payé' : (totalFacture > 0 ? 'tout encaissé ✓' : 'aucune facture')}</div></div>
+          <div class="kt-l">Reste à encaisser</div><div class="kt-v" data-v="${resteEncaisser}" data-fmt="eur">—</div><div class="kt-s">${resteEncaisser > 0.005 ? 'sur factures non soldées' : (totalFacture > 0 ? 'tout encaissé ✓' : 'aucune facture')}</div></div>
         <div class="kt"><div class="kt-l">Bénéfices vendeurs</div>
           <div class="kt-bars">
             <div class="ktb"><span>N</span><span class="ktb-t"><i style="width:${Math.round(nicolasNet / beneMax * 100)}%;background:var(--accent)"></i></span><b>${fmtEur(nicolasNet)}</b></div>
@@ -1049,6 +1059,10 @@
       else if (activeFilter === 'a_preparer') rows = rows.filter(isChantierAPreparer);
       else if (activeFilter === 'expire') rows = rows.filter(isDevisExpire);
       else if (activeFilter === 'lien_jamais_ouvert') rows = rows.filter(isLinkNeverOpened);
+      // Vues des tuiles KPI : elles doivent montrer EXACTEMENT la population comptée par la tuile
+      // (sinon la tuile dit « 4 devis » et le clic n'en affiche qu'un — incohérence).
+      else if (activeFilter === 'kpi_signes') rows = rows.filter(d => ['signe', 'termine'].includes(d.statut));
+      else if (activeFilter === 'kpi_en_jeu') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && d.statut !== 'brouillon');
       else if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
       if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
       if (activeType !== 'tous') rows = rows.filter(d => (d.item_types || []).includes(activeType));
@@ -1163,7 +1177,7 @@
                 <span class="mi-slot ${d.comments ? 'active' : ''}" ${d.comments ? `data-preview="comments" data-id="${d.id}"` : ''} title="${d.comments ? d.comments + ' note(s) interne(s) — survoler pour un aperçu' : 'Aucune note'}">${icon('message', 14)}${d.comments || 0}</span>
                 ${d.note ? `<span class="note-flag" title="${esc(d.note)}">${icon('info', 14)}</span>` : ''}
               </div>
-              <span class="m-date" title="Dernière modification : ${esc(fmtDate(d.date_modification))}">${esc(relTime(d.date_modification) || fmtDate(d.date_modification))}</span>
+              <span class="m-date" title="Dernière modification : ${esc(safeDate(d.date_modification))}">${esc(relTime(d.date_modification) || safeDate(d.date_modification))}</span>
             </div>
             ${engagementLine(d)}
           </div>
