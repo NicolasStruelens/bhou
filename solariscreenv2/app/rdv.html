@@ -159,6 +159,30 @@
     .chat-q:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
     .chat-compose { margin-top: var(--sp-2); }
     .chat-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+    /* Cellule « Échange » de la vue liste + aperçu flottant (données déjà chargées → instantané) */
+    .chat-cell { display: inline-flex; align-items: center; gap: 5px; cursor: help; padding: 3px 8px; border-radius: var(--r-sm);
+      border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: var(--fs-2xs); white-space: nowrap; }
+    .chat-cell svg { color: var(--accent); flex: none; }
+    .chat-cell.empty { color: var(--text-subtle); border-color: transparent; opacity: .45; }
+    .chat-cell.empty svg { color: var(--text-subtle); }
+    .chat-cell:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+    .chat-cell.urgent { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+    .cc-await { font-size: var(--fs-3xs); color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; }
+    .cc-await svg { color: currentColor; }
+    .cc-await.me { color: var(--warn); font-weight: 700; }
+    .chat-pop { position: fixed; z-index: 1400; min-width: 250px; max-width: 340px; display: none; flex-direction: column; gap: 7px;
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); padding: 10px 12px; }
+    .chat-pop.open { display: flex; }
+    .cp-head { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent); display: flex; align-items: center; gap: 5px;
+      border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .cp-head.me { color: var(--warn); font-weight: 700; }
+    .cp-msg { display: flex; gap: 7px; align-items: flex-start; }
+    .cp-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .cp-text { font-size: var(--fs-xs); color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .cp-empty { font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .cp-more, .cp-foot { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .cp-foot { border-top: 1px dashed var(--border); padding-top: 6px; }
+
     /* Signaux sur les cartes / lignes : combien de messages, et qui doit répondre */
     .rb-chat { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; }
     .rb-await { font-family: var(--font-mono); font-size: var(--fs-3xs); border: 1px solid var(--warn); color: var(--warn);
@@ -427,6 +451,7 @@
 
     // ── Rendu principal ──
     function render() {
+      if (window.__chatPopReset) window.__chatPopReset();   // ferme un aperçu ouvert avant de réécrire
       renderBrief();
       const rows = filtered();
       const host = el('viewHost');
@@ -515,13 +540,14 @@
       const sorted = rows.slice().sort((a, b) => String(b.date_modification || '').localeCompare(String(a.date_modification || '')));
       return `<div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;">
         <table class="rdv-table">
-          <thead><tr><th>Client</th><th>Statut</th><th>Chargé</th><th>Visite</th><th>Contact</th><th>Source</th></tr></thead>
+          <thead><tr><th>Client</th><th>Statut</th><th>Chargé</th><th>Échange</th><th>Visite</th><th>Contact</th><th>Source</th></tr></thead>
           <tbody>${sorted.map(r => {
             const c = r.client || {};
             return `<tr onclick="openEdit('${r.id}')">
               <td><div class="r-name">${esc(clientName(r))}</div><div class="r-sub">${esc((c.adresse && c.adresse.ville) || '')}</div></td>
               <td>${stPill(r.statut)}</td>
               <td>${whoAva(r.assigned_to)}</td>
+              <td>${chatCell(r)}</td>
               <td class="r-sub">${r.date_rdv ? esc(fmtDate(r.date_rdv.slice(0, 10))) : '—'}</td>
               <td class="r-sub">${esc(c.telephone || c.email || '—')}${r.pref_contact ? ` · ${r.pref_contact === 'tel' ? 'préf. tél' : 'préf. e-mail'}` : ''}</td>
               <td class="r-sub">${esc(r.source || '—')}</td>
@@ -883,6 +909,71 @@
       fillMsg();
       toast('Attribué à ' + (IDENTITY.key === 'yannick' ? 'Yannick' : 'Nicolas') + ' — pense à enregistrer.', 'ok');
     };
+
+    // ── Cellule « Échange » de la vue liste + aperçu au survol ──────────────────────────────────
+    // Contrairement au tableau de bord (qui doit aller chercher le devis complet), les messages
+    // sont DÉJÀ chargés ici : l'aperçu s'affiche instantanément, sans requête réseau.
+    function chatCell(r) {
+      const n = (r.comments || []).length;
+      const me = IDENTITY.key || 'nicolas';
+      const mine = r.awaiting && r.awaiting === me;
+      if (!n && !r.awaiting) return `<span class="chat-cell empty" data-chat="${r.id}" title="Aucun échange — clique pour en démarrer un">${icon('message', 14)}</span>`;
+      return `<span class="chat-cell ${mine ? 'urgent' : ''}" data-chat="${r.id}" title="Survoler pour lire l'échange">
+        ${icon('message', 14)}<b>${n}</b>
+        ${r.awaiting ? `<span class="cc-await ${mine ? 'me' : ''}">${icon('clock', 10)} ${mine ? 'à toi' : (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</span>` : ''}
+      </span>`;
+    }
+    // Aperçu flottant : 3 derniers messages + qui doit répondre. Fermeture au départ du curseur.
+    (function () {
+      let pop = null, current = null;
+      function ensure() {
+        if (pop) return;
+        pop = document.createElement('div');
+        pop.className = 'chat-pop';
+        document.body.appendChild(pop);
+        pop.addEventListener('mouseleave', hide);
+      }
+      function hide() { if (pop) pop.classList.remove('open'); current = null; }
+      function show(cell) {
+        const id = cell.getAttribute('data-chat');
+        const r = RDV.find(x => x.id === id);
+        if (!r) return;
+        ensure();
+        current = cell;
+        const me = IDENTITY.key || 'nicolas';
+        const list = (r.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        const last = list.slice(-3);
+        const head = r.awaiting
+          ? `<div class="cp-head ${r.awaiting === me ? 'me' : ''}">${icon('clock', 11)} ${r.awaiting === me ? 'On attend TA réponse' : 'En attente de ' + (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</div>`
+          : '';
+        const body = last.length ? last.map(c => {
+          const a = (c.author || 'nicolas').toLowerCase();
+          return `<div class="cp-msg"><span class="chat-av ${a === 'yannick' ? 'ya' : 'ni'}">${a === 'yannick' ? 'YA' : 'NI'}</span>
+            <div><div class="cp-meta">${esc(a === 'yannick' ? 'Yannick' : 'Nicolas')} · ${fmtDateTimeShort(c.date)}</div>
+            <div class="cp-text">${esc(c.text)}</div></div></div>`;
+        }).join('') : `<div class="cp-empty">Aucun message — clique pour démarrer l'échange.</div>`;
+        const more = list.length > 3 ? `<div class="cp-more">+ ${list.length - 3} message(s) plus ancien(s)</div>` : '';
+        pop.innerHTML = head + body + more + `<div class="cp-foot">Cliquer pour ouvrir et répondre</div>`;
+        pop.classList.add('open');
+        const rect = cell.getBoundingClientRect();
+        const pw = pop.offsetWidth, ph = pop.offsetHeight;
+        let left = Math.max(8, Math.min(rect.left, window.innerWidth - pw - 8));
+        let top = rect.bottom + 8;
+        if (top + ph > window.innerHeight - 8) top = Math.max(8, rect.top - ph - 8);
+        pop.style.left = left + 'px'; pop.style.top = top + 'px';
+      }
+      document.addEventListener('mouseover', (e) => {
+        const cell = e.target.closest && e.target.closest('.chat-cell[data-chat]');
+        if (cell && cell !== current) show(cell);
+      });
+      document.addEventListener('mouseout', (e) => {
+        const cell = e.target.closest && e.target.closest('.chat-cell[data-chat]');
+        if (!cell) return;
+        setTimeout(() => { if (pop && !pop.matches(':hover') && !cell.matches(':hover')) hide(); }, 120);
+      });
+      window.addEventListener('scroll', hide, true);
+      window.__chatPopReset = hide;   // fermé avant chaque re-render
+    })();
 
     // ══════════ ÉCHANGE INTERNE Nicolas ↔ Yannick sur une demande ════════════════════════════
     // But : décider vite à deux sans sortir de l'ERP. Chaque message peut « passer la balle » à
