@@ -426,6 +426,39 @@
       }
     },
 
+    // ── ÉCHANGE INTERNE SUR UNE DEMANDE DE RDV (Nicolas ↔ Yannick) ──
+    // Même architecture que les commentaires de devis : écriture CIBLÉE côté serveur, donc deux
+    // personnes peuvent écrire en même temps sans qu'un message soit écrasé.
+    // `ask` = à qui on demande une réponse ('nicolas' | 'yannick' | '' pour ne rien demander).
+    async addRdvComment(rdvId, opts) {
+      opts = opts || {};
+      const payload = {
+        author: opts.author || 'nicolas', text: (opts.text || '').trim(),
+        kind: opts.kind || 'note', ask: opts.ask || '',
+      };
+      if (!payload.text) return { ok: false, error: 'Message vide' };
+      try {
+        const res = await req('/rdv/' + encodeURIComponent(rdvId) + '/comment', { method: 'POST', body: JSON.stringify(payload) });
+        try { const r = localRdv.get(rdvId); if (r) { r.comments = (r.comments || []).concat([res.comment]); localRdv.save(r); } } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : le message sera à renvoyer une fois la connexion revenue.' };
+      }
+    },
+    async deleteRdvComment(rdvId, commentId) {
+      try {
+        const res = await req('/rdv/' + encodeURIComponent(rdvId) + '/comment/' + encodeURIComponent(commentId), { method: 'DELETE' });
+        try { const r = localRdv.get(rdvId); if (r && r.comments) { r.comments = r.comments.filter(function (c) { return String(c.id) !== String(commentId); }); localRdv.save(r); } } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+      }
+    },
+
     // ── OUTILLAGE (carnet de références perso : visserie, fixations, outils…) ──
     async listOutillage() {
       try { return (await req('/outillage')).data; }
