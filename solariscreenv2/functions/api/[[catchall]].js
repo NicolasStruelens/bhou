@@ -744,6 +744,62 @@ export async function onRequest(context) {
       await upsertRdv(env.DB, r);
       return json({ ok: true, id: r.id });
     }
+    // ── ÉCHANGE INTERNE SUR UNE DEMANDE DE RDV (Nicolas ↔ Yannick) ──────────────────────────────
+    // Écriture CIBLÉE (json_insert sur la seule ligne) : deux personnes peuvent commenter en même
+    // temps sans qu'un message soit perdu — jamais d'upsertRdv() qui réécrirait la demande entière.
+    // `awaiting` = à QUI on demande une réponse (moteur de la prise de décision rapide) :
+    //   • un message posté avec `ask` (ex. « yannick ») met la balle dans son camp ;
+    //   • si l'auteur du message EST la personne attendue, il répond → la balle se libère.
+    let mRdvComment = path.match(/^\/api\/rdv\/([^/]+)\/comment$/);
+    if (mRdvComment && method === 'POST') {
+      const id = decodeURIComponent(mRdvComment[1]);
+      const body = await request.json().catch(() => ({}));
+      const text = (body.text || '').trim();
+      if (!text) return json({ ok: false, error: 'Message vide' }, 400);
+      const author = String(body.author || 'nicolas').slice(0, 40);
+      const ask = ['nicolas', 'yannick'].includes(body.ask) ? body.ask : '';
+      const comment = {
+        id: crypto.randomUUID(), author, text: text.slice(0, 5000),
+        kind: String(body.kind || 'note').slice(0, 20),   // note | question | decision
+        date: new Date().toISOString(),
+      };
+      if (ask) comment.ask = ask;
+      const now = comment.date;
+      const r = await env.DB.prepare(
+        `UPDATE rdv SET
+           data = json_set(
+                    json_insert(
+                      json_set(data, '$.comments', json(COALESCE(json_extract(data, '$.comments'), '[]'))),
+                      '$.comments[#]', json(?1)),
+                    '$.comments_count', COALESCE(json_array_length(data, '$.comments'), 0) + 1,
+                    '$.awaiting', CASE
+                      WHEN ?4 <> '' THEN ?4                       -- on passe explicitement la balle
+                      WHEN ?6 = 'decision' THEN ''                -- une décision clôt le débat
+                      WHEN COALESCE(json_extract(data, '$.awaiting'), '') = ?5 THEN ''  -- l'attendu a répondu
+                      ELSE COALESCE(json_extract(data, '$.awaiting'), '') END,
+                    '$.date_modification', ?2),
+           date_modification = ?2
+         WHERE id = ?3`
+      ).bind(JSON.stringify(comment), now, id, ask, author, comment.kind).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Demande introuvable' }, 404);
+      return json({ ok: true, comment });
+    }
+    let mRdvCommentDel = path.match(/^\/api\/rdv\/([^/]+)\/comment\/([^/]+)$/);
+    if (mRdvCommentDel && method === 'DELETE') {
+      const id = decodeURIComponent(mRdvCommentDel[1]);
+      const cid = decodeURIComponent(mRdvCommentDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Demande introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const kept = (d.comments || []).filter(c => String(c.id) !== String(cid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE rdv SET data = json_set(data, '$.comments', json(?1), '$.comments_count', ?2, '$.date_modification', ?3),
+           date_modification = ?3 WHERE id = ?4`
+      ).bind(JSON.stringify(kept), kept.length, now, id).run();
+      return json({ ok: true });
+    }
+
     m = path.match(/^\/api\/rdv\/([^/]+)$/);
     if (m) {
       const id = decodeURIComponent(m[1]);
