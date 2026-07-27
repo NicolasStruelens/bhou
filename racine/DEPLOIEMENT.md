@@ -311,3 +311,28 @@ SELECT version FROM schema_migrations ORDER BY version DESC;
 - [ ] L’import affiche un aperçu et propose **Fusionner sans doublons** ou **Remplacer après sauvegarde**.
 - [ ] Un texte détecté comme secret impose 1 h, lecture unique et exclusion des exports.
 - [ ] Après déconnexion, les données API et la file hors ligne ne restent pas dans les caches du navigateur.
+
+## Version 55.2 — finition visuelle et tactile
+
+La v55.2 ne change pas le schéma D1 : **aucune migration SQL supplémentaire**.
+La base doit simplement rester en version **13**.
+
+### Déploiement
+
+1. Remplacer le contenu du dossier GitHub `/racine` par le contenu du dossier local.
+2. Valider le commit sur `main` et attendre le statut Cloudflare Pages **Success**.
+3. Faire `Ctrl + F5`, ou fermer puis rouvrir la PWA.
+4. Vérifier dans **Atelier → État du système** :
+   - **App v55.2**
+   - **Schéma v13**
+
+### Contrôles v55.2
+
+- [ ] En thème clair, le menu Atelier est nettement détaché du contenu et ne semble plus fusionner avec les espaces.
+- [ ] Le voile derrière Atelier disparaît dès que le menu est fermé.
+- [ ] Sur GSM, les boutons essentiels mesurent au moins 44 px de haut.
+- [ ] Seules les trois sauvegardes les plus récentes sont visibles par défaut.
+- [ ] Le bouton des anciennes sauvegardes les affiche puis les replie correctement.
+- [ ] Les longs contenus de la Corbeille sont limités et peuvent être dépliés.
+- [ ] Les rails horizontaux montrent une flèche discrète lorsqu’une suite existe.
+- [ ] Aucun défilement horizontal global n’apparaît à 390, 430, 720, 768, 900, 1024 et 1440 px.

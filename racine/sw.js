@@ -1,7 +1,7 @@
 // Racine — service worker : app-shell statique uniquement.
 // Les données privées de l'API ne sont jamais persistées dans CacheStorage.
 // Les mutations (POST/PUT/DELETE) ne sont JAMAIS interceptées ici : voir assets/js/offline-queue.js.
-const CACHE = 'racine-shell-v55';
+const CACHE = 'racine-shell-v55.2';
 const SHELL = [
   '/assets/css/tokens.css',
   '/assets/css/base.css',
