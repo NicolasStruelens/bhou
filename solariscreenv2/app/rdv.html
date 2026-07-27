@@ -131,6 +131,40 @@
     .proxi-detail { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     .proxi-ok { font-size: var(--fs-2xs); color: var(--ok); display: flex; align-items: center; gap: 0.3rem; margin-top: 0.35rem; }
     .proxi-loading, .proxi-none { font-size: var(--fs-2xs); color: var(--text-subtle); }
+    /* ── Échange interne Nicolas ↔ Yannick ─────────────────────────────────────────────────── */
+    .chat-banner { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 9px 12px; border-radius: var(--r-sm);
+      font-size: var(--fs-sm); margin-bottom: var(--sp-3); border: 1px solid var(--bc, var(--border)); background: color-mix(in srgb, var(--bc, var(--border)) 10%, transparent); color: var(--bc, var(--text)); }
+    .chat-banner.me { --bc: var(--warn); }
+    .chat-banner.them { --bc: var(--accent); }
+    .chat-banner button { margin-left: auto; }
+    .chat-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; scrollbar-width: thin;
+      border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px; background: var(--surface-2); }
+    .chat-empty { color: var(--text-subtle); font-size: var(--fs-xs); text-align: center; padding: var(--sp-3); }
+    .chat-msg { display: flex; align-items: flex-start; gap: 9px; position: relative; }
+    .chat-msg.mine .chat-body { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+    .chat-av { width: 26px; height: 26px; border-radius: var(--r-sm); flex: none; display: grid; place-items: center;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; border: 1px solid var(--border-strong); }
+    .chat-av.ni { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+    .chat-av.ya { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2-ink); }
+    .chat-body { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 10px; background: var(--surface); }
+    .chat-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .chat-ask { color: var(--warn); } .chat-dec { color: var(--ok); }
+    .chat-text { font-size: var(--fs-sm); margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+    .chat-del { border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; opacity: 0; padding: 2px 4px; font-size: 13px; }
+    .chat-msg:hover .chat-del { opacity: 1; }
+    .chat-del:hover { color: var(--danger); }
+    .chat-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--sp-2); }
+    .chat-q { font-family: var(--font-mono); font-size: var(--fs-2xs); border: 1px solid var(--border-strong); background: transparent;
+      color: var(--text-muted); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; transition: all var(--t-fast); }
+    .chat-q:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+    .chat-compose { margin-top: var(--sp-2); }
+    .chat-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+    /* Signaux sur les cartes / lignes : combien de messages, et qui doit répondre */
+    .rb-chat { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px; }
+    .rb-await { font-family: var(--font-mono); font-size: var(--fs-3xs); border: 1px solid var(--warn); color: var(--warn);
+      border-radius: var(--r-sm); padding: 1px 5px; }
+    .rb-await.me { background: var(--warn); color: var(--bg); font-weight: 700; }
+
     /* Alerte délai de réponse (un lead web se rappelle vite) */
     .lead-age { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.1rem 0.4rem; border-radius: var(--r-sm); border: 1px solid currentColor; }
     .lead-age.warn { color: var(--warn); }
@@ -375,6 +409,11 @@
         if (r.rappel_date && r.rappel_date <= todayStr()) {
           items.push({ r, txt: `${clientName(r)} — rappel prévu le ${fmtDate(r.rappel_date)}` });
         }
+        // Échange interne : une réponse T'est demandée → priorité maximale, c'est TOI qui bloques.
+        if (r.awaiting && r.awaiting === (IDENTITY.key || 'nicolas')) {
+          const last = (r.comments || []).slice().reverse().find(c => c.ask);
+          items.push({ r, prio: 4, txt: `${clientName(r)} — ${(r.awaiting === 'yannick' ? 'Nicolas' : 'Yannick')} attend ta réponse${last ? ' : « ' + String(last.text).slice(0, 60) + ' »' : ''}` });
+        }
       });
       const host = el('briefHost');
       if (!items.length) { host.innerHTML = ''; return; }
@@ -413,6 +452,12 @@
       if (r.pref_contact === 'email') badges.push('<span class="badge badge-cyan">Préf. e-mail</span>');
       if ((r.photos || []).length) badges.push(`<span class="badge">${icon('camera', 10)} ${r.photos.length}</span>`);
       if ((r.comments || []).length) badges.push(`<span class="badge">${icon('message', 10)} ${r.comments.length}</span>`);
+      // Qui doit répondre ? C'est le signal le plus actionnable de la carte : en jaune plein quand
+      // c'est TOI qui bloques, en contour quand on attend l'autre.
+      if (r.awaiting) {
+        const mine = r.awaiting === (IDENTITY.key || 'nicolas');
+        badges.push(`<span class="rb-await ${mine ? 'me' : ''}" title="${mine ? 'On attend TA réponse' : 'En attente de la réponse de ' + (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}">${icon('clock', 10)} ${mine ? 'à toi de répondre' : (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</span>`);
+      }
       if (r.devis_id) badges.push('<span class="badge badge-ok">Devis lié</span>');
       // « Visite faite » en UN clic, directement sur la carte : le glisser-déposer vers la colonne
       // « Visité » existe mais personne ne le devine — résultat, les visites passées restaient
@@ -615,6 +660,9 @@
           <div class="field"><label class="label">Rappel le (optionnel)</label><input class="input" id="f_rappel" type="date" value="${esc(r.rappel_date || '')}"></div>
         </div>
 
+        <div class="form-sec">Échange interne — Nicolas &amp; Yannick</div>
+        <div id="chatHost"></div>
+
         <div class="form-sec">Contacter le client</div>
         <div class="msg-box">
           <div class="grid grid-2">
@@ -646,17 +694,12 @@
         <button class="btn btn-ghost btn-sm" onclick="el('f_photoInput').click()">${icon('camera', 14)} Ajouter des photos</button>
         <div class="rdv-photos" id="photosHost"></div>
 
-        <div class="form-sec">Notes internes (Nicolas / Yannick)</div>
-        <div class="cm-thread" id="cmThread"></div>
-        <div style="display:flex;gap:var(--sp-2);margin-top:var(--sp-2);">
-          <input class="input" id="cmInput" placeholder="Ajouter une note…" style="flex:1;" onkeydown="if(event.key==='Enter')addNote()">
-          <button class="btn btn-ghost btn-sm" onclick="addNote()">Ajouter</button>
-        </div>`;
+        `;
       renderCreneaux();
       renderProximite();
       fillMsg();
       renderPhotos();
-      renderNotes();
+      renderChat();   // remplace l'ancien bloc « Notes internes » (même champ `comments`, rien n'est perdu)
       el('modalBg').classList.add('open');
     }
 
@@ -673,21 +716,6 @@
     };
     window.removePhoto = (i) => { PENDING_PHOTOS.splice(i, 1); renderPhotos(); };
 
-    function renderNotes() {
-      const notes = (CURRENT.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      el('cmThread').innerHTML = notes.length ? notes.map(n => {
-        const who = (n.author || 'nicolas').toLowerCase();
-        return `<div class="cm">${whoAva(who)}<div><div class="cm-meta">${esc(who.charAt(0).toUpperCase() + who.slice(1))} · ${fmtDate(n.date)}</div><div class="cm-text">${esc(n.text)}</div></div></div>`;
-      }).join('') : '<div class="cm-empty">Aucune note pour l’instant.</div>';
-    }
-    window.addNote = () => {
-      const inp = el('cmInput'), text = inp.value.trim();
-      if (!text) return;
-      CURRENT.comments = CURRENT.comments || [];
-      CURRENT.comments.push({ id: Date.now(), author: IDENTITY.key || 'nicolas', text, date: new Date().toISOString() });
-      inp.value = '';
-      renderNotes();
-    };
 
     // ── Créneaux proposés ────────────────────────────────────────────────────────────────
     // But : arrêter de négocier les dates dans un champ texte libre. Chaque créneau porte un état ;
@@ -854,6 +882,110 @@
       if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter';
       fillMsg();
       toast('Attribué à ' + (IDENTITY.key === 'yannick' ? 'Yannick' : 'Nicolas') + ' — pense à enregistrer.', 'ok');
+    };
+
+    // ══════════ ÉCHANGE INTERNE Nicolas ↔ Yannick sur une demande ════════════════════════════
+    // But : décider vite à deux sans sortir de l'ERP. Chaque message peut « passer la balle » à
+    // l'autre (`awaiting`) — c'est ce qui rend visible, partout, qui doit agir maintenant.
+    const WHO = { nicolas: 'Nicolas', yannick: 'Yannick' };
+    const otherThan = (k) => (k === 'yannick' ? 'nicolas' : 'yannick');
+    function renderChat() {
+      const host = el('chatHost');
+      if (!host || !CURRENT) return;
+      const me = IDENTITY.key || 'nicolas';
+      const other = otherThan(me);
+      const list = (CURRENT.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const awaiting = CURRENT.awaiting || '';
+      // Bandeau d'état : qui doit répondre ? C'est LE raccourci de décision.
+      let banner = '';
+      if (awaiting === me) banner = `<div class="chat-banner me">${icon('message', 13)} <strong>${esc(WHO[other] || other)} attend ta réponse.</strong><button type="button" class="btn btn-primary btn-sm" onclick="focusChat()">Répondre</button></div>`;
+      else if (awaiting) banner = `<div class="chat-banner them">${icon('clock', 13)} En attente de la réponse de <strong>${esc(WHO[awaiting] || awaiting)}</strong>.<button type="button" class="btn btn-ghost btn-sm" onclick="clearAwaiting()">Ne plus attendre</button></div>`;
+      const msgs = list.length ? list.map(c => {
+        const a = (c.author || 'nicolas').toLowerCase();
+        const mine = a === me;
+        return `<div class="chat-msg ${mine ? 'mine' : ''}">
+          <span class="chat-av ${a === 'yannick' ? 'ya' : 'ni'}">${a === 'yannick' ? 'YA' : 'NI'}</span>
+          <div class="chat-body">
+            <div class="chat-meta">${esc(WHO[a] || a)} · ${fmtDateTimeShort(c.date)}${c.ask ? ` · <span class="chat-ask">demande une réponse à ${esc(WHO[c.ask] || c.ask)}</span>` : ''}${c.kind === 'decision' ? ' · <span class="chat-dec">décision</span>' : ''}</div>
+            <div class="chat-text">${esc(c.text)}</div>
+          </div>
+          <button type="button" class="chat-del" title="Supprimer" onclick="delRdvComment('${esc(c.id)}')">✕</button>
+        </div>`;
+      }).join('') : `<div class="chat-empty">Aucun échange pour l'instant. Écris un mot à ${esc(WHO[other] || other)} pour décider qui s'en occupe.</div>`;
+      host.innerHTML = `${banner}
+        <div class="chat-list" id="chatList">${msgs}</div>
+        <div class="chat-quick">
+          ${QUICK_MSGS.map((q, i) => `<button type="button" class="chat-q" onclick="quickChat(${i})">${esc(q.label)}</button>`).join('')}
+        </div>
+        <div class="chat-compose">
+          <textarea class="textarea" id="chatText" rows="2" placeholder="Un mot à ${esc(WHO[other] || other)}…"></textarea>
+          <div class="chat-actions">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="sendChat('')">${icon('message', 13)} Envoyer</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="sendChat('${other}')">${icon('send', 13)} Envoyer &amp; demander à ${esc(WHO[other] || other)}</button>
+          </div>
+        </div>`;
+    }
+    function fmtDateTimeShort(iso) {
+      const d = new Date(iso);
+      if (!iso || isNaN(d)) return '—';
+      return d.toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+    // Réponses en un clic : les phrases qui reviennent le plus dans une décision à deux.
+    const QUICK_MSGS = [
+      { label: 'Je prends', text: 'Je prends cette demande en charge.', kind: 'decision', take: true },
+      { label: 'Tu peux ?', text: "Peux-tu t'en occuper ? Je ne suis pas disponible.", kind: 'question', askOther: true },
+      { label: 'OK pour moi', text: 'OK pour moi, ça me va.', kind: 'decision' },
+      { label: 'Trop loin', text: "C'est trop loin pour moi, l'autre est mieux placé.", kind: 'question', askOther: true },
+      { label: 'On en parle', text: 'On en parle de vive voix avant de répondre au client.', kind: 'note', askOther: true },
+    ];
+    window.focusChat = () => { const t = el('chatText'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => t.focus({ preventScroll: true }), 250); } };
+    window.quickChat = async (i) => {
+      const q = QUICK_MSGS[i]; if (!q) return;
+      const me = IDENTITY.key || 'nicolas';
+      if (q.take) { el('f_assigned').value = me; if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter'; }
+      await postChat(q.text, q.askOther ? otherThan(me) : '', q.kind);
+      if (q.take) toast('Pris en charge — pense à enregistrer la demande.', 'ok');
+    };
+    window.sendChat = async (ask) => {
+      const t = el('chatText');
+      const txt = (t && t.value || '').trim();
+      if (!txt) { toast('Écris un message avant d’envoyer.', 'warn'); return; }
+      await postChat(txt, ask || '', ask ? 'question' : 'note');
+      if (t) t.value = '';
+    };
+    async function postChat(text, ask, kind) {
+      if (!CURRENT || !CURRENT.id) { toast('Enregistre d’abord la demande, puis discute.', 'warn', 5000); return; }
+      const me = IDENTITY.key || 'nicolas';
+      const res = await SS.addRdvComment(CURRENT.id, { author: me, text, ask, kind });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Message non envoyé', 'error', 6000); return; }
+      CURRENT.comments = (CURRENT.comments || []).concat([res.comment]);
+      // Même règle que le serveur : on passe la balle (ask) > une DÉCISION clôt le débat >
+      // sinon celui qui était attendu vient de répondre → la balle se libère.
+      CURRENT.awaiting = ask ? ask : (kind === 'decision' ? '' : (CURRENT.awaiting === me ? '' : (CURRENT.awaiting || '')));
+      const i = RDV.findIndex(x => x.id === CURRENT.id);
+      if (i !== -1) { RDV[i].comments = CURRENT.comments; RDV[i].awaiting = CURRENT.awaiting; }
+      SS.logActivity && SS.logActivity({ action: 'rdv.comment', entity_type: 'rdv', entity_id: CURRENT.id, label: `Message interne sur la demande ${CURRENT.id}${ask ? ' — réponse demandée à ' + (WHO[ask] || ask) : ''}` });
+      renderChat();
+      render();   // met à jour les compteurs/badges des cartes derrière la fiche
+      toast(ask ? `Envoyé — ${WHO[ask] || ask} est prévenu` : 'Message envoyé ✓', 'ok');
+    }
+    window.clearAwaiting = async () => {
+      if (!CURRENT) return;
+      const me = IDENTITY.key || 'nicolas';
+      await postChat('(attente levée)', '', 'note');
+      CURRENT.awaiting = '';
+      const i = RDV.findIndex(x => x.id === CURRENT.id);
+      if (i !== -1) RDV[i].awaiting = '';
+      renderChat(); render();
+    };
+    window.delRdvComment = async (cid) => {
+      if (!CURRENT || !confirm('Supprimer ce message ?')) return;
+      const res = await SS.deleteRdvComment(CURRENT.id, cid);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Suppression impossible', 'error'); return; }
+      CURRENT.comments = (CURRENT.comments || []).filter(c => String(c.id) !== String(cid));
+      const i = RDV.findIndex(x => x.id === CURRENT.id);
+      if (i !== -1) RDV[i].comments = CURRENT.comments;
+      renderChat(); render();
     };
 
     // « Visite faite » depuis la fiche ouverte : on garde toutes les saisies en cours (collect via
