@@ -230,6 +230,41 @@
   var ATELIER_VIEWS = ['clips', 'recipes', 'reminders', 'completed', 'trash'];
   var atelierToggle = document.getElementById('atelierToggle');
   var atelierDropdown = document.getElementById('atelierDropdown');
+  var atelierScrim = document.getElementById('atelierScrim');
+
+  // Les rails horizontaux restent discrets, mais indiquent clairement qu'une suite
+  // existe à gauche ou à droite. Le câblage est fait une seule fois par rail.
+  var SCROLL_HINT_SELECTOR = '.space-bar, .clairiere-cards, .clip-filter-tabs, .recipe-filter-tabs';
+  function updateScrollHint(el) {
+    if (!el || !el.clientWidth) {
+      if (el) {
+        el.classList.remove('scroll-hint-left');
+        el.classList.remove('scroll-hint-right');
+      }
+      return;
+    }
+    el.classList.toggle('scroll-hint-left', el.scrollLeft > 4);
+    el.classList.toggle('scroll-hint-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }
+  function refreshScrollHints() {
+    document.querySelectorAll(SCROLL_HINT_SELECTOR).forEach(function (el) {
+      if (!el.dataset.scrollHintWired) {
+        el.dataset.scrollHintWired = 'true';
+        el.addEventListener('scroll', function () { updateScrollHint(el); }, { passive: true });
+        if (typeof MutationObserver !== 'undefined') {
+          new MutationObserver(function () {
+            requestAnimationFrame(function () { updateScrollHint(el); });
+          }).observe(el, { childList: true });
+        }
+      }
+      updateScrollHint(el);
+    });
+  }
+  window.refreshScrollHints = refreshScrollHints;
+  window.addEventListener('resize', function () {
+    requestAnimationFrame(refreshScrollHints);
+  });
+  requestAnimationFrame(refreshScrollHints);
 
   function switchTab(name) {
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === name); });
@@ -245,6 +280,7 @@
       var sceneSource = document.querySelector('.tab[data-view="' + name + '"]') || atelierToggle;
       window.RAUniverse.setScene(name, sceneSource);
     }
+    requestAnimationFrame(refreshScrollHints);
   }
   document.querySelectorAll('.tab[data-view]:not(.atelier-toggle)').forEach(function (tab) {
     tab.addEventListener('click', function () { switchTab(tab.dataset.view); });
@@ -252,14 +288,19 @@
 
   function closeAtelier() {
     atelierDropdown.classList.add('hidden');
+    atelierScrim.classList.add('hidden');
+    document.body.classList.remove('atelier-menu-open');
     atelierToggle.setAttribute('aria-expanded', 'false');
   }
   atelierToggle.addEventListener('click', function (e) {
     e.stopPropagation();
     var willOpen = atelierDropdown.classList.contains('hidden');
     atelierDropdown.classList.toggle('hidden', !willOpen);
+    atelierScrim.classList.toggle('hidden', !willOpen);
+    document.body.classList.toggle('atelier-menu-open', willOpen);
     atelierToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
   });
+  atelierScrim.addEventListener('click', closeAtelier);
   atelierDropdown.querySelectorAll('.atelier-item').forEach(function (item) {
     item.addEventListener('click', closeAtelier);
   });

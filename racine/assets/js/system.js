@@ -4,7 +4,8 @@
   var systemModal = document.getElementById('systemModal');
   var systemInfo = document.getElementById('systemInfo');
   var backupList = document.getElementById('backupList');
-  var APP_VERSION = '55';
+  var APP_VERSION = '55.2';
+  var BACKUP_PREVIEW_LIMIT = 3;
 
   function statChip(value, label, warn) {
     var div = document.createElement('div');
@@ -17,6 +18,50 @@
     return div;
   }
 
+  function buildBackupRow(b) {
+    var row = document.createElement('div');
+    row.className = 'backup-item';
+    var dateEl = document.createElement('div');
+    dateEl.className = 'backup-date';
+    dateEl.textContent = new Date(b.created_at).toLocaleString('fr-FR') + ' · ' + formatSize(b.size);
+    row.appendChild(dateEl);
+
+    var actions = document.createElement('div');
+    actions.className = 'backup-item-actions';
+    var dlBtn = document.createElement('button');
+    dlBtn.type = 'button';
+    dlBtn.className = 'backup-action';
+    dlBtn.textContent = 'Télécharger';
+    dlBtn.addEventListener('click', function () {
+      RA.getBackup(b.id).then(function (data) {
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'racine-backup-' + new Date(b.created_at).toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }).catch(function (err) { toast('Erreur : ' + err.message); });
+    });
+    actions.appendChild(dlBtn);
+
+    var restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'backup-action';
+    restoreBtn.textContent = 'Restaurer';
+    restoreBtn.addEventListener('click', function () {
+      RA.getBackup(b.id).then(function (data) {
+        systemModal.classList.remove('show');
+        return openImportPreview(data, 'Sauvegarde du ' + new Date(b.created_at).toLocaleString('fr-FR'));
+      }).catch(function (err) { toast('Erreur : ' + err.message); });
+    });
+    actions.appendChild(restoreBtn);
+    row.appendChild(actions);
+    return row;
+  }
+
   function renderBackupList(backups) {
     backupList.innerHTML = '';
     if (!backups.length) {
@@ -26,43 +71,37 @@
       backupList.appendChild(p);
       return;
     }
-    backups.forEach(function (b) {
-      var row = document.createElement('div');
-      row.className = 'backup-item';
-      var dateEl = document.createElement('div');
-      dateEl.className = 'backup-date';
-      dateEl.textContent = new Date(b.created_at).toLocaleString('fr-FR') + ' · ' + formatSize(b.size);
-      row.appendChild(dateEl);
 
-      var dlBtn = document.createElement('button');
-      dlBtn.textContent = 'Télécharger';
-      dlBtn.addEventListener('click', function () {
-        RA.getBackup(b.id).then(function (data) {
-          var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a');
-          a.href = url;
-          a.download = 'racine-backup-' + new Date(b.created_at).toISOString().slice(0, 10) + '.json';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        }).catch(function (err) { toast('Erreur : ' + err.message); });
-      });
-      row.appendChild(dlBtn);
-
-      var restoreBtn = document.createElement('button');
-      restoreBtn.textContent = 'Restaurer';
-      restoreBtn.addEventListener('click', function () {
-        RA.getBackup(b.id).then(function (data) {
-          systemModal.classList.remove('show');
-          return openImportPreview(data, 'Sauvegarde du ' + new Date(b.created_at).toLocaleString('fr-FR'));
-        }).catch(function (err) { toast('Erreur : ' + err.message); });
-      });
-      row.appendChild(restoreBtn);
-
-      backupList.appendChild(row);
+    backups.slice(0, BACKUP_PREVIEW_LIMIT).forEach(function (backup) {
+      backupList.appendChild(buildBackupRow(backup));
     });
+
+    var older = backups.slice(BACKUP_PREVIEW_LIMIT);
+    if (!older.length) return;
+
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'backup-more-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+
+    var archive = document.createElement('div');
+    archive.className = 'backup-archive hidden';
+    older.forEach(function (backup) { archive.appendChild(buildBackupRow(backup)); });
+
+    function updateToggleLabel(open) {
+      toggle.textContent = open
+        ? 'Masquer les anciennes sauvegardes'
+        : 'Voir ' + older.length + ' sauvegarde' + (older.length > 1 ? 's' : '') + ' plus ancienne' + (older.length > 1 ? 's' : '');
+    }
+    updateToggleLabel(false);
+    toggle.addEventListener('click', function () {
+      var open = archive.classList.contains('hidden');
+      archive.classList.toggle('hidden', !open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      updateToggleLabel(open);
+    });
+    backupList.appendChild(toggle);
+    backupList.appendChild(archive);
   }
 
   function descendantsOf(id) {

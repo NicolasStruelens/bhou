@@ -64,13 +64,14 @@
     head.appendChild(label);
     card.appendChild(head);
 
-    var preview = document.createElement('div');
-    preview.className = 'clip-preview expanded';
+    var preview;
     if (c.kind === 'file') {
+      preview = document.createElement('div');
+      preview.className = 'clip-preview expanded';
       preview.appendChild(icon('paperclip', 'icon-inline'));
       preview.appendChild(document.createTextNode(' ' + c.filename));
     } else {
-      preview.textContent = c.preview || '';
+      preview = buildTrashPreview(c.preview || '', 'Afficher le contenu supprimé', !!c.preview_truncated);
     }
     card.appendChild(preview);
 
@@ -117,9 +118,8 @@
     head.appendChild(label);
     card.appendChild(head);
 
-    var preview = document.createElement('div');
-    preview.className = 'clip-preview expanded';
-    preview.textContent = ingredients.map(function (i) { return typeof formatIngredientLabel === 'function' ? formatIngredientLabel(i) : i.name; }).join(', ');
+    var ingredientText = ingredients.map(function (i) { return typeof formatIngredientLabel === 'function' ? formatIngredientLabel(i) : i.name; }).join(', ');
+    var preview = buildTrashPreview(ingredientText, 'Afficher les ingrédients supprimés');
     card.appendChild(preview);
 
     var actions = document.createElement('div');
@@ -148,6 +148,28 @@
 
     card.appendChild(actions);
     return card;
+  }
+
+  function buildTrashPreview(text, label, forceLong) {
+    var isLong = !!forceLong || text.length > 280;
+    if (!isLong) {
+      var shortPreview = document.createElement('div');
+      shortPreview.className = 'clip-preview expanded';
+      shortPreview.textContent = text;
+      return shortPreview;
+    }
+    var preview = document.createElement('button');
+    preview.type = 'button';
+    preview.className = 'clip-preview trash-preview-toggle';
+    preview.textContent = text;
+    preview.setAttribute('aria-expanded', 'false');
+    preview.setAttribute('aria-label', label);
+    preview.addEventListener('click', function () {
+      var open = preview.classList.toggle('expanded');
+      preview.setAttribute('aria-expanded', open ? 'true' : 'false');
+      preview.setAttribute('aria-label', open ? 'Replier le contenu supprimé' : label);
+    });
+    return preview;
   }
 
   function renderReminders() {
