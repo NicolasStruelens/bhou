@@ -71,6 +71,11 @@
     .hp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .hn-row { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); font-size: var(--fs-sm); background: var(--surface-2); }
     .hn-row .hn-head { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: 0.2rem; }
+    /* Le fil du client agrège les notes de TOUS ses devis : chaque note rappelle sa source, cliquable. */
+    .hn-group { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.2rem var(--sp-3) 0.35rem; margin-bottom: var(--sp-2); background: var(--surface-2); }
+    .hn-src { display: inline-block; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .05em;
+      color: var(--text-subtle); text-decoration: none; padding-top: 0.35rem; }
+    .hn-src:hover { color: var(--accent); text-decoration: underline; }
     .tag-presets { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
     .tag-chip { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.28rem 0.6rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); }
     .tag-chip:hover { border-color: var(--accent); color: var(--text); }
@@ -413,9 +418,13 @@
       notes.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       const AUTHOR_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
       const notesEl = el('histNotes');
+      // Même rendu partagé que la fiche devis / le tableau de bord / les RDV (SSUI.commentHtml),
+      // avec le n° de devis rappelé au-dessus puisque le fil agrège PLUSIEURS devis du client.
       if (notesEl) notesEl.innerHTML = notes.length
-        ? notes.map(n => `<div class="hn-row"><div class="hn-head"><span>${esc(AUTHOR_LABEL[n.author] || n.author || '—')} · devis #${esc(n.devisId)}</span><span>${fmtDate(n.date)}</span></div>${esc(n.text || '')}</div>`).join('')
-        : '<div class="text-muted">Aucune note.</div>';
+        ? notes.slice().reverse().map(n =>
+            `<div class="hn-group"><a class="hn-src" href="vue.html?id=${encodeURIComponent(n.devisId)}#notes" title="Ouvrir les notes de ce devis">devis #${esc(n.devisId)}</a>`
+            + window.SSUI.commentHtml(n, {}) + '</div>').join('')
+        : '<div class="ss-cmt-empty">Aucune note interne sur les devis de ce client.</div>';
     }
 
     window.toggleTagPreset = function (btn, tag) {

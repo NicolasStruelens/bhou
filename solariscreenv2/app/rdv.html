@@ -139,20 +139,11 @@
     .chat-banner button { margin-left: auto; }
     .chat-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; scrollbar-width: thin;
       border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px; background: var(--surface-2); }
-    .chat-empty { color: var(--text-subtle); font-size: var(--fs-xs); text-align: center; padding: var(--sp-3); }
-    .chat-msg { display: flex; align-items: flex-start; gap: 9px; position: relative; }
-    .chat-msg.mine .chat-body { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-    .chat-av { width: 26px; height: 26px; border-radius: var(--r-sm); flex: none; display: grid; place-items: center;
-      font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; border: 1px solid var(--border-strong); }
-    .chat-av.ni { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-    .chat-av.ya { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2-ink); }
-    .chat-body { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 10px; background: var(--surface); }
-    .chat-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
-    .chat-ask { color: var(--warn); } .chat-dec { color: var(--ok); }
-    .chat-text { font-size: var(--fs-sm); margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
-    .chat-del { border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; opacity: 0; padding: 2px 4px; font-size: 13px; }
-    .chat-msg:hover .chat-del { opacity: 1; }
-    .chat-del:hover { color: var(--danger); }
+    /* Le fil des RDV utilise le rendu PARTAGÉ (.ss-cmt, cf. base.css). Il ne reste ici que
+       l'enveloppe qui teinte MES messages — le reste (avatars, pastilles, suppression) est commun. */
+    .chat-wrap { border-radius: var(--r-sm); }
+    .chat-wrap.mine { background: color-mix(in srgb, var(--accent) 7%, transparent); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 45%, transparent); padding-left: 6px; }
+    .chat-wrap.mine .ss-cmt { border-bottom-color: color-mix(in srgb, var(--accent) 18%, transparent); }
     .chat-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--sp-2); }
     .chat-q { font-family: var(--font-mono); font-size: var(--fs-2xs); border: 1px solid var(--border-strong); background: transparent;
       color: var(--text-muted); border-radius: var(--r-sm); padding: 4px 9px; cursor: pointer; transition: all var(--t-fast); }
@@ -950,12 +941,11 @@
         const head = r.awaiting
           ? `<div class="cp-head ${r.awaiting === me ? 'me' : ''}">${icon('clock', 11)} ${r.awaiting === me ? 'On attend TA réponse' : 'En attente de ' + (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</div>`
           : '';
-        const body = last.length ? last.map(c => {
-          const a = (c.author || 'nicolas').toLowerCase();
-          return `<div class="cp-msg"><span class="chat-av ${a === 'yannick' ? 'ya' : 'ni'}">${a === 'yannick' ? 'YA' : 'NI'}</span>
-            <div><div class="cp-meta">${esc(a === 'yannick' ? 'Yannick' : 'Nicolas')} · ${fmtDateTimeShort(c.date)}</div>
-            <div class="cp-text">${esc(c.text)}</div></div></div>`;
-        }).join('') : `<div class="cp-empty">Aucun message — clique pour démarrer l'échange.</div>`;
+        // Même rendu partagé que le fil complet (sans suppression : la bulle disparaît au moindre
+        // mouvement de souris, on n'y met pas d'action destructive).
+        const body = last.length
+          ? window.SSUI.commentsHtml(last, {})
+          : `<div class="ss-cmt-empty">Aucun message — clique pour démarrer l'échange.</div>`;
         const more = list.length > 3 ? `<div class="cp-more">+ ${list.length - 3} message(s) plus ancien(s)</div>` : '';
         pop.innerHTML = head + body + more + `<div class="cp-foot">Cliquer pour ouvrir et répondre</div>`;
         pop.classList.add('open');
@@ -995,18 +985,12 @@
       let banner = '';
       if (awaiting === me) banner = `<div class="chat-banner me">${icon('message', 13)} <strong>${esc(WHO[other] || other)} attend ta réponse.</strong><button type="button" class="btn btn-primary btn-sm" onclick="focusChat()">Répondre</button></div>`;
       else if (awaiting) banner = `<div class="chat-banner them">${icon('clock', 13)} En attente de la réponse de <strong>${esc(WHO[awaiting] || awaiting)}</strong>.<button type="button" class="btn btn-ghost btn-sm" onclick="clearAwaiting()">Ne plus attendre</button></div>`;
-      const msgs = list.length ? list.map(c => {
-        const a = (c.author || 'nicolas').toLowerCase();
-        const mine = a === me;
-        return `<div class="chat-msg ${mine ? 'mine' : ''}">
-          <span class="chat-av ${a === 'yannick' ? 'ya' : 'ni'}">${a === 'yannick' ? 'YA' : 'NI'}</span>
-          <div class="chat-body">
-            <div class="chat-meta">${esc(WHO[a] || a)} · ${fmtDateTimeShort(c.date)}${c.ask ? ` · <span class="chat-ask">demande une réponse à ${esc(WHO[c.ask] || c.ask)}</span>` : ''}${c.kind === 'decision' ? ' · <span class="chat-dec">décision</span>' : ''}</div>
-            <div class="chat-text">${esc(c.text)}</div>
-          </div>
-          <button type="button" class="chat-del" title="Supprimer" onclick="delRdvComment('${esc(c.id)}')">✕</button>
-        </div>`;
-      }).join('') : `<div class="chat-empty">Aucun échange pour l'instant. Écris un mot à ${esc(WHO[other] || other)} pour décider qui s'en occupe.</div>`;
+      // Rendu partagé (SSUI.commentHtml) : mêmes avatars, mêmes pastilles, même bouton de
+      // suppression que la fiche devis, le tableau de bord et le CRM. `mine` teinte juste le fond.
+      const msgs = list.length
+        ? list.map(c => `<div class="chat-wrap ${(c.author || 'nicolas').toLowerCase() === me ? 'mine' : ''}">`
+            + window.SSUI.commentHtml(c, { onDelete: 'delRdvComment' }) + '</div>').join('')
+        : `<div class="ss-cmt-empty">Aucun échange pour l'instant. Écris un mot à ${esc(WHO[other] || other)} pour décider qui s'en occupe.</div>`;
       host.innerHTML = `${banner}
         <div class="chat-list" id="chatList">${msgs}</div>
         <div class="chat-quick">

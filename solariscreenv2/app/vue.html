@@ -394,15 +394,7 @@
     .notes-card .n-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
     .notes-card .n-body { padding: var(--sp-3) var(--sp-4); max-height: 300px; overflow-y: auto; }
     .notes-card .n-foot { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }
-    .note-row { display: flex; gap: var(--sp-2); padding: var(--sp-2) 0; border-bottom: 1px dashed var(--border); }
-    .note-row:last-child { border-bottom: none; }
-    .note-row .na { width: 26px; height: 26px; flex: none; border-radius: var(--r-round); display: grid; place-items: center; font-weight: 700; font-size: 0.6rem; }
-    .note-row .na.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
-    .note-row .na.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); }
-    .note-row .na.client { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
-    .note-row .nt { font-size: var(--fs-xs); color: var(--text); white-space: pre-wrap; word-break: break-word; }
-    .note-row .nm { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); }
-    .note-row.is-important { border-left: 2px solid var(--warn); padding-left: var(--sp-2); }
+    /* Le fil de notes utilise le rendu PARTAGÉ .ss-cmt (assets/css/base.css) — plus de style local. */
     .n-foot .send-row { display: flex; gap: var(--sp-2); }
     .n-foot select { max-width: 110px; }
   </style>
@@ -625,7 +617,8 @@
         <div class="n-body" id="nList"></div>
         <div class="n-foot" id="nFoot">
           <div id="nModeBanner" class="n-mode-banner hidden"></div>
-          <textarea class="textarea" id="nText" style="min-height:52px;" placeholder="Note rapide pour Yannick / toi-même…"></textarea>
+          <textarea class="textarea" id="nText" style="min-height:52px;" placeholder="Note rapide pour Yannick / toi-même…"
+            title="Ctrl + Entrée pour envoyer" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();sendNote();}"></textarea>
           <label class="check" style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-top:0.3rem;" title="Coché, ce message apparaît sur l'espace client (devis-review) — ex. réponse à une question posée par le client. Décoché par défaut.">
             <input type="checkbox" id="nVisibleClient" onchange="syncNoteComposer()"> Visible pour le client (réponse à sa question)
           </label>
@@ -2373,21 +2366,17 @@
 
     // ── Notes internes ──
     function renderNotes() {
-      const comments = (DEVIS.comments || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      setText('nCount', comments.length ? comments.length + ' note(s)' : '');
-      el('nList').innerHTML = comments.length ? comments.map(c => {
-        const a = (c.author || 'nicolas').toLowerCase();
-        const cls = a === 'client' ? 'client' : (a === 'yannick' ? 'yannick' : 'nicolas');
-        const txt = a === 'client' ? 'CL' : (a === 'yannick' ? 'YA' : 'NI');
-        const label = a === 'client' ? 'Client (via espace client)' : a;
-        return `<div class="note-row ${c.type === 'important' ? 'is-important' : ''}">
-          <div class="na ${cls}">${txt}</div>
-          <div style="min-width:0;flex:1;">
-            <div class="nm">${label} · ${fmtDate(c.date)}${c.type !== 'note' ? ' · ' + c.type : ''}${c.visible_client ? ' · <span style="color:var(--accent-2);">👁 visible client</span>' : ''}</div>
-            <div class="nt">${esc(c.text)}</div>
-          </div>
-        </div>`;
-      }).join('') : '<div class="text-muted" style="font-size:var(--fs-xs);">Aucune note. Écris la première ci-dessous.</div>';
+      const comments = (DEVIS.comments || []);
+      // Compteur parlant : le nombre seul ne disait pas s'il restait une question client sans réponse.
+      const nQ = comments.filter(c => c.author === 'client' && !comments.some(r => r.visible_client && String(r.date) > String(c.date))).length;
+      setText('nCount', comments.length
+        ? comments.length + ' note' + (comments.length > 1 ? 's' : '') + (nQ ? ' · ' + nQ + ' question sans réponse' : '')
+        : '');
+      // Rendu partagé (SSUI.commentHtml) : même présentation que le tableau de bord, le CRM et les RDV.
+      el('nList').innerHTML = window.SSUI.commentsHtml(comments, {
+        onDelete: 'removeNote', onReply: 'replyToClient',
+        empty: 'Aucune note. Écris la première ci-dessous — Yannick la verra aussi.',
+      });
       window.SSNav.getIdentity().then((identity) => {
         if (identity.key) { el('nAuthor').value = identity.key; return; }
         const lastAuthor = localStorage.getItem('ss_comment_author');
@@ -2621,6 +2610,20 @@
       }
       if (btn) btn.textContent = on ? 'Envoyer au client' : 'Ajouter';
       if (ta) ta.placeholder = on ? 'Votre réponse au client (visible sur son espace)…' : 'Note rapide pour Yannick / toi-même…';
+    };
+    // Suppression DIRECTE depuis le fil (elle n'existait que dans la fenêtre du tableau de bord :
+    // sur la fiche, une note écrite par erreur restait là pour toujours). Écriture ciblée côté
+    // serveur (route /comment/:id) : aucune autre partie du devis n'est réécrite.
+    window.removeNote = async (commentId) => {
+      const c = (DEVIS.comments || []).find(x => String(x.id) === String(commentId));
+      const apercu = c ? '\n\n« ' + String(c.text).slice(0, 90) + (String(c.text).length > 90 ? '…' : '') + ' »' : '';
+      if (!confirm('Supprimer cette note ?' + apercu + '\n\nCette action est définitive.')) return;
+      const res = await SS.deleteComment(DEVIS.id, commentId);
+      if (res.ok === false) { toast(res.error || 'Note NON supprimée — réessaie.', 'error', 6000); return; }
+      DEVIS.comments = (DEVIS.comments || []).filter(x => String(x.id) !== String(commentId));
+      renderNotes();
+      renderReviewCard();
+      toast(res.offline ? 'Note supprimée (hors-ligne)' : 'Note supprimée', 'warn');
     };
     window.sendNote = async () => {
       const text = el('nText').value.trim();

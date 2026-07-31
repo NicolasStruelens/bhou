@@ -356,20 +356,7 @@
     .modal .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; min-height: 120px; }
     .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); }
 
-    .comment { display: flex; gap: var(--sp-3); padding: var(--sp-3) 0; border-bottom: 1px dashed var(--border); }
-    .comment:last-child { border-bottom: none; }
-    .comment .c-avatar { width: 32px; height: 32px; flex: none; border-radius: var(--r-round); display: grid; place-items: center; font-weight: 700; font-size: var(--fs-2xs); }
-    .comment .c-avatar.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
-    .comment .c-avatar.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
-    .comment .c-avatar.client { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
-    .comment .c-main { flex: 1; min-width: 0; }
-    .comment .c-meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-    .comment .c-author { font-weight: 700; font-size: var(--fs-xs); text-transform: capitalize; }
-    .comment .c-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
-    .comment .c-text { font-size: var(--fs-sm); color: var(--text); margin-top: 0.25rem; white-space: pre-wrap; word-break: break-word; }
-    .comment.is-important { border-left: 2px solid var(--warn); padding-left: var(--sp-3); }
-    .comment .c-del { margin-left: auto; background: none; border: none; color: var(--text-subtle); cursor: pointer; padding: 2px; }
-    .comment .c-del:hover { color: var(--danger); }
+    /* Le fil de notes utilise le rendu PARTAGÉ .ss-cmt (assets/css/base.css) — plus de style local. */
     .empty-comments { text-align: center; color: var(--text-muted); padding: var(--sp-5); font-size: var(--fs-sm); }
 
     .comment-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
@@ -1293,15 +1280,17 @@
           <div class="mp-photos">${shown.map(e => `<img src="${esc(e.url)}" alt="" title="${esc((PHASE_L[e.phase] || '') + (e.note ? ' — ' + e.note : ''))}" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
       }
       function renderNotes(devis) {
-        const comments = (devis.comments || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 4);
-        if (!comments.length) return '<div class="mp-empty">Aucune note interne.</div>';
-        return `<div class="mp-title">${icon('message', 12)} Notes internes</div>` + comments.map(c => {
-          const author = (c.author || 'nicolas').toLowerCase();
-          const cls = author === 'client' ? 'client' : (author === 'yannick' ? 'yannick' : 'nicolas');
-          const av = author === 'client' ? 'CL' : (author === 'yannick' ? 'YA' : 'NI');
-          const who = author === 'client' ? 'Client' : author.charAt(0).toUpperCase() + author.slice(1);
-          return `<div class="mp-comment"><div class="mp-ava ${cls}">${av}</div><div class="mp-c-body"><div class="mp-c-meta">${esc(who)} · ${fmtDate(c.date)}</div><div class="mp-c-text">${esc(c.text || '')}</div></div></div>`;
-        }).join('');
+        const tous = devis.comments || [];
+        // Les 4 DERNIÈRES notes, mais restituées dans l'ordre de lecture (ancienne → récente) :
+        // un aperçu à l'envers se relit mal, on ne comprend pas qui répond à qui.
+        const recentes = tous.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 4);
+        if (!recentes.length) return '<div class="mp-empty">Aucune note interne.</div>';
+        const reste = tous.length - recentes.length;
+        // Même rendu partagé que la fiche et la fenêtre de notes — sans bouton de suppression :
+        // on ne supprime pas dans une bulle qui disparaît dès que la souris bouge.
+        return `<div class="mp-title">${icon('message', 12)} ${tous.length} note${tous.length > 1 ? 's' : ''} interne${tous.length > 1 ? 's' : ''}</div>`
+          + window.SSUI.commentsHtml(recentes, {})
+          + (reste > 0 ? `<div class="mp-empty" style="padding-top:6px;">+ ${reste} note${reste > 1 ? 's' : ''} plus ancienne${reste > 1 ? 's' : ''} — clique pour tout voir</div>` : '');
       }
       async function show(slot) {
         const id = slot.getAttribute('data-id'), kind = slot.getAttribute('data-preview');
@@ -1528,11 +1517,7 @@
     };
 
     // ── Commentaires internes (fil Nicolas / Yannick) ──
-    const CTYPE = {
-      note:      { label: 'Note',      cls: 'badge' },
-      question:  { label: 'Question',  cls: 'badge-cyan' },
-      important: { label: 'Important', cls: 'badge-warn' },
-    };
+    // Les libellés de type sont désormais portés par le rendu partagé (SSUI.commentHtml).
     let cmDevisId = null;
 
     window.openComments = async (id) => {
@@ -1555,29 +1540,12 @@
       const devis = await SS.getDevis(cmDevisId);
       const comments = (devis && devis.comments) || [];
       if (!comments.length) {
-        el('cmList').innerHTML = '<div class="empty-comments">Aucune note pour ce devis.<br>Écris la première ci-dessous — Yannick la verra ici aussi.</div>';
+        el('cmList').innerHTML = '<div class="ss-cmt-empty">Aucune note pour ce devis. Écris la première ci-dessous — Yannick la verra ici aussi.</div>';
         return;
       }
-      el('cmList').innerHTML = comments
-        .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
-        .map(c => {
-          const t = CTYPE[c.type] || CTYPE.note;
-          const author = (c.author || 'nicolas').toLowerCase();
-          const avatarCls = author === 'client' ? 'client' : (author === 'yannick' ? 'yannick' : 'nicolas');
-          const avatarTxt = author === 'client' ? 'CL' : (author === 'yannick' ? 'YA' : 'NI');
-          return `<div class="comment ${c.type === 'important' ? 'is-important' : ''}">
-            <div class="c-avatar ${avatarCls}">${avatarTxt}</div>
-            <div class="c-main">
-              <div class="c-meta">
-                <span class="c-author">${author === 'client' ? 'Client (via espace client)' : esc(author)}</span>
-                <span class="badge ${t.cls}">${t.label}</span>
-                <span class="c-date">${fmtDate(c.date)}</span>
-                <button class="c-del" title="Supprimer cette note" aria-label="Supprimer cette note" onclick="removeComment('${c.id}')">${icon('trash', 13)}</button>
-              </div>
-              <div class="c-text">${esc(c.text)}</div>
-            </div>
-          </div>`;
-        }).join('');
+      // Rendu partagé (SSUI.commentHtml) — strictement la même présentation que la fiche devis,
+      // le CRM et les demandes de RDV. Plus de balisage propre à cette fenêtre à maintenir.
+      el('cmList').innerHTML = window.SSUI.commentsHtml(comments, { onDelete: 'removeComment' });
       el('cmList').scrollTop = el('cmList').scrollHeight;
     }
 
