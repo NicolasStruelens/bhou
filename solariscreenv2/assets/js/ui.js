@@ -475,6 +475,9 @@
     rain:       '<line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>',
     snow:       '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="8" y1="20" x2="8.01" y2="20"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="12" y1="22" x2="12.01" y2="22"/><line x1="16" y1="16" x2="16.01" y2="16"/><line x1="16" y1="20" x2="16.01" y2="20"/>',
     storm:      '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"/><polyline points="13 11 9 17 15 17 11 23"/>',
+    eye:        '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+    help:       '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    reply:      '<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -483,8 +486,96 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;flex-shrink:0">' + body + '</svg>';
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     FIL DE COMMENTAIRES — composant PARTAGÉ
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Les notes s'affichaient dans quatre écrans (fiche devis, tableau de bord, CRM, demandes de
+     RDV) avec quatre balisages et quatre styles différents : une amélioration devait être
+     recopiée quatre fois, et les écarts finissaient toujours par apparaître. Tout passe désormais
+     par ce rendu unique — corriger ici corrige partout.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const CMT_AUTHORS = {
+    nicolas: { label: 'Nicolas', ini: 'NI', cls: 'nicolas' },
+    yannick: { label: 'Yannick', ini: 'YA', cls: 'yannick' },
+    client: { label: 'Client', ini: 'CL', cls: 'client' },
+  };
+  function commentAuthor(key) {
+    const k = String(key || 'nicolas').trim().toLowerCase();
+    if (CMT_AUTHORS[k]) return CMT_AUTHORS[k];
+    return { label: k ? k.charAt(0).toUpperCase() + k.slice(1) : '—', ini: (k.slice(0, 2) || '—').toUpperCase(), cls: 'autre' };
+  }
+  /** « 24/07/2026 à 14:32 » — l'heure compte : deux notes du même jour n'ont plus le même repère. */
+  function fmtDateTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return String(iso || '');
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' à ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  /** Repère court et lisible : « à l'instant », « il y a 3 h », « hier », « il y a 5 j », puis la date. */
+  function relTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const min = Math.round((Date.now() - d.getTime()) / 60000);
+    if (min < 1) return 'à l’instant';
+    if (min < 60) return 'il y a ' + min + ' min';
+    const h = Math.round(min / 60);
+    if (h < 24) return 'il y a ' + h + ' h';
+    const j = Math.round(h / 24);
+    if (j === 1) return 'hier';
+    if (j < 8) return 'il y a ' + j + ' j';
+    return fmtDate(iso);
+  }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  /**
+   * Une note du fil.
+   * @param {object} c    { id, author, text, type, date, visible_client, ask, kind }
+   * @param {object} opts { onDelete:'nomDeFonction', onReply:'nomDeFonction', compact:true }
+   *                      onDelete/onReply reçoivent l'id de la note ; omis = bouton absent.
+   */
+  function commentHtml(c, opts) {
+    opts = opts || {};
+    const a = commentAuthor(c.author);
+    const type = String(c.type || 'note').toLowerCase();
+    const chips = [];
+    if (type === 'question') chips.push('<span class="ss-cmt-chip q">' + icon('help', 10) + ' question</span>');
+    if (type === 'important') chips.push('<span class="ss-cmt-chip i">' + icon('warning', 10) + ' important</span>');
+    if (c.visible_client) chips.push('<span class="ss-cmt-chip v">' + icon('eye', 10) + ' vu par le client</span>');
+    if (c.kind === 'decision') chips.push('<span class="ss-cmt-chip d">' + icon('check', 10) + ' décision</span>');
+    if (c.ask) chips.push('<span class="ss-cmt-chip q">' + icon('clock', 10) + ' réponse attendue de ' + escHtml(commentAuthor(c.ask).label) + '</span>');
+    const id = escHtml(c.id || '');
+    const del = (opts.onDelete && id)
+      ? `<button type="button" class="ss-cmt-del" title="Supprimer cette note" aria-label="Supprimer cette note"
+           onclick="event.stopPropagation();${opts.onDelete}('${id}')">${icon('trash', 13)}</button>` : '';
+    const rep = (opts.onReply && a.cls === 'client')
+      ? `<button type="button" class="ss-cmt-reply" onclick="event.stopPropagation();${opts.onReply}('${id}')">${icon('reply', 12)} Répondre au client</button>` : '';
+    return `<div class="ss-cmt ${a.cls === 'client' ? 'is-client' : ''} ${type === 'important' ? 'is-important' : ''} ${type === 'question' ? 'is-question' : ''}">
+      <span class="ss-cmt-av ${a.cls}" aria-hidden="true">${a.ini}</span>
+      <div class="ss-cmt-main">
+        <div class="ss-cmt-head">
+          <span class="ss-cmt-who">${escHtml(a.label)}</span>
+          ${chips.join('')}
+          <time class="ss-cmt-when" title="${escHtml(fmtDateTime(c.date))}">${escHtml(relTime(c.date))}</time>
+          ${del}
+        </div>
+        <div class="ss-cmt-text">${escHtml(c.text)}</div>
+        ${rep}
+      </div>
+    </div>`;
+  }
+  /** Le fil complet, du plus ancien au plus récent (sens de lecture d'une conversation). */
+  function commentsHtml(list, opts) {
+    opts = opts || {};
+    const arr = (list || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date)));
+    if (!arr.length) return `<div class="ss-cmt-empty">${escHtml(opts.empty || 'Aucune note pour l’instant.')}</div>`;
+    return arr.map(c => commentHtml(c, opts)).join('');
+  }
+
   window.SSUI = {
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate,
+    fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
+    commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml,
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
