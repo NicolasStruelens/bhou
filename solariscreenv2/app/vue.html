@@ -382,6 +382,14 @@
     .sav-form { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--border); }
 
     /* ── Notes internes ── */
+    /* Arrivée par un raccourci du tableau de bord : la carte visée se signale une seconde, sinon
+       on ne sait pas ce qui vient d'être mis en avant sur une fiche longue. */
+    .anchor-flash { animation: anchorFlash 1.5s ease-out 1; }
+    @keyframes anchorFlash {
+      0%, 100% { box-shadow: 0 0 0 0 transparent; }
+      15%, 55% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 45%, transparent); }
+    }
+    @media (prefers-reduced-motion: reduce) { .anchor-flash { animation: none; outline: 2px solid var(--accent-2); outline-offset: 2px; } }
     .notes-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); --tick-color: var(--accent-2); }
     .notes-card .n-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
     .notes-card .n-body { padding: var(--sp-3) var(--sp-4); max-height: 300px; overflow-y: auto; }
@@ -2894,6 +2902,25 @@
         setTimeout(() => window.openRelance(), 250);
       } else if (location.hash === '#question' && typeof window.replyToClient === 'function') {
         setTimeout(() => window.replyToClient(), 250);
+      }
+      // Ancres d'ARRIVÉE depuis les raccourcis du tableau de bord : on atterrit directement sur la
+      // bonne carte, dépliée et centrée, au lieu de tomber en haut d'une fiche longue et de chercher.
+      const ANCRES = {
+        '#photos': '#ouvHost', '#ouvertures': '#ouvHost', '#notes': '.notes-card',
+        '#paiements': '#paiementsCard', '#lien': '#reviewCard', '#chantier': '#chantierCard',
+        '#checklist': '#checklistCard', '#docs': '#docsCard', '#commande': '#commandeCard',
+        '#journal': '#journalCard', '#interne': '#interneCard',
+      };
+      const cible = ANCRES[location.hash];
+      if (cible) {
+        setTimeout(() => {
+          const c = document.querySelector(cible);
+          if (!c || c.classList.contains('hidden')) return;
+          c.classList.remove('collapsed');
+          c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          c.classList.add('anchor-flash');
+          setTimeout(() => c.classList.remove('anchor-flash'), 1600);
+        }, 220);
       }
     })();
   </script>

@@ -213,7 +213,11 @@
     function renderPayments(factures) {
       const totalFacture = factures.reduce((s, f) => s + (f.total_ttc || 0), 0);
       const totalPaid = factures.reduce((s, f) => s + paidSum(f), 0);
-      const reste = Math.max(0, totalFacture - totalPaid);
+      // ⚠️ Le reste dû se calcule facture PAR facture, jamais en soustrayant deux totaux : un client
+      // qui règle tout d'un coup sur la facture d'acompte crée un TROP-PERÇU qui, dans une simple
+      // soustraction, vient effacer la dette d'un AUTRE client. Constaté sur les données réelles :
+      // 12 784,65 € annoncés ici contre 22 257,77 € réellement dus (page Factures et dashboard).
+      const reste = factures.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
       const today = new Date().toISOString().slice(0, 10);
       const retard = factures.filter(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
       const retardMontant = retard.reduce((s, f) => s + ((f.total_ttc || 0) - paidSum(f)), 0);
@@ -333,12 +337,19 @@
       const caTotal = visible.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
       const caSigne = signes.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
       const avg = visible.length ? caTotal / visible.length : 0;
-      const conv = envoyes.length + signes.length > 0 ? Math.round((signes.length / (envoyes.length + signes.length)) * 100) : 0;
+      // ⚠️ Un taux de conversion se calcule sur les dossiers TRANCHÉS : signés ÷ (signés + refusés).
+      // L'ancienne formule divisait par les devis EN ATTENTE — un dossier pas encore décidé comptait
+      // comme un échec, et un refus n'était jamais compté. Sur les données actuelles les deux
+      // donnaient 40 % par pure coïncidence (6 en attente = 6 refusés) : le jour où ces deux nombres
+      // divergent, le chiffre devient faux sans prévenir.
+      const refuses = visible.filter(d => d.statut === 'refuse');
+      const tranches = signes.length + refuses.length;
+      const conv = tranches > 0 ? Math.round((signes.length / tranches) * 100) : 0;
       el('kpis').innerHTML = `
         <div class="kpi accent ticked"><div class="kpi-label">Devis (hors archives)</div><div class="kpi-value">${visible.length}</div><div class="kpi-sub">${fmtEur(caTotal)} au total</div></div>
         <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub">${signes.length} devis signés/terminés</div></div>
         <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
-        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">signés / envoyés</div></div>`;
+        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">${signes.length} signé${signes.length > 1 ? 's' : ''} / ${tranches} tranché${tranches > 1 ? 's' : ''}${envoyes.length ? ` · ${envoyes.length} en attente` : ''}</div></div>`;
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
