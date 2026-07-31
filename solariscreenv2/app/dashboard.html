@@ -211,6 +211,13 @@
       background: color-mix(in srgb, var(--accent) 9%, transparent); border-radius: var(--r-sm); padding: 3px 8px; }
     .af-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
     .af-clear { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); background: transparent; border: 0; cursor: pointer; text-decoration: underline; }
+    /* Rangement des dossiers perdus — proposé seulement dans la vue Refusé/Annulé. */
+    .af-archive { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: var(--fs-2xs);
+      padding: 3px 9px; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
+      background: transparent; color: var(--accent-2-ink, var(--accent-2)); cursor: pointer; }
+    .af-archive:hover { background: color-mix(in srgb, var(--accent-2) 14%, transparent); }
+    /* La vue par défaut se distingue des filtres de statut : c'est le poste de travail, pas un tri. */
+    .chip-actifs.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .af-total { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); margin-left: auto; }
     /* Densité compacte (#22) */
     .mix-list.dense { gap: 6px; }
@@ -598,7 +605,16 @@
     };
 
     let DEVIS = [], FACTURES = [], CLIENT_TAGS = new Map(), RDV_LIST = [];
-    let activeFilter = 'tous';
+    // ── Vue par défaut : les dossiers VIVANTS ────────────────────────────────────────────────
+    // Constat sur les données réelles : 7 des 16 lignes de la vue « Tous » étaient des dossiers
+    // refusés, donc morts. Le tableau de bord sert à voir ce sur quoi il faut agir : il s'ouvre
+    // désormais sur « Actifs » (tout sauf refusé/annulé). « Tous » existe toujours et reste
+    // honnête — il montre bien TOUT. Le dernier choix de Nicolas est mémorisé.
+    const DEFAULT_VIEW = 'actifs';
+    const DEAD_STATUSES = ['refuse', 'annule'];
+    let activeFilter = (function () {
+      try { return localStorage.getItem('ss_dash_view') || DEFAULT_VIEW; } catch (e) { return DEFAULT_VIEW; }
+    })();
     let activeSeller = 'tous';
     let activeType = 'tous';   // filtre par type de produit (#14)
 
@@ -818,21 +834,60 @@
 
     function renderFilters() {
       const visible = DEVIS.filter(d => !d.archive);
-      const counts = { tous: visible.length };
+      const counts = { tous: visible.length, actifs: visible.filter(d => !DEAD_STATUSES.includes(d.statut)).length };
       visible.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
       const archivedCount = DEVIS.filter(d => d.archive).length;
-      const chips = [['tous', 'Tous']].concat(Object.entries(STATUSES).map(([k, v]) => [k, v.label]));
+      const morts = counts.tous - counts.actifs;
+      const chips = [['actifs', 'Actifs'], ['tous', 'Tous']].concat(Object.entries(STATUSES).map(([k, v]) => [k, v.label]));
       el('filters').innerHTML = chips
-        .filter(([k]) => k === 'tous' || counts[k])
-        .map(([k, label]) => `<button class="chip ${activeFilter === k ? 'active' : ''}" onclick="setFilter('${k}')">${label} <span style="opacity:.6">${counts[k] || 0}</span></button>`)
+        .filter(([k]) => k === 'tous' || k === 'actifs' || counts[k])
+        .map(([k, label]) => {
+          const t = k === 'actifs'
+            ? `Dossiers en vie : brouillons, envoyés, signés, terminés${morts ? ` (${morts} refusé${morts > 1 ? 's' : ''}/annulé${morts > 1 ? 's' : ''} masqué${morts > 1 ? 's' : ''})` : ''}`
+            : (k === 'tous' ? 'Tout, y compris les refusés et annulés' : '');
+          return `<button class="chip ${k === 'actifs' ? 'chip-actifs' : ''} ${activeFilter === k ? 'active' : ''}" title="${esc(t)}" onclick="setFilter('${k}')">${label} <span style="opacity:.6">${counts[k] || 0}</span></button>`;
+        })
         .join('')
         + (archivedCount ? `<button class="chip chip-archive ${activeFilter === 'archives' ? 'active' : ''}" onclick="setFilter('archives')">Archivés <span style="opacity:.6">${archivedCount}</span></button>` : '');
     }
-    window.setFilter = (k) => { activeFilter = k; render(); };
+    // La vue choisie est mémorisée : le tableau de bord se rouvre là où Nicolas l'a laissé.
+    window.setFilter = (k) => {
+      activeFilter = k;
+      try { localStorage.setItem('ss_dash_view', k); } catch (e) {}
+      render();
+    };
+    /**
+     * Rangement en un geste : archive d'un coup tous les devis refusés/annulés affichés.
+     * Proposé UNIQUEMENT dans les vues « Refusé »/« Annulé » — c'est là que le rangement a du sens,
+     * et jamais sur un dossier encore vivant. Les devis restent consultables via « Archivés ».
+     */
+    window.archiverLesRefuses = async () => {
+      const cibles = DEVIS.filter(d => !d.archive && DEAD_STATUSES.includes(d.statut)
+        && (activeFilter === 'tous' || activeFilter === 'actifs' || d.statut === activeFilter));
+      if (!cibles.length) { toast('Rien à archiver.', 'warn'); return; }
+      if (!confirm(`Archiver ${cibles.length} devis refusé${cibles.length > 1 ? 's' : ''} / annulé${cibles.length > 1 ? 's' : ''} ?\n\nIls quittent le tableau de bord mais restent consultables dans « Archivés », et comptent toujours dans les statistiques. Réversible.`)) return;
+      let ok = 0, ko = 0;
+      for (const d of cibles) {
+        try {
+          const full = await SS.getDevis(d.id);
+          if (!full) { ko++; continue; }
+          full.archive = true;
+          full.date_modification = new Date().toISOString();
+          const res = await SS.saveDevis(full);
+          if (res.ok === false) { ko++; continue; }
+          d.archive = true; ok++;
+        } catch (e) { ko++; }
+      }
+      toast(ko ? `${ok} devis archivé(s), ${ko} en échec — réessaie.` : `${ok} devis archivé${ok > 1 ? 's' : ''} ✓`, ko ? 'warn' : 'ok');
+      // La vue qu'on vient de vider n'a plus de raison d'être affichée : on revient au poste de travail.
+      if (!DEVIS.some(d => !d.archive && d.statut === activeFilter)) setFilter(DEFAULT_VIEW);
+      else render();
+    };
 
     const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
     // Libellés lisibles des vues filtrées (chips de filtres actifs, #16)
     const FILTER_LABELS = {
+      actifs: 'Dossiers actifs', tous: 'Tous, refusés compris',
       archives: 'Archivés', accepte_client: 'Accepté par le client', question_client: 'Question client',
       a_relancer: 'À relancer', en_retard: 'Paiement en retard', acompte_attente: 'Acompte non payé',
       solde_attente: 'Solde à encaisser', a_preparer: 'Chantier à préparer', expire: 'Devis expiré',
@@ -869,7 +924,8 @@
       const chips = [];
       const q = el('search').value.trim();
       if (q) chips.push({ label: 'Recherche : « ' + q + ' »', clear: "el('search').value='';render()" });
-      if (activeFilter !== 'tous') chips.push({ label: 'Vue : ' + (FILTER_LABELS[activeFilter] || activeFilter), clear: "setFilter('tous')" });
+      // Pas de chip « Vue : … » sur la vue par défaut : ce n'est pas un filtre qu'on a appliqué.
+      if (activeFilter !== DEFAULT_VIEW) chips.push({ label: 'Vue : ' + (FILTER_LABELS[activeFilter] || activeFilter), clear: `setFilter('${DEFAULT_VIEW}')` });
       if (activeSeller !== 'tous') chips.push({ label: 'Vendeur : ' + (SELLER_LABELS[activeSeller] || activeSeller), clear: "setSellerFilter('tous')" });
       if (activeType !== 'tous') chips.push({ label: 'Produit : ' + (TYPE_LABEL[activeType] || activeType), clear: "setTypeFilter('tous')" });
       const advN = Number((el('advCount').textContent || '').replace(/\D/g, '')) || 0;
@@ -877,12 +933,16 @@
       const total = rows.reduce((s, d) => s + (d.ttc || 0), 0);
       if (!chips.length) { host.classList.add('hidden'); host.innerHTML = ''; return; }
       host.classList.remove('hidden');
+      // Dans la vue des refusés/annulés : rangement en un clic (c'est le seul endroit où il a du sens).
+      const aRanger = DEAD_STATUSES.includes(activeFilter)
+        ? DEVIS.filter(d => !d.archive && d.statut === activeFilter).length : 0;
       host.innerHTML = chips.map(c => `<span class="af-chip">${esc(c.label)}<button onclick="${c.clear}" title="Retirer ce filtre" aria-label="Retirer ce filtre">✕</button></span>`).join('')
         + `<button class="af-clear" onclick="clearAllFilters()">tout effacer</button>`
+        + (aRanger ? `<button class="af-archive" onclick="archiverLesRefuses()" title="Les sortir du tableau de bord — ils restent consultables dans « Archivés » et comptent toujours dans les statistiques">${icon('download', 12)} Archiver ces ${aRanger}</button>` : '')
         + `<span class="af-total">${rows.length} devis · ${fmtEur(total)}</span>`;
     }
     window.clearAllFilters = () => {
-      el('search').value = ''; activeFilter = 'tous'; activeSeller = 'tous'; activeType = 'tous';
+      el('search').value = ''; setFilter(DEFAULT_VIEW); activeSeller = 'tous'; activeType = 'tous';
       resetAdvFilters();   // resetAdvFilters() appelle déjà render()
     };
 
@@ -1055,6 +1115,8 @@
       const q = el('search').value.trim().toLowerCase();
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
+      // Vue par défaut : on écarte les dossiers tranchés perdus (ils polluaient la liste de travail).
+      if (activeFilter === 'actifs') rows = rows.filter(d => !DEAD_STATUSES.includes(d.statut));
       if (activeFilter === 'accepte_client') rows = rows.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
       else if (activeFilter === 'question_client') rows = rows.filter(d => d.client_question_open);
       else if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
@@ -1068,7 +1130,7 @@
       // (sinon la tuile dit « 4 devis » et le clic n'en affiche qu'un — incohérence).
       else if (activeFilter === 'kpi_signes') rows = rows.filter(d => ['signe', 'termine'].includes(d.statut));
       else if (activeFilter === 'kpi_en_jeu') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && d.statut !== 'brouillon');
-      else if (activeFilter !== 'tous' && activeFilter !== 'archives') rows = rows.filter(d => d.statut === activeFilter);
+      else if (!['tous', 'actifs', 'archives'].includes(activeFilter)) rows = rows.filter(d => d.statut === activeFilter);
       if (activeSeller !== 'tous') rows = rows.filter(d => (d.seller_principal || 'nicolas') === activeSeller);
       if (activeType !== 'tous') rows = rows.filter(d => (d.item_types || []).includes(activeType));
       // Recherche élargie (#12) : + note interne et types de produit, en plus des coordonnées.

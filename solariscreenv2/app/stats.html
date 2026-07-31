@@ -342,14 +342,18 @@
       // comme un échec, et un refus n'était jamais compté. Sur les données actuelles les deux
       // donnaient 40 % par pure coïncidence (6 en attente = 6 refusés) : le jour où ces deux nombres
       // divergent, le chiffre devient faux sans prévenir.
-      const refuses = visible.filter(d => d.statut === 'refuse');
-      const tranches = signes.length + refuses.length;
-      const conv = tranches > 0 ? Math.round((signes.length / tranches) * 100) : 0;
+      // ⚠️ ET SURTOUT : ce taux compte les devis ARCHIVÉS. Archiver est un rangement d'affichage,
+      // pas un événement commercial — sans ça, ranger les refusés du tableau de bord ferait grimper
+      // le taux à 100 % et le chiffre ne voudrait plus rien dire.
+      const signesTous = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
+      const refuses = devisFull.filter(d => d.statut === 'refuse');
+      const tranches = signesTous.length + refuses.length;
+      const conv = tranches > 0 ? Math.round((signesTous.length / tranches) * 100) : 0;
       el('kpis').innerHTML = `
         <div class="kpi accent ticked"><div class="kpi-label">Devis (hors archives)</div><div class="kpi-value">${visible.length}</div><div class="kpi-sub">${fmtEur(caTotal)} au total</div></div>
         <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub">${signes.length} devis signés/terminés</div></div>
         <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
-        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub">${signes.length} signé${signes.length > 1 ? 's' : ''} / ${tranches} tranché${tranches > 1 ? 's' : ''}${envoyes.length ? ` · ${envoyes.length} en attente` : ''}</div></div>`;
+        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub" title="Archives comprises : ranger un devis refusé ne doit pas embellir le taux">${signesTous.length} signé${signesTous.length > 1 ? 's' : ''} / ${tranches} tranché${tranches > 1 ? 's' : ''} (archives comprises)${envoyes.length ? ` · ${envoyes.length} en attente` : ''}</div></div>`;
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
