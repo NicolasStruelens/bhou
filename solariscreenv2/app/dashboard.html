@@ -689,7 +689,7 @@
       if (d.statut === 'brouillon') return { txt: 'À finaliser et envoyer', color: 'var(--text-subtle)' };
       if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return { txt: 'Accepté par le client — à faire signer', color: 'var(--ok)' };
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
-        const faites = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+        const faites = relancesFaites(d);
         // Un client qui a rouvert son devis plusieurs fois est chaud → on le signale et on passe en or.
         const hot = d.review_views >= 5;
         return { txt: `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, color: hot ? 'var(--accent-2)' : 'var(--warn)' };
@@ -893,9 +893,16 @@
     // Référence = date d'envoi saisie > 1er passage à « envoyé » > date de création (jamais
     // date_modification : elle bougerait à chaque édition et fausserait la cadence).
     const RELANCE_PLAN_DB = { informatif: [5, 12, 21], visite: [4, 9, 21] };
+    // Le statut « Relance 1 / Relance 2 » compte comme relance faite, au même titre qu'un
+    // enregistrement dans la cadence : c'est la façon la plus naturelle de noter une relance, et
+    // l'ignorer faisait réclamer indéfiniment la même relance ici comme sur la fiche devis.
+    const STATUT_RELANCE_N_DB = { relance_1: 1, relance_2: 2 };
+    function relancesFaites(d) {
+      return Math.max((d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0), STATUT_RELANCE_N_DB[d.statut] || 0);
+    }
     function relanceDue(d) {
       const plan = RELANCE_PLAN_DB[d.informatif ? 'informatif' : 'visite'];
-      const faites = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const faites = relancesFaites(d);
       if (faites >= plan.length) return false;                  // les 3 relances sont envoyées
       const hist = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
       const envoi = String(d.date_envoi || hist[0] || d.date_creation || '').slice(0, 10);

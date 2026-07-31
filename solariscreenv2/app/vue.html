@@ -361,9 +361,13 @@
     .rl-steps { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: var(--sp-2); }
     .rl-step { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-subtle); }
     .rl-step.done { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+    /* Jalon déjà fait = bouton d'annulation. Le survol vire au rouge pour annoncer ce que fait le clic. */
+    button.rl-step { background: transparent; cursor: pointer; line-height: 1.2; transition: color .12s, border-color .12s; }
+    button.rl-step:hover, button.rl-step:focus-visible { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
     .rl-step.due { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); font-weight: 700; }
     .rl-step.late { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); font-weight: 700; }
     .rl-next { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+    .rl-hint { margin: 0; font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; }
 
     /* ── Documents fournisseur (R2) ── */
     .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
@@ -733,6 +737,7 @@
           <button class="btn btn-ghost btn-sm" id="btnRelanceWa">WhatsApp</button>
           <button class="btn btn-primary btn-sm" id="btnRelanceDone" style="margin-left:auto;" onclick="markRelanceSent()">Marquer comme relancé</button>
         </div>
+        <p class="rl-hint">Email, SMS et WhatsApp enregistrent la relance automatiquement. Un jalon <strong>R1 ✓</strong> du suivi s'annule d'un clic.</p>
       </div>
     </div>
   </div>
@@ -761,6 +766,12 @@
       annule: { label: 'Annulé', color: 'var(--text-subtle)' },
     };
     const WAITING_STATUSES_ALL = ['brouillon', 'envoye_client', 'relance_1', 'relance_2'];
+    // Deux façons d'affirmer « j'ai relancé » cohabitaient sans se parler : la PASTILLE DE STATUT
+    // (Relance 1 / Relance 2) et la CADENCE (devis.relances). Seule la seconde alimentait la carte
+    // « Prochaine action » — d'où le bug vécu : Nicolas passait le statut à « Relance 1 » et la fiche
+    // réclamait indéfiniment cette même relance 1. Ces deux tables font le pont dans les deux sens.
+    const STATUT_RELANCE_N = { relance_1: 1, relance_2: 2 };
+    const STATUT_RANK = { envoye_client: 0, relance_1: 1, relance_2: 2 };
 
     // Garantie CGV : structure Harol 5 ans (toujours) · moteur RTS/IO standard 5 ans ·
     // moteur solaire + batterie Somfy 7 ans · autres moteurs solaires (Harol, RS100…) 5 ans.
@@ -1704,7 +1715,14 @@
       const envoi = dateEnvoiOf(d);
       const today = new Date().toISOString().slice(0, 10);
       const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
-      const doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
+      let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
+      // Le statut fait FOI comme plancher : un devis marqué « Relance 2 » a forcément vu partir R1 et R2,
+      // même si la cadence ne les a pas enregistrées (données antérieures au correctif, ou relance notée
+      // uniquement via la pastille). Purement calculé à l'affichage — aucune écriture au chargement,
+      // donc les dossiers déjà bloqués se débloquent seuls dès la première ouverture de la fiche.
+      const nStatut = STATUT_RELANCE_N[d.statut] || 0;
+      for (let i = doneMax + 1; i <= nStatut; i++) done.push({ n: i, date: null, implied: true });
+      doneMax = Math.max(doneMax, nStatut);
       const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
       const jours = envoi ? daysBetween(envoi, today) : 0;
       const due = step ? addDays(envoi, step.j) : null;
@@ -1800,18 +1818,36 @@
     function updateRelanceLinks() {
       const cl = DEVIS.client || {};
       const getText = () => el('relanceText').value;
+      // ⚠️ ENVOYER = RELANCER. Le bouton « Marquer » se trouve au bout d'une rangée de cinq et était
+      // systématiquement oublié : le message partait, la cadence n'avançait pas, et la fiche réclamait
+      // la même relance pendant des semaines. On enregistre donc à l'envoi, annulable en un clic
+      // (bouton « R1 ✓ » du suivi). Le mailto/sms ne quitte pas la page : le code suivant s'exécute bien.
+      const autoMark = () => setTimeout(() => window.markRelanceSent({ auto: true }), 200);
       el('btnRelanceEmail').onclick = () => {
         if (!cl.email) { toast("Pas d'email pour ce client", 'warn'); return; }
         location.href = 'mailto:' + mailtoList(cl.email) + '?subject=' + encodeURIComponent('SolariScreen — devis ' + DEVIS.id) + '&body=' + encodeURIComponent(getText());
+        autoMark();
       };
       el('btnRelanceSms').onclick = () => {
         if (!cl.telephone) { toast('Pas de téléphone pour ce client', 'warn'); return; }
         location.href = 'sms:' + String(cl.telephone).replace(/\s+/g, '') + '?body=' + encodeURIComponent(getText());
+        autoMark();
       };
       el('btnRelanceWa').onclick = () => {
         if (!cl.telephone) { toast('Pas de téléphone pour ce client', 'warn'); return; }
         window.open('https://wa.me/' + normalizePhoneIntl(cl.telephone) + '?text=' + encodeURIComponent(getText()), '_blank');
+        autoMark();
       };
+    }
+    // Complète la cadence jusqu'à la n-ième relance SANS réécrire celles déjà enregistrées : leur date
+    // réelle est une information de suivi (« relancé le 12 »), on ne la remplace jamais par aujourd'hui.
+    function relancesUpTo(d, n, by) {
+      const today = new Date().toISOString().slice(0, 10);
+      const out = (d.relances || []).slice();
+      for (let i = 1; i <= n; i++) {
+        if (!out.some(r => (r.n || 0) === i)) out.push({ n: i, date: today, by: by || CONNECTED_KEY || 'nicolas' });
+      }
+      return out.sort((a, b) => (a.n || 0) - (b.n || 0));
     }
     // Tableau de suivi : date d'envoi, relances faites, prochaine échéance. C'est ce qui évite de
     // perdre un client uniquement parce qu'on a oublié de revenir vers lui.
@@ -1822,7 +1858,10 @@
       const color = st.epuise ? 'var(--text-subtle)' : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)');
       const steps = st.plan.map(s => {
         const fait = st.done.find(r => r.n === s.n);
-        if (fait) return `<span class="rl-step done">R${s.n} ✓ ${fmtDate(fait.date)}</span>`;
+        // Jalon fait = bouton d'ANNULATION : c'est la seule marche arrière possible si on a marqué
+        // une relance par erreur (sans elle, la cadence sautait définitivement une étape).
+        if (fait) return `<button type="button" class="rl-step done" onclick="undoRelance(${s.n})"
+            title="Relance ${s.n} enregistrée — cliquer pour annuler">R${s.n} ✓ ${fait.date ? fmtDate(fait.date) : 'faite'}</button>`;
         if (st.step && s.n === st.step.n) {
           const cls = st.retard ? (st.joursRetard >= 7 ? 'late' : 'due') : '';
           return `<span class="rl-step ${cls}">R${s.n} — ${st.retard ? 'à envoyer' : 'prévu'} le ${fmtDate(st.due)}</span>`;
@@ -1885,31 +1924,89 @@
       closeRelance();
       render();
     };
-    window.markRelanceSent = async () => {
+    // `opts.auto` = déclenché par un bouton d'envoi (Email / SMS / WhatsApp) : silencieux quand il
+    // n'y a rien à enregistrer, et il ne touche NI le sélecteur NI le texte — sans quoi envoyer la
+    // même relance par deux canaux (mail puis WhatsApp) en enregistrerait deux.
+    window.markRelanceSent = async (opts) => {
+      opts = opts || {};
       const st = relanceState(DEVIS);
-      if (st.epuise) { toast('Les 3 relances sont déjà enregistrées.', 'warn'); return; }
+      if (st.epuise) { if (!opts.auto) toast('Les 3 relances sont déjà enregistrées.', 'warn'); return; }
       const type = el('relanceType').value;
       // On n'enregistre dans la cadence que les VRAIES relances (r1/r2/r3), pas un rappel d'acompte.
       const n = ({ r1: 1, r2: 2, r3: 3 })[type];
-      if (!n) { toast('Ce message n’est pas une relance de devis — rien à enregistrer dans la cadence.', 'warn', 5000); return; }
+      if (!n) { if (!opts.auto) toast('Ce message n’est pas une relance de devis — rien à enregistrer dans la cadence.', 'warn', 5000); return; }
+      if (opts.auto && st.done.some(r => (r.n || 0) === n)) return;   // déjà notée : 2e canal, on ne fait rien
       const prev = (DEVIS.relances || []).slice();
-      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: new Date().toISOString().slice(0, 10), by: CONNECTED_KEY || 'nicolas' }]);
+      const prevStatut = DEVIS.statut, prevHist = (DEVIS.statut_history || []).slice();
+      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: new Date().toISOString().slice(0, 10), by: CONNECTED_KEY || 'nicolas' }])
+        .sort((a, b) => (a.n || 0) - (b.n || 0));
+      // Miroir du pont statut → cadence : la pastille du bandeau (et donc le tableau de bord) doit
+      // dire « Relance 1 » dès qu'une relance est partie. On n'avance JAMAIS à reculons ni depuis un
+      // statut hors attente (signé, refusé…) — enregistrer une relance ne doit rien déclasser.
+      const wanted = n >= 2 ? 'relance_2' : 'relance_1';
+      const rankNow = STATUT_RANK[DEVIS.statut];
+      if (rankNow !== undefined && STATUT_RANK[wanted] > rankNow) {
+        DEVIS.statut = wanted;
+        DEVIS.statut_history = prevHist.concat([{ statut: wanted, date: new Date().toISOString(), by: CONNECTED_KEY || null }]);
+      }
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
       if (res.ok === false) {
-        DEVIS.relances = prev;              // non enregistré → la cadence ne doit PAS avancer en mémoire
+        // non enregistré → ni la cadence ni le statut ne doivent avancer en mémoire
+        DEVIS.relances = prev; DEVIS.statut = prevStatut; DEVIS.statut_history = prevHist;
         toast(res.error || 'Relance NON enregistrée — réessaie.', 'error', 6000);
         renderRelanceSuivi();
         return;
       }
       SS.logActivity && SS.logActivity({ action: 'devis.relance', entity_type: 'devis', entity_id: DEVIS.id, label: `Relance ${n} envoyée — devis #${DEVIS.id}` });
-      toast(`Relance ${n} enregistrée ✓ — prochaine relance recalculée`, res.offline ? 'warn' : 'ok');
+      toast(opts.auto ? `Relance ${n} enregistrée ✓ — clique sur « R${n} ✓ » pour annuler` : `Relance ${n} enregistrée ✓ — prochaine relance recalculée`,
+        res.offline ? 'warn' : 'ok', opts.auto ? 6000 : 4000);
       // ⚠️ Il ne suffit PAS de rafraîchir la fenêtre : la carte « Prochaine action » et la réglette
       // d'avancement vivent DERRIÈRE la modale et affichaient encore « Relance 1 à envoyer » —
       // on avait l'impression que le clic n'avait rien fait. render() remet toute la fiche à jour.
       render();
-      // Le sélecteur doit AVANCER sur la relance suivante : sinon un 2e clic (sans refermer la
-      // fenêtre) ré-écrasait la relance qu'on vient d'enregistrer, et la cadence n'avançait plus.
+      if (!opts.auto) {
+        // Le sélecteur doit AVANCER sur la relance suivante : sinon un 2e clic (sans refermer la
+        // fenêtre) ré-écrasait la relance qu'on vient d'enregistrer, et la cadence n'avançait plus.
+        const next = relanceState(DEVIS);
+        el('relanceType').value = next.step ? ('r' + next.step.n) : 'r3';
+      }
+      renderRelanceSuivi();
+      window.fillRelanceText();
+    };
+    // Marche arrière : mauvais bouton, message finalement pas envoyé, ou relance déduite du statut
+    // qu'on veut corriger. Retire la relance n ET toutes les suivantes, puis redescend la pastille
+    // de statut en conséquence — les deux notions restent alignées dans les deux sens.
+    window.undoRelance = async (n) => {
+      const st0 = relanceState(DEVIS);
+      const sup = st0.done.filter(r => (r.n || 0) >= n).map(r => 'R' + r.n).join(', ') || ('R' + n);
+      if (!confirm(`Annuler l’enregistrement de ${sup} ?\n\nLa cadence repartira sur la relance ${n}.`)) return;
+      const prev = (DEVIS.relances || []).slice(), prevStatut = DEVIS.statut, prevHist = (DEVIS.statut_history || []).slice();
+      const prevEnvoi = DEVIS.date_envoi;
+      // ⚠️ Le retour à « Envoyé » ajoute une ligne d'historique « envoye_client » datée d'AUJOURD'HUI.
+      // Comme la date d'envoi se déduit de la PREMIÈRE ligne de ce type, un devis sans historique
+      // (cas de tous les devis créés avant cette fonctionnalité) aurait vu sa cadence repartir de zéro :
+      // « relancé il y a 3 semaines » serait redevenu « envoyé aujourd'hui ». On fige donc la date
+      // d'envoi réellement utilisée jusqu'ici avant de toucher au statut.
+      if (!DEVIS.date_envoi) DEVIS.date_envoi = dateEnvoiOf(DEVIS);
+      DEVIS.relances = prev.filter(r => (r.n || 0) < n);
+      const doneMax = DEVIS.relances.reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const wanted = doneMax >= 2 ? 'relance_2' : (doneMax === 1 ? 'relance_1' : 'envoye_client');
+      const rankNow = STATUT_RANK[DEVIS.statut];
+      if (rankNow !== undefined && STATUT_RANK[wanted] < rankNow) {
+        DEVIS.statut = wanted;
+        DEVIS.statut_history = prevHist.concat([{ statut: wanted, date: new Date().toISOString(), by: CONNECTED_KEY || null }]);
+      }
+      DEVIS.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(DEVIS);
+      if (res.ok === false) {
+        DEVIS.relances = prev; DEVIS.statut = prevStatut; DEVIS.statut_history = prevHist; DEVIS.date_envoi = prevEnvoi;
+        toast(res.error || 'Annulation NON enregistrée — réessaie.', 'error', 6000);
+        renderRelanceSuivi();
+        return;
+      }
+      toast(`${sup} annulée${sup.includes(',') ? 's' : ''}`, 'warn');
+      render();
       const next = relanceState(DEVIS);
       el('relanceType').value = next.step ? ('r' + next.step.n) : 'r3';
       renderRelanceSuivi();
@@ -2338,6 +2435,12 @@
       DEVIS.statut = statut;
       DEVIS.date_modification = new Date().toISOString();
       DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut, date: DEVIS.date_modification, by: identity.key }]);
+      // ⚠️ BUG CORRIGÉ (le plus visible de tous) : passer le statut à « Relance 1 » ne nourrissait pas
+      // la cadence, seule source de la carte « Prochaine action ». La fiche réclamait donc la relance 1
+      // pour l'éternité alors qu'on venait de dire qu'elle était partie. Même écriture, aucun aller-retour.
+      const prevRelances = (DEVIS.relances || []).slice();
+      const nStatut = STATUT_RELANCE_N[statut] || 0;
+      if (nStatut) DEVIS.relances = relancesUpTo(DEVIS, nStatut, identity.key);
       if (statut === 'signe') {
         // Un devis signé est contractuel : on efface un refus précédent et le flag « informatif ».
         DEVIS.raison_refus = ''; DEVIS.client_declined = false; DEVIS.informatif = false;
@@ -2350,9 +2453,12 @@
       const finishSave = async (force) => {
         const res = await SS.saveDevis(DEVIS, force ? { force: true } : { expectedDateModification: expected });
         if (res.conflict) { window.SSUI.showSaveConflict(() => finishSave(true)); return; }
-        if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
+        if (res.ok === false) { DEVIS.statut = prev; DEVIS.relances = prevRelances; toast(res.error || 'Erreur', 'error'); return; }
         CALC = getCalc(DEVIS);
-        toast(res.offline ? 'Statut mis à jour (hors-ligne)' : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉' : 'Statut mis à jour ✓'), res.offline ? 'warn' : 'ok');
+        toast(res.offline ? 'Statut mis à jour (hors-ligne)'
+          : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉'
+            : (nStatut ? `Relance ${nStatut} enregistrée ✓ — prochaine relance recalculée` : 'Statut mis à jour ✓')),
+          res.offline ? 'warn' : 'ok');
         if (statut === 'signe' && !wasSigne && window.ssConfetti) window.ssConfetti();
         const cl = DEVIS.client || {};
         SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → ${(STATUSES[statut] || {}).label || statut}` });
