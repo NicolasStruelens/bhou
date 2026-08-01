@@ -973,8 +973,26 @@
     // deux copies restaient identiques tout allait bien, mais elles sont déployées dans des
     // fichiers SÉPARÉS. Une mise en ligne partielle suffisait à ce que la fiche affiche « R1 ✓ »
     // pendant que cette page réclamait encore « Relance 1 à envoyer ». Source unique : ui.js.
-    const relancesFaites = (d) => window.SSUI.relancesFaites(d);
-    const relanceDue = (d) => window.SSUI.relanceDue(d);
+    // Replis présents UNIQUEMENT pour survivre à un ui.js pas encore mis en ligne (ce dépôt se
+    // déploie fichier par fichier) : sans eux, toute la liste plantait. L'alerte ci-dessous
+    // nomme le vrai problème au lieu de laisser un écran cassé sans explication.
+    const relancesFaites = (d) => (window.SSUI && window.SSUI.relancesFaites)
+      ? window.SSUI.relancesFaites(d)
+      : Math.max((d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0), ({ relance_1: 1, relance_2: 2 })[d.statut] || 0);
+    const relanceDue = (d) => {
+      if (window.SSUI && window.SSUI.relanceDue) return window.SSUI.relanceDue(d);
+      const plan = (d.informatif ? [5, 12, 21] : [4, 9, 21]);
+      const faites = relancesFaites(d);
+      if (faites >= plan.length) return false;
+      const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
+      const envoi = String(d.date_envoi || h[0] || d.date_creation || '').slice(0, 10);
+      if (!envoi) return false;
+      return Math.round((new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - new Date(envoi + 'T00:00:00Z')) / 86400000) >= plan[faites];
+    };
+    if (!window.SSUI || typeof window.SSUI.relanceEtat !== 'function') {
+      setTimeout(() => toast("assets/js/ui.js n'est pas à jour en ligne — redéploie-le, sinon le suivi des relances restera faux ici.", 'error', 20000), 900);
+      console.error('[SolariScreen] ui.js obsolète : SSUI.relanceEtat absent.');
+    }
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
       const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d));
@@ -1179,7 +1197,7 @@
         // Informations produit manquantes (toile, RAL, moteur, caisson…) : sans elles la
         // commande Harol est bloquée, et l'oubli ne se voyait qu'au moment de commander.
         // Rien sur un devis refusé ou annulé : on ne le commandera jamais.
-        const manque = DEAD_STATUSES.includes(d.statut) ? '' : SSUI.badgeManquants(d);
+        const manque = (DEAD_STATUSES.includes(d.statut) || !SSUI.badgeManquants) ? '' : SSUI.badgeManquants(d);
         if (!types.length && !manque) return '';
         return `<div class="type-badges">${types.map(t => `<span class="badge">${esc(TYPE_LABEL[t] || t)}</span>`).join('')}${manque}</div>`;
       };

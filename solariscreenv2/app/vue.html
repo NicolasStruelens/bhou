@@ -819,9 +819,18 @@
     // (Relance 1 / Relance 2) et la CADENCE (devis.relances). Seule la seconde alimentait la carte
     // « Prochaine action » — d'où le bug vécu : Nicolas passait le statut à « Relance 1 » et la fiche
     // réclamait indéfiniment cette même relance 1. Ces deux tables font le pont dans les deux sens.
-    // Repris de ui.js : le tableau de bord s'appuie sur les MÊMES constantes (voir relanceEtat).
-    const STATUT_RELANCE_N = window.SSUI.STATUT_RELANCE_N;
-    const STATUT_RANK = window.SSUI.STATUT_RANK;
+    /* Repris de ui.js : le tableau de bord s'appuie sur les MÊMES constantes (voir relanceEtat).
+       Le repli n'est pas une seconde source de vérité — c'est un filet : ce dépôt se déploie
+       fichier par fichier, et une page servie avec un ui.js resté en arrière planterait ici
+       (« Cannot read properties of undefined »), en cassant TOUT le changement de statut sans
+       qu'on comprenne pourquoi. Avec le repli la page continue de fonctionner, et l'alerte
+       ci-dessous nomme le vrai problème. */
+    const STATUT_RELANCE_N = (window.SSUI && window.SSUI.STATUT_RELANCE_N) || { relance_1: 1, relance_2: 2 };
+    const STATUT_RANK = (window.SSUI && window.SSUI.STATUT_RANK) || { envoye_client: 0, relance_1: 1, relance_2: 2 };
+    if (!window.SSUI || typeof window.SSUI.relanceEtat !== 'function') {
+      setTimeout(() => toast("assets/js/ui.js n'est pas à jour en ligne — redéploie-le. Le suivi des relances ne peut pas être correct tant qu'il manque.", 'error', 20000), 800);
+      console.error('[SolariScreen] ui.js obsolète : SSUI.relanceEtat absent.');
+    }
 
     // Garantie CGV : structure Harol 5 ans (toujours) · moteur RTS/IO standard 5 ans ·
     // moteur solaire + batterie Somfy 7 ans · autres moteurs solaires (Harol, RS100…) 5 ans.
@@ -864,6 +873,32 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     let DEVIS = null, CALC = null, PHOTOS = [], CLIENT_FICHE = null, FACTURES = [];
+
+    /* ═══════════════════════════════════════════════════════════════════════════════════════════
+       ⚠️ BUG CORRIGÉ — « le changement de statut ne fonctionne pas »
+       ═══════════════════════════════════════════════════════════════════════════════════════════
+       Les écritures CIBLÉES (note interne, ticket SAV, photo de chantier) font avancer
+       `date_modification` côté serveur. La fiche, elle, gardait la valeur lue à son ouverture.
+       Or l'enregistrement du STATUT envoie cette valeur comme référence anti-conflit : dès qu'on
+       avait ajouté une note, le serveur voyait une référence périmée et REFUSAIT le changement de
+       statut comme un conflit — alors que personne d'autre n'avait touché au devis. D'où un
+       « ça ne marche pas » incompréhensible, uniquement sur les devis où on avait écrit une note.
+       Ces routes renvoient maintenant la nouvelle date_modification ; on l'adopte ici, une fois
+       pour toutes, en enveloppant les méthodes concernées — plutôt qu'à chacun des 7 appels, où
+       le prochain ajout aurait forcément été oublié.
+       La détection de conflit reste ENTIÈRE pour ce qui compte : une modification faite par
+       Yannick pendant que la fiche est ouverte déclenche toujours l'avertissement.
+       ═══════════════════════════════════════════════════════════════════════════════════════════ */
+    ['addComment', 'deleteComment', 'saveSavTicket', 'deleteSavTicket',
+     'saveChantierPhoto', 'deleteChantierPhoto'].forEach((nom) => {
+      const origine = SS[nom];
+      if (typeof origine !== 'function') return;
+      SS[nom] = async function () {
+        const res = await origine.apply(SS, arguments);
+        if (res && res.date_modification && DEVIS) DEVIS.date_modification = res.date_modification;
+        return res;
+      };
+    });
     let CONNECTED_KEY = '';   // « nicolas » / « yannick » — sert à signer les messages clients
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
 
@@ -1009,7 +1044,7 @@
       // Ce qui manque encore pour commander : affiché EN TÊTE des ouvertures, avec le détail
       // par ouverture — le tableau de bord n'en donne que le nombre.
       (function () {
-        const host = el('ouvManque'); if (!host) return;
+        const host = el('ouvManque'); if (!host || !window.SSUI.manquantsDevis) return;
         const trous = window.SSUI.manquantsDevis(d);
         if (!trous.length) { host.innerHTML = ''; return; }
         const n = trous.reduce((s, x) => s + x.manque.length, 0);
@@ -1806,7 +1841,10 @@
     // préparé longtemps avant d'être envoyé. Comme l'historique de statut n'existe que sur les
     // devis récents (constat sur les données réelles : 8 devis en attente sur 10 n'ont aucune
     // trace d'envoi), la date est DÉDUITE au mieux puis reste librement MODIFIABLE.
-    const RELANCE_PLAN = window.SSUI.RELANCE_PLAN;
+    const RELANCE_PLAN = (window.SSUI && window.SSUI.RELANCE_PLAN) || {
+      informatif: [{ n: 1, j: 5 }, { n: 2, j: 12 }, { n: 3, j: 21 }],
+      visite: [{ n: 1, j: 4 }, { n: 2, j: 9 }, { n: 3, j: 21 }],
+    };
     const dayStr = iso => String(iso || '').slice(0, 10);
     function relanceKind(d) { return d.informatif ? 'informatif' : 'visite'; }
     // Date d'envoi : valeur saisie > 1er passage à « envoyé » dans l'historique > date de création.
@@ -1814,13 +1852,35 @@
     // à l'enregistrement d'une relance) — la cadence se réinitialiserait toute seule sans qu'on
     // comprenne pourquoi. On prend une référence STABLE, quitte à être approximative : Nicolas
     // corrige la date en un clic si besoin, et sa correction fait alors foi définitivement.
-    const dateEnvoiOf = window.SSUI.dateEnvoiOf;
-    const daysBetween = window.SSUI.joursEntre;
-    const addDays = window.SSUI.plusJours;
+    const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+    const addDays = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+    const dateEnvoiOf = (d) => {
+      if (window.SSUI && window.SSUI.dateEnvoiOf) return window.SSUI.dateEnvoiOf(d);
+      if (d.date_envoi) return dayStr(d.date_envoi);
+      const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
+      return dayStr(h.length ? h[0] : (d.date_creation || d.date_modification));
+    };
     // ⚠️ NE PAS RÉIMPLÉMENTER ICI : la cadence vit dans ui.js, partagée avec le tableau de bord.
     // Elle a été dupliquée pendant un temps, et une mise en ligne partielle a suffi à ce que
     // cette fiche affiche « R1 ✓ » pendant que le tableau de bord réclamait encore « Relance 1 ».
-    const relanceState = (d) => window.SSUI.relanceEtat(d);
+    // Le repli local n'existe QUE pour survivre à un ui.js pas encore déployé (l'alerte en haut
+    // de page le signale) : sans lui, toute la fiche plantait, y compris le changement de statut.
+    const relanceState = (d) => {
+      if (window.SSUI && window.SSUI.relanceEtat) return window.SSUI.relanceEtat(d);
+      const plan = RELANCE_PLAN[d.informatif ? 'informatif' : 'visite'];
+      const envoi = dateEnvoiOf(d), today = new Date().toISOString().slice(0, 10);
+      const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
+      let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const nS = STATUT_RELANCE_N[d.statut] || 0;
+      for (let i = doneMax + 1; i <= nS; i++) done.push({ n: i, date: null, implied: true });
+      doneMax = Math.max(doneMax, nS);
+      const step = plan.find(s => s.n === doneMax + 1) || null;
+      const due = step && envoi ? addDays(envoi, step.j) : null;
+      return { kind: d.informatif ? 'informatif' : 'visite', plan, envoi, today, done, doneMax, step, due,
+        jours: envoi ? daysBetween(envoi, today) : 0,
+        retard: !!(step && due && due <= today),
+        joursRetard: (step && due) ? daysBetween(due, today) : 0, epuise: !step };
+    };
     // « 2 screens et 1 tente solaire » — repris tel quel dans le message client.
     function produitsTxt(d) {
       const counts = {};
