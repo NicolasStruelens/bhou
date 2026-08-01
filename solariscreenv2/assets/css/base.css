@@ -118,7 +118,12 @@ a:hover { text-decoration: underline; }
   height: var(--header-h);
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--sp-4);
-  padding: 0 var(--sp-6);
+  /* `--header-px` = marge latérale du bandeau. Elle est déclarée en VARIABLE pour que la règle
+     d'encoche (safe-area, en fin de fichier) puisse faire `max(--header-px, env(...))` sans
+     écraser la valeur propre à chaque taille d'écran — 32 px au bureau, 16 px sur téléphone. */
+  --header-px: var(--sp-6);
+  --header-py: 0px;
+  padding: var(--header-py) var(--header-px);
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -127,7 +132,7 @@ a:hover { text-decoration: underline; }
   /* En dessous de 640px, .header-actions (souvent 4-6 boutons) ne tient plus sur une
      ligne à côté de .brand — sans wrap, il réclame toute la largeur et écrase .brand
      à 0px (logo/titre invisibles), et pousse toute la page en scroll horizontal. */
-  .app-header { height: auto; min-height: var(--header-h); flex-wrap: wrap; row-gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
+  .app-header { height: auto; min-height: var(--header-h); flex-wrap: wrap; row-gap: var(--sp-2); --header-px: var(--sp-4); --header-py: var(--sp-3); padding: var(--header-py) var(--header-px); }
   .header-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; }
 }
 .brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
@@ -269,7 +274,25 @@ a:hover { text-decoration: underline; }
 /* Montant TOUJOURS sur une seule ligne (white-space:nowrap → le « € » ne passe jamais à la ligne, ni sur
    PC ni sur mobile). La police reste --fs-2xl sur desktop (identique à avant) et rétrécit UNIQUEMENT sur
    petit écran via clamp() pour tenir dans une carte étroite en 2 colonnes. */
+/* ⚠️ `white-space: nowrap` + `clamp()` borné au viewport ne suffisait pas : sur un téléphone
+   (412 px), la grille fait des tuiles de ~176 px alors qu'un montant comme « 117 780,74 € »
+   en mesure 246 px. Le chiffre était donc COUPÉ — et masqué par le `overflow-x: hidden` du
+   body, donc invisible en test tant qu'on ne mesurait que le débordement de la page.
+   La taille se calcule maintenant aussi à partir de la largeur du CONTENEUR (cqi), pas
+   seulement de l'écran : le montant se réduit juste ce qu'il faut pour tenir dans sa tuile. */
+.kpi { container-type: inline-size; }
 .kpi-value { font-family: var(--font-mono); font-size: clamp(1rem, 4.3vw, var(--fs-2xl)); font-weight: 700; color: var(--text); margin-top: 0.3rem; line-height: 1.1; white-space: nowrap; }
+@supports (font-size: 1cqi) {
+  .kpi-value { font-size: min(clamp(1rem, 4.3vw, var(--fs-2xl)), 13cqi); }
+}
+/* Certains KPI affichent un TEXTE et non un montant (« meilleur client » = un nom, parfois long).
+   Aucune taille de police ne le fera tenir : on coupe proprement avec des points de suspension
+   au lieu de laisser le nom sortir de la tuile et se faire trancher par le bord de l'écran. */
+.kpi-value { overflow: hidden; text-overflow: ellipsis; }
+/* Repli pour les navigateurs sans requêtes de conteneur : on rétrécit sur écran étroit. */
+@supports not (font-size: 1cqi) {
+  @media (max-width: 520px) { .kpi-value { font-size: var(--fs-md); } }
+}
 .kpi-sub { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.3rem; }
 .kpi.accent { --tick-color: var(--accent); }   .kpi.accent .kpi-value { color: var(--accent); }
 .kpi.gold   { --tick-color: var(--accent-2); } .kpi.gold   .kpi-value { color: var(--accent-2-ink); }
@@ -483,3 +506,88 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); }
   background: transparent; color: var(--accent-2-ink, var(--accent-2)); cursor: pointer; }
 .ss-cmt-reply:hover { background: color-mix(in srgb, var(--accent-2) 12%, transparent); }
 .ss-cmt-empty { font-size: var(--fs-xs); color: var(--text-muted); padding: 0.5rem 0; line-height: 1.55; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   APPLICATION SUR L'ÉCRAN D'ACCUEIL (Android + iPhone) — aucun service worker
+   ───────────────────────────────────────────────────────────────────────────────────────────
+   Lancée depuis l'icône, la page occupe TOUT l'écran, encoche et barre système comprises
+   (`viewport-fit=cover` dans le <head>). Sans ces marges, le bandeau SolariScreen passerait
+   sous l'heure et la batterie sur iPhone, et sous la barre de gestes en bas.
+   `env()` vaut 0 sur un écran sans encoche et dans un onglet de navigateur classique :
+   la règle est donc sans effet ailleurs.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ On passe par `--header-px`, la marge latérale déjà définie plus haut (32 px au bureau,
+   16 px sous 640 px). `env()` vaut 0 hors encoche, donc `max(--header-px, 0)` redonne EXACTEMENT
+   la valeur d'origine à chaque taille d'écran. Écrire une valeur en dur ici aurait écrasé la
+   règle mobile — c'est le piège d'une règle placée en fin de feuille. */
+.app-header {
+  padding-top: max(var(--header-py), env(safe-area-inset-top));
+  padding-left: max(var(--header-px), env(safe-area-inset-left));
+  padding-right: max(var(--header-px), env(safe-area-inset-right));
+}
+.container {
+  padding-left: max(var(--sp-6), env(safe-area-inset-left));
+  padding-right: max(var(--sp-6), env(safe-area-inset-right));
+  padding-bottom: max(var(--sp-6), env(safe-area-inset-bottom));
+}
+@media (max-width: 640px) {
+  .container {
+    padding-left: max(var(--sp-4), env(safe-area-inset-left));
+    padding-right: max(var(--sp-4), env(safe-area-inset-right));
+    padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom));
+  }
+}
+/* Lancée depuis l'icône, l'app n'a plus de bouton « retour » du navigateur : la hauteur du
+   bandeau doit rester généreuse pour que la navigation rapide soit atteignable au pouce. */
+@media (display-mode: standalone) {
+  .app-header { min-height: calc(var(--header-h) + env(safe-area-inset-top)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   ÉCHANGES E-MAIL ARCHIVÉS — style partagé (fiche client + fiche devis)
+   Rendu par SSUI.mailHtml(). Même famille visuelle que le fil de notes (.ss-cmt) : angles
+   carrés, libellés en mono, pastilles discrètes. Le SENS de l'échange porte la couleur —
+   reçu du client en orange (comme l'avatar « Client » des notes), envoyé au client en bleu.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+.ss-mail { border: 1px solid var(--border); border-left: 3px solid var(--ms, var(--border-strong));
+  border-radius: var(--r-sm); padding: 0.55rem 0.7rem; margin-bottom: 0.5rem; background: var(--surface-2); }
+.ss-mail.recu   { --ms: color-mix(in srgb, var(--warn) 60%, transparent); }
+.ss-mail.envoye { --ms: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ss-mail-head { display: flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
+.ss-mail-sens { display: inline-flex; align-items: center; gap: 3px; flex: none; font-family: var(--font-mono);
+  font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .05em; padding: 1px 5px;
+  border-radius: var(--r-sm); border: 1px solid var(--ms); color: var(--ms); }
+.ss-mail.recu .ss-mail-sens   { color: var(--warn); }
+.ss-mail.envoye .ss-mail-sens { color: var(--accent); }
+.ss-mail-objet { font-weight: 600; font-size: var(--fs-sm); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-mail-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); white-space: nowrap; cursor: help; }
+.ss-mail-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem;
+  overflow-wrap: anywhere; }
+.ss-mail-devis { display: inline-flex; align-items: center; gap: 3px; font: inherit; color: var(--accent-2-ink, var(--accent-2));
+  background: transparent; border: 0; padding: 0; cursor: pointer; }
+.ss-mail-devis:hover { text-decoration: underline; }
+/* Corps replié à 4 lignes : un fil de 20 mails doit rester survolable d'un coup d'œil. */
+.ss-mail-corps { font-size: var(--fs-sm); line-height: 1.5; margin-top: 0.4rem; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ss-mail-corps.ouvert { -webkit-line-clamp: unset; display: block; }
+.ss-mail-plus { margin-top: 0.25rem; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+  letter-spacing: .05em; background: transparent; border: 0; padding: 0; color: var(--text-subtle); cursor: pointer; }
+.ss-mail-plus:hover { color: var(--accent); text-decoration: underline; }
+.ss-mail-del { margin-left: auto; flex: none; width: 24px; height: 24px; display: grid; place-items: center;
+  border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--text-subtle);
+  cursor: pointer; opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), border-color var(--t-fast); }
+.ss-mail:hover .ss-mail-del, .ss-mail-del:focus-visible { opacity: 1; }
+.ss-mail-del:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+@media (hover: none) { .ss-mail-del { opacity: .65; } }
+
+/* ── Zone de collage ── Un seul grand champ : on colle, l'outil déduit le reste. */
+.ss-paste { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface); }
+.ss-paste textarea { width: 100%; min-height: 96px; font-family: var(--font-mono); font-size: var(--fs-xs); }
+.ss-paste-hint { font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: var(--sp-2); line-height: 1.5; }
+.ss-paste-lu { display: none; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: var(--sp-2);
+  font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+.ss-paste-lu.on { display: flex; }
+.ss-paste-lu b { color: var(--text); font-weight: 600; }
+.ss-paste-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; margin-top: var(--sp-2); }
+.ss-paste-row .select, .ss-paste-row .input { min-width: 0; }
