@@ -235,14 +235,23 @@
           if (cc.adresse && !agg.adresse && (cc.adresse.rue || cc.adresse.ville || cc.adresse.code_postal)) agg.adresse = cc.adresse;
           if (cc.type_bien && !agg.type_bien) agg.type_bien = cc.type_bien;
         });
-        e.contact = {
+        // ⚠️ On repart de la fiche ENTIÈRE (`...o`) au lieu d'énumérer les champs un par un.
+        // L'ancienne version reconstruisait une liste fermée (prénom, nom, tél, email, adresse,
+        // type de bien, notes, tags) : tout champ absent de cette liste était SILENCIEUSEMENT
+        // perdu à l'affichage. C'est ce qui donnait l'impression que la CIVILITÉ et la FORMULE
+        // ne s'enregistraient pas — elles partaient bien en base, mais ne revenaient jamais à
+        // l'écran. Les échanges e-mail auraient subi le même sort. Avec l'étalement, tout champ
+        // ajouté plus tard à la fiche survit automatiquement.
+        const adresseFiche = o.adresse && (o.adresse.rue || o.adresse.ville || o.adresse.code_postal) ? o.adresse : null;
+        e.contact = Object.assign({}, o, {
           prenom: o.prenom || e.prenom, nom: o.nom || e.nom,
           telephone: o.telephone || agg.telephone || '',
           email: o.email || agg.email || '',
-          adresse: o.adresse || agg.adresse || {},
+          // Une adresse de fiche VIDE ne doit pas masquer celle relevée sur les devis.
+          adresse: adresseFiche || agg.adresse || {},
           type_bien: o.type_bien || agg.type_bien || '',
           notes: o.notes || '', tags: o.tags || [],
-        };
+        });
         const signes = e.devis.filter(x => ['signe', 'termine'].includes(x.statut));
         e.stats = {
           count: e.devis.length,
@@ -335,8 +344,8 @@
             </div>
             <div class="field"><label class="label" for="f_ton">Formule (page client)</label>
               <select class="select" id="f_ton">
-                <option value="amical" ${(ct.ton || 'amical') === 'amical' ? 'selected' : ''}>Amical — « Bonjour Prénom »</option>
-                <option value="pro" ${ct.ton === 'pro' ? 'selected' : ''}>Professionnel — « Bonjour Monsieur/Madame Nom »</option>
+                <option value="amical" ${ct.ton === 'amical' ? 'selected' : ''}>Amical — « Bonjour Prénom »</option>
+                <option value="pro" ${(ct.ton || 'pro') === 'pro' ? 'selected' : ''}>Professionnel — « Bonjour Monsieur/Madame Nom »</option>
               </select>
             </div>
             <div class="field"><label class="label" for="f_tel">Téléphone(s)</label><div class="input-copy-wrap"><input class="input" id="f_tel" placeholder="0475 12 34 56, 02 345 67 89" value="${esc(ct.telephone)}"><button type="button" class="ci-copy" onclick="ssCopy(document.getElementById('f_tel').value, 'Téléphone')" title="Copier" aria-label="Copier le téléphone">${icon('copy', 13)}</button></div></div>
