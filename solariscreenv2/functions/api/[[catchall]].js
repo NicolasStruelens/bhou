@@ -358,7 +358,29 @@ export async function onRequest(context) {
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
-                           FROM json_each(data, '$.items') je WHERE json_extract(je.value, '$.type') IS NOT NULL))) AS item_types_json
+                           FROM json_each(data, '$.items') je WHERE json_extract(je.value, '$.type') IS NOT NULL))) AS item_types_json,
+               -- Projection MINIMALE des ouvertures : uniquement les champs dont l'absence
+               -- bloque une commande (voir SSProducts.CHAMPS_REQUIS). Le tableau de bord peut
+               -- ainsi signaler « 3 à compléter » sans jamais charger les items complets, qui
+               -- contiennent les photos. ~30 octets par champ : négligeable à côté d'une photo.
+               (SELECT json_group_array(json_object(
+                  'type', json_extract(je.value, '$.type'),
+                  'modele', json_extract(je.value, '$.modele'),
+                  'largeur', json_extract(je.value, '$.largeur'),
+                  'hauteur', json_extract(je.value, '$.hauteur'),
+                  'projection', json_extract(je.value, '$.projection'),
+                  'variante', json_extract(je.value, '$.variante'),
+                  'collection', json_extract(je.value, '$.collection'),
+                  'couleur', json_extract(je.value, '$.couleur'),
+                  'couleur_lame', json_extract(je.value, '$.couleur_lame'),
+                  'toile_couleur', json_extract(je.value, '$.toile_couleur'),
+                  'caisson_mesure', json_extract(je.value, '$.caisson_mesure'),
+                  'moteur', json_extract(je.value, '$.moteur'),
+                  'moteur_ref', json_extract(je.value, '$.moteur_ref'),
+                  'lame_type', json_extract(je.value, '$.lame_type'),
+                  'manoeuvre', json_extract(je.value, '$.manoeuvre'),
+                  'emplacement', json_extract(je.value, '$.emplacement')
+                )) FROM json_each(data, '$.items') je) AS items_min_json
         FROM devis ORDER BY date_modification DESC
       `).all();
       // client_json → objet client (coordonnées complètes pour le CRM)
@@ -373,10 +395,11 @@ export async function onRequest(context) {
         // (voir upsertDevis) — on n'extrait donc que ce petit tableau, jamais les items complets
         // qui contiennent les PHOTOS base64 (celles-ci alourdiraient énormément la liste).
         const item_types = safeParse(r.item_types_json) || [];
+        const items_min = safeParse(r.items_min_json) || [];
         // Relances envoyées : nécessaires au tableau de bord pour savoir quelle relance est due.
         const relances = safeParse(r.relances_json) || [];
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, relances };
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json; delete r.items_min_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, items_min, relances };
       });
       return json({ ok: true, data });
     }
