@@ -308,7 +308,10 @@ a:hover { text-decoration: underline; }
 .col-full { grid-column: 1 / -1; }
 @media (max-width: 760px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
 
-.field { position: relative; }
+/* min-width:0 — sans lui, la largeur mini automatique d'une cellule de grille vaut le
+   contenu : un libellé long (nom de coloris, référence moteur) élargit la colonne et fait
+   déborder toute la ligne. */
+.field { position: relative; min-width: 0; }
 .label {
   display: block; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
   color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;
@@ -591,3 +594,215 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); }
 .ss-paste-lu b { color: var(--text); font-weight: 600; }
 .ss-paste-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; margin-top: var(--sp-2); }
 .ss-paste-row .select, .ss-paste-row .input { min-width: 0; }
+
+/* ═══════════ NUANCIER RAL — champ couleur (simulateur PC + Mode Terrain) ═══════════
+   Une pastille de la teinte à gauche du champ, le nom en clair dessous, et un bouton
+   qui ouvre le nuancier Harol complet. Le champ reste un <input> libre : un RAL hors
+   nuancier se tape à la main et reçoit quand même sa pastille. */
+.ral-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 36px; gap: 5px; align-items: stretch; }
+.ral-sw {
+  border: 1px solid var(--border-strong); border-radius: var(--r-pill, 2px);
+  background: var(--ral, var(--surface-2)); min-height: 100%;
+}
+/* Pas de teinte connue : hachures discrètes plutôt qu'un carré vide qu'on croit noir. */
+.ral-sw[data-vide] {
+  background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 4px, var(--border) 4px, var(--border) 5px);
+}
+.ral-open {
+  display: grid; place-items: center; cursor: pointer; color: var(--text-subtle);
+  border: 1px solid var(--border); border-radius: var(--r-pill, 2px); background: var(--surface-2);
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.ral-open:hover { color: var(--accent); border-color: var(--accent); }
+.ral-note {
+  font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle);
+  margin-top: 0.3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Nuancier plein écran ── */
+.ral-modal { position: fixed; inset: 0; z-index: 9100; display: none; background: rgba(4, 8, 20, 0.86); }
+.ral-modal.open { display: grid; place-items: center; padding: var(--sp-3); }
+.ral-panel {
+  width: min(100%, 760px); max-height: min(88vh, 720px); display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+.ral-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
+.ral-title { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.ral-x { margin-left: auto; display: grid; place-items: center; width: 30px; height: 30px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--r-pill, 2px); background: transparent; color: var(--text-subtle); }
+.ral-x:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.ral-search { padding: var(--sp-3) var(--sp-4) 0; }
+.ral-body { padding: var(--sp-3) var(--sp-4); overflow-y: auto; flex: 1; }
+.ral-foot { padding: var(--sp-2) var(--sp-4) var(--sp-3); border-top: 1px solid var(--border);
+  font-size: var(--fs-3xs); color: var(--text-subtle); line-height: 1.5; }
+.ral-sep { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-subtle); margin: var(--sp-3) 0 var(--sp-2); }
+.ral-sep:first-child { margin-top: 0; }
+.ral-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 5px; }
+.ral-cell {
+  display: flex; align-items: center; gap: 8px; padding: 5px; text-align: left; cursor: pointer; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--r-pill, 2px); background: var(--surface-2); color: inherit;
+  transition: border-color var(--t-fast);
+}
+.ral-cell:hover { border-color: var(--accent); }
+.ral-cell.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ral-cell .sw { flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid var(--border-strong); background: var(--ral, var(--surface)); }
+.ral-cell .sw[data-vide] {
+  background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 4px, var(--border) 4px, var(--border) 5px);
+}
+.ral-cell .tx { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ral-cell .cd { font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; color: var(--text); }
+.ral-cell .nm { font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ral-vide { font-size: var(--fs-xs); color: var(--text-subtle); line-height: 1.6; padding: var(--sp-4) 0; }
+@media (max-width: 620px) {
+  .ral-modal.open { padding: 0; place-items: stretch; }
+  /* Hauteur en unités de VUE, pas en % : le panneau est étiré par la grille, donc un
+     `max-height: 100%` n'a aucune référence définie et le nuancier partait à 5000 px de
+     haut — toute la page défilait au lieu de la seule liste. `dvh` suit en plus la barre
+     d'adresse mobile qui se rétracte. */
+  .ral-panel { width: 100%; height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: 0; }
+  .ral-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* ═══════════ RANGÉE D'OPTIONS À COCHER (configurateurs) ═══════════
+   Les cases étaient placées dans la même grille que les listes déroulantes : un <select>
+   porte un libellé au-dessus, pas une case — les deux ne pouvaient pas s'aligner, et une
+   5e option repassait à la ligne toute seule. Elles ont leur propre rangée, à hauteur fixe. */
+.cs8-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--sp-2) var(--sp-4); align-items: start; }
+.cs8-opt {
+  display: flex; align-items: center; gap: 0.5rem; min-height: 34px; cursor: pointer; user-select: none;
+  font-size: var(--fs-xs); color: var(--text-muted);
+}
+.cs8-opt input { flex: none; }
+.cs8-opt span { min-width: 0; }
+/* Réglage qui dépend d'une case : décalé sous elle, jamais au milieu de la rangée. */
+.cs8-sub { margin: 0.15rem 0 0.25rem 1.55rem; max-width: 190px; }
+.cs8-sub[hidden] { display: none; }
+/* Pastille de teinte en ligne (fiche devis) — carrée, alignée sur le texte. */
+.ral-dot {
+  display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px;
+  border: 1px solid var(--border-strong); background: var(--ral, var(--surface-2));
+}
+
+/* ═══════════ CATALOGUE D'ACCESSOIRES (Suppléments) ═══════════
+   149 références : une liste déroulante était illisible. Recherche + familles + vignette.
+   Réutilise la coque du nuancier (.ral-modal / .ral-panel) — même fenêtre, même comportement. */
+.acc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: var(--sp-2); }
+.acc-chip {
+  font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .06em;
+  padding: 4px 8px; cursor: pointer; color: var(--text-subtle);
+  border: 1px solid var(--border); border-radius: var(--r-pill, 2px); background: var(--surface-2);
+}
+.acc-chip:hover { color: var(--accent); border-color: var(--accent); }
+.acc-chip.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.acc-liste { display: flex; flex-direction: column; gap: 4px; }
+.acc-row {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: var(--sp-3); align-items: center;
+  padding: 6px 8px; text-align: left; cursor: pointer; color: inherit;
+  border: 1px solid var(--border); border-radius: var(--r-pill, 2px); background: var(--surface-2);
+  transition: border-color var(--t-fast);
+}
+.acc-row:hover { border-color: var(--accent); }
+/* Vignette à taille FIXE : qu'il y ait une photo ou l'icône de famille, la ligne ne bouge pas. */
+.acc-vig {
+  width: 44px; height: 44px; display: grid; place-items: center; overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-subtle);
+}
+/* Les packshots fournisseur sont détourés sur BLANC : la vignette garde donc son fond
+   blanc dans les deux thèmes. Le rendre transparent trouait les produits blancs. */
+.acc-vig img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.acc-vig img + .acc-ic { display: none; }
+.acc-tx { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.acc-lbl { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+.acc-prix { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; white-space: nowrap; }
+.acc-vide { font-size: var(--fs-xs); color: var(--text-subtle); line-height: 1.6; padding: var(--sp-4) 0; }
+@media (max-width: 620px) {
+  .acc-row { grid-template-columns: 38px minmax(0, 1fr) auto; gap: var(--sp-2); }
+  .acc-vig { width: 38px; height: 38px; }
+}
+
+/* ═══════════ CHAMPS À COMPLÉTER — du tableau de bord à la fiche ═══════════
+   Une toile ou un RAL oublié ne se voyait qu'au moment de commander chez Harol. */
+.manque-bloc {
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border-radius: var(--r-sm); padding: var(--sp-3) var(--sp-4);
+}
+.manque-tete {
+  display: flex; align-items: center; gap: var(--sp-2); color: var(--warn);
+  font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .08em;
+}
+.manque-liste { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
+.manque-ouv { font-size: var(--fs-xs); line-height: 1.5; }
+.manque-ouv b { font-weight: 600; }
+.manque-ouv .ch {
+  display: inline-block; margin: 2px 4px 0 0; padding: 1px 6px;
+  font-family: var(--font-mono); font-size: var(--fs-3xs);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: var(--r-pill, 2px); color: var(--warn);
+}
+
+/* ═══════════ MODE TERRAIN — sélecteur d'ouvertures ═══════════
+   Remplace « Ouverture 1/1 » + pastilles rondes (qui juraient avec le reste du
+   design, tout en angles droits) par un bandeau unique : titre parlant, flèches,
+   et une vignette carrée par ouverture qui montre son type ET son état. */
+.ouv-pager { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); margin-bottom: var(--sp-4); overflow: hidden; }
+.ouv-pager-tete { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+.ouv-pager-tete .nav {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: var(--r-pill, 2px);
+  background: var(--surface); color: var(--text);
+}
+.ouv-pager-tete .nav:disabled { opacity: .3; cursor: default; }
+.ouv-pager-id { flex: 1; min-width: 0; text-align: center; }
+.ouv-pager-id .t { font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent); line-height: 1.15; }
+.ouv-pager-id .s {
+  font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle);
+  text-transform: uppercase; letter-spacing: .06em; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Défilement horizontal : 10 ouvertures ne doivent pas repousser le formulaire vers le bas. */
+.ouv-tiles { display: flex; gap: 5px; padding: var(--sp-3); overflow-x: auto; scrollbar-width: none; }
+.ouv-tiles::-webkit-scrollbar { display: none; }
+.ouv-tile {
+  position: relative; flex: none; width: 46px; height: 46px; cursor: pointer;
+  display: grid; place-items: center; gap: 0;
+  border: 1px solid var(--border-strong); border-radius: var(--r-pill, 2px);
+  background: var(--surface); color: var(--text-subtle);
+}
+.ouv-tile .n { font-family: var(--font-mono); font-size: var(--fs-3xs); line-height: 1; }
+.ouv-tile svg { margin-bottom: 1px; }
+.ouv-tile.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Coin corné orange = il manque une info bloquante sur cette ouverture. */
+.ouv-tile.incomplet::after {
+  content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
+  border-top: 9px solid var(--warn); border-left: 9px solid transparent;
+}
+.ouv-tile.plus { border-style: dashed; border-color: var(--accent-2); color: var(--accent-2); }
+
+/* ═══════════ MODE TERRAIN — récapitulatif ═══════════ */
+.rc-bloc + .rc-bloc { margin-top: var(--sp-4); }
+.rc-titre {
+  font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text-subtle); margin-bottom: var(--sp-2);
+}
+.rc-client { font-size: var(--fs-sm); line-height: 1.55; }
+.rc-client b { font-size: var(--fs-md); }
+.rc-ligne {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: var(--sp-2); align-items: start;
+  padding: var(--sp-2) 0; border-top: 1px solid var(--border);
+}
+.rc-ligne:first-child { border-top: 0; }
+.rc-no { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); padding-top: 2px; }
+.rc-corps { min-width: 0; }
+.rc-nom { font-size: var(--fs-sm); font-weight: 600; }
+.rc-det { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 2px; overflow-wrap: anywhere; }
+.rc-etat { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: var(--fs-3xs); white-space: nowrap; padding-top: 2px; }
+.rc-etat.ok { color: var(--ok); }
+.rc-etat.ko { color: var(--warn); }
+.rc-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: var(--sp-2); margin-top: var(--sp-3); }
+.rc-tot > div { border: 1px solid var(--border); border-radius: var(--r-pill, 2px); padding: var(--sp-2); text-align: center; }
+.rc-tot .v { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 700; color: var(--text); line-height: 1.1; }
+.rc-tot .k { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
