@@ -407,6 +407,11 @@ export async function onRequest(context) {
       const body = await request.json();
       const { _expected_date_modification, ...devis } = body;
       if (!devis.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      // ⚠️ Les routes CIBLÉES (commentaire, ticket SAV, photo de chantier) font AVANCER
+      // date_modification. Un écran resté ouvert qui vient d'en utiliser une garderait sinon
+      // une référence périmée, et SON PROPRE enregistrement suivant (typiquement un changement
+      // de statut) serait refusé comme un conflit — alors que personne d'autre n'a touché au
+      // devis. Ces routes renvoient donc la nouvelle date_modification, que l'écran adopte.
       // Détection de conflit (2 utilisateurs sur le même devis) : uniquement si l'appelant a fourni la
       // version qu'il croyait la plus récente. Réponse en ok:true (pas ok:false) volontairement — sinon
       // req() (api.js) lèverait une exception et le conflit serait pris à tort pour une panne réseau.
@@ -456,7 +461,7 @@ export async function onRequest(context) {
       ).bind(JSON.stringify(comment), now, id).run();
       if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Devis introuvable' }, 404);
       const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.comments'), 0) AS n FROM devis WHERE id = ?").bind(id).first();
-      return json({ ok: true, comment, comments_count: row ? row.n : null });
+      return json({ ok: true, comment, comments_count: row ? row.n : null, date_modification: now });
     }
     // ── COMMENTAIRE INTERNE : suppression CIBLÉE (json_set des seules clés comments/count) ──
     let mCommentDel = path.match(/^\/api\/devis\/([^/]+)\/comment\/([^/]+)$/);
@@ -474,7 +479,7 @@ export async function onRequest(context) {
            date_modification = ?3
          WHERE id = ?4`
       ).bind(JSON.stringify(comments), comments.length, now, id).run();
-      return json({ ok: true, comments_count: comments.length });
+      return json({ ok: true, comments_count: comments.length, date_modification: now });
     }
     // ── TICKET SAV : création / modification CIBLÉE (n'écrit que la clé $.sav_tickets) ──
     // Même principe que les commentaires : on ne renvoie JAMAIS le devis complet depuis le
@@ -509,7 +514,7 @@ export async function onRequest(context) {
         `UPDATE devis SET data = json_set(data, '$.sav_tickets', json(?1), '$.date_modification', ?2),
            date_modification = ?2 WHERE id = ?3`
       ).bind(JSON.stringify(tickets), now, id).run();
-      return json({ ok: true, ticket, sav_tickets: tickets });
+      return json({ ok: true, ticket, sav_tickets: tickets, date_modification: now });
     }
     // ── TICKET SAV : suppression CIBLÉE ──
     let mSavDel = path.match(/^\/api\/devis\/([^/]+)\/sav\/([^/]+)$/);
@@ -525,7 +530,7 @@ export async function onRequest(context) {
         `UPDATE devis SET data = json_set(data, '$.sav_tickets', json(?1), '$.date_modification', ?2),
            date_modification = ?2 WHERE id = ?3`
       ).bind(JSON.stringify(tickets), now, id).run();
-      return json({ ok: true, sav_tickets: tickets });
+      return json({ ok: true, sav_tickets: tickets, date_modification: now });
     }
     // ── JOURNAL DE CHANTIER : photo annotée (ajout/édition CIBLÉE, n'écrit que $.chantier_photos) ──
     // Même architecture que les tickets SAV : les OCTETS de la photo vivent dans R2 (voir /api/photos,
@@ -563,7 +568,7 @@ export async function onRequest(context) {
         `UPDATE devis SET data = json_set(data, '$.chantier_photos', json(?1), '$.date_modification', ?2),
            date_modification = ?2 WHERE id = ?3`
       ).bind(JSON.stringify(entries), now, id).run();
-      return json({ ok: true, entry, chantier_photos: entries });
+      return json({ ok: true, entry, chantier_photos: entries, date_modification: now });
     }
     let mCpDel = path.match(/^\/api\/devis\/([^/]+)\/chantier-photo\/([^/]+)$/);
     if (mCpDel && method === 'DELETE') {
@@ -585,7 +590,7 @@ export async function onRequest(context) {
         const mm = target && String(target.url).match(/^\/api\/photos\/([^/]+)\/([^/]+)$/);
         if (mm && env.PHOTOS) await env.PHOTOS.delete(`photos/${decodeURIComponent(mm[1])}/${decodeURIComponent(mm[2])}.jpg`);
       } catch (e) { /* orphelin R2 sans gravité */ }
-      return json({ ok: true, chantier_photos: entries });
+      return json({ ok: true, chantier_photos: entries, date_modification: now });
     }
     let m = path.match(/^\/api\/devis\/([^/]+)$/);
     if (m) {
