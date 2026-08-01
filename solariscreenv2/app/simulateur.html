@@ -160,7 +160,6 @@
           <datalist id="dl-modeles"></datalist>
           <datalist id="dl-couleurs"></datalist>
           <datalist id="dl-toiles"></datalist>
-          <datalist id="dl-caisson-forme"></datalist>
           <datalist id="dl-emplacements"></datalist>
           <datalist id="dl-etages"></datalist>
         </div>
@@ -275,9 +274,7 @@
           <div id="extrasContainer"></div>
           <div class="row wrap" style="gap:var(--sp-2);">
             <button class="btn btn-ghost" onclick="markDirty(); addExtra();">+ Ajouter un supplément (libre)</button>
-            <select class="select" id="catalogOptionPick" style="max-width:280px;" onchange="pickCatalogOption()" aria-label="Ajouter depuis le catalogue Harol">
-              <option value="">+ Depuis le catalogue Harol…</option>
-            </select>
+            <button class="btn btn-ghost" id="catalogOpen" onclick="ouvrirCatalogueAccessoires()">Catalogue accessoires…</button>
           </div>
         </div>
       </section>
@@ -358,8 +355,8 @@
     // Catalogue produits partagé (assets/js/products.js) — source unique avec terrain.html
     const {
       ITEM_TYPES, EMPLACEMENTS_SUGGESTIONS, ETAGES_SUGGESTIONS, MOTEURS, MODELES_CATALOGUE, COULEURS_RAL, TOILES_CATALOGUE,
-      CS8_VARIANTES, CS8_COMBINAISONS, CS8_COLLECTIONS, CS8_MOTEURS,
-      CS8_CAISSON_FORMES, CS8_COLMATAGE, caissonMesuresFor,
+      CS8_VARIANTES, CS8_COLLECTIONS, CS8_MOTEURS, CABLE_LONGUEURS,
+      CS8_COLMATAGE, caissonMesuresFor,
       TS_SPECS, tsMoteursFor, tsEclairageFor, TS_MANOEUVRES, TS_MOTEUR_SORTES, TS_CABLE_LONGUEURS, TS_CABLE_COULEURS, TS_COLLECTIONS,
       VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, VR_LAMES, vrHauteurMaxFor,
       CATALOG_OPTIONS,
@@ -404,19 +401,17 @@
     function coolscreenBlockHtml(item) {
       if (item.type !== 'screen') return '';
       const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
-      const combiOpts = CS8_COMBINAISONS.map(c => `<option value="${c.v}" ${item.combinaison === c.v ? 'selected' : ''}>${c.l}</option>`).join('');
       const mesureOpts = opt(caissonMesuresFor(item.variante), item.caisson_mesure);
       return `
       <div class="cs8-block mt-4">
         <div class="cs8-head">${icon('sliders', 14)} Configuration Coolscreen 8 <span class="badge badge-purple">Portail Harol</span></div>
         <div class="grid grid-4">
           <div class="field"><label class="label">Variante</label><select class="select" data-f="variante" onchange="onCS8VarianteChange('${item._id}'); ui_recalc()"><option value="">—</option>${opt(CS8_VARIANTES, item.variante)}</select></div>
-          <div class="field"><label class="label">Combinaison</label><select class="select" data-f="combinaison">${combiOpts}</select></div>
           <div class="field"><label class="label">Latéralité</label><select class="select" data-f="lateralite">
             <option value="Gauche" ${item.lateralite === 'Gauche' ? 'selected' : ''}>1 : Gauche</option>
             <option value="Droite" ${item.lateralite === 'Droite' ? 'selected' : ''}>2 : Droite</option>
           </select></div>
-          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur_ref"><option value="">—</option>${opt(CS8_MOTEURS, item.moteur_ref)}</select></div>
+          <div class="field" style="grid-column:span 2;"><label class="label">Moteur</label><select class="select" data-f="moteur_ref"><option value="">—</option>${opt(CS8_MOTEURS, item.moteur_ref)}</select></div>
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field" style="grid-column:span 2;"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(CS8_COLLECTIONS, item.collection)}</select></div>
@@ -424,21 +419,41 @@
           <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: grey / grey"></div>
         </div>
         <div class="grid grid-4 mt-4">
-          <div class="field"><label class="label">Caisson — forme</label><input class="input" data-f="caisson_forme" list="dl-caisson-forme" value="${item.caisson_forme || ''}" placeholder="Ex: Carré"></div>
           <div class="field"><label class="label">Caisson — mesure</label><select class="select" data-f="caisson_mesure" id="cms-${item._id}"><option value="">—</option>${mesureOpts}</select></div>
-          <div class="field"><label class="label">Couleur caisson (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris nuit"></div>
-          <div class="field"><label class="label">Couleur coulisses (RAL)</label><input class="input" data-f="couleur_coulisses" list="dl-couleurs" value="${item.couleur_coulisses || ''}" placeholder="Ex: idem caisson"></div>
-          <div class="field"><label class="label">Couleur lame finale (RAL)</label><input class="input" data-f="couleur_lame" list="dl-couleurs" value="${item.couleur_lame || ''}" placeholder="Ex: 7021 — peut différer"></div>
-        </div>
-        <div class="grid grid-4 mt-4">
+          ${SSUI.ralFieldHtml({ f: 'couleur', label: 'Couleur caisson (RAL)', value: item.couleur, span: 2 })}
           <div class="field"><label class="label">Colmatage</label><select class="select" data-f="colmatage"><option value="">—</option>${opt(CS8_COLMATAGE, item.colmatage)}</select></div>
-          <div class="field field-check"><label><input type="checkbox" data-f="emetteur" ${item.emetteur ? 'checked' : ''}> Émetteur inclus</label></div>
-          <div class="field field-check"><label><input type="checkbox" data-f="panneau_solaire_separe" ${item.panneau_solaire_separe ? 'checked' : ''}> Panneau solaire séparé</label></div>
-          <div class="field field-check"><label><input type="checkbox" data-f="allongement_caisson" ${item.allongement_caisson ? 'checked' : ''}> Allongement caisson</label></div>
-          <div class="field field-check"><label><input type="checkbox" data-f="barre_surelevee" ${item.barre_surelevee ? 'checked' : ''}> Barre de charge surélevée (A2416)</label></div>
         </div>
+        ${cs8OptionsHtml(item)}
       </div>`;
     }
+
+    /* Les cases à cocher étaient mélangées aux listes déroulantes dans la même grille : un
+       <select> a un libellé au-dessus, pas une case — les deux ne s'alignaient jamais.
+       Elles ont désormais leur propre rangée, à hauteur constante. */
+    function cs8OptionsHtml(item) {
+      const cableOpts = CABLE_LONGUEURS.map(v => `<option value="${v}" ${item.panneau_cable === v ? 'selected' : ''}>${v}</option>`).join('');
+      return `
+        <div class="cs8-opts mt-4">
+          <label class="cs8-opt"><input type="checkbox" data-f="emetteur" ${item.emetteur ? 'checked' : ''}><span>Émetteur inclus</span></label>
+          <div>
+            <label class="cs8-opt"><input type="checkbox" data-f="panneau_solaire_separe" ${item.panneau_solaire_separe ? 'checked' : ''} onchange="onPanneauChange('${item._id}')"><span>Panneau solaire déporté</span></label>
+            <div class="cs8-sub" id="pan-${item._id}" ${item.panneau_solaire_separe ? '' : 'hidden'}>
+              <label class="label">Longueur de câble</label>
+              <select class="select" data-f="panneau_cable"><option value="">—</option>${cableOpts}</select>
+            </div>
+          </div>
+          <label class="cs8-opt"><input type="checkbox" data-f="allongement_caisson" ${item.allongement_caisson ? 'checked' : ''}><span>Allongement caisson</span></label>
+        </div>`;
+    }
+    // Le panneau déporté se pose à distance du caisson : sa longueur de câble ne se demande
+    // que s'il est effectivement choisi.
+    window.onPanneauChange = (id) => {
+      const card = document.querySelector(`[data-id="${id}"]`);
+      const bloc = el('pan-' + id);
+      if (!card || !bloc) return;
+      bloc.hidden = !card.querySelector('[data-f="panneau_solaire_separe"]').checked;
+      if (bloc.hidden) bloc.querySelector('[data-f="panneau_cable"]').value = '';
+    };
 
     // La variante change → le jeu de dimensions caisson change (Standard = petit, Solar/Led/Plus = grand)
     window.onCS8VarianteChange = (id) => {
@@ -541,17 +556,17 @@
             // carte feraient que collectItem ne garderait que le dernier du DOM).
             ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
             : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
-          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" list="dl-emplacements" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
-          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" list="dl-etages" value="${item.etage || ''}" placeholder="RDC"></div>
+          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" data-memo="emplacement" list="dl-emplacements" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
+          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" data-memo="etage" list="dl-etages" value="${item.etage || ''}" placeholder="RDC"></div>
         </div>
         ${item.type !== 'screen' ? `
         <div class="grid grid-auto mt-4">
-          <div class="field"><label class="label">Couleur (RAL)</label><input class="input" data-f="couleur" list="dl-couleurs" value="${item.couleur || ''}" placeholder="Ex: 7016 — Gris anthracite"></div>
+          ${SSUI.ralFieldHtml({ f: 'couleur', label: 'Couleur (RAL)', value: item.couleur })}
           ${!['volet_roulant', 'tente_solaire'].includes(item.type)
             // Pas de « Toile / finition » en texte libre pour les tentes solaires : leur bloc de
             // configuration a déjà « Collection toile » (liste fermée du fabricant). Le champ reste
             // pour tablier_volet (et les anciens types), qui n'ont aucun configurateur.
-            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
+            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" data-memo="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
         </div>` : ''}
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}
@@ -640,16 +655,19 @@
 
     // Catalogue d'accessoires Harol à prix connu — ajoute un supplément pré-rempli
     // (label + prix), toujours modifiable ensuite comme un supplément libre.
-    function fillCatalogOptionsSelect() {
-      const byCat = {};
-      CATALOG_OPTIONS.forEach(o => { (byCat[o.cat] = byCat[o.cat] || []).push(o); });
-      const groups = Object.entries(byCat).map(([cat, opts]) => `<optgroup label="${cat}">${opts.map(o =>
-        `<option value="${o.label.replace(/"/g, '&quot;')}" data-price="${o.price}">${o.label} — ${fmtEur(o.price)}</option>`).join('')}</optgroup>`).join('');
-      el('catalogOptionPick').innerHTML = '<option value="">+ Depuis le catalogue Harol…</option>' + groups;
-    }
+    // La référence d'article est reprise dans le libellé : c'est ce qu'on tape sur le
+    // portail de commande Harol, et ça évite de rechercher l'accessoire deux fois.
+    window.ouvrirCatalogueAccessoires = () => {
+      SSUI.ouvrirCatalogue(o => {
+        markDirty();
+        addExtra({ label: o.ref ? `${o.label} (réf. ${o.ref})` : o.label, qty: 1, unit_price_ht: o.price });
+        ui_recalc();
+        toast(`${o.label} ajouté aux suppléments`, 'ok');
+      });
+    };
     window.pickCatalogOption = () => {
       const sel = el('catalogOptionPick');
-      const opt = sel.selectedOptions[0];
+      const opt = sel && sel.selectedOptions[0];
       if (!opt || !opt.value) return;
       markDirty();
       addExtra({ label: opt.value, qty: 1, unit_price_ht: parseFloat(opt.dataset.price) || 0 });
@@ -966,11 +984,18 @@
     }
     fillDatalist('dl-modeles', MODELES_CATALOGUE);
     fillDatalist('dl-couleurs', COULEURS_RAL);
-    fillDatalist('dl-toiles', TOILES_CATALOGUE);
-    fillDatalist('dl-caisson-forme', CS8_CAISSON_FORMES);
-    fillDatalist('dl-emplacements', EMPLACEMENTS_SUGGESTIONS);
-    fillDatalist('dl-etages', ETAGES_SUGGESTIONS);
-    fillCatalogOptionsSelect();
+    // Suggestions = catalogue + ce qui a DÉJÀ été tapé (mémorisé localement, les plus
+    // fréquentes en tête) : la même mémoire est partagée avec le Mode Terrain.
+    SSUI.remplirDatalist('dl-toiles', 'toile', TOILES_CATALOGUE);
+    SSUI.remplirDatalist('dl-emplacements', 'emplacement', EMPLACEMENTS_SUGGESTIONS);
+    SSUI.remplirDatalist('dl-etages', 'etage', ETAGES_SUGGESTIONS);
+    document.addEventListener('change', e => {
+      if (e.target && e.target.matches && e.target.matches('[data-memo]')) {
+        SSUI.remplirDatalist('dl-toiles', 'toile', TOILES_CATALOGUE);
+        SSUI.remplirDatalist('dl-emplacements', 'emplacement', EMPLACEMENTS_SUGGESTIONS);
+        SSUI.remplirDatalist('dl-etages', 'etage', ETAGES_SUGGESTIONS);
+      }
+    });
     // Saisie assistée : 4 chiffres → la ville se remplit, et inversement (1187 codes belges embarqués).
     window.SSPostal && SSPostal.bindPair(el('clientCodePostal'), el('clientVille'));
 

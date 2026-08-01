@@ -103,16 +103,29 @@
     .n-foot.reply-mode { outline: 2px solid color-mix(in srgb, var(--accent-2) 55%, transparent); outline-offset: 4px; border-radius: var(--r-sm); }
     .n-foot.reply-mode #nSendBtn { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 22%, transparent); color: var(--accent-2-ink); }
 
-    /* ── Fiche client ── */
+    /* ── Fiche client ──
+       Le rond aux initiales a disparu : deux lettres à côté du nom écrit juste
+       derrière n'apprenaient rien, et c'était la seule forme ronde de la page.
+       À sa place, une vignette CARRÉE de la 1re photo du chantier : on reconnaît
+       le dossier au premier coup d'œil. Sans photo, le type de produit et le
+       nombre d'ouvertures — une information, pas une décoration. */
     .client-hero { display: flex; gap: var(--sp-4); align-items: flex-start; flex-wrap: wrap; }
-    .client-hero .avatar {
-      width: 64px; height: 64px; flex: none; border-radius: var(--r-round);
-      display: grid; place-items: center; font-weight: 800; font-size: var(--fs-lg);
-      background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
-      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    .ch-vignette {
+      width: 68px; height: 68px; flex: none; padding: 0; overflow: hidden; cursor: pointer;
+      border: 1px solid var(--border-strong); border-radius: var(--r-pill, 2px);
+      background: var(--surface-2); color: var(--accent);
+      display: grid; place-items: center; gap: 2px; transition: border-color var(--t-fast);
     }
+    .ch-vignette:hover { border-color: var(--accent); }
+    .ch-vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ch-vignette .n { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); line-height: 1; }
+    .ch-id { min-width: 0; flex: 1; }
+    .ch-nom { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
     .client-hero h2 { font-family: var(--font-display); font-size: var(--fs-xl); line-height: 1.2; }
     .client-hero .sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    /* Barre d'actions de la fiche : « copier tout » est ce qu'on fait le plus souvent
+       avant de rédiger un mail ou de remplir un bon de commande Harol. */
+    .ch-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
     /* Contrôle salutation espace client (amical / pro) + rattrapage fiche CRM */
     .salut-box { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: var(--sp-3); padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
     .salut-box.no-fiche { border-style: dashed; color: var(--text-muted); font-size: var(--fs-xs); }
@@ -142,8 +155,9 @@
     .ci-primary { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); color: var(--text); text-decoration: none; }
     .ci-primary:hover { text-decoration: none; }
     .contact-item svg { flex: none; color: var(--accent); }
+    .ci-tx { min-width: 0; }
     .ci-k { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
-    .ci-v { font-size: var(--fs-sm); font-weight: 600; word-break: break-word; }
+    .ci-v { font-size: var(--fs-sm); font-weight: 600; overflow-wrap: break-word; }
     .ci-copy { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-sm); background: none; color: var(--text-subtle); cursor: pointer; transition: all var(--t-fast); }
     .ci-copy:hover { border-color: var(--accent-2); color: var(--accent-2); background: var(--surface); }
 
@@ -463,7 +477,11 @@
           <span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Ouvertures</span>
           <span class="section-sub" id="ouvCount">—</span>
         </div>
-        <div class="section-body" id="ouvHost"></div>
+        <div class="section-body">
+          <!-- Rappel de ce qui bloque encore la commande Harol (toile, RAL, moteur…) -->
+          <div id="ouvManque" class="mb-4"></div>
+          <div id="ouvHost"></div>
+        </div>
       </section>
       <!-- ══════ CARTES DE SUIVI : grille 2 colonnes (maçonnerie CSS) ══════ -->
       <div class="fiche-grid">
@@ -801,8 +819,9 @@
     // (Relance 1 / Relance 2) et la CADENCE (devis.relances). Seule la seconde alimentait la carte
     // « Prochaine action » — d'où le bug vécu : Nicolas passait le statut à « Relance 1 » et la fiche
     // réclamait indéfiniment cette même relance 1. Ces deux tables font le pont dans les deux sens.
-    const STATUT_RELANCE_N = { relance_1: 1, relance_2: 2 };
-    const STATUT_RANK = { envoye_client: 0, relance_1: 1, relance_2: 2 };
+    // Repris de ui.js : le tableau de bord s'appuie sur les MÊMES constantes (voir relanceEtat).
+    const STATUT_RELANCE_N = window.SSUI.STATUT_RELANCE_N;
+    const STATUT_RANK = window.SSUI.STATUT_RANK;
 
     // Garantie CGV : structure Harol 5 ans (toujours) · moteur RTS/IO standard 5 ans ·
     // moteur solaire + batterie Somfy 7 ans · autres moteurs solaires (Harol, RS100…) 5 ans.
@@ -838,6 +857,7 @@
     // `volet` = ancien type (avant le renommage en volet_roulant) : encore présent sur de vrais devis
     // de mai/juin 2026 — sans cette entrée, ils s'affichaient en brut « volet » partout.
     const TYPE_LABEL = { screen: 'Screen', volet_roulant: 'Volet', volet: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    const TYPE_ICON_NAMES = { screen: 'window', volet_roulant: 'list', volet: 'list', tablier_volet: 'grid', tente_solaire: 'sliders' };
     // Libellés au fil du texte pour les messages clients (« 2 screens et 1 tente solaire »).
     const TYPE_SING = { screen: 'screen', volet_roulant: 'volet roulant', volet: 'volet', tente_solaire: 'tente solaire', tablier_volet: 'tablier de volet', pergola: 'pergola', store_banne: 'store banne' };
     const TYPE_PLUR = { screen: 'screens', volet_roulant: 'volets roulants', volet: 'volets', tente_solaire: 'tentes solaires', tablier_volet: 'tabliers de volet', pergola: 'pergolas', store_banne: 'stores bannes' };
@@ -870,7 +890,13 @@
     }
     function contactItem(iconSvg, k, v, href) {
       if (!v) return '';
-      const inner = `${iconSvg}<div><div class="ci-k">${k}</div><div class="ci-v">${esc(v)}</div></div>`;
+      // Un email long se coupait n'importe où (« …@o / utlook.com ») parce que la tuile
+      // autorise la césure à l'intérieur d'un mot. <wbr> propose des points de coupure
+      // PROPRES (après @ et après les points) : le navigateur les préfère toujours.
+      const affiche = k === 'Email'
+        ? esc(v).replace(/([@.])/g, '$1<wbr>')
+        : esc(v);
+      const inner = `${iconSvg}<div class="ci-tx"><div class="ci-k">${k}</div><div class="ci-v">${affiche}</div></div>`;
       const primary = href ? `<a class="ci-primary" href="${href}">${inner}</a>` : `<div class="ci-primary">${inner}</div>`;
       const copyBtn = `<button class="ci-copy" onclick="ssCopy(${SSUI.jsAttr(v)}, ${SSUI.jsAttr(k)})" title="Copier ${esc(k).toLowerCase()}" aria-label="Copier ${esc(k).toLowerCase()}">${icon('copy', 13)}</button>`;
       return `<div class="contact-item">${primary}${copyBtn}</div>`;
@@ -918,28 +944,43 @@
         : `${icon('star', 15)} Ajouter au portfolio`;
 
       // ── Client ──
-      const initials = (((cl.prenom || '')[0] || '') + ((cl.nom || '')[0] || '')).toUpperCase() || '?';
       const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
       const mapsUrl = adresseTxt ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adresseTxt) : null;
       const ficheTags = (CLIENT_FICHE && CLIENT_FICHE.tags) || [];
       const ficheBien = (CLIENT_FICHE && CLIENT_FICHE.type_bien) || '';
+      const nomComplet = `${cl.prenom || ''} ${cl.nom || ''}`.trim();
+      // Vignette : la 1re photo du chantier, sinon le type de produit et le nombre d'ouvertures.
+      const items0 = d.items || [];
+      const photo1 = (items0.find(it => (it.photos || []).length) || {}).photos;
+      const nbOuv = items0.reduce((s, it) => s + (it.quantite || 1), 0);
+      const typePrincipal = TYPE_LABEL[(items0[0] || {}).type] || '';
+      const vignette = photo1
+        ? `<button class="ch-vignette" onclick="lbOpen(0)" title="Agrandir les photos du chantier" aria-label="Photos du chantier"><img src="${photo1[0]}" alt=""></button>`
+        : `<div class="ch-vignette" title="${esc(nbOuv + ' ouverture(s)' + (typePrincipal ? ' — ' + typePrincipal : ''))}">${icon(TYPE_ICON_NAMES[(items0[0] || {}).type] || 'window', 22)}<span class="n">${nbOuv || '—'}</span></div>`;
+      // Nom + prénom copiables : ils partent dans les mails et les bons de commande Harol.
+      const copieNom = nomComplet
+        ? `<button class="ci-copy" onclick="ssCopy(${SSUI.jsAttr(nomComplet)}, 'Nom du client')" title="Copier le nom et le prénom" aria-label="Copier le nom et le prénom">${icon('copy', 14)}</button>`
+        : '';
       el('clientHost').innerHTML = `
         <div class="client-hero">
-          <div class="avatar">${esc(initials)}</div>
-          <div>
-            <h2>${esc(cl.prenom)} ${esc(cl.nom) || '—'}</h2>
+          ${vignette}
+          <div class="ch-id">
+            <div class="ch-nom"><h2>${esc(nomComplet) || '—'}</h2>${copieNom}</div>
             <div class="sub">Devis créé le ${fmtDate(d.date_creation)} · modifié le ${fmtDate(d.date_modification)}</div>
             ${(ficheTags.length || ficheBien) ? `<div class="client-tags">${ficheBien ? `<span class="badge">${esc(ficheBien)}</span>` : ''}${ficheTags.map(t => `<span class="badge badge-purple">${esc(t)}</span>`).join('')}</div>` : ''}
           </div>
         </div>
         <div class="contact-grid">
-          ${contactItem(icon('message', 18), 'Téléphone', cl.telephone, cl.telephone ? 'tel:' + String(cl.telephone).replace(/\s+/g, '') : null)}
-          ${contactItem(icon('filetext', 18), 'Email', cl.email, cl.email ? 'mailto:' + mailtoList(cl.email) : null)}
-          ${contactItem(icon('grid', 18), 'Adresse', adresseTxt, mapsUrl)}
+          ${contactItem(icon('phone', 18), 'Téléphone', cl.telephone, cl.telephone ? 'tel:' + String(cl.telephone).replace(/\s+/g, '') : null)}
+          ${contactItem(icon('mail', 18), 'Email', cl.email, cl.email ? 'mailto:' + mailtoList(cl.email) : null)}
+          ${contactItem(icon('pin', 18), 'Adresse', adresseTxt, mapsUrl)}
         </div>
         <div class="client-weather hidden" id="clientWeather" title="Météo actuelle chez le client"></div>
         <div id="salutationHost"></div>
-        <button class="btn btn-ghost btn-sm mt-3" onclick="openRelance()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Relancer le client</button>`;
+        <div class="ch-actions">
+          <button class="btn btn-ghost btn-sm" onclick="ssCopy(${SSUI.jsAttr([nomComplet, cl.telephone || '', cl.email || '', adresseTxt].filter(Boolean).join('\n'))}, 'Fiche client')" title="Nom, téléphone, email et adresse d'un coup">${icon('copy', 14)} Copier la fiche</button>
+          <button class="btn btn-ghost btn-sm" onclick="openRelance()">${icon('message', 14)} Relancer le client</button>
+        </div>`;
       renderSalutation();
 
       // Météo actuelle chez le client (ambiance, jamais bloquant) — ville/code postal du devis.
@@ -954,9 +995,32 @@
 
       // ── Ouvertures ──
       PHOTOS = [];
+      // Petit carré de la teinte à côté du RAL : lire « 7016 » ne dit rien, le voir si.
+      // Rendu écran indicatif — le nuancier physique Harol reste la référence.
+      window.ralPastille = function (v) {
+        const P = window.SSProducts;
+        const hex = (P && P.ralHex) ? P.ralHex(v) : null;
+        if (!hex) return '';
+        return `<span class="ral-dot" style="--ral:${hex}" title="Aperçu indicatif de la teinte"></span>`;
+      };
       const items = d.items || [];
       const surf = totalSurface(items);
       setText('ouvCount', `${items.reduce((s, i) => s + (i.quantite || 1), 0)} ouverture(s) · ${surf.toFixed(2)} m²`);
+      // Ce qui manque encore pour commander : affiché EN TÊTE des ouvertures, avec le détail
+      // par ouverture — le tableau de bord n'en donne que le nombre.
+      (function () {
+        const host = el('ouvManque'); if (!host) return;
+        const trous = window.SSUI.manquantsDevis(d);
+        if (!trous.length) { host.innerHTML = ''; return; }
+        const n = trous.reduce((s, x) => s + x.manque.length, 0);
+        host.innerHTML = `<div class="manque-bloc">
+          <div class="manque-tete">${icon('warning', 12)} ${n} information(s) à compléter avant de commander</div>
+          <div class="manque-liste">${trous.map(t => `<div class="manque-ouv">
+            <b>Ouverture ${t.i + 1}${t.emplacement ? ' — ' + esc(t.emplacement) : ''}</b><br>
+            ${t.manque.map(x => `<span class="ch">${esc(x.l)}</span>`).join('')}
+          </div>`).join('')}</div>
+        </div>`;
+      })();
       el('ouvHost').innerHTML = items.length ? items.map((it, i) => {
         // 2e dimension selon le type : projection pour une tente solaire, hauteur sinon.
         const dim2 = window.SSUI.isTenteSolaire(it) ? it.projection : it.hauteur;
@@ -994,19 +1058,19 @@
             <div class="spec"><div class="s-k">Prix unit. HTVA</div><div class="s-v">${fmtEur(it.prix_catalogue_ht || 0)}</div></div>
             ${it.emplacement ? `<div class="spec"><div class="s-k">Emplacement</div><div class="s-v">${esc(it.emplacement)}</div></div>` : ''}
             ${it.etage ? `<div class="spec"><div class="s-k">Étage</div><div class="s-v">${esc(it.etage)}</div></div>` : ''}
-            ${it.couleur ? `<div class="spec"><div class="s-k">Couleur${(it.couleur_lame || it.couleur_coulisses) ? ' caisson' : ''}</div><div class="s-v">${esc(it.couleur)}</div></div>` : ''}
+            ${it.couleur ? `<div class="spec"><div class="s-k">Couleur${(it.couleur_lame || it.couleur_coulisses) ? ' caisson' : ''}</div><div class="s-v">${ralPastille(it.couleur)}${esc(it.couleur)}</div></div>` : ''}
             ${it.couleur_coulisses ? `<div class="spec"><div class="s-k">Couleur coulisses</div><div class="s-v">${esc(it.couleur_coulisses)}</div></div>` : ''}
             ${it.couleur_lame ? `<div class="spec"><div class="s-k">Couleur lame finale</div><div class="s-v">${esc(it.couleur_lame)}</div></div>` : ''}
             ${it.lame_type ? `<div class="spec"><div class="s-k">Type de lame</div><div class="s-v">${esc(it.lame_type)}</div></div>` : ''}
             ${(it.collection || it.toile) ? `<div class="spec"><div class="s-k">Collection toile</div><div class="s-v">${esc(it.collection || it.toile)}</div></div>` : ''}
             ${it.toile_num ? `<div class="spec"><div class="s-k">N° de toile</div><div class="s-v">${esc(it.toile_num)}</div></div>` : ''}
             ${it.toile_couleur ? `<div class="spec"><div class="s-k">Couleur toile</div><div class="s-v">${esc(it.toile_couleur)}</div></div>` : ''}
-            ${it.combinaison ? `<div class="spec"><div class="s-k">Combinaison</div><div class="s-v">${esc(it.combinaison)}</div></div>` : ''}
+            ${(it.combinaison && it.combinaison !== 'Simple') ? `<div class="spec"><div class="s-k">Combinaison</div><div class="s-v">${esc(it.combinaison)}</div></div>` : ''}
             ${it.lateralite ? `<div class="spec"><div class="s-k">Latéralité</div><div class="s-v">${esc(it.lateralite)}</div></div>` : ''}
             ${(it.caisson_forme || it.caisson_mesure) ? `<div class="spec"><div class="s-k">Caisson</div><div class="s-v">${esc(it.caisson_forme || '')} ${esc(it.caisson_mesure || '')}</div></div>` : ''}
             ${it.colmatage ? `<div class="spec"><div class="s-k">Colmatage</div><div class="s-v">${esc(it.colmatage)}</div></div>` : ''}
             ${it.emetteur ? `<div class="spec"><div class="s-k">Émetteur</div><div class="s-v">Inclus</div></div>` : ''}
-            ${it.panneau_solaire_separe ? `<div class="spec"><div class="s-k">Panneau solaire</div><div class="s-v">Fourni séparément</div></div>` : ''}
+            ${it.panneau_solaire_separe ? `<div class="spec"><div class="s-k">Panneau solaire</div><div class="s-v">Déporté${it.panneau_cable ? ' · câble ' + esc(it.panneau_cable) : ''}</div></div>` : ''}
             ${it.allongement_caisson ? `<div class="spec"><div class="s-k">Allongement</div><div class="s-v">Caisson allongé</div></div>` : ''}
             ${it.barre_surelevee ? `<div class="spec"><div class="s-k">Barre de charge</div><div class="s-v">Surélevée (A2416)</div></div>` : ''}
             ${(it.projection && !window.SSUI.isTenteSolaire(it)) ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection} mm</div></div>` : ''}
@@ -1742,10 +1806,7 @@
     // préparé longtemps avant d'être envoyé. Comme l'historique de statut n'existe que sur les
     // devis récents (constat sur les données réelles : 8 devis en attente sur 10 n'ont aucune
     // trace d'envoi), la date est DÉDUITE au mieux puis reste librement MODIFIABLE.
-    const RELANCE_PLAN = {
-      informatif: [{ n: 1, j: 5 }, { n: 2, j: 12 }, { n: 3, j: 21 }],
-      visite: [{ n: 1, j: 4 }, { n: 2, j: 9 }, { n: 3, j: 21 }],
-    };
+    const RELANCE_PLAN = window.SSUI.RELANCE_PLAN;
     const dayStr = iso => String(iso || '').slice(0, 10);
     function relanceKind(d) { return d.informatif ? 'informatif' : 'visite'; }
     // Date d'envoi : valeur saisie > 1er passage à « envoyé » dans l'historique > date de création.
@@ -1753,44 +1814,13 @@
     // à l'enregistrement d'une relance) — la cadence se réinitialiserait toute seule sans qu'on
     // comprenne pourquoi. On prend une référence STABLE, quitte à être approximative : Nicolas
     // corrige la date en un clic si besoin, et sa correction fait alors foi définitivement.
-    function dateEnvoiOf(d) {
-      if (d.date_envoi) return dayStr(d.date_envoi);
-      const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
-      if (h.length) return dayStr(h[0]);
-      return dayStr(d.date_creation || d.date_modification);
-    }
-    function daysBetween(fromDay, toDay) {
-      return Math.round((new Date(toDay + 'T00:00:00Z') - new Date(fromDay + 'T00:00:00Z')) / 86400000);
-    }
-    function addDays(day, n) {
-      const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
-      return d.toISOString().slice(0, 10);
-    }
-    // État complet de la relance d'un devis : ce qui a été fait, ce qui est dû, et quand.
-    function relanceState(d) {
-      const kind = relanceKind(d);
-      const plan = RELANCE_PLAN[kind];
-      const envoi = dateEnvoiOf(d);
-      const today = new Date().toISOString().slice(0, 10);
-      const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
-      let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
-      // Le statut fait FOI comme plancher : un devis marqué « Relance 2 » a forcément vu partir R1 et R2,
-      // même si la cadence ne les a pas enregistrées (données antérieures au correctif, ou relance notée
-      // uniquement via la pastille). Purement calculé à l'affichage — aucune écriture au chargement,
-      // donc les dossiers déjà bloqués se débloquent seuls dès la première ouverture de la fiche.
-      const nStatut = STATUT_RELANCE_N[d.statut] || 0;
-      for (let i = doneMax + 1; i <= nStatut; i++) done.push({ n: i, date: null, implied: true });
-      doneMax = Math.max(doneMax, nStatut);
-      const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
-      const jours = envoi ? daysBetween(envoi, today) : 0;
-      const due = step ? addDays(envoi, step.j) : null;
-      return {
-        kind, plan, envoi, today, done, doneMax, step, jours, due,
-        retard: !!(step && due && due <= today),          // relance à envoyer maintenant
-        joursRetard: (step && due) ? daysBetween(due, today) : 0,
-        epuise: !step,                                     // 3 relances envoyées → dossier à classer
-      };
-    }
+    const dateEnvoiOf = window.SSUI.dateEnvoiOf;
+    const daysBetween = window.SSUI.joursEntre;
+    const addDays = window.SSUI.plusJours;
+    // ⚠️ NE PAS RÉIMPLÉMENTER ICI : la cadence vit dans ui.js, partagée avec le tableau de bord.
+    // Elle a été dupliquée pendant un temps, et une mise en ligne partielle a suffi à ce que
+    // cette fiche affiche « R1 ✓ » pendant que le tableau de bord réclamait encore « Relance 1 ».
+    const relanceState = (d) => window.SSUI.relanceEtat(d);
     // « 2 screens et 1 tente solaire » — repris tel quel dans le message client.
     function produitsTxt(d) {
       const counts = {};

@@ -158,10 +158,6 @@
        son sens de code (statut) et deviendrait juste décorative. */
     .type-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; }
     .type-badges .badge { padding: 0.12rem 0.4rem; font-size: 0.62rem; }
-    /* Cellule STATUT : pastille sur la 1re ligne, badges secondaires (attente/expiré + informatif)
-       regroupés en dessous — demandé par Nicolas pour dégager la ligne du nom. */
-    .status-cell { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
-    .status-badges { display: flex; flex-wrap: wrap; gap: 4px; }
     .count-pill { font-size: var(--fs-xs); color: var(--text-muted); font-family: var(--font-mono); }
     /* Médias : caméra + commentaires toujours visibles (grisés à 0, colorés sinon), un peu plus
        grands, façon petits jetons cliquables ; survol = aperçu flottant (photos/notes). */
@@ -326,13 +322,24 @@
       background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md);
       box-shadow: var(--shadow); padding: var(--sp-3); display: none; pointer-events: none;
     }
+    /* Les photos étaient en 3 colonnes de 62 px : on ne distinguait rien. Deux colonnes
+       nettement plus grandes, et surtout la LÉGENDE (pièce, étage, dimensions) sous chaque
+       cliché — c'est elle qui rend l'aperçu utile sans ouvrir le devis. */
+    /* Largeur EXPLICITE : la bulle est en position fixed sans largeur, donc elle se réduit au
+       contenu — et des images en width:100% ne réclament rien. Sans ça, augmenter max-width
+       ne changeait rien à la taille réelle des photos. */
+    .media-preview.wide { width: 440px; max-width: min(440px, calc(100vw - 16px)); }
     .media-preview.open { display: block; animation: mpIn 0.12s ease-out; }
     @keyframes mpIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
     .mp-title { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--sp-2); display: flex; align-items: center; gap: 0.35rem; }
     .mp-title svg { color: var(--accent-2); }
-    .mp-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-    .mp-photos img { width: 100%; height: 62px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); display: block; }
-    .mp-more { display: flex; align-items: center; justify-content: center; height: 62px; border-radius: var(--r-sm); border: 1px dashed var(--border-strong); color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-xs); }
+    .mp-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .mp-shot { border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); }
+    .mp-shot img { width: 100%; height: 132px; object-fit: cover; display: block; }
+    .mp-cap { padding: 4px 6px 5px; border-top: 1px solid var(--border); }
+    .mp-cap .l1 { font-size: var(--fs-2xs); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mp-cap .l2 { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mp-more { display: flex; align-items: center; justify-content: center; height: 132px; border-radius: var(--r-sm); border: 1px dashed var(--border-strong); color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-xs); }
     .mp-comment { display: flex; gap: 0.5rem; padding: 0.4rem 0; border-top: 1px solid var(--border); }
     .mp-comment:first-child { border-top: none; padding-top: 0; }
     .mp-ava { width: 22px; height: 22px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 0.58rem; font-weight: 700; }
@@ -522,6 +529,9 @@
   </div>
 
   <script src="../assets/js/ui.js"></script>
+  <!-- Catalogue produits : sert ici à savoir quels champs manquent encore sur un devis
+       (SSProducts.CHAMPS_REQUIS) pour l'afficher sur la ligne. -->
+  <script src="../assets/js/products.js"></script>
   <script src="../assets/js/mantras.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
@@ -959,24 +969,12 @@
     // Devis informatif : J+5 / J+12 / J+21 · devis après visite : J+4 / J+9 / J+21.
     // Référence = date d'envoi saisie > 1er passage à « envoyé » > date de création (jamais
     // date_modification : elle bougerait à chaque édition et fausserait la cadence).
-    const RELANCE_PLAN_DB = { informatif: [5, 12, 21], visite: [4, 9, 21] };
-    // Le statut « Relance 1 / Relance 2 » compte comme relance faite, au même titre qu'un
-    // enregistrement dans la cadence : c'est la façon la plus naturelle de noter une relance, et
-    // l'ignorer faisait réclamer indéfiniment la même relance ici comme sur la fiche devis.
-    const STATUT_RELANCE_N_DB = { relance_1: 1, relance_2: 2 };
-    function relancesFaites(d) {
-      return Math.max((d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0), STATUT_RELANCE_N_DB[d.statut] || 0);
-    }
-    function relanceDue(d) {
-      const plan = RELANCE_PLAN_DB[d.informatif ? 'informatif' : 'visite'];
-      const faites = relancesFaites(d);
-      if (faites >= plan.length) return false;                  // les 3 relances sont envoyées
-      const hist = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
-      const envoi = String(d.date_envoi || hist[0] || d.date_creation || '').slice(0, 10);
-      if (!envoi) return false;
-      const jours = Math.round((new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - new Date(envoi + 'T00:00:00Z')) / 86400000);
-      return jours >= plan[faites];                             // la prochaine relance est échue
-    }
+    // ⚠️ NE PAS RÉIMPLÉMENTER ICI. La cadence vivait en double (ici + vue.html) : tant que les
+    // deux copies restaient identiques tout allait bien, mais elles sont déployées dans des
+    // fichiers SÉPARÉS. Une mise en ligne partielle suffisait à ce que la fiche affiche « R1 ✓ »
+    // pendant que cette page réclamait encore « Relance 1 à envoyer ». Source unique : ui.js.
+    const relancesFaites = (d) => window.SSUI.relancesFaites(d);
+    const relanceDue = (d) => window.SSUI.relanceDue(d);
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
       const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d));
@@ -1178,52 +1176,12 @@
       };
       const typeBadges = (d) => {
         const types = d.item_types || [];
-        if (!types.length) return '';
-        return `<div class="type-badges">${types.map(t => `<span class="badge">${esc(TYPE_LABEL[t] || t)}</span>`).join('')}</div>`;
-      };
-      // Badge secondaire de statut (attente/expiré) — renvoie juste le <span>, regroupé sous la pastille.
-      const waitingBadge = (d) => {
-        if (!WAITING_STATUSES.includes(d.statut)) return '';
-        // Un devis accepté par le client n'est plus « en attente de réponse » : afficher
-        // « ⏱ 12 j — en attente de réponse » serait factuellement faux et à contresens.
-        if (d.client_accepted) return '';
-        if (isDevisExpire(d)) {
-          const sentDays = daysSinceSent(d);
-          return `<span class="badge badge-danger" title="Devis envoyé depuis ${sentDays} jours — validité CGV de 30 jours dépassée">${icon('warning', 10)} Expiré</span>`;
-        }
-        const days = daysInCurrentStatus(d);
-        if (days < 3) return '';
-        const cls = days >= 14 ? 'badge-danger' : days >= 7 ? 'badge-warn' : '';
-        return `<span class="badge ${cls}" title="En attente de réponse depuis ${days} jour(s)">${icon('clock', 10)} ${days} j</span>`;
-      };
-      const statusCell = (d) => {
-        const infoB = d.informatif ? `<span class="badge badge-cyan" title="Estimation non contractuelle">Informatif</span>` : '';
-        // Le client a cliqué « J'accepte » sur son espace client : c'est l'information la plus
-        // actionnable de la ligne (il reste à faire signer), elle passe donc en tête des badges.
-        const acceptB = (d.client_accepted && WAITING_STATUSES.includes(d.statut))
-          ? `<span class="badge badge-ok" title="Le client a accepté ce devis en ligne${d.client_accepted_at ? ' le ' + fmtDate(d.client_accepted_at) : ''} — reste à faire signer">${icon('check', 10)} Accepté client</span>`
-          : '';
-        // Question client sans réponse (or) : à traiter. Refus VENU du client (rouge) : distinct
-        // d'un « refusé » posé à la main, pour savoir que c'est le client qui a décliné en ligne.
-        const questionB = d.client_question_open
-          ? `<span class="badge badge-warn" title="Le client a posé une question sur son espace en ligne — à répondre">${icon('message', 10)} Question client</span>`
-          : '';
-        const declineB = (d.statut === 'refuse' && d.client_declined)
-          ? `<span class="badge badge-danger" title="Le client a refusé ce devis en ligne${d.raison_refus ? ' — ' + esc(d.raison_refus) : ''}">${icon('warning', 10)} Refusé par le client</span>`
-          : '';
-        const isWaiting = WAITING_STATUSES.includes(d.statut);
-        // Engagement espace client : nombre de fois où le CLIENT a ouvert son devis en ligne.
-        // ≥ 5 vues = très intéressé (l'engagement prédit la signature) → badge doré « à relancer en priorité ».
-        const viewsB = (isWaiting && !d.client_accepted && d.review_views > 0)
-          ? `<span class="badge ${d.review_views >= 5 ? 'badge-gold' : ''}" title="Le client a ouvert son devis en ligne ${d.review_views} fois${d.review_views >= 5 ? ' — très intéressé, à relancer en priorité' : ''}">${icon('window', 10)} ${d.review_views} vue${d.review_views > 1 ? 's' : ''}</span>`
-          : '';
-        // Lien créé mais JAMAIS ouvert : soit le client ne l'a pas reçu, soit il n'a pas cliqué.
-        const neverOpenedB = (isWaiting && !d.client_accepted && d.has_review_link && d.review_views === 0)
-          ? `<span class="badge" style="opacity:.8;" title="Le lien espace client a été créé mais jamais ouvert par le client — vérifie qu'il l'a bien reçu">${icon('lock', 10)} Lien jamais ouvert</span>`
-          : '';
-        const waitB = waitingBadge(d);
-        const secondary = (questionB || acceptB || viewsB || neverOpenedB || declineB || waitB || infoB) ? `<div class="status-badges">${questionB}${acceptB}${viewsB}${neverOpenedB}${declineB}${waitB}${infoB}</div>` : '';
-        return `<div class="status-cell">${pill(d)}${secondary}</div>`;
+        // Informations produit manquantes (toile, RAL, moteur, caisson…) : sans elles la
+        // commande Harol est bloquée, et l'oubli ne se voyait qu'au moment de commander.
+        // Rien sur un devis refusé ou annulé : on ne le commandera jamais.
+        const manque = DEAD_STATUSES.includes(d.statut) ? '' : SSUI.badgeManquants(d);
+        if (!types.length && !manque) return '';
+        return `<div class="type-badges">${types.map(t => `<span class="badge">${esc(TYPE_LABEL[t] || t)}</span>`).join('')}${manque}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
       el('tableHost').innerHTML = `<div class="mix-list">${rows.map(d => {
@@ -1334,21 +1292,33 @@
         p.style.left = left + 'px';
         p.style.top = Math.max(8, top) + 'px';
       }
+      // Une photo seule ne dit pas de QUELLE ouverture il s'agit. On garde donc le lien
+      // photo → ouverture pour légender chaque cliché (pièce, étage, produit, dimensions) :
+      // c'est ce qui permet de juger un dossier sans ouvrir le devis.
+      function vignette(src, l1, l2) {
+        return `<figure class="mp-shot"><img src="${esc(src)}" alt="" loading="lazy">
+          <figcaption class="mp-cap"><div class="l1">${esc(l1 || '—')}</div>${l2 ? `<div class="l2">${esc(l2)}</div>` : ''}</figcaption></figure>`;
+      }
       function renderPhotos(devis) {
         const photos = [];
-        (devis.items || []).forEach(it => (it.photos || []).forEach(src => { if (src) photos.push(src); }));
+        (devis.items || []).forEach((it, i) => {
+          const d2 = window.SSUI.isTenteSolaire(it) ? it.projection : it.hauteur;
+          const lieu = [it.emplacement, it.etage].filter(Boolean).join(' · ') || `Ouverture ${i + 1}`;
+          const tech = [TYPE_LABEL[it.type] || it.type, (it.largeur && d2) ? `${it.largeur} × ${d2} mm` : ''].filter(Boolean).join(' · ');
+          (it.photos || []).forEach(src => { if (src) photos.push({ src, lieu, tech }); });
+        });
         if (!photos.length) return '<div class="mp-empty">Aucune photo à afficher.</div>';
-        const shown = photos.slice(0, 6), extra = photos.length - shown.length;
+        const shown = photos.slice(0, 4), extra = photos.length - shown.length;
         return `<div class="mp-title">${icon('camera', 12)} ${photos.length} photo(s)</div>
-          <div class="mp-photos">${shown.map(s => `<img src="${esc(s)}" alt="" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
+          <div class="mp-photos">${shown.map(p => vignette(p.src, p.lieu, p.tech)).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
       }
       function renderChantierPhotos(devis) {
         const PHASE_L = { avant: 'Avant', pendant: 'En cours', apres: 'Terminé', probleme: 'Problème', reserve: 'Réserve', autre: 'Autre' };
         const entries = (devis.chantier_photos || []).slice().sort((a, b) => String((b.date || '') + (b.date_creation || '')).localeCompare(String((a.date || '') + (a.date_creation || ''))));
         if (!entries.length) return '<div class="mp-empty">Aucune photo de chantier.</div>';
-        const shown = entries.slice(0, 6), extra = entries.length - shown.length;
+        const shown = entries.slice(0, 4), extra = entries.length - shown.length;
         return `<div class="mp-title">${icon('image', 12)} ${entries.length} photo(s) de chantier</div>
-          <div class="mp-photos">${shown.map(e => `<img src="${esc(e.url)}" alt="" title="${esc((PHASE_L[e.phase] || '') + (e.note ? ' — ' + e.note : ''))}" loading="lazy">`).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
+          <div class="mp-photos">${shown.map(e => vignette(e.url, PHASE_L[e.phase] || 'Chantier', [e.note, e.date ? fmtDate(e.date) : ''].filter(Boolean).join(' · '))).join('')}${extra > 0 ? `<div class="mp-more">+${extra}</div>` : ''}</div>`;
       }
       function renderNotes(devis) {
         const tous = devis.comments || [];
@@ -1377,6 +1347,8 @@
         if (!devis) { try { devis = await SS.getDevis(id); cache[id] = { d: devis, t: Date.now() }; } catch (e) { devis = null; } }
         if (currentSlot !== slot || !document.contains(slot)) return;   // survol changé ou ligne re-rendue
         const preview = kind === 'photos' ? renderPhotos(devis) : (kind === 'chantier' ? renderChantierPhotos(devis) : renderNotes(devis));
+        // Les aperçus PHOTO ont besoin de largeur (2 colonnes + légendes) ; le fil de notes non.
+        previewEl.classList.toggle('wide', kind === 'photos' || kind === 'chantier');
         previewEl.innerHTML = devis ? preview : '<div class="mp-empty">Aperçu indisponible.</div>';
         position(slot);
       }

@@ -183,7 +183,13 @@
         presta += `<tr><td class="num">—</td><td class="desc"><strong>Supplément accès difficile</strong></td><td>—</td><td class="num">1</td><td class="num">${fmtEur(surplus)}</td><td class="num">${fmtEur(surplus)}</td></tr>`;
       }
 
-      const solde = c.total_ttc - c.acompte_montant;
+      // Un devis sans acompte chiffré (créé au Mode Terrain, ou repris d'un ancien format)
+      // affichait « Acompte de undefined % » sur le document REMIS AU CLIENT. On retombe sur
+      // l'acompte de référence 50 % plutôt que d'imprimer un trou.
+      const acomptePct = (c.acompte_pct != null && !isNaN(c.acompte_pct)) ? c.acompte_pct : 50;
+      const acompteMontant = (c.acompte_montant != null && !isNaN(c.acompte_montant) && c.acompte_montant > 0)
+        ? c.acompte_montant : ((c.total_ttc || 0) * acomptePct / 100);
+      const solde = (c.total_ttc || 0) - acompteMontant;
       const info = !!d.informatif;
 
       el('paper').innerHTML = `
@@ -248,7 +254,7 @@
 
         ${info ? '' : `
         <div class="pay-note">
-          Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${fmtEur(c.acompte_montant)}</strong> —
+          Acompte de <strong>${acomptePct} %</strong> à la commande : <strong>${fmtEur(acompteMontant)}</strong> —
           solde de <strong>${fmtEur(solde)}</strong> à la livraison / pose.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
