@@ -10,6 +10,35 @@
   const LS_FACTURES = 'ss_factures_cache';
   const LS_RDV = 'ss_rdv_cache';
   const LS_OUTILLAGE = 'ss_outillage_cache';
+  const LS_OUTBOX = 'ss_outbox';   // ce qui est écrit LOCALEMENT mais pas encore parti au serveur
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     FILE D'ATTENTE D'ENVOI (« outbox »)
+     ─────────────────────────────────────────────────────────────────────────────────────────
+     Sans elle, un devis créé chez un client SANS RÉSEAU était écrit dans le téléphone… et
+     n'atteignait JAMAIS le serveur : au retour du réseau la liste venait de la base, et le devis
+     disparaissait même de l'écran. Vérifié, c'était une vraie perte de travail.
+     Désormais : tout enregistrement qui échoue faute de réseau laisse une trace ici, et repart
+     tout seul dès que la connexion revient. On ne met en file QUE le vrai hors-ligne — un rejet
+     du serveur (session Access expirée, données refusées) doit rester une erreur visible, pas
+     une promesse d'envoi qui n'aboutira jamais.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const outbox = {
+    lire: function () { try { return JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]'); } catch (e) { return []; } },
+    ecrire: function (l) { try { localStorage.setItem(LS_OUTBOX, JSON.stringify(l)); } catch (e) {} },
+    // `type` = 'devis' | 'client' | 'facture' | 'rdv' ; `ref` = id ou clé. Jamais de doublon.
+    ajouter: function (type, ref) {
+      const l = outbox.lire();
+      if (!l.some(function (x) { return x.type === type && x.ref === ref; })) {
+        l.push({ type: type, ref: ref, depuis: new Date().toISOString() });
+        outbox.ecrire(l);
+      }
+    },
+    retirer: function (type, ref) {
+      outbox.ecrire(outbox.lire().filter(function (x) { return !(x.type === type && x.ref === ref); }));
+    },
+    compte: function () { return outbox.lire().length; },
+  };
 
   async function req(path, options) {
     // Cache-buster : un paramètre unique par appel rend chaque URL inédite → aucun cache
@@ -142,6 +171,7 @@
         // sans sonde — les deux meurent en erreur réseau). On tranche avec un fichier statique.
         if (await isReallyOffline()) {
           console.warn('[SS] saveDevis hors-ligne:', e.message);
+          outbox.ajouter('devis', devis.id);   // repartira tout seul au retour du réseau
           return { ok: true, id: devis.id, offline: true, error: e.message };
         }
         console.warn('[SS] saveDevis : réseau OK mais API injoignable (session Access expirée ?)');
@@ -302,7 +332,50 @@
         if (e && e.serverRejected) { console.warn('[SS] saveClient rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         console.warn('[SS] saveClient hors-ligne:', e.message);
+        outbox.ajouter('client', client.key);
         return { ok: true, key: client.key, offline: true };
+      }
+    },
+    // ── ÉCHANGES E-MAIL DU CLIENT ──
+    // Même architecture que addComment : route CIBLÉE côté serveur (json_insert), jamais de
+    // relecture-réécriture de la fiche complète — un mail archivé ne peut donc pas disparaître
+    // parce que quelqu'un enregistre la fiche au même moment depuis un autre écran.
+    async addClientMail(key, mail) {
+      const payload = {
+        sens: mail.sens === 'envoye' ? 'envoye' : 'recu',
+        objet: (mail.objet || '').trim(), de: (mail.de || '').trim(),
+        date_mail: (mail.date_mail || '').trim(), texte: (mail.texte || '').trim(),
+        devis_id: mail.devis_id || '', par: mail.par || 'nicolas',
+      };
+      if (!payload.texte) return { ok: false, error: 'Message vide' };
+      try {
+        const res = await req('/clients/' + encodeURIComponent(key) + '/mail', { method: 'POST', body: JSON.stringify(payload) });
+        try { const c = localClients.get(key); if (c) { c.mails = c.mails || []; c.mails.push(res.mail); localClients.save(c); } } catch (e) {}
+        return res;   // { ok:true, mail, mails_count }
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) {
+          // Vrai hors-ligne : on garde le mail sur cet appareil, visible immédiatement.
+          const m = Object.assign({}, payload, {
+            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
+            date: new Date().toISOString(),
+          });
+          try { const c = localClients.get(key); if (c) { c.mails = c.mails || []; c.mails.push(m); localClients.save(c); } } catch (e2) {}
+          return { ok: true, mail: m, offline: true };
+        }
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async deleteClientMail(key, mailId) {
+      try {
+        const res = await req('/clients/' + encodeURIComponent(key) + '/mail/' + encodeURIComponent(mailId), { method: 'DELETE' });
+        try { const c = localClients.get(key); if (c && Array.isArray(c.mails)) { c.mails = c.mails.filter(x => String(x.id) !== String(mailId)); localClients.save(c); } } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        try { const c = localClients.get(key); if (c && Array.isArray(c.mails)) { c.mails = c.mails.filter(x => String(x.id) !== String(mailId)); localClients.save(c); } } catch (e2) {}
+        return { ok: true, offline: true };
       }
     },
     async deleteClient(key) {
@@ -337,6 +410,7 @@
         if (e && e.serverRejected) { console.warn('[SS] saveFacture rejetée par le serveur:', e.message); return { ok: false, error: e.message }; }
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         console.warn('[SS] saveFacture hors-ligne:', e.message);
+        outbox.ajouter('facture', f.id);
         return { ok: true, id: f.id, offline: true };
       }
     },
@@ -410,6 +484,7 @@
         if (e && e.serverRejected) { console.warn('[SS] saveRdv rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         console.warn('[SS] saveRdv hors-ligne:', e.message);
+        outbox.ajouter('rdv', rdv.id);
         return { ok: true, id: rdv.id, offline: true, error: e.message };
       }
     },
@@ -520,8 +595,61 @@
     },
   };
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     RENVOI DE LA FILE D'ATTENTE
+     ─────────────────────────────────────────────────────────────────────────────────────────
+     Rejoue les enregistrements restés bloqués faute de réseau, en repartant de la copie LOCALE
+     (le cache est la source de vérité tant que le serveur ne l'a pas reçue).
+     · Aucune détection de conflit ici : le serveur ne connaît pas encore ces enregistrements, et
+       `upsertDevis` fusionne clé par clé — un renvoi ne peut donc rien écraser d'autre.
+     · Idempotent : renvoyer deux fois le même id ne crée pas de doublon (INSERT … ON CONFLICT).
+     · Un élément introuvable en local est retiré de la file (sinon elle ne se viderait jamais).
+     · En cas d'échec, on s'arrête et on retentera : pas de boucle, pas de martèlement du réseau.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  SS.pendingCount = function () { return outbox.compte(); };
+  SS.pendingList = function () { return outbox.lire(); };
+  let syncEnCours = false;
+  SS.syncOutbox = async function () {
+    if (syncEnCours) return { ok: true, envoyes: 0, restants: outbox.compte(), deja: true };
+    const file = outbox.lire();
+    if (!file.length) return { ok: true, envoyes: 0, restants: 0 };
+    syncEnCours = true;
+    let envoyes = 0, echec = null;
+    try {
+      for (const item of file) {
+        let corps = null, chemin = null;
+        if (item.type === 'devis') { corps = local.get(item.ref); chemin = '/devis'; }
+        else if (item.type === 'client') { corps = localClients.get(item.ref); chemin = '/clients'; }
+        else if (item.type === 'facture') { corps = localFactures.get(item.ref); chemin = '/factures'; }
+        else if (item.type === 'rdv') { corps = localRdv.get(item.ref); chemin = '/rdv'; }
+        if (!corps || !chemin) { outbox.retirer(item.type, item.ref); continue; }
+        try {
+          await req(chemin, { method: 'POST', body: JSON.stringify(corps) });
+          outbox.retirer(item.type, item.ref);
+          envoyes++;
+        } catch (e) {
+          // Toujours pas de réseau, ou session Access expirée : on laisse en file et on arrête là.
+          echec = e.message; break;
+        }
+      }
+    } finally { syncEnCours = false; }
+    const restants = outbox.compte();
+    if (envoyes) console.log('[SolariScreen] file d\'attente : ' + envoyes + ' envoi(s) rattrapé(s), ' + restants + ' restant(s)');
+    // Signal pour l'interface (bandeau du Mode Terrain, toasts…) sans coupler api.js à l'UI.
+    try { window.dispatchEvent(new CustomEvent('ss-outbox', { detail: { envoyes: envoyes, restants: restants, erreur: echec } })); } catch (e) {}
+    return { ok: !echec || envoyes > 0, envoyes: envoyes, restants: restants, error: echec };
+  };
+
   window.SS = SS;
   SS.isOnline().then(function (on) {
     console.log('[SolariScreen] API ' + (on ? '✅ en ligne' : '⚠️ hors-ligne (cache local)'));
+    if (on) SS.syncOutbox();   // au chargement : on rattrape ce qui n'était pas parti
+  });
+  // Le navigateur signale le retour du réseau → on retente immédiatement.
+  window.addEventListener('online', function () { SS.syncOutbox(); });
+  // iPhone : « online » ne se déclenche pas toujours au réveil de l'écran ou au retour dans
+  // l'application. Le retour au premier plan est le moment le plus fiable pour retenter.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && outbox.compte()) SS.syncOutbox();
   });
 })();

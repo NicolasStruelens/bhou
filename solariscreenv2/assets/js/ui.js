@@ -572,10 +572,112 @@
     return arr.map(c => commentHtml(c, opts)).join('');
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     ÉCHANGES E-MAIL ARCHIVÉS SUR LA FICHE CLIENT
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Nicolas colle un mail brut, l'outil en déduit tout seul l'expéditeur, l'objet, la date et le
+     SENS de l'échange. Le pari : si archiver demande de remplir cinq champs, personne ne le fait
+     au bout de trois semaines. Un collage, un bouton — c'est tout.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  // Nos propres adresses : elles servent à deviner si le mail a été REÇU du client ou ENVOYÉ.
+  function nosAdresses() {
+    const co = window.SS_COMPANY || {};
+    const l = [co.email, co.email2, 'info@solariscreen.be', 'service@solariscreen.be']
+      .filter(Boolean).join(' ').toLowerCase();
+    return l.split(/[\s,;]+/).filter(x => x.indexOf('@') > 0);
+  }
+  /**
+   * Analyse un mail collé : reconnaît les en-têtes Outlook et Gmail, en français comme en anglais.
+   * Tolérant par construction — tout ce qu'il ne comprend pas reste simplement dans le corps.
+   * @returns { de, objet, date_mail, sens, texte }
+   */
+  function parseMail(brut) {
+    const src = String(brut == null ? '' : brut).replace(/\r\n/g, '\n');
+    const lignes = src.split('\n');
+    const res = { de: '', objet: '', date_mail: '', sens: '', texte: src.trim() };
+    const MOTIFS = [
+      { champ: 'de', re: /^\s*(?:de|from|exp[ée]diteur)\s*:\s*(.+)$/i },
+      { champ: 'objet', re: /^\s*(?:objet|subject|sujet)\s*:\s*(.+)$/i },
+      { champ: 'date_mail', re: /^\s*(?:envoy[ée]|sent|date|re[çc]u\s+le)\s*:\s*(.+)$/i },
+    ];
+    // On ne cherche les en-têtes que dans les 25 premières lignes : au-delà, c'est du corps de
+    // message (une citation « De : … » plus bas ne doit pas écraser l'expéditeur réel).
+    let derniereEntete = -1;
+    const limite = Math.min(lignes.length, 25);
+    for (let i = 0; i < limite; i++) {
+      for (const m of MOTIFS) {
+        const r = lignes[i].match(m.re);
+        if (r && !res[m.champ]) { res[m.champ] = r[1].trim(); derniereEntete = i; }
+      }
+    }
+    // Format Gmail : « Le mar. 29 juil. 2026 à 14:32, Jean Dupont <jean@x.be> a écrit : »
+    if (!res.de) {
+      for (let i = 0; i < limite; i++) {
+        const g = lignes[i].match(/^\s*Le\s+(.{6,60}?),\s*(.+?)\s*a\s+écrit\s*:/i);
+        if (g) { res.date_mail = res.date_mail || g[1].trim(); res.de = g[2].trim(); derniereEntete = Math.max(derniereEntete, i); break; }
+      }
+    }
+    // À défaut d'en-tête « De : », on prend la première adresse e-mail rencontrée.
+    if (!res.de) {
+      const a = src.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      if (a) res.de = a[0];
+    }
+    // Sens : si l'expéditeur est l'une de nos adresses, c'est nous qui avons écrit.
+    const deBas = res.de.toLowerCase();
+    res.sens = nosAdresses().some(a => deBas.indexOf(a) >= 0) ? 'envoye' : 'recu';
+    // On retire le bloc d'en-têtes reconnu EN TÊTE du message : il est déjà affiché proprement
+    // au-dessus de la carte, le répéter dans le corps ne fait qu'ajouter du bruit.
+    if (derniereEntete >= 0) {
+      const reste = lignes.slice(derniereEntete + 1).join('\n').trim();
+      if (reste) res.texte = reste;
+    }
+    return res;
+  }
+  const MAIL_SENS = {
+    recu: { label: 'Reçu du client', court: 'Reçu', cls: 'recu', ic: 'download' },
+    envoye: { label: 'Envoyé au client', court: 'Envoyé', cls: 'envoye', ic: 'upload' },
+  };
+  /**
+   * Une carte d'échange. `opts.onDelete` / `opts.onOpenDevis` reçoivent l'id ; omis = pas de bouton.
+   * `opts.devisLabel(id)` permet d'afficher « devis #… » avec le libellé de l'appelant.
+   */
+  function mailHtml(m, opts) {
+    opts = opts || {};
+    const s = MAIL_SENS[m.sens === 'envoye' ? 'envoye' : 'recu'];
+    const id = escHtml(m.id || '');
+    const quand = m.date_mail ? escHtml(m.date_mail) : relTime(m.date);
+    const del = (opts.onDelete && id)
+      ? `<button type="button" class="ss-mail-del" title="Supprimer cet échange" aria-label="Supprimer cet échange"
+           onclick="event.stopPropagation();${opts.onDelete}('${id}')">${icon('trash', 13)}</button>` : '';
+    const devis = (m.devis_id && opts.onOpenDevis)
+      ? `<button type="button" class="ss-mail-devis" title="Ouvrir le devis rattaché"
+           onclick="event.stopPropagation();${opts.onOpenDevis}('${escHtml(m.devis_id)}')">${icon('filetext', 10)} devis #${escHtml(m.devis_id)}</button>`
+      : (m.devis_id ? `<span class="ss-mail-devis">${icon('filetext', 10)} devis #${escHtml(m.devis_id)}</span>` : '');
+    return `<article class="ss-mail ${s.cls}">
+      <header class="ss-mail-head">
+        <span class="ss-mail-sens">${icon(s.ic, 11)} ${s.court}</span>
+        <span class="ss-mail-objet" title="${escHtml(m.objet || '(sans objet)')}">${escHtml(m.objet || '(sans objet)')}</span>
+        <time class="ss-mail-date" title="Archivé le ${escHtml(fmtDateTime(m.date))}">${quand}</time>
+        ${del}
+      </header>
+      <div class="ss-mail-meta">${m.de ? escHtml(m.de) : 'expéditeur inconnu'} · archivé par ${escHtml(commentAuthor(m.par).label)}${devis ? ' · ' + devis : ''}</div>
+      <div class="ss-mail-corps">${escHtml(m.texte)}</div>
+      <button type="button" class="ss-mail-plus" onclick="this.previousElementSibling.classList.toggle('ouvert');this.textContent=this.previousElementSibling.classList.contains('ouvert')?'Replier':'Tout afficher';">Tout afficher</button>
+    </article>`;
+  }
+  /** Le fil complet — du plus RÉCENT au plus ancien : sur un échange, c'est le dernier qui compte. */
+  function mailsHtml(list, opts) {
+    opts = opts || {};
+    const arr = (list || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    if (!arr.length) return `<div class="ss-cmt-empty">${escHtml(opts.empty || 'Aucun échange archivé pour l’instant.')}</div>`;
+    return arr.map(m => mailHtml(m, opts)).join('');
+  }
+
   window.SSUI = {
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml,
+    parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
