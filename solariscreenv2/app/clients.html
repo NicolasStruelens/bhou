@@ -2,8 +2,17 @@
 <html lang="fr" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SolariScreen — Clients (CRM)</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,11 +24,16 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
     .crm-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
-    @media (max-width: 920px) { .crm-layout { grid-template-columns: 1fr; } .crm-detail.empty-detail { display: none; } }
+    /* ⚠️ `minmax(0, 1fr)` et surtout PAS `1fr` : la largeur minimale d'une colonne de grille vaut
+       « auto », donc elle se laisse étirer par son contenu. Sur un téléphone (412 px), la barre de
+       recherche + le tri poussaient la colonne à 476 px et toute la page débordait. */
+    @media (max-width: 920px) { .crm-layout { grid-template-columns: minmax(0, 1fr); } .crm-detail.empty-detail { display: none; } }
 
     .crm-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: visible; box-shadow: var(--shadow-sm); --tick-color: var(--accent); }
-    .crm-list .lh { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; gap: var(--sp-2); align-items: center; }
-    .crm-list .lh input { flex: 1; }
+    /* wrap : sur écran étroit, le tri passe sous la recherche au lieu de forcer la largeur. */
+    .crm-list .lh { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+    .crm-list .lh input { flex: 1 1 150px; min-width: 0; }
+    .crm-list .lh .select { flex: 0 1 auto; min-width: 0; }
     .crm-items { max-height: 70vh; overflow-y: auto; }
     .crm-item { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); cursor: pointer; transition: background var(--t-fast); }
     .crm-item:hover { background: var(--surface-2); }
@@ -62,6 +76,18 @@
     .hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: var(--sp-3); align-items: center; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: var(--sp-2); }
     .hist-row .hid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     .hist-row .hm { font-family: var(--font-mono); text-align: right; color: var(--accent); }
+    /* Sur téléphone, les 4 colonnes (statut · infos · montant · 3 boutons) ne tiennent pas :
+       montant et boutons passent sur une 2e ligne au lieu de sortir de l'écran. Visible depuis
+       que le raccourci « Fiche client » du tableau de bord ouvre directement une fiche. */
+    @media (max-width: 620px) {
+      .hist-row { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--sp-2); }
+      .hist-row .hm { grid-column: 1 / -1; text-align: left; }
+      .hist-row > .row { grid-column: 1 / -1; flex-wrap: wrap; }
+      .detail-head .actions { width: 100%; margin-left: 0; }
+      /* « Enregistrer la fiche » + « Supprimer la fiche » côte à côte dépassent de 18 px : ils
+         passent l'un sous l'autre plutôt que de sortir de l'écran. */
+      .detail-body > .row { flex-wrap: wrap; }
+    }
     .empty-detail-msg { text-align: center; color: var(--text-muted); padding: var(--sp-7); }
     .empty-detail-msg svg { display: block; margin: 0 auto var(--sp-3); color: var(--text-subtle); }
     .hist-meta { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
@@ -331,6 +357,33 @@
             ${c.overlay ? `<button class="btn btn-danger btn-sm" onclick="deleteFiche(${SSUI.jsAttr(key)})">${icon('trash', 14)} Supprimer la fiche</button>` : ''}
           </div>
 
+          <div class="subhead">Échanges e-mail (${(ct.mails || []).length})</div>
+          <div id="mailHost"></div>
+          <details class="ss-paste" id="mailPaste" style="margin-top:var(--sp-2);">
+            <summary style="cursor:pointer;font-family:var(--font-mono);font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.06em;color:var(--accent);">
+              ${icon('plus', 12)} Archiver un échange
+            </summary>
+            <div style="margin-top:var(--sp-3);">
+              <p class="ss-paste-hint">Colle le mail tel quel, en-têtes compris. L'expéditeur, l'objet, la date
+                et le sens de l'échange sont reconnus tout seuls — tu peux corriger avant d'archiver.</p>
+              <textarea class="textarea" id="mailTexte" placeholder="De : jean.dupont@exemple.be&#10;Envoyé : mardi 29 juillet 2026 14:32&#10;Objet : Re: Devis screens&#10;&#10;Bonjour Nicolas, …"
+                oninput="lireMail()"></textarea>
+              <div class="ss-paste-lu" id="mailLu"></div>
+              <div class="ss-paste-row">
+                <select class="select" id="mailSens" style="flex:0 0 auto;">
+                  <option value="recu">Reçu du client</option>
+                  <option value="envoye">Envoyé au client</option>
+                </select>
+                <input class="input" id="mailObjet" placeholder="Objet" style="flex:1 1 160px;">
+                <select class="select" id="mailDevis" style="flex:0 1 auto;" title="Rattacher cet échange à un devis précis (facultatif)">
+                  <option value="">Sans devis précis</option>
+                  ${c.devis.map(d => `<option value="${esc(d.id)}">devis #${esc(d.id)}</option>`).join('')}
+                </select>
+                <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="archiverMail(${SSUI.jsAttr(key)})">${icon('save', 14)} Archiver</button>
+              </div>
+            </div>
+          </details>
+
           <div class="subhead">Historique des devis (${c.devis.length})</div>
           ${c.devis.length ? c.devis.map(d => {
             const ch = d.chantier;
@@ -372,7 +425,77 @@
         </div>`;
       // Saisie assistée code postal ↔ ville (à refaire à chaque rendu : les champs sont recréés).
       window.SSPostal && SSPostal.bindPair(el('f_cp'), el('f_ville'));
+      renderMails(ct.mails || []);
       loadHistExtras(c);
+    };
+
+    // ══════════ ÉCHANGES E-MAIL ARCHIVÉS ══════════════════════════════════════════════════════
+    // Les mails vivent sur la FICHE CLIENT (un seul endroit), et s'affichent aussi sur chacun de
+    // ses devis : l'historique suit le client, pas le dossier.
+    function renderMails(mails) {
+      const host = el('mailHost');
+      if (!host) return;
+      host.innerHTML = window.SSUI.mailsHtml(mails, {
+        onDelete: 'supprimerMail', onOpenDevis: 'ouvrirDevis',
+        empty: 'Aucun échange archivé. Colle ci-dessous le premier mail de ce client — Yannick le verra ici et sur ses devis.',
+      });
+    }
+    window.ouvrirDevis = (id) => { location.href = 'vue.html?id=' + encodeURIComponent(id); };
+    /** Aperçu en direct de ce que l'outil a compris du collage — et pré-remplissage des champs. */
+    window.lireMail = () => {
+      const brut = el('mailTexte').value;
+      const lu = window.SSUI.parseMail(brut);
+      const zone = el('mailLu');
+      if (!brut.trim()) { zone.classList.remove('on'); zone.innerHTML = ''; return; }
+      zone.classList.add('on');
+      zone.innerHTML = `${icon('check', 11)} lu : <b>${esc(lu.sens === 'envoye' ? 'envoyé au client' : 'reçu du client')}</b>`
+        + (lu.de ? ` · de <b>${esc(lu.de)}</b>` : ' · expéditeur non reconnu')
+        + (lu.date_mail ? ` · <b>${esc(lu.date_mail)}</b>` : '')
+        + (lu.objet ? ` · objet <b>${esc(lu.objet)}</b>` : ' · sans objet détecté');
+      // On ne remplit que ce que Nicolas n'a pas déjà corrigé à la main.
+      const so = el('mailObjet'), ss = el('mailSens');
+      if (!so.dataset.touche) so.value = lu.objet || '';
+      if (!ss.dataset.touche) ss.value = lu.sens;
+      so.oninput = () => { so.dataset.touche = '1'; };
+      ss.onchange = () => { ss.dataset.touche = '1'; };
+    };
+    window.archiverMail = async (key) => {
+      const brut = el('mailTexte').value.trim();
+      if (!brut) { toast('Colle d\'abord le mail.', 'warn'); return; }
+      const lu = window.SSUI.parseMail(brut);
+      const identite = await window.SSNav.getIdentity();
+      const res = await SS.addClientMail(key, {
+        sens: el('mailSens').value, objet: el('mailObjet').value.trim() || lu.objet,
+        de: lu.de, date_mail: lu.date_mail, texte: lu.texte,
+        devis_id: el('mailDevis').value, par: identite.key || 'nicolas',
+      });
+      if (res.ok === false) { toast(res.error || 'Échange NON archivé — réessaie.', 'error', 6000); return; }
+      // On reflète localement sans relire la fiche (écriture ciblée côté serveur, déjà faite).
+      const c = DIRECTORY.find(x => x.key === key);
+      if (c) { c.contact.mails = (c.contact.mails || []).concat([res.mail]); }
+      el('mailTexte').value = ''; el('mailObjet').value = ''; el('mailObjet').dataset.touche = '';
+      el('mailSens').dataset.touche = ''; el('mailDevis').value = '';
+      el('mailLu').classList.remove('on');
+      el('mailPaste').open = false;
+      renderMails((c && c.contact.mails) || [res.mail]);
+      const n = ((c && c.contact.mails) || []).length;
+      const sh = [...document.querySelectorAll('.subhead')].find(s => /Échanges e-mail/.test(s.textContent));
+      if (sh) sh.textContent = `Échanges e-mail (${n})`;
+      SS.logActivity && SS.logActivity({ action: 'client.mail', entity_type: 'client', entity_id: key, label: `Échange e-mail archivé — ${c ? (c.contact.prenom + ' ' + c.contact.nom).trim() : key}` });
+      toast(res.offline ? 'Échange archivé (hors-ligne)' : 'Échange archivé ✓', res.offline ? 'warn' : 'ok');
+    };
+    window.supprimerMail = async (id) => {
+      if (!selectedKey) return;
+      const c = DIRECTORY.find(x => x.key === selectedKey);
+      const m = c && (c.contact.mails || []).find(x => String(x.id) === String(id));
+      if (!confirm('Supprimer cet échange archivé ?' + (m ? '\n\n« ' + String(m.objet || m.texte).slice(0, 80) + ' »' : '') + '\n\nCette action est définitive.')) return;
+      const res = await SS.deleteClientMail(selectedKey, id);
+      if (res.ok === false) { toast(res.error || 'Échange NON supprimé — réessaie.', 'error', 6000); return; }
+      if (c) c.contact.mails = (c.contact.mails || []).filter(x => String(x.id) !== String(id));
+      renderMails((c && c.contact.mails) || []);
+      const sh = [...document.querySelectorAll('.subhead')].find(s => /Échanges e-mail/.test(s.textContent));
+      if (sh) sh.textContent = `Échanges e-mail (${((c && c.contact.mails) || []).length})`;
+      toast('Échange supprimé', 'warn');
     };
 
     function renderHistFactures(c) {

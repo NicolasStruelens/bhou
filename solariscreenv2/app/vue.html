@@ -2,8 +2,17 @@
 <html lang="fr" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SolariScreen — Fiche devis</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +31,12 @@
     .vue-layout > .span-all { grid-column: 1 / -1; }
     .vue-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
     @media (max-width: 1040px) {
-      .vue-layout { grid-template-columns: 1fr; }
+      /* ⚠️ `minmax(0, 1fr)` et surtout PAS `1fr` : la largeur minimale automatique d'une colonne
+         de grille vaut « auto », donc elle se laisse étirer par son contenu le plus large. Ici la
+         réglette d'avancement fait 620 px de large : sur un téléphone (412 px), la colonne passait
+         à 654 px et TOUTE la page débordait horizontalement. Avec minmax(0, …) la colonne est
+         bornée à la largeur de l'écran et la réglette défile toute seule dans son cadre. */
+      .vue-layout { grid-template-columns: minmax(0, 1fr); }
       .vue-aside { position: static; }
       /* Sur mobile, le total et la prochaine action remontent JUSTE sous la barre d'actions —
          sinon ils se retrouvaient enterrés sous toutes les cartes de suivi. */
@@ -630,6 +644,22 @@
         </div>
       </div>
 
+      <!-- Échanges e-mail : ils vivent sur la FICHE CLIENT, donc ils suivent le client d'un devis
+           à l'autre. En lecture ici — l'archivage se fait au même endroit que le reste du CRM. -->
+      <div class="commande-card ticked hidden" id="mailsCard" style="--tick-color:var(--accent);">
+        <div class="row cc-head-row collapsible" onclick="toggleCard('mailsCard')" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
+          <span class="cc-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> Échanges e-mail</span>
+          <span class="cc-head-right">
+            <span id="mailsSummary" class="section-sub"></span>
+            <svg class="cc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+        <div class="cc-body">
+          <div id="mailsHost"></div>
+          <button type="button" class="btn btn-ghost btn-sm mt-2" onclick="ouvrirFicheClientMails()">Archiver un nouvel échange</button>
+        </div>
+      </div>
+
       <!-- Interne volontairement en DERNIER : les marges ne sont pas l'info du quotidien. -->
       <div class="interne-card ticked" id="interneCard">
         <div class="row cc-head-row collapsible" onclick="toggleCard('interneCard')" style="gap:var(--sp-2); margin-bottom:var(--sp-2);">
@@ -1041,7 +1071,34 @@
       renderReviewCard();
       renderSav();
       renderDocs();
+      renderMailsCard();
     }
+
+    // ── Échanges e-mail du client (archivés depuis le CRM) ────────────────────────────────────
+    // Ils appartiennent au CLIENT : on les affiche donc sur tous ses devis. Ceux rattachés à CE
+    // devis remontent en tête — c'est le contexte immédiat du dossier ouvert.
+    function renderMailsCard() {
+      const card = el('mailsCard'), host = el('mailsHost');
+      if (!card || !host) return;
+      const tous = (CLIENT_FICHE && CLIENT_FICHE.mails) || [];
+      // Carte masquée tant qu'il n'y a pas d'échange : une carte vide n'apprend rien.
+      card.classList.toggle('hidden', tous.length === 0);
+      if (!tous.length) return;
+      const ici = tous.filter(m => String(m.devis_id || '') === String(DEVIS.id));
+      const autres = tous.filter(m => String(m.devis_id || '') !== String(DEVIS.id));
+      setText('mailsSummary', tous.length + ' échange' + (tous.length > 1 ? 's' : '')
+        + (ici.length ? ` · ${ici.length} sur ce devis` : ''));
+      host.innerHTML = (ici.length ? window.SSUI.mailsHtml(ici, {}) : '')
+        + (autres.length
+          ? (ici.length ? '<div class="section-sub" style="margin:var(--sp-3) 0 var(--sp-2);">Autres échanges avec ce client</div>' : '')
+            + window.SSUI.mailsHtml(autres, {})
+          : '');
+    }
+    window.ouvrirFicheClientMails = () => {
+      const cl = DEVIS.client || {};
+      const key = clientKeyOf(cl.prenom, cl.nom);
+      location.href = 'clients.html?key=' + encodeURIComponent(key) + '#mails';
+    };
 
     // ── Suivi des paiements (agrégé depuis les factures liées à ce devis) ──
     function renderPaiements() {
@@ -2912,7 +2969,7 @@
         '#photos': '#ouvHost', '#ouvertures': '#ouvHost', '#notes': '.notes-card',
         '#paiements': '#paiementsCard', '#lien': '#reviewCard', '#chantier': '#chantierCard',
         '#checklist': '#checklistCard', '#docs': '#docsCard', '#commande': '#commandeCard',
-        '#journal': '#journalCard', '#interne': '#interneCard',
+        '#journal': '#journalCard', '#interne': '#interneCard', '#mails': '#mailsCard',
       };
       const cible = ANCRES[location.hash];
       if (cible) {

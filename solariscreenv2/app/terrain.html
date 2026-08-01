@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SolariScreen — Mode Terrain</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
   <!-- Ajout à l'écran d'accueil iPhone : ouverture en plein écran, sans barre Safari -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="SS Terrain">
-  <meta name="theme-color" content="#070b18">
-  <link rel="apple-touch-icon" href="../assets/img/logo-solariscreen.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
@@ -87,6 +89,17 @@
     .cs8-block { border: 1px dashed var(--accent-3); border-radius: var(--r-md); padding: var(--sp-4); background: color-mix(in srgb, var(--accent-3) 6%, transparent); }
     .cs8-head { font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-3); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2); }
     .field-readonly { opacity: 0.7; }
+
+    /* ── Bandeaux d'état du Mode Terrain (saisie retrouvée · envois en attente) ──
+       Placés tout en haut : sur le terrain, ces deux informations priment sur le reste. */
+    #terrEtat { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .terr-banner { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+      padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); line-height: 1.45;
+      border: 1px solid var(--bc); background: color-mix(in srgb, var(--bc) 12%, transparent); }
+    .terr-banner span { flex: 1; min-width: 180px; }
+    .terr-banner.brouillon { --bc: var(--accent); }
+    .terr-banner.attente   { --bc: var(--warn); }
+    .terr-banner svg { flex: none; color: var(--bc); }
   </style>
 </head>
 <body>
@@ -206,7 +219,7 @@
 
     // ── Avertissement si on quitte la page avec des modifications non enregistrées ──
     let dirty = false;
-    window.markDirty = () => { dirty = true; };
+    window.markDirty = () => { dirty = true; brouillonPlusTard(); };
     document.addEventListener('input', window.markDirty);
     document.addEventListener('change', window.markDirty);
     window.addEventListener('beforeunload', (e) => {
@@ -214,6 +227,58 @@
       e.preventDefault();
       e.returnValue = '';
     });
+
+    /* ═══════════════════════════════════════════════════════════════════════════════════════
+       BROUILLON AUTOMATIQUE
+       ─────────────────────────────────────────────────────────────────────────────────────
+       Chez un client, la saisie ne vivait QUE dans la mémoire de la page. Or sur iPhone, aller
+       prendre une photo puis revenir suffit à faire recharger l'onglet : toute la visite était
+       perdue, et l'avertissement « quitter la page » n'y peut rien — le système ne le demande
+       pas quand c'est LUI qui ferme. On écrit donc en continu dans le téléphone.
+       ⚠️ `pagehide` et `visibilitychange` sont les SEULS moments fiables sur iOS : `beforeunload`
+       n'est pas déclenché quand Safari récupère de la mémoire.
+       ═══════════════════════════════════════════════════════════════════════════════════════ */
+    const LS_BROUILLON = 'ss_terrain_brouillon';
+    let brouillonTimer = null, brouillonAlerteQuota = false;
+    function brouillonPlusTard() {
+      clearTimeout(brouillonTimer);
+      brouillonTimer = setTimeout(ecrireBrouillon, 700);   // on regroupe les frappes
+    }
+    function instantane() {
+      // On lit les cartes affichées pour ne pas perdre ce qui vient d'être tapé et pas encore collecté.
+      try { const c = document.querySelector('.item-card'); if (c && state.items[currentItemIdx]) collectItem(state.items[currentItemIdx], c); } catch (e) {}
+      return {
+        v: 1, quand: new Date().toISOString(), etape: step, itemIdx: currentItemIdx,
+        state: { id: state.id, version: state.version, date_creation: state.date_creation, statut: state.statut,
+                 items: state.items, isExisting: !!state.isExisting, loadedDateModification: state.loadedDateModification || null },
+        client: collectClientFields(),
+        params: {
+          tva: document.querySelector('input[name="tva_pct_t"]:checked')?.value || '6',
+          acompte: getVal('terrAcompte'), surplus: getVal('terrSurplus'),
+        },
+      };
+    }
+    function ecrireBrouillon() {
+      if (!dirty) return;
+      const b = instantane();
+      try {
+        localStorage.setItem(LS_BROUILLON, JSON.stringify(b));
+      } catch (e) {
+        // Quota dépassé : ce sont les photos en base64 (une photo non encore envoyée pèse lourd).
+        // On sauve alors la saisie SANS les images — mieux vaut perdre des vignettes que le devis.
+        try {
+          const allege = JSON.parse(JSON.stringify(b));
+          allege.state.items.forEach(i => { i.photos = (i.photos || []).filter(p => String(p).slice(0, 5) !== 'data:'); });
+          allege.photosAllegees = true;
+          localStorage.setItem(LS_BROUILLON, JSON.stringify(allege));
+          if (!brouillonAlerteQuota) { brouillonAlerteQuota = true; toast('Mémoire du téléphone pleine : le brouillon est gardé sans les photos non encore envoyées.', 'warn', 7000); }
+        } catch (e2) { console.warn('[terrain] brouillon impossible:', e2.message); }
+      }
+    }
+    function effacerBrouillon() { try { localStorage.removeItem(LS_BROUILLON); } catch (e) {} }
+    // Moments critiques : l'app passe en arrière-plan ou la page se ferme.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) ecrireBrouillon(); });
+    window.addEventListener('pagehide', ecrireBrouillon);
 
     const {
       ITEM_TYPES, EMPLACEMENTS_SUGGESTIONS, ETAGES_SUGGESTIONS, MOTEURS, COULEURS_RAL, TOILES_CATALOGUE,
@@ -628,6 +693,8 @@
         });
 
         toast(res.offline ? `Enregistré hors-ligne (cache local) — ${res.error || 'raison inconnue'}` : 'Devis enregistré ✓', res.offline ? 'warn' : 'ok', res.offline ? 8000 : 3200);
+        effacerBrouillon();       // la saisie est passée dans le cache devis : le brouillon devient inutile
+        majFileAttente();         // ...et on affiche aussitôt s'il reste quelque chose à envoyer
         state.savedId = state.id;
         state.isExisting = true;
         state.loadedDateModification = devis.date_modification;
@@ -639,6 +706,7 @@
     };
 
     window.resetWizard = function () {
+      effacerBrouillon();
       state.id = generateDevisId(); state.date_creation = new Date().toISOString().slice(0, 10);
       state.statut = 'brouillon'; state.items = []; state.savedId = null;
       state.isExisting = false; state.loadedDateModification = null;
@@ -671,6 +739,77 @@
 
     function fillDatalist(id, values) { el(id).innerHTML = values.map(v => `<option value="${v.replace(/"/g, '&quot;')}">`).join(''); }
 
+    // ══════════ BANDEAUX D'ÉTAT (brouillon retrouvé · envois en attente) ══════════════════════
+    // Deux informations qu'on ne peut PAS laisser deviner sur le terrain : « ta saisie est
+    // récupérable » et « ce devis n'est pas encore parti au serveur ».
+    function zoneEtat() {
+      let z = document.getElementById('terrEtat');
+      if (!z) {
+        z = document.createElement('div');
+        z.id = 'terrEtat';
+        const m = document.querySelector('main.container') || document.body;
+        m.insertBefore(z, m.firstChild);
+      }
+      return z;
+    }
+    function majFileAttente() {
+      const n = (window.SS && SS.pendingCount) ? SS.pendingCount() : 0;
+      let b = document.getElementById('terrFile');
+      if (!n) { if (b) b.remove(); return; }
+      if (!b) { b = document.createElement('div'); b.id = 'terrFile'; b.className = 'terr-banner attente'; zoneEtat().appendChild(b); }
+      b.innerHTML = `${icon('clock', 14)} <span><strong>${n} enregistrement${n > 1 ? 's' : ''} pas encore envoyé${n > 1 ? 's' : ''}</strong> — ils partiront automatiquement dès le retour du réseau. Ne vide pas les données de Safari d'ici là.</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="SS.syncOutbox()">Réessayer</button>`;
+    }
+    window.addEventListener('ss-outbox', (e) => {
+      majFileAttente();
+      if (e.detail && e.detail.envoyes) toast(`${e.detail.envoyes} enregistrement(s) envoyé(s) au serveur ✓`, 'ok', 5000);
+    });
+
+    function proposerBrouillon() {
+      let b = null;
+      try { b = JSON.parse(localStorage.getItem(LS_BROUILLON) || 'null'); } catch (e) { b = null; }
+      if (!b || !b.state) return;
+      // On ne propose un brouillon que s'il correspond au contexte : même devis rouvert, ou
+      // nouveau devis (on adopte alors l'identifiant du brouillon pour ne pas en créer un second).
+      const idUrl = qp('id');
+      if (idUrl ? b.state.id !== idUrl : !!b.state.isExisting) return;
+      const nb = (b.state.items || []).length;
+      const qui = [b.client && b.client.prenom, b.client && b.client.nom].filter(Boolean).join(' ').trim();
+      const el2 = document.createElement('div');
+      el2.id = 'terrBrouillon';
+      el2.className = 'terr-banner brouillon';
+      el2.innerHTML = `${icon('save', 14)} <span><strong>Saisie retrouvée</strong>${qui ? ' — ' + esc(qui) : ''} · ${nb} ouverture${nb > 1 ? 's' : ''} · ${window.SSUI.relTime(b.quand)}${b.photosAllegees ? ' (photos non conservées)' : ''}</span>
+        <button type="button" class="btn btn-primary btn-sm" onclick="reprendreBrouillon()">Reprendre</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="ignorerBrouillon()">Ignorer</button>`;
+      zoneEtat().appendChild(el2);
+    }
+    window.ignorerBrouillon = () => {
+      if (!confirm('Ignorer cette saisie et repartir d\'une page vierge ?\n\nElle sera définitivement effacée.')) return;
+      effacerBrouillon();
+      const b = document.getElementById('terrBrouillon'); if (b) b.remove();
+    };
+    window.reprendreBrouillon = () => {
+      let b = null;
+      try { b = JSON.parse(localStorage.getItem(LS_BROUILLON) || 'null'); } catch (e) {}
+      if (!b) return;
+      state.id = b.state.id; state.version = b.state.version; state.date_creation = b.state.date_creation;
+      state.statut = b.state.statut; state.items = b.state.items || [];
+      state.isExisting = !!b.state.isExisting; state.loadedDateModification = b.state.loadedDateModification;
+      const c = b.client || {}, a = c.adresse || {};
+      setVal('tPrenom', c.prenom); setVal('tNom', c.nom); setVal('tTel', c.telephone); setVal('tEmail', c.email);
+      setVal('tRue', a.rue); setVal('tNumero', a.numero); setVal('tCp', a.code_postal); setVal('tVille', a.ville);
+      const p = b.params || {};
+      const r = document.querySelector(`input[name="tva_pct_t"][value="${p.tva || 6}"]`); if (r) r.checked = true;
+      if (p.acompte !== undefined) setVal('terrAcompte', p.acompte);
+      if (p.surplus !== undefined) setVal('terrSurplus', p.surplus);
+      currentItemIdx = Math.min(b.itemIdx || 0, Math.max(0, state.items.length - 1));
+      dirty = true;
+      const el2 = document.getElementById('terrBrouillon'); if (el2) el2.remove();
+      if (state.items.length) renderItemsStep();
+      goStep(b.etape && STEPS.includes(b.etape) ? b.etape : 'client');
+      toast('Saisie restaurée — vérifie les mesures avant d\'enregistrer.', 'ok', 5000);
+    };
+
     (async () => {
       fillDatalist('dl-couleurs', COULEURS_RAL);
       fillDatalist('dl-toiles', TOILES_CATALOGUE);
@@ -682,6 +821,8 @@
       DIRECTORY = await buildClientDirectory();
       if (qp('id')) await loadExisting(qp('id'));
       goStep('client');
+      proposerBrouillon();
+      majFileAttente();
     })();
   </script>
 </body>
