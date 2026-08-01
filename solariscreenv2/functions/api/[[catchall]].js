@@ -64,7 +64,9 @@ async function resolveGreeting(env, d) {
       if (row) { const f = safeParse(row.data) || {}; if (f.civilite) civilite = f.civilite; if (f.ton) ton = f.ton; }
     } catch (e) { /* jamais bloquant : on retombe sur la copie du devis / le prénom seul */ }
   }
-  return { prenom: cl.prenom || '', nom: cl.nom || '', civilite: civilite || '', ton: ton || 'amical' };
+  // PRO par défaut — c'est CETTE valeur que voit le client sur son espace en ligne quand aucune
+  // fiche n'existe encore. Elle était à « amical », d'où les « Bonjour Prénom » non voulus.
+  return { prenom: cl.prenom || '', nom: cl.nom || '', civilite: civilite || '', ton: ton || 'pro' };
 }
 
 export async function onRequest(context) {
