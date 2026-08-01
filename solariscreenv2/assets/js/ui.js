@@ -255,6 +255,11 @@
       date_envoi: d.date_envoi || '',
       relances: d.relances || [],
       item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
+      // Projection allégée des ouvertures fournie par /api/devis (sans les photos) : elle sert
+      // uniquement à repérer les informations manquantes dans une LISTE. Repli sur `items`
+      // quand l'objet est complet (cache hors ligne, devis fraîchement enregistré) — sans ce
+      // repli, cette liste blanche perdrait les ouvertures et le signalement resterait muet.
+      items_min: d.items_min || d.items || [],
     };
   }
 
@@ -478,6 +483,14 @@
     eye:        '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
     help:       '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
     reply:      '<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>',
+    // ── Familles d'accessoires (catalogue Suppléments) ──
+    remote:     '<rect x="7" y="2" width="10" height="20" rx="2"/><circle cx="12" cy="7" r="1.6"/><line x1="9.5" y1="12" x2="14.5" y2="12"/><line x1="9.5" y1="15.5" x2="14.5" y2="15.5"/><line x1="9.5" y1="19" x2="14.5" y2="19"/>',
+    switchbtn:  '<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/>',
+    sensor:     '<circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4"/><path d="M16.2 16.2a6 6 0 0 0 0-8.4"/><path d="M4.9 4.9a10 10 0 0 0 0 14.2"/><path d="M19.1 19.1a10 10 0 0 0 0-14.2"/>',
+    cable:      '<path d="M4 4v6a4 4 0 0 0 4 4h8a4 4 0 0 1 4 4v2"/><line x1="2" y1="4" x2="6" y2="4"/><line x1="18" y1="20" x2="22" y2="20"/>',
+    box:        '<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5"/><line x1="12" y1="12" x2="12" y2="21"/>',
+    motor:      '<rect x="3" y="8" width="13" height="8" rx="1.5"/><path d="M16 10.5h3a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-3z"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="9.5" y1="8" x2="9.5" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/>',
+    anchor:     '<path d="M5 5h5v5"/><path d="M5 5v14h14"/><path d="M19 19V9h-5"/>',
   };
   function icon(name, size) {
     const s = size || 16;
@@ -673,11 +686,388 @@
     return arr.map(m => mailHtml(m, opts)).join('');
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     NUANCIER RAL — champ couleur PARTAGÉ (simulateur PC + Mode Terrain)
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Taper « 7016 » sans voir la teinte oblige à rouvrir le nuancier papier à chaque devis.
+     Le champ affiche donc une pastille de la couleur + son nom en clair, et un bouton ouvre
+     le nuancier Harol complet (111 coloris du BR_Coloris 2026) avec recherche.
+     La saisie libre reste entière : un RAL hors nuancier Harol s'écrit à la main et reçoit
+     quand même sa pastille — la table couvre les 213 RAL Classic.
+     Le rendu initial peint la pastille directement dans le HTML : aucun écran n'a besoin de
+     « réveiller » le composant après un re-rendu, seules les MODIFICATIONS passent par les
+     écouteurs délégués ci-dessous.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function ralApercu(v) {
+    const P = window.SSProducts;
+    if (!P || !P.ralCode) return { hex: null, nom: '', code: null, harol: false };
+    const code = P.ralCode(v);
+    return { hex: code ? P.ralHex(v) : null, nom: code ? P.ralNom(v) : '', code: code, harol: !!(code && P.ralHarol(v)) };
+  }
+  /** Pastille + légende — recalculées à l'identique au rendu et à la frappe. */
+  function ralSwAttrs(a) {
+    return a.hex ? ' style="--ral:' + a.hex + '"' : ' data-vide="1"';
+  }
+  function ralNoteTexte(a, saisie) {
+    if (!String(saisie || '').trim()) return 'Aucune couleur choisie';
+    if (!a.code) return 'Référence libre — pas de RAL reconnu';
+    return a.nom + (a.harol ? '' : ' — hors nuancier Harol');
+  }
+  /**
+   * @param o {f, label, value, placeholder, span} — `f` alimente data-f, donc la collecte
+   *          des écrans reste strictement inchangée (le champ RESTE un <input> simple).
+   */
+  function ralFieldHtml(o) {
+    const v = o.value || '';
+    const a = ralApercu(v);
+    return '<div class="field ral-field"' + (o.span ? ' style="grid-column:span ' + o.span + ';"' : '') + '>' +
+      '<label class="label">' + escHtml(o.label || 'Couleur (RAL)') + '</label>' +
+      '<div class="ral-row">' +
+        '<span class="ral-sw" data-ral-sw' + ralSwAttrs(a) + ' aria-hidden="true"></span>' +
+        '<input class="input ral-input" data-ral data-f="' + escHtml(o.f) + '" list="dl-couleurs" value="' + escHtml(v) + '"' +
+          ' placeholder="' + escHtml(o.placeholder || 'Ex: 7016 — Gris anthracite') + '">' +
+        '<button type="button" class="ral-open" data-ral-open title="Ouvrir le nuancier Harol" aria-label="Ouvrir le nuancier Harol">' + icon('grid', 15) + '</button>' +
+      '</div>' +
+      '<div class="ral-note" data-ral-note>' + escHtml(ralNoteTexte(a, v)) + '</div>' +
+    '</div>';
+  }
+  function ralMajChamp(input) {
+    const champ = input.closest('.ral-field'); if (!champ) return;
+    const a = ralApercu(input.value);
+    const sw = champ.querySelector('[data-ral-sw]');
+    const note = champ.querySelector('[data-ral-note]');
+    if (sw) {
+      if (a.hex) { sw.style.setProperty('--ral', a.hex); sw.removeAttribute('data-vide'); }
+      else { sw.style.removeProperty('--ral'); sw.setAttribute('data-vide', '1'); }
+    }
+    if (note) note.textContent = ralNoteTexte(a, input.value);
+  }
+  document.addEventListener('input', e => {
+    if (e.target && e.target.matches && e.target.matches('[data-ral]')) ralMajChamp(e.target);
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-ral-open]');
+    if (!b) return;
+    const input = b.closest('.ral-field').querySelector('[data-ral]');
+    if (input) ouvrirNuancier(input);
+  });
+
+  let _ralModal = null, _ralCible = null;
+  function ralCellules(q) {
+    const P = window.SSProducts; if (!P) return '';
+    const req = String(q || '').trim().toLowerCase();
+    const garde = c => {
+      if (!req) return true;
+      return c.indexOf(req) === 0 || P.RAL_TABLE[c][0].toLowerCase().indexOf(req) >= 0;
+    };
+    const cur = _ralCible ? P.ralCode(_ralCible.value) : null;
+    const cell = c => {
+      const e = P.RAL_TABLE[c];
+      return '<button type="button" class="ral-cell' + (c === cur ? ' on' : '') + '" data-ral-pick="' + c + '">' +
+        '<span class="sw"' + (e[1] ? ' style="--ral:' + e[1] + '"' : ' data-vide="1"') + '></span>' +
+        '<span class="tx"><span class="cd">' + c + '</span><span class="nm">' + escHtml(e[0]) + '</span></span></button>';
+    };
+    const harol = P.ralListeHarol().filter(garde);
+    const autres = Object.keys(P.RAL_TABLE).filter(c => !P.RAL_TABLE[c][2] && garde(c)).sort();
+    let h = '';
+    if (harol.length) h += '<div class="ral-sep">Nuancier Harol — ' + harol.length + ' coloris</div><div class="ral-grid">' + harol.map(cell).join('') + '</div>';
+    if (autres.length) h += '<div class="ral-sep">Autres RAL Classic — à confirmer avec Harol (supplément possible)</div><div class="ral-grid">' + autres.map(cell).join('') + '</div>';
+    if (!h) h += '<div class="ral-vide">Aucun coloris ne correspond. Tu peux quand même écrire la référence à la main dans le champ.</div>';
+    return h;
+  }
+  function ouvrirNuancier(input) {
+    _ralCible = input;
+    if (!_ralModal) {
+      _ralModal = document.createElement('div');
+      _ralModal.className = 'ral-modal';
+      _ralModal.innerHTML =
+        '<div class="ral-panel" role="dialog" aria-modal="true" aria-label="Nuancier RAL">' +
+          '<div class="ral-head"><span class="ral-title">Nuancier</span>' +
+            '<button type="button" class="ral-x" data-ral-close aria-label="Fermer">' + icon('x', 16) + '</button></div>' +
+          '<div class="ral-search"><input class="input" id="ralQ" placeholder="Chercher un code (7016) ou un nom (anthracite)" autocomplete="off"></div>' +
+          '<div class="ral-body"></div>' +
+          '<div class="ral-foot">Les teintes affichées sont indicatives (rendu écran) — le nuancier physique Harol fait foi.</div>' +
+        '</div>';
+      document.body.appendChild(_ralModal);
+      _ralModal.addEventListener('click', ev => {
+        if (ev.target === _ralModal || ev.target.closest('[data-ral-close]')) return fermerNuancier();
+        const p = ev.target.closest('[data-ral-pick]');
+        if (p && _ralCible) {
+          _ralCible.value = window.SSProducts.ralLabel(p.getAttribute('data-ral-pick'));
+          ralMajChamp(_ralCible);
+          _ralCible.dispatchEvent(new Event('input', { bubbles: true }));
+          _ralCible.dispatchEvent(new Event('change', { bubbles: true }));
+          fermerNuancier();
+        }
+      });
+      _ralModal.querySelector('#ralQ').addEventListener('input', ev => {
+        _ralModal.querySelector('.ral-body').innerHTML = ralCellules(ev.target.value);
+      });
+      document.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape' && _ralModal && _ralModal.classList.contains('open')) fermerNuancier();
+      });
+    }
+    _ralModal.querySelector('#ralQ').value = '';
+    _ralModal.querySelector('.ral-body').innerHTML = ralCellules('');
+    _ralModal.classList.add('open');
+    // Sur mobile on NE met PAS le focus dans la recherche : le clavier mangerait la moitié
+    // du nuancier alors que l'usage courant est de taper directement sur une pastille.
+    if (window.innerWidth > 720) setTimeout(() => _ralModal.querySelector('#ralQ').focus(), 30);
+  }
+  function fermerNuancier() { if (_ralModal) _ralModal.classList.remove('open'); _ralCible = null; }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     CATALOGUE D'ACCESSOIRES — sélecteur PARTAGÉ
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     149 références : une liste déroulante devenait illisible. Recherche + filtre par famille +
+     vignette produit. La vignette est cherchée dans assets/img/acc/ ; tant qu'un visuel manque,
+     l'icône de la famille tient la place — la mise en page ne bouge pas quand on en ajoute un.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const ACC_ICONS = {
+    'Télécommande': 'remote', 'Interrupteur': 'switchbtn', 'Capteur': 'sensor', 'Câble': 'cable',
+    'Récepteur / box': 'box', 'Moteur': 'motor', 'Horloge': 'clock', 'Solaire': 'sun',
+    'Fixation': 'anchor', 'Accessoire de finition': 'grid', 'Divers': 'tag',
+  };
+  /** Visuel produit : nom de fichier déduit de la marque/gamme citée dans le libellé. */
+  // Une entrée par visuel RÉELLEMENT présent dans assets/img/acc/ : une entrée sans fichier
+  // déclencherait une requête 404 par ligne affichée. Ajouter un visuel = déposer le PNG
+  // (120 px, fond blanc) et ajouter sa ligne ici.
+  const ACC_VISUELS = [
+    [/\bsituo\b/i, 'situo'], [/\bsmoove\b/i, 'smoove'], [/\bnina\b/i, 'nina'], [/\bamy\b/i, 'amy'],
+    [/\beolis\b/i, 'eolis'], [/\bsoliris\b/i, 'soliris'], [/\bysia\b/i, 'ysia'], [/\bsunis\b/i, 'sunis'],
+    [/\btahoma\b/i, 'tahoma'], [/connexoon|connectivity kit/i, 'connexoon'],
+    [/\bchronis\b/i, 'chronis'], [/\bthermis\b/i, 'thermis'],
+    [/\btelis\b/i, 'telis'], [/\bkeytis\b/i, 'keytis'],
+    [/sunea|maestria|altea/i, 'sunea'],
+  ];
+  function accVisuel(label) {
+    const t = String(label || '');
+    for (const [re, f] of ACC_VISUELS) if (re.test(t)) return '../assets/img/acc/' + f + '.png';
+    return null;
+  }
+  function accVignetteHtml(o) {
+    const img = accVisuel(o.label);
+    const ic = icon(ACC_ICONS[o.cat] || 'tag', 20);
+    // onerror : si le visuel n'a pas encore été ajouté, on retombe sur l'icône de famille
+    // au lieu d'afficher une image cassée.
+    return '<span class="acc-vig">' + (img
+      ? '<img src="' + img + '" alt="" loading="lazy" onerror="this.replaceWith(this.nextElementSibling||document.createComment(1))"><span class="acc-ic">' + ic + '</span>'
+      : '<span class="acc-ic">' + ic + '</span>') + '</span>';
+  }
+
+  let _accModal = null, _accCb = null, _accCat = '';
+  function accListeHtml(q) {
+    const P = window.SSProducts; if (!P || !P.chercheAccessoires) return '';
+    const res = P.chercheAccessoires(q, _accCat);
+    if (!res.length) return '<div class="acc-vide">Aucun accessoire ne correspond. Le bouton « Ajouter un supplément (libre) » reste disponible pour tout ce qui n\'est pas au tarif.</div>';
+    return '<div class="acc-liste">' + res.map(o =>
+      '<button type="button" class="acc-row" data-acc="' + escHtml(o.ref || o.label) + '">' +
+        accVignetteHtml(o) +
+        '<span class="acc-tx"><span class="acc-lbl">' + escHtml(o.label) + '</span>' +
+        '<span class="acc-meta">' + escHtml(o.cat) + (o.ref ? ' · réf. ' + escHtml(o.ref) : '') + '</span></span>' +
+        '<span class="acc-prix">' + fmtEur(o.price) + '</span>' +
+      '</button>').join('') + '</div>';
+  }
+  function accChipsHtml() {
+    const P = window.SSProducts; if (!P || !P.CATALOG_CATS) return '';
+    return ['', ...P.CATALOG_CATS].map(c =>
+      '<button type="button" class="acc-chip' + (c === _accCat ? ' on' : '') + '" data-acc-cat="' + escHtml(c) + '">' +
+      (c || 'Toutes') + '</button>').join('');
+  }
+  function accRafraichir() {
+    _accModal.querySelector('.ral-body').innerHTML = accListeHtml(_accModal.querySelector('#accQ').value);
+    _accModal.querySelector('.acc-chips').innerHTML = accChipsHtml();
+  }
+  /** @param onPick fonction appelée avec l'accessoire choisi ({label, price, ref, cat}) */
+  function ouvrirCatalogue(onPick) {
+    _accCb = onPick; _accCat = '';
+    if (!_accModal) {
+      _accModal = document.createElement('div');
+      _accModal.className = 'ral-modal acc-modal';
+      _accModal.innerHTML =
+        '<div class="ral-panel" role="dialog" aria-modal="true" aria-label="Catalogue d\'accessoires">' +
+          '<div class="ral-head"><span class="ral-title">Accessoires — tarif Harol</span>' +
+            '<button type="button" class="ral-x" data-acc-close aria-label="Fermer">' + icon('x', 16) + '</button></div>' +
+          '<div class="ral-search"><input class="input" id="accQ" placeholder="Chercher : situo, capteur vent, 068558…" autocomplete="off">' +
+            '<div class="acc-chips"></div></div>' +
+          '<div class="ral-body"></div>' +
+          '<div class="ral-foot">Prix d\'achat HTVA au tarif Harol 03/2026 — la marge s\'applique ensuite comme sur un supplément libre.</div>' +
+        '</div>';
+      document.body.appendChild(_accModal);
+      _accModal.addEventListener('click', ev => {
+        if (ev.target === _accModal || ev.target.closest('[data-acc-close]')) return fermerCatalogue();
+        const chip = ev.target.closest('[data-acc-cat]');
+        if (chip) { _accCat = chip.getAttribute('data-acc-cat'); return accRafraichir(); }
+        const row = ev.target.closest('[data-acc]');
+        if (row && _accCb) {
+          const cle = row.getAttribute('data-acc');
+          const o = window.SSProducts.CATALOG_OPTIONS.find(x => (x.ref || x.label) === cle);
+          if (o) _accCb(o);
+          fermerCatalogue();
+        }
+      });
+      _accModal.querySelector('#accQ').addEventListener('input', () => accRafraichir());
+      document.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape' && _accModal && _accModal.classList.contains('open')) fermerCatalogue();
+      });
+    }
+    _accModal.querySelector('#accQ').value = '';
+    accRafraichir();
+    _accModal.classList.add('open');
+    if (window.innerWidth > 720) setTimeout(() => _accModal.querySelector('#accQ').focus(), 30);
+  }
+  function fermerCatalogue() { if (_accModal) _accModal.classList.remove('open'); _accCb = null; }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     CADENCE DE RELANCE — source UNIQUE
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     La même cadence était implémentée DEUX FOIS : dans la fiche devis et dans le tableau de
+     bord. Tant que les deux copies étaient identiques, tout allait bien — mais elles sont
+     déployées dans des fichiers séparés. Une mise en ligne partielle (fiche à jour, tableau de
+     bord resté en arrière) suffisait à ce que la fiche affiche « R1 ✓ » pendant que le tableau
+     de bord réclamait encore « Relance 1 à envoyer ». Symptôme incompréhensible côté utilisateur,
+     et impossible à reproduire en local puisque le local, lui, était cohérent.
+     Le calcul vit désormais ICI seulement : les deux écrans ne PEUVENT plus se contredire.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  // Devis informatif : J+5 / J+12 / J+21 · devis après visite : J+4 / J+9 / J+21.
+  const RELANCE_PLAN = {
+    informatif: [{ n: 1, j: 5 }, { n: 2, j: 12 }, { n: 3, j: 21 }],
+    visite: [{ n: 1, j: 4 }, { n: 2, j: 9 }, { n: 3, j: 21 }],
+  };
+  // Le statut « Relance 1 / 2 » vaut relance faite : c'est la façon la plus naturelle de la
+  // noter, et l'ignorer faisait réclamer indéfiniment la même relance.
+  const STATUT_RELANCE_N = { relance_1: 1, relance_2: 2 };
+  const STATUT_RANK = { envoye_client: 0, relance_1: 1, relance_2: 2 };
+  const jour = iso => String(iso || '').slice(0, 10);
+  function joursEntre(de, a) { return Math.round((new Date(a + 'T00:00:00Z') - new Date(de + 'T00:00:00Z')) / 86400000); }
+  function plusJours(d, n) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  /**
+   * Date d'envoi de référence : valeur saisie > 1er passage à « envoyé » > date de création.
+   * ⚠️ JAMAIS `date_modification` : elle change à chaque édition (et à l'enregistrement d'une
+   * relance) — la cadence se réinitialiserait toute seule.
+   */
+  function dateEnvoiOf(d) {
+    if (d.date_envoi) return jour(d.date_envoi);
+    const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
+    if (h.length) return jour(h[0]);
+    return jour(d.date_creation || d.date_modification);
+  }
+  /** État complet de la cadence : ce qui est fait, ce qui est dû, et quand. */
+  function relanceEtat(d) {
+    const kind = d && d.informatif ? 'informatif' : 'visite';
+    const plan = RELANCE_PLAN[kind];
+    const envoi = dateEnvoiOf(d || {});
+    const today = new Date().toISOString().slice(0, 10);
+    const done = ((d && d.relances) || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
+    let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
+    // Plancher par le statut : un devis marqué « Relance 2 » a forcément vu partir R1 et R2.
+    // Purement calculé à l'affichage — aucune écriture, donc les dossiers déjà bloqués se
+    // débloquent d'eux-mêmes à la première ouverture.
+    const nStatut = STATUT_RELANCE_N[d && d.statut] || 0;
+    for (let i = doneMax + 1; i <= nStatut; i++) done.push({ n: i, date: null, implied: true });
+    doneMax = Math.max(doneMax, nStatut);
+    const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
+    const due = step && envoi ? plusJours(envoi, step.j) : null;
+    return {
+      kind: kind, plan: plan, envoi: envoi, today: today, done: done, doneMax: doneMax, step: step,
+      jours: envoi ? joursEntre(envoi, today) : 0,
+      due: due,
+      retard: !!(step && due && due <= today),
+      joursRetard: (step && due) ? joursEntre(due, today) : 0,
+      epuise: !step,
+    };
+  }
+  function relancesFaites(d) { return relanceEtat(d).doneMax; }
+  function relanceDue(d) { return relanceEtat(d).retard; }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     CHAMPS MANQUANTS — signalés du tableau de bord jusqu'à la fiche
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Une toile ou un RAL oublié pendant la visite ne se remarquait qu'au moment de passer la
+     commande chez Harol — c'est-à-dire trop tard. Le même calcul (SSProducts.champsManquants)
+     alimente désormais le tableau de bord, la fiche devis et le Mode Terrain : un seul endroit
+     décide de ce qui est « bloquant », donc les trois écrans ne peuvent pas se contredire.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  /** @returns [{ i, type, emplacement, manque: [{k,l}] }] — une entrée par ouverture incomplète. */
+  function manquantsDevis(d) {
+    const P = window.SSProducts;
+    if (!d || !P || !P.champsManquants) return [];
+    // `items` sur une fiche complète, `items_min` dans une liste (le tableau de bord ne charge
+    // jamais les items entiers — ils contiennent les photos).
+    const src = (d.items && d.items.length) ? d.items : (d.items_min || []);
+    return src.map((it, i) => ({
+      i: i, type: it.type, emplacement: it.emplacement || '',
+      manque: P.champsManquants(it),
+    })).filter(x => x.manque.length);
+  }
+  function nbManquants(d) { return manquantsDevis(d).reduce((s, x) => s + x.manque.length, 0); }
+  /** Pastille compacte pour une liste (tableau de bord). Rien à signaler → chaîne vide. */
+  function badgeManquants(d) {
+    const n = nbManquants(d);
+    if (!n) return '';
+    return '<span class="badge badge-warn" title="Informations manquantes pour commander">' +
+      icon('warning', 11) + ' ' + n + ' à compléter</span>';
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     MÉMOIRE DE SAISIE — suggestions apprises au fil des devis
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Les listes de suggestions étaient figées dans le catalogue. Tout ce que Nicolas tape
+     réellement (un emplacement, une toile) est mémorisé localement et remonte en tête la fois
+     suivante, classé par fréquence. Purement local : rien n'est envoyé au serveur, et ça
+     fonctionne donc aussi hors ligne chez le client.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const LS_MEMO = 'ss_memo_saisie';
+  const MEMO_MAX = 40;      // par champ — au-delà, la suggestion la moins utilisée sort
+  const memo = {
+    lire: function () { try { return JSON.parse(localStorage.getItem(LS_MEMO) || '{}'); } catch (e) { return {}; } },
+    ajouter: function (champ, valeur) {
+      const v = String(valeur || '').trim();
+      if (!champ || v.length < 2 || v.length > 60) return;
+      try {
+        const tout = memo.lire();
+        const m = tout[champ] || (tout[champ] = {});
+        m[v] = (m[v] || 0) + 1;
+        const cles = Object.keys(m);
+        if (cles.length > MEMO_MAX) {
+          cles.sort((a, b) => m[a] - m[b]).slice(0, cles.length - MEMO_MAX).forEach(k => delete m[k]);
+        }
+        localStorage.setItem(LS_MEMO, JSON.stringify(tout));
+      } catch (e) { /* stockage plein : la saisie assistée n'est pas critique */ }
+    },
+    /** Valeurs apprises (les plus fréquentes d'abord) puis le catalogue, sans doublon. */
+    suggestions: function (champ, base) {
+      const m = memo.lire()[champ] || {};
+      const appris = Object.keys(m).sort((a, b) => m[b] - m[a]);
+      const vus = new Set(appris.map(x => x.toLowerCase()));
+      return appris.concat((base || []).filter(x => !vus.has(String(x).toLowerCase())));
+    },
+  };
+  // Capture automatique : tout champ portant data-memo="<nom>" nourrit la mémoire.
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (t && t.matches && t.matches('[data-memo]')) memo.ajouter(t.getAttribute('data-memo'), t.value);
+  });
+  /** Remplit un <datalist> avec les valeurs apprises + le catalogue. */
+  function remplirDatalist(id, champ, base) {
+    const dl = document.getElementById(id);
+    if (!dl) return;
+    dl.innerHTML = memo.suggestions(champ, base)
+      .map(v => '<option value="' + String(v).replace(/"/g, '&quot;') + '">').join('');
+  }
+
   window.SSUI = {
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
+    ralFieldHtml: ralFieldHtml, ouvrirNuancier: ouvrirNuancier, ralApercu: ralApercu,
+    ouvrirCatalogue: ouvrirCatalogue, accVisuel: accVisuel,
+    manquantsDevis: manquantsDevis, nbManquants: nbManquants, badgeManquants: badgeManquants,
+    RELANCE_PLAN: RELANCE_PLAN, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
+    relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
+    dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,
+    memo: memo, remplirDatalist: remplirDatalist,
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
