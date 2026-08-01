@@ -698,6 +698,60 @@ export async function onRequest(context) {
       await upsertClient(env.DB, c);
       return json({ ok: true, key: c.key });
     }
+    // ── ÉCHANGES E-MAIL DU CLIENT : ajout CIBLÉ ────────────────────────────────────────────────
+    // Même mécanique que les notes internes d'un devis (json_insert sur la seule ligne concernée) :
+    // on ne relit ni ne réécrit jamais la fiche entière, donc un mail ne peut pas être perdu par
+    // une sauvegarde de fiche concurrente — ni écraser les coordonnées corrigées ailleurs.
+    // ⚠️ Ces deux routes doivent rester AVANT le motif générique /api/clients/(.+) ci-dessous,
+    //    sinon c'est lui qui capterait l'URL et la clé vaudrait « xxx/mail ».
+    let mMailAdd = path.match(/^\/api\/clients\/([^/]+)\/mail$/);
+    if (mMailAdd && method === 'POST') {
+      const key = decodeURIComponent(mMailAdd[1]);
+      const body = await request.json().catch(() => ({}));
+      const texte = (body.texte || '').trim();
+      if (!texte) return json({ ok: false, error: 'Message vide' }, 400);
+      const mail = {
+        id: crypto.randomUUID(),
+        sens: body.sens === 'envoye' ? 'envoye' : 'recu',      // reçu DU client / envoyé AU client
+        objet: String(body.objet || '').slice(0, 300),
+        de: String(body.de || '').slice(0, 200),
+        date_mail: String(body.date_mail || '').slice(0, 40),  // date écrite dans le mail (texte libre)
+        texte: texte.slice(0, 40000),
+        devis_id: String(body.devis_id || '').slice(0, 40),    // rattachement facultatif à un devis
+        par: String(body.par || 'nicolas').slice(0, 40),
+        date: new Date().toISOString(),                        // date d'archivage
+      };
+      const now = mail.date;
+      const r = await env.DB.prepare(
+        `UPDATE clients SET
+           data = json_set(
+                    json_insert(
+                      json_set(data, '$.mails', json(COALESCE(json_extract(data, '$.mails'), '[]'))),
+                      '$.mails[#]', json(?1)),
+                    '$.date_modification', ?2),
+           date_modification = ?2
+         WHERE key = ?3`
+      ).bind(JSON.stringify(mail), now, key).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.mails'), 0) AS n FROM clients WHERE key = ?").bind(key).first();
+      return json({ ok: true, mail, mails_count: row ? row.n : null });
+    }
+    // ── ÉCHANGES E-MAIL : suppression CIBLÉE ───────────────────────────────────────────────────
+    let mMailDel = path.match(/^\/api\/clients\/([^/]+)\/mail\/([^/]+)$/);
+    if (mMailDel && method === 'DELETE') {
+      const key = decodeURIComponent(mMailDel[1]);
+      const mid = decodeURIComponent(mMailDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(key).first();
+      if (!row) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      const c = safeParse(row.data) || {};
+      const reste = (c.mails || []).filter(x => String(x.id) !== mid);
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE clients SET data = json_set(data, '$.mails', json(?1), '$.date_modification', ?2), date_modification = ?2 WHERE key = ?3`
+      ).bind(JSON.stringify(reste), now, key).run();
+      return json({ ok: true, mails_count: reste.length });
+    }
+
     m = path.match(/^\/api\/clients\/(.+)$/);
     if (m) {
       const key = decodeURIComponent(m[1]);
@@ -1024,12 +1078,26 @@ async function upsertDevis(db, devis) {
 
 async function upsertClient(db, c) {
   const now = new Date().toISOString();
+  // ⚠️ INVARIANT ÉCHANGES E-MAIL : ils ne sont modifiés QUE par les routes ciblées
+  // /api/clients/:key/mail. Toute sauvegarde COMPLÈTE de la fiche préserve ceux déjà en base,
+  // même si le payload n'en contient pas — sinon un enregistrement lancé depuis le simulateur ou
+  // le Mode Terrain (qui ne connaissent pas ce champ) effacerait tout l'historique des échanges.
+  // Même protection que les commentaires d'un devis, pour la même raison.
+  let mails = Array.isArray(c.mails) ? c.mails : [];
+  try {
+    const row = await db.prepare('SELECT data FROM clients WHERE key = ?').bind(c.key).first();
+    if (row && row.data) {
+      const ex = safeParse(row.data);
+      if (ex && Array.isArray(ex.mails)) mails = ex.mails;
+    }
+  } catch (e) { /* lecture impossible : on garde ce qu'on a, jamais bloquant */ }
+  const data = Object.assign({}, c, { mails });
   await db.prepare(`
     INSERT INTO clients (key, nom, prenom, date_modification, data)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET nom=excluded.nom, prenom=excluded.prenom,
       date_modification=excluded.date_modification, data=excluded.data
-  `).bind(c.key, c.nom || '', c.prenom || '', c.date_modification || now, JSON.stringify(c)).run();
+  `).bind(c.key, c.nom || '', c.prenom || '', c.date_modification || now, JSON.stringify(data)).run();
 }
 
 async function upsertRdv(db, r) {
