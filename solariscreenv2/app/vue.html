@@ -30,6 +30,35 @@
     .vue-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-5); align-items: start; }
     .vue-layout > .span-all { grid-column: 1 / -1; }
     .vue-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
+    .vue-rail { min-width: 0; }
+
+    /* ══════ GRAND ÉCRAN : TROIS COLONNES ══════
+       Le conteneur du site est bridé à 1240 px. Sur un 1900 px, la fiche n'occupait donc que
+       1176 px et laissait ~360 px de vide de chaque côté — pendant qu'il fallait descendre de
+       5 000 px pour atteindre « Copier le lien » avec 9 ouvertures. On récupère cette largeur
+       pour un RAIL D'OUTILS à gauche : outils du dossier + sommaire cliquable, collé à l'écran.
+       Résultat : les deux colonnes latérales suivent le défilement, seul le contenu défile,
+       et plus rien n'est à plus d'un clic. */
+    @media (min-width: 1500px) {
+      .container.vue-layout { max-width: 1800px; }
+      .vue-layout { grid-template-columns: 250px minmax(0, 1fr) 340px; }
+      .vue-rail {
+        position: sticky; top: calc(var(--header-h) + var(--sp-5));
+        display: flex; flex-direction: column; gap: var(--sp-4);
+        max-height: calc(100vh - var(--header-h) - var(--sp-6)); overflow-y: auto;
+        scrollbar-width: thin;
+      }
+      /* Empilée : un outil par ligne, aligné à gauche — on lit une liste, pas une barre. */
+      .vue-rail .action-bar { grid-template-columns: 1fr; }
+      .vue-rail .ab-item { justify-content: flex-start; padding: 0.6rem 0.8rem; }
+      .rail-nav { display: block; }
+    }
+    /* En dessous de 1500 px : exactement la mise en page d'avant (barre d'actions pleine
+       largeur, 2 colonnes) — le rail redevient une simple bande horizontale. */
+    @media (max-width: 1499px) {
+      .vue-rail { grid-column: 1 / -1; }
+      .rail-nav { display: none; }
+    }
     @media (max-width: 1040px) {
       /* ⚠️ `minmax(0, 1fr)` et surtout PAS `1fr` : la largeur minimale automatique d'une colonne
          de grille vaut « auto », donc elle se laisse étirer par son contenu le plus large. Ici la
@@ -40,8 +69,28 @@
       .vue-aside { position: static; }
       /* Sur mobile, le total et la prochaine action remontent JUSTE sous la barre d'actions —
          sinon ils se retrouvaient enterrés sous toutes les cartes de suivi. */
-      #rulerHost { order: 1; } .action-bar { order: 2; } .vue-aside { order: 3; } .vue-main { order: 4; }
+      #rulerHost { order: 1; } .vue-rail { order: 2; } .vue-aside { order: 3; } .vue-main { order: 4; }
     }
+
+    /* ── Sommaire du dossier (rail gauche, grand écran seulement) ──
+       Chaque entrée mène à une carte de la fiche, avec son compteur. La section en cours de
+       lecture s'allume au défilement : on sait toujours où on est dans un dossier long. */
+    /* ⚠️ AUCUN `display` ici : cette règle est écrite APRÈS les media queries ci-dessus et,
+       à spécificité égale, la dernière l'emporte — un `display:none` de base annulait donc
+       l'affichage du sommaire sur grand écran. La visibilité est gérée uniquement par la
+       requête « ≤ 1499 px ». */
+    .rail-nav { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+    .rail-nav-t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .1em;
+      color: var(--text-subtle); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border); }
+    .rn-item { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.45rem 0.8rem; cursor: pointer;
+      background: none; border: 0; border-left: 2px solid transparent; color: var(--text-muted);
+      font-size: var(--fs-xs); text-align: left; transition: color var(--t-fast), background var(--t-fast); }
+    .rn-item:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .rn-item.on { color: var(--accent); border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+    .rn-item svg { flex: none; opacity: .75; }
+    .rn-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rn-n { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .rn-item.alerte .rn-n { color: var(--warn); font-weight: 700; }
 
     /* ── Barre d'actions : un seul instrument segmenté (l'astuce gap 1px sur fond bordure
        dessine les filets de séparation dans les deux sens, même quand la barre replie). ── */
@@ -455,7 +504,9 @@
     <!-- ══════ INSTRUMENTS (pleine largeur) : règle graduée + barre d'actions ══════ -->
     <div id="rulerHost" class="span-all"></div>
 
-    <div class="action-bar span-all" role="toolbar" aria-label="Actions du devis">
+    <!-- ══════ RAIL D'OUTILS (colonne gauche sur grand écran, bande horizontale sinon) ══════ -->
+    <aside class="vue-rail">
+    <div class="action-bar" role="toolbar" aria-label="Actions du devis">
       <a class="ab-item is-primary" id="btnEdit" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Modifier</a>
       <a class="ab-item" id="btnDoc" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Document PDF</a>
       <a class="ab-item" id="btnPicking" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Liste de pose</a>
@@ -464,6 +515,8 @@
       <a class="ab-item hidden" id="btnReception" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> PV de réception</a>
       <button class="ab-item hidden" id="btnPortfolio" onclick="togglePortfolio()"></button>
     </div>
+      <nav class="rail-nav" id="railNav" aria-label="Sommaire du dossier"></nav>
+    </aside>
 
     <!-- ══════ COLONNE PRINCIPALE ══════ -->
     <div class="vue-main">
@@ -1171,6 +1224,78 @@
       renderSav();
       renderDocs();
       renderMailsCard();
+      renderRailNav();   // en dernier : le sommaire ne liste que les cartes réellement affichées
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       SOMMAIRE DU DOSSIER (rail gauche)
+       ══════════════════════════════════════════════════════════════════════════════════════════
+       Avec 9 ouvertures, « Copier le lien espace client » se trouvait à 5 000 px du haut. Le
+       sommaire donne un accès direct à chaque carte, avec son compteur — on voit du premier
+       coup d'œil ce que contient le dossier (3 notes, 2 documents, 1 ticket SAV…) sans dérouler.
+       Il ne liste QUE les cartes réellement présentes : un dossier sans chantier n'affiche pas
+       « Chantier ». */
+    const RAIL_SECTIONS = [
+      { sel: '#clientHost', ic: 'user', lbl: 'Client' },
+      { sel: '#ouvHost', ic: 'window', lbl: 'Ouvertures', n: () => (DEVIS.items || []).reduce((s, i) => s + (i.quantite || 1), 0),
+        alerte: () => window.SSUI.nbManquants ? window.SSUI.nbManquants(DEVIS) : 0 },
+      { sel: '#reviewCard', ic: 'link', lbl: 'Espace client' },
+      { sel: '#commandeCard', ic: 'box', lbl: 'Commande' },
+      { sel: '#chantierCard', ic: 'calendar', lbl: 'Chantier' },
+      { sel: '#checklistCard', ic: 'check', lbl: 'Checklist' },
+      { sel: '#journalCard', ic: 'image', lbl: 'Journal', n: () => (DEVIS.chantier_photos || []).length },
+      { sel: '#savCard', ic: 'warning', lbl: 'SAV', n: () => (DEVIS.sav_tickets || []).length },
+      { sel: '.notes-card', ic: 'message', lbl: 'Notes', n: () => (DEVIS.comments || []).length },
+      { sel: '#docsCard', ic: 'filetext', lbl: 'Documents', n: () => (DEVIS.documents || []).length },
+      { sel: '#mailsCard', ic: 'mail', lbl: 'E-mails' },
+      { sel: '#interneCard', ic: 'lock', lbl: 'Interne' },
+      { sel: '#paiementsCard', ic: 'coin', lbl: 'Paiements' },
+    ];
+    let railObs = null;
+    function renderRailNav() {
+      const host = el('railNav'); if (!host) return;
+      const vues = RAIL_SECTIONS.filter(s => {
+        const e = document.querySelector(s.sel);
+        return e && !e.classList.contains('hidden') && !(e.closest('.hidden'));
+      });
+      host.innerHTML = '<div class="rail-nav-t">Sommaire</div>' + vues.map(s => {
+        const n = s.n ? s.n() : 0;
+        const a = s.alerte ? s.alerte() : 0;
+        return `<button type="button" class="rn-item ${a ? 'alerte' : ''}" data-rn="${s.sel}"
+          title="${esc(s.lbl + (a ? ' — ' + a + ' info(s) à compléter' : ''))}">
+          ${icon(s.ic, 13)}<span class="rn-lbl">${esc(s.lbl)}</span>
+          <span class="rn-n">${a ? '⚠ ' + a : (n || '')}</span></button>`;
+      }).join('');
+      host.querySelectorAll('[data-rn]').forEach(b => {
+        b.onclick = () => {
+          const c = document.querySelector(b.getAttribute('data-rn'));
+          if (!c) return;
+          c.classList.remove('collapsed');
+          c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          c.classList.add('anchor-flash');
+          setTimeout(() => c.classList.remove('anchor-flash'), 1600);
+        };
+      });
+      // Surlignage de la section en cours de lecture. On observe une bande étroite au tiers
+      // haut de l'écran : c'est là que se trouve ce qu'on lit vraiment.
+      if (railObs) railObs.disconnect();
+      if (!('IntersectionObserver' in window)) return;
+      railObs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          if (!en.isIntersecting) return;
+          host.querySelectorAll('.rn-item').forEach(x => x.classList.remove('on'));
+          // Le sélecteur sert de clé ; entre guillemets dans un sélecteur d'attribut, « # »
+          // et « . » ne posent aucun problème.
+          const b = host.querySelector('[data-rn="' + en.target.dataset.rnSel + '"]');
+          if (b) b.classList.add('on');
+        });
+      }, { rootMargin: '-15% 0px -70% 0px' });
+      vues.forEach(s => {
+        const e = document.querySelector(s.sel);
+        if (!e) return;
+        e.dataset.rnSel = s.sel;
+        railObs.observe(e);
+      });
     }
 
     // ── Échanges e-mail du client (archivés depuis le CRM) ────────────────────────────────────

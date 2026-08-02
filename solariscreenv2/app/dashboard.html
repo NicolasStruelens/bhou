@@ -1716,7 +1716,25 @@
       if (a.entity_type === 'rdv' && a.entity_id) return 'rdv.html?open=' + encodeURIComponent(a.entity_id);
       return null;
     }
-    function renderActivity(list, mode) {
+    /*
+     * Bruit déjà enregistré en base : Cloudflare injecte son beacon d'analytics sur chaque
+     * page, une protection anti-pistage le bloque, et le journal s'est rempli d'une alerte
+     * par chargement de page. La cause est corrigée (nav.js ne remonte plus que NOS
+     * fichiers), mais les entrées passées restent en base — on les masque à l'affichage
+     * plutôt que de supprimer des lignes du journal. Liste explicite : on ne masque QUE des
+     * scripts tiers connus, jamais une erreur qui pourrait être réelle.
+     */
+    const SCRIPTS_TIERS = ['beacon.min.js', 'gtag', 'analytics.js', 'googletagmanager'];
+    function sansBruit(list) {
+      return (list || []).filter(a => {
+        if (a.action !== 'error.js') return true;
+        const l = String(a.label || '');
+        if (l.indexOf('Ressource non chargée') < 0) return true;
+        return !SCRIPTS_TIERS.some(s => l.indexOf(s) >= 0);
+      });
+    }
+    function renderActivity(liste, mode) {
+      const list = sansBruit(liste);
       if (!list || !list.length) {
         el('actBody').innerHTML = '<div class="empty-comments">' + (mode === 'news' ? 'Rien de neuf — tu es à jour ! ✨' : 'Aucune activité enregistrée pour le moment.') + '</div>';
         return;
@@ -1759,7 +1777,9 @@
       localStorage.setItem('ss_activity_seen', nowIso);   // fetch réussi (même vide) → on avance le marqueur
       let identity = { key: '' };
       try { identity = await window.SSNav.getIdentity(); } catch (e) {}
-      const relevant = news.filter(a => !identity.key || a.actor !== identity.key);
+      // sansBruit AVANT le test : sinon « Quoi de neuf » s'ouvrait tout seul à chaque
+      // connexion pour n'annoncer qu'un script tiers bloqué par le navigateur.
+      const relevant = sansBruit(news).filter(a => !identity.key || a.actor !== identity.key);
       if (relevant.length) openActivity('news', relevant);
     }
 
