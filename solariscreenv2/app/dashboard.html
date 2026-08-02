@@ -505,6 +505,7 @@
           </div>
           <textarea class="textarea" id="cmText" placeholder="Info chantier, question pour l'autre, rappel…"></textarea>
           <div class="send-row">
+            <span class="ss-cmt-edit-hint" style="margin-right:auto;">Ctrl + Entrée pour ajouter · survole une note pour la corriger</span>
             <button class="btn btn-primary btn-sm" onclick="sendComment()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Ajouter la note
@@ -1226,7 +1227,11 @@
                       montrait les photos sans permettre d'y aller : il fallait ouvrir puis chercher). */ ''}
                 <span class="mi-slot ${d.photos ? 'active' : ''}" ${d.photos ? `data-preview="photos" data-id="${d.id}" onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#photos'"` : ''} title="${d.photos ? d.photos + ' photo(s) — survoler pour un aperçu, cliquer pour ouvrir les ouvertures' : 'Aucune photo'}">${icon('camera', 14)}${d.photos || 0}</span>
                 ${d.chantier_photos_count ? `<span class="mi-slot active" data-preview="chantier" data-id="${d.id}" onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#journal'" title="${d.chantier_photos_count} photo(s) de chantier — survoler pour un aperçu, cliquer pour ouvrir le journal">${icon('image', 14)}${d.chantier_photos_count}</span>` : ''}
-                <span class="mi-slot ${d.comments ? 'active' : ''}" ${d.comments ? `data-preview="comments" data-id="${d.id}" onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#notes'"` : ''} title="${d.comments ? d.comments + ' note(s) interne(s) — survoler pour un aperçu, cliquer pour ouvrir les notes' : 'Aucune note'}">${icon('message', 14)}${d.comments || 0}</span>
+                ${/* Les notes s'ouvrent SUR PLACE : quitter le tableau de bord pour écrire deux lignes,
+                      puis revenir et retrouver sa position dans la liste, coûtait plus cher que la note
+                      elle-même. Le compteur reste cliquable même à zéro — c'est souvent là qu'on veut
+                      justement en écrire une. */ ''}
+                <span class="mi-slot cmt-slot ${d.comments ? 'active' : ''}" data-id="${d.id}" ${d.comments ? `data-preview="comments"` : ''} onclick="event.stopPropagation();openComments('${d.id}')" title="${d.comments ? d.comments + ' note(s) interne(s) — survoler pour un aperçu, cliquer pour écrire ou corriger' : 'Aucune note — cliquer pour en écrire une'}">${icon('message', 14)}${d.comments || 0}</span>
                 ${d.note ? `<span class="note-flag" title="${esc(d.note)}">${icon('info', 14)}</span>` : ''}
               </div>
               <span class="m-date" title="Dernière modification : ${esc(safeDate(d.date_modification))}">${esc(relTime(d.date_modification) || safeDate(d.date_modification))}</span>
@@ -1595,19 +1600,33 @@
       await renderComments();
       el('cmText').focus();
     };
-    window.closeComments = () => { el('modalComments').classList.remove('open'); cmDevisId = null; };
+    window.closeComments = () => {
+      fermerEdition();                       // une correction laissée ouverte ne doit pas « rester » au prochain devis
+      el('modalComments').classList.remove('open');
+      cmDevisId = null; cmNotes = [];
+    };
+
+    let cmNotes = [];   // le fil tel qu'il vient du serveur — sert à retrouver le texte d'origine
 
     async function renderComments() {
       const devis = await SS.getDevis(cmDevisId);
-      const comments = (devis && devis.comments) || [];
-      if (!comments.length) {
+      cmNotes = (devis && devis.comments) || [];
+      if (!cmNotes.length) {
         el('cmList').innerHTML = '<div class="ss-cmt-empty">Aucune note pour ce devis. Écris la première ci-dessous — Yannick la verra ici aussi.</div>';
         return;
       }
       // Rendu partagé (SSUI.commentHtml) — strictement la même présentation que la fiche devis,
       // le CRM et les demandes de RDV. Plus de balisage propre à cette fenêtre à maintenir.
-      el('cmList').innerHTML = window.SSUI.commentsHtml(comments, { onDelete: 'removeComment' });
+      el('cmList').innerHTML = window.SSUI.commentsHtml(cmNotes, { onDelete: 'removeComment', onEdit: 'editComment' });
       el('cmList').scrollTop = el('cmList').scrollHeight;
+    }
+
+    /** Recale le compteur de la ligne du dashboard sur le nombre renvoyé par le serveur. */
+    function majCompteurNotes(res, parDefaut) {
+      const d = DEVIS.find(x => x.id === cmDevisId);
+      if (!d) return;
+      d.comments = (res && typeof res.comments_count === 'number') ? res.comments_count : parDefaut(d.comments || 0);
+      render();
     }
 
     window.sendComment = async () => {
@@ -1619,11 +1638,15 @@
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('cmText').value = '';
       toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée', res.offline ? 'warn' : 'ok');
-      const d = DEVIS.find(x => x.id === cmDevisId); if (d) d.comments = (d.comments || 0) + 1;
+      const d = DEVIS.find(x => x.id === cmDevisId);
       const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
       SS.logActivity({ action: 'note.add', entity_type: 'devis', entity_id: cmDevisId, label: `Note ajoutée sur le devis #${cmDevisId}${cli ? ' (' + cli + ')' : ''}` });
-      closeComments(); // la fenêtre se ferme dès l'envoi
-      render();
+      // La fenêtre RESTE ouverte : elle se fermait à l'envoi, ce qui obligeait à la rouvrir pour
+      // écrire la note suivante ou relire ce qu'on venait d'ajouter. Le fil se recharge, le champ
+      // se vide et reprend le curseur — on enchaîne.
+      await renderComments();
+      majCompteurNotes(res, n => n + 1);
+      el('cmText').focus();
     };
 
     window.removeComment = async (commentId) => {
@@ -1631,12 +1654,102 @@
       const resRm = await SS.deleteComment(cmDevisId, commentId);
       if (resRm.ok === false) { toast(resRm.error || 'Note NON supprimée — réessaie.', 'error', 6000); return; }
       await renderComments();
-      // Recale le compteur sur la valeur renvoyée par le serveur plutôt que sur un décrément local.
-      const d = DEVIS.find(x => x.id === cmDevisId);
-      if (d) d.comments = (typeof resRm.comments_count === 'number') ? resRm.comments_count : Math.max(0, (d.comments || 0) - 1);
-      render();
+      majCompteurNotes(resRm, n => Math.max(0, n - 1));
     };
 
+    /* ── Correction d'une note, SUR PLACE ──────────────────────────────────────────────────────
+       La note se transforme en son propre champ, à sa place dans le fil : ni fenêtre par-dessus,
+       ni saut ailleurs. Le texte d'origine reste affiché jusqu'à ce que le serveur confirme —
+       en cas de refus (session expirée, note du client), rien n'a bougé.                        */
+    const TYPES_NOTE = [['note', 'Note'], ['question', 'Question'], ['important', 'Important']];
+
+    window.editComment = (commentId) => {
+      fermerEdition();   // une seule correction à la fois : deux champs ouverts = deux vérités
+      const bloc = el('cmList').querySelector('[data-cmt-id="' + String(commentId).replace(/"/g, '\\"') + '"]');
+      const note = cmNotes.find(c => String(c.id) === String(commentId));
+      if (!bloc || !note) return;
+      const zone = bloc.querySelector('.ss-cmt-text');
+      if (!zone) return;
+
+      const boite = document.createElement('div');
+      boite.className = 'ss-cmt-edit';
+      const champ = document.createElement('textarea');
+      champ.className = 'textarea';
+      champ.value = note.text || '';         // .value, jamais du HTML interpolé
+      champ.setAttribute('aria-label', 'Texte de la note');
+      const rang = document.createElement('div');
+      rang.className = 'ss-cmt-edit-row';
+      const typ = document.createElement('select');
+      typ.className = 'select';
+      typ.setAttribute('aria-label', 'Type de note');
+      TYPES_NOTE.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; typ.appendChild(o); });
+      typ.value = String(note.type || 'note').toLowerCase();
+      const aide = document.createElement('span');
+      aide.className = 'ss-cmt-edit-hint';
+      aide.textContent = 'Ctrl + Entrée pour enregistrer · Échap pour annuler';
+      const actions = document.createElement('span');
+      actions.className = 'ss-cmt-edit-actions';
+      const bAnn = document.createElement('button');
+      bAnn.type = 'button'; bAnn.className = 'btn btn-ghost btn-sm'; bAnn.textContent = 'Annuler';
+      const bOk = document.createElement('button');
+      bOk.type = 'button'; bOk.className = 'btn btn-primary btn-sm'; bOk.textContent = 'Enregistrer';
+
+      bAnn.onclick = () => fermerEdition();
+      bOk.onclick = () => enregistrerEdition(commentId, champ, typ, bOk);
+      champ.onkeydown = (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermerEdition(); }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enregistrerEdition(commentId, champ, typ, bOk); }
+      };
+
+      actions.append(bAnn, bOk);
+      rang.append(typ, aide, actions);
+      boite.append(champ, rang);
+      zone.after(boite);
+      zone.style.display = 'none';
+      bloc.classList.add('en-edition');
+      champ.focus();
+      champ.setSelectionRange(champ.value.length, champ.value.length);
+    };
+
+    function fermerEdition() {
+      const ouvert = el('cmList').querySelector('.ss-cmt.en-edition');
+      if (!ouvert) return false;
+      const boite = ouvert.querySelector('.ss-cmt-edit');
+      if (boite) boite.remove();
+      const zone = ouvert.querySelector('.ss-cmt-text');
+      if (zone) zone.style.display = '';
+      ouvert.classList.remove('en-edition');
+      return true;
+    }
+
+    async function enregistrerEdition(commentId, champ, typ, bouton) {
+      const texte = champ.value.trim();
+      if (!texte) { toast('Une note vide se supprime, elle ne s\'enregistre pas.', 'warn'); champ.focus(); return; }
+      const note = cmNotes.find(c => String(c.id) === String(commentId));
+      if (note && texte === (note.text || '') && typ.value === String(note.type || 'note').toLowerCase()) {
+        fermerEdition(); return;   // rien n'a changé : pas d'écriture inutile
+      }
+      bouton.disabled = true; bouton.textContent = 'Enregistrement…';
+      const res = await SS.updateComment(cmDevisId, commentId, { text: texte, type: typ.value });
+      bouton.disabled = false; bouton.textContent = 'Enregistrer';
+      if (!res || res.ok === false) { toast((res && res.error) || 'Note NON modifiée — réessaie.', 'error', 6000); return; }
+      fermerEdition();
+      await renderComments();
+      toast('Note modifiée', 'ok');
+      const d = DEVIS.find(x => x.id === cmDevisId);
+      const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';
+      SS.logActivity({ action: 'note.edit', entity_type: 'devis', entity_id: cmDevisId, label: `Note corrigée sur le devis #${cmDevisId}${cli ? ' (' + cli + ')' : ''}` });
+    }
+
+    // Ctrl/⌘ + Entrée depuis le champ de saisie = ajouter la note sans lâcher le clavier.
+    el('cmText').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendComment(); }
+    });
+    // Échap ferme d'abord la correction en cours, la fenêtre seulement ensuite.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !el('modalComments').classList.contains('open')) return;
+      if (!fermerEdition()) closeComments();
+    });
     // fermer la modale au clic sur le fond
     el('modalComments').addEventListener('click', (e) => { if (e.target === el('modalComments')) closeComments(); });
 

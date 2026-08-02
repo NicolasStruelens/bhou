@@ -405,28 +405,64 @@
     .ruler::-webkit-scrollbar { height: 7px; }
     .ruler::-webkit-scrollbar-track { background: transparent; }
     .ruler::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
-    .ruler-track { position: relative; display: flex; align-items: flex-start; min-width: 620px; }
+    .ruler-track { position: relative; display: flex; align-items: flex-start; min-width: 620px;
+      padding-top: 3px; }
     /* La réglette elle-même : trait continu + micro-graduations régulières. */
-    .ruler-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 1px;
+    .ruler-track::before { content: ''; position: absolute; left: 0; right: 0; top: 12px; height: 1px;
       background: var(--border-strong); }
-    .ruler-track::after { content: ''; position: absolute; left: 0; right: 0; top: 4px; height: 5px;
+    .ruler-track::after { content: ''; position: absolute; left: 0; right: 0; top: 7px; height: 5px;
       background-image: repeating-linear-gradient(to right, var(--border-strong) 0 1px, transparent 1px 12px);
       opacity: 0.5; }
+    /* ── Le chemin réellement parcouru ──────────────────────────────────────────────────────
+       La barre ne saute plus de jalon en jalon : elle s'arrête à la position FRACTIONNAIRE
+       calculée par avancementReel(), donc entre deux jalons quand on est entre deux jalons.
+       C'est ce qui distingue « envoyé hier » de « envoyé il y a 4 jours, relance à faire ». */
+    .rl-fill { position: absolute; left: 0; top: 11px; height: 3px; width: 0; z-index: 0;
+      background: linear-gradient(90deg, var(--accent-2), color-mix(in srgb, var(--accent-2) 55%, var(--accent))); }
+    .rl-head { position: absolute; top: 4px; left: 0; width: 3px; height: 17px; margin-left: -1px; z-index: 3;
+      background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+    .ruler.late .rl-head { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent); }
+    .ruler.fini .rl-head { display: none; }
     .rl-mile { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center;
       gap: 0.3rem; text-align: center; min-width: 0; }
     /* Le repère : un trait vertical (graduation majeure), pas une pastille — cohérent avec l'instrument. */
     .rl-tick { position: relative; z-index: 1; width: 2px; height: 19px; background: var(--border-strong); }
     .rl-mile.done .rl-tick { background: var(--accent-2); box-shadow: 0 0 8px color-mix(in srgb, var(--accent-2) 55%, transparent); }
-    .rl-mile.now .rl-tick { background: var(--accent); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+    /* Trois états distincts pour la suite du parcours, là où il n'y en avait qu'un :
+       attente (rien à faire, on patiente) · à faire (échéance atteinte) · retard. */
+    .rl-mile.wait .rl-tick { background: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+    .rl-mile.now  .rl-tick { background: var(--accent); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+    .rl-mile.late .rl-tick { background: var(--danger); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 70%, transparent); }
     .rl-mile.todo .rl-tick { background: none; border-left: 2px dashed var(--border-strong); width: 0; }
     .rl-lab { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
       letter-spacing: 0.05em; color: var(--text-subtle); white-space: nowrap; }
     .rl-mile.done .rl-lab { color: var(--accent-2-ink); }
-    .rl-mile.now .rl-lab { color: var(--accent); font-weight: 700; }
+    .rl-mile.wait .rl-lab { color: var(--text); }
+    .rl-mile.now  .rl-lab { color: var(--accent); font-weight: 700; }
+    .rl-mile.late .rl-lab { color: var(--danger); font-weight: 700; }
     .rl-date { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); white-space: nowrap; }
+    .rl-mile.now .rl-date  { color: var(--accent); }
+    .rl-mile.late .rl-date { color: var(--danger); }
     @media (prefers-reduced-motion: no-preference) {
-      .rl-mile.now .rl-tick { animation: rlPulse 2.2s ease-in-out infinite; }
+      /* Le seul repère qui respire est celui qui demande une action : une étape en attente
+         reste immobile, sinon l'œil est appelé pour rien. */
+      .rl-mile.now .rl-tick, .rl-mile.late .rl-tick { animation: rlPulse 2.2s ease-in-out infinite; }
       @keyframes rlPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+      /* Au chargement, la barre se déroule de l'origine jusqu'à l'avancement réel, et les jalons
+         se posent l'un après l'autre. Une seule fois, puis plus rien ne bouge.
+         Des @keyframes qui n'ont QUE un « from » : l'arrivée est la valeur en dur posée par le
+         script. L'animation ne peut donc pas décider de la position finale — au pire elle ne
+         joue pas et la barre est déjà au bon endroit. */
+      /* Sans fill-mode : hors de sa durée, l'animation ne touche plus à rien et la barre reprend
+         la valeur en dur. « both » l'aurait figée sur son image de départ (largeur nulle) tant
+         que le document ne rend pas d'image — un onglet en arrière-plan aurait montré une barre
+         vide. Le déroulé est décoratif, la position ne lui appartient pas. */
+      .ruler-track.anim .rl-fill { animation: rlDeroule 1.05s cubic-bezier(.22,.9,.25,1); }
+      .ruler-track.anim .rl-head { animation: rlAvance 1.05s cubic-bezier(.22,.9,.25,1); }
+      @keyframes rlDeroule { from { width: 0; } }
+      @keyframes rlAvance { from { left: 0; } }
+      .ruler-track.anim .rl-mile { animation: rlPose .45s both cubic-bezier(.22,.9,.25,1); animation-delay: calc(var(--i) * 55ms); }
+      @keyframes rlPose { from { opacity: 0; transform: translateY(5px); } }
     }
 
     /* ── Suivi de relance (cadence J+5/J+12/J+21 ou J+4/J+9/J+21) ── */
@@ -1843,6 +1879,7 @@
     // Toute l'information existe déjà, mais éparpillée dans une dizaine de cartes qu'il faut
     // déplier une par une. Ici on la condense en une seule ligne lisible d'un coup d'œil.
     // Chaque jalon est DÉDUIT des données réelles (aucun nouveau champ à saisir).
+    let rulerAnime = false;   // l'entrée ne se joue qu'une fois, pas à chaque re-rendu
     function renderRuler() {
       const d = DEVIS, host = el('rulerHost');
       if (!host) return;
@@ -1872,24 +1909,124 @@
       // déjà signé. Les étapes sautées restent simplement grisées.
       let lastDone = -1;
       jalons.forEach((j, i) => { if (j.done) lastDone = i; });
-      const iNow = (lastDone + 1 < jalons.length) ? lastDone + 1 : -1;
+      const iNext = (lastDone + 1 < jalons.length) ? lastDone + 1 : -1;
       // Dossier refusé/annulé : la règle n'a plus de sens (le parcours s'arrête), on la masque —
       // display:none pour que la rangée de grille disparaisse aussi (pas de double espace vide).
       if (['refuse', 'annule'].includes(d.statut)) { host.innerHTML = ''; host.style.display = 'none'; return; }
       host.style.display = '';
+
+      /* ── AVANCEMENT RÉEL À L'INTÉRIEUR D'UN SEGMENT ────────────────────────────────────────
+         Un jalon franchi ne dit pas où on en est : un devis reste « envoyé » pendant quatre
+         jours, et la règle annonçait « Relance — en cours » dans la seconde qui suivait l'envoi.
+         C'est faux, et surtout ça ment sur le suivi : rien n'est en cours, on attend le client.
+         Chaque segment mesure donc sa propre progression, et le repère s'arrête à la position
+         exacte entre deux jalons.
+         Trois segments s'appuient sur une VRAIE échéance métier (cadence de relance, statut
+         fournisseur, argent encaissé) : leur progression est exacte. Les trois autres n'ont pas
+         d'échéance dans le métier — la barre y avance sur le temps écoulé, à titre indicatif,
+         et aucun texte n'affiche de date qui n'existe pas.                                     */
+      const clamp01 = x => Math.max(0, Math.min(1, isFinite(x) ? x : 0));
+      // Ancienneté en jours de CALENDRIER, pas en tranches de 24 h : on compare deux minuits.
+      // (Un devis créé hier à 9 h est vieux de 1 jour, pas de 2 — c'est ce que renvoyait un
+      //  arrondi sur l'écart horaire dès qu'on dépassait midi, et l'avancement sautait d'un cran.)
+      const aujourdhui = new Date().toISOString().slice(0, 10);
+      // Repli local si ui.js est déployé en retard : la fiche entière ne doit pas tomber pour
+      // une règle graduée (le déploiement se fait fichier par fichier, la divergence arrive).
+      const jEntre = (a, b) => (window.SSUI && SSUI.joursEntre) ? SSUI.joursEntre(a, b)
+        : Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+      const jPlus = (a, n) => (window.SSUI && SSUI.plusJours) ? SSUI.plusJours(a, n)
+        : new Date(Date.parse(a + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+      const joursDepuis = iso => {
+        const j = String(iso || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(j)) return null;
+        return Math.max(0, jEntre(j, aujourdhui));
+      };
+      const enJours = n => n <= 0 ? "aujourd'hui" : (n === 1 ? 'demain' : 'dans ' + n + ' j');
+      function segment(i) {
+        const j = joursDepuis;
+        switch (i) {
+          case 0: { // Créé → Envoyé (pas d'échéance métier : repère indicatif sur 3 jours)
+            const a = j(d.date_creation) || 0;
+            return { f: clamp01(a / 3) * 0.9, etat: a >= 3 ? 'now' : 'wait', sub: 'à envoyer' };
+          }
+          case 1: { // Envoyé → Relance — ÉCHÉANCE RÉELLE (cadence J+4/J+9/J+21 ou J+5/J+12/J+21)
+            const r = window.SSUI && SSUI.relanceEtat ? SSUI.relanceEtat(d) : null;
+            if (!r || !r.step) return { f: 0.5, etat: 'wait', sub: 'attente client' };
+            const total = r.step.j || 1;
+            if (r.retard) return { f: 1, etat: r.joursRetard > 0 ? 'late' : 'now',
+              sub: r.joursRetard > 0 ? '+' + r.joursRetard + ' j de retard' : "à faire aujourd'hui" };
+            return { f: clamp01(r.jours / total), etat: 'wait', sub: 'relance ' + r.step.n + ' ' + enJours(total - r.jours) };
+          }
+          case 2: { // Relance → Signé : le client a la main, on avance au rythme des relances faites
+            const r = window.SSUI && SSUI.relanceEtat ? SSUI.relanceEtat(d) : null;
+            const n = r ? r.doneMax : nbRelances;
+            if (r && r.epuise) return { f: 0.95, etat: 'now', sub: 'sans réponse — trancher' };
+            if (r && r.retard) return { f: clamp01(n / 3), etat: r.joursRetard > 0 ? 'late' : 'now',
+              sub: 'relance ' + (n + 1) + (r.joursRetard > 0 ? ' en retard' : ' à faire') };
+            return { f: clamp01(n / 3), etat: 'wait', sub: 'attente client' };
+          }
+          case 3: { // Signé → Commandé (pas d'échéance métier : repère indicatif sur 5 jours)
+            const a = j(jalons[3].date) || 0;
+            return { f: clamp01(a / 5) * 0.9, etat: a >= 5 ? 'now' : 'wait', sub: 'à commander' };
+          }
+          case 4: { // Commandé → Posé — ÉTAT RÉEL de la commande fournisseur (+ livraison estimée)
+            const ord = ['a_commander', 'commande', 'fabrication', 'recu', 'pose'];
+            const idx = Math.max(1, ord.indexOf(cc.statut || 'commande'));
+            let etat = 'wait', sub = ({ commande: 'en commande', fabrication: 'en fabrication', recu: 'reçu — à poser', pose: 'posé' })[ord[idx]] || 'en commande';
+            const dc = String(cc.date_commande || '').slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dc) && cc.delai_semaines) {
+              const eta = jPlus(dc, cc.delai_semaines * 7);
+              const reste = jEntre(aujourdhui, eta);   // > 0 = encore à venir
+              if (idx < 3 && reste < 0) { etat = 'late'; sub = 'livraison +' + (-reste) + ' j de retard'; }
+              else if (idx < 3) sub = 'livraison ' + enJours(reste);
+            }
+            if (idx >= 3) etat = 'now';
+            return { f: clamp01((idx - 1) / 3), etat: etat, sub: sub };
+          }
+          case 5: { // Posé → Payé — ARGENT RÉELLEMENT ENCAISSÉ : la barre EST le taux de paiement
+            if (ttc <= 0) return { f: 0, etat: 'wait', sub: 'à facturer' };
+            const part = clamp01(totalPaye / ttc);
+            return { f: part, etat: part > 0 ? 'now' : 'wait',
+              sub: part > 0 ? Math.round(part * 100) + ' % encaissé' : 'solde à encaisser' };
+          }
+        }
+        return { f: 0, etat: 'wait', sub: '—' };
+      }
+      const seg = iNext >= 0 ? segment(lastDone) : { f: 0, etat: '', sub: '' };
+      const n = jalons.length;
+      // Les jalons sont répartis par flex:1 — le centre du jalon i tombe donc à (i+0.5)/n.
+      const pos = iNext < 0 ? (n - 0.5) / n : (lastDone + 0.5 + clamp01(seg.f)) / n;
+      const pct = (pos * 100).toFixed(2) + '%';
+
       host.innerHTML = `
-        <div class="ruler ticked" style="--tick-color:var(--accent-2);" role="group" aria-label="Avancement du dossier">
+        <div class="ruler ticked ${iNext < 0 ? 'fini' : seg.etat === 'late' ? 'late' : ''}" style="--tick-color:var(--accent-2);"
+             role="group" aria-label="Avancement du dossier : ${Math.round(pos * 100)} %">
           <div class="ruler-track">
+            <span class="rl-fill"></span><span class="rl-head"></span>
             ${jalons.map((j, i) => {
-              const cls = j.done ? 'done' : (i === iNow ? 'now' : 'todo');
-              return `<div class="rl-mile ${cls}">
+              const cls = j.done ? 'done' : (i === iNext ? seg.etat : 'todo');
+              const bas = j.done ? (j.date ? esc(fmtDate(j.date)) : 'fait')
+                        : (i === iNext ? esc(seg.sub)
+                        : (j.date ? 'prévu ' + esc(fmtDate(j.date)) : '—'));
+              return `<div class="rl-mile ${cls}" style="--i:${i}">
                 <span class="rl-tick"></span>
                 <span class="rl-lab">${esc(j.lab)}</span>
-                <span class="rl-date">${j.date ? (j.done ? esc(fmtDate(j.date)) : 'prévu ' + esc(fmtDate(j.date))) : (cls === 'now' ? 'en cours' : '—')}</span>
+                <span class="rl-date">${bas}</span>
               </div>`;
             }).join('')}
           </div>
         </div>`;
+      // La position finale est posée TOUT DE SUITE, en dur : elle ne dépend d'aucune animation.
+      // (Première version : width appliquée dans un requestAnimationFrame pour déclencher une
+      //  transition — la barre restait à zéro dès que la page ne composait pas d'image, onglet
+      //  en arrière-plan ou fenêtre masquée. Le déroulé est maintenant une @keyframes qui part
+      //  de zéro et retombe sur la valeur en dur : si l'animation ne joue pas, la barre est
+      //  quand même juste.)
+      host.querySelector('.rl-fill').style.width = pct;
+      host.querySelector('.rl-head').style.left = pct;
+      // Le déroulé ne se joue qu'à la première ouverture : au re-rendu (enregistrement,
+      // changement de statut) la barre se replace sans rejouer l'entrée.
+      if (!rulerAnime) { rulerAnime = true; host.querySelector('.ruler-track').classList.add('anim'); }
     }
 
     // ══════════ PROCHAINE ACTION — la consigne du dossier, sous le total ═══════════════════
@@ -2646,7 +2783,7 @@
         : '');
       // Rendu partagé (SSUI.commentHtml) : même présentation que le tableau de bord, le CRM et les RDV.
       el('nList').innerHTML = window.SSUI.commentsHtml(comments, {
-        onDelete: 'removeNote', onReply: 'replyToClient',
+        onDelete: 'removeNote', onEdit: 'editNote', onReply: 'replyToClient',
         empty: 'Aucune note. Écris la première ci-dessous — Yannick la verra aussi.',
       });
       window.SSNav.getIdentity().then((identity) => {
@@ -2896,6 +3033,77 @@
       renderNotes();
       renderReviewCard();
       toast(res.offline ? 'Note supprimée (hors-ligne)' : 'Note supprimée', 'warn');
+    };
+    /* ── Correction d'une note, SUR PLACE (même geste qu'au tableau de bord) ──────────────────
+       La note devient son propre champ à sa place dans le fil. Le texte d'origine reste affiché
+       tant que le serveur n'a pas confirmé : un refus ne laisse pas la fiche dans un faux état. */
+    const TYPES_NOTE = [['note', 'Note'], ['question', 'Question'], ['important', 'Important']];
+    function fermerEditionNote() {
+      const ouvert = el('nList') && el('nList').querySelector('.ss-cmt.en-edition');
+      if (!ouvert) return false;
+      const boite = ouvert.querySelector('.ss-cmt-edit');
+      if (boite) boite.remove();
+      const zone = ouvert.querySelector('.ss-cmt-text');
+      if (zone) zone.style.display = '';
+      ouvert.classList.remove('en-edition');
+      return true;
+    }
+    window.editNote = (commentId) => {
+      fermerEditionNote();
+      const bloc = el('nList').querySelector('[data-cmt-id="' + String(commentId).replace(/"/g, '\\"') + '"]');
+      const note = (DEVIS.comments || []).find(c => String(c.id) === String(commentId));
+      if (!bloc || !note) return;
+      const zone = bloc.querySelector('.ss-cmt-text');
+      if (!zone) return;
+      const boite = document.createElement('div');
+      boite.className = 'ss-cmt-edit';
+      const champ = document.createElement('textarea');
+      champ.className = 'textarea'; champ.value = note.text || '';
+      champ.setAttribute('aria-label', 'Texte de la note');
+      const rang = document.createElement('div');
+      rang.className = 'ss-cmt-edit-row';
+      const typ = document.createElement('select');
+      typ.className = 'select'; typ.setAttribute('aria-label', 'Type de note');
+      TYPES_NOTE.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; typ.appendChild(o); });
+      typ.value = String(note.type || 'note').toLowerCase();
+      const aide = document.createElement('span');
+      aide.className = 'ss-cmt-edit-hint';
+      aide.textContent = 'Ctrl + Entrée pour enregistrer · Échap pour annuler';
+      const actions = document.createElement('span');
+      actions.className = 'ss-cmt-edit-actions';
+      const bAnn = document.createElement('button');
+      bAnn.type = 'button'; bAnn.className = 'btn btn-ghost btn-sm'; bAnn.textContent = 'Annuler';
+      const bOk = document.createElement('button');
+      bOk.type = 'button'; bOk.className = 'btn btn-primary btn-sm'; bOk.textContent = 'Enregistrer';
+      const valider = async () => {
+        const texte = champ.value.trim();
+        if (!texte) { toast('Une note vide se supprime, elle ne s\'enregistre pas.', 'warn'); champ.focus(); return; }
+        if (texte === (note.text || '') && typ.value === String(note.type || 'note').toLowerCase()) { fermerEditionNote(); return; }
+        bOk.disabled = true; bOk.textContent = 'Enregistrement…';
+        const res = await SS.updateComment(DEVIS.id, commentId, { text: texte, type: typ.value });
+        bOk.disabled = false; bOk.textContent = 'Enregistrer';
+        if (!res || res.ok === false) { toast((res && res.error) || 'Note NON modifiée — réessaie.', 'error', 6000); return; }
+        const i = (DEVIS.comments || []).findIndex(c => String(c.id) === String(commentId));
+        if (i >= 0) DEVIS.comments[i] = res.comment || Object.assign({}, DEVIS.comments[i], { text: texte, type: typ.value });
+        fermerEditionNote();
+        renderNotes();
+        renderReviewCard();
+        toast('Note modifiée', 'ok');
+      };
+      bAnn.onclick = () => fermerEditionNote();
+      bOk.onclick = valider;
+      champ.onkeydown = (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermerEditionNote(); }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); valider(); }
+      };
+      actions.append(bAnn, bOk);
+      rang.append(typ, aide, actions);
+      boite.append(champ, rang);
+      zone.after(boite);
+      zone.style.display = 'none';
+      bloc.classList.add('en-edition');
+      champ.focus();
+      champ.setSelectionRange(champ.value.length, champ.value.length);
     };
     window.sendNote = async () => {
       const text = el('nText').value.trim();
