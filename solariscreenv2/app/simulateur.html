@@ -68,7 +68,7 @@
     .commission-box .cb-row { display: flex; justify-content: space-between; font-size: var(--fs-2xs); color: var(--text-muted); font-family: var(--font-mono); }
     .commission-box .cb-row .gross { color: var(--text); } .commission-box .cb-row .net { color: var(--accent-2); }
 
-    .install-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+    .install-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
     .install-panel { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); text-align: center; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
     .install-panel:hover { border-color: color-mix(in srgb, var(--accent-2) 45%, var(--border)); box-shadow: var(--glow-soft); }
     .install-panel .ip-label { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -753,10 +753,14 @@
 
       // installation
       const ig = input.installation;
-      setText('iInstallGross', fmtEur(c.install_total)); setText('iInstallNet', fmtEur(c.install_total / 2.5));
-      setText('iTech1Gross', fmtEur(c.tech1_total)); setText('iTech1Net', fmtEur(c.tech1_total / 2.5));
-      setText('iTech2Gross', fmtEur(c.tech2_total)); setText('iTech2Net', fmtEur(c.tech2_total / 2.5));
-      setText('iToolsGross', fmtEur(c.tools_total)); setText('iToolsNet', fmtEur(c.tools_total / 2.5));
+      // Le diviseur brut→net est une CONSTANTE MÉTIER qui vit dans calc.js. Elle était recopiée en
+      // dur ici (quatre fois) : le jour où elle change, le simulateur aurait affiché des nets faux
+      // en silence, alors que les totaux, eux, auraient suivi. On lit la source.
+      const NET = (window.SSCalc && SSCalc.NET_DIVISOR) || 2.5;
+      setText('iInstallGross', fmtEur(c.install_total)); setText('iInstallNet', fmtEur(c.install_total / NET));
+      setText('iTech1Gross', fmtEur(c.tech1_total)); setText('iTech1Net', fmtEur(c.tech1_total / NET));
+      setText('iTech2Gross', fmtEur(c.tech2_total)); setText('iTech2Net', fmtEur(c.tech2_total / NET));
+      setText('iToolsGross', fmtEur(c.tools_total)); setText('iToolsNet', fmtEur(c.tools_total / NET));
       el('installBalanceWarn').style.display = (ig.install_gross > 0 && !c.install_balance_ok) ? 'block' : 'none';
 
       // récap
