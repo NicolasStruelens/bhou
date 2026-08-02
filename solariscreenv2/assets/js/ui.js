@@ -752,27 +752,75 @@
     if (input) ouvrirNuancier(input);
   });
 
-  let _ralModal = null, _ralCible = null;
+  let _ralModal = null, _ralCible = null, _ralDetail = null;
+  /** Une ligne de RÉFÉRENCE : c'est elle qui porte le code de commande Harol. */
+  function refHtml(c) {
+    const P = window.SSProducts;
+    const secs = (c.sections || []).map(s => P.SECTION_L[s]).filter(Boolean);
+    return '<button type="button" class="ral-ref" data-ral-ref="' + c.i + '">' +
+      '<span class="sw"' + (c.hex ? ' style="--ral:' + c.hex + '"' : ' data-vide="1"') + '></span>' +
+      '<span class="rf-tx">' +
+        '<span class="rf-l1"><b>' + escHtml(c.cmds[0]) + '</b>' +
+          (c.cmds.length > 1 ? '<span class="rf-alt">' + escHtml(c.cmds.slice(1).join(' · ')) + '</span>' : '') + '</span>' +
+        '<span class="rf-l2">' + escHtml(c.code) + (/^\d{4}$/.test(c.code) ? ' ' + escHtml(c.nom) : '') +
+          ' — ' + escHtml(c.desc) + '</span>' +
+      '</span>' +
+      '<span class="rf-meta"><span class="rf-fin f-' + c.finCode + '">' + escHtml(c.finition) + '</span>' +
+        '<span class="rf-cl">classe ' + c.classe + '</span>' +
+        (secs.length ? '<span class="rf-sec" title="' + escHtml(secs.join(' · ')) + '">' + escHtml(secs.map(x => x.split(' ')[0]).join(' · ')) + '</span>' : '') +
+        (c.poudre ? '<span class="rf-pd" title="Code de poudre">' + escHtml(c.poudre) + '</span>' : '') +
+      '</span></button>';
+  }
   function ralCellules(q) {
     const P = window.SSProducts; if (!P) return '';
-    const req = String(q || '').trim().toLowerCase();
-    const garde = c => {
-      if (!req) return true;
-      return c.indexOf(req) === 0 || P.RAL_TABLE[c][0].toLowerCase().indexOf(req) >= 0;
-    };
+    const req = String(q || '').trim();
+
+    // ── Recherche : elle porte sur TOUT (code couleur, code de commande, nom, finition,
+    //    classe, code de poudre) et rend directement les RÉFÉRENCES, pas les couleurs :
+    //    c'est ainsi qu'un « 9T07 » tapé au clavier tombe sur sa ligne. ──
+    if (req && P.chercheColoris) {
+      const res = P.chercheColoris(req);
+      if (!res.length) {
+        return '<div class="ral-vide">Rien ne correspond à « ' + escHtml(req) + ' » dans le nuancier Harol.<br>' +
+          'Tu peux quand même écrire la référence à la main dans le champ — elle sera reprise telle quelle sur le devis.</div>';
+      }
+      return '<div class="ral-sep">' + res.length + ' référence' + (res.length > 1 ? 's' : '') + ' — cliquer pour choisir</div>' +
+        '<div class="ral-refs">' + res.map(refHtml).join('') + '</div>';
+    }
+
+    // ── Détail d'une couleur : toutes ses références (satiné / mat / laque texturée…) ──
+    if (_ralDetail && P.colorisDuCode) {
+      const refs = P.colorisDuCode(_ralDetail);
+      const e = P.RAL_TABLE[_ralDetail];
+      const titre = _ralDetail + (e ? ' — ' + e[0] : '');
+      return '<button type="button" class="ral-retour" data-ral-retour>' + icon('arrowleft', 13) + ' Toutes les couleurs</button>' +
+        '<div class="ral-sep">' + escHtml(titre) + ' — ' + refs.length + ' référence' + (refs.length > 1 ? 's' : '') + '</div>' +
+        '<div class="ral-refs">' + refs.map(refHtml).join('') + '</div>';
+    }
+
+    // ── Vue par défaut : la grille de couleurs ──
     const cur = _ralCible ? P.ralCode(_ralCible.value) : null;
     const cell = c => {
       const e = P.RAL_TABLE[c];
-      return '<button type="button" class="ral-cell' + (c === cur ? ' on' : '') + '" data-ral-pick="' + c + '">' +
+      const n = P.colorisDuCode ? P.colorisDuCode(c).length : 0;
+      return '<button type="button" class="ral-cell' + (c === cur ? ' on' : '') + '" data-ral-pick="' + c + '"' +
+        ' title="' + escHtml(c + ' ' + e[0] + (n ? ' — ' + n + ' référence(s) Harol' : '')) + '">' +
         '<span class="sw"' + (e[1] ? ' style="--ral:' + e[1] + '"' : ' data-vide="1"') + '></span>' +
-        '<span class="tx"><span class="cd">' + c + '</span><span class="nm">' + escHtml(e[0]) + '</span></span></button>';
+        '<span class="tx"><span class="cd">' + c + (n ? '<i>' + n + '</i>' : '') + '</span>' +
+        '<span class="nm">' + escHtml(e[0]) + '</span></span></button>';
     };
-    const harol = P.ralListeHarol().filter(garde);
-    const autres = Object.keys(P.RAL_TABLE).filter(c => !P.RAL_TABLE[c][2] && garde(c)).sort();
-    let h = '';
-    if (harol.length) h += '<div class="ral-sep">Nuancier Harol — ' + harol.length + ' coloris</div><div class="ral-grid">' + harol.map(cell).join('') + '</div>';
-    if (autres.length) h += '<div class="ral-sep">Autres RAL Classic — à confirmer avec Harol (supplément possible)</div><div class="ral-grid">' + autres.map(cell).join('') + '</div>';
-    if (!h) h += '<div class="ral-vide">Aucun coloris ne correspond. Tu peux quand même écrire la référence à la main dans le champ.</div>';
+    const harol = P.ralListeHarol();
+    const autres = Object.keys(P.RAL_TABLE).filter(c => harol.indexOf(c) < 0).sort();
+    const familles = P.colorisCodes ? P.colorisCodes().filter(c => !P.RAL_TABLE[c]) : [];
+    let h = '<div class="ral-sep">Nuancier Harol — ' + harol.length + ' couleurs, ' +
+      (window.SSProducts.HAROL_COLORIS || []).length + ' références</div><div class="ral-grid">' + harol.map(cell).join('') + '</div>';
+    if (familles.length) {
+      h += '<div class="ral-sep">Familles hors RAL (aucune teinte à afficher)</div><div class="ral-refs">' +
+        familles.map(f => '<button type="button" class="ral-ref" data-ral-pick="' + escHtml(f) + '">' +
+          '<span class="sw" data-vide="1"></span><span class="rf-tx"><span class="rf-l1"><b>' + escHtml(f) + '</b></span>' +
+          '<span class="rf-l2">' + P.colorisDuCode(f).length + ' référence(s)</span></span></button>').join('') + '</div>';
+    }
+    if (autres.length) h += '<div class="ral-sep">Autres RAL Classic — hors nuancier Harol, à confirmer (supplément possible)</div><div class="ral-grid">' + autres.map(cell).join('') + '</div>';
     return h;
   }
   function ouvrirNuancier(input) {
@@ -784,37 +832,58 @@
         '<div class="ral-panel" role="dialog" aria-modal="true" aria-label="Nuancier RAL">' +
           '<div class="ral-head"><span class="ral-title">Nuancier</span>' +
             '<button type="button" class="ral-x" data-ral-close aria-label="Fermer">' + icon('x', 16) + '</button></div>' +
-          '<div class="ral-search"><input class="input" id="ralQ" placeholder="Chercher un code (7016) ou un nom (anthracite)" autocomplete="off"></div>' +
+          '<div class="ral-search"><input class="input" id="ralQ" placeholder="Chercher : 7016, anthracite, 9T07, mat, classe 2…" autocomplete="off"></div>' +
           '<div class="ral-body"></div>' +
-          '<div class="ral-foot">Les teintes affichées sont indicatives (rendu écran) — le nuancier physique Harol fait foi.</div>' +
+          '<div class="ral-foot">Teintes indicatives (rendu écran) — le nuancier physique Harol fait foi. Le <b>code de commande</b> affiché est celui à reprendre sur le portail Harol.</div>' +
         '</div>';
       document.body.appendChild(_ralModal);
+      const remplir = (valeur) => {
+        _ralCible.value = valeur;
+        ralMajChamp(_ralCible);
+        _ralCible.dispatchEvent(new Event('input', { bubbles: true }));
+        _ralCible.dispatchEvent(new Event('change', { bubbles: true }));
+        fermerNuancier();
+      };
       _ralModal.addEventListener('click', ev => {
         if (ev.target === _ralModal || ev.target.closest('[data-ral-close]')) return fermerNuancier();
+        const P = window.SSProducts;
+        if (ev.target.closest('[data-ral-retour]')) { _ralDetail = null; return majNuancier(); }
+        // Une RÉFÉRENCE : on remplit avec son code de commande — c'est ce qu'on tape chez Harol.
+        const r = ev.target.closest('[data-ral-ref]');
+        if (r && _ralCible) return remplir(P.colorisLabel(P.coloris(+r.getAttribute('data-ral-ref'))));
+        // Une COULEUR : on ouvre le détail de ses finitions, sauf s'il n'y en a qu'une seule.
         const p = ev.target.closest('[data-ral-pick]');
         if (p && _ralCible) {
-          _ralCible.value = window.SSProducts.ralLabel(p.getAttribute('data-ral-pick'));
-          ralMajChamp(_ralCible);
-          _ralCible.dispatchEvent(new Event('input', { bubbles: true }));
-          _ralCible.dispatchEvent(new Event('change', { bubbles: true }));
-          fermerNuancier();
+          const code = p.getAttribute('data-ral-pick');
+          const refs = (P.colorisDuCode ? P.colorisDuCode(code) : []);
+          if (refs.length === 1) return remplir(P.colorisLabel(refs[0]));
+          if (refs.length > 1) { _ralDetail = code; return majNuancier(); }
+          return remplir(P.ralLabel(code));   // RAL hors nuancier Harol : aucune référence
         }
       });
       _ralModal.querySelector('#ralQ').addEventListener('input', ev => {
-        _ralModal.querySelector('.ral-body').innerHTML = ralCellules(ev.target.value);
+        if (ev.target.value.trim()) _ralDetail = null;   // une recherche sort de la vue détail
+        majNuancier();
       });
       document.addEventListener('keydown', ev => {
         if (ev.key === 'Escape' && _ralModal && _ralModal.classList.contains('open')) fermerNuancier();
       });
     }
     _ralModal.querySelector('#ralQ').value = '';
-    _ralModal.querySelector('.ral-body').innerHTML = ralCellules('');
+    _ralDetail = null;
+    majNuancier();
     _ralModal.classList.add('open');
     // Sur mobile on NE met PAS le focus dans la recherche : le clavier mangerait la moitié
     // du nuancier alors que l'usage courant est de taper directement sur une pastille.
     if (window.innerWidth > 720) setTimeout(() => _ralModal.querySelector('#ralQ').focus(), 30);
   }
-  function fermerNuancier() { if (_ralModal) _ralModal.classList.remove('open'); _ralCible = null; }
+  function majNuancier() {
+    if (!_ralModal) return;
+    const corps = _ralModal.querySelector('.ral-body');
+    corps.innerHTML = ralCellules(_ralModal.querySelector('#ralQ').value);
+    corps.scrollTop = 0;
+  }
+  function fermerNuancier() { if (_ralModal) _ralModal.classList.remove('open'); _ralCible = null; _ralDetail = null; }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
      CATALOGUE D'ACCESSOIRES — sélecteur PARTAGÉ
