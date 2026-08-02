@@ -1171,6 +1171,21 @@ async function upsertClient(db, c) {
 async function upsertRdv(db, r) {
   const now = new Date().toISOString();
   const cl = r.client || {};
+  // ⚠️ INVARIANT COMMENTAIRES — il manquait ici, alors qu'il existe pour les devis et les fiches
+  // clients. Sans lui, un simple changement de statut ou d'assignation depuis rdv.html réécrivait
+  // la demande ENTIÈRE depuis la copie du navigateur : tout commentaire ajouté entre le chargement
+  // de la page et l'enregistrement (typiquement par l'autre personne) disparaissait sans un mot.
+  // Vérifié en exécutant le Worker : un devis conservait sa note, une demande de RDV la perdait.
+  // Les commentaires ne sont modifiés QUE par les routes ciblées /api/rdv/:id/comment.
+  let comments = Array.isArray(r.comments) ? r.comments : [];
+  try {
+    const row = await db.prepare('SELECT data FROM rdv WHERE id = ?').bind(r.id).first();
+    if (row && row.data) {
+      const ex = safeParse(row.data);
+      if (ex && Array.isArray(ex.comments)) comments = ex.comments;
+    }
+  } catch (e) { /* lecture impossible : on garde ce qu'on a, jamais bloquant */ }
+  const data = Object.assign({}, r, { comments, comments_count: comments.length });
   await db.prepare(`
     INSERT INTO rdv (id, client_nom, client_prenom, statut, assigned_to, date_rdv, devis_id, date_creation, date_modification, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1178,7 +1193,7 @@ async function upsertRdv(db, r) {
       statut=excluded.statut, assigned_to=excluded.assigned_to, date_rdv=excluded.date_rdv,
       devis_id=excluded.devis_id, date_modification=excluded.date_modification, data=excluded.data
   `).bind(r.id, cl.nom || '', cl.prenom || '', r.statut || 'nouveau', r.assigned_to || null,
-    r.date_rdv || null, r.devis_id || null, r.date_creation || now, r.date_modification || now, JSON.stringify(r)).run();
+    r.date_rdv || null, r.devis_id || null, r.date_creation || now, r.date_modification || now, JSON.stringify(data)).run();
 }
 
 async function upsertOutillage(db, o) {
