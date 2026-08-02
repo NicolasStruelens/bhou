@@ -292,7 +292,17 @@
       // gérée proprement ailleurs et polluerait le journal à chaque page.
       const t = e.target;
       if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
-        report('Ressource non chargée', t.tagName.toLowerCase(), String(t.src || t.href || '').split('/').pop());
+        // ⚠️ Uniquement NOS fichiers. Cloudflare injecte son beacon d'analytics
+        // (static.cloudflareinsights.com/beacon.min.js) sur chaque page servie ; une
+        // protection anti-pistage ou un bloqueur le refuse, et le journal d'activité se
+        // remplissait d'une alerte À CHAQUE chargement de page — noyant les vraies erreurs.
+        // Un script tiers bloqué côté navigateur n'est pas un problème de l'ERP ; un de nos
+        // fichiers qui ne charge pas, si — et celui-là continue d'être remonté.
+        const url = String(t.src || t.href || '');
+        let interne = true;
+        try { if (url) interne = new URL(url, location.href).origin === location.origin; } catch (err) { interne = false; }
+        if (!interne) return;
+        report('Ressource non chargée', t.tagName.toLowerCase(), url.split('/').pop());
         return;
       }
       if (t && t !== window && !e.message) return;   // autre ressource (image…) → ignoré
