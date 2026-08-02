@@ -19,6 +19,11 @@ body { background: var(--bg); }
   width: 210mm; max-width: 100%; background: var(--surface); color: var(--text);
   border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow);
   padding: 16mm 15mm; position: relative; overflow: hidden;
+  /* Un document imprimé n'a pas de « hors champ » : aucun texte ne doit pouvoir sortir de la
+     feuille. break-word (et non anywhere) ne coupe QUE les mots qui ne rentrent pas, donc la
+     mise en page normale est intacte. Propriété héritée → couvre tout le contenu de la page,
+     y compris le bloc signature et les mentions, sans règle au cas par cas. */
+  overflow-wrap: break-word;
 }
 
 /* En-tête */
@@ -35,10 +40,14 @@ body { background: var(--bg); }
 .doc-head .doc-dates { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.3rem; line-height: 1.5; }
 
 /* Parties */
-.parties { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); margin-top: var(--sp-5); }
+/* minmax(0, 1fr) et non 1fr : sinon une colonne se laisse élargir par son contenu (une raison
+   sociale ou une rue longue) au lieu de le faire passer à la ligne — le bloc d'adresses partait
+   à 1632 px de large, ce qui déforme le document à l'écran ET le PDF envoyé au client. */
+.parties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5); margin-top: var(--sp-5); }
+.party { min-width: 0; }
 .party h4 { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-subtle); margin-bottom: 0.4rem; }
-.party .pname { font-weight: 700; font-size: var(--fs-md); }
-.party .pline { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.5; }
+.party .pname { font-weight: 700; font-size: var(--fs-md); overflow-wrap: anywhere; }
+.party .pline { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
 
 /* Tableau */
 .doc-table { width: 100%; border-collapse: collapse; margin-top: var(--sp-5); font-size: var(--fs-sm); }
@@ -201,4 +210,18 @@ body { background: var(--bg); }
 }
 /* "screen" exclut l'impression : la zone imprimable A4 (~700px) est plus étroite
    que ce seuil et déclencherait sinon l'empilement mobile au moment du PDF. */
-@media screen and (max-width: 760px) { .parties, .signatures, .photo-grid { grid-template-columns: 1fr; } .paper { padding: 8mm; } }
+@media screen and (max-width: 760px) { .parties, .signatures, .photo-grid { grid-template-columns: minmax(0, 1fr); } .paper { padding: 8mm; } }
+
+/* ── Documents sur téléphone : faire DÉFILER plutôt que COUPER ──────────────────────────────
+   Le tableau du devis garde une largeur minimale d'environ 480 px (colonnes + en-têtes). Dans une
+   feuille réduite à 346 px sur un iPhone, `.paper { overflow: hidden }` en tronquait le côté droit :
+   la colonne des prix disparaissait purement et simplement de l'écran, sans aucun moyen d'y accéder
+   (mesuré : 479 px de contenu dans 346 px de feuille). On rend donc le tableau défilant DANS la
+   feuille — rien n'est perdu, la mise en page A4 et le PDF ne bougent pas.
+   `screen` uniquement : à l'impression la zone A4 fait ~700 px et n'a jamais eu le problème.       */
+@media screen and (max-width: 760px) {
+  .doc-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .doc-table > thead, .doc-table > tbody, .doc-table > tfoot { display: table; width: 100%; min-width: 470px; }
+  .doc-table::-webkit-scrollbar { height: 6px; }
+  .doc-table::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+}
