@@ -702,8 +702,19 @@
     return freq.concat(rest);
   }
 
-  // Libellés prêts à afficher (« 7016 — Gris anthracite ») pour les datalists.
+  // Libellés prêts à afficher (« 7016 — Gris anthracite »).
   const COULEURS_RAL = ralListeHarol().map(ralLabel);
+  /**
+   * Suggestions du CHAMP couleur — à ne pas confondre avec le nuancier.
+   * Le champ ne proposait que les codes RAL : taper « 9T07 » (un code de COMMANDE) ne
+   * suggérait rien, alors que la référence existe. On y ajoute donc les 522 références,
+   * dont le libellé contient le code de commande. Le navigateur filtre sur la sous-chaîne :
+   * « 9T07 », « 7016 », « anthracite » ou « mat » tombent tous juste.
+   * Les couleurs seules restent en TÊTE : c'est le choix courant quand la finition n'est
+   * pas encore arrêtée, et une liste qui commence par 522 variantes serait décourageante.
+   */
+  const COULEURS_RAL_SUGGESTIONS = COULEURS_RAL.concat(
+    HAROL_COLORIS.map((_, i) => colorisLabel(coloris(i))));
 
   // Gamme restreinte "Pure" (2025) — 10 RAL, classe 2 uniquement
   const COULEURS_RAL_PURE = ['7016', '7021', '7039', '8019', '9001', '9004', '9005', '9006', '9010', '9016'];
@@ -1017,7 +1028,7 @@
 
   window.SSProducts = {
     ITEM_TYPES, ITEM_TYPES_LEGACY, EMPLACEMENTS_SUGGESTIONS, ETAGES_SUGGESTIONS, MOTEURS, MODELES_CATALOGUE,
-    COULEURS_RAL, COULEURS_RAL_PURE, TOILES_CATALOGUE,
+    COULEURS_RAL, COULEURS_RAL_SUGGESTIONS, COULEURS_RAL_PURE, TOILES_CATALOGUE,
     CS8_VARIANTES, CS8_COLLECTIONS, CS8_MOTEURS, CABLE_LONGUEURS,
     CS8_CAISSON_MESURES_STANDARD, CS8_CAISSON_MESURES_GRAND, CS8_COLMATAGE,
     caissonMesuresFor,
