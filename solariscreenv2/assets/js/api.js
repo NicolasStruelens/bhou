@@ -266,6 +266,36 @@
         return { ok: false, error: MSG_SESSION };
       }
     },
+    /**
+     * Corrige le texte (et le type) d'une note déjà écrite. Écriture CIBLÉE côté serveur, comme
+     * l'ajout et la suppression : rien d'autre que $.comments n'est touché.
+     * PAS de repli hors-ligne, volontairement : une correction appliquée en local puis rejouée
+     * plus tard écraserait sans le dire ce qu'un autre aurait écrit entre-temps. Mieux vaut
+     * refuser franchement que corriger dans le vide.
+     */
+    async updateComment(devisId, commentId, opts) {
+      opts = opts || {};
+      const text = (opts.text || '').trim();
+      if (!text) return { ok: false, error: 'Message vide' };
+      const payload = { text: text };
+      if (opts.type) payload.type = opts.type;
+      try {
+        const res = await req('/devis/' + encodeURIComponent(devisId) + '/comment/' + encodeURIComponent(commentId),
+          { method: 'PATCH', body: JSON.stringify(payload) });
+        try {
+          const d = local.get(devisId);
+          if (d && d.comments) {
+            const i = d.comments.findIndex(function (c) { return String(c.id) === String(commentId); });
+            if (i >= 0) { d.comments[i] = res.comment || Object.assign({}, d.comments[i], payload); local.save(d); }
+          }
+        } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Modification impossible hors ligne — réessaie une fois connecté.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
 
     // ── TICKETS SAV ──
     // Même architecture que les commentaires : écriture CIBLÉE côté serveur (route dédiée), pour

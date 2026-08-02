@@ -544,8 +544,8 @@
   /**
    * Une note du fil.
    * @param {object} c    { id, author, text, type, date, visible_client, ask, kind }
-   * @param {object} opts { onDelete:'nomDeFonction', onReply:'nomDeFonction', compact:true }
-   *                      onDelete/onReply reçoivent l'id de la note ; omis = bouton absent.
+   * @param {object} opts { onDelete:'nomDeFonction', onEdit:'nomDeFonction', onReply:'nomDeFonction', compact:true }
+   *                      onDelete/onEdit/onReply reçoivent l'id de la note ; omis = bouton absent.
    */
   function commentHtml(c, opts) {
     opts = opts || {};
@@ -561,16 +561,25 @@
     const del = (opts.onDelete && id)
       ? `<button type="button" class="ss-cmt-del" title="Supprimer cette note" aria-label="Supprimer cette note"
            onclick="event.stopPropagation();${opts.onDelete}('${id}')">${icon('trash', 13)}</button>` : '';
+    // Un message du CLIENT n'est jamais modifiable ici — le serveur le refuse aussi (403).
+    const mod = (opts.onEdit && id && a.cls !== 'client')
+      ? `<button type="button" class="ss-cmt-mod" title="Modifier cette note" aria-label="Modifier cette note"
+           onclick="event.stopPropagation();${opts.onEdit}('${id}')">${icon('edit', 13)}</button>` : '';
+    // Une note corrigée le dit : sans ce repère, le fil raconterait une version réécrite de l'histoire.
+    const retouche = c.edited
+      ? `<span class="ss-cmt-maj" title="Modifiée le ${escHtml(fmtDateTime(c.edited))}">modifiée</span>` : '';
     const rep = (opts.onReply && a.cls === 'client')
       ? `<button type="button" class="ss-cmt-reply" onclick="event.stopPropagation();${opts.onReply}('${id}')">${icon('reply', 12)} Répondre au client</button>` : '';
-    return `<div class="ss-cmt ${a.cls === 'client' ? 'is-client' : ''} ${type === 'important' ? 'is-important' : ''} ${type === 'question' ? 'is-question' : ''}">
+    return `<div class="ss-cmt ${a.cls === 'client' ? 'is-client' : ''} ${type === 'important' ? 'is-important' : ''} ${type === 'question' ? 'is-question' : ''}"
+                 data-cmt-id="${id}">
       <span class="ss-cmt-av ${a.cls}" aria-hidden="true">${a.ini}</span>
       <div class="ss-cmt-main">
         <div class="ss-cmt-head">
           <span class="ss-cmt-who">${escHtml(a.label)}</span>
           ${chips.join('')}
+          ${retouche}
           <time class="ss-cmt-when" title="${escHtml(fmtDateTime(c.date))}">${escHtml(relTime(c.date))}</time>
-          ${del}
+          ${mod}${del}
         </div>
         <div class="ss-cmt-text">${escHtml(c.text)}</div>
         ${rep}
