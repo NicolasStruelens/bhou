@@ -481,6 +481,44 @@ export async function onRequest(context) {
       ).bind(JSON.stringify(comments), comments.length, now, id).run();
       return json({ ok: true, comments_count: comments.length, date_modification: now });
     }
+    // ── COMMENTAIRE INTERNE : modification CIBLÉE (corriger une note sans la retaper) ──
+    // Même garantie que l'ajout et la suppression : on ne réécrit QUE $.comments, jamais le devis
+    // complet. La note garde son id, son auteur et sa date d'origine ; « edited » date la retouche,
+    // pour que le fil reste honnête — une note corrigée le dit.
+    let mCommentEdit = path.match(/^\/api\/devis\/([^/]+)\/comment\/([^/]+)$/);
+    if (mCommentEdit && method === 'PATCH') {
+      const id = decodeURIComponent(mCommentEdit[1]);
+      const cid = decodeURIComponent(mCommentEdit[2]);
+      const body = await request.json().catch(() => ({}));
+      const text = (body.text || '').trim();
+      if (!text) return json({ ok: false, error: 'Message vide' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const comments = Array.isArray(d.comments) ? d.comments.slice() : [];
+      const i = comments.findIndex(c => String(c.id) === String(cid));
+      if (i < 0) return json({ ok: false, error: 'Note introuvable' }, 404);
+      // Un message écrit par le CLIENT n'est pas modifiable : réécrire ce qu'il a dit
+      // falsifierait l'échange. On peut le supprimer, jamais le corriger à sa place.
+      if (String(comments[i].author || '').toLowerCase() === 'client') {
+        return json({ ok: false, error: 'Un message du client ne se modifie pas' }, 403);
+      }
+      const now = new Date().toISOString();
+      const modifiee = Object.assign({}, comments[i], {
+        text: text.slice(0, 5000),
+        type: String(body.type || comments[i].type || 'note').slice(0, 20),
+        edited: now,
+      });
+      comments[i] = modifiee;
+      const r = await env.DB.prepare(
+        `UPDATE devis SET
+           data = json_set(data, '$.comments', json(?1), '$.comments_count', ?2, '$.date_modification', ?3),
+           date_modification = ?3
+         WHERE id = ?4`
+      ).bind(JSON.stringify(comments), comments.length, now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      return json({ ok: true, comment: modifiee, comments_count: comments.length, date_modification: now });
+    }
     // ── TICKET SAV : création / modification CIBLÉE (n'écrit que la clé $.sav_tickets) ──
     // Même principe que les commentaires : on ne renvoie JAMAIS le devis complet depuis le
     // navigateur. La lecture-modification-écriture se fait ici, côté serveur, en quelques
