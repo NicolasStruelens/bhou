@@ -632,6 +632,22 @@
     // honnête — il montre bien TOUT. Le dernier choix de Nicolas est mémorisé.
     const DEFAULT_VIEW = 'actifs';
     const DEAD_STATUSES = ['refuse', 'annule'];
+    /* ── « Actifs » = il reste quelque chose à faire ────────────────────────────────────────────
+       Le filtre excluait seulement les refusés/annulés : les chantiers terminés ET encaissés
+       restaient dans la liste du quotidien alors qu'il n'y a plus rien à en faire, et ils
+       repoussaient vers le bas les dossiers qui, eux, demandent une action.
+       Un dossier terminé mais NON soldé RESTE actif : il reste de l'argent à encaisser, et c'est
+       précisément ce qu'on ne doit jamais perdre de vue. En l'absence de montant connu (ttc = 0),
+       on considère le dossier comme non soldé — on préfère l'afficher à tort que le cacher à tort. */
+    function totalEncaisse(d) {
+      return FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
+    }
+    function estSolde(d) {
+      const ttc = Number(d.ttc) || 0;
+      return ttc > 0 && totalEncaisse(d) >= ttc - 0.005;
+    }
+    function estClos(d) { return d.statut === 'termine' && estSolde(d); }
+    function estActif(d) { return !DEAD_STATUSES.includes(d.statut) && !estClos(d); }
     let activeFilter = (function () {
       try { return localStorage.getItem('ss_dash_view') || DEFAULT_VIEW; } catch (e) { return DEFAULT_VIEW; }
     })();
@@ -854,17 +870,23 @@
 
     function renderFilters() {
       const visible = DEVIS.filter(d => !d.archive);
-      const counts = { tous: visible.length, actifs: visible.filter(d => !DEAD_STATUSES.includes(d.statut)).length };
+      const counts = { tous: visible.length, actifs: visible.filter(estActif).length };
       visible.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
       const archivedCount = DEVIS.filter(d => d.archive).length;
-      const morts = counts.tous - counts.actifs;
+      // Compter les MORTS explicitement : « tous − actifs » englobait aussi les dossiers clos
+      // (terminés et soldés) et l'infobulle annonçait 4 refusés là où il n'y en avait qu'un.
+      const morts = visible.filter(d => DEAD_STATUSES.includes(d.statut)).length;
       const chips = [['actifs', 'Actifs'], ['tous', 'Tous']].concat(Object.entries(STATUSES).map(([k, v]) => [k, v.label]));
       el('filters').innerHTML = chips
         .filter(([k]) => k === 'tous' || k === 'actifs' || counts[k])
         .map(([k, label]) => {
+          const clos = visible.filter(estClos).length;
+          const masques = [morts ? `${morts} refusé${morts > 1 ? 's' : ''}/annulé${morts > 1 ? 's' : ''}` : '',
+                           clos ? `${clos} terminé${clos > 1 ? 's' : ''} et soldé${clos > 1 ? 's' : ''}` : '']
+                          .filter(Boolean).join(' · ');
           const t = k === 'actifs'
-            ? `Dossiers en vie : brouillons, envoyés, signés, terminés${morts ? ` (${morts} refusé${morts > 1 ? 's' : ''}/annulé${morts > 1 ? 's' : ''} masqué${morts > 1 ? 's' : ''})` : ''}`
-            : (k === 'tous' ? 'Tout, y compris les refusés et annulés' : '');
+            ? `Ce sur quoi il reste à agir : brouillons, envoyés, signés, et les chantiers terminés dont le solde n'est pas encaissé${masques ? ` — masqués : ${masques}` : ''}`
+            : (k === 'tous' ? 'Tout, y compris les refusés, annulés et soldés' : '');
           return `<button class="chip ${k === 'actifs' ? 'chip-actifs' : ''} ${activeFilter === k ? 'active' : ''}" title="${esc(t)}" onclick="setFilter('${k}')">${label} <span style="opacity:.6">${counts[k] || 0}</span></button>`;
         })
         .join('')
@@ -1142,7 +1164,7 @@
       const sort = el('sort').value;
       let rows = activeFilter === 'archives' ? DEVIS.filter(d => d.archive) : DEVIS.filter(d => !d.archive);
       // Vue par défaut : on écarte les dossiers tranchés perdus (ils polluaient la liste de travail).
-      if (activeFilter === 'actifs') rows = rows.filter(d => !DEAD_STATUSES.includes(d.statut));
+      if (activeFilter === 'actifs') rows = rows.filter(estActif);
       if (activeFilter === 'accepte_client') rows = rows.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
       else if (activeFilter === 'question_client') rows = rows.filter(d => d.client_question_open);
       else if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);

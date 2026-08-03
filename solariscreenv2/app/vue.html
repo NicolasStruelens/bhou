@@ -880,13 +880,13 @@
         </div>
         <div class="field"><label class="label" for="relanceText">Message (modifiable)</label><textarea class="textarea" id="relanceText" style="min-height:140px;"></textarea></div>
         <div class="row wrap" style="gap:var(--sp-2);">
-          <button class="btn btn-ghost btn-sm" onclick="ssCopy(document.getElementById('relanceText').value, 'Message')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
+          <button class="btn btn-ghost btn-sm" id="btnRelanceCopy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
           <button class="btn btn-ghost btn-sm" id="btnRelanceEmail">Email</button>
           <button class="btn btn-ghost btn-sm" id="btnRelanceSms">SMS</button>
           <button class="btn btn-ghost btn-sm" id="btnRelanceWa">WhatsApp</button>
           <button class="btn btn-primary btn-sm" id="btnRelanceDone" style="margin-left:auto;" onclick="markRelanceSent()">Marquer comme relancé</button>
         </div>
-        <p class="rl-hint">Email, SMS et WhatsApp enregistrent la relance automatiquement. Un jalon <strong>R1 ✓</strong> du suivi s'annule d'un clic.</p>
+        <p class="rl-hint">Les quatre boutons enregistrent la relance automatiquement. Un jalon <strong>R1 ✓</strong> du suivi s'annule d'un clic.</p>
       </div>
     </div>
   </div>
@@ -2253,6 +2253,15 @@
       // la même relance pendant des semaines. On enregistre donc à l'envoi, annulable en un clic
       // (bouton « R1 ✓ » du suivi). Le mailto/sms ne quitte pas la page : le code suivant s'exécute bien.
       const autoMark = () => setTimeout(() => window.markRelanceSent({ auto: true }), 200);
+      // COPIER enregistre AUSSI. C'était le trou : Nicolas copie le message et l'envoie depuis son
+      // webmail (Zoho), donc aucun des trois autres boutons n'est utilisé — la relance n'était jamais
+      // enregistrée et le tableau de bord réclamait « Relance 1 » indéfiniment, pendant des semaines.
+      // Constaté sur un devis réel : statut resté « envoyé », `relances` vide, devis non modifié
+      // depuis 2 jours alors que la relance avait bien été envoyée au client.
+      el('btnRelanceCopy').onclick = () => {
+        window.ssCopy(getText(), 'Message');
+        autoMark();
+      };
       el('btnRelanceEmail').onclick = () => {
         if (!cl.email) { toast("Pas d'email pour ce client", 'warn'); return; }
         location.href = 'mailto:' + mailtoList(cl.email) + '?subject=' + encodeURIComponent('SolariScreen — devis ' + DEVIS.id) + '&body=' + encodeURIComponent(getText());

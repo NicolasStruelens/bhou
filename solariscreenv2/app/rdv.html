@@ -1027,10 +1027,26 @@
       { label: 'On en parle', text: 'On en parle de vive voix avant de répondre au client.', kind: 'note', askOther: true },
     ];
     window.focusChat = () => { const t = el('chatText'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => t.focus({ preventScroll: true }), 250); } };
+    // Une demande NEUVE porte déjà un identifiant (généré ici pour l'affichage) mais n'existe PAS
+    // encore en base : la route ciblée /api/rdv/:id/comment répondait donc « Demande introuvable ».
+    // Tester `CURRENT.id` ne suffit pas — il faut vérifier que la demande est réellement enregistrée.
+    function rdvEnregistre() { return !!(CURRENT && CURRENT.id && RDV.some(x => x.id === CURRENT.id)); }
+
     window.quickChat = async (i) => {
       const q = QUICK_MSGS[i]; if (!q) return;
       const me = IDENTITY.key || 'nicolas';
+      // « Je prends » modifie deux champs du formulaire : ça marche même sur une demande non
+      // enregistrée, et c'est utile — on l'applique toujours.
       if (q.take) { el('f_assigned').value = me; if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter'; }
+      if (!rdvEnregistre()) {
+        // Un seul message clair, au lieu d'un « Pris en charge » suivi d'un « Demande introuvable ».
+        const t = el('chatText');
+        if (t && !t.value.trim()) t.value = q.text;   // le texte est conservé, pas perdu
+        toast(q.take
+          ? 'Pris en charge. Enregistre la demande : ton message partira ensuite.'
+          : 'Enregistre d’abord la demande — ton message est gardé dans le champ.', 'warn', 6000);
+        return;
+      }
       await postChat(q.text, q.askOther ? otherThan(me) : '', q.kind);
       if (q.take) toast('Pris en charge — pense à enregistrer la demande.', 'ok');
     };
@@ -1042,7 +1058,7 @@
       if (t) t.value = '';
     };
     async function postChat(text, ask, kind) {
-      if (!CURRENT || !CURRENT.id) { toast('Enregistre d’abord la demande, puis discute.', 'warn', 5000); return; }
+      if (!rdvEnregistre()) { toast('Enregistre d’abord la demande, puis discute.', 'warn', 5000); return; }
       const me = IDENTITY.key || 'nicolas';
       const res = await SS.addRdvComment(CURRENT.id, { author: me, text, ask, kind });
       if (!res || res.ok === false) { toast((res && res.error) || 'Message non envoyé', 'error', 6000); return; }
