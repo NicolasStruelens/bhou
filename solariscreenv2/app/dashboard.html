@@ -1919,7 +1919,10 @@
     }
 
     // ── Chargement ──
-    async function load() {
+    // Relit les données du serveur et redessine. Volontairement SANS « Quoi de neuf » : cette
+    // fonction est aussi appelée à chaque retour sur la page, et une fenêtre qui surgit sur un
+    // simple retour d'onglet serait insupportable.
+    async function rafraichir() {
       const [raw, facs, clients, rdvs] = await Promise.all([
         SS.listDevis(), SS.listFactures(), SS.listClients(),
         (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
@@ -1929,6 +1932,9 @@
       FACTURES = facs || [];
       CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();
+    }
+    async function load() {
+      await rafraichir();
       checkWhatsNew();   // fire-and-forget : ouvre « Quoi de neuf » s'il y a du nouveau
     }
     SS.isOnline().then(on => {
@@ -1937,6 +1943,24 @@
       b.className = 'badge ' + (on ? 'badge-ok' : 'badge-warn');
     });
     load();
+
+    /* ── RETOUR SUR LE TABLEAU DE BORD : il faut RELIRE le serveur ──────────────────────────────
+       Le navigateur restaure une page revue par le bouton « Précédent » depuis sa mémoire, SANS
+       réexécuter le moindre script (bfcache). Le tableau de bord réaffichait donc l'état qu'il
+       avait au moment où on l'avait quitté.
+       C'est ce qui donnait l'impression tenace que les relances « ne marchaient pas » : la fiche
+       enregistrait bien (« Relance 1 enregistrée ✓ », jalon R1 ✓, cadence recalculée), on revenait
+       en arrière, et la liste réclamait encore « Relance 1 à envoyer » — avec une date de
+       modification vieille de plusieurs jours, preuve qu'aucune relecture n'avait eu lieu.
+       On recharge donc les données à chaque retour sur la page. `persisted` vaut true uniquement
+       pour une restauration depuis la mémoire : un chargement normal a déjà appelé load() juste
+       au-dessus, on ne le fait pas deux fois. */
+    window.addEventListener('pageshow', (e) => { if (e.persisted) rafraichir(); });
+    // Même raison au retour d'onglet : Yannick enregistre de son côté pendant que la page dort ici.
+    // On s'abstient si une fenêtre est ouverte (notes, filtres…) pour ne pas redessiner sous ses pieds.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !document.querySelector('.modal-bg.open')) rafraichir();
+    });
   </script>
 </body>
 </html>
