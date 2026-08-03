@@ -33,6 +33,27 @@
     .adv-panel.hidden { display: none; }
     .adv-panel .field { margin: 0; min-width: 130px; }
     .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+    /* ══════════ TÉLÉPHONE : barre d'outils et filtres ══════════════════════════════════════
+       La barre d'outils occupait 173 px sur 4 rangées (recherche, tri, Export, Import,
+       Activité, Filtres avancés) et les deux rangées de filtres 126 px de plus : le premier
+       devis n'apparaissait qu'à 964 px, soit plus d'un écran de défilement AVANT de voir
+       quoi que ce soit d'utile. Ici : recherche seule sur sa ligne, puis tri + boutons en
+       icônes sur une seule ligne, et les filtres deviennent des rubans qui défilent
+       horizontalement (aucun filtre perdu, mais une seule rangée de haut). */
+    @media (max-width: 560px) {
+      .toolbar { gap: var(--sp-2); margin-bottom: var(--sp-3); }
+      .toolbar .search { flex: 1 1 100%; min-width: 0; }
+      .toolbar .select { flex: 1; min-width: 0; }
+      /* Comme dans le bandeau : le libellé disparaît, l'icône (taille fixe en attributs SVG)
+         et l'infobulle restent. Ces boutons DOIVENT donc tous porter une icône. */
+      .toolbar .btn { font-size: 0; gap: 0; padding: 0.5rem 0.55rem; flex: none; }
+      .toolbar #advCount { font-size: var(--fs-2xs); margin-left: 0.25rem; }
+      .filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+      .filters::-webkit-scrollbar { display: none; }
+      .filters .chip { flex: none; }
+      .kpi-bar { margin-bottom: 6px; }
+    }
     .chip-archive { margin-left: var(--sp-3); border-color: var(--accent-2); color: var(--accent-2-ink); background: color-mix(in srgb, var(--accent-2) 14%, transparent); font-weight: 700; }
     .chip-archive:hover { border-color: var(--accent-2); color: var(--accent-2-ink); box-shadow: var(--glow-soft); }
     /* Actif : encre sombre garantie sur le fond or plein (le texte quasi-blanc était illisible). */
@@ -81,6 +102,19 @@
       color: var(--tbc, var(--text-muted)); background: color-mix(in srgb, var(--tbc, var(--text-subtle)) 10%, transparent);
     }
     .tb-chip:hover { box-shadow: var(--glow-soft); }
+    /* Téléphone : les priorités du jour restent TOUTES visibles (jamais de défilement caché
+       ici, c'est la consigne de la journée), mais serrées — une consigne par rangée pleine
+       largeur, et le titre « Aujourd'hui » sur sa propre ligne au-dessus.
+       Pourquoi pleine largeur et non deux par rangée : à leur largeur naturelle, deux
+       consignes tiendraient à 1 px près (158 + 171 pour 334 de disponible) — un « 3 »
+       au lieu d'un « 1 » suffirait à faire sauter la mise en page d'une rangée à l'autre.
+       Une consigne par rangée donne toujours le même écran, quels que soient les chiffres,
+       et une cible tactile pleine largeur. */
+    @media (max-width: 560px) {
+      .today-brief { gap: 6px; padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
+      .tb-label { flex-basis: 100%; }
+      .tb-chip { flex: 1 1 auto; justify-content: flex-start; }
+    }
 
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; transition: all var(--t-fast); }
@@ -311,9 +345,39 @@
       .mrow { grid-template-columns: minmax(0, 1fr) auto; }
       .m-signal { grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
     }
+    /* ── TÉLÉPHONE ── Une ligne faisait 257 px : trois dossiers par écran, et le montant
+       atterrissait tout en bas, loin du nom. On repasse en deux colonnes (identité à gauche,
+       montant à droite, sur la MÊME ligne que le nom), le signal et les raccourcis prenant
+       toute la largeur en dessous. Le n° de devis disparaît (illisible et inutile au doigt),
+       les raccourcis passent sur leur propre ligne avec des cibles tactiles plus grandes. */
     @media (max-width: 560px) {
-      .mrow { grid-template-columns: minmax(0, 1fr); }
-      .m-right { grid-column: 1 / -1; align-items: flex-start; margin-top: 8px; }
+      .mrow { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 7px 10px; padding: 10px 12px 10px 16px; }
+      /* `display: contents` dissout .m-main : le nom, la sous-ligne et la jauge deviennent des
+         cases de la grille de la ligne. Sans ça la sous-ligne restait enfermée dans une colonne
+         de 190 px (le montant occupant l'autre) et se cassait en trois rangées. .m-main n'a ni
+         fond ni bordure ni marge — la dissoudre ne fait donc rien perdre visuellement. */
+      .m-main { display: contents; }
+      .m-nm { grid-column: 1; }
+      /* Le montant partage la première ligne avec le nom : on lui donne un plafond de largeur
+         pour qu'un badge « Retard paiement » ne vienne pas rogner le nom du client. */
+      .m-right { grid-column: 2; grid-row: 1; align-items: flex-end; margin-top: 0; max-width: 42%; }
+      .m-pay { text-align: right; }
+      .m-sub, .m-gline, .m-signal { grid-column: 1 / -1; }
+      .m-signal { justify-self: start; margin-top: 0; }
+      /* Le NOM du client d'abord : les pastilles de type (Screen, Volet…) le réduisaient à
+         66 px — « Doris Zurstrassen » devenait illisible — et s'empilaient sur trois rangées.
+         Elles disparaissent au téléphone (le type reste filtrable et visible sur la fiche),
+         mais l'avertissement « N à compléter » RESTE : lui bloque la commande chez Harol. */
+      .type-badges { flex-wrap: nowrap; min-width: 0; flex: none; }
+      .type-badges .badge:not(.badge-warn) { display: none; }
+      .type-badges .badge-warn { white-space: nowrap; }
+      .type-badges .bm-txt { display: none; }   /* « ⚠ 3 » suffit ; l'infobulle dit le reste */
+      .m-name { flex: 1 1 auto; min-width: 0; }
+      .m-sub { gap: 8px; margin-top: 0; }
+      .m-sub .id { display: none; }                                  /* n° de devis : illisible et inutile au doigt */
+      .media-icons .mi-slot:not(.active):not(.cmt-slot) { display: none; }  /* « 0 photo » = du bruit */
+      .m-jump { flex-basis: 100%; margin-top: 2px; }
+      .m-jp { width: 32px; height: 32px; opacity: 1; }               /* cible tactile agrandie (pas de survol au doigt) */
     }
 
     /* Aperçu flottant au survol des médias (miniatures photos / fil de notes) — chargé à la demande. */
@@ -411,7 +475,7 @@
       <a class="btn btn-sm btn-terrain" href="terrain.html" title="Mode Terrain (iPhone)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg> Terrain</a>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
-      <a class="btn btn-primary btn-sm" href="simulateur.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau devis</a>
+      <a class="btn btn-primary btn-sm" href="simulateur.html" title="Créer un nouveau devis"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau devis</a>
     </div>
   </header>
 
@@ -443,7 +507,7 @@
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
       <button class="btn btn-ghost btn-sm" onclick="openActivity('all')" title="Journal d'activité (qui a fait quoi)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Activité</button>
-      <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres avancés<span id="advCount"></span></button>
+      <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()" title="Filtres avancés (montant, dates, chantier…)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres avancés<span id="advCount"></span></button>
     </div>
     <div class="filters" id="filters"></div>
     <div class="filters" id="sellerFilters" style="margin-top:0.35rem;"></div>
@@ -655,8 +719,19 @@
     let activeType = 'tous';   // filtre par type de produit (#14)
 
     // ── Préférences d'affichage (mémorisées) : bandeau KPI replié (#11), densité des lignes (#22) ──
+    // Sur téléphone, le bandeau de chiffres fait 262 px : il repoussait la liste des devis
+    // hors de l'écran d'accueil. Il est donc REPLIÉ PAR DÉFAUT là — mais uniquement tant que
+    // rien n'a été choisi : dès que le bouton est utilisé, le choix explicite l'emporte
+    // partout et pour toujours (même clé, comme au bureau).
+    const PETIT_ECRAN = () => window.matchMedia('(max-width: 640px)').matches;
     const PREF = {
-      get kpis() { try { return localStorage.getItem('ss_dash_kpis') !== '0'; } catch (e) { return true; } },
+      get kpis() {
+        try {
+          const v = localStorage.getItem('ss_dash_kpis');
+          if (v === null) return !PETIT_ECRAN();
+          return v !== '0';
+        } catch (e) { return true; }
+      },
       set kpis(v) { try { localStorage.setItem('ss_dash_kpis', v ? '1' : '0'); } catch (e) {} },
       get dense() { try { return localStorage.getItem('ss_dash_dense') === '1'; } catch (e) { return false; } },
       set dense(v) { try { localStorage.setItem('ss_dash_dense', v ? '1' : '0'); } catch (e) {} },

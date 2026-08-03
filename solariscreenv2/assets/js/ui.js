@@ -1083,8 +1083,11 @@
   function badgeManquants(d) {
     const n = nbManquants(d);
     if (!n) return '';
+    // Le libellé est isolé dans un <span> pour que le téléphone puisse n'afficher que
+    // « ⚠ 3 » (voir dashboard.html) : sur une ligne de liste, ces mots mangeaient la moitié
+    // de la place du nom du client. Le sens reste porté par la couleur et l'infobulle.
     return '<span class="badge badge-warn" title="Informations manquantes pour commander">' +
-      icon('warning', 11) + ' ' + n + ' à compléter</span>';
+      icon('warning', 11) + ' ' + n + '<span class="bm-txt"> à compléter</span></span>';
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
