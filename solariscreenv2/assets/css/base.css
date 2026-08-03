@@ -129,13 +129,51 @@ a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--border);
 }
 @media (max-width: 640px) {
-  /* En dessous de 640px, .header-actions (souvent 4-6 boutons) ne tient plus sur une
-     ligne à côté de .brand — sans wrap, il réclame toute la largeur et écrase .brand
-     à 0px (logo/titre invisibles), et pousse toute la page en scroll horizontal. */
-  .app-header { height: auto; min-height: var(--header-h); flex-wrap: wrap; row-gap: var(--sp-2); --header-px: var(--sp-4); --header-py: var(--sp-3); padding: var(--header-py) var(--header-px); }
-  .header-actions { flex-wrap: wrap; justify-content: flex-end; width: 100%; }
+  /* Téléphone : le bandeau redevient UNE barre compacte (avant : brand + pensée du jour
+     + rangée de boutons à libellés = jusqu'à un tiers de l'écran).
+     - la pensée du jour et la météo disparaissent (décoratives) ;
+     - les boutons perdent leur libellé : font-size 0 efface le texte, le SVG garde sa
+       taille (attributs width/height) et le title sert d'infobulle. Tout bouton du
+       bandeau DOIT donc avoir une icône — un bouton texte-seul deviendrait invisible ;
+     - le badge de connexion devient un simple point coloré (currentColor = ok/warn) ;
+     - le badge d'identité (Nicolas/Yannick) garde seulement son icône, dans sa couleur.
+     Les actions restent SUR LA MÊME LIGNE que le logo et ne se replient en 2e rangée
+     courte que si elles débordent vraiment (fiche devis et ses pastilles de statut). */
+  .app-header { height: auto; min-height: var(--header-h); gap: var(--sp-2); row-gap: var(--sp-1); --header-px: var(--sp-4); --header-py: var(--sp-2); padding: var(--header-py) var(--header-px); }
+  .header-mood, .app-header .wx-chip { display: none; }
+  /* Sur téléphone on garde le NOM DE LA PAGE plutôt que le nom de la marque : on sait dans
+     quelle appli on est, pas toujours sur quel écran. Le logo (cliquable vers le tableau de
+     bord) porte l'identité, et les ~110 px rendus par le titre suffisent à faire tenir tous
+     les boutons du bandeau sur une seule rangée. */
+  /* C'est le TITRE qui doit céder de la place, jamais les boutons : `flex: 1 1 auto` sur la
+     marque et `flex: 0 1 auto` sur les actions (plus bas) donnent aux boutons leur largeur
+     réelle d'abord, le titre occupant ce qui reste et s'abrégeant en « … » si besoin. */
+  .brand { --brand-gap: var(--sp-2); flex: 1 1 auto; }
+  /* `min-width: 0` doit être posé sur le conteneur du texte AUSSI : sans lui, sa largeur
+     minimale vaut celle du titre entier (« Portfolio de réalisations » = 234 px), le bandeau
+     n'a plus la place pour ses boutons et les renvoie sur une seconde rangée. */
+  .brand > div { min-width: 0; }
+  .brand h1 { display: none; }
+  .brand .module { font-size: var(--fs-xs); letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* `--ha-gap` plutôt que `gap` en dur : la règle `.header-actions` de base est écrite PLUS BAS
+     dans cette feuille, à spécificité égale — elle gagnerait donc sur cette media query. Une
+     variable lue par la règle de base est le seul moyen sûr de la surcharger d'ici. */
+  /* `flex: 0 0 auto` : les boutons ne rétrécissent JAMAIS pour laisser de la place au titre —
+     c'est l'inverse qui doit se produire. `max-width: 100%` garde le filet de sécurité : si un
+     jour la rangée dépasse à elle seule la largeur de l'écran, elle se replie à l'intérieur au
+     lieu de faire déborder la page entière. */
+  .header-actions { flex: 0 0 auto; max-width: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--sp-1); --ha-gap: var(--sp-1); }
+  /* Le sélecteur de thème est un segmenté à 2 boutons (64 px). Sur téléphone on ne montre
+     que celui qui CHANGE quelque chose : l'option déjà active est masquée, le bouton
+     restant bascule. Même mécanique qu'au bureau, moitié moins large. */
+  .theme-toggle button[aria-pressed="true"] { display: none; }
+  .header-actions .btn { font-size: 0; gap: 0; padding: 0.5rem 0.55rem; }
+  .header-actions .ssnav-who { font-size: 0; padding: 0.34rem; }
+  .header-actions .ssnav-who::before, .header-actions .ssnav-who::after { content: none; }
+  #apiBadge { font-size: 0; width: 9px; height: 9px; padding: 0; border: none; border-radius: 50%; background: currentColor; flex: none; }
+  #apiBadge::before, #apiBadge::after { content: none; }
 }
-.brand { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.brand { display: flex; align-items: center; gap: var(--brand-gap, var(--sp-3)); min-width: 0; }
 .brand-logo {
   width: 36px; height: 36px; flex: none;
   border: 1px solid var(--accent); border-radius: var(--r-sm);
@@ -156,7 +194,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
   letter-spacing: 0.1em; text-transform: uppercase;
 }
-.header-actions { display: flex; align-items: center; gap: var(--sp-2); }
+.header-actions { display: flex; align-items: center; gap: var(--ha-gap, var(--sp-2)); }
 
 /* ═══════════ MENU DE NAVIGATION RAPIDE (toutes les pages) ═══════════ */
 .ssnav { position: relative; display: inline-flex; }
@@ -306,7 +344,17 @@ a:hover { text-decoration: underline; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-auto { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
 .col-full { grid-column: 1 / -1; }
-@media (max-width: 760px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  /* Une fois la grille repliée sur UNE colonne, un `grid-column: span 2` (écrit en style
+     direct sur certains champs du configurateur, où il a du sens à quatre colonnes) force la
+     création d'une deuxième colonne IMPLICITE : le champ voisin se retrouvait à 7 px de large,
+     illisible et impossible à remplir (« N° de toile » du bloc Coolscreen 8, par exemple).
+     Le `!important` est ici nécessaire et suffisant : c'est le seul moyen de neutraliser un
+     style écrit directement sur l'élément. Sur une colonne, `auto` et `1 / -1` reviennent au
+     même, donc rien de ce qui s'étalait volontairement n'est perdu. */
+  .grid-2 > *, .grid-3 > *, .grid-4 > * { grid-column: auto !important; }
+}
 
 /* min-width:0 — sans lui, la largeur mini automatique d'une cellule de grille vaut le
    contenu : un libellé long (nom de coloris, référence moteur) élargit la colonne et fait
@@ -405,6 +453,13 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); }
 .empty svg { display: block; margin: 0 auto var(--sp-3); color: var(--text-subtle); }
 .empty .hint { font-size: var(--fs-sm); margin-top: var(--sp-2); }
 .empty .btn { margin-top: var(--sp-4); }
+/* Téléphone : 24 px de marge intérieure de chaque côté ne laissaient que 250 px pour un bouton
+   qui en réclame 280 (« Ajouter ma première référence ») — il débordait de sa carte. Marges
+   resserrées et libellé autorisé à passer sur deux lignes plutôt que de sortir du cadre. */
+@media (max-width: 560px) {
+  .empty { padding: var(--sp-6) var(--sp-3); }
+  .empty .btn { max-width: 100%; white-space: normal; }
+}
 
 /* ── Bouton doré « Terrain » (header) ── */
 .btn-terrain { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); font-weight: 700; }
