@@ -315,6 +315,10 @@
     });
   })();
 
+  // Croissant de lune autonome : SSUI n'a pas d'icône « moon » (theme.js garde la sienne
+  // en propre parce qu'il se charge avant ui.js).
+  const ICO_MOON_MENU = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
   function mount(container) {
     if (!container) return;
     const icon = window.SSUI.icon;
@@ -334,6 +338,41 @@
     const root = container.querySelector('.ssnav');
     const btn = root.querySelector('.ssnav-toggle');
     const menu = root.querySelector('.ssnav-menu');
+
+    // ── Entrées réservées au téléphone ────────────────────────────────────────────────────
+    // Le bandeau d'un téléphone ne peut pas porter six boutons de 44 px : le sélecteur de
+    // thème et le badge d'identité descendent donc ici, où ils gagnent un vrai libellé.
+    // Elles sont TOUJOURS écrites dans le DOM et masquées par CSS au-dessus de 640 px
+    // (.ssnav-mobile) : aucune branche JS sur la largeur, donc rien qui puisse se
+    // désynchroniser en tournant le téléphone, et zéro changement à l'écran du bureau.
+    const themeItem = document.createElement('button');
+    themeItem.type = 'button';
+    themeItem.className = 'ssnav-item ssnav-mobile';
+    themeItem.setAttribute('role', 'menuitem');
+    themeItem.style.cssText = 'width:100%;text-align:left;background:none;cursor:pointer;';
+    function paintThemeItem() {
+      const sombre = window.SSTheme && window.SSTheme.getTheme() === 'dark';
+      themeItem.innerHTML = (sombre ? icon('sun', 14) : ICO_MOON_MENU) +
+        ' Thème ' + (sombre ? 'clair' : 'sombre');
+    }
+    paintThemeItem();
+    themeItem.addEventListener('click', function () {
+      if (window.SSTheme) window.SSTheme.toggleTheme();
+      paintThemeItem();
+    });
+    const sep = document.createElement('div');
+    sep.className = 'ssnav-sep ssnav-mobile';
+    menu.appendChild(sep);
+    menu.appendChild(themeItem);
+    // Identité : affichée en clair (« Connecté : Nicolas ») plutôt qu'en pictogramme.
+    getIdentity().then(function (identity) {
+      if (!identity.email) return;
+      const who = document.createElement('div');
+      who.className = 'ssnav-group ssnav-mobile';
+      who.style.color = 'var(' + identity.colorVar + ')';
+      who.textContent = 'Connecté : ' + (identity.name || identity.email);
+      menu.appendChild(who);
+    });
 
     // Compteurs d'alerte : peints dans le menu ET résumés par une pastille sur le bouton,
     // pour repérer une urgence sans même ouvrir le menu.

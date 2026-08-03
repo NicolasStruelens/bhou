@@ -45,14 +45,27 @@
       .toolbar { gap: var(--sp-2); margin-bottom: var(--sp-3); }
       .toolbar .search { flex: 1 1 100%; min-width: 0; }
       .toolbar .select { flex: 1; min-width: 0; }
-      /* Comme dans le bandeau : le libellé disparaît, l'icône (taille fixe en attributs SVG)
-         et l'infobulle restent. Ces boutons DOIVENT donc tous porter une icône. */
-      .toolbar .btn { font-size: 0; gap: 0; padding: 0.5rem 0.55rem; flex: none; }
-      .toolbar #advCount { font-size: var(--fs-2xs); margin-left: 0.25rem; }
+      /* Comme dans le bandeau : le libellé disparaît, l'icône reste, l'infobulle explique.
+         Carrés de 44 px avec une icône de 20 px, sinon `@media (pointer: coarse)` étire les
+         boutons à 44 px de haut autour d'une icône de 14 px — l'effet « case vide ». */
+      .toolbar .btn { font-size: 0; gap: 0; padding: 0; width: 44px; min-width: 44px; height: 44px; min-height: 44px; justify-content: center; flex: none; }
+      .toolbar .btn > svg { width: 20px; height: 20px; }
+      .toolbar #advCount { display: none; }
+      /* Sauvegarde et restauration d'un fichier JSON : ça se fait au bureau, jamais au doigt
+         sur un chantier. Les deux boutons disparaissent du téléphone (rien n'est retiré du
+         code : ils réapparaissent tels quels dès qu'on repasse sur un grand écran). */
+      #btnExport, #btnImport { display: none; }
       .filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
       .filters::-webkit-scrollbar { display: none; }
       .filters .chip { flex: none; }
       .kpi-bar { margin-bottom: 6px; }
+      /* Trois rangées de pastilles (vue · vendeur · produit) occupaient 100 px avant même le
+         premier devis. Seule la rangée des VUES reste visible — c'est celle qu'on touche
+         tous les jours. Vendeur et produit se déplient avec « Filtres avancés » (classe
+         posée par toggleAdvFilters), et un filtre actif reste de toute façon annoncé et
+         annulable dans la barre « filtres actifs » juste en dessous. */
+      #sellerFilters, #typeFilters { display: none; }
+      body.adv-open #sellerFilters, body.adv-open #typeFilters { display: flex; }
     }
     .chip-archive { margin-left: var(--sp-3); border-color: var(--accent-2); color: var(--accent-2-ink); background: color-mix(in srgb, var(--accent-2) 14%, transparent); font-weight: 700; }
     .chip-archive:hover { border-color: var(--accent-2); color: var(--accent-2-ink); box-shadow: var(--glow-soft); }
@@ -503,8 +516,8 @@
         <option value="montant">Tri : montant ↓</option>
         <option value="nom">Tri : nom A→Z</option>
       </select>
-      <button class="btn btn-ghost btn-sm" onclick="exportJSON()" title="Sauvegarde"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
+      <button class="btn btn-ghost btn-sm" id="btnExport" onclick="exportJSON()" title="Sauvegarde"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+      <button class="btn btn-ghost btn-sm" id="btnImport" onclick="document.getElementById('importFile').click()" title="Restaurer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
       <button class="btn btn-ghost btn-sm" onclick="openActivity('all')" title="Journal d'activité (qui a fait quoi)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg> Activité</button>
       <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()" title="Filtres avancés (montant, dates, chantier…)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres avancés<span id="advCount"></span></button>
@@ -1139,7 +1152,11 @@
     // ── Filtres avancés (montant, date de création, chantier planifié) ──
     window.toggleAdvFilters = () => {
       el('advPanel').classList.toggle('hidden');
-      el('advToggle').classList.toggle('active', !el('advPanel').classList.contains('hidden'));
+      const ouvert = !el('advPanel').classList.contains('hidden');
+      el('advToggle').classList.toggle('active', ouvert);
+      // Sur téléphone, les rangées vendeur/produit sont repliées avec ce panneau (voir la
+      // media query 560 px) : le même geste ouvre tous les filtres secondaires.
+      document.body.classList.toggle('adv-open', ouvert);
     };
     window.resetAdvFilters = () => {
       el('advMontantMin').value = ''; el('advMontantMax').value = '';
