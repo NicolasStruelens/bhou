@@ -155,10 +155,31 @@
       opts = opts || {};
       local.save(devis);
       try {
+        // ⚠️ `_expected_date_modification` est un champ de CONTRÔLE, jamais une donnée du devis.
+        // Il s'est retrouvé stocké DANS le blob de certains devis (écrit par une version du
+        // backend antérieure au retrait du champ, puis conservé indéfiniment par la fusion clé
+        // par clé d'upsertDevis). Conséquence : au chargement suivant, l'écran le relisait comme
+        // une donnée ordinaire et le RENVOYAIT — le serveur comprenait « j'attends la version du
+        // 12 juillet », constatait que la base était plus récente, et répondait « conflit » sans
+        // rien enregistrer. La réponse valant `ok: true`, tous les appelants qui ne testent que
+        // `ok === false` (35 des 38) annonçaient un succès. Le devis de Pierre Depaepe est resté
+        // FIGÉ trois semaines ainsi : relances, statut, remise — tout était rejeté en silence.
+        // On repart donc TOUJOURS d'un objet nettoyé : la version attendue ne peut venir que
+        // d'`opts`, jamais du devis lui-même.
+        const { _expected_date_modification: _rebut, ...propre } = devis;
+        if (_rebut) console.warn('[SS] champ de contrôle parasite retiré du devis', devis.id, '— il bloquait tout enregistrement');
         const payload = (!opts.force && opts.expectedDateModification !== undefined)
-          ? Object.assign({}, devis, { _expected_date_modification: opts.expectedDateModification })
-          : devis;
-        return await req('/devis', { method: 'POST', body: JSON.stringify(payload) });
+          ? Object.assign({}, propre, { _expected_date_modification: opts.expectedDateModification })
+          : propre;
+        const rep = await req('/devis', { method: 'POST', body: JSON.stringify(payload) });
+        // Filet : un conflit ne peut PAS survenir si on n'a pas demandé la détection. S'il arrive
+        // quand même, c'est une anomalie — on la remonte comme un ÉCHEC plutôt que de laisser un
+        // appelant afficher « enregistré ✓ » sur une écriture que le serveur a refusée.
+        if (rep && rep.conflict && opts.expectedDateModification === undefined) {
+          console.error('[SS] conflit renvoyé sans demande de détection — enregistrement REFUSÉ', devis.id);
+          return { ok: false, error: 'Le serveur a refusé l’enregistrement (conflit de version). Recharge la page et réessaie.' };
+        }
+        return rep;
       }
       // Distinction cruciale (déjà appliquée dans deleteDevis, oubliée ici) : un rejet SERVEUR
       // (session Access expirée → page de login HTML au lieu de JSON, erreur 500, payload refusé…)
@@ -231,6 +252,7 @@
       opts = opts || {};
       const payload = { author: opts.author || 'nicolas', text: (opts.text || '').trim(), type: opts.type || 'note' };
       if (opts.visible_client === true) payload.visible_client = true;
+      if (opts.reply_to) payload.reply_to = String(opts.reply_to);   // note à laquelle celle-ci répond
       if (!payload.text) return { ok: false, error: 'Message vide' };
       try {
         const res = await req('/devis/' + encodeURIComponent(id) + '/comment', { method: 'POST', body: JSON.stringify(payload) });

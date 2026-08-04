@@ -443,6 +443,10 @@ export async function onRequest(context) {
         date: new Date().toISOString(),
       };
       if (body.visible_client === true) comment.visible_client = true;
+      // Réponse à une note précise : on ne garde que l'identifiant du message d'origine. Le texte
+      // cité n'est JAMAIS recopié — il est relu à l'affichage, donc une note corrigée ou supprimée
+      // ne laisse pas derrière elle une citation devenue fausse.
+      if (body.reply_to) comment.reply_to = String(body.reply_to).slice(0, 60);
       const now = comment.date;
       // Une réponse VISIBLE PAR LE CLIENT referme la question en attente (le voyant « question
       // client sans réponse » du dashboard s'éteint). Une note interne ne touche pas ce flag.
@@ -1116,6 +1120,15 @@ async function upsertDevis(db, devis) {
     if (row && row.data) existing = safeParse(row.data);
   } catch (e) { /* lecture impossible : on retombe sur le payload seul — jamais bloquant */ }
   const merged = existing ? Object.assign({}, existing, devis) : devis;
+
+  // ⚠️ NETTOYAGE D'UN CHAMP DE CONTRÔLE STOCKÉ PAR ERREUR.
+  // `_expected_date_modification` sert UNIQUEMENT à la détection de conflit sur la requête ; il
+  // est retiré du corps depuis (voir la route POST), mais une version antérieure du backend le
+  // laissait entrer dans le blob — et la fusion clé par clé ci-dessus le recopiait fidèlement à
+  // chaque écriture. Les devis touchés le renvoyaient donc au serveur au cycle suivant, qui les
+  // refusait tous en « conflit » : plus aucun enregistrement complet ne passait, en silence.
+  // On le supprime ici pour que la donnée se répare d'elle-même au premier enregistrement réussi.
+  delete merged._expected_date_modification;
 
   // INVARIANT COMMENTAIRES : ils ne sont modifiés QUE par les routes ciblées
   // /api/devis/:id/comment. Tout enregistrement complet du devis PRÉSERVE ceux déjà en base, même

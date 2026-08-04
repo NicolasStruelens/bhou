@@ -570,7 +570,23 @@
       ? `<span class="ss-cmt-maj" title="Modifiée le ${escHtml(fmtDateTime(c.edited))}">modifiée</span>` : '';
     const rep = (opts.onReply && a.cls === 'client')
       ? `<button type="button" class="ss-cmt-reply" onclick="event.stopPropagation();${opts.onReply}('${id}')">${icon('reply', 12)} Répondre au client</button>` : '';
-    return `<div class="ss-cmt ${a.cls === 'client' ? 'is-client' : ''} ${type === 'important' ? 'is-important' : ''} ${type === 'question' ? 'is-question' : ''}"
+    // Réponse INTERNE (Nicolas ↔ Yannick). Distincte de « Répondre au client » ci-dessus, qui
+    // publie la réponse dans l'espace client — les deux ne s'affichent jamais sur la même note.
+    const repInterne = (opts.onReplyNote && id && a.cls !== 'client')
+      ? `<button type="button" class="ss-cmt-reply" onclick="event.stopPropagation();${opts.onReplyNote}('${id}')">${icon('reply', 12)} Répondre</button>` : '';
+    // Citation du message auquel on répond. `opts.parents` est la table id → note construite par
+    // commentsHtml : on relit le texte d'origine à CHAQUE affichage plutôt que de le recopier au
+    // moment de la réponse, pour qu'une note modifiée ou supprimée ne laisse pas une citation
+    // mensongère dans le fil.
+    let cite = '';
+    if (c.reply_to) {
+      const p = opts.parents && opts.parents[c.reply_to];
+      cite = p
+        ? `<button type="button" class="ss-cmt-quote" onclick="event.stopPropagation();window.SSUI.gotoComment('${escHtml(c.reply_to)}')"
+             title="Aller au message d'origine">${icon('reply', 11)} <b>${escHtml(commentAuthor(p.author).label)}</b> ${escHtml(String(p.text || '').replace(/\s+/g, ' ').slice(0, 90))}${String(p.text || '').length > 90 ? '…' : ''}</button>`
+        : `<span class="ss-cmt-quote is-gone">${icon('reply', 11)} message d’origine supprimé</span>`;
+    }
+    return `<div class="ss-cmt ${a.cls === 'client' ? 'is-client' : ''} ${type === 'important' ? 'is-important' : ''} ${type === 'question' ? 'is-question' : ''} ${c.reply_to ? 'is-reply' : ''}"
                  data-cmt-id="${id}">
       <span class="ss-cmt-av ${a.cls}" aria-hidden="true">${a.ini}</span>
       <div class="ss-cmt-main">
@@ -581,17 +597,32 @@
           <time class="ss-cmt-when" title="${escHtml(fmtDateTime(c.date))}">${escHtml(relTime(c.date))}</time>
           ${mod}${del}
         </div>
+        ${cite}
         <div class="ss-cmt-text">${escHtml(c.text)}</div>
-        ${rep}
+        ${rep}${repInterne}
       </div>
     </div>`;
+  }
+  /** Amène le message d'origine à l'écran et le souligne brièvement (clic sur une citation). */
+  function gotoComment(id) {
+    const e = document.querySelector('[data-cmt-id="' + String(id).replace(/"/g, '') + '"]');
+    if (!e) return;
+    e.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    e.classList.add('ss-cmt-flash');
+    setTimeout(() => e.classList.remove('ss-cmt-flash'), 1600);
   }
   /** Le fil complet, du plus ancien au plus récent (sens de lecture d'une conversation). */
   function commentsHtml(list, opts) {
     opts = opts || {};
     const arr = (list || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date)));
     if (!arr.length) return `<div class="ss-cmt-empty">${escHtml(opts.empty || 'Aucune note pour l’instant.')}</div>`;
-    return arr.map(c => commentHtml(c, opts)).join('');
+    // Table des messages d'origine, pour que chaque réponse puisse citer le sien. On garde l'ordre
+    // CHRONOLOGIQUE (pas d'arborescence) : le fil reste un journal de chantier qui se lit de haut
+    // en bas, et la citation suffit à rattacher visuellement une réponse à son message.
+    const parents = {};
+    arr.forEach(c => { if (c.id) parents[c.id] = c; });
+    const o = Object.assign({}, opts, { parents });
+    return arr.map(c => commentHtml(c, o)).join('');
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1140,7 +1171,7 @@
   window.SSUI = {
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
-    commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml,
+    commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
     ralFieldHtml: ralFieldHtml, ouvrirNuancier: ouvrirNuancier, ralApercu: ralApercu,
     ouvrirCatalogue: ouvrirCatalogue, accVisuel: accVisuel,

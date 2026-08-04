@@ -580,6 +580,7 @@
               <option value="important">Important</option>
             </select>
           </div>
+          <div id="cmReplyBanner" class="reply-banner hidden"></div>
           <textarea class="textarea" id="cmText" placeholder="Info chantier, question pour l'autre, rappel…"></textarea>
           <div class="send-row">
             <span class="ss-cmt-edit-hint" style="margin-right:auto;">Ctrl + Entrée pour ajouter · survole une note pour la corriger</span>
@@ -1731,8 +1732,32 @@
       }
       // Rendu partagé (SSUI.commentHtml) — strictement la même présentation que la fiche devis,
       // le CRM et les demandes de RDV. Plus de balisage propre à cette fenêtre à maintenir.
-      el('cmList').innerHTML = window.SSUI.commentsHtml(cmNotes, { onDelete: 'removeComment', onEdit: 'editComment' });
+      el('cmList').innerHTML = window.SSUI.commentsHtml(cmNotes, { onDelete: 'removeComment', onEdit: 'editComment', onReplyNote: 'replyToComment' });
       el('cmList').scrollTop = el('cmList').scrollHeight;
+      renderCmReply();
+    }
+
+    // ── Répondre à une note depuis la fenêtre du tableau de bord ────────────────────────────────
+    // Même mécanique que la fiche devis : on retient l'identifiant visé, on l'affiche en bandeau,
+    // et le prochain envoi cite ce message. Le bandeau est le garde-fou : on ne peut pas répondre
+    // au mauvais message sans le voir.
+    let cmReplyTo = null;
+    window.replyToComment = (id) => {
+      if (!cmNotes.some(c => String(c.id) === String(id))) { toast('Message introuvable.', 'warn'); return; }
+      cmReplyTo = String(id);
+      renderCmReply();
+      const f = el('cmText'); if (f) f.focus();
+    };
+    window.cancelCmReply = () => { cmReplyTo = null; renderCmReply(); };
+    function renderCmReply() {
+      const host = el('cmReplyBanner');
+      if (!host) return;
+      const src = cmReplyTo ? cmNotes.find(c => String(c.id) === String(cmReplyTo)) : null;
+      if (!src) { host.classList.add('hidden'); host.innerHTML = ''; cmReplyTo = null; return; }
+      const a = window.SSUI.commentAuthor(src.author);
+      host.classList.remove('hidden');
+      host.innerHTML = `${icon('reply', 12)} <span>Réponse à <b>${esc(a.label)}</b> — ${esc(String(src.text || '').replace(/\s+/g, ' ').slice(0, 60))}${String(src.text || '').length > 60 ? '…' : ''}</span>`
+        + `<button type="button" onclick="cancelCmReply()" title="Ne plus répondre à ce message" aria-label="Annuler la réponse">${icon('x', 12)}</button>`;
     }
 
     /** Recale le compteur de la ligne du dashboard sur le nombre renvoyé par le serveur. */
@@ -1748,9 +1773,10 @@
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
       const author = el('cmAuthor').value;
       localStorage.setItem('ss_comment_author', author);
-      const res = await SS.addComment(cmDevisId, { author, text, type: el('cmType').value });
+      const res = await SS.addComment(cmDevisId, { author, text, type: el('cmType').value, reply_to: cmReplyTo || undefined });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('cmText').value = '';
+      cmReplyTo = null;
       toast(res.offline ? 'Note enregistrée (hors-ligne)' : 'Note ajoutée', res.offline ? 'warn' : 'ok');
       const d = DEVIS.find(x => x.id === cmDevisId);
       const cli = d ? ((d.prenom || '') + ' ' + (d.nom || '')).trim() : '';

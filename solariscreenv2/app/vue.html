@@ -166,6 +166,8 @@
     .n-mode-banner { background: color-mix(in srgb, var(--accent-2) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); color: var(--accent-2-ink); border-radius: var(--r-sm); padding: 0.4rem 0.6rem; margin-bottom: var(--sp-2); font-size: var(--fs-2xs); }
     .n-foot.reply-mode { outline: 2px solid color-mix(in srgb, var(--accent-2) 55%, transparent); outline-offset: 4px; border-radius: var(--r-sm); }
     .n-foot.reply-mode #nSendBtn { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 22%, transparent); color: var(--accent-2-ink); }
+    /* `.reply-banner` (réponse à une note d'équipe) vit dans base.css : la fenêtre du tableau de
+       bord l'utilise aussi, et deux copies du même style finiraient par diverger. */
 
     /* ── Fiche client ──
        Le rond aux initiales a disparu : deux lettres à côté du nom écrit juste
@@ -764,6 +766,7 @@
         <div class="n-body" id="nList"></div>
         <div class="n-foot" id="nFoot">
           <div id="nModeBanner" class="n-mode-banner hidden"></div>
+          <div id="replyBanner" class="reply-banner hidden"></div>
           <textarea class="textarea" id="nText" style="min-height:52px;" placeholder="Note rapide pour Yannick / toi-même…"
             title="Ctrl + Entrée pour envoyer" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();sendNote();}"></textarea>
           <label class="check" style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-top:0.3rem;" title="Coché, ce message apparaît sur l'espace client (devis-review) — ex. réponse à une question posée par le client. Décoché par défaut.">
@@ -2827,7 +2830,7 @@
         : '');
       // Rendu partagé (SSUI.commentHtml) : même présentation que le tableau de bord, le CRM et les RDV.
       el('nList').innerHTML = window.SSUI.commentsHtml(comments, {
-        onDelete: 'removeNote', onEdit: 'editNote', onReply: 'replyToClient',
+        onDelete: 'removeNote', onEdit: 'editNote', onReply: 'replyToClient', onReplyNote: 'replyToNote',
         empty: 'Aucune note. Écris la première ci-dessous — Yannick la verra aussi.',
       });
       window.SSNav.getIdentity().then((identity) => {
@@ -3149,13 +3152,38 @@
       champ.focus();
       champ.setSelectionRange(champ.value.length, champ.value.length);
     };
+    // ── Répondre à une note de l'équipe ────────────────────────────────────────────────────────
+    // Distinct de replyToClient() : ici la réponse reste INTERNE et cite le message d'origine.
+    // L'identifiant visé est gardé le temps de la rédaction, et affiché en bandeau au-dessus du
+    // champ pour qu'on ne puisse jamais répondre « à l'aveugle » au mauvais message.
+    let replyTo = null;
+    window.replyToNote = (id) => {
+      const src = (DEVIS.comments || []).find(c => String(c.id) === String(id));
+      if (!src) { toast('Message introuvable.', 'warn'); return; }
+      replyTo = String(id);
+      renderReplyBanner();
+      const f = el('nText');
+      if (f) { f.focus({ preventScroll: true }); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    };
+    window.cancelReply = () => { replyTo = null; renderReplyBanner(); };
+    function renderReplyBanner() {
+      const host = el('replyBanner');
+      if (!host) return;
+      const src = replyTo ? (DEVIS.comments || []).find(c => String(c.id) === String(replyTo)) : null;
+      if (!src) { host.classList.add('hidden'); host.innerHTML = ''; replyTo = null; return; }
+      const a = window.SSUI.commentAuthor(src.author);
+      host.classList.remove('hidden');
+      host.innerHTML = `${icon('reply', 12)} <span>Réponse à <b>${esc(a.label)}</b> — ${esc(String(src.text || '').replace(/\s+/g, ' ').slice(0, 60))}${String(src.text || '').length > 60 ? '…' : ''}</span>
+        <button type="button" onclick="cancelReply()" title="Ne plus répondre à ce message" aria-label="Annuler la réponse">${icon('x', 12)}</button>`;
+    }
     window.sendNote = async () => {
       const text = el('nText').value.trim();
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
       localStorage.setItem('ss_comment_author', el('nAuthor').value);
       const visibleClient = el('nVisibleClient').checked;
-      const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value, visible_client: visibleClient });
+      const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value, visible_client: visibleClient, reply_to: replyTo || undefined });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
+      replyTo = null; renderReplyBanner();
       // Une réponse visible client referme la question en attente (miroir du backend), pour que
       // l'alerte de la carte « Espace client » disparaisse immédiatement sans recharger.
       if (visibleClient) DEVIS.client_question_open = false;
