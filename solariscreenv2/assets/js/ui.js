@@ -615,7 +615,13 @@
   function commentsHtml(list, opts) {
     opts = opts || {};
     const arr = (list || []).slice().sort((x, y) => String(x.date).localeCompare(String(y.date)));
-    if (!arr.length) return `<div class="ss-cmt-empty">${escHtml(opts.empty || 'Aucune note pour l’instant.')}</div>`;
+    // `empty: ''` (chaîne vide) = n'affiche RIEN, volontairement. Le `||` d'origine retombait sur
+    // le texte par défaut puisqu'une chaîne vide est « falsy » — un appelant ne pouvait donc pas
+    // choisir le silence. On distingue maintenant « non précisé » (défaut) de « vide » (rien).
+    if (!arr.length) {
+      const txt = opts.empty === undefined ? 'Aucune note pour l’instant.' : String(opts.empty);
+      return txt ? `<div class="ss-cmt-empty">${escHtml(txt)}</div>` : '';
+    }
     // Table des messages d'origine, pour que chaque réponse puisse citer le sien. On garde l'ordre
     // CHRONOLOGIQUE (pas d'arborescence) : le fil reste un journal de chantier qui se lit de haut
     // en bas, et la citation suffit à rattacher visuellement une réponse à son message.
