@@ -525,6 +525,7 @@
     chevronright: '<polyline points="9 18 15 12 9 6"/>',
     chevrondown:'<polyline points="6 9 12 15 18 9"/>',
     arrowleft:  '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+    settings:   '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     sliders:    '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
     list:       '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
     warning:    '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -1110,10 +1111,20 @@
      Le calcul vit désormais ICI seulement : les deux écrans ne PEUVENT plus se contredire.
      ═══════════════════════════════════════════════════════════════════════════════════════════ */
   // Devis informatif : J+5 / J+12 / J+21 · devis après visite : J+4 / J+9 / J+21.
-  const RELANCE_PLAN = {
+  // Cadence par défaut. Réglable (Paramètres → Utilisation) : elle dépend de la façon de
+  // travailler, pas d'une vérité technique. On relit les réglages À CHAQUE appel plutôt que de
+  // figer au chargement — une cadence modifiée doit s'appliquer sans recharger toutes les pages.
+  const RELANCE_PLAN_DEFAUT = {
     informatif: [{ n: 1, j: 5 }, { n: 2, j: 12 }, { n: 3, j: 21 }],
     visite: [{ n: 1, j: 4 }, { n: 2, j: 9 }, { n: 3, j: 21 }],
   };
+  function planRelance(kind) {
+    const conf = window.SSConf && window.SSConf.get();
+    const jours = conf && conf.usage && (kind === 'informatif' ? conf.usage.relance_informatif : conf.usage.relance_visite);
+    if (!Array.isArray(jours) || jours.length !== 3) return RELANCE_PLAN_DEFAUT[kind];
+    return jours.map((j, i) => ({ n: i + 1, j: Number(j) }));
+  }
+  const RELANCE_PLAN = RELANCE_PLAN_DEFAUT;   // conservé : d'anciens appels le lisent directement
   // Le statut « Relance 1 / 2 » vaut relance faite : c'est la façon la plus naturelle de la
   // noter, et l'ignorer faisait réclamer indéfiniment la même relance.
   const STATUT_RELANCE_N = { relance_1: 1, relance_2: 2 };
@@ -1135,7 +1146,7 @@
   /** État complet de la cadence : ce qui est fait, ce qui est dû, et quand. */
   function relanceEtat(d) {
     const kind = d && d.informatif ? 'informatif' : 'visite';
-    const plan = RELANCE_PLAN[kind];
+    const plan = planRelance(kind);
     const envoi = dateEnvoiOf(d || {});
     const today = new Date().toISOString().slice(0, 10);
     const done = ((d && d.relances) || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
@@ -1273,7 +1284,7 @@
     ralFieldHtml: ralFieldHtml, ouvrirNuancier: ouvrirNuancier, ralApercu: ralApercu,
     ouvrirCatalogue: ouvrirCatalogue, accVisuel: accVisuel,
     manquantsDevis: manquantsDevis, nbManquants: nbManquants, badgeManquants: badgeManquants,
-    RELANCE_PLAN: RELANCE_PLAN, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
+    RELANCE_PLAN: RELANCE_PLAN, planRelance: planRelance, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
     deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline, poidsInline: poidsInline,

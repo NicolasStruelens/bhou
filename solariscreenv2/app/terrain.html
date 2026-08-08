@@ -208,6 +208,7 @@
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
   <script src="../assets/js/postal-be.js"></script>
   <script>
     const { computeDevis } = window.SSCalc;
@@ -659,16 +660,23 @@
 
     // ── RÉCAP ──
     function openingsCount() { return state.items.reduce((s, i) => s + (i.quantite || 1), 0); }
+    // Taux et montants du jour, figés à l'ouverture de l'assistant (comme au simulateur) : un
+    // devis établi chez le client ne doit pas changer de base de calcul en cours de saisie.
+    let TAUX_DEVIS = window.SSConf ? window.SSConf.tauxPour(null) : null;
+    let PRIX_CONF = window.SSConf ? window.SSConf.get().prix : null;
     function buildInput() {
       const n = openingsCount();
+      const P = PRIX_CONF || { commission_principal: 18, commission_second: 5,
+                               install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30 };
       return {
+        rates: TAUX_DEVIS || undefined,
         items: state.items.map(i => ({ quantite: i.quantite, prix_catalogue_ht: i.prix_catalogue_ht, largeur: i.largeur, hauteur: i.hauteur })),
-        // Répartition des commissions : lue dans calc.js (SELLER_SPLITS), pas recopiée en dur.
-        // Un devis créé sur le terrain doit porter EXACTEMENT la même règle que le simulateur.
-        sellers: (window.SSCalc && SSCalc.resolveSellerPcts)
-          ? SSCalc.resolveSellerPcts({ principal: 'nicolas' })
-          : { principal: 'nicolas', nicolas_pct: 18, yannick_pct: 5 },
-        installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: n, tech1_qty: n, tech2_qty: n, tools_qty: n },
+        // Répartition des commissions : même règle que le simulateur, réglages compris. Un devis
+        // fait sur le terrain doit être calculé exactement comme un devis fait au bureau.
+        sellers: { principal: 'nicolas' },
+        seller_parts: { principal: P.commission_principal, second: P.commission_second },
+        installation: { install_gross: P.install_gross, tech1_gross: P.tech1_gross, tech2_gross: P.tech2_gross,
+                        tools_gross: P.tools_gross, install_qty: n, tech1_qty: n, tech2_qty: n, tools_qty: n },
         extras: [],
         tva_pct: parseInt(document.querySelector('input[name="tva_pct_t"]:checked')?.value || 6),
         acompte_pct: getNum('terrAcompte', 50),
@@ -792,6 +800,9 @@
         items: state.items.map(({ _id, ...rest }) => rest),
         calculs: c,
         pricing_v2: {
+          // Taux figés avec le devis (même règle qu'au simulateur) : ils le suivront pour toujours.
+          rates: c.rates,
+          seller_parts: input.seller_parts,
           tva_pct: input.tva_pct, acompte_pct: input.acompte_pct, surplus_difficulte: input.surplus_difficulte,
           note: 'Créé via Mode Terrain',
           material: { sellers: { mode: 'fixed', principal: 'nicolas', nicolas_pct: c.nicolas_pct, yannick_pct: c.yannick_pct } },
@@ -960,6 +971,19 @@
     };
 
     (async () => {
+      // Réglages d'abord : les montants de pose et les taux du devis en dépendent. Hors réseau
+      // (cas courant chez un client), SSConf retombe seul sur son cache puis sur les défauts.
+      if (window.SSConf) {
+        const CONF = await window.SSConf.charger();
+        PRIX_CONF = CONF.prix;
+        TAUX_DEVIS = window.SSConf.tauxPour(null);
+        // Le formulaire porte des valeurs par défaut en dur (50 %, TVA 6) : on les REMPLACE par
+        // les réglages, sans condition — sinon le réglage n'aurait tout simplement aucun effet.
+        const champAcompte = el('terrAcompte');
+        if (champAcompte) champAcompte.value = CONF.prix.acompte_pct;
+        const radioTva = document.getElementById(Number(CONF.prix.tva_pct) === 21 ? 'terrTva21' : 'terrTva6');
+        if (radioTva) radioTva.checked = true;
+      }
       // Couleurs SEULES puis les 522 références Harol : taper un code de commande (9T07)
       // doit suggérer autant qu'un code RAL (7016) ou qu'un nom (anthracite).
       fillDatalist('dl-couleurs', SSProducts.COULEURS_RAL_SUGGESTIONS);

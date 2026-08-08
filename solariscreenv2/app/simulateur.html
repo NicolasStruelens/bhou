@@ -334,6 +334,7 @@
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
   <script src="../assets/js/postal-be.js"></script>
   <script>
     const { computeDevis, totalSurface } = window.SSCalc;
@@ -701,10 +702,21 @@
       setVal('tech1Qty', v); setVal('tech2Qty', v); setVal('toolsQty', v);
     };
 
+    /* ── TAUX APPLIQUÉS À CE DEVIS ─────────────────────────────────────────────────────────────
+       Figés à l'ouverture, JAMAIS relus ensuite : si Yannick modifie les réglages pendant que le
+       devis est ouvert, le calcul en cours ne doit pas changer sous les doigts de Nicolas.
+       • devis existant → ses propres taux (ou les taux historiques s'il n'en a pas) ;
+       • devis neuf     → les réglages du jour.
+       C'est SSConf.tauxPour qui tranche : voir la règle de non-rétroactivité dans config.js. */
+    let TAUX_DEVIS = window.SSConf ? window.SSConf.tauxPour(null) : null;
+    let PARTS_DEVIS = null;   // { principal, second } — commissions réglables
+
     // ── COLLECTE → CALC INPUT ──
     function buildInput() {
       const principal = getVal('sellerPrincipal');
       return {
+        rates: TAUX_DEVIS || undefined,
+        seller_parts: PARTS_DEVIS || undefined,
         items: state.items.map(i => ({ quantite: i.quantite, prix_catalogue_ht: i.prix_catalogue_ht, largeur: i.largeur, hauteur: i.hauteur })),
         sellers: { principal, nicolas_pct: getNum('nicolasPct'), yannick_pct: getNum('yannickPct') },
         installation: {
@@ -880,6 +892,11 @@
         items: state.items.map(({ _id, ...rest }) => rest),
         calculs: c,
         pricing_v2: {
+          // ⚠️ TAUX FIGÉS AVEC LE DEVIS. C'est CE stockage qui rend les réglages non rétroactifs :
+          // rouvrir ce devis dans six mois relira ces valeurs-ci, quels que soient les réglages
+          // de l'ERP à ce moment-là. Ne jamais retirer sans avoir prévu autre chose.
+          rates: c.rates,
+          seller_parts: PARTS_DEVIS || undefined,
           tva_pct: input.tva_pct, acompte_pct: input.acompte_pct, surplus_difficulte: input.surplus_difficulte,
           note: getVal('noteInterne'),
           material: { sellers: { mode: input.sellers.principal === 'autre' ? 'autre' : 'fixed', principal: input.sellers.principal, nicolas_pct: c.nicolas_pct, yannick_pct: c.yannick_pct } },
@@ -946,6 +963,11 @@
       renderItems();
       // pricing
       const p = d.pricing_v2 || {};
+      // ⚠️ NON-RÉTROACTIVITÉ : ce devis reprend SES taux (ou ceux de l'époque s'il n'en a pas
+      // stockés), jamais les réglages du jour. Rouvrir un dossier de mars ne doit pas en changer
+      // les montants parce qu'on a ajusté une marge depuis.
+      if (window.SSConf) TAUX_DEVIS = window.SSConf.tauxPour(d);
+      PARTS_DEVIS = p.seller_parts || null;
       const sellers = p.material?.sellers || {};
       setVal('sellerPrincipal', ['nicolas', 'yannick'].includes(sellers.principal) ? sellers.principal : (sellers.principal ? 'autre' : 'nicolas'));
       if (getVal('sellerPrincipal') === 'autre') { setVal('nicolasPct', sellers.nicolas_pct); setVal('yannickPct', sellers.yannick_pct); }
@@ -1009,9 +1031,22 @@
     window.SSPostal && SSPostal.bindPair(el('clientCodePostal'), el('clientVille'));
 
     (async () => {
+      // Les réglages sont chargés AVANT tout calcul : un devis neuf doit partir sur les valeurs
+      // réellement enregistrées, pas sur un cache d'un autre appareil ni sur les défauts d'usine.
+      const CONF = window.SSConf ? await window.SSConf.charger() : null;
       if (qp('id')) {
         await loadExisting(qp('id'));
       } else {
+        // Devis NEUF : taux, commissions et montants de pose viennent des réglages.
+        if (CONF) {
+          TAUX_DEVIS = window.SSConf.tauxPour(null);
+          PARTS_DEVIS = { principal: CONF.prix.commission_principal, second: CONF.prix.commission_second };
+          setVal('installGross', CONF.prix.install_gross); setVal('tech1Gross', CONF.prix.tech1_gross);
+          setVal('tech2Gross', CONF.prix.tech2_gross); setVal('toolsGross', CONF.prix.tools_gross);
+          setVal('acomptePct', CONF.prix.acompte_pct);
+          const radioTva = document.getElementById(Number(CONF.prix.tva_pct) === 21 ? 'tva21' : 'tva6');
+          if (radioTva) radioTva.checked = true;
+        }
         applyPrefillClient();
         el('clientSearchField').classList.remove('hidden');
         CLIENT_DIRECTORY = await buildClientDirectory();

@@ -18,11 +18,30 @@
   const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
   const r2  = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-  function resolveSellerPcts(sellers) {
+  // Un nombre fini et positif, sinon la valeur de référence. Barrière volontaire : un réglage
+  // absent, vide ou aberrant ne doit JAMAIS produire un prix faux — il doit produire le prix
+  // d'origine. Zéro est refusé pour le diviseur (division) et accepté ailleurs.
+  const tauxValide = (v, defaut, zeroOk) => {
+    const n = parseFloat(v);
+    if (!isFinite(n) || n < 0) return defaut;
+    if (!zeroOk && n === 0) return defaut;
+    return n;
+  };
+
+  /**
+   * @param sellers   { principal, nicolas_pct, yannick_pct }
+   * @param parts     { principal, second } — pourcentages réglables (défaut 18 / 5).
+   *                  Ignoré en mode « autre », où les deux pourcentages sont saisis à la main.
+   */
+  function resolveSellerPcts(sellers, parts) {
     sellers = sellers || {};
     const principal = sellers.principal || 'nicolas';
     if (principal === 'nicolas' || principal === 'yannick') {
-      return Object.assign({ principal: principal }, SELLER_SPLITS[principal]);
+      const p = parts ? tauxValide(parts.principal, SELLER_SPLITS.nicolas.nicolas_pct, true) : SELLER_SPLITS.nicolas.nicolas_pct;
+      const s = parts ? tauxValide(parts.second, SELLER_SPLITS.nicolas.yannick_pct, true) : SELLER_SPLITS.nicolas.yannick_pct;
+      return principal === 'nicolas'
+        ? { principal: 'nicolas', nicolas_pct: p, yannick_pct: s }
+        : { principal: 'yannick', nicolas_pct: s, yannick_pct: p };
     }
     return { principal: 'autre', nicolas_pct: num(sellers.nicolas_pct), yannick_pct: num(sellers.yannick_pct) };
   }
@@ -47,6 +66,15 @@
     const acomptePct = input.acompte_pct != null ? num(input.acompte_pct) : DEFAULT_ACOMPTE;
     const surplus = num(input.surplus_difficulte);
 
+    // ── TAUX APPLIQUÉS À CE DEVIS ─────────────────────────────────────────────────────────────
+    // Fournis par l'appelant (réglages du jour pour un devis neuf, taux d'époque pour un devis
+    // rouvert — voir SSConf.tauxPour). Sans eux, on retombe EXACTEMENT sur le comportement
+    // d'origine : c'est ce qui garantit qu'aucun calcul existant ne bouge.
+    const R = input.rates || {};
+    const supplierRate = tauxValide(R.supplier_rate, SUPPLIER_RATE, true);
+    const materialMargin = tauxValide(R.material_margin, MATERIAL_MARGIN, true);
+    const netDivisor = tauxValide(R.net_divisor, NET_DIVISOR, false);   // jamais 0 : on divise
+
     // ── Catalogue ──
     let totalCatalog = 0, totalOpenings = 0;
     const itemLines = items.map(function (it) {
@@ -58,8 +86,8 @@
       return { quantite: qty, prix_catalogue_ht: prix, sous_total: r2(sub) };
     });
 
-    const supplierEstimate = totalCatalog * SUPPLIER_RATE;
-    const totalMaterialGross = totalCatalog * MATERIAL_MARGIN;
+    const supplierEstimate = totalCatalog * supplierRate;
+    const totalMaterialGross = totalCatalog * materialMargin;
 
     // ── Réduction commerciale sur le catalogue ──
     // Déduite de la commission du vendeur principal du devis (celui qui négocie la vente) ;
@@ -68,7 +96,7 @@
     const totalCatalogNet = r2(totalCatalog - remiseCatalogueAmount);
 
     // ── Commissions ──
-    const sp = resolveSellerPcts(input.sellers);
+    const sp = resolveSellerPcts(input.sellers, input.seller_parts);
     let nicolasGross = totalCatalog * (sp.nicolas_pct / 100);
     let yannickGross = totalCatalog * (sp.yannick_pct / 100);
     if (remiseCatalogueAmount > 0) {
@@ -82,8 +110,8 @@
         }
       }
     }
-    const nicolasNet = nicolasGross / NET_DIVISOR;
-    const yannickNet = yannickGross / NET_DIVISOR;
+    const nicolasNet = nicolasGross / netDivisor;
+    const yannickNet = yannickGross / netDivisor;
 
     // ── Remise indicative (mode "autre" si commissions < 23%) ──
     let remise = { applicable: false, pct: 0, amount: 0 };
@@ -167,6 +195,9 @@
       total_ttc: r2(totalTTC),
       acompte_pct: acomptePct,
       acompte_montant: r2(acompteMontant),
+      // Taux RÉELLEMENT appliqués. Renvoyés pour que l'écran puisse les figer dans le devis :
+      // c'est ce qui permettra, dans six mois, de le rouvrir sans que ses montants bougent.
+      rates: { supplier_rate: supplierRate, material_margin: materialMargin, net_divisor: netDivisor },
     };
   }
 

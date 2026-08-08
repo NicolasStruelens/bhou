@@ -537,6 +537,18 @@
         return data;
       } catch (e) { return { email: null }; }
     },
+    // ── RÉGLAGES DE L'ERP ── (défauts et fusion : assets/js/config.js)
+    async getSettings() {
+      try { return (await req('/settings')).data; }
+      catch (e) { return null; }   // hors-ligne : SSConf retombe sur son cache local
+    },
+    async saveSettings(reglages) {
+      try { return await req('/settings', { method: 'POST', body: JSON.stringify(reglages) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        return { ok: false, error: 'Réglages NON enregistrés — vérifie ta connexion et réessaie.' };
+      }
+    },
     async listConnections() {
       try { return (await req('/connections')).data; }
       catch (e) { return []; }

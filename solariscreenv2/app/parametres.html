@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SolariScreen — Paramètres</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .par-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: var(--sp-4); align-items: start; }
+    @media (max-width: 1000px) { .par-grid { grid-template-columns: minmax(0, 1fr); } }
+
+    /* Une ligne = un réglage + la phrase qui dit CE QU'IL DÉPLACE. Sans elle, un chiffre nu
+       invite à bricoler ; avec elle, on sait ce qu'on engage. */
+    .reg { display: flex; align-items: flex-start; gap: var(--sp-4); padding: var(--sp-3) 0;
+           border-bottom: 1px dashed var(--border); }
+    .reg:last-child { border-bottom: none; }
+    .reg-txt { flex: 1; min-width: 0; }
+    .reg-nom { font-size: var(--fs-sm); font-weight: 600; }
+    .reg-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; margin-top: 2px; }
+    .reg-champ { flex: none; display: flex; align-items: center; gap: 0.35rem; }
+    .reg-champ .input { width: 104px; text-align: right; }
+    .reg-champ .select { width: 148px; }
+    /* Largeur MINIMALE, pas fixe : « % », « € » et « j » tiennent dans 14 px, mais « vues »
+       débordait de sa boîte. Un alignement gagné au prix d'un mot rogné n'en vaut pas la peine. */
+    .reg-unite { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
+      min-width: 14px; white-space: nowrap; }
+    .reg.modifie .reg-nom::after { content: '• modifié'; margin-left: 0.5rem; font-family: var(--font-mono);
+      font-size: var(--fs-3xs); color: var(--accent-2); font-weight: 400; }
+    @media (max-width: 560px) {
+      .reg { flex-direction: column; gap: var(--sp-2); }
+      /* ⚠️ Ne PAS mettre le champ à `width: 100%` : la plupart des lignes portent une unité à
+         côté (%, €, j), et 100 % + 14 px de plus font déborder l'écran. Le champ prend l'espace
+         RESTANT (`flex: 1 1 0` + `min-width: 0`, sans quoi un champ nombre refuse de rétrécir).
+         Même mécanique pour la cadence de relance, qui aligne trois cases sur une ligne. */
+      .reg-champ { width: 100%; }
+      .reg-champ .input, .reg-champ .select { flex: 1 1 0; min-width: 0; width: auto; text-align: left; }
+      .reg-champ.jours .input { text-align: center; }
+    }
+
+    /* Réglages avancés : repliés, parce qu'on ne touche pas à la structure de marge par curiosité. */
+    .avance { border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent); border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--danger) 5%, transparent); margin-top: var(--sp-4); }
+    .avance > summary { cursor: pointer; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); font-weight: 600;
+      color: var(--danger); list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+    .avance > summary::-webkit-details-marker { display: none; }
+    .avance[open] > summary { border-bottom: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); }
+    .avance .avance-corps { padding: 0 var(--sp-4) var(--sp-3); }
+    .avance-note { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.55; padding: var(--sp-3) 0 0; }
+
+    /* Aperçu chiffré : la seule façon honnête de montrer ce qu'un réglage déplace. */
+    .apercu { position: sticky; top: calc(var(--header-h) + var(--sp-4)); }
+    .ap-l { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 0.3rem 0;
+      font-size: var(--fs-sm); border-bottom: 1px dashed var(--border); }
+    .ap-l:last-child { border-bottom: none; }
+    .ap-l .k { color: var(--text-muted); min-width: 0; }
+    .ap-l .v { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
+    .ap-l.total .v { color: var(--accent-2); font-size: var(--fs-md); }
+    .ap-l .delta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); margin-left: 0.4rem; }
+    .ap-note { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; margin-top: var(--sp-3); }
+
+    .alerte { display: flex; gap: 0.5rem; align-items: flex-start; margin-top: var(--sp-3);
+      padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-2xs); line-height: 1.5; }
+    .alerte.ko { border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+      background: color-mix(in srgb, var(--danger) 9%, transparent); color: var(--danger); }
+    .alerte.ok { border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+      background: color-mix(in srgb, var(--ok) 8%, transparent); color: var(--ok); }
+    .alerte > svg { flex: none; margin-top: 1px; }
+
+    /* Barre d'enregistrement : toujours visible, elle dit s'il reste quelque chose à valider. */
+    .barre { position: sticky; bottom: 0; z-index: 20; margin-top: var(--sp-5);
+      display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+      padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(8px); }
+    .barre .etat { flex: 1; min-width: 0; font-size: var(--fs-2xs); color: var(--text-muted); }
+    .jours { display: flex; align-items: center; gap: 0.3rem; }
+    .jours .input { width: 62px; text-align: center; }
+    .jours .sep { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div><h1><a href="dashboard.html">SOLARISCREEN</a></h1><div class="module">Paramètres</div></div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html" title="Retour au tableau de bord"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="today-brief ticked" style="margin-bottom:var(--sp-4);">
+      <div style="font-size:var(--fs-sm);line-height:1.6;">
+        <strong>Ces réglages ne valent que pour les devis À VENIR.</strong>
+        Un devis déjà établi garde pour toujours les taux avec lesquels il a été calculé — le
+        modifier ici ne changera jamais un montant déjà annoncé à un client, ni une facture émise.
+      </div>
+    </div>
+
+    <div class="par-grid">
+      <div>
+        <!-- ══════════ PRIX & MARGES ══════════ -->
+        <section class="section">
+          <div class="section-head"><span class="section-title">Prix & marges</span><span class="section-code">SS // PRIX</span></div>
+
+          <div class="reg" data-reg="prix.commission_principal">
+            <div class="reg-txt"><div class="reg-nom">Commission — celui qui a vendu</div>
+              <div class="reg-aide">Part du prix catalogue qui revient au vendeur principal du devis. C'est sur ce montant que se déduit une remise commerciale.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_principal"><span class="reg-unite">%</span></div>
+          </div>
+          <div class="reg" data-reg="prix.commission_second">
+            <div class="reg-txt"><div class="reg-nom">Commission — l'autre</div>
+              <div class="reg-aide">Part revenant à celui qui n'a pas vendu. Les deux commissions réunies consomment la marge matériel.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_second"><span class="reg-unite">%</span></div>
+          </div>
+          <div id="alerteCommissions"></div>
+
+          <div class="reg" data-reg="prix.install_gross">
+            <div class="reg-txt"><div class="reg-nom">Pose facturée au client</div>
+              <div class="reg-aide">Par ouverture. C'est la seule des quatre lignes que le client voit — les trois suivantes se répartissent à l'intérieur.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="install_gross"><span class="reg-unite">€</span></div>
+          </div>
+          <div class="reg" data-reg="prix.tech1_gross">
+            <div class="reg-txt"><div class="reg-nom">Technicien 1</div>
+              <div class="reg-aide">Par ouverture, montant brut. Le net se déduit du diviseur (réglages avancés).</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tech1_gross"><span class="reg-unite">€</span></div>
+          </div>
+          <div class="reg" data-reg="prix.tech2_gross">
+            <div class="reg-txt"><div class="reg-nom">Technicien 2</div>
+              <div class="reg-aide">Par ouverture, montant brut.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tech2_gross"><span class="reg-unite">€</span></div>
+          </div>
+          <div class="reg" data-reg="prix.tools_gross">
+            <div class="reg-txt"><div class="reg-nom">Outillage</div>
+              <div class="reg-aide">Par ouverture. N'apparaît jamais comme ligne sur le devis du client : il est fondu dans le forfait de pose.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tools_gross"><span class="reg-unite">€</span></div>
+          </div>
+          <div id="alerteInstall"></div>
+
+          <div class="reg" data-reg="prix.tva_pct">
+            <div class="reg-txt"><div class="reg-nom">TVA par défaut</div>
+              <div class="reg-aide">Proposée à la création d'un devis. 6 % pour une habitation privée de plus de 10 ans, 21 % sinon — modifiable devis par devis.</div></div>
+            <div class="reg-champ"><select class="select" id="tva_pct"><option value="6">6 %</option><option value="21">21 %</option></select></div>
+          </div>
+          <div class="reg" data-reg="prix.acompte_pct">
+            <div class="reg-txt"><div class="reg-nom">Acompte par défaut</div>
+              <div class="reg-aide">Demandé à la commande. Les CGV en vigueur prévoient 50 %.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="5" id="acompte_pct"><span class="reg-unite">%</span></div>
+          </div>
+
+          <details class="avance">
+            <summary><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Réglages avancés — structure de la marge</summary>
+            <div class="avance-corps">
+              <div class="avance-note">Ces trois valeurs décrivent la mécanique interne de la marge. Elles n'ont
+                aucun effet sur le prix payé par le client : elles répartissent ce qu'il paie. Les modifier fausse
+                la lecture de votre rentabilité si vous vous trompez — d'où le repli.</div>
+              <div class="reg" data-reg="prix.supplier_rate">
+                <div class="reg-txt"><div class="reg-nom">Achat fournisseur estimé</div>
+                  <div class="reg-aide">Part du prix catalogue qui part chez Harol. Le complément est votre marge matériel.</div></div>
+                <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="supplier_rate"><span class="reg-unite">%</span></div>
+              </div>
+              <div class="reg" data-reg="prix.material_margin">
+                <div class="reg-txt"><div class="reg-nom">Marge matériel brute</div>
+                  <div class="reg-aide">Ce qui reste après le fournisseur, et que les deux commissions se partagent.</div></div>
+                <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="material_margin"><span class="reg-unite">%</span></div>
+              </div>
+              <div id="alerteRepartition"></div>
+              <div class="reg" data-reg="prix.net_divisor">
+                <div class="reg-txt"><div class="reg-nom">Diviseur brut → net</div>
+                  <div class="reg-aide">Ce qu'il reste réellement en poche une fois charges et impôts déduits. 2,5 signifie qu'un brut de 100 € vaut 40 € net.</div></div>
+                <div class="reg-champ"><input class="input input-num" type="number" min="1" max="10" step="0.1" id="net_divisor"><span class="reg-unite">÷</span></div>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <!-- ══════════ UTILISATION ══════════ -->
+        <section class="section">
+          <div class="section-head"><span class="section-title">Utilisation</span><span class="section-code">SS // USAGE</span></div>
+
+          <div class="reg" data-reg="usage.relance_visite">
+            <div class="reg-txt"><div class="reg-nom">Cadence de relance — devis après visite</div>
+              <div class="reg-aide">Nombre de jours après l'envoi pour chacune des trois relances. Le tableau de bord et la fiche devis s'y réfèrent tous les deux.</div></div>
+            <div class="reg-champ jours">
+              <input class="input input-num" type="number" min="1" max="120" id="relance_visite_0"><span class="sep">·</span>
+              <input class="input input-num" type="number" min="1" max="120" id="relance_visite_1"><span class="sep">·</span>
+              <input class="input input-num" type="number" min="1" max="120" id="relance_visite_2"><span class="reg-unite">j</span>
+            </div>
+          </div>
+          <div class="reg" data-reg="usage.relance_informatif">
+            <div class="reg-txt"><div class="reg-nom">Cadence de relance — devis informatif</div>
+              <div class="reg-aide">Un devis établi sans visite se relance un peu plus tard : le client n'a pas encore vu de technicien.</div></div>
+            <div class="reg-champ jours">
+              <input class="input input-num" type="number" min="1" max="120" id="relance_informatif_0"><span class="sep">·</span>
+              <input class="input input-num" type="number" min="1" max="120" id="relance_informatif_1"><span class="sep">·</span>
+              <input class="input input-num" type="number" min="1" max="120" id="relance_informatif_2"><span class="reg-unite">j</span>
+            </div>
+          </div>
+          <div id="alerteRelances"></div>
+
+          <div class="reg" data-reg="usage.seuil_lead_chaud">
+            <div class="reg-txt"><div class="reg-nom">Seuil « client très intéressé »</div>
+              <div class="reg-aide">Nombre de consultations de l'espace client à partir duquel le dossier passe en doré et remonte en tête des relances.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="1" max="100" id="seuil_lead_chaud"><span class="reg-unite">vues</span></div>
+          </div>
+          <div class="reg" data-reg="usage.echeance_facture">
+            <div class="reg-txt"><div class="reg-nom">Échéance des factures</div>
+              <div class="reg-aide">Délai de paiement proposé à la création d'une facture, en jours.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="120" id="echeance_facture"><span class="reg-unite">j</span></div>
+          </div>
+          <div class="reg" data-reg="usage.vue_defaut">
+            <div class="reg-txt"><div class="reg-nom">Vue du tableau de bord</div>
+              <div class="reg-aide">Filtre appliqué à la première ouverture sur un appareil. Ensuite, c'est votre dernier choix qui est retenu sur cet appareil.</div></div>
+            <div class="reg-champ"><select class="select" id="vue_defaut"><option value="actifs">Actifs</option><option value="tous">Tous</option></select></div>
+          </div>
+          <div class="reg" data-reg="usage.densite">
+            <div class="reg-txt"><div class="reg-nom">Densité des lignes</div>
+              <div class="reg-aide">Valeur de départ sur un nouvel appareil. Le bouton Compact du tableau de bord reste prioritaire pour cet appareil-là.</div></div>
+            <div class="reg-champ"><select class="select" id="densite"><option value="confort">Confort</option><option value="compact">Compact</option></select></div>
+          </div>
+          <div class="reg" data-reg="usage.kpi_replies">
+            <div class="reg-txt"><div class="reg-nom">Chiffres du haut repliés</div>
+              <div class="reg-aide">Sur téléphone, les replier fait remonter la liste des devis. Valeur de départ, modifiable ensuite par le bouton du tableau de bord.</div></div>
+            <div class="reg-champ"><select class="select" id="kpi_replies"><option value="non">Dépliés</option><option value="oui">Repliés</option></select></div>
+          </div>
+        </section>
+
+        <!-- ══════════ AFFICHAGE ══════════ -->
+        <section class="section">
+          <div class="section-head"><span class="section-title">Affichage</span><span class="section-code">SS // VUE</span></div>
+          <div class="reg" data-reg="affichage.theme_defaut">
+            <div class="reg-txt"><div class="reg-nom">Thème par défaut</div>
+              <div class="reg-aide">Appliqué sur un appareil qui n'a pas encore de préférence. Le bouton lune/soleil du bandeau reste maître ensuite.</div></div>
+            <div class="reg-champ"><select class="select" id="theme_defaut"><option value="systeme">Comme le système</option><option value="clair">Clair</option><option value="sombre">Sombre</option></select></div>
+          </div>
+          <div class="reg" data-reg="affichage.mantra">
+            <div class="reg-txt"><div class="reg-nom">Pensée du jour</div>
+              <div class="reg-aide">La phrase au centre du bandeau, sur le tableau de bord.</div></div>
+            <div class="reg-champ"><select class="select" id="mantra"><option value="oui">Affichée</option><option value="non">Masquée</option></select></div>
+          </div>
+          <div class="reg" data-reg="affichage.meteo">
+            <div class="reg-txt"><div class="reg-nom">Météo</div>
+              <div class="reg-aide">Température à votre position et chez le client. Masquée, la position n'est même plus demandée.</div></div>
+            <div class="reg-champ"><select class="select" id="meteo"><option value="oui">Affichée</option><option value="non">Masquée</option></select></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ══════════ APERÇU CHIFFRÉ ══════════ -->
+      <aside>
+        <section class="section apercu">
+          <div class="section-head"><span class="section-title">Effet sur un devis type</span></div>
+          <div style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-bottom:var(--sp-2);line-height:1.5;">
+            2 screens à 1 500 € catalogue, pose comprise. Les écarts sont calculés par rapport aux
+            réglages actuellement enregistrés.
+          </div>
+          <div id="apercu"></div>
+          <div class="ap-note" id="apercuNote"></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="barre">
+      <div class="etat" id="etat">Chargement des réglages…</div>
+      <button class="btn btn-ghost btn-sm" onclick="restaurerDefauts()" title="Remettre toutes les valeurs d'origine (sans enregistrer)">Valeurs d'origine</button>
+      <button class="btn btn-ghost btn-sm" onclick="annuler()" title="Revenir aux réglages enregistrés">Annuler</button>
+      <button class="btn btn-primary btn-sm" id="btnSave" onclick="enregistrer()">Enregistrer</button>
+    </div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script>
+    const SS = window.SS;
+    const { el, toast, fmtEur, icon } = window.SSUI;
+    const { mountThemeToggle } = window.SSTheme;
+    mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    // Réglages tels qu'ils sont EN BASE (référence pour « modifié » et pour Annuler).
+    let ENREGISTRES = null;
+
+    // Correspondance champ ↔ chemin dans les réglages. Les pourcentages de marge sont saisis en
+    // % (77) alors qu'ils sont stockés en fraction (0.77) : la conversion se fait ici, à un seul
+    // endroit, pour qu'aucun écran n'ait à y penser.
+    const CHAMPS = [
+      { id: 'commission_principal', chemin: ['prix', 'commission_principal'] },
+      { id: 'commission_second', chemin: ['prix', 'commission_second'] },
+      { id: 'install_gross', chemin: ['prix', 'install_gross'] },
+      { id: 'tech1_gross', chemin: ['prix', 'tech1_gross'] },
+      { id: 'tech2_gross', chemin: ['prix', 'tech2_gross'] },
+      { id: 'tools_gross', chemin: ['prix', 'tools_gross'] },
+      { id: 'tva_pct', chemin: ['prix', 'tva_pct'] },
+      { id: 'acompte_pct', chemin: ['prix', 'acompte_pct'] },
+      { id: 'supplier_rate', chemin: ['prix', 'supplier_rate'], pourcent: true },
+      { id: 'material_margin', chemin: ['prix', 'material_margin'], pourcent: true },
+      { id: 'net_divisor', chemin: ['prix', 'net_divisor'] },
+      { id: 'seuil_lead_chaud', chemin: ['usage', 'seuil_lead_chaud'] },
+      { id: 'echeance_facture', chemin: ['usage', 'echeance_facture'] },
+      { id: 'vue_defaut', chemin: ['usage', 'vue_defaut'], texte: true },
+      { id: 'densite', chemin: ['usage', 'densite'], texte: true },
+      { id: 'kpi_replies', chemin: ['usage', 'kpi_replies'], booleen: true },
+      { id: 'theme_defaut', chemin: ['affichage', 'theme_defaut'], texte: true },
+      { id: 'mantra', chemin: ['affichage', 'mantra'], booleen: true },
+      { id: 'meteo', chemin: ['affichage', 'meteo'], booleen: true },
+    ];
+    const CADENCES = [
+      { prefixe: 'relance_visite', chemin: ['usage', 'relance_visite'] },
+      { prefixe: 'relance_informatif', chemin: ['usage', 'relance_informatif'] },
+    ];
+
+    const lire = (o, chemin) => chemin.reduce((a, k) => (a || {})[k], o);
+    const nb = (v, defaut) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : defaut; };
+
+    /** Remplit le formulaire à partir d'un jeu de réglages. */
+    function peupler(conf) {
+      CHAMPS.forEach(c => {
+        const champ = el(c.id); if (!champ) return;
+        const v = lire(conf, c.chemin);
+        if (c.booleen) champ.value = v ? 'oui' : 'non';
+        else if (c.texte) champ.value = String(v);
+        else champ.value = c.pourcent ? String(Math.round(v * 10000) / 100) : String(v);
+      });
+      CADENCES.forEach(c => {
+        const jours = lire(conf, c.chemin) || [];
+        for (let i = 0; i < 3; i++) { const champ = el(c.prefixe + '_' + i); if (champ) champ.value = jours[i]; }
+      });
+      rafraichir();
+    }
+
+    /** Réglages tels que le formulaire les décrit à l'instant. */
+    function formulaire() {
+      const out = JSON.parse(JSON.stringify(ENREGISTRES || window.SSConf.DEFAUTS));
+      CHAMPS.forEach(c => {
+        const champ = el(c.id); if (!champ) return;
+        const cible = c.chemin.slice(0, -1).reduce((a, k) => a[k], out);
+        const cle = c.chemin[c.chemin.length - 1];
+        const defaut = lire(window.SSConf.DEFAUTS, c.chemin);
+        if (c.booleen) cible[cle] = champ.value === 'oui';
+        else if (c.texte) cible[cle] = champ.value;
+        else cible[cle] = c.pourcent ? nb(champ.value, defaut * 100) / 100 : nb(champ.value, defaut);
+      });
+      CADENCES.forEach(c => {
+        const cible = c.chemin.slice(0, -1).reduce((a, k) => a[k], out);
+        const cle = c.chemin[c.chemin.length - 1];
+        const defaut = lire(window.SSConf.DEFAUTS, c.chemin);
+        cible[cle] = [0, 1, 2].map(i => Math.round(nb((el(c.prefixe + '_' + i) || {}).value, defaut[i])));
+      });
+      return window.SSConf.fusionner(window.SSConf.DEFAUTS, out);
+    }
+
+    /** Contrôles de cohérence. Ils n'empêchent pas d'enregistrer — Nicolas et Yannick savent ce
+     *  qu'ils font — mais ils NOMMENT la conséquence, qui serait sinon invisible. */
+    function verifier(conf) {
+      const alertes = {};
+      const p = conf.prix;
+      const somme = Math.round((p.supplier_rate + p.material_margin) * 10000) / 100;
+      alertes.alerteRepartition = Math.abs(somme - 100) < 0.01 ? null
+        : `Achat fournisseur + marge matériel font ${somme.toString().replace('.', ',')} % au lieu de 100 %. La part manquante (ou en trop) n'est attribuée à personne : la lecture de votre rentabilité sera fausse.`;
+      const marge = Math.round(p.material_margin * 10000) / 100;
+      const comm = Math.round((p.commission_principal + p.commission_second) * 100) / 100;
+      alertes.alerteCommissions = Math.abs(comm - marge) < 0.01 ? null
+        : (comm > marge
+          ? `Les deux commissions font ${comm} % alors que la marge matériel n'est que de ${marge} % : chaque devis promet plus qu'il ne gagne.`
+          : `Les deux commissions font ${comm} % pour une marge de ${marge} % : il reste ${Math.round((marge - comm) * 100) / 100} % de marge non distribuée (c'est le montant que vous pouvez offrir en remise).`);
+      const equilibre = Math.round((p.tech1_gross + p.tech2_gross + p.tools_gross) * 100) / 100;
+      alertes.alerteInstall = Math.abs(equilibre - p.install_gross) < 0.02 ? null
+        : (equilibre > p.install_gross
+          ? `Techniciens + outillage font ${equilibre} € alors que la pose n'est facturée que ${p.install_gross} € : chaque ouverture posée coûte plus qu'elle ne rapporte.`
+          : `Techniciens + outillage font ${equilibre} € pour ${p.install_gross} € facturés : ${Math.round((p.install_gross - equilibre) * 100) / 100} € de marge par ouverture, non attribuée.`);
+      const croissant = (t) => t[0] < t[1] && t[1] < t[2];
+      alertes.alerteRelances = (croissant(conf.usage.relance_visite) && croissant(conf.usage.relance_informatif)) ? null
+        : 'Les trois délais de relance doivent être croissants (par exemple 4 · 9 · 21). Sinon une relance serait due avant la précédente.';
+      return alertes;
+    }
+
+    /** Devis type — recalculé par le VRAI moteur, jamais par une formule recopiée ici. */
+    function apercuDe(conf) {
+      const p = conf.prix;
+      return window.SSCalc.computeDevis({
+        items: [{ quantite: 2, prix_catalogue_ht: 1500 }],
+        sellers: { principal: 'nicolas' },
+        seller_parts: { principal: p.commission_principal, second: p.commission_second },
+        rates: { supplier_rate: p.supplier_rate, material_margin: p.material_margin, net_divisor: p.net_divisor },
+        installation: { install_gross: p.install_gross, tech1_gross: p.tech1_gross, tech2_gross: p.tech2_gross,
+                        tools_gross: p.tools_gross, install_qty: 2, tech1_qty: 2, tech2_qty: 2, tools_qty: 2 },
+        extras: [], tva_pct: p.tva_pct, acompte_pct: p.acompte_pct, surplus_difficulte: 0,
+      });
+    }
+
+    function ligneApercu(k, v, ref, total) {
+      const ecart = (ref != null && Math.abs(v - ref) > 0.005)
+        ? `<span class="delta">${v > ref ? '+' : '−'}${fmtEur(Math.abs(v - ref))}</span>` : '';
+      return `<div class="ap-l${total ? ' total' : ''}"><span class="k">${k}</span><span class="v">${fmtEur(v)}${ecart}</span></div>`;
+    }
+
+    function rafraichir() {
+      const conf = formulaire();
+      const a = apercuDe(conf), ref = ENREGISTRES ? apercuDe(ENREGISTRES) : null;
+      el('apercu').innerHTML =
+        ligneApercu('Catalogue', a.total_catalog_ht, ref && ref.total_catalog_ht) +
+        ligneApercu('Achat fournisseur', a.supplier_estimate, ref && ref.supplier_estimate) +
+        ligneApercu('Marge matériel', a.total_material_gross, ref && ref.total_material_gross) +
+        ligneApercu('Commission vendeur (net)', a.nicolas_net, ref && ref.nicolas_net) +
+        ligneApercu('Commission second (net)', a.yannick_net, ref && ref.yannick_net) +
+        ligneApercu('Installation', a.install_total, ref && ref.install_total) +
+        ligneApercu('Total TVAC', a.total_ttc, ref && ref.total_ttc, true) +
+        ligneApercu('Acompte', a.acompte_montant, ref && ref.acompte_montant);
+      el('apercuNote').textContent = (ref && Math.abs(a.total_ttc - ref.total_ttc) > 0.005)
+        ? 'Le prix payé par le client change avec ces réglages.'
+        : 'Le prix payé par le client ne change pas : ces réglages ne font que répartir ce qu\'il paie.';
+
+      const alertes = verifier(conf);
+      Object.keys(alertes).forEach(id => {
+        const hote = el(id); if (!hote) return;
+        hote.innerHTML = alertes[id]
+          ? `<div class="alerte ko">${icon('warning', 14)}<span>${alertes[id]}</span></div>` : '';
+      });
+
+      // Repère visuel sur chaque réglage qui s'écarte de ce qui est enregistré.
+      let modifies = 0;
+      document.querySelectorAll('.reg[data-reg]').forEach(ligne => {
+        const chemin = ligne.getAttribute('data-reg').split('.');
+        const diff = JSON.stringify(lire(conf, chemin)) !== JSON.stringify(lire(ENREGISTRES || {}, chemin));
+        ligne.classList.toggle('modifie', diff);
+        if (diff) modifies++;
+      });
+      el('etat').textContent = modifies
+        ? `${modifies} réglage${modifies > 1 ? 's' : ''} modifié${modifies > 1 ? 's' : ''} — pas encore enregistré${modifies > 1 ? 's' : ''}.`
+        : 'Tout est enregistré.';
+      el('btnSave').disabled = !modifies;
+    }
+
+    window.restaurerDefauts = () => { peupler(window.SSConf.DEFAUTS); toast('Valeurs d’origine réaffichées — clique sur Enregistrer pour les appliquer.', 'warn', 6000); };
+    window.annuler = () => { peupler(ENREGISTRES); toast('Modifications abandonnées', 'ok'); };
+
+    window.enregistrer = async () => {
+      const conf = formulaire();
+      const alertes = verifier(conf);
+      const bloquantes = Object.keys(alertes).filter(k => alertes[k]);
+      if (bloquantes.length && !confirm(
+        'Certains réglages sont incohérents :\n\n• ' +
+        bloquantes.map(k => alertes[k]).join('\n• ') +
+        '\n\nEnregistrer quand même ?')) return;
+      // Résumé lisible pour le journal d'activité : « qui a changé quoi » doit rester lisible
+      // dans six mois, sans avoir à comparer deux JSON.
+      const changes = [];
+      document.querySelectorAll('.reg.modifie[data-reg]').forEach(l => {
+        const chemin = l.getAttribute('data-reg').split('.');
+        const nom = l.querySelector('.reg-nom').textContent.trim();
+        changes.push(`${nom} : ${JSON.stringify(lire(ENREGISTRES, chemin))} → ${JSON.stringify(lire(conf, chemin))}`);
+      });
+      el('btnSave').disabled = true;
+      const res = await window.SSConf.enregistrer(conf, 'Réglages : ' + changes.join(' · '));
+      if (!res || res.ok === false) {
+        el('btnSave').disabled = false;
+        toast((res && res.error) || 'Réglages NON enregistrés — réessaie.', 'error', 7000);
+        return;
+      }
+      ENREGISTRES = conf;
+      rafraichir();
+      toast('Réglages enregistrés ✓ — ils s’appliquent aux devis à venir', 'ok', 5000);
+    };
+
+    // Toute modification met l'aperçu et les contrôles à jour immédiatement.
+    document.addEventListener('input', (e) => { if (e.target.closest('.reg')) rafraichir(); });
+    document.addEventListener('change', (e) => { if (e.target.closest('.reg')) rafraichir(); });
+
+    (async () => {
+      ENREGISTRES = await window.SSConf.charger();
+      peupler(ENREGISTRES);
+    })();
+  </script>
+</body>
+</html>

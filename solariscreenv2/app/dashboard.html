@@ -637,6 +637,7 @@
   <script src="../assets/js/mantras.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
@@ -681,7 +682,11 @@
       box.classList.add('reveal');
     }
     window.newMantra = () => showMantra(window.SSMantras.fresh());
-    showMantra(window.SSMantras.forSession());
+    // Pensée du jour et météo : décoratives, donc désactivables (Paramètres → Affichage).
+    // On lit le cache local, disponible immédiatement : pas d'apparition-disparition au chargement.
+    const AFFICHAGE = (window.SSConf && window.SSConf.get().affichage) || { mantra: true, meteo: true };
+    if (AFFICHAGE.mantra) showMantra(window.SSMantras.forSession());
+    else { const m = document.querySelector('.header-mood'); if (m) m.style.display = 'none'; }
     window.addEventListener('resize', fitMantra);
     try { document.fonts.ready.then(fitMantra); } catch (e) {}
 
@@ -689,6 +694,7 @@
     // Géolocalisation navigateur (demande une autorisation une seule fois) → Open-Meteo
     // + géocodage inverse pour le nom de la ville. Silencieux si refusé/indisponible.
     (function initCurrentWeather() {
+      if (!AFFICHAGE.meteo) return;   // masquée : on ne demande pas la position pour rien
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -853,7 +859,7 @@
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
         const faites = relancesFaites(d);
         // Un client qui a rouvert son devis plusieurs fois est chaud → on le signale et on passe en or.
-        const hot = d.review_views >= 5;
+        const hot = d.review_views >= SEUIL_CHAUD();
         return { txt: `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, color: hot ? 'var(--accent-2)' : 'var(--warn)' };
       }
       if (isDevisExpire(d)) return { txt: 'Devis expiré (30 j) — à relancer ou classer', color: 'var(--danger)' };
@@ -866,6 +872,15 @@
       if (WAITING_STATUSES.includes(d.statut)) return { txt: 'En attente de réponse client', color: 'var(--text-subtle)' };
       return null;
     }
+    // Seuil « client chaud » : nombre de consultations de l'espace client à partir duquel on
+    // considère le dossier comme brûlant. Réglable (Paramètres → Utilisation) car il dépend du
+    // volume d'affaires — 5 vues n'ont pas le même sens sur 3 devis que sur 300.
+    const SEUIL_CHAUD = () => {
+      const c = window.SSConf && window.SSConf.get();
+      const v = c && c.usage && Number(c.usage.seuil_lead_chaud);
+      return (isFinite(v) && v > 0) ? v : 5;
+    };
+
     function paymentInfo(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return '';
@@ -932,7 +947,7 @@
       if (d.client_question_open)
         return `<span class="m-sig act" style="--sc:var(--warn)" onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#question'" title="Répondre à la question du client">${icon('message', 12)} Question client — à répondre</span>`;
       const a = prochaineAction(d);
-      const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= 5;
+      const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
       if (!a) {
         const s = STATUSES[d.statut] || {};
         const extra = d.statut === 'refuse' && d.raison_refus ? ' · ' + esc(d.raison_refus) : '';
@@ -957,7 +972,7 @@
       if (!WAITING_STATUSES.includes(d.statut) || d.client_accepted) return '';
       if (d.review_views > 0) {
         const pct = Math.min(100, Math.round(20 + d.review_views * 3.3));
-        const hot = d.review_views >= 5;
+        const hot = d.review_views >= SEUIL_CHAUD();
         const grad = hot ? 'linear-gradient(90deg, var(--warn), var(--accent-2))' : 'linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent))';
         return `<div class="m-gline"><span class="m-gbar"><i style="width:${pct}%;background:${grad}"></i>${hot ? '<u></u>' : ''}</span>` +
           `<span class="m-gl"${hot ? ' style="color:var(--accent-2-ink)"' : ''}>${icon('window', 11)} ${d.review_views} vue${d.review_views > 1 ? 's' : ''}${hot ? ' · chaud' : ''}</span></div>`;
@@ -1342,7 +1357,7 @@
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
       el('tableHost').innerHTML = `<div class="mix-list">${rows.map(d => {
-        const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= 5;
+        const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
         const pay = paymentInfo(d);
         return `
         <div class="mrow ${hot ? 'is-hot' : ''}" data-id="${d.id}" style="--rail:${railColor(d)}" title="Ouvrir la fiche du devis">

@@ -84,6 +84,7 @@
       { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
       { href: 'factures.html', label: 'Facturation', icon: 'filetext', badge: 'factures' },
       { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
+      { href: 'parametres.html', label: 'Paramètres', icon: 'settings' },
     ] },
   ];
 

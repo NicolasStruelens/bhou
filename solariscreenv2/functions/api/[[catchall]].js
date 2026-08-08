@@ -1101,6 +1101,44 @@ export async function onRequest(context) {
       `).bind(sessionId, identity, email || '', now, now).run();
       return json({ ok: true });
     }
+    /* ── RÉGLAGES DE L'ERP ──────────────────────────────────────────────────────────────────────
+       Une seule ligne, un seul blob JSON : ces réglages sont peu nombreux, lus partout et écrits
+       rarement. La table se crée TOUTE SEULE au premier accès — aucune migration à lancer à la
+       main sur la base de production, donc aucun risque d'oubli entre le déploiement du code et
+       la disponibilité du réglage.
+       Le serveur ne connaît AUCUNE valeur par défaut : il stocke ce qu'on lui donne et renvoie
+       `{}` s'il n'a rien. Les défauts vivent à un seul endroit, côté client (assets/js/config.js).
+       Dupliquer une valeur de référence des deux côtés, c'est se garantir qu'elles divergeront. */
+    if (path === '/api/settings' && (method === 'GET' || method === 'POST')) {
+      await env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS settings (id TEXT PRIMARY KEY, data TEXT NOT NULL, date_modification TEXT, actor TEXT)'
+      ).run();
+      if (method === 'GET') {
+        const row = await env.DB.prepare('SELECT data, date_modification, actor FROM settings WHERE id = ?').bind('global').first();
+        return json({ ok: true, data: (row && safeParse(row.data)) || {},
+                      date_modification: (row && row.date_modification) || null, actor: (row && row.actor) || null });
+      }
+      const body = await request.json().catch(() => null);
+      if (!body || typeof body !== 'object') return json({ ok: false, error: 'Réglages invalides' }, 400);
+      const emailSet = parseAccessEmail(request);
+      const acteur = (emailSet && IDENTITIES[emailSet.toLowerCase()]) || emailSet || null;
+      const now = new Date().toISOString();
+      const blob = JSON.stringify(body);
+      if (blob.length > 20000) return json({ ok: false, error: 'Réglages trop volumineux' }, 400);
+      await env.DB.prepare(`
+        INSERT INTO settings (id, data, date_modification, actor) VALUES ('global', ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET data = excluded.data, date_modification = excluded.date_modification, actor = excluded.actor
+      `).bind(blob, now, acteur).run();
+      // Un changement de marge ou de commission se retrouve dans l'historique, avec son auteur :
+      // c'est exactement le genre de réglage dont on veut pouvoir dire QUI l'a touché et QUAND.
+      try {
+        await env.DB.prepare(
+          'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind(now, acteur, 'settings.save', 'system', 'settings',
+          String(body._resume || 'Réglages de l’ERP modifiés').slice(0, 300), null).run();
+      } catch (e) { /* le journal ne bloque jamais un enregistrement */ }
+      return json({ ok: true, date_modification: now });
+    }
     if (path === '/api/connections' && method === 'GET') {
       const { results } = await env.DB.prepare(
         'SELECT session_id, identity, email, start_time, last_seen, page_count FROM connections ORDER BY start_time DESC LIMIT 300'

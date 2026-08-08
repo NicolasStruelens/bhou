@@ -73,6 +73,60 @@
     check('C2 total_ttc', r2.total_ttc, 1210);
     check('C2 acompte_montant', r2.acompte_montant, 363);
 
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // TAUX RÉGLABLES — la partie la plus sensible de l'ERP.
+    // Ces tests protègent une promesse : un devis déjà établi ne doit JAMAIS changer de montant
+    // parce qu'on a modifié un réglage. Ils vérifient donc surtout que l'ABSENCE de taux, ou des
+    // taux aberrants, redonnent exactement le calcul d'origine.
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    const baseTaux = {
+      items: [{ quantite: 2, prix_catalogue_ht: 1000 }],
+      sellers: { principal: 'nicolas' },
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30,
+                      install_qty: 2, tech1_qty: 2, tech2_qty: 2, tools_qty: 2 },
+      extras: [], tva_pct: 6, acompte_pct: 50, surplus_difficulte: 0,
+    };
+    const sansTaux = computeDevis(baseTaux);
+
+    // C3 — taux explicitement égaux aux valeurs d'origine : résultat identique à « pas de taux ».
+    const r3 = computeDevis({ ...baseTaux, rates: { supplier_rate: 0.77, material_margin: 0.23, net_divisor: 2.5 } });
+    check('C3 identique sans taux (fournisseur)', r3.supplier_estimate, sansTaux.supplier_estimate);
+    check('C3 identique sans taux (marge)', r3.total_material_gross, sansTaux.total_material_gross);
+    check('C3 identique sans taux (net)', r3.nicolas_net, sansTaux.nicolas_net);
+    check('C3 identique sans taux (TTC)', r3.total_ttc, sansTaux.total_ttc);
+
+    // C4 — taux modifiés : seuls les postes concernés bougent, le prix client ne bouge PAS
+    // (la répartition interne de la marge ne regarde pas le client).
+    const r4 = computeDevis({ ...baseTaux, rates: { supplier_rate: 0.70, material_margin: 0.30, net_divisor: 2.0 } });
+    check('C4 fournisseur 70 %', r4.supplier_estimate, 1400);
+    check('C4 marge 30 %', r4.total_material_gross, 600);
+    check('C4 net diviseur 2', r4.nicolas_net, 180);          // 2000 × 18 % = 360 brut → 180
+    check('C4 TTC inchangé', r4.total_ttc, sansTaux.total_ttc);
+
+    // C5 — commissions réglables (20 % / 3 %), vendeur principal Nicolas puis Yannick.
+    const r5 = computeDevis({ ...baseTaux, seller_parts: { principal: 20, second: 3 } });
+    check('C5 principal 20 %', r5.nicolas_gross, 400);
+    check('C5 second 3 %', r5.yannick_gross, 60);
+    const r5b = computeDevis({ ...baseTaux, sellers: { principal: 'yannick' }, seller_parts: { principal: 20, second: 3 } });
+    check('C5 miroir Yannick principal', r5b.yannick_gross, 400);
+    check('C5 miroir Nicolas second', r5b.nicolas_gross, 60);
+
+    // C6 — GARDE-FOU : des taux absurdes (vides, texte, négatifs, diviseur nul) ne doivent pas
+    // produire un prix faux mais retomber sur les valeurs d'origine. Un réglage corrompu ne peut
+    // donc jamais fausser un devis en silence.
+    const r6 = computeDevis({ ...baseTaux, rates: { supplier_rate: 'abc', material_margin: -1, net_divisor: 0 } });
+    check('C6 taux absurdes → fournisseur d’origine', r6.supplier_estimate, sansTaux.supplier_estimate);
+    check('C6 taux absurdes → marge d’origine', r6.total_material_gross, sansTaux.total_material_gross);
+    check('C6 diviseur 0 refusé', r6.nicolas_net, sansTaux.nicolas_net);
+    const r6b = computeDevis({ ...baseTaux, seller_parts: { principal: null, second: 'x' } });
+    check('C6 commissions absurdes → 18 %', r6b.nicolas_gross, 360);
+    check('C6 commissions absurdes → 5 %', r6b.yannick_gross, 100);
+
+    // C7 — les taux appliqués sont RENVOYÉS, pour pouvoir être figés dans le devis.
+    check('C7 taux renvoyés (fournisseur)', r4.rates.supplier_rate, 0.70);
+    check('C7 taux renvoyés (diviseur)', r4.rates.net_divisor, 2.0);
+    check('C7 taux renvoyés par défaut', sansTaux.rates.material_margin, 0.23);
+
     document.getElementById('out').innerHTML =
       `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
     const s = document.getElementById('summary');
