@@ -37,6 +37,29 @@
     .modal h3 { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); }
     .modal .mbody { padding: var(--sp-5); }
     .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: var(--sp-2); }
+
+    /* ── Facture partielle : une ligne par ouverture, avec le nombre réellement posé ── */
+    .poses-help { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; margin-bottom: var(--sp-2); }
+    .pose-row { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0;
+      border-bottom: 1px dashed var(--border); }
+    .pose-row:last-child { border-bottom: none; }
+    .pose-nom { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; }
+    .pose-lieu { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .pose-qty { flex: none; display: flex; align-items: center; gap: 0.35rem; }
+    .pose-qty .input { width: 72px; text-align: center; }
+    .pose-tot { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+
+    /* ── Encaissements déjà saisis, chacun retirable ── */
+    .pay-hist-t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: 0.3rem; }
+    .pay-hist { display: flex; align-items: center; gap: var(--sp-3); padding: 0.35rem 0;
+      border-bottom: 1px dashed var(--border); font-size: var(--fs-xs); }
+    .pay-hist:last-child { border-bottom: none; margin-bottom: var(--sp-4); }
+    .pay-hist .ph-d { font-family: var(--font-mono); color: var(--text-muted); flex: none; }
+    .pay-hist .ph-m { font-family: var(--font-mono); font-weight: 700; color: var(--ok); flex: none; }
+    .pay-hist .ph-y { flex: 1; min-width: 0; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pay-hist .ph-x { flex: none; background: none; border: none; color: var(--text-subtle); cursor: pointer; display: inline-flex; padding: 3px; border-radius: var(--r-sm); }
+    .pay-hist .ph-x:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
   </style>
 </head>
 <body>
@@ -86,11 +109,17 @@
         <div class="field mt-4"><label class="label" for="mType">Type de facture</label>
           <select class="select" id="mType" onchange="onTypePick()">
             <option value="acompte">Facture d'acompte</option>
+            <option value="partielle">Facture partielle — ce qui est posé</option>
             <option value="solde">Facture de solde</option>
             <option value="totale">Facture totale</option>
           </select>
         </div>
         <div class="field mt-4" id="mPctField"><label class="label" for="mPct">Pourcentage d'acompte</label><div class="input-unit"><input class="input input-num" id="mPct" type="number" min="1" max="100" value="30"><span class="unit">%</span></div></div>
+        <div class="field mt-4 hidden" id="mPosesField">
+          <label class="label">Ouvertures réellement posées</label>
+          <div class="poses-help">Laisse le compte complet pour ce qui est terminé, réduis-le pour ce qui reste à poser. Le montant se recalcule tout seul.</div>
+          <div id="mPoses"></div>
+        </div>
         <div class="field mt-4"><label class="label" for="mEcheance">Échéance (jours)</label><input class="input input-num" id="mEcheance" type="number" min="0" value="15"></div>
         <div class="mt-4" id="mPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
       </div>
@@ -101,12 +130,34 @@
     </div>
   </div>
 
+  <!-- Modal note de crédit -->
+  <div class="modal-bg" id="modalAvoir">
+    <div class="modal">
+      <h3>Établir une note de crédit</h3>
+      <div class="mbody">
+        <div id="avInfo" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-4);"></div>
+        <div class="field"><label class="label" for="avMontant">Montant à annuler (TVAC)</label>
+          <div class="input-unit"><input class="input input-num" id="avMontant" type="number" step="0.01" oninput="updateAvoirPreview()"><span class="unit">€</span></div>
+        </div>
+        <div class="field mt-4"><label class="label" for="avMotif">Motif (apparaît sur le document)</label>
+          <input class="input" id="avMotif" placeholder="Ex. : 5 ouvertures non posées, reportées">
+        </div>
+        <div class="mt-4" id="avPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalAvoir')">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="createAvoir()">Établir la note de crédit</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal paiement -->
   <div class="modal-bg" id="modalPay">
     <div class="modal">
       <h3>Enregistrer un paiement</h3>
       <div class="mbody">
         <div id="payInfo" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-4);"></div>
+        <div id="payList"></div>
         <div class="grid grid-2">
           <div class="field"><label class="label" for="payMontant">Montant</label><div class="input-unit"><input class="input input-num" id="payMontant" type="number" step="0.01"><span class="unit">€</span></div></div>
           <div class="field"><label class="label" for="payDate">Date</label><input class="input" id="payDate" type="date"></div>
@@ -139,19 +190,31 @@
     let FACTURES = [], DEVIS = [], payTarget = null;
 
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    // Une NOTE DE CRÉDIT n'est ni payée ni impayée : elle annule, elle ne s'encaisse pas. Sans ce
+    // cas à part, son total NÉGATIF passait le test « payé ≥ total » et elle s'affichait « Payée ».
+    const estAvoir = f => f && f.type === 'avoir';
+    // Reste dû et annulation : définitions PARTAGÉES (assets/js/ui.js), les mêmes qu'aux
+    // statistiques — sinon les deux écrans annonceraient deux créances différentes.
+    const duDe = f => window.SSUI.duFacture(f, FACTURES);
+    const estAnnulee = f => window.SSUI.factureAnnulee(f, FACTURES);
     function statutOf(f) {
+      if (estAvoir(f)) return 'avoir';
+      if (estAnnulee(f)) return 'annulee';
       const p = paidSum(f);
       if (p >= (f.total_ttc || 0) - 0.005) return 'payee';
       if (p > 0) return 'partielle';
       return 'impayee';
     }
-    const isOverdue = f => statutOf(f) !== 'payee' && f.echeance && f.echeance < today();
+    const isOverdue = f => ['avoir', 'annulee', 'payee'].indexOf(statutOf(f)) === -1 && f.echeance && f.echeance < today();
     function badgeFor(f) {
       const st = statutOf(f);
+      if (st === 'avoir') return '<span class="badge badge-purple">Note de crédit</span>';
+      if (st === 'annulee') return '<span class="badge" style="opacity:.75;">Annulée</span>';
       if (st === 'payee') return '<span class="badge badge-ok">Payée</span>';
       if (st === 'partielle') return '<span class="badge badge-warn">Partielle</span>';
       return isOverdue(f) ? '<span class="badge badge-danger">En retard</span>' : '<span class="badge badge-cyan">À payer</span>';
     }
+    const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale', partielle: 'Partielle', avoir: 'Note de crédit' };
 
     async function load() {
       FACTURES = (await SS.listFactures()) || [];
@@ -166,9 +229,12 @@
       // (client qui règle tout d'un coup sur la facture d'acompte) ne doit PAS venir effacer la
       // dette d'une autre facture : la simple soustraction totalTTC − encaissé sous-évaluait la
       // créance réelle (constaté sur les données réelles : 12 784 € affichés au lieu de 22 258 €).
-      const reste = FACTURES.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
+      // Une facture éteinte par une note de crédit ne se réclame plus : `duFacture` en tient
+      // compte. Sans ça, un montant annulé restait affiché comme créance (constaté en test :
+      // 17 440,07 € encore réclamés sur une facture pourtant annulée).
+      const reste = FACTURES.reduce((s, f) => s + duDe(f), 0);
       const retard = FACTURES.filter(isOverdue);
-      const resteRetard = retard.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
+      const resteRetard = retard.reduce((s, f) => s + duDe(f), 0);
       el('kpis').innerHTML = `
         <div class="kpi gold"><div class="kpi-label">Total facturé</div><div class="kpi-value">${fmtEur(totalTTC)}</div></div>
         <div class="kpi ok"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(encaisse)}</div></div>
@@ -199,7 +265,7 @@
               <tr>
                 <td class="text-mono">${esc(f.id)}</td>
                 <td>${esc((f.client && f.client.prenom) || '')} ${esc((f.client && f.client.nom) || '')}</td>
-                <td class="text-muted" style="font-size:var(--fs-2xs)">${f.type === 'acompte' ? 'Acompte' : (f.type === 'solde' ? 'Solde' : 'Totale')}</td>
+                <td class="text-muted" style="font-size:var(--fs-2xs)">${esc(TYPE_LABEL_FAC[f.type] || f.type)}${f.avoir_de ? ' <span class="text-mono" style="opacity:.7">de ' + esc(f.avoir_de) + '</span>' : ''}</td>
                 <td class="text-muted">${fmtDate(f.date)}</td>
                 <td class="${isOverdue(f) ? 'text-mono' : 'text-muted'}" ${isOverdue(f) ? 'style="color:var(--danger)"' : ''}>${fmtDate(f.echeance)}</td>
                 <td class="num text-accent">${fmtEur(f.total_ttc)}</td>
@@ -208,7 +274,8 @@
                 <td><div class="actions">
                   ${isOverdue(f) ? `<button class="icon-btn" title="Relancer le client par email (texte prêt)" aria-label="Relancer la facture ${f.id}" onclick="relancerFacture('${encodeURIComponent(f.id)}')" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);">${icon('clock', 15)}</button>` : ''}
                   <button class="icon-btn" title="Voir / PDF" aria-label="Voir la facture ${f.id} en PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 15)}</button>
-                  <button class="icon-btn" title="Paiement" aria-label="Enregistrer un paiement pour ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>
+                  ${estAvoir(f) ? '' : `<button class="icon-btn" title="Paiement" aria-label="Enregistrer un paiement pour ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>`}
+                  ${estAvoir(f) || avoirExistantPour(f.id) ? '' : `<button class="icon-btn" title="Établir une note de crédit (annule tout ou partie de cette facture)" aria-label="Note de crédit pour ${f.id}" onclick="openAvoir('${encodeURIComponent(f.id)}')" style="color:var(--accent-3);border-color:color-mix(in srgb,var(--accent-3) 45%,transparent);">${icon('arrowleft', 15)}</button>`}
                   <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer la facture ${f.id}" onclick="delFacture('${encodeURIComponent(f.id)}')">${icon('trash', 15)}</button>
                 </div></td>
               </tr>`).join('')}</tbody>
@@ -232,28 +299,95 @@
       onTypePick(); onDevisPick();
       el('modalNew').classList.add('open');
     };
-    window.onTypePick = () => { el('mPctField').style.display = el('mType').value === 'acompte' ? 'block' : 'none'; onDevisPick(); };
+    window.onTypePick = () => {
+      const t = el('mType').value;
+      el('mPctField').style.display = t === 'acompte' ? 'block' : 'none';
+      el('mPosesField').classList.toggle('hidden', t !== 'partielle');
+      onDevisPick();
+    };
+    // Une ligne par ouverture du devis, avec le nombre posé (pré-rempli au total : le cas normal
+    // reste « tout est posé »). L'utilisateur ne diminue que ce qui manque.
+    async function renderPoses(devis) {
+      const host = el('mPoses');
+      const items = (devis && devis.items) || [];
+      if (!items.length) { host.innerHTML = '<div class="poses-help">Ce devis n’a aucune ouverture détaillée.</div>'; return; }
+      host.innerHTML = items.map((it, i) => {
+        const q = Number(it.quantite) || 1;
+        const nom = (TYPE_ITEM[it.type] || it.type || 'Ouverture') + (it.modele ? ' — ' + it.modele : '');
+        const lieu = [it.emplacement, it.etage].filter(Boolean).join(' · ');
+        return `<div class="pose-row">
+          <div class="pose-nom">${esc(nom)}${lieu ? `<span class="pose-lieu">${esc(lieu)}</span>` : ''}</div>
+          <div class="pose-qty">
+            <input class="input input-num" type="number" min="0" max="${q}" step="1" value="${q}"
+                   id="pose_${i}" aria-label="Nombre posé pour ${esc(nom)}" oninput="updatePreview()">
+            <span class="pose-tot">/ ${q}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    const TYPE_ITEM = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
+    // Relit les compteurs saisis. Renvoie null hors mode partiel (computeAmounts facture alors tout).
+    function posesSaisies(devis) {
+      if (el('mType').value !== 'partielle') return null;
+      return ((devis && devis.items) || []).map((it, i) => {
+        const champ = el('pose_' + i);
+        return champ ? Number(champ.value) : (Number(it.quantite) || 1);
+      });
+    }
     // Pré-remplit le % d'acompte avec la valeur réelle déjà validée sur le devis
     // (au lieu du 30% par défaut du formulaire) — évite un montant de facture qui ne
     // correspond pas à celui affiché sur le devis du client.
     window.onDevisPick = async () => {
       const id = el('mDevis').value;
-      if (id && el('mType').value === 'acompte') {
+      const type = el('mType').value;
+      if (id && (type === 'acompte' || type === 'partielle')) {
         const d = await SS.getDevis(id);
-        if (d) {
+        if (d && type === 'acompte') {
           const p = d.pricing_v2 || {}, c = d.calculs || {};
           el('mPct').value = p.acompte_pct != null ? p.acompte_pct : (c.acompte_pct != null ? c.acompte_pct : 30);
         }
+        if (d && type === 'partielle') await renderPoses(d);
       }
       updatePreview();
     };
 
-    async function computeAmounts(devisId, type, pct) {
+    // Une note de crédit porte un total NÉGATIF : elle vient donc naturellement en déduction du
+    // « déjà facturé », ce qui rouvre le devis à la facturation. C'est exactement son rôle.
+    const dejaFacture = (devisId) => FACTURES.filter(f => f.devis_id === devisId)
+      .reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
+    const avoirExistantPour = (facId) => FACTURES.some(f => f.type === 'avoir' && f.avoir_de === facId);
+
+    // Part du devis réellement posée, exprimée en fraction de sa VALEUR (et non en nombre
+    // d'ouvertures) : sur un chantier où toutes les ouvertures n'ont pas le même prix, compter
+    // « 28 sur 33 » facturerait de travers. Avec des ouvertures identiques — le cas de l'école —
+    // les deux reviennent au même : 28/33 exactement.
+    function partPosee(devis, poses) {
+      const items = (devis && devis.items) || [];
+      let total = 0, retenu = 0;
+      items.forEach((it, i) => {
+        const q = Number(it.quantite) || 1, pu = Number(it.prix_catalogue_ht) || 0;
+        const n = Math.max(0, Math.min(q, poses && poses[i] != null ? Number(poses[i]) : q));
+        total += q * pu; retenu += n * pu;
+      });
+      // Devis sans prix unitaire renseigné : on retombe sur le simple comptage d'ouvertures,
+      // sinon la fraction vaudrait 0/0 et la facture serait nulle sans explication.
+      if (total <= 0) {
+        let qTot = 0, qRet = 0;
+        items.forEach((it, i) => {
+          const q = Number(it.quantite) || 1;
+          qTot += q; qRet += Math.max(0, Math.min(q, poses && poses[i] != null ? Number(poses[i]) : q));
+        });
+        return qTot > 0 ? qRet / qTot : 1;
+      }
+      return retenu / total;
+    }
+
+    async function computeAmounts(devisId, type, pct, poses) {
       const d = await SS.getDevis(devisId);
       const c = (d && d.calculs) || {};
       const ttc = c.total_ttc || 0, ht = c.total_ht || 0, tva = c.total_tva || 0, tvaPct = c.tva_pct || 6;
       // Déjà facturé pour ce devis (toutes factures) → on ne dépasse JAMAIS le total du devis.
-      const already = FACTURES.filter(f => f.devis_id === devisId).reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
+      const already = dejaFacture(devisId);
       const remaining = Math.max(0, ttc - already);
       let factor = 1;
       if (type === 'acompte') {
@@ -261,22 +395,46 @@
         factor = ttc > 0 ? Math.min(wanted, remaining) / ttc : 0;   // acompte plafonné au restant
       } else if (type === 'solde') {
         factor = ttc > 0 ? remaining / ttc : 0;                     // solde = tout le restant
+      } else if (type === 'partielle') {
+        // On facture la part POSÉE, moins ce qui a déjà été facturé (l'acompte, typiquement).
+        // Exemple école : 28 des 33 screens posés → 84,85 % de 31 796,82 = 26 979,12 €, moins
+        // l'acompte de 9 539,05 € déjà facturé = 17 440,07 € à réclamer aujourd'hui. Le solde des
+        // 5 restants (4 817,70 €) se facturera à la fin — les trois montants se recomposent
+        // exactement, aucun euro ne se perd en route.
+        const cible = ttc * partPosee(d, poses);
+        factor = ttc > 0 ? Math.max(0, Math.min(cible - already, remaining)) / ttc : 0;
       } else { // totale : facture unique à 100 %, uniquement si RIEN n'a encore été facturé
         factor = already > 0.005 ? 0 : 1;
       }
-      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor, tva_pct: tvaPct, factor, already, ttc };
+      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor,
+               tva_pct: tvaPct, factor, already, ttc, part: type === 'partielle' ? partPosee(d, poses) : 1 };
     }
 
     async function updatePreview() {
       const id = el('mDevis').value, type = el('mType').value, pct = el('mPct').value;
       if (!id) return;
-      const a = await computeAmounts(id, type, pct);
-      el('mPreview').innerHTML = `Montant de la facture : <strong style="color:var(--accent-2)">${fmtEur(a.total_ttc)}</strong> TVAC (HT ${fmtEur(a.total_ht)} + TVA ${fmtEur(a.total_tva)})`;
+      const d = type === 'partielle' ? await SS.getDevis(id) : null;
+      const a = await computeAmounts(id, type, pct, posesSaisies(d));
+      let detail = `Montant de la facture : <strong style="color:var(--accent-2)">${fmtEur(a.total_ttc)}</strong> TVAC (HT ${fmtEur(a.total_ht)} + TVA ${fmtEur(a.total_tva)})`;
+      if (type === 'partielle') {
+        // On montre le raisonnement complet : sans lui, un montant qui n'est ni la part posée ni
+        // le total ressemble à une erreur. Avec, il se vérifie de tête.
+        const posee = a.ttc * a.part, reste = Math.max(0, a.ttc - posee);
+        detail += `<div class="mt-2" style="font-size:var(--fs-2xs);line-height:1.6;">`
+          + `Part posée : <strong>${(a.part * 100).toFixed(2).replace('.', ',')} %</strong> du devis = ${fmtEur(posee)}<br>`
+          + `− déjà facturé : ${fmtEur(a.already)}<br>`
+          + `Restera à facturer après celle-ci : <strong>${fmtEur(reste)}</strong> (les ouvertures pas encore posées)`
+          + `</div>`;
+      }
+      el('mPreview').innerHTML = detail;
     }
 
-    function nextNumber() {
+    function nextNumber(kind) {
       const year = new Date().getFullYear();
-      const prefix = 'F' + year + '-';
+      // Série SÉPARÉE pour les notes de crédit (NC2026-001…). Mélanger les deux dans une même
+      // numérotation rend la lecture des livres comptables pénible, et un « trou » dans la série
+      // des factures est un signal d'alerte pour un contrôleur — alors qu'ici il serait normal.
+      const prefix = (kind === 'avoir' ? 'NC' : 'F') + year + '-';
       // Numéro suivant = (plus grand numéro existant) + 1. JAMAIS basé sur le NOMBRE de factures :
       // sinon supprimer une facture ferait régresser le compteur et RÉÉCRIRAIT une facture existante.
       let maxN = 0;
@@ -312,6 +470,21 @@
         if (surplus > 0) lines.push({ desc: 'Supplément accès difficile', qty: 1, pu: surplus, total: surplus });
         return lines;
       }
+      if (type === 'partielle') {
+        // La ligne DIT ce qui est facturé : « 28 ouvertures posées sur 33 ». Une facture partielle
+        // muette sur son périmètre serait incompréhensible pour le client comme pour le comptable.
+        const items = devis.items || [];
+        const poses = amounts.poses || [];
+        let nPose = 0, nTot = 0;
+        items.forEach((it, i) => {
+          const q = Number(it.quantite) || 1;
+          nTot += q;
+          nPose += (poses[i] != null ? Math.max(0, Math.min(q, Number(poses[i]))) : q);
+        });
+        const sub = `Ouvertures posées à ce jour — le solde sera facturé après la pose des ${Math.max(0, nTot - nPose)} restantes`;
+        return [{ desc: `Travaux exécutés sur devis N° ${devis.id} — ${nPose} ouverture${nPose > 1 ? 's' : ''} posée${nPose > 1 ? 's' : ''} sur ${nTot}`,
+                  sub: nTot > nPose ? sub : '', qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
+      }
       const label = type === 'acompte' ? `Acompte de ${pct} % sur devis N° ${devis.id}` : `Solde sur devis N° ${devis.id}`;
       return [{ desc: label, qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
     }
@@ -321,7 +494,10 @@
       // Rafraîchit la liste avant de numéroter (évite une collision de numéro si Yannick a créé une
       // facture entre-temps) et pour recalculer le « déjà facturé » à jour.
       FACTURES = (await SS.listFactures()) || FACTURES;
-      const a = await computeAmounts(id, type, pct);
+      const dSel = type === 'partielle' ? await SS.getDevis(id) : null;
+      const poses = posesSaisies(dSel);
+      const a = await computeAmounts(id, type, pct, poses);
+      a.poses = poses;
       if (!a.devis) { toast('Devis introuvable', 'error'); return; }
       if (!['signe', 'termine'].includes(a.devis.statut)) { toast('On ne facture qu\'un devis signé ou terminé (statut actuel : ' + (a.devis.statut || '?') + ').', 'warn', 4000); return; }
       if (type === 'totale' && a.already > 0.005) { toast('Des factures existent déjà pour ce devis — utilise « Solde » pour le restant.', 'warn', 4000); return; }
@@ -348,15 +524,110 @@
     };
 
     // ── Paiement ──
+    // ── NOTE DE CRÉDIT ─────────────────────────────────────────────────────────────────────────
+    // Une facture partie chez le client ne se modifie pas et ne se supprime pas : on l'annule par
+    // une pièce en sens inverse, qui reste elle aussi dans les livres. C'est la règle comptable,
+    // et c'est aussi ce qui permet de refacturer le devis proprement ensuite : le total négatif
+    // vient en déduction du « déjà facturé » et rouvre le montant disponible.
+    let avoirTarget = null;
+    window.openAvoir = (encId) => {
+      const id = decodeURIComponent(encId);
+      avoirTarget = FACTURES.find(f => f.id === id);
+      if (!avoirTarget) return;
+      const paye = paidSum(avoirTarget);
+      el('avInfo').innerHTML = `Annulation de la facture <strong>${esc(id)}</strong> de ${fmtEur(avoirTarget.total_ttc)} TVAC.`
+        + (paye > 0 ? `<br><span style="color:var(--warn)">Attention : ${fmtEur(paye)} ont déjà été encaissés sur cette facture — prévois le remboursement ou l'imputation sur la prochaine.</span>` : '');
+      el('avMontant').value = Math.round((avoirTarget.total_ttc || 0) * 100) / 100;
+      el('avMotif').value = '';
+      updateAvoirPreview();
+      el('modalAvoir').classList.add('open');
+    };
+    window.updateAvoirPreview = () => {
+      if (!avoirTarget) return;
+      const m = Number(el('avMontant').value) || 0;
+      const total = avoirTarget.total_ttc || 0;
+      const restant = Math.round((total - m) * 100) / 100;
+      el('avPreview').innerHTML = m >= total - 0.005
+        ? 'La facture sera <strong>entièrement annulée</strong>. Le devis redeviendra facturable en totalité.'
+        : `Annulation partielle : il restera <strong>${fmtEur(restant)}</strong> dû sur cette facture.`;
+    };
+    window.createAvoir = async () => {
+      if (!avoirTarget) return;
+      const montant = Number(el('avMontant').value) || 0;
+      const total = avoirTarget.total_ttc || 0;
+      if (montant <= 0) { toast('Montant invalide', 'warn'); return; }
+      if (montant > total + 0.005) { toast('Une note de crédit ne peut pas dépasser le montant de la facture.', 'warn', 5000); return; }
+      // Relit la liste avant de numéroter : Yannick a pu créer une pièce entre-temps.
+      FACTURES = (await SS.listFactures()) || FACTURES;
+      const tvaPct = avoirTarget.tva_pct || 6;
+      const ht = Math.round((montant / (1 + tvaPct / 100)) * 100) / 100;
+      const num = nextNumber('avoir');
+      const motif = (el('avMotif').value || '').trim();
+      const avoir = {
+        id: num, type: 'avoir', avoir_de: avoirTarget.id, devis_id: avoirTarget.devis_id,
+        date: today(), echeance: today(),        // une note de crédit n'a pas d'échéance à courir
+        client: avoirTarget.client || {},
+        lines: [{ desc: `Annulation de la facture N° ${avoirTarget.id}`, sub: motif, qty: 1, pu: -ht, total: -ht }],
+        total_ht: -ht, total_tva: -(Math.round((montant - ht) * 100) / 100), total_ttc: -Math.round(montant * 100) / 100,
+        tva_pct: tvaPct, motif: motif, paiements: [], date_creation: new Date().toISOString(),
+      };
+      const res = await SS.saveFacture(avoir);
+      if (res.ok === false) { toast(res.error || 'Note de crédit NON créée — réessaie.', 'error', 7000); return; }
+      closeModal('modalAvoir');
+      toast(res.offline ? 'Note de crédit ' + num + ' créée (hors-ligne)' : 'Note de crédit ' + num + ' créée ✓', res.offline ? 'warn' : 'ok');
+      SS.logActivity && SS.logActivity({ action: 'facture.avoir', entity_type: 'facture', entity_id: num,
+        label: `Note de crédit ${num} de ${fmtEur(montant)} sur la facture ${avoirTarget.id}` });
+      await load();
+    };
+
     window.openPay = async (encId) => {
       const id = decodeURIComponent(encId);
       payTarget = FACTURES.find(f => f.id === id);
       if (!payTarget) return;
       const reste = (payTarget.total_ttc || 0) - paidSum(payTarget);
       el('payInfo').innerHTML = `Facture <strong>${esc(id)}</strong> — total ${fmtEur(payTarget.total_ttc)}, déjà payé ${fmtEur(paidSum(payTarget))}.<br>Reste dû : <strong style="color:var(--accent-2)">${fmtEur(reste)}</strong>`;
+      renderPaiements();
       el('payMontant').value = (Math.round(reste * 100) / 100) || '';
       el('payDate').value = today();
       el('modalPay').classList.add('open');
+    };
+    // Liste des encaissements déjà saisis, chacun retirable. Il n'existait AUCUN moyen de corriger
+    // une saisie : un montant tapé sur la mauvaise facture — le cas des règlements pointés sur la
+    // facture d'acompte — restait à vie et faussait le « reste à encaisser ».
+    function renderPaiements() {
+      const host = el('payList');
+      const arr = (payTarget && payTarget.paiements) || [];
+      if (!arr.length) { host.innerHTML = ''; return; }
+      host.innerHTML = `<div class="pay-hist-t">Encaissements déjà enregistrés</div>`
+        + arr.map((p, i) => `<div class="pay-hist">
+             <span class="ph-d">${fmtDate(p.date)}</span>
+             <span class="ph-m">${fmtEur(p.montant)}</span>
+             <span class="ph-y">${esc(p.moyen || '')}</span>
+             <button type="button" class="ph-x" title="Retirer cet encaissement" aria-label="Retirer l'encaissement du ${fmtDate(p.date)}" onclick="removePaiement(${i})">${icon('trash', 13)}</button>
+           </div>`).join('');
+    }
+    window.removePaiement = async (i) => {
+      if (!payTarget) return;
+      const p = (payTarget.paiements || [])[i];
+      if (!p) return;
+      if (!confirm(`Retirer l'encaissement de ${fmtEur(p.montant)} du ${fmtDate(p.date)} ?\n\nLa facture ${payTarget.id} redeviendra due de ce montant.`)) return;
+      const sauvegarde = payTarget.paiements.slice();
+      payTarget.paiements.splice(i, 1);
+      payTarget.date_modification = new Date().toISOString();
+      const res = await SS.saveFacture(payTarget);
+      if (res.ok === false) {
+        payTarget.paiements = sauvegarde;   // rien n'a atteint le serveur : on remet en état
+        toast(res.error || 'Encaissement NON retiré — réessaie.', 'error', 7000);
+        return;
+      }
+      SS.logActivity && SS.logActivity({ action: 'facture.paiement.retire', entity_type: 'facture', entity_id: payTarget.id,
+        label: `Encaissement de ${fmtEur(p.montant)} retiré de la facture ${payTarget.id}` });
+      toast('Encaissement retiré', 'ok');
+      const reste = (payTarget.total_ttc || 0) - paidSum(payTarget);
+      el('payInfo').innerHTML = `Facture <strong>${esc(payTarget.id)}</strong> — total ${fmtEur(payTarget.total_ttc)}, déjà payé ${fmtEur(paidSum(payTarget))}.<br>Reste dû : <strong style="color:var(--accent-2)">${fmtEur(reste)}</strong>`;
+      renderPaiements();
+      el('payMontant').value = (Math.round(reste * 100) / 100) || '';
+      await load();
     };
     window.savePayment = async () => {
       if (!payTarget) return;

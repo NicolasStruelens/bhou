@@ -247,10 +247,14 @@
       // qui règle tout d'un coup sur la facture d'acompte crée un TROP-PERÇU qui, dans une simple
       // soustraction, vient effacer la dette d'un AUTRE client. Constaté sur les données réelles :
       // 12 784,65 € annoncés ici contre 22 257,77 € réellement dus (page Factures et dashboard).
-      const reste = factures.reduce((s, f) => s + Math.max(0, (f.total_ttc || 0) - paidSum(f)), 0);
+      // Et une facture annulée par une note de crédit ne se réclame plus : `duFacture` (ui.js)
+      // applique EXACTEMENT la même règle qu'à l'écran Facturation — deux calculs séparés
+      // finiraient tôt ou tard par annoncer deux créances différentes.
+      const du = f => window.SSUI.duFacture(f, factures);
+      const reste = factures.reduce((s, f) => s + du(f), 0);
       const today = new Date().toISOString().slice(0, 10);
-      const retard = factures.filter(f => paidSum(f) < (f.total_ttc || 0) - 0.005 && f.echeance && f.echeance < today);
-      const retardMontant = retard.reduce((s, f) => s + ((f.total_ttc || 0) - paidSum(f)), 0);
+      const retard = factures.filter(f => du(f) > 0.005 && f.echeance && f.echeance < today);
+      const retardMontant = retard.reduce((s, f) => s + du(f), 0);
       el('payments').innerHTML = `
         <div class="bar-row"><div class="bar-label">Total facturé</div><div class="bar-track"><div class="bar-fill" style="width:100%;"></div></div><div class="bar-value">${fmtEur(totalFacture)}</div></div>
         ${barRow('Encaissé', totalPaid, totalFacture || 1, fmtEur(totalPaid), 'var(--ok)')}

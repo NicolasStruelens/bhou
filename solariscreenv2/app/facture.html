@@ -53,11 +53,16 @@
     // peut être calculée avec la police de repli du système (métriques différentes → débordement).
     window.printDoc = async function () { try { await document.fonts.ready; } catch (e) {} window.print(); };
 
-    const TYPE_TITLE = { acompte: "FACTURE D'ACOMPTE", solde: 'FACTURE DE SOLDE', totale: 'FACTURE' };
+    const TYPE_TITLE = { acompte: "FACTURE D'ACOMPTE", solde: 'FACTURE DE SOLDE', totale: 'FACTURE',
+                         partielle: 'FACTURE PARTIELLE', avoir: 'NOTE DE CRÉDIT' };
+    const estAvoir = f => f && f.type === 'avoir';
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     function paidSum(f) { return (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0); }
     function statutOf(f) {
+      // Une note de crédit ne s'encaisse pas : sans ce cas à part, son total négatif satisfait
+      // « payé ≥ total » et le document s'imprimait avec le tampon « PAYÉE ».
+      if (estAvoir(f)) return 'avoir';
       const paid = paidSum(f);
       if (paid >= (f.total_ttc || 0) - 0.005) return 'payee';
       if (paid > 0) return 'partielle';
@@ -68,12 +73,13 @@
       const cl = f.client || {}, adr = cl.adresse || {};
       const paid = paidSum(f), reste = (f.total_ttc || 0) - paid;
       const st = statutOf(f);
-      const overdue = st !== 'payee' && f.echeance && f.echeance < new Date().toISOString().slice(0, 10);
-      const statusCls = st === 'payee' ? 'paid' : (st === 'partielle' ? 'partial' : 'due');
-      const statusTxt = st === 'payee' ? '✓ PAYÉE' : (st === 'partielle' ? '◐ PARTIELLEMENT PAYÉE' : (overdue ? '▲ ÉCHUE' : '● À PAYER'));
+      const overdue = st !== 'payee' && st !== 'avoir' && f.echeance && f.echeance < new Date().toISOString().slice(0, 10);
+      const statusCls = st === 'avoir' ? 'partial' : (st === 'payee' ? 'paid' : (st === 'partielle' ? 'partial' : 'due'));
+      const statusTxt = st === 'avoir' ? '↩ ANNULATION' : (st === 'payee' ? '✓ PAYÉE' : (st === 'partielle' ? '◐ PARTIELLEMENT PAYÉE' : (overdue ? '▲ ÉCHUE' : '● À PAYER')));
 
       let wm = '';
-      if (st === 'payee') wm = '<div class="watermark paid">PAYÉE</div>';
+      if (st === 'avoir') wm = '';   // pas de filigrane : le titre « NOTE DE CRÉDIT » suffit et doit rester lisible
+      else if (st === 'payee') wm = '<div class="watermark paid">PAYÉE</div>';
       else if (overdue) wm = '<div class="watermark due">IMPAYÉE</div>';
 
       const rows = (f.lines || []).map((l, i) => `<tr>
@@ -101,7 +107,9 @@
             <div class="doc-num">N° ${esc(f.id)}</div>
             <div class="doc-dates">
               Date : ${fmtDate(f.date)}<br>
-              Échéance : ${fmtDate(f.echeance)}${f.devis_id ? '<br>Réf. devis N° ' + esc(f.devis_id) : ''}
+              ${estAvoir(f)
+                ? 'Annule la facture N° ' + esc(f.avoir_de || '—')
+                : 'Échéance : ' + fmtDate(f.echeance)}${f.devis_id ? '<br>Réf. devis N° ' + esc(f.devis_id) : ''}
             </div>
             <div style="margin-top:0.5rem;"><span class="pay-status ${statusCls}">${statusTxt}</span></div>
           </div>
@@ -135,6 +143,17 @@
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(f.total_ttc)}</span></div>
         </div></div>
 
+        ${estAvoir(f) ? `
+        <div class="pay-note">
+          Ce document <strong>annule ${esc(f.avoir_de || '')}</strong> à concurrence du montant indiqué ci-dessus.
+          ${f.motif ? '<br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Motif : ' + esc(f.motif) + '</span>' : ''}
+        </div>
+        <div class="terms">
+          <h4>Note de crédit</h4>
+          Le montant de cette note de crédit vient en déduction des sommes dues. S'il a déjà été
+          encaissé, il sera remboursé ou imputé sur la prochaine facture relative au même devis.
+          TVA régularisée au même taux que la facture d'origine.
+        </div>` : `
         <div class="pay-note">
           À payer pour le <strong>${fmtDate(f.echeance)}</strong> sur le compte <strong>${esc(COMPANY.iban)}</strong>.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Communication structurée / libre : facture ${esc(f.id)}.</span>
@@ -144,7 +163,7 @@
         <div class="terms">
           <h4>Conditions de paiement</h4>
           Facture payable à ${fmtDate(f.echeance) !== '—' ? 'la date d\'échéance indiquée' : '30 jours'}. À défaut de paiement à l'échéance, le montant sera majoré de plein droit et sans mise en demeure d'un intérêt de retard au taux légal majoré de 10 %, ainsi que d'une indemnité forfaitaire de 15 % du montant dû (minimum 150 €). Tout litige relève des tribunaux de ${esc(COMPANY.court)}. TVA appliquée au taux indiqué (6 % rénovation d'habitation privée de plus de 10 ans / 21 % sinon).
-        </div>
+        </div>`}
 
         <div class="partners">
           <span class="lbl">Partenaires</span>

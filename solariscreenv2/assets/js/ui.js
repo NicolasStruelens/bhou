@@ -1096,6 +1096,32 @@
   function relanceDue(d) { return relanceEtat(d).retard; }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     CE QUI RESTE DÛ SUR UNE FACTURE — définition UNIQUE, partagée
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Trois écrans calculaient l'argent dû chacun de leur côté (facturation, statistiques, tableau
+     de bord). En ajoutant les notes de crédit, la même erreur serait apparue aux trois endroits :
+     une facture annulée continuait d'être réclamée. La règle vit donc ici, une fois.
+     Une note de crédit porte un total NÉGATIF et n'est jamais « due » elle-même ; elle éteint la
+     facture qu'elle désigne (`avoir_de`). */
+  function paiementsSum(f) { return ((f && f.paiements) || []).reduce((s, p) => s + (Number(p.montant) || 0), 0); }
+  function avoirsSur(factures, id) {
+    return (factures || [])
+      .filter(f => f && f.type === 'avoir' && f.avoir_de === id)
+      .reduce((s, f) => s + Math.abs(Number(f.total_ttc) || 0), 0);
+  }
+  /** Montant encore réclamable sur cette facture, notes de crédit déduites. 0 pour un avoir. */
+  function duFacture(f, factures) {
+    if (!f || f.type === 'avoir') return 0;
+    const reste = (Number(f.total_ttc) || 0) - paiementsSum(f) - avoirsSur(factures, f.id);
+    return Math.max(0, Math.round(reste * 100) / 100);
+  }
+  /** Facture éteinte par une (ou plusieurs) note(s) de crédit : elle ne se réclame plus. */
+  function factureAnnulee(f, factures) {
+    if (!f || f.type === 'avoir') return false;
+    return avoirsSur(factures, f.id) >= (Number(f.total_ttc) || 0) - 0.005;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
      CHAMPS MANQUANTS — signalés du tableau de bord jusqu'à la fiche
      ═══════════════════════════════════════════════════════════════════════════════════════════
      Une toile ou un RAL oublié pendant la visite ne se remarquait qu'au moment de passer la
@@ -1184,6 +1210,7 @@
     manquantsDevis: manquantsDevis, nbManquants: nbManquants, badgeManquants: badgeManquants,
     RELANCE_PLAN: RELANCE_PLAN, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
+    avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
     dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,
     memo: memo, remplirDatalist: remplirDatalist,
     el: el, $: $, $$: $$,
