@@ -33,37 +33,72 @@
        derniers réglages de la page. */
     .container { padding-bottom: calc(var(--sp-6) * 2); }
 
+    /* Corps de section : la marge intérieure vient d'ici, plus des paddings sur chaque ligne. */
+    .par-corps { padding: 0 var(--sp-5) var(--sp-4); }
+
     /* Sous-groupes : « Commissions », « Installation »… Une section de dix réglages d'affilée se
-       lit comme une liste de courses ; groupée, elle se lit comme un raisonnement. */
-    .grp { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
-      letter-spacing: 0.1em; color: var(--accent); padding: var(--sp-4) 0 var(--sp-1);
-      border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); margin-bottom: var(--sp-1); }
-    .grp:first-child { padding-top: var(--sp-1); }
+       lit comme une liste de courses ; groupée, elle se lit comme un raisonnement.
+       Repère doré + filet qui court jusqu'au bout : même vocabulaire que les intertitres de
+       l'ERP (mono, capitales espacées), sans concurrencer le titre de section. */
+    .grp { display: flex; align-items: center; gap: var(--sp-3);
+      font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--accent-2-ink); margin: var(--sp-5) 0 var(--sp-1); }
+    .grp::before { content: ''; width: 10px; height: 2px; background: var(--accent-2); flex: none; }
+    .grp::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .par-corps > .grp:first-child { margin-top: var(--sp-2); }
 
     /* Une ligne = un réglage + la phrase qui dit CE QU'IL DÉPLACE. Sans elle, un chiffre nu
        invite à bricoler ; avec elle, on sait ce qu'on engage.
        Grille à colonne fixe : tous les champs tombent au même endroit, quelle que soit la
        longueur du libellé — c'est ce qui rend la page lisible d'un coup d'œil. */
-    .reg { display: grid; grid-template-columns: minmax(0, 1fr) 176px; align-items: center;
-           gap: var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px dashed var(--border); }
+    .reg { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 168px;
+      align-items: center; gap: var(--sp-4);
+      padding: var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-3);
+      border-bottom: 1px solid var(--border); border-radius: var(--r-sm);
+      /* ⚠️ AUCUNE transition sur le fond. Chrome n'interpole pas entre `transparent` et un
+         `color-mix()` : la teinte dorée de la ligne modifiée restait bloquée à sa valeur de
+         départ, donc invisible (mesuré : fond transparent en permanence, alors que la règle
+         s'appliquait bien). Le raccourci `background` comme `background-color` donnent le même
+         résultat. Un fond qui apparaît instantanément ne manque à personne ; un repère qui
+         n'apparaît jamais, si. */
+      transition: border-color var(--t-fast); }
     .reg:last-child { border-bottom: none; }
+    .reg:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
     .reg-txt { min-width: 0; }
     .reg-nom { font-size: var(--fs-sm); font-weight: 600; }
-    .reg-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; margin-top: 2px; max-width: 62ch; }
-    .reg-champ { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; }
-    .reg-champ .input { width: 92px; text-align: right; }
+    .reg-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.55; margin-top: 3px; max-width: 62ch; }
+    .reg-champ { display: flex; align-items: center; justify-content: flex-end; }
+    /* `.input-unit` est le composant maison : l'unité VIT dans le champ, comme au simulateur,
+       au lieu d'un « % » orphelin flottant à droite de la boîte. */
+    .reg-champ .input-unit { width: 100%; }
+    .reg-champ .input { width: 100%; text-align: right; font-family: var(--font-mono); font-weight: 600; }
     .reg-champ .select { width: 100%; }
-    /* Conséquence calculée d'un réglage (ex. la part fournisseur déduite de la marge) :
-       affichée, jamais saisie — une valeur qu'on peut déduire ne doit pas pouvoir être fausse. */
-    .reg.deduit { padding-top: 0; border-bottom: 1px dashed var(--border); }
-    .reg.deduit .reg-nom { font-weight: 400; color: var(--text-muted); font-size: var(--fs-2xs); }
-    .reg-calcule { font-family: var(--font-mono); font-weight: 700; color: var(--text-muted); text-align: right; }
-    /* Largeur MINIMALE, pas fixe : « % », « € » et « j » tiennent dans 14 px, mais « vues »
-       débordait de sa boîte. Un alignement gagné au prix d'un mot rogné n'en vaut pas la peine. */
+    /* Unité longue (« vues ») : on élargit la réserve à droite du champ plutôt que de la rogner. */
+    .input-unit.large .input { padding-right: 3.4rem; }
+    /* Seule la cadence de relance garde son unité HORS champ : elle porte trois cases pour un
+       même « j », qui se rapporte aux trois et non à la dernière. */
     .reg-unite { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
-      min-width: 14px; white-space: nowrap; }
-    .reg.modifie .reg-nom::after { content: '• modifié'; margin-left: 0.5rem; font-family: var(--font-mono);
-      font-size: var(--fs-3xs); color: var(--accent-2); font-weight: 400; }
+      min-width: 12px; white-space: nowrap; margin-left: 0.35rem; }
+
+    /* Conséquence calculée d'un réglage (ex. la part fournisseur déduite de la marge) : affichée,
+       jamais saisie — une valeur qu'on peut déduire ne doit pas pouvoir être fausse. Traitée
+       comme une annotation en retrait, reliée par un filet d'accolade au réglage du dessus. */
+    .reg.deduit { margin-top: -4px; padding-top: 0.15rem; padding-bottom: 0.6rem; }
+    .reg.deduit:hover { background: none; }
+    .reg.deduit .reg-nom { font-weight: 400; color: var(--text-subtle); font-size: var(--fs-2xs);
+      display: flex; align-items: center; gap: 0.45rem; }
+    .reg.deduit .reg-nom::before { content: ''; width: 11px; height: 11px; flex: none;
+      border-left: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+      border-bottom-left-radius: 3px; margin: -9px 0 0 3px; }
+    .reg-calcule { font-family: var(--font-mono); font-weight: 700; color: var(--text-muted);
+      text-align: right; font-size: var(--fs-sm); padding-right: 0.9rem; }
+
+    /* Réglage écarté de ce qui est enregistré : filet doré à gauche, plutôt qu'une mention texte
+       qui allonge le libellé. On voit d'un coup d'œil ce qui reste à valider. */
+    .reg.modifie { background: color-mix(in srgb, var(--accent-2) 8%, transparent); }
+    .reg.modifie::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px;
+      width: 3px; border-radius: 2px; background: var(--accent-2); }
+    .reg.modifie .input, .reg.modifie .select { border-color: color-mix(in srgb, var(--accent-2) 55%, transparent); }
     @media (max-width: 560px) {
       .reg { flex-direction: column; gap: var(--sp-2); }
       /* ⚠️ Ne PAS mettre le champ à `width: 100%` : la plupart des lignes portent une unité à
@@ -77,26 +112,49 @@
       .reg-calcule { text-align: left; }
     }
 
-    /* Réglages avancés : repliés, parce qu'on ne touche pas à la structure de marge par curiosité. */
-    .avance { border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent); border-radius: var(--r-md);
-      background: color-mix(in srgb, var(--danger) 5%, transparent); margin-top: var(--sp-4); }
-    .avance > summary { cursor: pointer; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); font-weight: 600;
-      color: var(--danger); list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+    /* Réglages avancés : repliés, parce qu'on ne touche pas à la structure de marge par curiosité.
+       Ton SOBRE et non alarmant : la version précédente, en rouge plein, ressemblait à un message
+       d'erreur alors que rien n'est cassé — on prévient, on n'affole pas. */
+    .avance { border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      background: var(--surface-2); margin-top: var(--sp-5); overflow: hidden; }
+    .avance > summary { cursor: pointer; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm);
+      font-weight: 600; color: var(--text-muted); list-style: none;
+      display: flex; align-items: center; gap: 0.55rem; transition: color var(--t-fast), background var(--t-fast); }
+    .avance > summary:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 5%, transparent); }
     .avance > summary::-webkit-details-marker { display: none; }
-    .avance[open] > summary { border-bottom: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); }
-    .avance .avance-corps { padding: 0 var(--sp-4) var(--sp-3); }
-    .avance-note { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.55; padding: var(--sp-3) 0 0; }
+    .avance > summary > svg:first-child { color: var(--warn); flex: none; }
+    /* Chevron : il faut voir que ça s'ouvre, et voir que c'est ouvert. */
+    .avance > summary::after { content: ''; margin-left: auto; width: 7px; height: 7px; flex: none;
+      border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+      transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--t-fast); }
+    .avance[open] > summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+    .avance[open] > summary { border-bottom: 1px solid var(--border); }
+    .avance .avance-corps { padding: 0 var(--sp-4) var(--sp-2); }
+    .avance-note { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.55;
+      padding: var(--sp-3) 0 var(--sp-1); border-left: 2px solid var(--warn); padding-left: var(--sp-3);
+      margin: var(--sp-3) 0 var(--sp-2); }
 
     /* Aperçu chiffré : la seule façon honnête de montrer ce qu'un réglage déplace. */
     .apercu { position: sticky; top: calc(var(--header-h) + var(--sp-4)); }
-    .ap-l { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 0.3rem 0;
-      font-size: var(--fs-sm); border-bottom: 1px dashed var(--border); }
+    .apercu .par-corps { padding: var(--sp-4) var(--sp-5); }
+    .ap-l { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+      padding: 0.42rem 0; font-size: var(--fs-sm); border-bottom: 1px solid var(--border); }
     .ap-l:last-child { border-bottom: none; }
     .ap-l .k { color: var(--text-muted); min-width: 0; }
     .ap-l .v { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
-    .ap-l.total .v { color: var(--accent-2); font-size: var(--fs-md); }
-    .ap-l .delta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); margin-left: 0.4rem; }
-    .ap-note { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; margin-top: var(--sp-3); }
+    /* Le total est le chiffre qui compte : traitement « héros », comme le TTC du simulateur. */
+    .ap-l.total { margin-top: var(--sp-2); padding: var(--sp-3) var(--sp-3);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); border-radius: var(--r-sm);
+      background: color-mix(in srgb, var(--accent-2) 8%, transparent); }
+    .ap-l.total .k { color: var(--accent-2-ink); font-family: var(--font-mono);
+      font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; }
+    .ap-l.total .v { color: var(--accent-2); font-size: var(--fs-lg); text-shadow: var(--glow-hero); }
+    .ap-l .delta { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      font-weight: 400; text-align: right; margin-top: 1px; }
+    .ap-l .delta.hausse { color: var(--ok); }
+    .ap-l .delta.baisse { color: var(--danger); }
+    .ap-note { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.55;
+      margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--border); }
 
     .alerte { display: flex; gap: 0.5rem; align-items: flex-start; margin-top: var(--sp-3);
       padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-2xs); line-height: 1.5; }
@@ -106,12 +164,23 @@
       background: color-mix(in srgb, var(--ok) 8%, transparent); color: var(--ok); }
     .alerte > svg { flex: none; margin-top: 1px; }
 
-    /* Barre d'enregistrement : toujours visible, elle dit s'il reste quelque chose à valider. */
-    .barre { position: sticky; bottom: 0; z-index: 20; margin-top: var(--sp-5);
+    /* Barre d'enregistrement : toujours visible, elle dit s'il reste quelque chose à valider.
+       Au repos elle s'efface ; dès qu'un réglage bouge, elle se souligne d'or — impossible de
+       quitter la page en croyant avoir enregistré. */
+    .barre { position: sticky; bottom: var(--sp-3); z-index: 20; margin-top: var(--sp-5);
       display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
-      padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md);
-      background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(8px); }
-    .barre .etat { flex: 1; min-width: 0; font-size: var(--fs-2xs); color: var(--text-muted); }
+      padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-strong);
+      border-radius: var(--r-md); box-shadow: var(--shadow);
+      background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px);
+      transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+    .barre.sale { border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+      box-shadow: var(--shadow), inset 0 -2px 0 var(--accent-2); }
+    .barre .etat { flex: 1; min-width: 0; font-size: var(--fs-2xs); color: var(--text-muted);
+      display: flex; align-items: center; gap: 0.45rem; }
+    .barre.sale .etat { color: var(--accent-2-ink); font-weight: 600; }
+    .barre .etat::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
+      background: var(--ok); }
+    .barre.sale .etat::before { background: var(--accent-2); }
     .jours { display: flex; align-items: center; gap: 0.3rem; }
     .jours .input { width: 62px; text-align: center; }
     .jours .sep { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
@@ -142,16 +211,17 @@
     </div>
 
     <div class="par-grid">
-      <div>
+      <div class="par-col">
         <!-- ══════════ PRIX & MARGES ══════════ -->
         <section class="section">
           <div class="section-head"><span class="section-title">Prix & marges</span><span class="section-code">SS // PRIX</span></div>
+          <div class="par-corps">
 
           <div class="grp">Ce que vous gagnez sur le matériel</div>
           <div class="reg" data-reg="prix.material_margin">
             <div class="reg-txt"><div class="reg-nom">Marge matériel</div>
               <div class="reg-aide">Part du prix catalogue qui vous reste après le fournisseur. C'est elle qui monte quand Harol accorde une meilleure remise — mettez 35 % le jour où ce sera le cas, le reste suit tout seul.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="material_margin"><span class="reg-unite">%</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="material_margin"><span class="unit">%</span></div></div>
           </div>
           <div class="reg deduit">
             <div class="reg-txt"><div class="reg-nom">→ Achat fournisseur estimé (déduit)</div></div>
@@ -162,12 +232,12 @@
           <div class="reg" data-reg="prix.commission_principal">
             <div class="reg-txt"><div class="reg-nom">Commission — celui qui a vendu</div>
               <div class="reg-aide">Part du prix catalogue qui revient au vendeur principal du devis. C'est sur ce montant que se déduit une remise commerciale.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_principal"><span class="reg-unite">%</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_principal"><span class="unit">%</span></div></div>
           </div>
           <div class="reg" data-reg="prix.commission_second">
             <div class="reg-txt"><div class="reg-nom">Commission — l'autre</div>
               <div class="reg-aide">Part revenant à celui qui n'a pas vendu. Les deux commissions réunies consomment la marge matériel.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_second"><span class="reg-unite">%</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="commission_second"><span class="unit">%</span></div></div>
           </div>
           <div id="alerteCommissions"></div>
 
@@ -175,22 +245,22 @@
           <div class="reg" data-reg="prix.install_gross">
             <div class="reg-txt"><div class="reg-nom">Pose facturée au client</div>
               <div class="reg-aide">Par ouverture. C'est la seule des quatre lignes que le client voit — les trois suivantes se répartissent à l'intérieur.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="install_gross"><span class="reg-unite">€</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="install_gross"><span class="unit">€</span></div></div>
           </div>
           <div class="reg" data-reg="prix.tech1_gross">
             <div class="reg-txt"><div class="reg-nom">Technicien 1</div>
               <div class="reg-aide">Par ouverture, montant brut. Le net se déduit du diviseur (réglages avancés).</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tech1_gross"><span class="reg-unite">€</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="tech1_gross"><span class="unit">€</span></div></div>
           </div>
           <div class="reg" data-reg="prix.tech2_gross">
             <div class="reg-txt"><div class="reg-nom">Technicien 2</div>
               <div class="reg-aide">Par ouverture, montant brut.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tech2_gross"><span class="reg-unite">€</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="tech2_gross"><span class="unit">€</span></div></div>
           </div>
           <div class="reg" data-reg="prix.tools_gross">
             <div class="reg-txt"><div class="reg-nom">Outillage</div>
               <div class="reg-aide">Par ouverture. N'apparaît jamais comme ligne sur le devis du client : il est fondu dans le forfait de pose.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" step="1" id="tools_gross"><span class="reg-unite">€</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="tools_gross"><span class="unit">€</span></div></div>
           </div>
           <div id="alerteInstall"></div>
 
@@ -203,7 +273,7 @@
           <div class="reg" data-reg="prix.acompte_pct">
             <div class="reg-txt"><div class="reg-nom">Acompte par défaut</div>
               <div class="reg-aide">Demandé à la commande. Les CGV en vigueur prévoient 50 %.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="5" id="acompte_pct"><span class="reg-unite">%</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" max="100" step="5" id="acompte_pct"><span class="unit">%</span></div></div>
           </div>
 
           <details class="avance">
@@ -216,15 +286,17 @@
               <div class="reg" data-reg="prix.net_divisor">
                 <div class="reg-txt"><div class="reg-nom">Diviseur brut → net</div>
                   <div class="reg-aide">Ce qu'il reste réellement en poche une fois charges et impôts déduits. 2,5 signifie qu'un brut de 100 € vaut 40 € net.</div></div>
-                <div class="reg-champ"><input class="input input-num" type="number" min="1" max="10" step="0.1" id="net_divisor"><span class="reg-unite">÷</span></div>
+                <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="1" max="10" step="0.1" id="net_divisor"><span class="unit">÷</span></div></div>
               </div>
             </div>
           </details>
+        </div>
         </section>
 
         <!-- ══════════ UTILISATION ══════════ -->
         <section class="section">
           <div class="section-head"><span class="section-title">Utilisation</span><span class="section-code">SS // USAGE</span></div>
+          <div class="par-corps">
 
           <div class="reg" data-reg="usage.relance_visite">
             <div class="reg-txt"><div class="reg-nom">Cadence de relance — devis après visite</div>
@@ -249,12 +321,12 @@
           <div class="reg" data-reg="usage.seuil_lead_chaud">
             <div class="reg-txt"><div class="reg-nom">Seuil « client très intéressé »</div>
               <div class="reg-aide">Nombre de consultations de l'espace client à partir duquel le dossier passe en doré et remonte en tête des relances.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="1" max="100" id="seuil_lead_chaud"><span class="reg-unite">vues</span></div>
+            <div class="reg-champ"><div class="input-unit large"><input class="input input-num" type="number" min="1" max="100" id="seuil_lead_chaud"><span class="unit">vues</span></div></div>
           </div>
           <div class="reg" data-reg="usage.echeance_facture">
             <div class="reg-txt"><div class="reg-nom">Échéance des factures</div>
               <div class="reg-aide">Délai de paiement proposé à la création d'une facture, en jours.</div></div>
-            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="120" id="echeance_facture"><span class="reg-unite">j</span></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" max="120" id="echeance_facture"><span class="unit">j</span></div></div>
           </div>
           <div class="reg" data-reg="usage.vue_defaut">
             <div class="reg-txt"><div class="reg-nom">Vue du tableau de bord</div>
@@ -271,11 +343,13 @@
               <div class="reg-aide">Sur téléphone, les replier fait remonter la liste des devis. Valeur de départ, modifiable ensuite par le bouton du tableau de bord.</div></div>
             <div class="reg-champ"><select class="select" id="kpi_replies"><option value="non">Dépliés</option><option value="oui">Repliés</option></select></div>
           </div>
+        </div>
         </section>
 
         <!-- ══════════ AFFICHAGE ══════════ -->
         <section class="section">
           <div class="section-head"><span class="section-title">Affichage</span><span class="section-code">SS // VUE</span></div>
+          <div class="par-corps">
           <div class="reg" data-reg="affichage.theme_defaut">
             <div class="reg-txt"><div class="reg-nom">Thème par défaut</div>
               <div class="reg-aide">Appliqué sur un appareil qui n'a pas encore de préférence. Le bouton lune/soleil du bandeau reste maître ensuite.</div></div>
@@ -291,6 +365,7 @@
               <div class="reg-aide">Température à votre position et chez le client. Masquée, la position n'est même plus demandée.</div></div>
             <div class="reg-champ"><select class="select" id="meteo"><option value="oui">Affichée</option><option value="non">Masquée</option></select></div>
           </div>
+        </div>
         </section>
       </div>
 
@@ -298,12 +373,14 @@
       <aside>
         <section class="section apercu">
           <div class="section-head"><span class="section-title">Effet sur un devis type</span></div>
+          <div class="par-corps">
           <div style="font-size:var(--fs-2xs);color:var(--text-subtle);margin-bottom:var(--sp-2);line-height:1.5;">
             2 screens à 1 500 € catalogue, pose comprise. Les écarts sont calculés par rapport aux
             réglages actuellement enregistrés.
           </div>
           <div id="apercu"></div>
           <div class="ap-note" id="apercuNote"></div>
+        </div>
         </section>
       </aside>
     </div>
@@ -443,8 +520,10 @@
     }
 
     function ligneApercu(k, v, ref, total) {
+      // Vert quand ça monte, rouge quand ça descend : sur une page de marges, la couleur porte
+      // l'information plus vite que le signe.
       const ecart = (ref != null && Math.abs(v - ref) > 0.005)
-        ? `<span class="delta">${v > ref ? '+' : '−'}${fmtEur(Math.abs(v - ref))}</span>` : '';
+        ? `<span class="delta ${v > ref ? 'hausse' : 'baisse'}">${v > ref ? '+' : '−'}${fmtEur(Math.abs(v - ref))}</span>` : '';
       return `<div class="ap-l${total ? ' total' : ''}"><span class="k">${k}</span><span class="v">${fmtEur(v)}${ecart}</span></div>`;
     }
 
@@ -485,6 +564,7 @@
       el('etat').textContent = modifies
         ? `${modifies} réglage${modifies > 1 ? 's' : ''} modifié${modifies > 1 ? 's' : ''} — pas encore enregistré${modifies > 1 ? 's' : ''}.`
         : 'Tout est enregistré.';
+      document.querySelector('.barre').classList.toggle('sale', !!modifies);
       el('btnSave').disabled = !modifies;
     }
 
