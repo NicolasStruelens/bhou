@@ -354,6 +354,12 @@ export async function onRequest(context) {
                json_extract(data, '$.sav_tickets') AS sav_tickets_json,
                IFNULL(json_array_length(data, '$.chantier_photos'), 0) AS chantier_photos_count,
                json_extract(data, '$.date_envoi') AS date_envoi,
+               -- Poids du devis en base. Sert UNIQUEMENT à repérer les dossiers alourdis par des
+               -- photos encore stockées en clair (base64) au lieu d'être déportées vers R2 : un
+               -- devis normal pèse quelques kilo-octets, un devis chargé de photos plusieurs Mo.
+               -- Mesuré ici parce que c'est gratuit ; l'extraire des items coûterait de lire tout
+               -- le blob, photos comprises, pour chaque ligne de la liste.
+               LENGTH(data) AS poids,
                json_extract(data, '$.relances') AS relances_json,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),

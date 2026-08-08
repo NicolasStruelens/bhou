@@ -457,6 +457,17 @@
     /* Fil de notes vide : la zone disparaît complètement au lieu de laisser 120 px de vide sous
        le titre. La fenêtre se réduit alors au titre + au champ de saisie. */
     .modal .mbody:empty { display: none; }
+
+    /* ── Bandeau « devis alourdis par leurs photos » ── */
+    .allegement { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4);
+      padding: var(--sp-3) var(--sp-4); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+      border-left-width: 3px; border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--warn) 9%, transparent); }
+    .allegement > svg { flex: none; color: var(--warn); }
+    .allegement .al-txt { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.45; }
+    .allegement .al-txt span { display: block; font-size: var(--fs-2xs); color: var(--text-muted); }
+    .allegement .btn { flex: none; border-color: var(--warn); color: var(--warn); }
+    @media (max-width: 560px) { .allegement { flex-wrap: wrap; } .allegement .btn { width: 100%; } }
     .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); }
 
     /* Le fil de notes utilise le rendu PARTAGÉ .ss-cmt (assets/css/base.css) — plus de style local. */
@@ -498,6 +509,7 @@
   <main class="container">
     <!-- Vue Aujourd'hui : uniquement si quelque chose mérite l'attention -->
     <div class="today-brief ticked hidden" id="todayBrief"></div>
+    <div class="allegement hidden" id="allegement"></div>
 
     <!-- KPIs (repliables) + réglage de densité de la liste -->
     <div class="kpi-bar">
@@ -2055,7 +2067,61 @@
       FACTURES = facs || [];
       CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();
+      renderAllegement();
     }
+
+    /* ── DEVIS ALOURDIS PAR LEURS PHOTOS ────────────────────────────────────────────────────────
+       Les photos partent normalement vers le stockage R2 et seule leur adresse est gardée dans le
+       devis. Quand l'envoi échoue (hors-ligne, session expirée), l'image reste EN CLAIR dans le
+       devis : c'est un repli volontaire — mieux vaut un devis lourd qu'une photo perdue — mais il
+       faut le rattraper, sinon le devis grossit jusqu'à ne plus pouvoir être enregistré du tout.
+       Le poids vient de la liste (LENGTH(data) côté serveur) : aucun devis n'est téléchargé pour
+       établir ce constat, seulement ceux qu'on allège réellement. */
+    const SEUIL_LOURD = 300 * 1024;   // un devis sain pèse quelques Ko ; 300 Ko = photos en clair
+    function devisLourds() { return DEVIS.filter(d => d.poids > SEUIL_LOURD); }
+    function renderAllegement() {
+      const host = el('allegement');
+      if (!host) return;
+      const lourds = devisLourds();
+      if (!lourds.length) { host.classList.add('hidden'); host.innerHTML = ''; return; }
+      const total = lourds.reduce((s, d) => s + d.poids, 0);
+      host.classList.remove('hidden');
+      host.innerHTML = `${icon('image', 16)}
+        <div class="al-txt"><strong>${lourds.length} devis alourdi${lourds.length > 1 ? 's' : ''} par ses photos</strong>
+          <span>${fmtPoids(total)} stockés dans les devis au lieu du stockage photo. Les alléger les rend plus rapides et évite les échecs d'enregistrement.</span></div>
+        <button class="btn btn-sm" id="btnAlleger" onclick="allegerDevis()">Alléger</button>`;
+    }
+    const fmtPoids = (o) => o >= 1048576 ? (o / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.round(o / 1024) + ' Ko';
+    window.allegerDevis = async () => {
+      const lourds = devisLourds();
+      if (!lourds.length) return;
+      const btn = el('btnAlleger');
+      if (btn) { btn.disabled = true; btn.textContent = 'Allègement…'; }
+      let ok = 0, echecs = 0, gagnes = 0;
+      for (let i = 0; i < lourds.length; i++) {
+        if (btn) btn.textContent = `Allègement… ${i + 1}/${lourds.length}`;
+        try {
+          const d = await SS.getDevis(lourds[i].id);
+          if (!d) { echecs++; continue; }
+          const r = await window.SSUI.deporterPhotos(d);
+          if (!r.deportees) { if (r.echecs) echecs++; continue; }
+          d.date_modification = new Date().toISOString();
+          const res = await SS.saveDevis(d);
+          // Si l'enregistrement échoue, les photos sont DÉJÀ dans R2 mais le devis pointe encore
+          // sur ses images en clair : rien n'est perdu, la prochaine tentative les renverra.
+          if (res.ok === false) { echecs++; continue; }
+          ok++; gagnes += r.octets;
+        } catch (e) { echecs++; }
+      }
+      toast(echecs
+        ? `${ok} devis allégé(s), ${fmtPoids(gagnes)} récupérés · ${echecs} en échec (réessaie plus tard)`
+        : `${ok} devis allégé(s) — ${fmtPoids(gagnes)} récupérés ✓`, echecs ? 'warn' : 'ok', 7000);
+      SS.logActivity && SS.logActivity({ action: 'maintenance.photos', entity_type: 'system', entity_id: 'photos',
+        label: `Allègement : ${ok} devis, ${fmtPoids(gagnes)} déportés vers le stockage photo${echecs ? ' · ' + echecs + ' échec(s)' : ''}` });
+      await rafraichir();
+    };
+    // Une photo qui n'a pas pu être déportée : le bandeau doit apparaître sans attendre un F5.
+    window.addEventListener('ss-photo-repli', () => { setTimeout(rafraichir, 1500); });
     async function load() {
       await rafraichir();
       checkWhatsNew();   // fire-and-forget : ouvre « Quoi de neuf » s'il y a du nouveau

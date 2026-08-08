@@ -171,7 +171,23 @@
         const payload = (!opts.force && opts.expectedDateModification !== undefined)
           ? Object.assign({}, propre, { _expected_date_modification: opts.expectedDateModification })
           : propre;
-        const rep = await req('/devis', { method: 'POST', body: JSON.stringify(payload) });
+        // Poids réellement envoyé. Sert UNIQUEMENT à expliquer un échec : un devis de plusieurs Mo
+        // (photos restées en clair faute d'envoi vers R2) se heurte aux limites de la base, et le
+        // message brut du serveur — « string or blob too big » — ne dit rien à personne.
+        const corps = JSON.stringify(payload);
+        let rep;
+        try {
+          rep = await req('/devis', { method: 'POST', body: corps });
+        } catch (eReq) {
+          // Le serveur refuse : si le devis est énorme, on nomme la vraie cause. Le message brut
+          // (« string or blob too big ») n'apprend rien et laisse croire à une panne.
+          if (eReq && eReq.serverRejected && corps.length > 900000) {
+            const mo = (corps.length / 1048576).toFixed(1).replace('.', ',');
+            eReq.message = 'Ce devis pèse ' + mo + ' Mo — trop lourd pour la base. Ses photos sont restées '
+              + 'dans le devis au lieu du stockage photo : utilise « Alléger » sur le tableau de bord, puis réessaie.';
+          }
+          throw eReq;
+        }
         // Filet : un conflit ne peut PAS survenir si on n'a pas demandé la détection. S'il arrive
         // quand même, c'est une anomalie — on la remonte comme un ÉCHEC plutôt que de laisser un
         // appelant afficher « enregistré ✓ » sur une écriture que le serveur a refusée.

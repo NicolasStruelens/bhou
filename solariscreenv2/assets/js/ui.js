@@ -106,17 +106,53 @@
   // Ne touche PAS compressImage (toujours un dataURL en sortie, aucun appelant existant cassé) :
   // on ajoute l'upload PAR-DESSUS, avec repli automatique sur le dataURL si ça échoue (hors-ligne,
   // bucket R2 non lié…) — une photo n'est jamais perdue, juste pas toujours déportée.
+  // ⚠️ Le repli sur le dataURL ne doit JAMAIS être silencieux. C'est ce silence qui a laissé le
+  // devis de Pierre Depaepe accumuler 1,69 Mo de photos en clair dans la base sans que personne
+  // ne s'en aperçoive — jusqu'à ce qu'un enregistrement échoue en production. La photo reste
+  // gardée (on ne perd rien), mais l'écran le dit et le devis pourra être allégé plus tard.
   async function uploadPhotoDataUrl(dataUrl, ownerId) {
     try {
-      if (!window.SS || !window.SS.uploadPhoto) return dataUrl;
+      if (!window.SS || !window.SS.uploadPhoto) { signalerRepliPhoto('stockage indisponible'); return dataUrl; }
       const blob = await (await fetch(dataUrl)).blob();
       const url = await window.SS.uploadPhoto(ownerId, blob);
-      return url || dataUrl;
-    } catch (e) { return dataUrl; }
+      if (!url) { signalerRepliPhoto('le serveur n’a pas accepté la photo'); return dataUrl; }
+      return url;
+    } catch (e) { signalerRepliPhoto(e && e.message ? e.message : 'erreur réseau'); return dataUrl; }
+  }
+  // Un seul avertissement par salve : ajouter 5 photos hors-ligne ne doit pas empiler 5 bulles.
+  let dernierRepli = 0;
+  function signalerRepliPhoto(raison) {
+    try { window.dispatchEvent(new CustomEvent('ss-photo-repli', { detail: { raison: raison } })); } catch (e) {}
+    const now = Date.now();
+    if (now - dernierRepli < 4000) return;
+    dernierRepli = now;
+    toast('Photo gardée dans le devis, pas envoyée au stockage (' + raison + '). Le devis va s’alourdir — allège-le depuis le tableau de bord quand la connexion revient.', 'warn', 9000);
   }
   async function compressAndUploadPhoto(file, ownerId, maxDim, quality) {
     const dataUrl = await compressImage(file, maxDim, quality);
     return uploadPhotoDataUrl(dataUrl, ownerId);
+  }
+  /** Une photo encore stockée en clair DANS le devis (par opposition à une URL vers R2). */
+  const estPhotoInline = (p) => typeof p === 'string' && p.slice(0, 5) === 'data:';
+  /**
+   * Déporte vers R2 toutes les photos encore en clair d'un devis, et remplace chaque image par son
+   * URL. Ne touche à RIEN d'autre, n'enregistre pas (l'appelant décide) et laisse en place toute
+   * photo dont l'envoi échoue — une image n'est jamais perdue, au pire elle reste où elle est.
+   * Renvoie { deportees, echecs, octets } (octets = poids retiré du devis).
+   */
+  async function deporterPhotos(devis) {
+    let deportees = 0, echecs = 0, octets = 0;
+    for (const it of (devis && devis.items) || []) {
+      const photos = it.photos || [];
+      for (let i = 0; i < photos.length; i++) {
+        if (!estPhotoInline(photos[i])) continue;
+        const poids = photos[i].length;
+        const url = await uploadPhotoDataUrl(photos[i], devis.id);
+        if (estPhotoInline(url)) { echecs++; continue; }   // l'envoi a échoué : on garde l'original
+        photos[i] = url; deportees++; octets += poids;
+      }
+    }
+    return { deportees, echecs, octets };
   }
 
   // ── Compteur « odomètre » : la valeur défile de 0 jusqu'au chiffre réel ──────────────────
@@ -218,6 +254,7 @@
       date_creation: d.date_creation || '',
       date_modification: d.date_modification || d.date_creation || '',
       photos: d.photos_count || (d.metadata && d.metadata.photos_count) || 0,
+      poids: Number(d.poids) || 0,   // octets occupés en base — repère les devis à alléger
       comments: d.comments_count || (d.comments && d.comments.length) || 0,
       archive: !!d.archive,
       informatif: !!d.informatif,
@@ -1211,6 +1248,7 @@
     RELANCE_PLAN: RELANCE_PLAN, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
+    deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline,
     dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,
     memo: memo, remplirDatalist: remplirDatalist,
     el: el, $: $, $$: $$,
