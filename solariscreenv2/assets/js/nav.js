@@ -206,7 +206,7 @@
       const res = await fetch('/api/connections', { credentials: 'same-origin' }).then(function (r) { return r.json(); });
       const rows = (res && res.data) || [];
       if (!rows.length) { connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Aucune connexion enregistrée.</div>'; return; }
-      connLogEl.innerHTML = '<div class="conn-log-head">Historique de connexion</div>' + rows.slice(0, 30).map(function (c) {
+      connLogEl.innerHTML = '<div class="conn-log-head">Historique de connexion</div>' + rows.slice(0, 80).map(function (c) {
         // Durée d'une plage d'utilisation ACTIVE : une pause (navigateur réduit / onglet en
         // arrière-plan / PC laissé ouvert > SESSION_GAP) coupe la session et en démarre une
         // nouvelle, donc cet écart début→fin ne reflète que du temps réellement actif.

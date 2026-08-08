@@ -439,6 +439,15 @@
     .act-daysep { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); padding: var(--sp-3) var(--sp-3) 0.3rem; }
     .act-row { display: flex; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--border); transition: background var(--t-fast); animation: actIn 0.34s cubic-bezier(0.2,0.6,0.3,1) both; }
     .act-row:last-child { border-bottom: none; }
+    /* Barre de filtres du journal (par personne / par nature) + décompte honnête. */
+    .act-filtres { position: sticky; top: 0; z-index: 2; background: var(--surface);
+      padding: var(--sp-3) var(--sp-3) var(--sp-2); border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 0.35rem; }
+    .act-filtres .filters { gap: 0.3rem; flex-wrap: wrap; }
+    .act-filtres .chip { font-size: var(--fs-2xs); padding: 0.22rem 0.55rem; }
+    .act-compte { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .act-quoi { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle);
+      opacity: 0.75; margin-left: 0.4rem; }
     .act-row[onclick] { cursor: pointer; }
     .act-row[onclick]:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
     .act-ava { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700; }
@@ -581,11 +590,10 @@
       <div class="mfoot">
         <div class="comment-form">
           <div class="field">
-            <label class="label" for="cmAuthor">Auteur</label>
-            <select class="select" id="cmAuthor">
-              <option value="nicolas">Nicolas</option>
-              <option value="yannick">Yannick</option>
-            </select>
+            <label class="label">Auteur</label>
+            <!-- Signé automatiquement par la session Cloudflare Access : plus de liste à choisir,
+                 donc plus de note attribuée à l'autre par distraction. -->
+            <span class="qui-ecrit" id="cmAuthorLabel" title="Vous êtes identifié par votre connexion — les notes sont signées automatiquement"></span>
           </div>
           <div class="field">
             <label class="label" for="cmType">Type</label>
@@ -1721,11 +1729,13 @@
       setText('cmDevisId', '#' + id);
       el('cmList').innerHTML = '<div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div>';
       el('modalComments').classList.add('open');
-      // priorité à l'identité Cloudflare Access détectée ; sinon dernier auteur mémorisé
       window.SSNav.getIdentity().then((identity) => {
-        if (identity.key) { el('cmAuthor').value = identity.key; return; }
-        const lastAuthor = localStorage.getItem('ss_comment_author');
-        if (lastAuthor) el('cmAuthor').value = lastAuthor;
+        const hote = el('cmAuthorLabel');
+        if (!hote) return;
+        hote.innerHTML = identity.key
+          ? icon('user', 12) + ' ' + esc(identity.name || identity.key)
+          : icon('user', 12) + ' non identifié';
+        hote.classList.toggle('inconnu', !identity.key);
       });
       await renderComments();
       el('cmText').focus();
@@ -1788,9 +1798,8 @@
     window.sendComment = async () => {
       const text = el('cmText').value.trim();
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
-      const author = el('cmAuthor').value;
-      localStorage.setItem('ss_comment_author', author);
-      const res = await SS.addComment(cmDevisId, { author, text, type: el('cmType').value, reply_to: cmReplyTo || undefined });
+      // Auteur déduit de la session par le serveur — inutile (et sans effet) de l'envoyer.
+      const res = await SS.addComment(cmDevisId, { text, type: el('cmType').value, reply_to: cmReplyTo || undefined });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       el('cmText').value = '';
       cmReplyTo = null;
@@ -2003,13 +2012,49 @@
         return !SCRIPTS_TIERS.some(s => l.indexOf(s) >= 0);
       });
     }
+    /* ── Filtres du journal ────────────────────────────────────────────────────────────────────
+       « J'ai pas assez de détail, les anciens disparaissent » : rien n'était perdu — la base garde
+       tout — mais l'affichage était un mur de lignes sans tri. On filtre par personne et par
+       nature, et le décompte annonce combien de lignes sont montrées sur combien. */
+    let ACT_LISTE = [], actQui = 'tous', actQuoi = 'tous';
+    const ACT_FAMILLES = {
+      devis: ['devis.create', 'devis.modif', 'devis.statut', 'devis.delete', 'devis.relance', 'devis.pose', 'devis.reception', 'devis.accept_cancel'],
+      notes: ['note.add', 'note.edit', 'rdv.comment'],
+      argent: ['facture.avoir', 'facture.paiement.retire'],
+      clients: ['client.create', 'client.mail', 'rdv.create', 'rdv.cancel', 'rdv.visite'],
+    };
+    function actFiltree() {
+      return ACT_LISTE.filter(a => {
+        if (actQui !== 'tous' && String(a.actor || '').toLowerCase() !== actQui) return false;
+        if (actQuoi !== 'tous' && (ACT_FAMILLES[actQuoi] || []).indexOf(a.action) === -1) return false;
+        return true;
+      });
+    }
+    window.setActQui = (v) => { actQui = v; renderActivity(ACT_LISTE, 'all'); };
+    window.setActQuoi = (v) => { actQuoi = v; renderActivity(ACT_LISTE, 'all'); };
+    function actBarreFiltres(total, montres) {
+      const chip = (courant, val, lib, fn) =>
+        `<button class="chip ${courant === val ? 'active' : ''}" onclick="${fn}('${val}')">${lib}</button>`;
+      return `<div class="act-filtres">
+        <div class="filters">${chip(actQui, 'tous', 'Tout le monde', 'setActQui')}${chip(actQui, 'nicolas', 'Nicolas', 'setActQui')}${chip(actQui, 'yannick', 'Yannick', 'setActQui')}</div>
+        <div class="filters">${chip(actQuoi, 'tous', 'Tout', 'setActQuoi')}${chip(actQuoi, 'devis', 'Devis', 'setActQuoi')}${chip(actQuoi, 'notes', 'Notes', 'setActQuoi')}${chip(actQuoi, 'argent', 'Argent', 'setActQuoi')}${chip(actQuoi, 'clients', 'Clients & RDV', 'setActQuoi')}</div>
+        <div class="act-compte">${montres} ligne${montres > 1 ? 's' : ''} affichée${montres > 1 ? 's' : ''} sur ${total}</div>
+      </div>`;
+    }
+
     function renderActivity(liste, mode) {
-      const list = sansBruit(liste);
+      if (mode !== 'news') ACT_LISTE = sansBruit(liste) || [];
+      const tous = mode === 'news' ? (sansBruit(liste) || []) : ACT_LISTE;
+      const list = mode === 'news' ? tous : actFiltree();
+      const entete = mode === 'news' ? '' : actBarreFiltres(tous.length, list.length);
       if (!list || !list.length) {
-        el('actBody').innerHTML = '<div class="empty-comments">' + (mode === 'news' ? 'Rien de neuf — tu es à jour ! ✨' : 'Aucune activité enregistrée pour le moment.') + '</div>';
+        el('actBody').innerHTML = entete + '<div class="empty-comments">' + (mode === 'news' ? 'Rien de neuf — tu es à jour ! ✨' : 'Aucune ligne pour ce filtre.') + '</div>';
         return;
       }
-      let html = '', lastDay = '';
+      return renderActivityLignes(list, mode, entete);
+    }
+    function renderActivityLignes(list, mode, entete) {
+      let html = entete || '', lastDay = '';
       list.forEach((a, i) => {
         const day = actDayLabel(a.ts);
         if (day !== lastDay) { html += '<div class="act-daysep">' + esc(day) + '</div>'; lastDay = day; }
@@ -2018,9 +2063,13 @@
         const ava = who === 'yannick' ? 'YA' : (who === 'nicolas' ? 'NI' : '?');
         const whoName = who ? who.charAt(0).toUpperCase() + who.slice(1) : 'Système';
         const nav = actNavFor(a);
+        // L'heure exacte au survol : « il y a 3 j » suffit pour lire, pas pour retrouver un fait
+        // précis quand on cherche qui a modifié quoi et quand.
         html += `<div class="act-row" style="animation-delay:${Math.min(i, 12) * 35}ms"${nav ? ` onclick="location.href='${nav}'"` : ''}>
           <span class="act-ava ${cls}">${ava}</span>
-          <div class="act-main"><div class="act-label">${esc(a.label || a.action)}</div><div class="act-meta">${esc(whoName)} · ${esc(actRelTime(a.ts))}</div></div>
+          <div class="act-main"><div class="act-label">${esc(a.label || a.action)}</div>
+            <div class="act-meta"><strong>${esc(whoName)}</strong> · <time title="${esc(window.SSUI.fmtDateTime(a.ts))}">${esc(actRelTime(a.ts))}</time>
+              <span class="act-quoi">${esc(a.action || '')}</span></div></div>
         </div>`;
       });
       el('actBody').innerHTML = html;

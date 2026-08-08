@@ -776,7 +776,9 @@
             <input type="checkbox" id="nVisibleClient" onchange="syncNoteComposer()"> Visible pour le client (réponse à sa question)
           </label>
           <div class="send-row">
-            <select class="select" id="nAuthor" aria-label="Auteur de la note"><option value="nicolas">Nicolas</option><option value="yannick">Yannick</option></select>
+            <!-- Plus de « qui écrit ? » : l'identité de la session (Cloudflare Access) fait foi,
+                 le serveur l'applique et on l'affiche ici pour que ce soit visible, pas deviné. -->
+            <span class="qui-ecrit" id="nAuthorLabel" title="Vous êtes identifié par votre connexion — les notes sont signées automatiquement"></span>
             <select class="select" id="nType" aria-label="Type de note" style="max-width:120px;"><option value="note">Note</option><option value="question">Question</option><option value="important">Important</option></select>
             <button class="btn btn-primary btn-sm" id="nSendBtn" style="margin-left:auto;" onclick="sendNote()">Ajouter</button>
           </div>
@@ -2837,9 +2839,14 @@
         empty: '',   // fil vide : rien à afficher, le champ de saisie parle de lui-même
       });
       window.SSNav.getIdentity().then((identity) => {
-        if (identity.key) { el('nAuthor').value = identity.key; return; }
-        const lastAuthor = localStorage.getItem('ss_comment_author');
-        if (lastAuthor) el('nAuthor').value = lastAuthor;
+        const hote = el('nAuthorLabel');
+        if (!hote) return;
+        // Hors Cloudflare Access (développement local), aucune identité : on le dit franchement
+        // plutôt que d'afficher un nom au hasard.
+        hote.innerHTML = identity.key
+          ? window.SSUI.icon('user', 12) + ' ' + esc(identity.name || identity.key)
+          : window.SSUI.icon('user', 12) + ' non identifié';
+        hote.classList.toggle('inconnu', !identity.key);
       });
     }
     // ── Menu de statut (même mécanique que dashboard.html) ──
@@ -3182,9 +3189,10 @@
     window.sendNote = async () => {
       const text = el('nText').value.trim();
       if (!text) { toast('Écris d\'abord ta note.', 'warn'); return; }
-      localStorage.setItem('ss_comment_author', el('nAuthor').value);
+      // L'auteur n'est plus envoyé : le serveur le déduit de la session Access (il ignore de
+      // toute façon ce que le formulaire prétendrait).
       const visibleClient = el('nVisibleClient').checked;
-      const res = await SS.addComment(DEVIS.id, { author: el('nAuthor').value, text, type: el('nType').value, visible_client: visibleClient, reply_to: replyTo || undefined });
+      const res = await SS.addComment(DEVIS.id, { text, type: el('nType').value, visible_client: visibleClient, reply_to: replyTo || undefined });
       if (res.ok === false) { toast(res.error || 'Erreur', 'error'); return; }
       replyTo = null; renderReplyBanner();
       // Une réponse visible client referme la question en attente (miroir du backend), pour que

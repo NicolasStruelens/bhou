@@ -57,6 +57,14 @@
     return data;
   }
 
+  // Identité de la session, mémorisée par whoAmI(). Sert au repli hors-ligne : une note écrite
+  // sans réseau doit tout de même porter le bon nom. Renvoie 'nicolas' | 'yannick' | null.
+  const IDENTITES_CONNUES = { 'info@solariscreen.be': 'yannick', 'nicolas.struelens@me.com': 'nicolas' };
+  function identiteCourante() {
+    try { return IDENTITES_CONNUES[String(localStorage.getItem('ss_identite') || '').toLowerCase()] || null; }
+    catch (e) { return null; }
+  }
+
   const local = {
     list: function () { try { return JSON.parse(localStorage.getItem(LS_DEVIS) || '[]'); } catch (e) { return []; } },
     get: function (id) { return local.list().find(function (d) { return d.id === id; }) || null; },
@@ -266,7 +274,10 @@
     // écraser un commentaire.
     async addComment(id, opts) {
       opts = opts || {};
-      const payload = { author: opts.author || 'nicolas', text: (opts.text || '').trim(), type: opts.type || 'note' };
+      // Pas d'auteur inventé : le serveur le déduit de la session Cloudflare Access. On ne
+      // transmet `author` que si l'appelant en impose un explicitement (repli hors Access).
+      const payload = { text: (opts.text || '').trim(), type: opts.type || 'note' };
+      if (opts.author) payload.author = opts.author;
       if (opts.visible_client === true) payload.visible_client = true;
       if (opts.reply_to) payload.reply_to = String(opts.reply_to);   // note à laquelle celle-ci répond
       if (!payload.text) return { ok: false, error: 'Message vide' };
@@ -281,7 +292,10 @@
           // Vrai hors-ligne : commentaire gardé en local, visible sur cet appareil.
           const comment = {
             id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)),
-            author: payload.author, text: payload.text, type: payload.type, date: new Date().toISOString(),
+            // Hors-ligne, le serveur n'a pas pu signer : on affiche l'identité de la session si
+            // elle est connue, plutôt qu'un nom par défaut qui pourrait être celui de l'autre.
+            author: payload.author || identiteCourante() || 'nicolas',
+            text: payload.text, type: payload.type, date: new Date().toISOString(),
           };
           if (payload.visible_client) comment.visible_client = true;
           try { const d = local.get(id); if (d) { d.comments = d.comments || []; d.comments.push(comment); local.save(d); } } catch (e2) {}
@@ -515,8 +529,13 @@
       catch (e) { return false; }
     },
     async whoAmI() {
-      try { return (await req('/whoami')).data; }
-      catch (e) { return { email: null }; }
+      try {
+        const data = (await req('/whoami')).data;
+        // Mémorisé pour que le repli hors-ligne d'addComment sache signer correctement, sans
+        // avoir à refaire un appel réseau au moment précis où il n'y en a plus.
+        try { if (data && data.email) localStorage.setItem('ss_identite', data.email); } catch (e) {}
+        return data;
+      } catch (e) { return { email: null }; }
     },
     async listConnections() {
       try { return (await req('/connections')).data; }

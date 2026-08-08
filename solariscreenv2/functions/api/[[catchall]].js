@@ -428,7 +428,25 @@ export async function onRequest(context) {
         }
       }
       stampSignatureIp(devis, request);
-      await upsertDevis(env.DB, devis);
+      const res = await upsertDevis(env.DB, devis);
+      // Journalisation AUTOMATIQUE de ce qui a bougé, avec l'auteur réel de la session. Rien à
+      // instrumenter côté écrans : ils enregistrent, le journal se remplit tout seul et juste.
+      // Silencieux si rien de significatif n'a changé (une simple réouverture de fiche ne doit
+      // pas polluer l'historique) et jamais bloquant : un journal en panne n'empêche pas de
+      // travailler.
+      try {
+        if (res && res.changements && res.changements.length) {
+          const emailAct = parseAccessEmail(request);
+          const acteur = (emailAct && IDENTITIES[emailAct.toLowerCase()]) || emailAct || null;
+          await env.DB.prepare(
+            'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).bind(new Date().toISOString(), acteur,
+            res.changements[0] === 'création du devis' ? 'devis.create' : 'devis.modif',
+            'devis', devis.id,
+            ('Devis #' + devis.id + (res.client ? ' (' + res.client + ')' : '') + ' — ' + res.changements.join(' · ')).slice(0, 300),
+            JSON.stringify({ changements: res.changements }).slice(0, 1000)).run();
+        }
+      } catch (e) { /* le journal ne doit jamais faire échouer un enregistrement */ }
       return json({ ok: true, id: devis.id });
     }
     // ── COMMENTAIRE INTERNE : ajout CIBLÉ (json_insert sur la seule ligne) ──
@@ -441,9 +459,17 @@ export async function onRequest(context) {
       const body = await request.json().catch(() => ({}));
       const text = (body.text || '').trim();
       if (!text) return json({ ok: false, error: 'Message vide' }, 400);
+      // L'AUTEUR VIENT DE CLOUDFLARE ACCESS, pas du formulaire. Avant, une liste déroulante
+      // demandait « qui écrit ? » à chaque note : un oubli suffisait à attribuer un message à
+      // l'autre, et rien n'empêchait de signer à sa place. L'identité de la session est déjà
+      // connue et vérifiée — on l'utilise. `body.author` ne sert plus que de repli hors Access
+      // (développement local), et jamais pour se faire passer pour le client.
+      const emailNote = parseAccessEmail(request);
+      const auteurConnu = (emailNote && IDENTITIES[emailNote.toLowerCase()]) || null;
+      const auteurDemande = String(body.author || '').slice(0, 40);
       const comment = {
         id: crypto.randomUUID(),
-        author: String(body.author || 'nicolas').slice(0, 40),
+        author: auteurConnu || (auteurDemande && auteurDemande !== 'client' ? auteurDemande : 'nicolas'),
         text: text.slice(0, 5000),
         type: String(body.type || 'note').slice(0, 20),
         date: new Date().toISOString(),
@@ -999,8 +1025,12 @@ export async function onRequest(context) {
     if (path === '/api/activity' && method === 'GET') {
       const since = url.searchParams.get('since');
       const q = since
-        ? env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label FROM activity WHERE ts > ? ORDER BY ts DESC LIMIT 200').bind(since)
-        : env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label FROM activity ORDER BY ts DESC LIMIT 200');
+        // 200 lignes couvraient à peine quelques jours d'usage à deux : l'historique semblait
+        // « perdre les anciens » alors que rien n'est jamais supprimé de la base — seule la
+        // fenêtre de lecture était trop courte. `meta` est renvoyé aussi : il contient le détail
+        // des changements d'un devis.
+        ? env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label, meta FROM activity WHERE ts > ? ORDER BY ts DESC LIMIT 500').bind(since)
+        : env.DB.prepare('SELECT id, ts, actor, action, entity_type, entity_id, label, meta FROM activity ORDER BY ts DESC LIMIT 2000');
       const { results } = await q.all();
       return json({ ok: true, data: results });
     }
@@ -1106,6 +1136,52 @@ function stampSignatureIp(devis, request) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   QUI A CHANGÉ QUOI SUR UN DEVIS — comparaison automatique avant/après
+   ═══════════════════════════════════════════════════════════════════════════════════════════════
+   Le journal savait dire « devis enregistré », jamais CE QUI avait bougé. Instrumenter les 38
+   endroits qui enregistrent un devis aurait été à la fois lourd et incomplet — on aurait oublié
+   des écrans, et les nouveaux seraient nés muets. La comparaison se fait donc ICI, au seul point
+   de passage obligé : tout écran, présent ou futur, est couvert sans une ligne de plus.
+   On ne compare que ce qui a un sens pour Nicolas et Yannick — pas les horodatages internes. */
+const EUR = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',') + ' €';
+const STATUT_LISIBLE = {
+  brouillon: 'Brouillon', envoye_client: 'Envoyé', relance_1: 'Relance 1', relance_2: 'Relance 2',
+  signe: 'Signé', termine: 'Terminé', refuse: 'Refusé', annule: 'Annulé',
+};
+function decrireChangements(avant, apres) {
+  if (!avant) return ['création du devis'];
+  const out = [];
+  const nb = (o) => (o.items || []).reduce((s, i) => s + (Number(i.quantite) || 1), 0);
+  const ttc = (o) => Number((o.calculs || {}).total_ttc) || 0;
+  const remise = (o) => ['remise_catalogue', 'remise_installation', 'remise_outillage']
+    .reduce((s, k) => s + Number(((o.calculs || {})[k] || {}).amount || 0), 0);
+  const nomClient = (o) => [((o.client || {}).prenom || ''), ((o.client || {}).nom || '')].join(' ').trim();
+
+  if (avant.statut !== apres.statut) {
+    out.push('statut ' + (STATUT_LISIBLE[avant.statut] || avant.statut || '—') +
+             ' → ' + (STATUT_LISIBLE[apres.statut] || apres.statut || '—'));
+  }
+  if (Math.abs(ttc(avant) - ttc(apres)) > 0.005) out.push('montant ' + EUR(ttc(avant)) + ' → ' + EUR(ttc(apres)));
+  if (nb(avant) !== nb(apres)) out.push('ouvertures ' + nb(avant) + ' → ' + nb(apres));
+  if (Math.abs(remise(avant) - remise(apres)) > 0.005) out.push('remise ' + EUR(remise(avant)) + ' → ' + EUR(remise(apres)));
+  if (nomClient(avant) !== nomClient(apres)) out.push('client « ' + nomClient(avant) + ' » → « ' + nomClient(apres) + ' »');
+  if (!!avant.informatif !== !!apres.informatif) out.push(apres.informatif ? 'passé en devis informatif' : 'passé en devis formel');
+  if (!!avant.archive !== !!apres.archive) out.push(apres.archive ? 'archivé' : 'sorti des archives');
+  if ((avant.relances || []).length !== (apres.relances || []).length) {
+    out.push('relances ' + (avant.relances || []).length + ' → ' + (apres.relances || []).length);
+  }
+  const poseAv = (avant.chantier || {}).date_pose || null, poseAp = (apres.chantier || {}).date_pose || null;
+  if (poseAv !== poseAp) out.push('date de pose ' + (poseAv || '—') + ' → ' + (poseAp || '—'));
+  if ((avant.probabilite || null) !== (apres.probabilite || null)) out.push('probabilité → ' + (apres.probabilite || '—'));
+  // Photos déportées vers R2 : visible comme un allègement, pas comme un ajout d'images.
+  const inline = (o) => (o.items || []).reduce((s, i) => s + (i.photos || []).filter(p => typeof p === 'string' && p.startsWith('data:')).length, 0);
+  if (inline(avant) > inline(apres)) out.push((inline(avant) - inline(apres)) + ' photo(s) déportée(s) vers le stockage');
+  const nbPhotos = (o) => (o.items || []).reduce((s, i) => s + (i.photos || []).length, 0);
+  if (nbPhotos(apres) > nbPhotos(avant)) out.push((nbPhotos(apres) - nbPhotos(avant)) + ' photo(s) ajoutée(s)');
+  return out;
+}
+
 async function upsertDevis(db, devis) {
   const id = devis.id;
   const now = new Date().toISOString();
@@ -1126,6 +1202,7 @@ async function upsertDevis(db, devis) {
     if (row && row.data) existing = safeParse(row.data);
   } catch (e) { /* lecture impossible : on retombe sur le payload seul — jamais bloquant */ }
   const merged = existing ? Object.assign({}, existing, devis) : devis;
+  const changements = decrireChangements(existing, merged);
 
   // ⚠️ NETTOYAGE D'UN CHAMP DE CONTRÔLE STOCKÉ PAR ERREUR.
   // `_expected_date_modification` sert UNIQUEMENT à la détection de conflit sur la requête ; il
@@ -1161,6 +1238,8 @@ async function upsertDevis(db, devis) {
   `).bind(id, (mClient && mClient.nom) || '', (mClient && mClient.prenom) || '', merged.statut || 'brouillon',
     (merged.calculs && merged.calculs.total_ttc) || 0, merged.date_creation || now,
     merged.date_modification || now, JSON.stringify(dataToStore)).run();
+  // Rendu à l'appelant : c'est la route POST qui journalise, elle seule connaît l'auteur.
+  return { changements, client: [(mClient && mClient.prenom) || '', (mClient && mClient.nom) || ''].join(' ').trim() };
 }
 
 async function upsertClient(db, c) {
