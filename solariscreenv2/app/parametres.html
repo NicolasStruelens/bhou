@@ -23,20 +23,41 @@
   <link rel="stylesheet" href="../assets/css/theme-light.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .par-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: var(--sp-4); align-items: start; }
-    @media (max-width: 1000px) { .par-grid { grid-template-columns: minmax(0, 1fr); } }
+    /* Colonne de lecture volontairement BORNÉE. Sur un écran large, un réglage dont le libellé
+       est à gauche et le champ à 700 px de là ne se lit plus comme une ligne : l'œil perd le
+       rapport entre les deux. On resserre, et l'aperçu prend la place gagnée. */
+    .par-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: var(--sp-5); align-items: start; }
+    @media (max-width: 1040px) { .par-grid { grid-template-columns: minmax(0, 1fr); } }
+    .par-col { max-width: 720px; }
+    /* La barre d'enregistrement est collée en bas : sans cette réserve, elle recouvre les
+       derniers réglages de la page. */
+    .container { padding-bottom: calc(var(--sp-6) * 2); }
+
+    /* Sous-groupes : « Commissions », « Installation »… Une section de dix réglages d'affilée se
+       lit comme une liste de courses ; groupée, elle se lit comme un raisonnement. */
+    .grp { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--accent); padding: var(--sp-4) 0 var(--sp-1);
+      border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); margin-bottom: var(--sp-1); }
+    .grp:first-child { padding-top: var(--sp-1); }
 
     /* Une ligne = un réglage + la phrase qui dit CE QU'IL DÉPLACE. Sans elle, un chiffre nu
-       invite à bricoler ; avec elle, on sait ce qu'on engage. */
-    .reg { display: flex; align-items: flex-start; gap: var(--sp-4); padding: var(--sp-3) 0;
-           border-bottom: 1px dashed var(--border); }
+       invite à bricoler ; avec elle, on sait ce qu'on engage.
+       Grille à colonne fixe : tous les champs tombent au même endroit, quelle que soit la
+       longueur du libellé — c'est ce qui rend la page lisible d'un coup d'œil. */
+    .reg { display: grid; grid-template-columns: minmax(0, 1fr) 176px; align-items: center;
+           gap: var(--sp-4); padding: var(--sp-3) 0; border-bottom: 1px dashed var(--border); }
     .reg:last-child { border-bottom: none; }
-    .reg-txt { flex: 1; min-width: 0; }
+    .reg-txt { min-width: 0; }
     .reg-nom { font-size: var(--fs-sm); font-weight: 600; }
-    .reg-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; margin-top: 2px; }
-    .reg-champ { flex: none; display: flex; align-items: center; gap: 0.35rem; }
-    .reg-champ .input { width: 104px; text-align: right; }
-    .reg-champ .select { width: 148px; }
+    .reg-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; margin-top: 2px; max-width: 62ch; }
+    .reg-champ { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; }
+    .reg-champ .input { width: 92px; text-align: right; }
+    .reg-champ .select { width: 100%; }
+    /* Conséquence calculée d'un réglage (ex. la part fournisseur déduite de la marge) :
+       affichée, jamais saisie — une valeur qu'on peut déduire ne doit pas pouvoir être fausse. */
+    .reg.deduit { padding-top: 0; border-bottom: 1px dashed var(--border); }
+    .reg.deduit .reg-nom { font-weight: 400; color: var(--text-muted); font-size: var(--fs-2xs); }
+    .reg-calcule { font-family: var(--font-mono); font-weight: 700; color: var(--text-muted); text-align: right; }
     /* Largeur MINIMALE, pas fixe : « % », « € » et « j » tiennent dans 14 px, mais « vues »
        débordait de sa boîte. Un alignement gagné au prix d'un mot rogné n'en vaut pas la peine. */
     .reg-unite { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
@@ -49,9 +70,11 @@
          côté (%, €, j), et 100 % + 14 px de plus font déborder l'écran. Le champ prend l'espace
          RESTANT (`flex: 1 1 0` + `min-width: 0`, sans quoi un champ nombre refuse de rétrécir).
          Même mécanique pour la cadence de relance, qui aligne trois cases sur une ligne. */
-      .reg-champ { width: 100%; }
+      .reg { grid-template-columns: minmax(0, 1fr); }
+      .reg-champ { width: 100%; justify-content: flex-start; }
       .reg-champ .input, .reg-champ .select { flex: 1 1 0; min-width: 0; width: auto; text-align: left; }
       .reg-champ.jours .input { text-align: center; }
+      .reg-calcule { text-align: left; }
     }
 
     /* Réglages avancés : repliés, parce qu'on ne touche pas à la structure de marge par curiosité. */
@@ -124,6 +147,18 @@
         <section class="section">
           <div class="section-head"><span class="section-title">Prix & marges</span><span class="section-code">SS // PRIX</span></div>
 
+          <div class="grp">Ce que vous gagnez sur le matériel</div>
+          <div class="reg" data-reg="prix.material_margin">
+            <div class="reg-txt"><div class="reg-nom">Marge matériel</div>
+              <div class="reg-aide">Part du prix catalogue qui vous reste après le fournisseur. C'est elle qui monte quand Harol accorde une meilleure remise — mettez 35 % le jour où ce sera le cas, le reste suit tout seul.</div></div>
+            <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="material_margin"><span class="reg-unite">%</span></div>
+          </div>
+          <div class="reg deduit">
+            <div class="reg-txt"><div class="reg-nom">→ Achat fournisseur estimé (déduit)</div></div>
+            <div class="reg-calcule" id="supplierCalcule">—</div>
+          </div>
+
+          <div class="grp">Commissions</div>
           <div class="reg" data-reg="prix.commission_principal">
             <div class="reg-txt"><div class="reg-nom">Commission — celui qui a vendu</div>
               <div class="reg-aide">Part du prix catalogue qui revient au vendeur principal du devis. C'est sur ce montant que se déduit une remise commerciale.</div></div>
@@ -136,6 +171,7 @@
           </div>
           <div id="alerteCommissions"></div>
 
+          <div class="grp">Installation, par ouverture</div>
           <div class="reg" data-reg="prix.install_gross">
             <div class="reg-txt"><div class="reg-nom">Pose facturée au client</div>
               <div class="reg-aide">Par ouverture. C'est la seule des quatre lignes que le client voit — les trois suivantes se répartissent à l'intérieur.</div></div>
@@ -158,6 +194,7 @@
           </div>
           <div id="alerteInstall"></div>
 
+          <div class="grp">Proposé à la création d'un devis</div>
           <div class="reg" data-reg="prix.tva_pct">
             <div class="reg-txt"><div class="reg-nom">TVA par défaut</div>
               <div class="reg-aide">Proposée à la création d'un devis. 6 % pour une habitation privée de plus de 10 ans, 21 % sinon — modifiable devis par devis.</div></div>
@@ -173,20 +210,9 @@
             <summary><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               Réglages avancés — structure de la marge</summary>
             <div class="avance-corps">
-              <div class="avance-note">Ces trois valeurs décrivent la mécanique interne de la marge. Elles n'ont
-                aucun effet sur le prix payé par le client : elles répartissent ce qu'il paie. Les modifier fausse
-                la lecture de votre rentabilité si vous vous trompez — d'où le repli.</div>
-              <div class="reg" data-reg="prix.supplier_rate">
-                <div class="reg-txt"><div class="reg-nom">Achat fournisseur estimé</div>
-                  <div class="reg-aide">Part du prix catalogue qui part chez Harol. Le complément est votre marge matériel.</div></div>
-                <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="supplier_rate"><span class="reg-unite">%</span></div>
-              </div>
-              <div class="reg" data-reg="prix.material_margin">
-                <div class="reg-txt"><div class="reg-nom">Marge matériel brute</div>
-                  <div class="reg-aide">Ce qui reste après le fournisseur, et que les deux commissions se partagent.</div></div>
-                <div class="reg-champ"><input class="input input-num" type="number" min="0" max="100" step="0.5" id="material_margin"><span class="reg-unite">%</span></div>
-              </div>
-              <div id="alerteRepartition"></div>
+              <div class="avance-note">Ce réglage ne change pas le prix payé par le client : il change la
+                façon de lire ce que vous gagnez. Se tromper ici fausse toutes vos statistiques de rentabilité,
+                sans qu'aucun montant visible ne bouge — c'est pour ça qu'il est replié.</div>
               <div class="reg" data-reg="prix.net_divisor">
                 <div class="reg-txt"><div class="reg-nom">Diviseur brut → net</div>
                   <div class="reg-aide">Ce qu'il reste réellement en poche une fois charges et impôts déduits. 2,5 signifie qu'un brut de 100 € vaut 40 € net.</div></div>
@@ -317,7 +343,8 @@
       { id: 'tools_gross', chemin: ['prix', 'tools_gross'] },
       { id: 'tva_pct', chemin: ['prix', 'tva_pct'] },
       { id: 'acompte_pct', chemin: ['prix', 'acompte_pct'] },
-      { id: 'supplier_rate', chemin: ['prix', 'supplier_rate'], pourcent: true },
+      // `supplier_rate` n'a PAS de champ : il se déduit de la marge (voir formulaire()). Deux
+      // champs pour une seule réalité, c'était s'offrir la possibilité d'une incohérence.
       { id: 'material_margin', chemin: ['prix', 'material_margin'], pourcent: true },
       { id: 'net_divisor', chemin: ['prix', 'net_divisor'] },
       { id: 'seuil_lead_chaud', chemin: ['usage', 'seuil_lead_chaud'] },
@@ -371,6 +398,9 @@
         const defaut = lire(window.SSConf.DEFAUTS, c.chemin);
         cible[cle] = [0, 1, 2].map(i => Math.round(nb((el(c.prefixe + '_' + i) || {}).value, defaut[i])));
       });
+      // La part fournisseur est le COMPLÉMENT de la marge : un euro de catalogue va soit chez
+      // Harol, soit dans votre poche. La déduire supprime toute possibilité d'incohérence.
+      out.prix.supplier_rate = Math.round((1 - out.prix.material_margin) * 10000) / 10000;
       return window.SSConf.fusionner(window.SSConf.DEFAUTS, out);
     }
 
@@ -379,15 +409,14 @@
     function verifier(conf) {
       const alertes = {};
       const p = conf.prix;
-      const somme = Math.round((p.supplier_rate + p.material_margin) * 10000) / 100;
-      alertes.alerteRepartition = Math.abs(somme - 100) < 0.01 ? null
-        : `Achat fournisseur + marge matériel font ${somme.toString().replace('.', ',')} % au lieu de 100 %. La part manquante (ou en trop) n'est attribuée à personne : la lecture de votre rentabilité sera fausse.`;
+      // Plus de contrôle « 77 + 23 = 100 » : la part fournisseur étant déduite, l'incohérence
+      // est devenue impossible par construction. Un contrôle qui ne peut plus échouer est du bruit.
       const marge = Math.round(p.material_margin * 10000) / 100;
       const comm = Math.round((p.commission_principal + p.commission_second) * 100) / 100;
       alertes.alerteCommissions = Math.abs(comm - marge) < 0.01 ? null
         : (comm > marge
           ? `Les deux commissions font ${comm} % alors que la marge matériel n'est que de ${marge} % : chaque devis promet plus qu'il ne gagne.`
-          : `Les deux commissions font ${comm} % pour une marge de ${marge} % : il reste ${Math.round((marge - comm) * 100) / 100} % de marge non distribuée (c'est le montant que vous pouvez offrir en remise).`);
+          : `Les deux commissions font ${comm} % pour une marge de ${marge} % : les ${Math.round((marge - comm) * 100) / 100} % restants demeurent dans la société — c'est aussi votre réserve pour accorder une remise.`);
       const equilibre = Math.round((p.tech1_gross + p.tech2_gross + p.tools_gross) * 100) / 100;
       alertes.alerteInstall = Math.abs(equilibre - p.install_gross) < 0.02 ? null
         : (equilibre > p.install_gross
@@ -421,6 +450,9 @@
 
     function rafraichir() {
       const conf = formulaire();
+      // Part fournisseur : affichée comme une conséquence, jamais saisie.
+      const pctFournisseur = Math.round(conf.prix.supplier_rate * 10000) / 100;
+      el('supplierCalcule').textContent = String(pctFournisseur).replace('.', ',') + ' %';
       const a = apercuDe(conf), ref = ENREGISTRES ? apercuDe(ENREGISTRES) : null;
       el('apercu').innerHTML =
         ligneApercu('Catalogue', a.total_catalog_ht, ref && ref.total_catalog_ht) +
@@ -493,6 +525,10 @@
 
     (async () => {
       ENREGISTRES = await window.SSConf.charger();
+      // Référence normalisée : un enregistrement antérieur pourrait porter une part fournisseur
+      // qui n'est plus le complément de la marge (les deux étaient saisissables séparément).
+      // Sans ce recalage, la page afficherait « modifié » sur un réglage que personne n'a touché.
+      ENREGISTRES.prix.supplier_rate = Math.round((1 - ENREGISTRES.prix.material_margin) * 10000) / 10000;
       peupler(ENREGISTRES);
     })();
   </script>
