@@ -142,17 +142,45 @@
    */
   async function deporterPhotos(devis) {
     let deportees = 0, echecs = 0, octets = 0;
-    for (const it of (devis && devis.items) || []) {
-      const photos = it.photos || [];
-      for (let i = 0; i < photos.length; i++) {
-        if (!estPhotoInline(photos[i])) continue;
-        const poids = photos[i].length;
-        const url = await uploadPhotoDataUrl(photos[i], devis.id);
+    // Déporte un tableau de chaînes en place (ouvertures, photos d'un ticket SAV).
+    async function traiterTableau(tab) {
+      for (let i = 0; i < (tab || []).length; i++) {
+        if (!estPhotoInline(tab[i])) continue;
+        const poids = tab[i].length;
+        const url = await uploadPhotoDataUrl(tab[i], devis.id);
         if (estPhotoInline(url)) { echecs++; continue; }   // l'envoi a échoué : on garde l'original
-        photos[i] = url; deportees++; octets += poids;
+        tab[i] = url; deportees++; octets += poids;
       }
     }
-    return { deportees, echecs, octets };
+    for (const it of (devis && devis.items) || []) await traiterTableau(it.photos);
+    // Journal de chantier : la photo est un objet { url, note, phase, date }. Le repli silencieux
+    // frappait ici aussi — et c'est même le gros morceau sur un dossier qui a été posé.
+    for (const e of (devis && devis.chantier_photos) || []) {
+      if (!estPhotoInline(e && e.url)) continue;
+      const poids = e.url.length;
+      const url = await uploadPhotoDataUrl(e.url, devis.id);
+      if (estPhotoInline(url)) { echecs++; continue; }
+      e.url = url; deportees++; octets += poids;
+    }
+    for (const t of (devis && devis.sav_tickets) || []) await traiterTableau(t && t.photos);
+    return Object.assign({ deportees, echecs, octets }, poidsInline(devis));
+  }
+  /**
+   * Où pèse ce devis, en octets d'images encore stockées en clair. Sert à EXPLIQUER quand il n'y a
+   * rien à déporter : « 0 devis allégé ✓ » sur un bandeau qui reste affiché ne veut rien dire.
+   * `signature` et `reception` sont comptés à part et JAMAIS déportés : la signature est affichée
+   * sur la page publique du devis (espace client), qui n'est pas derrière Cloudflare Access — une
+   * URL de stockage y serait une image cassée chez le client.
+   */
+  function poidsInline(devis) {
+    const d = devis || {};
+    const somme = (arr) => (arr || []).reduce((s, p) => s + (estPhotoInline(p) ? p.length : 0), 0);
+    const ouvertures = (d.items || []).reduce((s, it) => s + somme(it.photos), 0);
+    const chantier = (d.chantier_photos || []).reduce((s, e) => s + (estPhotoInline(e && e.url) ? e.url.length : 0), 0);
+    const sav = (d.sav_tickets || []).reduce((s, t) => s + somme(t && t.photos), 0);
+    const signatures = (estPhotoInline(d.signature && d.signature.image) ? d.signature.image.length : 0)
+      + (estPhotoInline(d.reception && d.reception.image) ? d.reception.image.length : 0);
+    return { restant: { ouvertures, chantier, sav, signatures } };
   }
 
   // ── Compteur « odomètre » : la valeur défile de 0 jusqu'au chiffre réel ──────────────────
@@ -1248,7 +1276,7 @@
     RELANCE_PLAN: RELANCE_PLAN, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
-    deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline,
+    deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline, poidsInline: poidsInline,
     dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,
     memo: memo, remplirDatalist: remplirDatalist,
     el: el, $: $, $$: $$,

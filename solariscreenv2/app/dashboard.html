@@ -2127,7 +2127,18 @@
        Le poids vient de la liste (LENGTH(data) côté serveur) : aucun devis n'est téléchargé pour
        établir ce constat, seulement ceux qu'on allège réellement. */
     const SEUIL_LOURD = 300 * 1024;   // un devis sain pèse quelques Ko ; 300 Ko = photos en clair
-    function devisLourds() { return DEVIS.filter(d => d.poids > SEUIL_LOURD); }
+    /* Devis dont le poids est IRRÉDUCTIBLE (signature manuscrite du client, gardée volontairement
+       dans le devis) : après un allègement qui n'a rien trouvé à déporter, on cesse de les
+       signaler — un bandeau qui réclame une action impossible finit par être ignoré, et masque
+       les vrais cas. On mémorise le poids constaté : s'il augmente, le dossier ressort. */
+    function irreductibles() {
+      try { return JSON.parse(localStorage.getItem('ss_allegement_irreductibles') || '{}'); }
+      catch (e) { return {}; }
+    }
+    function devisLourds() {
+      const vus = irreductibles();
+      return DEVIS.filter(d => d.poids > SEUIL_LOURD && !(vus[d.id] && d.poids <= vus[d.id] + 1024));
+    }
     function renderAllegement() {
       const host = el('allegement');
       if (!host) return;
@@ -2147,13 +2158,20 @@
       const btn = el('btnAlleger');
       if (btn) { btn.disabled = true; btn.textContent = 'Allègement…'; }
       let ok = 0, echecs = 0, gagnes = 0;
+      const reste = { ouvertures: 0, chantier: 0, sav: 0, signatures: 0 };
+      const figes = irreductibles();
       for (let i = 0; i < lourds.length; i++) {
         if (btn) btn.textContent = `Allègement… ${i + 1}/${lourds.length}`;
         try {
           const d = await SS.getDevis(lourds[i].id);
           if (!d) { echecs++; continue; }
           const r = await window.SSUI.deporterPhotos(d);
-          if (!r.deportees) { if (r.echecs) echecs++; continue; }
+          Object.keys(reste).forEach(k => { reste[k] += (r.restant && r.restant[k]) || 0; });
+          if (!r.deportees) {
+            if (r.echecs) { echecs++; }
+            else { figes[lourds[i].id] = lourds[i].poids; }   // rien de déportable : on n'y revient plus
+            continue;
+          }
           d.date_modification = new Date().toISOString();
           const res = await SS.saveDevis(d);
           // Si l'enregistrement échoue, les photos sont DÉJÀ dans R2 mais le devis pointe encore
@@ -2162,9 +2180,20 @@
           ok++; gagnes += r.octets;
         } catch (e) { echecs++; }
       }
-      toast(echecs
-        ? `${ok} devis allégé(s), ${fmtPoids(gagnes)} récupérés · ${echecs} en échec (réessaie plus tard)`
-        : `${ok} devis allégé(s) — ${fmtPoids(gagnes)} récupérés ✓`, echecs ? 'warn' : 'ok', 7000);
+      // ⚠️ Ne JAMAIS afficher « 0 devis allégé ✓ » : un succès coché sur un bandeau qui reste
+      // affiché ne veut rien dire. Quand il n'y a rien à déporter, on dit OÙ pèse le dossier.
+      if (!ok && !echecs) {
+        const sig = reste.signatures;
+        toast(sig
+          ? `Rien à déporter : le poids vient des signatures manuscrites (${fmtPoids(sig)}), gardées volontairement dans le devis — elles s’affichent sur l’espace client, qui n’a pas accès au stockage photo.`
+          : 'Rien à déporter : le poids ne vient pas des photos.', 'warn', 10000);
+      } else {
+        toast(echecs
+          ? `${ok} devis allégé(s), ${fmtPoids(gagnes)} récupérés · ${echecs} en échec (réessaie plus tard)`
+          : `${ok} devis allégé(s) — ${fmtPoids(gagnes)} récupérés ✓`, echecs ? 'warn' : 'ok', 7000);
+      }
+      console.info('[SS] poids inline restant', reste);
+      try { localStorage.setItem('ss_allegement_irreductibles', JSON.stringify(figes)); } catch (e) {}
       SS.logActivity && SS.logActivity({ action: 'maintenance.photos', entity_type: 'system', entity_id: 'photos',
         label: `Allègement : ${ok} devis, ${fmtPoids(gagnes)} déportés vers le stockage photo${echecs ? ' · ' + echecs + ' échec(s)' : ''}` });
       await rafraichir();
