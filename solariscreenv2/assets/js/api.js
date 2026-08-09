@@ -26,16 +26,32 @@
   const outbox = {
     lire: function () { try { return JSON.parse(localStorage.getItem(LS_OUTBOX) || '[]'); } catch (e) { return []; } },
     ecrire: function (l) { try { localStorage.setItem(LS_OUTBOX, JSON.stringify(l)); } catch (e) {} },
-    // `type` = 'devis' | 'client' | 'facture' | 'rdv' ; `ref` = id ou clé. Jamais de doublon.
-    ajouter: function (type, ref) {
-      const l = outbox.lire();
-      if (!l.some(function (x) { return x.type === type && x.ref === ref; })) {
-        l.push({ type: type, ref: ref, depuis: new Date().toISOString() });
-        outbox.ecrire(l);
+    /**
+     * `type`   : 'devis' | 'client' | 'facture' | 'rdv'
+     * `ref`    : id ou clé
+     * `action` : 'save' (défaut) | 'delete' | 'comment'
+     * `charge` : corps à renvoyer tel quel (utilisé par 'comment', dont le contenu n'existe
+     *            nulle part ailleurs — un enregistrement complet ne le rattraperait pas).
+     * Une entrée sans `action` est une entrée d'AVANT cette évolution : elle vaut 'save'.
+     */
+    ajouter: function (type, ref, action, charge) {
+      action = action || 'save';
+      let l = outbox.lire();
+      // Supprimer ce qu'on s'apprête à effacer : renvoyer l'objet puis le supprimer serait au
+      // mieux inutile, au pire une résurrection si la suppression échoue ensuite.
+      if (action === 'delete') {
+        l = l.filter(function (x) { return !(x.type === type && x.ref === ref && (x.action || 'save') === 'save'); });
       }
+      if (!l.some(function (x) { return x.type === type && x.ref === ref && (x.action || 'save') === action; })) {
+        l.push({ type: type, ref: ref, action: action, charge: charge || null, depuis: new Date().toISOString() });
+      }
+      outbox.ecrire(l);
     },
-    retirer: function (type, ref) {
-      outbox.ecrire(outbox.lire().filter(function (x) { return !(x.type === type && x.ref === ref); }));
+    retirer: function (type, ref, action) {
+      action = action || 'save';
+      outbox.ecrire(outbox.lire().filter(function (x) {
+        return !(x.type === type && x.ref === ref && (x.action || 'save') === action);
+      }));
     },
     compte: function () { return outbox.lire().length; },
   };
@@ -236,6 +252,7 @@
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         // Vrai hors-ligne (réseau) : suppression locale optimiste.
         local.delete(id);
+        outbox.ajouter('devis', id, 'delete');   // rejouee au retour du reseau, sinon le devis ressuscite
         console.warn('[SS] deleteDevis hors-ligne:', e.message);
         return { ok: true, offline: true };
       }
@@ -299,6 +316,14 @@
           };
           if (payload.visible_client) comment.visible_client = true;
           try { const d = local.get(id); if (d) { d.comments = d.comments || []; d.comments.push(comment); local.save(d); } } catch (e2) {}
+          // ⚠️ Sans cette mise en file, la note restait dans le seul cache de l'appareil et
+          // n'atteignait JAMAIS le serveur : elle disparaissait au premier rechargement, et
+          // Yannick ne la voyait jamais. Les notes passent par une route CIBLÉE, donc aucun
+          // enregistrement du devis ne les rattrape — il faut rejouer la note elle-même.
+          // `reply_to` local : si la note citée n'est pas encore partie, le serveur ne connaîtra
+          // pas cet identifiant. On le garde quand même (la citation affichera « message
+          // d'origine supprimé » plutôt que de perdre la réponse).
+          outbox.ajouter('devis', comment.id, 'comment', { devisId: id, payload: payload });
           return { ok: true, offline: true, comment };
         }
         return { ok: false, error: MSG_SESSION };
@@ -469,6 +494,7 @@
         if (e && e.serverRejected) return { ok: false, error: e.message };
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         localClients.delete(key);
+        outbox.ajouter('client', key, 'delete');
         return { ok: true, offline: true };
       }
     },
@@ -485,15 +511,67 @@
     // ⚠️ CRITIQUE côté comptable : une facture « créée » qui n'a jamais atteint le serveur fait
     // réattribuer son numéro (F2026-014) à la facture suivante → deux pièces au même numéro.
     // D'où la même distinction stricte que saveDevis entre rejet serveur et vraie panne réseau.
-    async saveFacture(f) {
-      localFactures.save(f);
-      try { return await req('/factures', { method: 'POST', body: JSON.stringify(f) }); }
+    /**
+     * @param f      la facture. Si `f.id` est absent et `serie` fourni, c'est le SERVEUR qui
+     *               attribue le numéro, de façon atomique — deux créations simultanées ne
+     *               peuvent plus obtenir le même, et un numéro supprimé n'est jamais réutilisé.
+     * @param serie  'F' (facture) | 'NC' (note de crédit)
+     * Le numéro attribué revient dans `res.id` ; l'appelant doit l'adopter.
+     */
+    async saveFacture(f, serie) {
+      // Sans id, on ne peut pas écrire dans le cache local : il n'existera qu'au retour serveur.
+      if (f.id) localFactures.save(f);
+      const corps = f.id ? f : Object.assign({}, f, { _serie: serie || 'F' });
+      try {
+        const rep = await req('/factures', { method: 'POST', body: JSON.stringify(corps) });
+        if (!f.id && rep && rep.id) { f.id = rep.id; localFactures.save(f); }
+        return rep;
+      }
       catch (e) {
         if (e && e.serverRejected) { console.warn('[SS] saveFacture rejetée par le serveur:', e.message); return { ok: false, error: e.message }; }
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        // ⚠️ Une facture NEUVE ne peut pas naître hors-ligne : seul le serveur attribue les
+        // numéros, et en inventer un localement recréerait exactement le défaut qu'on corrige
+        // (deux pièces au même numéro). On refuse franchement plutôt que de promettre.
+        if (!f.id) {
+          return { ok: false, error: 'Pas de réseau : impossible d’attribuer un numéro de facture. '
+            + 'Le numéro doit venir du serveur pour rester unique — réessaie une fois connecté.' };
+        }
         console.warn('[SS] saveFacture hors-ligne:', e.message);
         outbox.ajouter('facture', f.id);
         return { ok: true, id: f.id, offline: true };
+      }
+    },
+    /** Ajoute un encaissement SANS réécrire la facture entière : deux saisies simultanées ne
+     *  peuvent plus s'écraser. Renvoie la liste à jour, telle que le serveur la voit. */
+    async addPaiement(factureId, paiement) {
+      try {
+        const res = await req('/factures/' + encodeURIComponent(factureId) + '/paiement',
+          { method: 'POST', body: JSON.stringify(paiement) });
+        try {
+          const f = localFactures.get(factureId);
+          if (f) { f.paiements = res.paiements || f.paiements || []; localFactures.save(f); }
+        } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        // Hors-ligne : un encaissement est une écriture comptable, on ne fait pas semblant.
+        return { ok: false, error: 'Pas de réseau : encaissement NON enregistré. Réessaie une fois connecté.' };
+      }
+    },
+    /** Retire un encaissement (par son identifiant, ou par sa position pour les anciens). */
+    async deletePaiement(factureId, paiementRef) {
+      try {
+        const res = await req('/factures/' + encodeURIComponent(factureId) + '/paiement/' + encodeURIComponent(paiementRef),
+          { method: 'DELETE' });
+        try {
+          const f = localFactures.get(factureId);
+          if (f) { f.paiements = res.paiements || []; localFactures.save(f); }
+        } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        return { ok: false, error: 'Pas de réseau : encaissement NON retiré. Réessaie une fois connecté.' };
       }
     },
     async deleteFacture(id) {
@@ -505,6 +583,7 @@
         if (e && e.serverRejected) return { ok: false, error: e.message };
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         localFactures.delete(id);
+        outbox.ajouter('facture', id, 'delete');
         return { ok: true, offline: true };
       }
     },
@@ -596,6 +675,7 @@
         if (e && e.serverRejected) return { ok: false, error: e.message };
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         localRdv.delete(id);
+        outbox.ajouter('rdv', id, 'delete');
         return { ok: true, offline: true };
       }
     },
@@ -715,18 +795,45 @@
     syncEnCours = true;
     let envoyes = 0, echec = null;
     try {
+      const BASE_TYPE = { devis: '/devis', client: '/clients', facture: '/factures', rdv: '/rdv' };
       for (const item of file) {
-        let corps = null, chemin = null;
-        if (item.type === 'devis') { corps = local.get(item.ref); chemin = '/devis'; }
-        else if (item.type === 'client') { corps = localClients.get(item.ref); chemin = '/clients'; }
-        else if (item.type === 'facture') { corps = localFactures.get(item.ref); chemin = '/factures'; }
-        else if (item.type === 'rdv') { corps = localRdv.get(item.ref); chemin = '/rdv'; }
-        if (!corps || !chemin) { outbox.retirer(item.type, item.ref); continue; }
+        const action = item.action || 'save';   // entrée d'avant l'ajout des actions
+        let requete = null;
+        if (action === 'delete') {
+          // ⚠️ Une suppression faite hors-ligne DOIT être rejouée : sans ça, l'élément était
+          // effacé du cache local, l'écran annonçait « supprimé », mais il restait sur le
+          // serveur — et réapparaissait au premier rechargement. Constaté à l'audit.
+          const base = BASE_TYPE[item.type];
+          if (base) requete = { chemin: base + '/' + encodeURIComponent(item.ref), options: { method: 'DELETE' } };
+        } else if (action === 'comment') {
+          // Une note écrite hors-ligne ne vit QUE dans sa charge : le devis complet ne la
+          // contient pas côté serveur, et un enregistrement du devis ne la créerait pas
+          // (les notes passent par une route ciblée). Sans ce rejeu, elle était perdue.
+          const c = item.charge;
+          if (c && c.devisId) requete = {
+            chemin: '/devis/' + encodeURIComponent(c.devisId) + '/comment',
+            options: { method: 'POST', body: JSON.stringify(c.payload || {}) },
+          };
+        } else {
+          let corps = null;
+          if (item.type === 'devis') corps = local.get(item.ref);
+          else if (item.type === 'client') corps = localClients.get(item.ref);
+          else if (item.type === 'facture') corps = localFactures.get(item.ref);
+          else if (item.type === 'rdv') corps = localRdv.get(item.ref);
+          const base = BASE_TYPE[item.type];
+          if (corps && base) requete = { chemin: base, options: { method: 'POST', body: JSON.stringify(corps) } };
+        }
+        // Rien à envoyer (élément introuvable en local, type inconnu) : on retire, sinon la file
+        // resterait bloquée sur un fantôme et tout ce qui suit ne partirait jamais.
+        if (!requete) { outbox.retirer(item.type, item.ref, action); continue; }
         try {
-          await req(chemin, { method: 'POST', body: JSON.stringify(corps) });
-          outbox.retirer(item.type, item.ref);
+          await req(requete.chemin, requete.options);
+          outbox.retirer(item.type, item.ref, action);
           envoyes++;
         } catch (e) {
+          // Le serveur REFUSE (404 sur un élément déjà supprimé, 409…) : insister ne servirait
+          // à rien et bloquerait toute la file. On retire et on continue.
+          if (e && e.serverRejected) { outbox.retirer(item.type, item.ref, action); continue; }
           // Toujours pas de réseau, ou session Access expirée : on laisse en file et on arrête là.
           echec = e.message; break;
         }

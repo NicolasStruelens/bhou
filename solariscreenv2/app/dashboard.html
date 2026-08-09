@@ -1967,25 +1967,79 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       toast(`Sauvegarde téléchargée (${backup.counts.devis} devis, ${backup.counts.clients} clients, ${backup.counts.factures} factures, ${backup.counts.rdv} RDV)` + (missing > 0 ? ` — ⚠ ${missing} devis incomplets` : ''), 'ok', 3000);
     };
+    /* ── RESTAURATION D'UNE SAUVEGARDE ──────────────────────────────────────────────────────────
+       ⚠️ DÉFAUT CORRIGÉ, ET C'ÉTAIT LE PLUS DANGEREUX DE L'ERP : l'export écrit QUATRE blocs
+       (devis, clients, factures, RDV) mais l'import ne relisait que les devis. Une restauration
+       annonçait « N devis importés » — un succès — en ayant silencieusement laissé de côté toute
+       la facturation, le CRM et les rendez-vous. On ne s'en serait aperçu qu'après coup, c'est-à-dire
+       trop tard.
+       Deux garde-fous ajoutés : on ANNONCE ce que contient le fichier et ce qui va être écrit AVANT
+       d'écrire quoi que ce soit, et on compte les échecs par catégorie plutôt que d'annoncer un
+       succès global. */
     window.importJSON = (input) => {
       const file = input.files[0]; if (!file) return;
       const reader = new FileReader();
       reader.onload = async (e) => {
-        try {
-          const json = JSON.parse(e.target.result);
-          const list = Array.isArray(json) ? json : (json.data || []);
-          // On compte les VRAIS succès : annoncer « 42 devis importés » alors que les 42 écritures
-          // ont été refusées (session expirée) donnerait l'illusion d'une restauration réussie.
-          let n = 0, echecs = 0;
-          for (const d of list) {
-            if (!d || !d.id) continue;
-            const r = await SS.saveDevis(d);
-            if (r.ok === false) echecs++; else n++;
+        let json;
+        try { json = JSON.parse(e.target.result); }
+        catch (err) { toast('Fichier JSON invalide', 'error'); return; }
+
+        // Ancien format : un simple tableau de devis. Toujours accepté.
+        const lots = Array.isArray(json)
+          ? { devis: json, clients: [], factures: [], rdv: [] }
+          : {
+              devis: Array.isArray(json.data) ? json.data : [],
+              clients: Array.isArray(json.clients) ? json.clients : [],
+              factures: Array.isArray(json.factures) ? json.factures : [],
+              rdv: Array.isArray(json.rdv) ? json.rdv : [],
+            };
+        const total = lots.devis.length + lots.clients.length + lots.factures.length + lots.rdv.length;
+        if (!total) { toast('Ce fichier ne contient aucune donnée reconnue.', 'warn', 6000); return; }
+
+        // Combien d'éléments EXISTENT déjà ? Une restauration écrase — il faut le dire avant,
+        // pas après. (Les devis sont fusionnés clé par clé côté serveur, pas remplacés à l'aveugle.)
+        const idsDevis = new Set(DEVIS.map(d => d.id));
+        const idsFac = new Set(FACTURES.map(f => f.id));
+        const ecrases = lots.devis.filter(d => d && idsDevis.has(d.id)).length
+                      + lots.factures.filter(f => f && idsFac.has(f.id)).length;
+        const daté = json && json.export_date ? new Date(json.export_date).toLocaleString('fr-BE') : 'date inconnue';
+        const detail = [
+          lots.devis.length ? lots.devis.length + ' devis' : null,
+          lots.clients.length ? lots.clients.length + ' client(s)' : null,
+          lots.factures.length ? lots.factures.length + ' facture(s)' : null,
+          lots.rdv.length ? lots.rdv.length + ' rendez-vous' : null,
+        ].filter(Boolean).join('\n• ');
+        if (!confirm(
+          `Sauvegarde du ${daté}\n\n• ${detail}\n\n`
+          + (ecrases ? `⚠ ${ecrases} élément(s) portant le même numéro existent déjà et seront mis à jour.\n\n` : '')
+          + 'Restaurer maintenant ?')) return;
+
+        // On compte les VRAIS succès par catégorie : annoncer « tout est restauré » alors que les
+        // écritures ont été refusées (session expirée) donnerait l'illusion d'une restauration.
+        const bilan = [];
+        let echecsTotal = 0;
+        const passer = async (libelle, liste, cle, enregistrer) => {
+          if (!liste.length) return;
+          let ok = 0, ko = 0;
+          for (const item of liste) {
+            if (!item || !item[cle]) { ko++; continue; }
+            try { const r = await enregistrer(item); (r && r.ok === false) ? ko++ : ok++; }
+            catch (err) { ko++; }
           }
-          if (echecs) toast(`${n} devis importé(s) — ⚠ ${echecs} ÉCHEC(S), rien n'a été enregistré pour ceux-là.`, 'error', 9000);
-          else toast(`${n} devis importé(s)`, 'ok');
-          await load();
-        } catch (err) { toast('Fichier JSON invalide', 'error'); }
+          echecsTotal += ko;
+          bilan.push(`${ok} ${libelle}${ko ? ` (⚠ ${ko} en échec)` : ''}`);
+        };
+        toast('Restauration en cours…', 'ok', 2500);
+        await passer('devis', lots.devis, 'id', d => SS.saveDevis(d));
+        await passer('client(s)', lots.clients, 'key', c => SS.saveClient(c));
+        await passer('facture(s)', lots.factures, 'id', f => SS.saveFacture(f));
+        if (SS.saveRdv) await passer('rendez-vous', lots.rdv, 'id', r => SS.saveRdv(r));
+
+        toast('Restauré : ' + bilan.join(' · ') + (echecsTotal ? ' — RIEN n’a été enregistré pour les échecs.' : ' ✓'),
+              echecsTotal ? 'error' : 'ok', echecsTotal ? 12000 : 7000);
+        SS.logActivity && SS.logActivity({ action: 'restauration', entity_type: 'system', entity_id: 'backup',
+          label: 'Restauration d’une sauvegarde : ' + bilan.join(' · ') });
+        await load();
       };
       reader.readAsText(file);
       input.value = '';

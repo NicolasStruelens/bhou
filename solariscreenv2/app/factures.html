@@ -435,21 +435,14 @@
       el('mPreview').innerHTML = detail;
     }
 
-    function nextNumber(kind) {
-      const year = new Date().getFullYear();
-      // Série SÉPARÉE pour les notes de crédit (NC2026-001…). Mélanger les deux dans une même
-      // numérotation rend la lecture des livres comptables pénible, et un « trou » dans la série
-      // des factures est un signal d'alerte pour un contrôleur — alors qu'ici il serait normal.
-      const prefix = (kind === 'avoir' ? 'NC' : 'F') + year + '-';
-      // Numéro suivant = (plus grand numéro existant) + 1. JAMAIS basé sur le NOMBRE de factures :
-      // sinon supprimer une facture ferait régresser le compteur et RÉÉCRIRAIT une facture existante.
-      let maxN = 0;
-      FACTURES.forEach(f => {
-        const id = String(f.id || '');
-        if (id.indexOf(prefix) === 0) { const n = parseInt(id.slice(prefix.length), 10); if (n > maxN) maxN = n; }
-      });
-      return prefix + String(maxN + 1).padStart(3, '0');
-    }
+    /* La numérotation vivait ICI, en `max + 1` sur la liste chargée dans le navigateur. Deux
+       défauts confirmés à l'audit : deux personnes créant une facture au même moment obtenaient
+       le même numéro (et la seconde écrasait la première), et supprimer la dernière facture
+       permettait de réutiliser son numéro.
+       Elle est désormais attribuée par le serveur, en une instruction SQL atomique, via un
+       compteur qui ne redescend jamais (voir `allouerNumeroFacture` dans le Worker).
+       Rien ne reste ici : une numérotation en double dans le code finirait forcément par
+       ressortir un jour dans un écran oublié. */
 
     function buildLines(devis, type, amounts, pct) {
       if (type === 'totale') {
@@ -508,9 +501,10 @@
       if (!['signe', 'termine'].includes(a.devis.statut)) { toast('On ne facture qu\'un devis signé ou terminé (statut actuel : ' + (a.devis.statut || '?') + ').', 'warn', 4000); return; }
       if (type === 'totale' && a.already > 0.005) { toast('Des factures existent déjà pour ce devis — utilise « Solde » pour le restant.', 'warn', 4000); return; }
       if (a.total_ttc <= 0) { toast('Montant nul (devis déjà entièrement facturé ?)', 'warn'); return; }
-      const num = nextNumber();
+      // Le numéro est attribué par le SERVEUR (séquence atomique) : deux créations simultanées
+      // ne peuvent plus produire le même, et un numéro supprimé n'est jamais réutilisé.
       const facture = {
-        id: num, type, devis_id: id,
+        type, devis_id: id,
         date: today(), echeance: addDays(Number(el('mEcheance').value) || 15),
         client: a.devis.client || {},
         lines: buildLines(a.devis, type, a, pct),
@@ -518,11 +512,11 @@
         total_ttc: Math.round(a.total_ttc * 100) / 100, tva_pct: a.tva_pct, devis_ttc: a.devis.calculs && a.devis.calculs.total_ttc,
         paiements: [], date_creation: new Date().toISOString(),
       };
-      const resFac = await SS.saveFacture(facture);
-      // ⚠️ Comptabilité : si la facture n'a pas atteint le serveur, il ne FAUT PAS continuer —
-      // son numéro (nextNumber = max+1) serait réattribué à la facture suivante, créant deux
-      // pièces au même numéro, ce qui n'est pas rattrapable.
-      if (resFac.ok === false) { toast(resFac.error || 'Facture NON créée — réessaie.', 'error', 7000); return; }
+      const resFac = await SS.saveFacture(facture, 'F');
+      const num = resFac && resFac.id;
+      // Si la facture n'a pas atteint le serveur, aucun numéro n'a été consommé : on s'arrête là
+      // et rien n'est écrit. C'est le serveur qui numérote, donc pas de pièce fantôme possible.
+      if (resFac.ok === false || !num) { toast((resFac && resFac.error) || 'Facture NON créée — réessaie.', 'error', 7000); return; }
       closeModal('modalNew');
       toast(resFac.offline ? 'Facture ' + num + ' créée (hors-ligne)' : 'Facture ' + num + ' créée ✓', resFac.offline ? 'warn' : 'ok');
       await load();
@@ -567,17 +561,17 @@
       FACTURES = (await SS.listFactures()) || FACTURES;
       const tvaPct = avoirTarget.tva_pct || 6;
       const ht = Math.round((montant / (1 + tvaPct / 100)) * 100) / 100;
-      const num = nextNumber('avoir');
       const motif = (el('avMotif').value || '').trim();
       const avoir = {
-        id: num, type: 'avoir', avoir_de: avoirTarget.id, devis_id: avoirTarget.devis_id,
+        type: 'avoir', avoir_de: avoirTarget.id, devis_id: avoirTarget.devis_id,
         date: today(), echeance: today(),        // une note de crédit n'a pas d'échéance à courir
         client: avoirTarget.client || {},
         lines: [{ desc: `Annulation de la facture N° ${avoirTarget.id}`, sub: motif, qty: 1, pu: -ht, total: -ht }],
         total_ht: -ht, total_tva: -(Math.round((montant - ht) * 100) / 100), total_ttc: -Math.round(montant * 100) / 100,
         tva_pct: tvaPct, motif: motif, paiements: [], date_creation: new Date().toISOString(),
       };
-      const res = await SS.saveFacture(avoir);
+      const res = await SS.saveFacture(avoir, 'NC');
+      const num = res && res.id;
       if (res.ok === false) { toast(res.error || 'Note de crédit NON créée — réessaie.', 'error', 7000); return; }
       closeModal('modalAvoir');
       toast(res.offline ? 'Note de crédit ' + num + ' créée (hors-ligne)' : 'Note de crédit ' + num + ' créée ✓', res.offline ? 'warn' : 'ok');
@@ -617,15 +611,12 @@
       const p = (payTarget.paiements || [])[i];
       if (!p) return;
       if (!confirm(`Retirer l'encaissement de ${fmtEur(p.montant)} du ${fmtDate(p.date)} ?\n\nLa facture ${payTarget.id} redeviendra due de ce montant.`)) return;
-      const sauvegarde = payTarget.paiements.slice();
-      payTarget.paiements.splice(i, 1);
-      payTarget.date_modification = new Date().toISOString();
-      const res = await SS.saveFacture(payTarget);
-      if (res.ok === false) {
-        payTarget.paiements = sauvegarde;   // rien n'a atteint le serveur : on remet en état
-        toast(res.error || 'Encaissement NON retiré — réessaie.', 'error', 7000);
-        return;
-      }
+      // On désigne l'encaissement par son IDENTIFIANT, pas par sa position : entre l'affichage
+      // et le clic, un autre encaissement a pu être ajouté et décaler la liste. Les paiements
+      // saisis avant cette évolution n'en ont pas — le serveur accepte alors la position.
+      const res = await SS.deletePaiement(payTarget.id, p.id != null ? p.id : String(i));
+      if (res.ok === false) { toast(res.error || 'Encaissement NON retiré — réessaie.', 'error', 7000); return; }
+      payTarget.paiements = res.paiements || [];
       SS.logActivity && SS.logActivity({ action: 'facture.paiement.retire', entity_type: 'facture', entity_id: payTarget.id,
         label: `Encaissement de ${fmtEur(p.montant)} retiré de la facture ${payTarget.id}` });
       toast('Encaissement retiré', 'ok');
@@ -652,17 +643,16 @@
         );
         if (!ok) return;
       }
-      payTarget.paiements = payTarget.paiements || [];
-      payTarget.paiements.push({ date: el('payDate').value || today(), montant, moyen: el('payMoyen').value });
-      payTarget.date_modification = new Date().toISOString();
-      const resPay = await SS.saveFacture(payTarget);
-      if (resPay.ok === false) {
-        payTarget.paiements.pop();   // l'encaissement n'a pas été enregistré : on annule en local
-        toast(resPay.error || 'Paiement NON enregistré — réessaie.', 'error', 7000);
-        return;
-      }
+      // Écriture CIBLÉE : le serveur ajoute le paiement à la valeur actuelle de la facture, sans
+      // que nous réécrivions l'ensemble. Deux encaissements saisis en même temps ne peuvent plus
+      // s'écraser — c'est lui qui renvoie la liste faisant foi.
+      const resPay = await SS.addPaiement(payTarget.id, {
+        date: el('payDate').value || today(), montant, moyen: el('payMoyen').value,
+      });
+      if (resPay.ok === false) { toast(resPay.error || 'Paiement NON enregistré — réessaie.', 'error', 7000); return; }
+      payTarget.paiements = resPay.paiements || payTarget.paiements || [];
       closeModal('modalPay');
-      toast(resPay.offline ? 'Paiement enregistré (hors-ligne)' : 'Paiement enregistré ✓', resPay.offline ? 'warn' : 'ok');
+      toast('Paiement enregistré ✓', 'ok');
       await load();
     };
 

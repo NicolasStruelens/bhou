@@ -873,12 +873,93 @@ export async function onRequest(context) {
       const { results } = await env.DB.prepare('SELECT data FROM factures ORDER BY date DESC').all();
       return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
     }
+    /* ── NUMÉROTATION DES FACTURES : ALLOUÉE PAR LE SERVEUR ─────────────────────────────────────
+       Le numéro était calculé dans le navigateur (`max + 1` sur la liste chargée). Deux défauts,
+       tous deux confirmés à l'audit :
+         • Nicolas et Yannick créant une facture à quelques secondes d'intervalle obtenaient le
+           MÊME numéro, et le second enregistrement écrasait le premier (ON CONFLICT DO UPDATE) —
+           une pièce comptable disparaissait sans trace ;
+         • supprimer la dernière facture faisait redescendre le compteur, donc RÉUTILISER un
+           numéro déjà émis.
+       Le compteur vit désormais en base, dans sa propre table, et s'incrémente en UNE SEULE
+       instruction SQL (atomique) qui renvoie la valeur attribuée. Il ne redescend JAMAIS, même
+       si une facture est supprimée : un numéro consommé est consommé.
+       Le client demande un numéro en envoyant `_serie` ('F' ou 'NC') sans `id`. L'ancien mode
+       (id fourni) reste accepté : il sert aux restaurations de sauvegarde et aux ré-enregistrements
+       d'une facture existante. */
     if (path === '/api/factures' && method === 'POST') {
       const f = await request.json();
+      if (!f.id && f._serie) {
+        const numero = await allouerNumeroFacture(env.DB, String(f._serie).slice(0, 4));
+        if (!numero) return json({ ok: false, error: 'Numéro de facture indisponible — réessaie.' }, 500);
+        f.id = numero;
+      }
+      delete f._serie;
       if (!f.id) return json({ ok: false, error: 'ID manquant' }, 400);
       await upsertFacture(env.DB, f);
       return json({ ok: true, id: f.id });
     }
+    /* ── ENCAISSEMENTS : ÉCRITURE CIBLÉE ────────────────────────────────────────────────────────
+       Un paiement était ajouté au tableau local puis TOUTE la facture était réenregistrée. Deux
+       encaissements saisis en même temps (Nicolas au bureau, Yannick sur son téléphone) se
+       écrasaient l'un l'autre : le second réécrivait la facture depuis sa propre lecture, sans
+       le versement du premier. Même mécanique que les notes de devis : `json_insert` ajoute le
+       paiement à la valeur ACTUELLE de la ligne, sans jamais relire ni réécrire l'ensemble.
+       Chaque paiement reçoit un identifiant : c'est lui qui permet d'en retirer un précisément,
+       plutôt que par sa position dans un tableau qui a pu bouger entre-temps. */
+    let mPay = path.match(/^\/api\/factures\/([^/]+)\/paiement$/);
+    if (mPay && method === 'POST') {
+      const id = decodeURIComponent(mPay[1]);
+      const body = await request.json().catch(() => ({}));
+      const montant = Number(body.montant);
+      if (!isFinite(montant) || montant === 0) return json({ ok: false, error: 'Montant invalide' }, 400);
+      const now = new Date().toISOString();
+      const paiement = {
+        id: crypto.randomUUID(),
+        date: String(body.date || now.slice(0, 10)).slice(0, 10),
+        montant: Math.round(montant * 100) / 100,
+        moyen: String(body.moyen || '').slice(0, 40),
+        saisi_le: now,
+      };
+      const r = await env.DB.prepare(`
+        UPDATE factures SET
+          data = json_set(
+                   json_insert(
+                     json_set(data, '$.paiements', json(COALESCE(json_extract(data, '$.paiements'), '[]'))),
+                     '$.paiements[#]', json(?1)),
+                   '$.date_modification', ?2),
+          date_modification = ?2
+        WHERE id = ?3
+      `).bind(JSON.stringify(paiement), now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Facture introuvable' }, 404);
+      const apres = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
+      return json({ ok: true, paiement, paiements: (safeParse(apres && apres.data) || {}).paiements || [] });
+    }
+    mPay = path.match(/^\/api\/factures\/([^/]+)\/paiement\/([^/]+)$/);
+    if (mPay && method === 'DELETE') {
+      const id = decodeURIComponent(mPay[1]), payId = decodeURIComponent(mPay[2]);
+      const row = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Facture introuvable' }, 404);
+      const f = safeParse(row.data) || {};
+      const avant = Array.isArray(f.paiements) ? f.paiements : [];
+      // Les encaissements saisis AVANT cette évolution n'ont pas d'identifiant : on accepte alors
+      // la position dans la liste, à défaut de mieux. Les nouveaux se retirent par leur id.
+      const idx = avant.findIndex(p => p && p.id && String(p.id) === payId);
+      const parIndex = idx === -1 && /^\d+$/.test(payId) ? Number(payId) : -1;
+      const cible = idx !== -1 ? idx : parIndex;
+      if (cible < 0 || cible >= avant.length) return json({ ok: false, error: 'Encaissement introuvable' }, 404);
+      const now = new Date().toISOString();
+      const r = await env.DB.prepare(`
+        UPDATE factures SET
+          data = json_set(json_remove(data, '$.paiements[' || ?1 || ']'), '$.date_modification', ?2),
+          date_modification = ?2
+        WHERE id = ?3
+      `).bind(String(cible), now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Encaissement non retiré' }, 500);
+      const apres = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
+      return json({ ok: true, paiements: (safeParse(apres && apres.data) || {}).paiements || [] });
+    }
+
     m = path.match(/^\/api\/factures\/([^/]+)$/);
     if (m) {
       const id = decodeURIComponent(m[1]);
@@ -1218,6 +1299,42 @@ function decrireChangements(avant, apres) {
   const nbPhotos = (o) => (o.items || []).reduce((s, i) => s + (i.photos || []).length, 0);
   if (nbPhotos(apres) > nbPhotos(avant)) out.push((nbPhotos(apres) - nbPhotos(avant)) + ' photo(s) ajoutée(s)');
   return out;
+}
+
+/**
+ * Attribue le prochain numéro d'une série ('F' = factures, 'NC' = notes de crédit) pour l'année
+ * en cours. Table créée à la volée, comme `settings` — aucune migration à lancer à la main.
+ *
+ * L'incrément se fait en UNE instruction (`ON CONFLICT DO UPDATE … RETURNING`) : deux requêtes
+ * simultanées obtiennent forcément deux valeurs différentes, là où le calcul côté navigateur
+ * pouvait rendre deux fois le même numéro.
+ *
+ * ⚠️ Amorçage : à la toute première demande d'une série, le compteur repart du PLUS GRAND numéro
+ * déjà présent en base. Sans cela, la première facture émise après ce déploiement s'appellerait
+ * F2026-001 et écraserait la facture d'acompte de l'école.
+ */
+async function allouerNumeroFacture(db, serie) {
+  const prefixe = (serie === 'NC' ? 'NC' : 'F') + new Date().getFullYear() + '-';
+  await db.prepare('CREATE TABLE IF NOT EXISTS compteurs (cle TEXT PRIMARY KEY, valeur INTEGER NOT NULL)').run();
+  try {
+    const existe = await db.prepare('SELECT valeur FROM compteurs WHERE cle = ?').bind(prefixe).first();
+    if (!existe) {
+      // `LENGTH(?)+1` : on isole la partie numérique après le préfixe, quelle que soit sa longueur.
+      const max = await db.prepare(
+        'SELECT IFNULL(MAX(CAST(SUBSTR(id, LENGTH(?1) + 1) AS INTEGER)), 0) AS n FROM factures WHERE id LIKE ?2'
+      ).bind(prefixe, prefixe + '%').first();
+      await db.prepare('INSERT OR IGNORE INTO compteurs (cle, valeur) VALUES (?, ?)')
+        .bind(prefixe, (max && max.n) || 0).run();
+    }
+    const r = await db.prepare(
+      'UPDATE compteurs SET valeur = valeur + 1 WHERE cle = ? RETURNING valeur'
+    ).bind(prefixe).first();
+    const n = r && r.valeur;
+    if (!n) return null;
+    return prefixe + String(n).padStart(3, '0');
+  } catch (e) {
+    return null;   // l'appelant refuse la création plutôt que d'inventer un numéro
+  }
 }
 
 async function upsertDevis(db, devis) {
