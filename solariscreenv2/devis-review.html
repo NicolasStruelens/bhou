@@ -22,6 +22,14 @@
     .rv-hero p { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
 
     .rv-items { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+    /* Rapport d'intervention : ce que le client cherche AVANT le prix — « qu'est-ce qui s'est
+       passé chez moi ? ». Filet doré à gauche, comme les mises en avant de l'ERP. */
+    .rv-rapport { border-left: 3px solid var(--accent-2); padding: 0.1rem 0 0.1rem var(--sp-4);
+      margin-bottom: var(--sp-5); }
+    .rv-rap-bloc + .rv-rap-bloc { margin-top: var(--sp-3); }
+    .rv-rap-bloc h5 { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.11em; color: var(--accent-2-ink); margin: 0 0 0.25rem; font-weight: 600; }
+    .rv-rap-bloc p { margin: 0; font-size: var(--fs-sm); line-height: 1.6; color: var(--text); }
     .rv-item { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
     .rv-item-row { display: flex; justify-content: space-between; gap: var(--sp-3); }
     .rv-item .k { font-weight: 600; }
@@ -111,6 +119,7 @@
       <p id="rvIntro">Voici le récapitulatif de votre devis.</p>
     </div>
 
+    <div class="rv-rapport hidden" id="rvRapport"></div>
     <div class="rv-items" id="rvItems"></div>
     <div class="rv-summary" id="rvSummary"></div>
     <div class="rv-total"><span class="k">Total TVAC</span><span class="v" id="rvTotal">—</span></div>
@@ -278,7 +287,7 @@
         ? (d.postes || []).map(p => `<div class="rv-item">
             <div class="rv-item-row">
               <div><div class="k">${esc(p.label)}</div>
-              ${p.qty > 1 ? `<div class="sub">${p.qty} × ${fmtEur(p.unit_price_ht)} HTVA</div>` : ''}</div>
+              ${(Number(p.qty) || 1) !== 1 ? `<div class="sub">${fmtQte(p.qty)} × ${fmtEur(p.unit_price_ht)} HTVA</div>` : ''}</div>
               <div class="v">${fmtEur(p.total_ht)}</div>
             </div>
           </div>`).join('') || '<div class="text-muted">Aucun poste.</div>'
@@ -317,9 +326,24 @@
       const dep = doc.type_document === 'depannage';
       if (dep) {
         const t = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
-        t('rvIntro', 'Voici le détail de l’intervention que nous vous proposons.');
-        t('rvMention', 'J’ai lu et j’accepte cette intervention ainsi que les conditions générales de vente.');
-        t('rvAcceptTxt', 'J’accepte cette intervention');
+        t('rvIntro', (doc.depannage_mode || 'realise') === 'realise'
+          ? 'Voici le détail de l’intervention réalisée chez vous.'
+          : 'Voici le détail de l’intervention que nous vous proposons.');
+        // Motif et constat, en tête : la première question d'un client est toujours « qu'est-ce
+        // qui s'est passé ? », jamais « combien ça coûte » — le prix vient après.
+        const D = doc.depannage || {};
+        const rapport = document.getElementById('rvRapport');
+        if (rapport) {
+          const bloc = (titre, txt) => txt ? `<div class="rv-rap-bloc"><h5>${titre}</h5><p>${esc(txt).replace(/\n/g, '<br>')}</p></div>` : '';
+          const html = bloc('Motif de l’appel', D.motif) + bloc('Constat sur place', D.diagnostic) + bloc('Garantie', D.garantie_note);
+          rapport.innerHTML = html;
+          rapport.classList.toggle('hidden', !html);
+        }
+        const dejaFait = (doc.depannage_mode || 'realise') === 'realise';
+        t('rvMention', dejaFait
+          ? 'Je reconnais que l’intervention décrite ci-dessus a bien été réalisée et j’en accepte le décompte.'
+          : 'J’ai lu et j’accepte cette intervention ainsi que les conditions générales de vente.');
+        t('rvAcceptTxt', dejaFait ? 'Je confirme la bonne exécution' : 'J’accepte cette intervention');
         t('rvPrintTxt', 'Voir le document complet — imprimer / PDF');
       }
       const fournitures = (doc.items || []).reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
@@ -340,7 +364,9 @@
       if (dep) {
         // Aucun acompte sur une intervention : le document remis dit « payable en fin
         // d'intervention ». Les deux écrans doivent annoncer la même chose, au centime près.
-        acompteBox.innerHTML = `Montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable en fin d'intervention — aucun acompte demandé.`;
+        acompteBox.innerHTML = (doc.depannage_mode || 'realise') === 'realise'
+          ? `Montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable à réception — aucun acompte demandé.`
+          : `Montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable en fin d'intervention — aucun acompte demandé.`;
       } else if (!doc.informatif && c.acompte_pct > 0 && c.acompte_montant > 0) {
         const solde = (c.total_ttc || 0) - (c.acompte_montant || 0);
         acompteBox.innerHTML = `Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${fmtEur(c.acompte_montant)}</strong> — solde de <strong>${fmtEur(solde)}</strong> à la pose.`;
@@ -369,6 +395,44 @@
       if (isNaN(d2)) return '';
       d2.setDate(d2.getDate() + n);
       return d2.toISOString().slice(0, 10);
+    }
+    /** Durée en heures décimales → « 1 h 30 ». */
+    function fmtDuree(h) {
+      const t = Math.round((Number(h) || 0) * 60);
+      if (!t) return '';
+      const H = Math.floor(t / 60), M = t % 60;
+      return H ? (H + ' h' + (M ? ' ' + String(M).padStart(2, '0') : '')) : (M + ' min');
+    }
+    /** Quantité lisible : « 1,5 » et non « 1.5 ». */
+    function fmtQte(q) {
+      const nq = Number(q) || 0;
+      return (nq % 1 === 0) ? String(nq) : nq.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
+    }
+    /** Bandeau de rapport — identique à celui de app/devis.html : c'est le même client qui lit
+     *  les deux documents, ils ne peuvent pas raconter deux histoires différentes. */
+    function rapportHtml(doc) {
+      const D = (doc && doc.depannage) || {};
+      const faits = [];
+      if (D.date_intervention) faits.push(['Intervention', fmtDate(D.date_intervention) + (D.heure ? ' à ' + esc(D.heure) : '')]);
+      if (D.duree_h) faits.push(['Temps sur place', fmtDuree(D.duree_h)]);
+      if ((D.techniciens || []).length) faits.push(['Intervenant' + (D.techniciens.length > 1 ? 's' : ''), D.techniciens.map(esc).join(', ')]);
+      if (D.garantie === 'totale') faits.push(['Garantie', 'Prise en charge totale']);
+      if (D.garantie === 'partielle') faits.push(['Garantie', 'Prise en charge partielle']);
+      const bloc = (t, v) => v ? `<div class="rap-bloc"><h5>${t}</h5><p>${esc(v).replace(/\n/g, '<br>')}</p></div>` : '';
+      const corps = bloc('Motif de l\'appel', D.motif) + bloc('Constat sur place', D.diagnostic) + bloc('Garantie', D.garantie_note);
+      if (!faits.length && !corps) return '';
+      return `<div class="rapport">
+        ${faits.length ? `<div class="rap-faits">${faits.map(f => `<div><span class="k">${f[0]}</span><span class="v">${f[1]}</span></div>`).join('')}</div>` : ''}
+        ${corps}
+      </div>`;
+    }
+    function suiteHtml(doc) {
+      const D = (doc && doc.depannage) || {};
+      const SUITES = { piece: 'Pièce à commander', retour: 'Nouvelle intervention à planifier' };
+      const parts = [];
+      if (D.suite && D.suite !== 'aucune') parts.push(`<strong>${SUITES[D.suite] || 'Suite à donner'}</strong>${D.suite_note ? ' — ' + esc(D.suite_note) : ''}`);
+      if (D.garantie_mois > 0) parts.push(`Pièces et main-d'œuvre garanties <strong>${D.garantie_mois} mois</strong> à dater de l'intervention.`);
+      return parts.length ? `<div class="doc-ref" style="margin-top:var(--sp-3);">${parts.join('<br>')}</div>` : '';
     }
     function buildPaperHtml(doc) {
       const c = doc.calc, cl = doc.client || {}, adr = cl.adresse || {};
@@ -418,7 +482,7 @@
         presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_installation))}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
-        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${e.qty}</td><td class="num">${esc(fmtEur(e.unit_price_ht))}</td><td class="num">${esc(fmtEur(e.total_ht))}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${fmtQte(e.qty)}</td><td class="num">${esc(fmtEur(e.unit_price_ht))}</td><td class="num">${esc(fmtEur(e.total_ht))}</td></tr>`;
       });
       if (c.surplus_difficulte > 0) {
         presta += `<tr>${cellNum()}<td class="desc"><strong>Supplément accès difficile</strong></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td></tr>`;
@@ -438,7 +502,7 @@
             <div class="doc-title">${dep ? (fait ? 'BON D\'INTERVENTION' : 'DÉPANNAGE') : (info ? 'DEVIS INFORMATIF' : 'DEVIS')}</div>
             <div class="doc-num">N° ${esc(doc.id)}</div>
             <div class="doc-dates">
-              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate(doc.date_creation)}<br>
+              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate((dep && doc.depannage && doc.depannage.date_intervention) || doc.date_creation)}<br>
               ${fait ? 'Travaux exécutés' : (info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(doc.date_creation, VALIDITE_JOURS)))}
             </div>
           </div>
@@ -465,6 +529,7 @@
             </div>
           </div>
         </div>
+        ${dep ? rapportHtml(doc) : ''}
         <table class="doc-table">
           <thead><tr>
             <th class="num">#</th><th>Désignation</th>${dep ? '' : '<th>Dimensions</th>'}
@@ -487,7 +552,8 @@
             : `Aucun acompte demandé : le montant de <strong>${esc(fmtEur(c.total_ttc))}</strong> TVAC est payable à la fin de l'intervention.`}
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(doc.id)}.</span>
         </div>
-        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>` : `
+        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
+        ${suiteHtml(doc)}` : `
         <div class="pay-note">
           Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${esc(fmtEur(c.acompte_montant))}</strong> —
           solde de <strong>${esc(fmtEur(solde))}</strong> à la livraison / pose.

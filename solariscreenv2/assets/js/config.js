@@ -35,6 +35,8 @@
       tech2_gross: 125,
       tools_gross: 30,
       deplacement: 45,          // dépannage : forfait de déplacement, par intervention
+      taux_horaire: 55,         // dépannage : main-d'œuvre facturée à l'heure
+      garantie_mois: 12,        // dépannage : garantie donnée sur pièces et main-d'œuvre
       tva_pct: 6,
       acompte_pct: 50,
     },

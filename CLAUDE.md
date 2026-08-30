@@ -98,7 +98,14 @@ près. Facture partielle interdite : elle compte des ouvertures, il n'y en a auc
 (`buildPaperHtml`). Toute modification de l'un doit être portée dans l'autre : c'est le même
 client qui lit les deux.
 
-**8. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
+**8. Le rapport d'intervention vit dans `devis.depannage`** — un seul objet, tous les champs
+facultatifs : date et heure RÉELLES de passage (le document imprime celle-là, pas la date de
+création), temps sur place, intervenants, motif de l'appel, constat, garantie (`non` / `partielle`
+/ `totale`), garantie accordée en mois, suite à donner (`aucune` / `piece` / `retour`). Ces
+textes sont ÉCRITS POUR LE CLIENT : ils passent la liste blanche de `/api/devis-review`. Rien
+d'autre du dépannage n'y passe.
+
+**9. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
 ## Pièges déjà payés — ne pas les repayer
@@ -112,6 +119,13 @@ client qui lit les deux.
   D'INTERVENTION »). La bonne réponse était `flex-wrap: wrap` sous 560 px.
 - **Renommer un bouton par `section .btn`** attrape le premier bouton de la section — qui devient
   le « ✕ » d'une ligne dès qu'il en existe une. Viser par identifiant.
+- **`parseInt` sur une quantité** : une main-d'œuvre se compte en heures, et 1,5 h devenait 1 h à
+  chaque enregistrement, sans un mot. `parseFloat` partout où une quantité peut être fractionnaire
+  — et le champ doit alors porter un `step` décimal, sinon il refuse la valeur qu'il affiche.
+- **Un `return` anticipé dans une fonction de rendu** saute tout ce qui suit : dans `vue.html`, le
+  bloc des MONTANTS est rendu APRÈS les ouvertures. Brancher en `if/else`, jamais en sortie.
+- **Le serveur de test doit envoyer `Cache-Control: no-store`** : sans lui le navigateur resservait
+  un `ui.js` d'il y a dix minutes, et les vérifications portaient sur du code déjà remplacé.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et

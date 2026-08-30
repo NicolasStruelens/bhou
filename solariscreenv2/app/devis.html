@@ -133,6 +133,55 @@
     /** Référence du document, telle qu'elle apparaît en tête de chaque annexe. */
     const refDoc = (d) => (estDep(d) ? (depFait(d) ? 'Intervention n° ' : 'Dépannage n° ') : 'Devis N° ') + esc(d.id);
 
+    /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». */
+    function fmtQte(q) {
+      const n = Number(q) || 0;
+      return (n % 1 === 0) ? String(n) : n.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
+    }
+    /** Durée en heures décimales → « 1 h 30 » : personne ne lit « 1.5 h » sur un document. */
+    function fmtDuree(h) {
+      const t = Math.round((Number(h) || 0) * 60);
+      if (!t) return '';
+      const H = Math.floor(t / 60), M = t % 60;
+      return H ? (H + ' h' + (M ? ' ' + String(M).padStart(2, '0') : '')) : (M + ' min');
+    }
+
+    /** Bandeau de rapport : ce qui distingue un vrai bon d'intervention d'une simple facture —
+     *  quand, qui, ce qui était signalé, ce qu'on a constaté. Sans lui, le client reçoit une
+     *  liste de prix sans savoir ce qui s'est passé chez lui, et rappelle pour le demander.
+     *  Entièrement facultatif : rien de rempli, rien d'imprimé. */
+    function rapportHtml(d) {
+      const D = (d && d.depannage) || {};
+      const faits = [];
+      if (D.date_intervention) faits.push(['Intervention', fmtDate(D.date_intervention) + (D.heure ? ' à ' + esc(D.heure) : '')]);
+      if (D.duree_h) faits.push(['Temps sur place', fmtDuree(D.duree_h)]);
+      if ((D.techniciens || []).length) faits.push(['Intervenant' + (D.techniciens.length > 1 ? 's' : ''), D.techniciens.map(esc).join(', ')]);
+      if (D.garantie === 'totale') faits.push(['Garantie', 'Prise en charge totale']);
+      if (D.garantie === 'partielle') faits.push(['Garantie', 'Prise en charge partielle']);
+      const bloc = (t, v) => v ? `<div class="rap-bloc"><h5>${t}</h5><p>${esc(v).replace(/\n/g, '<br>')}</p></div>` : '';
+      const corps = bloc('Motif de l\'appel', D.motif) + bloc('Constat sur place', D.diagnostic) + bloc('Garantie', D.garantie_note);
+      if (!faits.length && !corps) return '';
+      return `<div class="rapport">
+        ${faits.length ? `<div class="rap-faits">${faits.map(f => `<div><span class="k">${f[0]}</span><span class="v">${f[1]}</span></div>`).join('')}</div>` : ''}
+        ${corps}
+      </div>`;
+    }
+
+    /** Ce qu'il reste à faire et la garantie accordée : imprimés SOUS le total, là où le client
+     *  cherche « et maintenant ? ». */
+    function suiteHtml(d) {
+      const D = (d && d.depannage) || {};
+      const SUITES = { piece: 'Pièce à commander', retour: 'Nouvelle intervention à planifier' };
+      const parts = [];
+      if (D.suite && D.suite !== 'aucune') {
+        parts.push(`<strong>${SUITES[D.suite] || 'Suite à donner'}</strong>${D.suite_note ? ' — ' + esc(D.suite_note) : ''}`);
+      }
+      if (D.garantie_mois > 0) {
+        parts.push(`Pièces et main-d'œuvre garanties <strong>${D.garantie_mois} mois</strong> à dater de l'intervention.`);
+      }
+      return parts.length ? `<div class="doc-ref" style="margin-top:var(--sp-3);">${parts.join('<br>')}</div>` : '';
+    }
+
     function renderPaper() {
       const d = DEVIS, c = CALC;
       const dep = estDep(d), fait = depFait(d);
@@ -198,7 +247,7 @@
         presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
-        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${e.qty}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${fmtQte(e.qty)}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
       });
       const surplus = (d.pricing_v2 && d.pricing_v2.surplus_difficulte) || 0;
       if (surplus > 0) {
@@ -228,7 +277,7 @@
             <div class="doc-title">${dep ? (fait ? 'BON D\'INTERVENTION' : 'DÉPANNAGE') : (info ? 'DEVIS INFORMATIF' : 'DEVIS')}</div>
             <div class="doc-num">N° ${esc(d.id)}</div>
             <div class="doc-dates">
-              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate(d.date_creation)}<br>
+              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate((dep && d.depannage && d.depannage.date_intervention) || d.date_creation)}<br>
               ${fait ? 'Travaux exécutés' : (info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(d.date_creation, VALIDITE_JOURS)))}
             </div>
           </div>
@@ -257,6 +306,8 @@
           </div>
         </div>
 
+        ${dep ? rapportHtml(d) : ''}
+
         <table class="doc-table">
           <thead><tr>
             <th class="num">#</th><th>Désignation</th>${dep ? '' : '<th>Dimensions</th>'}
@@ -282,7 +333,8 @@
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(d.id)}.</span>
         </div>
 
-        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>` : `
+        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
+        ${suiteHtml(d)}` : `
         <div class="pay-note">
           Acompte de <strong>${acomptePct} %</strong> à la commande : <strong>${fmtEur(acompteMontant)}</strong> —
           solde de <strong>${fmtEur(solde)}</strong> à la livraison / pose.

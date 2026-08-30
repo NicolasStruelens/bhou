@@ -130,6 +130,16 @@
     .dep-radio em { font-style: normal; font-weight: 600; color: var(--text); }
     /* Le mode d'emploi des lignes libres. Sans lui, la section « Postes » est une page blanche :
        on ne devine pas que c'est ce texte-là que le client lira. */
+    /* Intervenants : des puces qu'on coche, pas une liste déroulante — on vient souvent à deux,
+       et le cas « les deux » doit se dire en un geste. */
+    .dep-tech { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+    .dep-chip { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer;
+      padding: 0.45rem 0.8rem; border: 1px solid var(--border); border-radius: var(--r-pill);
+      font-size: var(--fs-sm); background: var(--surface-2); white-space: nowrap;
+      transition: border-color var(--t-fast), color var(--t-fast); }
+    .dep-chip:has(input:checked) { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .dep-tech .input { flex: 1 1 220px; min-width: 0; }
+    #secDepDetails textarea.input { resize: vertical; min-height: 4.5rem; line-height: 1.5; font-family: inherit; }
     .dep-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.6;
       border-left: 2px solid var(--accent-2); padding: 0.1rem 0 0.1rem var(--sp-3);
       margin-bottom: var(--sp-3); max-width: 70ch; }
@@ -185,8 +195,8 @@
           </div>
           <div class="dep-mode hidden" id="depModeBloc">
             <span class="dep-mode-lbl">Ce document</span>
-            <label class="dep-radio"><input type="radio" name="dep_mode" value="realise" checked onchange="markDirty(); ui_recalc();"> constate une intervention <em>déjà faite</em></label>
-            <label class="dep-radio"><input type="radio" name="dep_mode" value="a_realiser" onchange="markDirty(); ui_recalc();"> est une <em>proposition</em> à faire accepter</label>
+            <label class="dep-radio"><input type="radio" name="dep_mode" value="realise" checked onchange="markDirty(); onTypeDocument();"> constate une intervention <em>déjà faite</em></label>
+            <label class="dep-radio"><input type="radio" name="dep_mode" value="a_realiser" onchange="markDirty(); onTypeDocument();"> est une <em>proposition</em> à faire accepter</label>
           </div>
         </div>
       </section>
@@ -336,6 +346,77 @@
         </div>
       </section>
 
+      <!-- ════════ DÉTAILS DE L'INTERVENTION (dépannage uniquement) ════════
+           Ce qu'un vrai rapport d'intervention doit porter et qu'un devis n'a jamais eu à dire :
+           QUAND on est passé (rarement le jour où l'on rédige), QUI est intervenu, ce que le
+           client SIGNALAIT, ce qu'on a CONSTATÉ, si c'était sous garantie, et ce qu'il reste à
+           faire. Tout est facultatif : un dépannage minimal reste deux lignes et un total. -->
+      <section id="secDepDetails" class="section hidden">
+        <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span id="depDetTitre">Détails de l'intervention</span></span><span class="section-sub">tout est facultatif</span></div>
+        <div class="section-body">
+
+          <div class="grid grid-4">
+            <div class="field"><label class="label" for="depDate">Date d'intervention</label>
+              <input class="input" id="depDate" type="date" oninput="ui_recalc()">
+              <div class="section-sub" style="margin-top:0.2rem;">c'est CETTE date qui s'imprime, pas celle du jour où tu rédiges</div></div>
+            <div class="field"><label class="label" for="depHeure">Heure d'arrivée</label>
+              <input class="input" id="depHeure" type="time"></div>
+            <div class="field"><label class="label" for="depDuree">Temps sur place</label>
+              <div class="input-unit large"><input class="input input-num" id="depDuree" type="number" min="0" step="0.25" placeholder="1.5"><span class="unit">h</span></div></div>
+            <div class="field"><label class="label" for="depGarantieMois">Garantie accordée</label>
+              <div class="input-unit large"><input class="input input-num" id="depGarantieMois" type="number" min="0" max="120" step="1"><span class="unit">mois</span></div></div>
+          </div>
+
+          <div class="field mt-4">
+            <label class="label">Technicien(s) intervenu(s)</label>
+            <div class="dep-tech">
+              <label class="dep-chip"><input type="checkbox" id="depTechNicolas" onchange="markDirty()"> Nicolas</label>
+              <label class="dep-chip"><input type="checkbox" id="depTechYannick" onchange="markDirty()"> Yannick</label>
+              <input class="input" id="depTechAutre" placeholder="Autre intervenant (sous-traitant, apprenti…)" oninput="markDirty()">
+            </div>
+          </div>
+
+          <div class="grid grid-2 mt-4">
+            <div class="field"><label class="label" for="depMotif">Motif de l'appel — ce que le client signale</label>
+              <textarea class="input" id="depMotif" rows="3" placeholder="Ex : le screen de la façade arrière ne remonte plus depuis l'orage de samedi." oninput="markDirty()"></textarea></div>
+            <div class="field"><label class="label" for="depDiagnostic">Constat — ce qu'on a trouvé sur place</label>
+              <textarea class="input" id="depDiagnostic" rows="3" placeholder="Ex : moteur grillé, condensateur hors service. Coulisses et toile en bon état." oninput="markDirty()"></textarea></div>
+          </div>
+
+          <div class="grid grid-2 mt-4">
+            <div class="field">
+              <label class="label" for="depGarantie">Sous garantie ?</label>
+              <select class="select" id="depGarantie" onchange="markDirty(); onGarantieChange();">
+                <option value="non">Non — intervention facturée</option>
+                <option value="partielle">Partiellement — pièce couverte, main-d'œuvre facturée</option>
+                <option value="totale">Oui, totalement — rien à facturer</option>
+              </select>
+              <div class="section-sub" style="margin-top:0.2rem;">Produits Harol 5 ans · moteurs RTS/IO 5 ans · solaires Somfy 7 ans</div>
+            </div>
+            <div class="field">
+              <label class="label" for="depSuite">Suite à donner</label>
+              <select class="select" id="depSuite" onchange="markDirty(); onSuiteChange();">
+                <option value="aucune">Rien — dossier clôturé</option>
+                <option value="piece">Pièce à commander</option>
+                <option value="retour">Repasser sur place</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field mt-3 hidden" id="depSuiteNoteBloc">
+            <label class="label" for="depSuiteNote">Précision sur la suite</label>
+            <input class="input" id="depSuiteNote" placeholder="Ex : moteur Altus 40 RTS commandé chez Harol, retour prévu la semaine du 15/09." oninput="markDirty()">
+            <div class="section-sub" style="margin-top:0.2rem;">Apparaît en clair sur la fiche et sur le document remis au client.</div>
+          </div>
+
+          <div class="field mt-3 hidden" id="depGarantieNoteBloc">
+            <label class="label" for="depGarantieNote">Précision sur la garantie</label>
+            <input class="input" id="depGarantieNote" placeholder="Ex : moteur remplacé sous garantie Somfy (installé le 12/03/2023), main-d'œuvre à charge du client." oninput="markDirty()">
+          </div>
+
+        </div>
+      </section>
+
       <!-- EXTRAS -->
       <section id="secSupplements" class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Suppléments</span></div>
@@ -349,6 +430,7 @@
           <div class="row wrap" style="gap:var(--sp-2);">
             <button class="btn btn-ghost" id="btnAjoutPoste" onclick="markDirty(); addExtra();">+ Ajouter un supplément (libre)</button>
             <button class="btn btn-ghost hidden" id="depDeplacement" onclick="markDirty(); ajouterDeplacement(); ui_recalc();">+ Déplacement</button>
+            <button class="btn btn-ghost hidden" id="depMainOeuvre" onclick="markDirty(); ajouterMainOeuvre(); ui_recalc();">+ Main-d'œuvre</button>
             <button class="btn btn-ghost" id="catalogOpen" onclick="ouvrirCatalogueAccessoires()">Catalogue accessoires…</button>
           </div>
         </div>
@@ -358,7 +440,7 @@
       <section class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Paramètres</span></div>
         <div class="section-body">
-          <label style="display:flex;align-items:flex-start;gap:0.6rem;padding:var(--sp-3);border:1px dashed var(--accent-2);border-radius:var(--r-sm);background:color-mix(in srgb, var(--accent-2) 8%, transparent);margin-bottom:var(--sp-4);cursor:pointer;">
+          <label id="blocInformatif" style="display:flex;align-items:flex-start;gap:0.6rem;padding:var(--sp-3);border:1px dashed var(--accent-2);border-radius:var(--r-sm);background:color-mix(in srgb, var(--accent-2) 8%, transparent);margin-bottom:var(--sp-4);cursor:pointer;">
             <input type="checkbox" id="isInformatif" style="width:18px;height:18px;flex:none;margin-top:0.15rem;">
             <span><strong>Devis informatif</strong> — estimation à partir de mesures approximatives (mail, photos…). Le PDF n'aura ni signature ni conditions de vente, et sera clairement marqué comme non contractuel.</span>
           </label>
@@ -370,7 +452,7 @@
                 <input type="radio" name="tva_pct" id="tva21" value="21" onchange="ui_recalc()"><label for="tva21">21 %</label>
               </div>
             </div>
-            <div class="field"><label class="label" for="acomptePct">Acompte</label><div class="input-unit"><input class="input input-num" id="acomptePct" type="number" min="0" max="100" step="1" value="50" oninput="ui_recalc()"><span class="unit">%</span></div></div>
+            <div class="field" id="blocAcompte"><label class="label" for="acomptePct">Acompte</label><div class="input-unit"><input class="input input-num" id="acomptePct" type="number" min="0" max="100" step="1" value="50" oninput="ui_recalc()"><span class="unit">%</span></div></div>
             <div class="field"><label class="label" for="surplusDifficulte">Supplément difficulté</label><div class="input-unit"><input class="input input-num" id="surplusDifficulte" type="number" min="0" step="0.01" value="0" oninput="ui_recalc()"><span class="unit">€</span></div></div>
           </div>
           <div class="field mt-4"><label class="label" for="noteInterne">Note interne</label><textarea class="textarea" id="noteInterne" placeholder="Visible uniquement en interne…"></textarea></div>
@@ -726,9 +808,13 @@
       // donc ça finirait par arriver.
       const echap = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const exemple = estDepannage() ? 'Ex : Remplacement du moteur (screen façade arrière)' : 'Ex: Capteur vent Eolis 3D';
+      // Pas décimal si on le demande (main-d'œuvre) OU si la valeur relue est fractionnaire : un
+      // champ à pas entier refuse la quantité qu'il affiche, et la ramène à l'entier au premier
+      // clic sur les flèches.
+      const dec = data.decimal || (Number(data.qty) % 1 !== 0);
       row.innerHTML = `
         <input class="input" placeholder="${echap(exemple)}" data-ex="label" value="${echap(data.label)}" oninput="ui_recalc()">
-        <input class="input input-num" type="number" min="1" step="1" data-ex="qty" value="${data.qty || 1}" title="Quantité (heures, pièces…)" aria-label="Quantité" oninput="ui_recalc()">
+        <input class="input input-num" type="number" min="${dec ? '0' : '1'}" step="${dec ? '0.25' : '1'}" data-ex="qty" value="${data.qty || 1}" title="Quantité (heures, pièces…)" aria-label="Quantité" oninput="ui_recalc()">
         <div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-ex="unit_price_ht" value="${data.unit_price_ht || ''}" placeholder="0.00" oninput="ui_recalc()"><span class="unit">€</span></div>
         <button class="btn btn-danger btn-sm" aria-label="${estDepannage() ? 'Retirer ce poste' : 'Retirer ce supplément'}" onclick="markDirty(); this.parentElement.remove(); ui_recalc();">✕</button>`;
       el('extrasContainer').appendChild(row);
@@ -758,7 +844,7 @@
     function collectExtras() {
       return [...document.querySelectorAll('.extra-row')].map(r => ({
         label: r.querySelector('[data-ex="label"]').value.trim(),
-        qty: parseInt(r.querySelector('[data-ex="qty"]').value) || 1,
+        qty: parseFloat(r.querySelector('[data-ex="qty"]').value) || 1,
         unit_price_ht: parseFloat(r.querySelector('[data-ex="unit_price_ht"]').value) || 0,
       }));
     }
@@ -808,6 +894,17 @@
       if (bouton) bouton.textContent = dep ? '+ Ajouter un poste' : '+ Ajouter un supplément (libre)';
       const aide = el('depAide'); if (aide) aide.classList.toggle('hidden', !dep);
       const bDep = el('depDeplacement'); if (bDep) bDep.classList.toggle('hidden', !dep);
+      const bMo = el('depMainOeuvre'); if (bMo) bMo.classList.toggle('hidden', !dep);
+      const secDet = el('secDepDetails'); if (secDet) secDet.classList.toggle('hidden', !dep);
+      // Ni acompte ni « devis informatif » sur un dépannage : les deux contrediraient le document,
+      // qui annonce « payable à réception ». On les masque plutôt que d'espérer qu'on n'y touche pas.
+      ['blocAcompte', 'blocInformatif'].forEach(id => {
+        const e = el(id); if (e) e.classList.toggle('hidden', dep);
+      });
+      if (dep && el('isInformatif')) el('isInformatif').checked = false;
+      // Le titre de la section suit le mode : on ne « constate » pas une intervention à venir.
+      const tDet = el('depDetTitre');
+      if (tDet) tDet.textContent = depMode() === 'realise' ? "Détails de l'intervention" : "Intervention prévue";
       // Le récapitulatif ne doit pas afficher quatre lignes à 0,00 € qui ne se rempliront jamais :
       // en dépannage, il n'y a ni catalogue, ni pose, ni supplément d'accès, ni acompte.
       ['scCatalog', 'scInstall', 'scSurplus', 'scAcompte'].forEach(id => {
@@ -823,11 +920,35 @@
         if (restant.length !== state.items.length) { state.items = restant; renderItems(); }
       }
       // Premier passage en dépannage : on pose la ligne de déplacement, au prix des réglages.
-      if (dep && !silencieux && !state.items.length && !document.querySelector('#extrasContainer .extra-row')) ajouterDeplacement();
+      if (dep && !silencieux && !state.items.length && !document.querySelector('#extrasContainer .extra-row')) {
+        ajouterDeplacement();
+        // Un dépannage se rédige presque toujours le jour même : on propose la date du jour et la
+        // durée de garantie des réglages. Les deux restent modifiables — c'est une proposition,
+        // pas une contrainte.
+        const conf = window.SSConf && window.SSConf.get();
+        if (!getVal('depDate')) setVal('depDate', new Date().toISOString().slice(0, 10));
+        if (!getVal('depGarantieMois') && conf) setVal('depGarantieMois', conf.prix.garantie_mois);
+      }
       // `silencieux` : à la relecture d'un document existant, l'écran s'adapte sans que le devis
       // soit marqué « modifié » — sinon toute simple ouverture réclamerait un enregistrement.
       if (!silencieux) markDirty();
       ui_recalc();
+    };
+    /** Champs de précision : ils n'apparaissent que quand ils ont une raison d'être remplis. */
+    window.onSuiteChange = () => {
+      const b = el('depSuiteNoteBloc');
+      if (b) b.classList.toggle('hidden', getVal('depSuite') === 'aucune');
+    };
+    window.onGarantieChange = () => {
+      const b = el('depGarantieNoteBloc');
+      if (b) b.classList.toggle('hidden', getVal('depGarantie') === 'non');
+    };
+    /** Main-d'œuvre à l'heure : la quantité s'exprime en HEURES (0,5 = une demi-heure), d'où le
+     *  pas décimal — un champ à pas entier aurait obligé à bricoler le prix unitaire. */
+    window.ajouterMainOeuvre = function ajouterMainOeuvre() {
+      const conf = window.SSConf && window.SSConf.get();
+      const prix = (conf && conf.prix && Number(conf.prix.taux_horaire)) || 0;
+      addExtra({ label: 'Main-d’œuvre', qty: 1, unit_price_ht: prix, decimal: true });
     };
     /** Ligne de déplacement, pré-remplie depuis les Paramètres et modifiable comme les autres. */
     window.ajouterDeplacement = function ajouterDeplacement() {
@@ -835,6 +956,49 @@
       const prix = (conf && conf.prix && Number(conf.prix.deplacement)) || 0;
       addExtra({ label: 'Déplacement', qty: 1, unit_price_ht: prix });
     };
+
+    /** Détails de l'intervention → objet enregistré. Renvoie `undefined` sur un devis ordinaire :
+     *  on n'écrit pas une clé vide dans chaque devis de la base. */
+    function collectDepannage() {
+      if (!estDepannage()) return undefined;
+      const techs = [];
+      if (el('depTechNicolas') && el('depTechNicolas').checked) techs.push('Nicolas');
+      if (el('depTechYannick') && el('depTechYannick').checked) techs.push('Yannick');
+      const autre = getVal('depTechAutre').trim();
+      if (autre) techs.push(autre);
+      return {
+        date_intervention: getVal('depDate') || '',
+        heure: getVal('depHeure') || '',
+        duree_h: parseFloat(getVal('depDuree')) || 0,
+        techniciens: techs,
+        motif: getVal('depMotif').trim(),
+        diagnostic: getVal('depDiagnostic').trim(),
+        garantie: getVal('depGarantie') || 'non',
+        garantie_note: getVal('depGarantieNote').trim(),
+        garantie_mois: parseInt(getVal('depGarantieMois'), 10) || 0,
+        suite: getVal('depSuite') || 'aucune',
+        suite_note: getVal('depSuiteNote').trim(),
+      };
+    }
+    /** Remplit l'écran depuis un devis relu. */
+    function remplirDepannage(dep) {
+      const D = dep || {};
+      setVal('depDate', D.date_intervention || '');
+      setVal('depHeure', D.heure || '');
+      setVal('depDuree', D.duree_h || '');
+      setVal('depGarantieMois', D.garantie_mois != null ? D.garantie_mois : '');
+      const techs = D.techniciens || [];
+      if (el('depTechNicolas')) el('depTechNicolas').checked = techs.includes('Nicolas');
+      if (el('depTechYannick')) el('depTechYannick').checked = techs.includes('Yannick');
+      setVal('depTechAutre', techs.filter(t => t !== 'Nicolas' && t !== 'Yannick').join(', '));
+      setVal('depMotif', D.motif || '');
+      setVal('depDiagnostic', D.diagnostic || '');
+      setVal('depGarantie', D.garantie || 'non');
+      setVal('depGarantieNote', D.garantie_note || '');
+      setVal('depSuite', D.suite || 'aucune');
+      setVal('depSuiteNote', D.suite_note || '');
+      window.onSuiteChange(); window.onGarantieChange();
+    }
 
     let TAUX_DEVIS = window.SSConf ? window.SSConf.tauxPour(null) : null;
     let PARTS_DEVIS = null;   // { principal, second } — commissions réglables
@@ -1035,6 +1199,8 @@
         // « suppléments » du moteur), seul ce marqueur les distingue à l'affichage.
         type_document: estDepannage() ? 'depannage' : 'devis',
         depannage_mode: estDepannage() ? depMode() : undefined,
+        // Détails du rapport d'intervention (date réelle, intervenants, constat, garantie, suite).
+        depannage: collectDepannage(),
         informatif: el('isInformatif').checked,
         client,
         items: state.items.map(({ _id, ...rest }) => rest),
@@ -1121,6 +1287,7 @@
       const radioMode = document.querySelector(`input[name="dep_mode"][value="${d.depannage_mode || 'realise'}"]`);
       if (radioMode) radioMode.checked = true;
       window.onTypeDocument(true);
+      if (estDep) remplirDepannage(d.depannage);
       if (window.SSConf) TAUX_DEVIS = window.SSConf.tauxPour(d);
       PARTS_DEVIS = p.seller_parts || null;
       const sellers = p.material?.sellers || {};
