@@ -68,7 +68,7 @@
   // relire tout le menu à chaque fois. `badge` = clé de compteur d'alerte (voir computeBadges).
   const NAV_GROUPS = [
     { title: 'Vente', pages: [
-      { href: 'rdv.html', label: 'Demandes de RDV', icon: 'calendar', badge: 'rdv' },
+      { href: 'rdv.html', label: 'Demandes de RDV', icon: 'bellphone', badge: 'rdv' },
       { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
       { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
       { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
@@ -79,7 +79,7 @@
       { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
       // Depannage : meme ecran que le devis, ouvert directement sur le bon type de document.
       // Range dans Chantier et non dans Vente : c'est une intervention, pas une affaire a vendre.
-      { href: 'simulateur.html?type=depannage', label: 'Nouveau dépannage', icon: 'hammer' },
+      { href: 'simulateur.html?type=depannage', label: 'Nouveau dépannage', icon: 'wrench' },
       { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
       { href: 'outillage.html', label: 'Outillage & références', icon: 'hammer' },
     ] },

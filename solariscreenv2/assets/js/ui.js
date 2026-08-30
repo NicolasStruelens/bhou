@@ -544,6 +544,10 @@
     tag:        '<path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z"/><circle cx="8" cy="8.5" r="1"/>',
     calendar:   '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
     hammer:     '<path d="M14.5 12.5 22 20"/><path d="m18 4-8.5 8.5"/><path d="M6.5 6.5 2 11l5 5 4.5-4.5"/><path d="m2 11 4-4"/>',
+    // Clé à molette — le dépannage. Distincte du marteau, qui reste l'outillage.
+    wrench:     '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    // Combiné qui sonne — une demande de rendez-vous qui arrive, à distinguer de l'agenda.
+    bellphone:  '<path d="M12 2a5 5 0 0 0-5 5v3.5a3 3 0 0 1-.88 2.12L5 14h14l-1.12-1.38A3 3 0 0 1 17 10.5V7a5 5 0 0 0-5-5z"/><path d="M10 18a2 2 0 0 0 4 0"/>',
     pin:        '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
     sparkle:    '<path d="M12 2.6l1.7 4.9a1 1 0 0 0 .6.6l4.9 1.7-4.9 1.7a1 1 0 0 0-.6.6L12 17l-1.7-4.9a1 1 0 0 0-.6-.6L4.8 9.8l4.9-1.7a1 1 0 0 0 .6-.6z"/><path d="M19 15l.6 1.7 1.7.6-1.7.6L19 19.6l-.6-1.7-1.7-.6 1.7-.6z"/>',
     sun:        '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
@@ -1150,6 +1154,16 @@
   }
   /** État complet de la cadence : ce qui est fait, ce qui est dû, et quand. */
   function relanceEtat(d) {
+    // ── Un BON D'INTERVENTION ne se relance pas ────────────────────────────────────────────
+    // Les relances servent à faire ACCEPTER une offre. Sur une intervention déjà réalisée, il
+    // n'y a plus rien à accepter : relancer reviendrait à demander au client s'il est d'accord
+    // pour des travaux terminés. Ce qu'on chasse alors, c'est le PAIEMENT — et ça, c'est le
+    // rôle des factures et de l'alerte « acompte non payé » du tableau de bord.
+    // Une PROPOSITION de dépannage (`a_realiser`), elle, se relance comme n'importe quel devis.
+    if (d && d.type_document === 'depannage' && (d.depannage_mode || 'realise') === 'realise') {
+      return { kind: 'intervention', plan: [], envoi: dateEnvoiOf(d), today: new Date().toISOString().slice(0, 10),
+               done: [], doneMax: 0, step: null, jours: 0, due: null, retard: false, joursRetard: 0, epuise: true };
+    }
     const kind = d && d.informatif ? 'informatif' : 'visite';
     const plan = planRelance(kind);
     const envoi = dateEnvoiOf(d || {});
