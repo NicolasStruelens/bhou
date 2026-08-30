@@ -311,6 +311,31 @@
     .hero-card .h-ttc { font-family: var(--font-mono); font-size: 2.1rem; font-weight: 800; color: var(--accent-2); line-height: 1.15; text-shadow: var(--glow-hero);
       min-width: 0; overflow-wrap: anywhere; }
     .hero-card .h-line { display: flex; justify-content: space-between; padding: 0.28rem 0; font-size: var(--fs-sm); }
+
+    /* ═══════════ RAPPORT D'INTERVENTION (dépannage) ═══════════
+       Les faits en bandeau, puis les blocs de texte, puis les postes chiffrés : on lit de haut en
+       bas comme on raconterait l'intervention au téléphone. */
+    .dep-faits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+      gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
+      border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
+    .dep-faits .k { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-subtle); margin-bottom: 2px; }
+    .dep-faits .v { font-size: var(--fs-sm); font-weight: 600; }
+    .dep-bloc { margin-bottom: var(--sp-4); }
+    .dep-bloc h5 { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--accent-2-ink); margin: 0 0 0.35rem; font-weight: 600; }
+    .dep-bloc p { margin: 0; font-size: var(--fs-sm); line-height: 1.6; color: var(--text); max-width: 78ch; }
+    .dep-postes { width: 100%; border-collapse: collapse; }
+    .dep-postes td { padding: 0.5rem 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-sm); vertical-align: top; }
+    .dep-postes tr:last-child td { border-bottom: none; }
+    .dep-postes .q { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
+      white-space: nowrap; text-align: right; padding-right: var(--sp-4); }
+    .dep-postes .v { font-family: var(--font-mono); font-weight: 600; text-align: right; white-space: nowrap; }
+    /* Ce qui reste à faire : c'est la seule chose de la fiche qui appelle une ACTION. */
+    .dep-suite { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+      border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: var(--r-sm);
+      background: color-mix(in srgb, var(--warn) 9%, transparent); font-size: var(--fs-sm); line-height: 1.55; }
+    .dep-suite svg { color: var(--warn); flex: none; margin-top: 2px; }
     .hero-card .h-line .k { color: var(--text-muted); }
     .hero-card .h-line .v { font-family: var(--font-mono); }
     .h-line .v.v-copy { cursor: pointer; border-bottom: 1px dashed transparent; transition: all var(--t-fast); }
@@ -594,7 +619,7 @@
 
       <section class="section">
         <div class="section-head">
-          <span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Ouvertures</span>
+          <span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> <span id="ouvTitre">Ouvertures</span></span>
           <span class="section-sub" id="ouvCount">—</span>
         </div>
         <div class="section-body">
@@ -925,6 +950,18 @@
     const { computeDevis, totalSurface } = window.SSCalc;
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather, fetchCurrentWeather, weatherIconName, compressImage } = window.SSUI;
+    /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». */
+    function fmtQte(q) {
+      const n = Number(q) || 0;
+      return (n % 1 === 0) ? String(n) : n.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
+    }
+    /** Durée en heures décimales → « 1 h 30 ». Personne ne lit « 1.5 h » sur un rapport. */
+    function fmtDuree(h) {
+      const t = Math.round((Number(h) || 0) * 60);
+      if (!t) return '';
+      const H = Math.floor(t / 60), M = t % 60;
+      return H ? (H + ' h' + (M ? ' ' + String(M).padStart(2, '0') : '')) : (M + ' min');
+    }
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
@@ -1081,7 +1118,14 @@
       el('btnDoc').href = 'devis.html?id=' + d.id;
       el('btnPicking').href = 'picking.html?id=' + d.id;
       el('btnVisite').href = 'visite.html?id=' + d.id;
-      el('btnFacturer').href = 'factures.html?devis=' + d.id + '&type=acompte';
+      // Liste de pose et rapport de visite se construisent SUR LES OUVERTURES : sur un dépannage
+      // ils ouvrent une page vide. Un bouton qui ne mène nulle part fait douter des autres.
+      const depFiche = d.type_document === 'depannage';
+      el('btnPicking').classList.toggle('hidden', depFiche);
+      el('btnVisite').classList.toggle('hidden', depFiche);
+      // Une facture de dépannage se fait en une fois : on vise directement le bon type,
+      // au lieu d'ouvrir sur un acompte qui n'a pas lieu d'être.
+      el('btnFacturer').href = 'factures.html?devis=' + d.id + '&type=' + (depFiche ? 'totale' : 'acompte');
       const btnRec = el('btnReception');
       btnRec.href = 'reception.html?id=' + d.id;
       btnRec.classList.toggle('hidden', !['signe', 'termine'].includes(d.statut));
@@ -1180,6 +1224,49 @@
           </div>`).join('')}</div>
         </div>`;
       })();
+      // ── DÉPANNAGE : la carte « Ouvertures » n'a rien à montrer, et affichait « Aucune
+      //    ouverture » là où on cherche justement le détail de l'intervention. On y met donc le
+      //    rapport : quand, qui, ce qui était signalé, ce qu'on a trouvé, ce qu'on a fait, la
+      //    garantie et la suite à donner — le même contenu que le document remis au client.
+      if (d.type_document === 'depannage') {
+        const D = d.depannage || {};
+        const faitDep = (d.depannage_mode || 'realise') === 'realise';
+        setText('ouvTitre', faitDep ? 'Intervention' : 'Intervention proposée');
+        const postes = c.extra_lines || [];
+        setText('ouvCount', [
+          postes.length + ' poste' + (postes.length > 1 ? 's' : ''),
+          D.duree_h ? fmtDuree(D.duree_h) + ' sur place' : '',
+        ].filter(Boolean).join(' · '));
+
+        // Bandeau des faits : uniquement ce qui est renseigné — une ligne vide n'apprend rien.
+        const faits = [];
+        if (D.date_intervention) faits.push(['Date', fmtDate(D.date_intervention) + (D.heure ? ' à ' + esc(D.heure) : '')]);
+        if (D.duree_h) faits.push(['Temps sur place', fmtDuree(D.duree_h)]);
+        if ((D.techniciens || []).length) faits.push(['Intervenant' + (D.techniciens.length > 1 ? 's' : ''), D.techniciens.map(esc).join(', ')]);
+        if (D.garantie === 'totale') faits.push(['Garantie', 'Prise en charge totale']);
+        if (D.garantie === 'partielle') faits.push(['Garantie', 'Prise en charge partielle']);
+        if (D.garantie_mois) faits.push(['Garantie accordée', D.garantie_mois + ' mois']);
+
+        const blocDep = (titre, txt) => txt ? `<div class="dep-bloc"><h5>${titre}</h5><p>${esc(txt).replace(/\n/g, '<br>')}</p></div>` : '';
+        const SUITES = { piece: 'Pièce à commander', retour: 'Repasser sur place' };
+        el('ouvHost').innerHTML = `
+          ${faits.length ? `<div class="dep-faits">${faits.map(f => `<div><span class="k">${f[0]}</span><span class="v">${f[1]}</span></div>`).join('')}</div>` : ''}
+          ${blocDep('Motif de l’appel', D.motif)}
+          ${blocDep('Constat sur place', D.diagnostic)}
+          ${blocDep('Garantie', D.garantie_note)}
+          <div class="dep-bloc"><h5>${faitDep ? 'Travaux effectués' : 'Travaux proposés'}</h5>
+            ${postes.length ? `<table class="dep-postes"><tbody>${postes.map(e => `<tr>
+                <td>${esc(e.label)}</td>
+                <td class="q">${(Number(e.qty) || 1) !== 1 ? fmtQte(e.qty) + ' × ' + fmtEur(e.unit_price_ht) : ''}</td>
+                <td class="v">${fmtEur(e.total_ht)}</td></tr>`).join('')}</tbody></table>`
+              : '<p class="text-muted">Aucun poste chiffré.</p>'}
+          </div>
+          ${D.suite && D.suite !== 'aucune'
+            ? `<div class="dep-suite">${icon('warning', 15)}<div><strong>${SUITES[D.suite] || 'Suite à donner'}</strong>${D.suite_note ? '<br>' + esc(D.suite_note) : ''}</div></div>`
+            : ''}`;
+        el('ouvManque').innerHTML = '';
+      } else {
+      setText('ouvTitre', 'Ouvertures');
       el('ouvHost').innerHTML = items.length ? items.map((it, i) => {
         // 2e dimension selon le type : projection pour une tente solaire, hauteur sinon.
         const dim2 = window.SSUI.isTenteSolaire(it) ? it.projection : it.hauteur;
@@ -1249,6 +1336,7 @@
           ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
         </div>`;
       }).join('') : '<div class="text-muted">Aucune ouverture.</div>';
+      }
 
       // ── Montants ──
       setText('hTTC', fmtEur(c.total_ttc));

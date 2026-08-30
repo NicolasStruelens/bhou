@@ -196,6 +196,21 @@ export async function onRequest(context) {
         // une intervention payable en fin de chantier.
         type_document: d.type_document || 'devis',
         depannage_mode: d.depannage_mode || '',
+        // Rapport d'intervention. Chaque champ est destiné au client (voir les libellés du
+        // simulateur) ; rien d'interne ne transite par ici.
+        depannage: d.depannage ? {
+          date_intervention: d.depannage.date_intervention || '',
+          heure: d.depannage.heure || '',
+          duree_h: Number(d.depannage.duree_h) || 0,
+          techniciens: Array.isArray(d.depannage.techniciens) ? d.depannage.techniciens.map(String) : [],
+          motif: d.depannage.motif || '',
+          diagnostic: d.depannage.diagnostic || '',
+          garantie: d.depannage.garantie || 'non',
+          garantie_note: d.depannage.garantie_note || '',
+          garantie_mois: Number(d.depannage.garantie_mois) || 0,
+          suite: d.depannage.suite || 'aucune',
+          suite_note: d.depannage.suite_note || '',
+        } : null,
         date_creation: d.date_creation || '',
         client: {
           prenom: cl.prenom || '', nom: cl.nom || '',
@@ -377,6 +392,9 @@ export async function onRequest(context) {
                -- ferait passer pour un devis vide (« 0 ouverture », aucun type de produit).
                json_extract(data, '$.type_document') AS type_document,
                json_extract(data, '$.depannage_mode') AS depannage_mode,
+               -- Suite à donner d'un dépannage (pièce commandée, retour à planifier) : c'est ce
+               -- qu'on oublie, parce que le dossier a l'air terminé — il est signé et facturé.
+               json_extract(data, '$.depannage.suite') AS depannage_suite,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
