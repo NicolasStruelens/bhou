@@ -809,7 +809,9 @@
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return false;
       const today = new Date().toISOString().slice(0, 10);
-      return facs.some(f => paidSum(f) < (Number(f.total_ttc) || 0) - 0.005 && f.echeance && f.echeance < today);
+      // Même règle que ci-dessus : une facture éteinte par une note de crédit ne se réclame
+      // plus, donc elle n'est jamais « en retard ». `duFacture` le sait, pas une soustraction.
+      return facs.some(f => window.SSUI.duFacture(f, FACTURES) > 0.005 && f.echeance && f.echeance < today);
     }
     // Devis signé (chantier pas encore posé) dont l'acompte n'a pas été intégralement reçu.
     function isAcompteUnpaid(d) {
@@ -819,7 +821,10 @@
       // via l'ancien ERP — ex. Ecole Du Bonheur : 9 539,05 € payés sur une facture « Solde »). On
       // crédite donc TOUJOURS le total réellement encaissé sur le devis, comparé au montant attendu.
       const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
-      const acompteFacs = facs.filter(f => f.type === 'acompte');
+      // Une facture d'acompte ANNULÉE par une note de crédit ne fait plus partie de ce qui est
+      // dû — sinon l'alerte « acompte non payé » reste allumée sur un dossier qu'on a soldé
+      // exprès par un avoir.
+      const acompteFacs = facs.filter(f => f.type === 'acompte' && !window.SSUI.factureAnnulee(f, FACTURES));
       const due = acompteFacs.length
         ? acompteFacs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0)                 // montant de la/les facture(s) d'acompte
         : (d.ttc || 0) * ((d.acompte_pct != null) ? d.acompte_pct : 30) / 100;             // sinon, % attendu du TTC
@@ -1123,34 +1128,29 @@
       resetAdvFilters();   // resetAdvFilters() appelle déjà render()
     };
 
-    // ── Cadence de relance (même règle que la fiche devis, vue.html) ────────────────────────
-    // Devis informatif : J+5 / J+12 / J+21 · devis après visite : J+4 / J+9 / J+21.
-    // Référence = date d'envoi saisie > 1er passage à « envoyé » > date de création (jamais
-    // date_modification : elle bougerait à chaque édition et fausserait la cadence).
-    // ⚠️ NE PAS RÉIMPLÉMENTER ICI. La cadence vivait en double (ici + vue.html) : tant que les
-    // deux copies restaient identiques tout allait bien, mais elles sont déployées dans des
-    // fichiers SÉPARÉS. Une mise en ligne partielle suffisait à ce que la fiche affiche « R1 ✓ »
-    // pendant que cette page réclamait encore « Relance 1 à envoyer ». Source unique : ui.js.
-    // Replis présents UNIQUEMENT pour survivre à un ui.js pas encore mis en ligne (ce dépôt se
-    // déploie fichier par fichier) : sans eux, toute la liste plantait. L'alerte ci-dessous
-    // nomme le vrai problème au lieu de laisser un écran cassé sans explication.
-    const relancesFaites = (d) => (window.SSUI && window.SSUI.relancesFaites)
-      ? window.SSUI.relancesFaites(d)
-      : Math.max((d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0), ({ relance_1: 1, relance_2: 2 })[d.statut] || 0);
-    const relanceDue = (d) => {
-      if (window.SSUI && window.SSUI.relanceDue) return window.SSUI.relanceDue(d);
-      const plan = (d.informatif ? [5, 12, 21] : [4, 9, 21]);
-      const faites = relancesFaites(d);
-      if (faites >= plan.length) return false;
-      const h = (d.statut_history || []).filter(x => x.statut === 'envoye_client').map(x => x.date).sort();
-      const envoi = String(d.date_envoi || h[0] || d.date_creation || '').slice(0, 10);
-      if (!envoi) return false;
-      return Math.round((new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z') - new Date(envoi + 'T00:00:00Z')) / 86400000) >= plan[faites];
-    };
-    if (!window.SSUI || typeof window.SSUI.relanceEtat !== 'function') {
-      setTimeout(() => toast("assets/js/ui.js n'est pas à jour en ligne — redéploie-le, sinon le suivi des relances restera faux ici.", 'error', 20000), 900);
-      console.error('[SolariScreen] ui.js obsolète : SSUI.relanceEtat absent.');
-    }
+    // ── Cadence de relance ───────────────────────────────────────────────────────────────
+    // ⚠️ NE PAS RÉIMPLÉMENTER ICI. La cadence a déjà vécu en double (ici + vue.html) : la fiche
+    // affichait « R1 ✓ » pendant que cette page réclamait encore « Relance 1 à envoyer ».
+    // Source unique et sans repli : `ui.js`.
+    //
+    // Il y avait ici une copie de secours « au cas où ui.js ne serait pas encore en ligne »,
+    // datant du temps où l'on déployait fichier par fichier. Cloudflare publie désormais le
+    // dossier entier à chaque commit : cette copie ne pouvait plus servir — mais elle continuait
+    // de diverger en silence. Elle ignorait notamment qu'un BON D'INTERVENTION ne se relance pas,
+    // et aurait réclamé de faire accepter des travaux déjà réalisés. Un secours qui ment est pire
+    // que pas de secours : le garde-fou ci-dessous suffit, il NOMME le problème.
+    const relancesFaites = (d) => window.SSUI.relancesFaites(d);
+    const relanceDue = (d) => window.SSUI.relanceDue(d);
+    // Garde-fou : cette page s'appuie sans repli sur ui.js pour les relances ET pour l'argent
+    // dû. S'il manquait, mieux vaut le dire tout de suite que laisser lire des chiffres faux.
+    (function verifierUi() {
+      const requis = ['relanceEtat', 'relancesFaites', 'relanceDue', 'duFacture', 'factureAnnulee'];
+      const absents = requis.filter(k => !window.SSUI || typeof window.SSUI[k] !== 'function');
+      if (!absents.length) return;
+      setTimeout(() => toast("assets/js/ui.js n'est pas à jour en ligne (" + absents.join(', ')
+        + " manquant) — redéploie-le, sinon relances et montants dus seront faux ici.", 'error', 20000), 900);
+      console.error('[SolariScreen] ui.js obsolète — absent :', absents.join(', '));
+    })();
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
       const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d));
@@ -1259,9 +1259,12 @@
       const caEnJeu = envoyes.reduce((s, d) => s + d.ttc, 0);
       // ⚠️ Le reste dû se calcule FACTURE PAR FACTURE (chaque reste plancheté à 0), jamais en
       // « total facturé − total encaissé » : un trop-perçu sur une facture viendrait effacer la
-      // dette d'une autre et sous-évaluerait le montant réellement à récupérer (bug déjà corrigé
-      // dans factures.html — les deux pages doivent afficher le MÊME chiffre).
-      const resteEncaisser = FACTURES.reduce((s, f) => s + Math.max(0, (Number(f.total_ttc) || 0) - paidSum(f)), 0);
+      // dette d'une autre et sous-évaluerait le montant réellement à récupérer.
+      // Et il passe par `SSUI.duFacture`, la SEULE définition de l'argent dû, parce qu'elle seule
+      // déduit les NOTES DE CRÉDIT. La soustraction faite ici à la main les ignorait : une facture
+      // de 1 000 € entièrement annulée apparaissait encore comme 1 000 € à encaisser, alors que la
+      // page Facturation annonçait 0 € — deux écrans, deux créances, sur les mêmes données.
+      const resteEncaisser = FACTURES.reduce((s, f) => s + window.SSUI.duFacture(f, FACTURES), 0);
       const encPct = totalFacture > 0 ? Math.min(100, Math.round(caEncaisse / totalFacture * 100)) : 0;
       const beneTotal = nicolasNet + yannickNet;
       const beneMax = Math.max(nicolasNet, yannickNet, 1);
