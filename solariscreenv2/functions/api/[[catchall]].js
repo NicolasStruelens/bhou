@@ -191,6 +191,11 @@ export async function onRequest(context) {
       const cl = d.client || {};
       const documentData = (calc && calc.total_ttc != null) ? {
         id: d.id, statut: d.statut || 'brouillon', informatif: !!d.informatif,
+        // Nature du document : un dépannage n'a pas d'ouvertures et ne demande pas d'acompte.
+        // Sans ces deux champs, la page client annonçait « Acompte de 50 % à la commande » sur
+        // une intervention payable en fin de chantier.
+        type_document: d.type_document || 'devis',
+        depannage_mode: d.depannage_mode || '',
         date_creation: d.date_creation || '',
         client: {
           prenom: cl.prenom || '', nom: cl.nom || '',
@@ -223,6 +228,13 @@ export async function onRequest(context) {
         prenom: (d.client && d.client.prenom) || '',
         greeting: await resolveGreeting(env, d),   // civilité + ton pour la salutation
         id: d.id, statut: d.statut || 'brouillon', items,
+        type_document: d.type_document || 'devis',
+        depannage_mode: d.depannage_mode || '',
+        // Postes d'une intervention : ce sont EUX que le client doit lire quand il n'y a pas
+        // d'ouverture. Mêmes champs que sur le document — aucun prix d'achat, aucune marge.
+        postes: ((d.calculs && d.calculs.extra_lines) || []).map(e => ({
+          label: e.label || '', qty: e.qty || 1, unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0,
+        })),
         total_ttc: (d.calculs && d.calculs.total_ttc) || 0,
         tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,
         client_accepted: !!d.client_accepted,
@@ -361,6 +373,10 @@ export async function onRequest(context) {
                -- le blob, photos comprises, pour chaque ligne de la liste.
                LENGTH(data) AS poids,
                json_extract(data, '$.relances') AS relances_json,
+               -- Nature du document : un dépannage n'a pas d'ouvertures, ce qui autrement le
+               -- ferait passer pour un devis vide (« 0 ouverture », aucun type de produit).
+               json_extract(data, '$.type_document') AS type_document,
+               json_extract(data, '$.depannage_mode') AS depannage_mode,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t

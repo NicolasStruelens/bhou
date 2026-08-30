@@ -77,6 +77,9 @@
       { href: 'agenda.html', label: 'Agenda poses & visites', icon: 'calendar' },
       { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
       { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
+      // Depannage : meme ecran que le devis, ouvert directement sur le bon type de document.
+      // Range dans Chantier et non dans Vente : c'est une intervention, pas une affaire a vendre.
+      { href: 'simulateur.html?type=depannage', label: 'Nouveau dépannage', icon: 'hammer' },
       { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
       { href: 'outillage.html', label: 'Outillage & références', icon: 'hammer' },
     ] },

@@ -292,7 +292,7 @@
       // On ne facture qu'un devis SIGNÉ ou TERMINÉ (jamais un brouillon, un refusé ou un annulé).
       const billable = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
       if (!billable.length) { toast('Aucun devis signé ou terminé à facturer.', 'warn'); return; }
-      const opts = billable.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})</option>`).join('');
+      const opts = billable.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})${d.type_document === 'depannage' ? ' · dépannage' : ''}</option>`).join('');
       el('mDevis').innerHTML = opts;
       // Échéance et acompte : valeurs par défaut réglables (Paramètres). Le % d'acompte est
       // ensuite écrasé par celui du devis choisi (onDevisPick) — c'est lui qui fait foi.
@@ -302,6 +302,7 @@
       el('mType').value = 'acompte';
       if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
       if (preselectType) el('mType').value = preselectType;
+      else if ((DEVIS.find(d => d.id === el('mDevis').value) || {}).type_document === 'depannage') el('mType').value = 'totale';
       onTypePick(); onDevisPick();
       el('modalNew').classList.add('open');
     };
@@ -343,8 +344,26 @@
     // Pré-remplit le % d'acompte avec la valeur réelle déjà validée sur le devis
     // (au lieu du 30% par défaut du formulaire) — évite un montant de facture qui ne
     // correspond pas à celui affiché sur le devis du client.
+    let dernierDevisChoisi = null;
     window.onDevisPick = async () => {
       const id = el('mDevis').value;
+      const dep = (DEVIS.find(x => x.id === id) || {}).type_document === 'depannage';
+      // Un dépannage se règle en une fois : ni acompte à la commande, ni solde. On propose donc
+      // « totale » dès qu'on le sélectionne — libre à l'utilisateur d'en changer ensuite.
+      if (dep && id !== dernierDevisChoisi) {
+        el('mType').value = 'totale';
+        el('mPctField').style.display = 'none';
+        el('mPosesField').classList.add('hidden');
+      }
+      dernierDevisChoisi = id;
+      const optPart = el('mType').querySelector('option[value="partielle"]');
+      if (optPart) { optPart.disabled = dep; optPart.hidden = dep; }
+      // Bascule sans repasser par onTypePick(), qui rappellerait cette fonction en boucle.
+      if (dep && el('mType').value === 'partielle') {
+        el('mType').value = 'totale';
+        el('mPctField').style.display = 'none';
+        el('mPosesField').classList.add('hidden');
+      }
       const type = el('mType').value;
       if (id && (type === 'acompte' || type === 'partielle')) {
         const d = await SS.getDevis(id);
@@ -484,7 +503,8 @@
         return [{ desc: `Travaux exécutés sur devis N° ${devis.id} — ${nPose} ouverture${nPose > 1 ? 's' : ''} posée${nPose > 1 ? 's' : ''} sur ${nTot}`,
                   sub: nTot > nPose ? sub : '', qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
       }
-      const label = type === 'acompte' ? `Acompte de ${pct} % sur devis N° ${devis.id}` : `Solde sur devis N° ${devis.id}`;
+      const quoi = devis.type_document === 'depannage' ? 'dépannage' : 'devis';
+      const label = type === 'acompte' ? `Acompte de ${pct} % sur ${quoi} N° ${devis.id}` : `Solde sur ${quoi} N° ${devis.id}`;
       return [{ desc: label, qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
     }
 
@@ -505,6 +525,9 @@
       // ne peuvent plus produire le même, et un numéro supprimé n'est jamais réutilisé.
       const facture = {
         type, devis_id: id,
+        // Nature du document facturé, RECOPIÉE ici : la facture doit savoir se présenter seule,
+        // même si le devis source venait à disparaître, et sans une lecture de plus à l'affichage.
+        source_type: a.devis.type_document || 'devis',
         date: today(), echeance: addDays(Number(el('mEcheance').value) || 15),
         client: a.devis.client || {},
         lines: buildLines(a.devis, type, a, pct),
@@ -564,6 +587,9 @@
       const motif = (el('avMotif').value || '').trim();
       const avoir = {
         type: 'avoir', avoir_de: avoirTarget.id, devis_id: avoirTarget.devis_id,
+        // La note de credit herite de la nature de la piece qu'elle annule : elle doit se
+        // presenter comme elle (« Ref. intervention », pas « Ref. devis »).
+        source_type: avoirTarget.source_type || 'devis',
         date: today(), echeance: today(),        // une note de crédit n'a pas d'échéance à courir
         client: avoirTarget.client || {},
         lines: [{ desc: `Annulation de la facture N° ${avoirTarget.id}`, sub: motif, qty: 1, pu: -ht, total: -ht }],

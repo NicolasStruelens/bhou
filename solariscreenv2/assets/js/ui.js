@@ -319,6 +319,10 @@
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       date_envoi: d.date_envoi || '',
       relances: d.relances || [],
+      // Nature du document. Absente = devis, forme historique de tous les enregistrements
+      // antérieurs au dépannage : c'est ce défaut qui rend le changement rétro-compatible.
+      type_document: d.type_document || 'devis',
+      depannage_mode: d.depannage_mode || '',
       item_types: d.item_types || (d.items ? [...new Set(d.items.map(i => i.type).filter(Boolean))] : []),
       // Projection allégée des ouvertures fournie par /api/devis (sans les photos) : elle sert
       // uniquement à repérer les informations manquantes dans une LISTE. Repli sur `items`

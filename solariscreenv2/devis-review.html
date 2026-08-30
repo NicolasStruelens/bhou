@@ -108,7 +108,7 @@
     <div class="rv-hero">
       <div class="logo"><img src="assets/img/logo-solariscreen.png" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
       <h1 id="greeting">Votre devis SolariScreen</h1>
-      <p>Voici le récapitulatif de votre devis.</p>
+      <p id="rvIntro">Voici le récapitulatif de votre devis.</p>
     </div>
 
     <div class="rv-items" id="rvItems"></div>
@@ -121,9 +121,9 @@
     <div class="rv-actions hidden" id="rvActions">
       <label class="rv-cgv">
         <input type="checkbox" id="rvCgv" onchange="document.getElementById('rvAcceptBtn').disabled = !this.checked">
-        <span>J'ai lu et j'accepte ce devis ainsi que les conditions générales de vente.</span>
+        <span id="rvMention">J'ai lu et j'accepte ce devis ainsi que les conditions générales de vente.</span>
       </label>
-      <button class="btn btn-primary rv-accept" id="rvAcceptBtn" disabled onclick="submitAction('accept')">J'accepte ce devis</button>
+      <button class="btn btn-primary rv-accept" id="rvAcceptBtn" disabled onclick="submitAction('accept')"><span id="rvAcceptTxt">J'accepte ce devis</span></button>
       <button class="btn btn-ghost rv-decline-btn" onclick="toggleDecline()">Je refuse</button>
       <div class="rv-decline hidden" id="rvDeclineBox">
         <textarea class="textarea" id="rvDeclineReason" style="min-height:60px;" placeholder="Une raison à préciser (facultatif)…"></textarea>
@@ -142,7 +142,7 @@
       <button class="btn btn-ghost btn-sm mt-2" onclick="submitAction('question')">Envoyer</button>
     </div>
 
-    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Voir le devis complet — imprimer / PDF</button>
+    <button class="btn btn-ghost rv-print-btn" style="width:100%;margin-bottom:var(--sp-5);" onclick="printDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> <span id="rvPrintTxt">Voir le devis complet — imprimer / PDF</span></button>
 
     <div class="rv-foot" id="rvFoot"></div>
   </div>
@@ -274,7 +274,15 @@
           </div>
           ${photosHtml}
         </div>`;
-      }).join('') || '<div class="text-muted">Aucune ouverture.</div>';
+      }).join('') || (d.type_document === 'depannage'
+        ? (d.postes || []).map(p => `<div class="rv-item">
+            <div class="rv-item-row">
+              <div><div class="k">${esc(p.label)}</div>
+              ${p.qty > 1 ? `<div class="sub">${p.qty} × ${fmtEur(p.unit_price_ht)} HTVA</div>` : ''}</div>
+              <div class="v">${fmtEur(p.total_ht)}</div>
+            </div>
+          </div>`).join('') || '<div class="text-muted">Aucun poste.</div>'
+        : '<div class="text-muted">Aucune ouverture.</div>');
       document.getElementById('rvTotal').textContent = fmtEur(d.total_ttc);
       renderSummary();
       renderThread();
@@ -306,20 +314,34 @@
       const doc = DATA.document;
       const c = doc && doc.calc;
       if (!c) { box.innerHTML = ''; acompteBox.innerHTML = ''; return; }
+      const dep = doc.type_document === 'depannage';
+      if (dep) {
+        const t = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+        t('rvIntro', 'Voici le détail de l’intervention que nous vous proposons.');
+        t('rvMention', 'J’ai lu et j’accepte cette intervention ainsi que les conditions générales de vente.');
+        t('rvAcceptTxt', 'J’accepte cette intervention');
+        t('rvPrintTxt', 'Voir le document complet — imprimer / PDF');
+      }
       const fournitures = (doc.items || []).reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
       const row = (k, v, cls) => `<div class="rv-sum-row ${cls || ''}"><span>${k}</span><span class="v">${v}</span></div>`;
       let rows = '';
-      rows += row('Fournitures', fmtEur(fournitures));
+      // Un dépannage n'a pas de fournitures : une ligne « Fournitures 0,00 € » ferait douter
+      // le client de tout le reste du décompte.
+      if (!dep) rows += row('Fournitures', fmtEur(fournitures));
       if (c.remise_catalogue > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_catalogue), 'remise');
       if (c.install_total_brut > 0) rows += row('Installation et pose', fmtEur(c.install_total_brut));
       if (c.remise_installation > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_installation), 'remise');
-      (c.extra_lines || []).forEach(e => { if (e.total_ht) rows += row(esc(e.label || 'Option'), fmtEur(e.total_ht)); });
+      if (!dep) (c.extra_lines || []).forEach(e => { if (e.total_ht) rows += row(esc(e.label || 'Option'), fmtEur(e.total_ht)); });
       if (c.surplus_difficulte > 0) rows += row('Supplément accès difficile', fmtEur(c.surplus_difficulte));
       rows += row('Total HTVA', fmtEur(c.total_ht), 'htva');
       rows += row('TVA ' + (c.tva_pct != null ? c.tva_pct : 6) + ' %', fmtEur(c.total_tva));
       box.innerHTML = rows;
       // Rappel acompte / solde (comme sur le devis officiel), hors devis informatif.
-      if (!doc.informatif && c.acompte_pct > 0 && c.acompte_montant > 0) {
+      if (dep) {
+        // Aucun acompte sur une intervention : le document remis dit « payable en fin
+        // d'intervention ». Les deux écrans doivent annoncer la même chose, au centime près.
+        acompteBox.innerHTML = `Montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable en fin d'intervention — aucun acompte demandé.`;
+      } else if (!doc.informatif && c.acompte_pct > 0 && c.acompte_montant > 0) {
         const solde = (c.total_ttc || 0) - (c.acompte_montant || 0);
         acompteBox.innerHTML = `Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${fmtEur(c.acompte_montant)}</strong> — solde de <strong>${fmtEur(solde)}</strong> à la pose.`;
       } else { acompteBox.innerHTML = ''; }
@@ -351,6 +373,14 @@
     function buildPaperHtml(doc) {
       const c = doc.calc, cl = doc.client || {}, adr = cl.adresse || {};
       const info = !!doc.informatif;
+      // Dépannage : pas d'ouvertures, donc pas de colonne Dimensions, et pas d'acompte. Mêmes
+      // règles qu'à app/devis.html — les deux documents doivent être superposables.
+      const dep = doc.type_document === 'depannage';
+      const fait = dep && (doc.depannage_mode || 'realise') === 'realise';
+      const NCOL = dep ? 5 : 6;
+      const cellDim = dep ? '' : '<td>—</td>';
+      let cptPoste = 0;
+      const cellNum = () => dep ? `<td class="num">${++cptPoste}</td>` : '<td class="num">—</td>';
       let rows = '';
       (doc.items || []).forEach((it, i) => {
         const dims = window.SSUI.dimsOf(it) || '—';
@@ -378,20 +408,20 @@
         </tr>`;
       });
       if (c.remise_catalogue > 0) {
-        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
+        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
       }
       let presta = '';
       if (c.install_total_brut > 0) {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td><td>—</td><td class="num">1</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td></tr>`;
       }
       if (c.remise_installation > 0) {
-        presta += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_installation))}</td></tr>`;
+        presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_installation))}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>${esc(e.label)}</strong></td><td>—</td><td class="num">${e.qty}</td><td class="num">${esc(fmtEur(e.unit_price_ht))}</td><td class="num">${esc(fmtEur(e.total_ht))}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${e.qty}</td><td class="num">${esc(fmtEur(e.unit_price_ht))}</td><td class="num">${esc(fmtEur(e.total_ht))}</td></tr>`;
       });
       if (c.surplus_difficulte > 0) {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>Supplément accès difficile</strong></td><td>—</td><td class="num">1</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>Supplément accès difficile</strong></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td></tr>`;
       }
       const solde = c.total_ttc - c.acompte_montant;
       const paper = `
@@ -405,11 +435,11 @@
             </div>
           </div>
           <div class="doc-meta">
-            <div class="doc-title">${info ? 'DEVIS INFORMATIF' : 'DEVIS'}</div>
+            <div class="doc-title">${dep ? (fait ? 'BON D\'INTERVENTION' : 'DÉPANNAGE') : (info ? 'DEVIS INFORMATIF' : 'DEVIS')}</div>
             <div class="doc-num">N° ${esc(doc.id)}</div>
             <div class="doc-dates">
-              Date : ${fmtDate(doc.date_creation)}<br>
-              ${info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(doc.date_creation, VALIDITE_JOURS))}
+              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate(doc.date_creation)}<br>
+              ${fait ? 'Travaux exécutés' : (info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(doc.date_creation, VALIDITE_JOURS)))}
             </div>
           </div>
         </div>
@@ -437,12 +467,12 @@
         </div>
         <table class="doc-table">
           <thead><tr>
-            <th class="num">#</th><th>Désignation</th><th>Dimensions</th>
+            <th class="num">#</th><th>Désignation</th>${dep ? '' : '<th>Dimensions</th>'}
             <th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th>
           </tr></thead>
           <tbody>
-            ${rows ? '<tr class="cat-row"><td colspan="6">Fournitures</td></tr>' + rows : ''}
-            ${presta ? '<tr class="cat-row"><td colspan="6">Prestations & options</td></tr>' + presta : ''}
+            ${rows ? `<tr class="cat-row"><td colspan="${NCOL}">Fournitures</td></tr>` + rows : ''}
+            ${presta ? `<tr class="cat-row"><td colspan="${NCOL}">${dep ? (fait ? 'Détail de l\'intervention' : 'Intervention proposée') : 'Prestations &amp; options'}</td></tr>` + presta : ''}
           </tbody>
         </table>
         <div class="totals"><div class="box">
@@ -450,13 +480,20 @@
           <div class="t-row t-sub"><span>TVA ${c.tva_pct} %</span><span class="v">${esc(fmtEur(c.total_tva))}</span></div>
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${esc(fmtEur(c.total_ttc))}</span></div>
         </div></div>
-        ${info ? '' : `
+        ${info ? '' : (dep ? `
+        <div class="pay-note">
+          ${fait
+            ? `Montant à régler : <strong>${esc(fmtEur(c.total_ttc))}</strong> TVAC, payable à réception du présent document.`
+            : `Aucun acompte demandé : le montant de <strong>${esc(fmtEur(c.total_ttc))}</strong> TVAC est payable à la fin de l'intervention.`}
+          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(doc.id)}.</span>
+        </div>
+        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>` : `
         <div class="pay-note">
           Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${esc(fmtEur(c.acompte_montant))}</strong> —
           solde de <strong>${esc(fmtEur(solde))}</strong> à la livraison / pose.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(doc.id)}.</span>
         </div>
-        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`}
+        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`)}
         <div class="partners">
           <span class="lbl">Partenaires</span>
           <span class="partner-chip"><img src="assets/img/logo-harol.png" alt="Harol"></span>
@@ -465,16 +502,16 @@
         ${info ? '' : `
         <div class="signatures">
           <div class="sig-box">
-            <h4>Bon pour accord — le client</h4>
+            <h4>${fait ? 'Travaux reçus — le client' : 'Bon pour accord — le client'}</h4>
             ${doc.signature && doc.signature.image
-              ? `<img src="${doc.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(doc.signature.date)} — « Lu et approuvé »</div>`
-              : `<div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div>`}
+              ? `<img src="${doc.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(doc.signature.date)} — « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`
+              : `<div class="hint">Date et signature précédées de la mention « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`}
           </div>
-          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
+          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">${fait ? 'Technicien intervenant' : 'Pour acceptation'}</div></div>
         </div>`}
         <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>`;
-      const cgv = info ? '' : `<div class="paper">
-        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(doc.id)}</div></div></div>
+      const cgv = (info || fait) ? '' : `<div class="paper">
+        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">${dep ? 'Dépannage n° ' : 'Devis N° '}${esc(doc.id)}</div></div></div>
         <div class="cgv-body">
           <h5>1. Objet &amp; commande</h5>
           Les présentes conditions régissent la vente, la livraison et l'installation des produits proposés par ${esc(COMPANY.name)}. Toute commande implique l'adhésion pleine et entière du client. Le devis est valable ${VALIDITE_JOURS} jours et doit être confirmé par écrit (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.

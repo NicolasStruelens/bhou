@@ -87,7 +87,18 @@ hors-ligne : c'est volontaire.
 `offline`, `queued`) doit être traitée par l'appelant. Un `ok: true` accompagné de `conflict: true`
 a fait croire pendant trois semaines que les relances s'enregistraient.
 
-**7. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
+**7. Un DÉPANNAGE est un devis sans ouvertures.** `type_document: 'depannage'` (absent = devis, ce
+qui rend tous les anciens enregistrements valides). Ses postes sont les `extras` du moteur — d'où
+un total correct sans toucher à `calc.js`. Deux modes : `depannage_mode: 'realise'` (bon
+d'intervention, travaux faits, signature « travaux reçus », pas de CGV) ou `'a_realiser'`
+(proposition à accepter, CGV jointes). **Jamais d'acompte sur un dépannage** : quatre écrans
+l'annoncent (document, fiche, page client, facturation) et doivent dire la même chose au centime
+près. Facture partielle interdite : elle compte des ouvertures, il n'y en a aucune.
+⚠️ Le document existe en DEUX exemplaires — `app/devis.html` et `devis-review.html`
+(`buildPaperHtml`). Toute modification de l'un doit être portée dans l'autre : c'est le même
+client qui lit les deux.
+
+**8. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
 ## Pièges déjà payés — ne pas les repayer
@@ -95,6 +106,12 @@ a fait croire pendant trois semaines que les relances s'enregistraient.
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
   navigateur de bureau ne le déclenche pas : une mise en page validée au bureau peut être cassée
   sur téléphone. Fixer explicitement la taille des boutons à icône seule.
+- **`min-width: 0` sur un bloc flex pour « le faire rentrer »** : il s'écrase complètement et le
+  texte se casse LETTRE PAR LETTRE, en colonne verticale. Les mesures annonçaient pourtant « ça
+  rentre » — seule la capture d'écran l'a montré (bandeau du document, titre « BON
+  D'INTERVENTION »). La bonne réponse était `flex-wrap: wrap` sous 560 px.
+- **Renommer un bouton par `section .btn`** attrape le premier bouton de la section — qui devient
+  le « ✕ » d'une ligne dès qu'il en existe une. Viser par identifiant.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et

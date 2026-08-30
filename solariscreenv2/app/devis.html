@@ -60,13 +60,13 @@
         <button class="btn btn-ghost btn-sm mt-2" onclick="clearSignature()">Effacer</button>
         <label class="sig-accept mt-4">
           <input type="checkbox" id="sigAccept" onchange="updateConfirmState()">
-          <span>Je soussigné(e) <strong id="sigClientName">—</strong> certifie avoir pris connaissance du devis ci-dessus et de ses Conditions Générales de Vente (voir annexe), et donne mon accord — mention « Lu et approuvé ».</span>
+          <span id="sigMention">Je soussigné(e) <strong id="sigClientName">—</strong> certifie avoir pris connaissance du devis ci-dessus et de ses Conditions Générales de Vente (voir annexe), et donne mon accord — mention « Lu et approuvé ».</span>
         </label>
         <button class="btn btn-primary mt-4" id="btnConfirmSig" onclick="confirmSignature()" disabled>Confirmer la signature</button>
       </div>
     </section>
     <section class="section ticked hidden" id="signedBlock" style="--tick-color:var(--ok);">
-      <div class="section-head"><span class="section-title" style="color:var(--ok);">✓ Devis signé</span></div>
+      <div class="section-head"><span class="section-title" id="signedTitre" style="color:var(--ok);">✓ Devis signé</span></div>
       <div class="section-body">
         <p class="text-muted">Signé le <strong id="signedDate" class="text-mono"></strong>.</p>
         <img id="signedImg" alt="Signature du client" style="max-width:280px;max-height:90px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fff;margin-top:var(--sp-2);">
@@ -122,8 +122,27 @@
       });
     }
 
+    /* ── DÉPANNAGE ───────────────────────────────────────────────────────────────────────
+       Même document, deux visages. Un dépannage n'a pas d'ouvertures : ses postes sont les
+       « suppléments » du moteur. On ne change donc rien au calcul, seulement ce que le client
+       lit : le titre, la colonne Dimensions (vide, donc retirée), les conditions de paiement, et
+       la nature de la signature — « bon pour accord » avant l'intervention, « travaux reçus »
+       après. Le chemin DEVIS reste identique au caractère près : tout l'ajout est derrière `dep`. */
+    const estDep = (d) => !!d && d.type_document === 'depannage';
+    const depFait = (d) => estDep(d) && (d.depannage_mode || 'realise') === 'realise';
+    /** Référence du document, telle qu'elle apparaît en tête de chaque annexe. */
+    const refDoc = (d) => (estDep(d) ? (depFait(d) ? 'Intervention n° ' : 'Dépannage n° ') : 'Devis N° ') + esc(d.id);
+
     function renderPaper() {
       const d = DEVIS, c = CALC;
+      const dep = estDep(d), fait = depFait(d);
+      const NCOL = dep ? 5 : 6;              // la colonne Dimensions saute en dépannage
+      const cellDim = dep ? '' : '<td>—</td>';
+      // Sur un devis, la première colonne numérote les FOURNITURES et laisse « — » aux prestations.
+      // Sur un dépannage il n'y a que des postes : une colonne de tirets ne dirait rien, alors
+      // qu'une numérotation permet au client de désigner une ligne au téléphone.
+      let cptPoste = 0;
+      const cellNum = () => dep ? `<td class="num">${++cptPoste}</td>` : '<td class="num">—</td>';
       const cl = d.client || {};
       const adr = cl.adresse || {};
       const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
@@ -171,19 +190,19 @@
       // Prestations / options
       let presta = '';
       if (c.install_total_brut > 0) {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td><td>—</td><td class="num">1</td><td class="num">${fmtEur(c.install_total_brut)}</td><td class="num">${fmtEur(c.install_total_brut)}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td>${cellDim}<td class="num">1</td><td class="num">${fmtEur(c.install_total_brut)}</td><td class="num">${fmtEur(c.install_total_brut)}</td></tr>`;
       }
       const remiseInst = c.remise_installation || {}, remiseOutil = c.remise_outillage || {};
       const remiseInstallTotal = (remiseInst.amount || 0) + (remiseOutil.amount || 0);
       if (remiseInstallTotal > 0) {
-        presta += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
+        presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>${esc(e.label)}</strong></td><td>—</td><td class="num">${e.qty}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${e.qty}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
       });
       const surplus = (d.pricing_v2 && d.pricing_v2.surplus_difficulte) || 0;
       if (surplus > 0) {
-        presta += `<tr><td class="num">—</td><td class="desc"><strong>Supplément accès difficile</strong></td><td>—</td><td class="num">1</td><td class="num">${fmtEur(surplus)}</td><td class="num">${fmtEur(surplus)}</td></tr>`;
+        presta += `<tr>${cellNum()}<td class="desc"><strong>Supplément accès difficile</strong></td>${cellDim}<td class="num">1</td><td class="num">${fmtEur(surplus)}</td><td class="num">${fmtEur(surplus)}</td></tr>`;
       }
 
       // Un devis sans acompte chiffré (créé au Mode Terrain, ou repris d'un ancien format)
@@ -206,11 +225,11 @@
             </div>
           </div>
           <div class="doc-meta">
-            <div class="doc-title">${info ? 'DEVIS INFORMATIF' : 'DEVIS'}</div>
+            <div class="doc-title">${dep ? (fait ? 'BON D\'INTERVENTION' : 'DÉPANNAGE') : (info ? 'DEVIS INFORMATIF' : 'DEVIS')}</div>
             <div class="doc-num">N° ${esc(d.id)}</div>
             <div class="doc-dates">
-              Date : ${fmtDate(d.date_creation)}<br>
-              ${info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(d.date_creation, VALIDITE_JOURS))}
+              ${fait ? 'Intervention du ' : 'Date : '}${fmtDate(d.date_creation)}<br>
+              ${fait ? 'Travaux exécutés' : (info ? 'Estimation à titre indicatif' : 'Valable jusqu\'au ' + fmtDate(addDays(d.date_creation, VALIDITE_JOURS)))}
             </div>
           </div>
         </div>
@@ -240,12 +259,12 @@
 
         <table class="doc-table">
           <thead><tr>
-            <th class="num">#</th><th>Désignation</th><th>Dimensions</th>
+            <th class="num">#</th><th>Désignation</th>${dep ? '' : '<th>Dimensions</th>'}
             <th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th>
           </tr></thead>
           <tbody>
-            ${rows ? '<tr class="cat-row"><td colspan="6">Fournitures</td></tr>' + rows : ''}
-            ${presta ? '<tr class="cat-row"><td colspan="6">Prestations & options</td></tr>' + presta : ''}
+            ${rows ? `<tr class="cat-row"><td colspan="${NCOL}">Fournitures</td></tr>` + rows : ''}
+            ${presta ? `<tr class="cat-row"><td colspan="${NCOL}">${dep ? (fait ? 'Détail de l\'intervention' : 'Intervention proposée') : 'Prestations &amp; options'}</td></tr>` + presta : ''}
           </tbody>
         </table>
 
@@ -255,14 +274,22 @@
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(c.total_ttc)}</span></div>
         </div></div>
 
-        ${info ? '' : `
+        ${info ? '' : (dep ? `
+        <div class="pay-note">
+          ${fait
+            ? `Montant à régler : <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable à réception du présent document.`
+            : `Aucun acompte demandé : le montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC est payable à la fin de l'intervention.`}
+          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(d.id)}.</span>
+        </div>
+
+        <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>` : `
         <div class="pay-note">
           Acompte de <strong>${acomptePct} %</strong> à la commande : <strong>${fmtEur(acompteMontant)}</strong> —
           solde de <strong>${fmtEur(solde)}</strong> à la livraison / pose.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
 
-        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`}
+        <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`)}
 
         <div class="partners">
           <span class="lbl">Partenaires</span>
@@ -273,12 +300,12 @@
         ${info ? '' : `
         <div class="signatures">
           <div class="sig-box">
-            <h4>Bon pour accord — le client</h4>
+            <h4>${fait ? 'Travaux reçus — le client' : 'Bon pour accord — le client'}</h4>
             ${d.signature && d.signature.image
-              ? `<img src="${d.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(d.signature.date)} — « Lu et approuvé »</div>`
-              : `<div class="hint">Date et signature précédées de la mention « Lu et approuvé »</div>`}
+              ? `<img src="${d.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(d.signature.date)} — « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`
+              : `<div class="hint">Date et signature précédées de la mention « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`}
           </div>
-          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
+          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">${fait ? 'Technicien intervenant' : 'Pour acceptation'}</div></div>
         </div>`}
 
         <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
@@ -288,7 +315,7 @@
     // ── Annexe : Conditions Générales de Vente (statique, toujours jointe) ──
     function cgvPaper() {
       return `<div class="paper">
-        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div>
+        <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">${refDoc(DEVIS)}</div></div></div>
         <div class="cgv-body">
           <h5>1. Objet &amp; commande</h5>
           Les présentes conditions régissent la vente, la livraison et l'installation des produits proposés par ${esc(COMPANY.name)}. Toute commande implique l'adhésion pleine et entière du client. Le devis est valable ${VALIDITE_JOURS} jours et doit être confirmé par écrit (devis signé ou bon de commande). ${esc(COMPANY.name)} se réserve le droit de refuser ou d'adapter l'installation si des raisons techniques ou de sécurité l'exigent.
@@ -319,7 +346,7 @@
       const adr = cl.adresse || {};
       const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
       return `<div class="paper">
-        <div class="doc-head"><div class="co-name"><span class="b">Attestation</span> <span class="g">TVA 6 %</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div>
+        <div class="doc-head"><div class="co-name"><span class="b">Attestation</span> <span class="g">TVA 6 %</span></div><div class="doc-meta"><div class="doc-num">${refDoc(DEVIS)}</div></div></div>
         <div class="cgv-body" style="font-size:var(--fs-sm);color:var(--text);margin-top:var(--sp-6);">
           Je soussigné(e) <strong>${esc(cl.prenom)} ${esc(cl.nom)}</strong>, propriétaire ou locataire du bâtiment situé
           ${adresseComplete ? '<strong>' + esc(adresseComplete) + '</strong>' : '……………………………………………'},
@@ -349,12 +376,12 @@
           });
         });
         photosPaper = cells
-          ? `<div class="paper"><div class="doc-head" style="border-color:var(--accent-2);"><div class="co-name"><span class="b">Annexe</span> <span class="g">photos</span></div><div class="doc-meta"><div class="doc-num">Devis N° ${esc(DEVIS.id)}</div></div></div><div class="photo-grid" style="margin-top:var(--sp-5);">${cells}</div></div>`
+          ? `<div class="paper"><div class="doc-head" style="border-color:var(--accent-2);"><div class="co-name"><span class="b">Annexe</span> <span class="g">photos</span></div><div class="doc-meta"><div class="doc-num">${refDoc(DEVIS)}</div></div></div><div class="photo-grid" style="margin-top:var(--sp-5);">${cells}</div></div>`
           : '<div class="paper" style="text-align:center;color:var(--text-muted);">Aucune photo sur ce devis.</div>';
       }
 
       // Devis informatif : ni CGV ni attestation TVA, ce n'est pas un engagement contractuel
-      annex.innerHTML = DEVIS.informatif ? photosPaper : (cgvPaper() + tvaPaper() + photosPaper);
+      annex.innerHTML = DEVIS.informatif ? photosPaper : ((depFait(DEVIS) ? '' : cgvPaper()) + tvaPaper() + photosPaper);
     };
 
     // ── Signature client (capture sur place — tablette/ordinateur en présence du client) ──
@@ -395,7 +422,12 @@
       const canvas = el('sigCanvas'); if (!canvas || !sigHasInk) return;
       // Anti-erreur : on ne signe pas un devis vide (aucune ouverture ou total à 0 €).
       const ttc = (DEVIS.calculs && DEVIS.calculs.total_ttc) || 0;
-      if (!(DEVIS.items && DEVIS.items.length) || ttc <= 0) { toast('Impossible de signer un devis vide (aucune ouverture ou total à 0 €).', 'warn', 4000); return; }
+      // Un dépannage n'a légitimement AUCUNE ouverture : pour lui, seul le total compte.
+      if ((!estDep(DEVIS) && !(DEVIS.items && DEVIS.items.length)) || ttc <= 0) {
+        toast(estDep(DEVIS) ? 'Impossible de signer une intervention à 0 € (ajoute au moins un poste).'
+                            : 'Impossible de signer un devis vide (aucune ouverture ou total à 0 €).', 'warn', 4000);
+        return;
+      }
       const now = new Date().toISOString();
       // Instantané AVANT mutation : si l'enregistrement échoue (session Access expirée…), on remet
       // la fiche dans son état d'origine — un devis affiché « signé » mais jamais enregistré est
@@ -428,6 +460,17 @@
       const signBlock = el('signBlock'), signedBlock = el('signedBlock');
       if (!signBlock || !signedBlock) return;
       if (DEVIS.informatif) { signBlock.classList.add('hidden'); signedBlock.classList.add('hidden'); return; }
+      // Un bon d'intervention se fait signer POUR RÉCEPTION des travaux, pas « pour accord » :
+      // les travaux sont déjà faits, il n'y a plus rien à accepter.
+      if (depFait(DEVIS)) {
+        const aide = document.querySelector('#signBlock .text-muted');
+        if (aide) aide.textContent = 'À faire signer par le client à la fin de l’intervention. Le tracé et l’horodatage sont enregistrés avec le document.';
+        const cl = DEVIS.client || {};
+        const nom = [cl.prenom, cl.nom].filter(Boolean).join(' ') || '—';
+        const mention = el('sigMention');
+        if (mention) mention.innerHTML = 'Je soussigné(e) <strong id="sigClientName">' + esc(nom) + '</strong> reconnais que l\'intervention décrite ci-dessus a bien été réalisée et déclare en accepter le décompte — mention « Travaux reçus ».';
+        setText('signedTitre', '✓ Travaux reçus');
+      }
       if (DEVIS.signature && DEVIS.signature.image) {
         signBlock.classList.add('hidden');
         signedBlock.classList.remove('hidden');
@@ -449,7 +492,8 @@
     function updateDocTitle(d) {
       const cl = d.client || {};
       const types = [...new Set((d.items || []).map(it => it.type))].map(t => PRODUIT_LABEL[t] || t);
-      const parts = ['SolariScreen', types.join(' + ') || 'Devis', [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client', d.id];
+      const nature = estDep(d) ? (depFait(d) ? 'Intervention' : 'Depannage') : (types.join(' + ') || 'Devis');
+      const parts = ['SolariScreen', nature, [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client', d.id];
       document.title = parts.filter(Boolean).join(' - ');
     }
 
