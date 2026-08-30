@@ -79,7 +79,13 @@
     .info-box { margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); background: color-mix(in srgb, var(--accent-2) 10%, transparent); color: var(--accent-2); font-size: var(--fs-xs); }
 
     .extra-row { display: grid; grid-template-columns: 1fr 80px 130px 38px; gap: var(--sp-2); margin-bottom: var(--sp-2); align-items: center; }
-    @media (max-width: 520px){ .extra-row { grid-template-columns: 1fr 60px 100px 36px; } }
+    @media (max-width: 560px) {
+      .extra-row { grid-template-columns: 1fr 1fr 38px; row-gap: var(--sp-2); }
+      .extra-row > :first-child { grid-column: 1 / -1; }   /* grille EXPLICITE à 3 colonnes : pas de colonne implicite */
+      /* Sur deux lignes, rien ne dit plus où finit un poste et où commence le suivant : un filet
+         suffit à rendre le groupement évident. */
+      .extra-row + .extra-row { border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
+    }
 
     .id-badge { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 35%, transparent); padding: 0.3rem 0.6rem; border-radius: var(--r-sm); }
     /* Téléphone : le n° de devis (100 px) poussait la navigation sur une seconde rangée. Il
@@ -100,6 +106,33 @@
     .client-hit .ci-main { min-width: 0; flex: 1; }
     .client-hit .ci-name { font-weight: 600; }
     .client-hit .ci-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); }
+
+    /* ── Choix du type de document (devis / depannage) ── */
+    .type-doc { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+    @media (max-width: 560px) { .type-doc { grid-template-columns: 1fr; } }
+    .type-choix input { position: absolute; opacity: 0; pointer-events: none; }
+    .type-carte { display: block; cursor: pointer; padding: var(--sp-3) var(--sp-4);
+      border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface-2);
+      transition: border-color var(--t-fast), background var(--t-fast); }
+    .type-carte strong { display: block; font-size: var(--fs-sm); }
+    .type-carte small { display: block; margin-top: 2px; font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.45; }
+    .type-choix input:checked + .type-carte { border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: var(--glow-soft); }
+    .type-choix input:focus-visible + .type-carte { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .type-choix input:checked + .type-carte strong { color: var(--accent); }
+    /* Nature du depannage : deja fait (on constate) ou a faire accepter (on propose). */
+    .dep-mode { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+      margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--border);
+      font-size: var(--fs-xs); }
+    .dep-mode-lbl { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-subtle); }
+    .dep-radio { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--text-muted); }
+    .dep-radio em { font-style: normal; font-weight: 600; color: var(--text); }
+    /* Le mode d'emploi des lignes libres. Sans lui, la section « Postes » est une page blanche :
+       on ne devine pas que c'est ce texte-là que le client lira. */
+    .dep-aide { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.6;
+      border-left: 2px solid var(--accent-2); padding: 0.1rem 0 0.1rem var(--sp-3);
+      margin-bottom: var(--sp-3); max-width: 70ch; }
   </style>
 </head>
 <body>
@@ -124,6 +157,39 @@
   <main class="container sim-layout">
     <!-- ════════ COLONNE PRINCIPALE ════════ -->
     <div class="sim-main">
+
+      <!-- ════════ TYPE DE DOCUMENT ════════
+           Un devis produit et un depannage n'ont presque rien en commun : le premier chiffre des
+           ouvertures a poser, le second constate une intervention. Plutot que deux ecrans a
+           maintenir en parallele, un seul, dont on masque ce qui ne sert pas. Le devis enregistre
+           reste de MEME FORME (les lignes d'intervention sont les « supplements » du moteur), donc
+           le tableau de bord, la fiche, le document et la facturation fonctionnent sans rien
+           changer. -->
+      <section class="section" id="secType">
+        <div class="section-body" style="padding-top:var(--sp-4);padding-bottom:var(--sp-4);">
+          <div class="type-doc">
+            <label class="type-choix">
+              <input type="radio" name="type_document" value="devis" checked onchange="onTypeDocument()">
+              <span class="type-carte">
+                <strong>Devis</strong>
+                <small>Fourniture et pose : ouvertures, produits, installation.</small>
+              </span>
+            </label>
+            <label class="type-choix">
+              <input type="radio" name="type_document" value="depannage" onchange="onTypeDocument()">
+              <span class="type-carte">
+                <strong>Dépannage</strong>
+                <small>Intervention chez un client : déplacement et postes, ligne par ligne.</small>
+              </span>
+            </label>
+          </div>
+          <div class="dep-mode hidden" id="depModeBloc">
+            <span class="dep-mode-lbl">Ce document</span>
+            <label class="dep-radio"><input type="radio" name="dep_mode" value="realise" checked onchange="markDirty(); ui_recalc();"> constate une intervention <em>déjà faite</em></label>
+            <label class="dep-radio"><input type="radio" name="dep_mode" value="a_realiser" onchange="markDirty(); ui_recalc();"> est une <em>proposition</em> à faire accepter</label>
+          </div>
+        </div>
+      </section>
 
       <!-- CLIENT -->
       <section class="section">
@@ -150,7 +216,7 @@
       </section>
 
       <!-- OUVERTURES -->
-      <section class="section">
+      <section id="secOuvertures" class="section">
         <div class="section-head">
           <span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Ouvertures</span>
           <span class="section-code">SS // OUV</span>
@@ -169,7 +235,7 @@
       </section>
 
       <!-- INTERNE : COMMISSIONS -->
-      <section class="section is-internal">
+      <section id="secMarges" class="section is-internal">
         <div class="section-head">
           <span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Marges & commissions</span>
           <span class="badge badge-purple">Interne</span>
@@ -220,7 +286,7 @@
       </section>
 
       <!-- INSTALLATION -->
-      <section class="section is-install">
+      <section id="secInstallation" class="section is-install">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Installation</span><span class="badge badge-cyan">Net = Brut ÷ 2,5</span></div>
         <div class="section-body">
           <div class="grid grid-4">
@@ -271,12 +337,18 @@
       </section>
 
       <!-- EXTRAS -->
-      <section class="section">
+      <section id="secSupplements" class="section">
         <div class="section-head"><span class="section-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Suppléments</span></div>
         <div class="section-body">
+          <div class="dep-aide hidden" id="depAide">
+            Une ligne = un poste. Écris ce que tu as fait, la quantité (heures, pièces) et le prix
+            unitaire hors TVA. C'est ce texte-là que le client lira sur le document — sois précis,
+            personne ne relira le devis pour comprendre la facture.
+          </div>
           <div id="extrasContainer"></div>
           <div class="row wrap" style="gap:var(--sp-2);">
-            <button class="btn btn-ghost" onclick="markDirty(); addExtra();">+ Ajouter un supplément (libre)</button>
+            <button class="btn btn-ghost" id="btnAjoutPoste" onclick="markDirty(); addExtra();">+ Ajouter un supplément (libre)</button>
+            <button class="btn btn-ghost hidden" id="depDeplacement" onclick="markDirty(); ajouterDeplacement(); ui_recalc();">+ Déplacement</button>
             <button class="btn btn-ghost" id="catalogOpen" onclick="ouvrirCatalogueAccessoires()">Catalogue accessoires…</button>
           </div>
         </div>
@@ -312,15 +384,15 @@
         <div class="sc-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--accent-2);"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg><h2>Récapitulatif</h2></div>
         <div class="warn-box" id="checklistWarn" style="margin:0 0 var(--sp-3);"></div>
         <div class="sc-body">
-          <div class="sc-line"><span class="k">Catalogue HTVA</span><span class="v" id="sTotalCatalog">0,00 €</span></div>
-          <div class="sc-line"><span class="k">Installation</span><span class="v" id="sTotalInstall">0,00 €</span></div>
-          <div class="sc-line"><span class="k">Suppléments</span><span class="v" id="sTotalExtras">0,00 €</span></div>
-          <div class="sc-line"><span class="k">Difficulté</span><span class="v" id="sSurplus">0,00 €</span></div>
+          <div class="sc-line" id="scCatalog"><span class="k">Catalogue HTVA</span><span class="v" id="sTotalCatalog">0,00 €</span></div>
+          <div class="sc-line" id="scInstall"><span class="k">Installation</span><span class="v" id="sTotalInstall">0,00 €</span></div>
+          <div class="sc-line"><span class="k" id="scExtrasLbl">Suppléments</span><span class="v" id="sTotalExtras">0,00 €</span></div>
+          <div class="sc-line" id="scSurplus"><span class="k">Difficulté</span><span class="v" id="sSurplus">0,00 €</span></div>
           <div class="sc-line hidden" id="sRemiseLine" style="color:var(--ok);"><span class="k">Réduction commerciale</span><span class="v" id="sTotalRemise">-0,00 €</span></div>
           <div class="sc-line sep"><span class="k">Total HTVA</span><span class="v" id="sTotalHT">0,00 €</span></div>
           <div class="sc-line"><span class="k">TVA <span id="sTvaRate">6</span>%</span><span class="v" id="sTotalTVA">0,00 €</span></div>
           <div class="sc-ttc"><span class="k">Total TVAC</span><span class="v" id="sTotalTTC">0,00 €</span></div>
-          <div class="sc-acompte">Acompte <span id="sAcomptePct">50</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
+          <div class="sc-acompte" id="scAcompte">Acompte <span id="sAcomptePct">50</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
         </div>
       </div>
       <button class="btn btn-primary" style="width:100%;padding:0.85rem;" onclick="saveDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer le devis</button>
@@ -649,11 +721,16 @@
       _ex++;
       const row = document.createElement('div');
       row.className = 'extra-row';
+      // L'intitulé part dans un ATTRIBUT HTML : un guillemet dans le texte refermait la balise
+      // et cassait la ligne (et tout ce qui suit). Sur un dépannage on écrit des phrases entières,
+      // donc ça finirait par arriver.
+      const echap = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const exemple = estDepannage() ? 'Ex : Remplacement du moteur (screen façade arrière)' : 'Ex: Capteur vent Eolis 3D';
       row.innerHTML = `
-        <input class="input" placeholder="Ex: Capteur vent Eolis 3D" data-ex="label" value="${data.label || ''}" oninput="ui_recalc()">
-        <input class="input input-num" type="number" min="1" step="1" data-ex="qty" value="${data.qty || 1}" oninput="ui_recalc()">
+        <input class="input" placeholder="${echap(exemple)}" data-ex="label" value="${echap(data.label)}" oninput="ui_recalc()">
+        <input class="input input-num" type="number" min="1" step="1" data-ex="qty" value="${data.qty || 1}" title="Quantité (heures, pièces…)" aria-label="Quantité" oninput="ui_recalc()">
         <div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-ex="unit_price_ht" value="${data.unit_price_ht || ''}" placeholder="0.00" oninput="ui_recalc()"><span class="unit">€</span></div>
-        <button class="btn btn-danger btn-sm" aria-label="Retirer ce supplément" onclick="markDirty(); this.parentElement.remove(); ui_recalc();">✕</button>`;
+        <button class="btn btn-danger btn-sm" aria-label="${estDepannage() ? 'Retirer ce poste' : 'Retirer ce supplément'}" onclick="markDirty(); this.parentElement.remove(); ui_recalc();">✕</button>`;
       el('extrasContainer').appendChild(row);
     };
 
@@ -708,6 +785,57 @@
        • devis existant → ses propres taux (ou les taux historiques s'il n'en a pas) ;
        • devis neuf     → les réglages du jour.
        C'est SSConf.tauxPour qui tranche : voir la règle de non-rétroactivité dans config.js. */
+    /* ── MODE DÉPANNAGE ────────────────────────────────────────────────────────────────────────
+       Un dépannage se chiffre en LIGNES LIBRES (déplacement, main d'œuvre, pièces) : c'est
+       exactement le mécanisme des « suppléments » du moteur, qui sait déjà produire un total sans
+       aucune ouverture. On ne touche donc PAS à calc.js — on masque ce qui ne sert pas et on
+       renomme ce qui reste. Le devis enregistré garde la même forme, donc le tableau de bord, la
+       fiche, le document et la facturation continuent de fonctionner sans modification. */
+    const estDepannage = () => (document.querySelector('input[name="type_document"]:checked') || {}).value === 'depannage';
+    const depMode = () => (document.querySelector('input[name="dep_mode"]:checked') || {}).value || 'realise';
+    window.onTypeDocument = (silencieux) => {
+      const dep = estDepannage();
+      ['secOuvertures', 'secMarges', 'secInstallation'].forEach(id => {
+        const e = el(id); if (e) e.classList.toggle('hidden', dep);
+      });
+      const bloc = el('depModeBloc'); if (bloc) bloc.classList.toggle('hidden', !dep);
+      // La section « Suppléments » DEVIENT le corps du dépannage : même mécanique, autre nom.
+      const titre = document.querySelector('#secSupplements .section-title');
+      if (titre) titre.lastChild.textContent = dep ? ' Postes de l’intervention' : ' Suppléments';
+      // Par ID, jamais par '#secSupplements .btn' : des qu'une ligne existe, le premier bouton
+      // de la section est le « X » de suppression de cette ligne — on le renommait a sa place.
+      const bouton = el('btnAjoutPoste');
+      if (bouton) bouton.textContent = dep ? '+ Ajouter un poste' : '+ Ajouter un supplément (libre)';
+      const aide = el('depAide'); if (aide) aide.classList.toggle('hidden', !dep);
+      const bDep = el('depDeplacement'); if (bDep) bDep.classList.toggle('hidden', !dep);
+      // Le récapitulatif ne doit pas afficher quatre lignes à 0,00 € qui ne se rempliront jamais :
+      // en dépannage, il n'y a ni catalogue, ni pose, ni supplément d'accès, ni acompte.
+      ['scCatalog', 'scInstall', 'scSurplus', 'scAcompte'].forEach(id => {
+        const e = el(id); if (e) e.classList.toggle('hidden', dep);
+      });
+      const lblEx = el('scExtrasLbl'); if (lblEx) lblEx.textContent = dep ? 'Postes' : 'Suppléments';
+      // Le simulateur démarre toujours avec une ouverture VIDE. Masquée, elle continuait de faire
+      // réclamer « Ouverture #1 : largeur manquante » sur un dépannage, et serait partie en base.
+      // On ne retire QUE les ouvertures sans la moindre saisie : jamais du travail réel.
+      if (dep) {
+        const vide = (it) => !it.largeur && !it.hauteur && !it.projection && !it.prix_catalogue_ht && !it.modele && !(it.photos || []).length;
+        const restant = state.items.filter(it => !vide(it));
+        if (restant.length !== state.items.length) { state.items = restant; renderItems(); }
+      }
+      // Premier passage en dépannage : on pose la ligne de déplacement, au prix des réglages.
+      if (dep && !silencieux && !state.items.length && !document.querySelector('#extrasContainer .extra-row')) ajouterDeplacement();
+      // `silencieux` : à la relecture d'un document existant, l'écran s'adapte sans que le devis
+      // soit marqué « modifié » — sinon toute simple ouverture réclamerait un enregistrement.
+      if (!silencieux) markDirty();
+      ui_recalc();
+    };
+    /** Ligne de déplacement, pré-remplie depuis les Paramètres et modifiable comme les autres. */
+    window.ajouterDeplacement = function ajouterDeplacement() {
+      const conf = window.SSConf && window.SSConf.get();
+      const prix = (conf && conf.prix && Number(conf.prix.deplacement)) || 0;
+      addExtra({ label: 'Déplacement', qty: 1, unit_price_ht: prix });
+    };
+
     let TAUX_DEVIS = window.SSConf ? window.SSConf.tauxPour(null) : null;
     let PARTS_DEVIS = null;   // { principal, second } — commissions réglables
 
@@ -794,7 +922,18 @@
 
       // ── Contrôle anti-erreur (avertissements non bloquants avant envoi) ──
       const warnings = [];
-      state.items.forEach((it, i) => {
+      if (estDepannage()) {
+        // Une ouverture RESTÉE saisie sur un dépannage partirait sur le document client sans que
+        // rien ne l'annonce : la section qui la porte est masquée. On le dit franchement.
+        if (state.items.length) warnings.push(`${state.items.length} ouverture(s) saisie(s) : elles apparaîtront sur le document — repasse en « Devis » ou supprime-les.`);
+        const postes = collectExtras();
+        if (!postes.length) warnings.push('Aucun poste : ajoute au moins une ligne (déplacement, main-d’œuvre, pièce…).');
+        postes.forEach((e, i) => {
+          if (!e.label) warnings.push(`Poste #${i + 1} : sans intitulé — c'est ce texte que le client lira.`);
+          if (!e.unit_price_ht) warnings.push(`Poste #${i + 1} : prix à 0 €.`);
+        });
+      }
+      if (!estDepannage()) state.items.forEach((it, i) => {
         // Tente solaire : c'est la PROJECTION qui compte, pas la hauteur (dimension sans objet ici).
         if (it.type === 'tente_solaire') {
           if (!it.largeur || !it.projection) warnings.push(`Ouverture #${i + 1} : largeur ou projection manquante`);
@@ -803,7 +942,7 @@
         }
         if (!el('isInformatif').checked && !it.prix_catalogue_ht) warnings.push(`Ouverture #${i + 1} : prix catalogue à 0€`);
       });
-      if (!input.acompte_pct) warnings.push("Acompte à 0% — vérifie que c'est voulu");
+      if (!input.acompte_pct && !estDepannage()) warnings.push("Acompte à 0% — vérifie que c'est voulu");
       const warnBox = el('checklistWarn');
       warnBox.style.display = warnings.length ? 'block' : 'none';
       if (warnings.length) warnBox.innerHTML = `<strong>À vérifier avant l'envoi :</strong><ul style="margin:0.3rem 0 0 1.1rem;padding:0;">${warnings.map(w => `<li>${w}</li>`).join('')}</ul>`;
@@ -879,7 +1018,12 @@
     window.saveDevis = async () => {
       const client = collectClient();
       if (!client.prenom || !client.nom) { toast('Renseigne le prénom et le nom du client.', 'warn'); return; }
-      if (state.items.length === 0) { toast('Ajoute au moins une ouverture.', 'warn'); return; }
+      // Un dépannage n'a pas d'ouverture : ce qu'il doit avoir, c'est au moins un poste chiffré.
+      if (estDepannage()) {
+        if (!collectExtras().some(e => e.label && Number(e.unit_price_ht) > 0)) {
+          toast('Ajoute au moins un poste avec un prix (déplacement, main d’œuvre, pièce…).', 'warn', 5000); return;
+        }
+      } else if (state.items.length === 0) { toast('Ajoute au moins une ouverture.', 'warn'); return; }
       const input = buildInput();
       const c = computeDevis(input);
       const devis = {
@@ -887,6 +1031,10 @@
         date_creation: state.date_creation,
         date_modification: new Date().toISOString(),
         statut: state.statut,
+        // Type de document : un dépannage garde la MÊME forme qu'un devis (ses postes sont les
+        // « suppléments » du moteur), seul ce marqueur les distingue à l'affichage.
+        type_document: estDepannage() ? 'depannage' : 'devis',
+        depannage_mode: estDepannage() ? depMode() : undefined,
         informatif: el('isInformatif').checked,
         client,
         items: state.items.map(({ _id, ...rest }) => rest),
@@ -966,6 +1114,13 @@
       // ⚠️ NON-RÉTROACTIVITÉ : ce devis reprend SES taux (ou ceux de l'époque s'il n'en a pas
       // stockés), jamais les réglages du jour. Rouvrir un dossier de mars ne doit pas en changer
       // les montants parce qu'on a ajusté une marge depuis.
+      // Type de document : à relire AVANT le reste, il commande l'affichage de tout l'écran.
+      const estDep = d.type_document === 'depannage';
+      const radioType = document.querySelector(`input[name="type_document"][value="${estDep ? 'depannage' : 'devis'}"]`);
+      if (radioType) radioType.checked = true;
+      const radioMode = document.querySelector(`input[name="dep_mode"][value="${d.depannage_mode || 'realise'}"]`);
+      if (radioMode) radioMode.checked = true;
+      window.onTypeDocument(true);
       if (window.SSConf) TAUX_DEVIS = window.SSConf.tauxPour(d);
       PARTS_DEVIS = p.seller_parts || null;
       const sellers = p.material?.sellers || {};
@@ -1037,6 +1192,11 @@
       if (qp('id')) {
         await loadExisting(qp('id'));
       } else {
+        // Arrivée directe en dépannage (lien « Nouveau dépannage » du tableau de bord).
+        if (qp('type') === 'depannage') {
+          const rd = document.querySelector('input[name="type_document"][value="depannage"]');
+          if (rd) { rd.checked = true; window.onTypeDocument(); }
+        }
         // Devis NEUF : taux, commissions et montants de pose viennent des réglages.
         if (CONF) {
           TAUX_DEVIS = window.SSConf.tauxPour(null);
@@ -1051,7 +1211,9 @@
         el('clientSearchField').classList.remove('hidden');
         CLIENT_DIRECTORY = await buildClientDirectory();
       }
-      if (state.items.length === 0) addItem();
+      // Un depannage n'a legitimement AUCUNE ouverture : lui en poser une d'office la ferait
+      // figurer sur le document remis au client, et reclamer ses dimensions manquantes.
+      if (state.items.length === 0 && !estDepannage()) addItem();
       onSellerChange();
       ui_recalc();
     })();

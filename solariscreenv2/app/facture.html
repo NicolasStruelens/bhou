@@ -82,10 +82,13 @@
       else if (st === 'payee') wm = '<div class="watermark paid">PAYÉE</div>';
       else if (overdue) wm = '<div class="watermark due">IMPAYÉE</div>';
 
+      // Facture d'un DÉPANNAGE : ses lignes sont des postes d'intervention, sans dimensions.
+      // Une colonne entière de tirets n'apprend rien — on la retire, comme sur le document.
+      const dep = f.source_type === 'depannage';
       const rows = (f.lines || []).map((l, i) => `<tr>
         <td class="num">${i + 1}</td>
         <td class="desc"><strong>${esc(l.desc)}</strong>${l.sub ? '<small>' + esc(l.sub) + '</small>' : ''}</td>
-        <td>${esc(l.dims || '—')}</td>
+        ${dep ? '' : `<td>${esc(l.dims || '—')}</td>`}
         <td class="num">${l.qty != null ? l.qty : '—'}</td>
         <td class="num">${fmtEur(l.pu)}</td>
         <td class="num">${fmtEur(l.total)}</td>
@@ -109,7 +112,7 @@
               Date : ${fmtDate(f.date)}<br>
               ${estAvoir(f)
                 ? 'Annule la facture N° ' + esc(f.avoir_de || '—')
-                : 'Échéance : ' + fmtDate(f.echeance)}${f.devis_id ? '<br>Réf. devis N° ' + esc(f.devis_id) : ''}
+                : 'Échéance : ' + fmtDate(f.echeance)}${f.devis_id ? '<br>Réf. ' + (dep ? 'intervention' : 'devis') + ' N° ' + esc(f.devis_id) : ''}
             </div>
             <div style="margin-top:0.5rem;"><span class="pay-status ${statusCls}">${statusTxt}</span></div>
           </div>
@@ -133,7 +136,7 @@
         </div>
 
         <table class="doc-table">
-          <thead><tr><th class="num">#</th><th>Désignation</th><th>Dimensions</th><th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th></tr></thead>
+          <thead><tr><th class="num">#</th><th>Désignation</th>${dep ? '' : '<th>Dimensions</th>'}<th class="num">Qté</th><th class="num">P.U. HTVA</th><th class="num">Total HTVA</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
 

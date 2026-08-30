@@ -34,6 +34,7 @@
       tech1_gross: 125,
       tech2_gross: 125,
       tools_gross: 30,
+      deplacement: 45,          // dépannage : forfait de déplacement, par intervention
       tva_pct: 6,
       acompte_pct: 50,
     },
