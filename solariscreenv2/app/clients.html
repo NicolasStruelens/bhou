@@ -28,6 +28,26 @@
        « auto », donc elle se laisse étirer par son contenu. Sur un téléphone (412 px), la barre de
        recherche + le tri poussaient la colonne à 476 px et toute la page débordait. */
     @media (max-width: 920px) { .crm-layout { grid-template-columns: minmax(0, 1fr); } .crm-detail.empty-detail { display: none; } }
+    /* ── TÉLÉPHONE : liste OU fiche, jamais les deux ────────────────────────────────────────
+       La liste plafonne à 70 vh ; en une colonne, la fiche du client tombait donc ~290 px SOUS
+       le bas de l'écran (mesuré à 375 × 812 avec 20 clients : fiche à 1102 px). On tapait un
+       client et il ne se passait visiblement rien — c'est ce qui rendait la modification
+       impossible depuis un téléphone. On bascule donc en maître/détail : la fiche remplace la
+       liste, et un bouton ramène en arrière. Au-dessus de 920 px, les deux colonnes cohabitent
+       comme avant — rien ne change au bureau. */
+    /* ⚠️ La règle de base est écrite AVANT la media query, jamais après : une déclaration en fin
+       de feuille repasse devant une media query écrite plus haut (piège déjà payé sur ce projet).
+       C'est une variable qui porte l'état, pas une réécriture de `display`. */
+    .crm-retour { display: none; align-items: center; gap: 0.4rem; margin-bottom: var(--sp-3); }
+    @media (max-width: 920px) {
+      body.crm-fiche-ouverte .crm-list { display: none; }
+      /* Les indicateurs du haut résument TOUS les clients : quand on en modifie un, ils poussent
+         sa fiche 440 px plus bas sans rien apprendre. */
+      body.crm-fiche-ouverte .kpis { display: none; }
+      body.crm-fiche-ouverte .crm-retour { display: inline-flex; }
+      /* La liste n'a plus de voisine : elle peut prendre toute la hauteur utile. */
+      .crm-items { max-height: none; }
+    }
 
     .crm-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: visible; box-shadow: var(--shadow-sm); --tick-color: var(--accent); }
     /* wrap : sur écran étroit, le tri passe sous la recherche au lieu de forcer la largeur. */
@@ -144,6 +164,7 @@
       </div>
 
       <!-- Détail -->
+      <button class="btn btn-ghost btn-sm crm-retour" id="crmRetour" onclick="fermerFiche()">← Tous les clients</button>
       <div class="crm-detail ticked empty-detail" id="detail">
         <div class="empty-detail-msg"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Sélectionne un client pour voir sa fiche et son historique.</div>
       </div>
@@ -305,8 +326,22 @@
         </div>`).join('') : '<div class="empty-detail-msg">Aucun client.</div>';
     }
 
+    /** Retour à la liste (téléphone). Au bureau le bouton n'existe pas : les deux colonnes
+     *  sont côte à côte et il n'y a jamais rien à « fermer ». */
+    window.fermerFiche = function () {
+      document.body.classList.remove('crm-fiche-ouverte');
+      selectedKey = null;
+      renderList();
+      const d = el('detail');
+      d.classList.add('empty-detail');
+      d.innerHTML = '<div class="empty-detail-msg">Sélectionne un client pour voir sa fiche et son historique.</div>';
+      window.scrollTo(0, 0);
+    };
     window.renderDetail = function (key) {
       selectedKey = key;
+      // Sur téléphone la fiche PREND LA PLACE de la liste ; sans ça elle s'ouvrait hors écran.
+      document.body.classList.add('crm-fiche-ouverte');
+      window.scrollTo(0, 0);
       const c = DIRECTORY.find(x => x.key === key);
       renderList();
       const det = el('detail');

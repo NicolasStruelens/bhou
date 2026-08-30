@@ -105,7 +105,12 @@ création), temps sur place, intervenants, motif de l'appel, constat, garantie (
 textes sont ÉCRITS POUR LE CLIENT : ils passent la liste blanche de `/api/devis-review`. Rien
 d'autre du dépannage n'y passe.
 
-**9. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
+**9. Un BON D'INTERVENTION ne se relance pas.** Les relances font ACCEPTER une offre ; sur des
+travaux déjà faits il n'y a plus rien à accepter, et ce qu'on chasse c'est le paiement (factures,
+alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
+`depannage_mode === 'realise'`. Une PROPOSITION de dépannage se relance normalement.
+
+**10. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
 ## Pièges déjà payés — ne pas les repayer
@@ -119,6 +124,19 @@ d'autre du dépannage n'y passe.
   D'INTERVENTION »). La bonne réponse était `flex-wrap: wrap` sous 560 px.
 - **Renommer un bouton par `section .btn`** attrape le premier bouton de la section — qui devient
   le « ✕ » d'une ligne dès qu'il en existe une. Viser par identifiant.
+- **Un texte en `text-overflow: ellipsis` à côté d'un badge, dans une rangée flex** se fait
+  écraser : « Martine Dubois » tombait à 8 px — une seule lettre — dès qu'un badge un peu long
+  partageait la ligne. Donner un plancher au texte qui IDENTIFIE (`min-width: 6ch`) et refuser au
+  badge de grandir (`flex: 0 0 auto`), sinon c'est le nom qui cède.
+- **Un maître/détail replié sur une colonne** met le détail SOUS la liste : avec 20 clients, la
+  fiche s'ouvrait 290 px sous le bas de l'écran, on croyait que le clic ne marchait pas. Sur
+  téléphone, le détail doit REMPLACER la liste, avec un bouton de retour.
+- **`@media (pointer: coarse)` ne couvre que `.btn` et consorts** : les composants maison
+  (`.salut-seg button`, `.tagp`, `.cf-chip`, `.tb-chip`) restaient à 21 px de haut sur un vrai
+  téléphone. Les ajouter explicitement à la liste du bloc `pointer: coarse` de `base.css`.
+- **Une zone de touche élargie par un pseudo-élément absolu compte quand même** dans le
+  `scrollWidth` de ses ancêtres : agrandir la pastille de probabilité faisait déborder la rangée
+  de 10 px. Dans une ligne déjà pleine, il n'y a pas de place cachée.
 - **`parseInt` sur une quantité** : une main-d'œuvre se compte en heures, et 1,5 h devenait 1 h à
   chaque enregistrement, sans un mot. `parseFloat` partout où une quantité peut être fractionnaire
   — et le champ doit alors porter un `step` décimal, sinon il refuse la valeur qu'il affiche.
