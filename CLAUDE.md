@@ -14,11 +14,18 @@ synchronisent jamais. Ce qui n'est pas écrit ici est perdu pour l'autre.
 |---|---|
 | `solariscreenv2/` | **L'ERP. Le seul dossier vivant.** C'est lui que Cloudflare publie. |
 | `index.html`, `reseau.html`, `tfe.html`, `family/`, `racine/`, `simulateur/`, `photo.html`, `steph.html` | Site personnel de Nicolas (GitHub Pages, www.nicolas-struelens.com). **Hors sujet ERP — ne pas y toucher.** |
-| `functions/`, `api.js`, `_routes.json` (à la racine) | Vestiges de l'ancien Worker. Plus rien ne tourne dessus. |
+| `racine/` | Application perso « Racine » (notes + presse-papier). Projet Cloudflare séparé — hors sujet ERP. |
 
 Le dossier `solariscreen/` (ERP version 1) a été **supprimé le 09/08/2026**. Il reste consultable
 dans l'historique git. Un audit externe a perdu des heures à l'analyser parce que rien n'indiquait
 qu'il était mort — d'où ce tableau.
+
+Les vestiges de l'ancien Worker à la racine (`functions/`, `api.js`, `_routes.json`) ont été
+**supprimés le 30/08/2026**. Ils n'étaient servis par aucun projet — chacun a son propre
+`functions/` dans son dossier — mais `functions/[[catchall]].js` offrait un CRUD complet sur la
+table `devis`, sans aucune authentification et avec `Access-Control-Allow-Origin: *`. Inoffensif
+tant que rien ne le branchait ; une API publique capable de vider la base le jour où quelqu'un
+changerait le dossier racine d'un projet Pages. **Ne pas les réintroduire.**
 
 ## La chaîne de déploiement — à comprendre avant tout
 
