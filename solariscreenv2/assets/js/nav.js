@@ -466,7 +466,13 @@
       const dv = DATA.devis.map(d => {
         const prenom = d.client_prenom || (d.client && d.client.prenom) || '', nom = d.client_nom || (d.client && d.client.nom) || '';
         const ville = (d.client && d.client.adresse && d.client.adresse.ville) || '';
-        return { label: (prenom + ' ' + nom).trim() || 'Sans nom', sub: '#' + d.id, hay: (prenom + ' ' + nom + ' ' + d.id + ' ' + ville).toLowerCase(), href: 'vue.html?id=' + encodeURIComponent(d.id), ic: 'D' };
+        const resume = (window.SSUI && window.SSUI.resumeDevis) ? window.SSUI.resumeDevis(d) : '';
+        return { label: (prenom + ' ' + nom).trim() || 'Sans nom',
+          sub: resume ? resume + ' · #' + d.id : '#' + d.id,
+          // Le résumé devient cherchable : taper « façade sud » ou « tente » trouve le bon
+          // devis sans connaître son numéro — c'est comme ça qu'on se souvient d'un chantier.
+          hay: (prenom + ' ' + nom + ' ' + d.id + ' ' + ville + ' ' + resume).toLowerCase(),
+          href: 'vue.html?id=' + encodeURIComponent(d.id), ic: 'D' };
       }).filter(x => x.hay.includes(q)).slice(0, 6);
       if (dv.length) groups.push({ title: 'Devis', items: dv });
       const cl = DATA.clients.map(c => {

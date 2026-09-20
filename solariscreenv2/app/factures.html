@@ -292,7 +292,14 @@
       // On ne facture qu'un devis SIGNÉ ou TERMINÉ (jamais un brouillon, un refusé ou un annulé).
       const billable = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
       if (!billable.length) { toast('Aucun devis signé ou terminé à facturer.', 'warn'); return; }
-      const opts = billable.map(d => `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)} (${fmtEur(d.ttc)})${d.type_document === 'depannage' ? ' · dépannage' : ''}</option>`).join('');
+      // Le résumé dans la liste : avec trois devis pour le même client, choisir « celui du
+      // milieu » à l'aveugle revient à facturer le mauvais chantier.
+      const opts = billable.map(d => {
+        const r = window.SSUI.resumeDevis(d);
+        return `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)}`
+          + (r ? ` · ${esc(r)}` : '')
+          + ` (${fmtEur(d.ttc)})${d.type_document === 'depannage' ? ' · dépannage' : ''}</option>`;
+      }).join('');
       el('mDevis').innerHTML = opts;
       // Échéance et acompte : valeurs par défaut réglables (Paramètres). Le % d'acompte est
       // ensuite écrasé par celui du devis choisi (onDevisPick) — c'est lui qui fait foi.

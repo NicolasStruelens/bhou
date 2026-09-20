@@ -333,6 +333,68 @@
     };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+     DE QUOI PARLE CE DEVIS — résumé d'une ligne, déduit des ouvertures
+     ═══════════════════════════════════════════════════════════════════════════════════════════
+     Un client a souvent PLUSIEURS devis en cours. Dans la liste, ils portaient le même nom, les
+     mêmes pastilles de type et ne se distinguaient que par le montant et le numéro : celui qui a
+     rédigé le devis s'y retrouvait de mémoire, l'autre non. C'est un problème de travail à deux,
+     pas de confort.
+     Le résumé répond aux deux seules questions qui séparent deux devis d'un même client :
+     COMBIEN de quoi, et OÙ. Les deux sont déjà saisis — rien de neuf à remplir, et les devis
+     existants en profitent immédiatement.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  // Singulier / pluriel : « 1 Screen » et « 3 Screens ». Les libellés existent en copie locale
+  // dans plusieurs pages (héritage) ; celui-ci est la version partagée.
+  // Noms affichables des vendeurs. Vivait en copie locale dans le tableau de bord ; la fiche
+  // client en a besoin aussi, donc il monte ici plutôt que d'être recopié une deuxième fois.
+  const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
+
+  const TYPE_RESUME = {
+    screen:        ['Screen', 'Screens'],
+    volet_roulant: ['Volet', 'Volets'],
+    tente_solaire: ['Tente solaire', 'Tentes solaires'],
+    tablier_volet: ['Tablier', 'Tabliers'],
+    pergola:       ['Pergola', 'Pergolas'],
+    store_banne:   ['Store banne', 'Stores bannes'],
+  };
+
+  /** Résumé court : « 3 Screens SC 90 · Façade sud ». Chaîne vide si on ne sait rien dire —
+   *  l'appelant n'affiche alors aucune ligne plutôt qu'un tiret creux.
+   *  @param d  ligne de liste (items_min) ou devis complet (items). */
+  function resumeDevis(d) {
+    if (!d) return '';
+    // Un dépannage porte déjà son badge et son rapport : il n'a pas d'ouvertures à résumer.
+    if (d.type_document === 'depannage') return '';
+    const items = (d.items_min && d.items_min.length) ? d.items_min : (d.items || []);
+    if (!items.length) return '';
+
+    // COMBIEN de quoi, le type le plus nombreux en tête.
+    const parType = new Map();
+    items.forEach(function (it) {
+      const t = it && it.type;
+      if (!t) return;
+      parType.set(t, (parType.get(t) || 0) + (Number(it.quantite) || 1));
+    });
+    if (!parType.size) return '';
+    const quoi = [...parType.entries()].sort(function (a, b) { return b[1] - a[1]; })
+      .map(function (e) {
+        const l = TYPE_RESUME[e[0]] || [e[0], e[0]];
+        return e[1] > 1 ? e[1] + ' ' + l[1] : l[0];
+      }).join(' + ');
+
+    // Le MODÈLE seulement quand il est sans ambiguïté : c'est lui qui sépare un SC 90 d'un
+    // SC 110 chez le même client. Deux types mélangés ou deux modèles → on s'abstient, la
+    // précision ne vaut pas la confusion.
+    const modeles = [...new Set(items.map(function (i) { return String((i && i.modele) || '').trim(); }).filter(Boolean))];
+    const avecModele = (parType.size === 1 && modeles.length === 1) ? quoi + ' ' + modeles[0] : quoi;
+
+    // OÙ : l'information la plus discriminante, et celle qu'on retient d'un chantier.
+    const lieux = [...new Set(items.map(function (i) { return String((i && i.emplacement) || '').trim(); }).filter(Boolean))];
+    const ou = lieux.slice(0, 2).join(', ') + (lieux.length > 2 ? '…' : '');
+    return ou ? avecModele + ' · ' + ou : avecModele;
+  }
+
   // ── Dimensions d'une ouverture (source unique, partagée par tous les documents) ──
   // Une TENTE SOLAIRE (store banne) se mesure en LARGEUR × PROJECTION (l'avancée) : la hauteur
   // n'a aucun sens pour ce produit. Tous les autres types se mesurent en largeur × hauteur.
@@ -1313,6 +1375,7 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
+    resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,

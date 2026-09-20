@@ -419,7 +419,10 @@ export async function onRequest(context) {
                   'moteur_ref', json_extract(je.value, '$.moteur_ref'),
                   'lame_type', json_extract(je.value, '$.lame_type'),
                   'manoeuvre', json_extract(je.value, '$.manoeuvre'),
-                  'emplacement', json_extract(je.value, '$.emplacement')
+                  'emplacement', json_extract(je.value, '$.emplacement'),
+                  -- Ajoutée pour le résumé de ligne (SSUI.resumeDevis) : « 3 Screens » et
+                  -- « 1 Screen » ne se distinguent pas sans elle.
+                  'quantite', json_extract(je.value, '$.quantite')
                 )) FROM json_each(data, '$.items') je) AS items_min_json
         FROM devis ORDER BY date_modification DESC
       `).all();
