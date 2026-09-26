@@ -112,12 +112,21 @@ création), temps sur place, intervenants, motif de l'appel, constat, garantie (
 textes sont ÉCRITS POUR LE CLIENT : ils passent la liste blanche de `/api/devis-review`. Rien
 d'autre du dépannage n'y passe.
 
-**9. Un BON D'INTERVENTION ne se relance pas.** Les relances font ACCEPTER une offre ; sur des
+**9. Un devis doit se reconnaître SANS être ouvert.** Un client a souvent plusieurs devis en
+cours ; dans une liste ils portent le même nom. `SSUI.resumeDevis(d)` en donne le résumé —
+« 3 Screens SC 90 · Façade sud » — déduit des ouvertures déjà saisies, donc valable aussi sur
+les devis existants. Il est affiché partout où l'on choisit un devis : tableau de bord, fiche
+client, fiche devis, liste de facturation, recherche globale (où il est aussi cherchable).
+Le VENDEUR accompagne le résumé, mais seulement quand la liste en contient plusieurs — sinon
+c'est du bruit. Règle générale : ce qui est évident pour celui qui a rédigé le devis ne l'est
+jamais pour l'autre.
+
+**10. Un BON D'INTERVENTION ne se relance pas.** Les relances font ACCEPTER une offre ; sur des
 travaux déjà faits il n'y a plus rien à accepter, et ce qu'on chasse c'est le paiement (factures,
 alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
 `depannage_mode === 'realise'`. Une PROPOSITION de dépannage se relance normalement.
 
-**10. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
+**11. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
 ## Pièges déjà payés — ne pas les repayer

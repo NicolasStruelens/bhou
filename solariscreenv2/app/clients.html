@@ -110,7 +110,9 @@
     }
     .empty-detail-msg { text-align: center; color: var(--text-muted); padding: var(--sp-7); }
     .empty-detail-msg svg { display: block; margin: 0 auto var(--sp-3); color: var(--text-subtle); }
-    .hist-meta { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .hist-resume { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.15rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hist-meta { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; flex-wrap: wrap; }
     .hist-meta span { display: inline-flex; align-items: center; gap: 0.2rem; }
     .hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(72px, 100%), 1fr)); gap: 0.4rem; }
     .hp-thumb { width: 100%; aspect-ratio: 1; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); cursor: pointer; background: var(--surface-2); }
@@ -179,6 +181,7 @@
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
+    const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique : assets/js/ui.js
     const { fmtEur, fmtDate, el, toast, icon } = window.SSUI;
     window.SSNav.mount(document.getElementById('quickNav'));
     mountThemeToggle(document.getElementById('themeToggle'));
@@ -234,6 +237,10 @@
           contact: d.client || null,
           photos: d.photos_count || 0, comments: d.comments_count || 0,
           chantier: d.chantier || null,
+          // De quoi parle ce devis, et qui l'a fait. Sans ça, l'historique d'un client alignait
+          // trois lignes « #numéro · date · montant » impossibles à distinguer sans les ouvrir.
+          resume: (window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || '',
+          vendeur: SELLER_LABELS[d.seller_principal] || '',
         });
       });
 
@@ -444,7 +451,9 @@
               <div>${badge(d.statut)}</div>
               <div>
                 <span class="hid">#${d.id}</span><br><span class="text-muted" style="font-size:var(--fs-2xs)">${fmtDate(d.date)}</span>
+                ${d.resume ? `<div class="hist-resume" title="${esc(d.resume)}">${esc(d.resume)}</div>` : ''}
                 <div class="hist-meta">
+                  ${d.vendeur ? `<span title="Devis établi par ${esc(d.vendeur)}">${icon('user', 11)} ${esc(d.vendeur)}</span>` : ''}
                   ${d.photos ? `<span>${icon('camera', 11)} ${d.photos}</span>` : ''}
                   ${d.comments ? `<span>${icon('message', 11)} ${d.comments}</span>` : ''}
                   ${chantierBadge}

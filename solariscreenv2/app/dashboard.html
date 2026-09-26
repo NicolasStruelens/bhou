@@ -312,6 +312,15 @@
     @media (max-width: 700px) { .m-jump { margin-left: 0; } }
     .m-nm { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .m-name { font-weight: 600; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* De quoi parle le devis — une ligne calme sous le nom, jamais concurrente du nom.
+       `min-width: 0` sur l'enfant : sans lui un texte long refuse de rétrécir et pousse la
+       pastille du vendeur hors de la ligne. */
+    .m-desc { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; margin-top: 1px; }
+    .m-desc .md-quoi { font-size: var(--fs-2xs); color: var(--text-muted); min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-desc .md-vend { flex: none; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle);
+      border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0 0.45rem; line-height: 1.5; }
     .m-nb { display: inline-flex; align-items: center; gap: 6px; flex: none; }
     .m-sub { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
     .m-sub .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
@@ -371,6 +380,10 @@
          fond ni bordure ni marge — la dissoudre ne fait donc rien perdre visuellement. */
       .m-main { display: contents; }
       .m-nm { grid-column: 1; }
+      /* Sur téléphone c'est ici que le résumé compte le plus : le n° de devis et les pastilles
+         de type sont masqués, il ne resterait QUE le nom et le montant pour distinguer deux
+         devis d'un même client. */
+      .m-desc { grid-column: 1 / -1; }
       /* Le montant partage la première ligne avec le nom : on lui donne un plafond de largeur
          pour qu'un badge « Retard paiement » ne vienne pas rogner le nom du client. */
       .m-right { grid-column: 2; grid-row: 1; align-items: flex-end; margin-top: 0; max-width: 42%; }
@@ -1066,7 +1079,7 @@
       else render();
     };
 
-    const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
+    const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique : assets/js/ui.js
     // Libellés lisibles des vues filtrées (chips de filtres actifs, #16)
     const FILTER_LABELS = {
       actifs: 'Dossiers actifs', tous: 'Tous, refusés compris',
@@ -1357,6 +1370,24 @@
         const tags = CLIENT_TAGS.get(clientKeyOf(d.prenom, d.nom)) || [];
         return tags.length ? `${full} — Étiquettes : ${tags.join(', ')}` : full;
       };
+      // Une seule fois pour toute la liste : inutile de le recalculer à chaque ligne.
+      const plusieursVendeurs = new Set(DEVIS.filter(d => !d.archive)
+        .map(d => d.seller_principal || 'nicolas')).size > 1;
+      /* Ce que le devis CONTIENT, en clair. Sans cette ligne, trois devis du même client
+         affichaient le même nom, les mêmes pastilles et ne se distinguaient que par le montant :
+         celui qui les avait rédigés s'y retrouvait de mémoire, l'autre devait les ouvrir un par
+         un. Le vendeur n'apparaît que s'il y en a PLUSIEURS dans la liste — même règle que les
+         filtres vendeur, qui se cachent quand Nicolas est seul : afficher « N » partout serait
+         du bruit. */
+      const ligneResume = (d) => {
+        const quoi = SSUI.resumeDevis(d);
+        const vend = plusieursVendeurs ? (SELLER_LABELS[d.seller_principal] || d.seller_principal || '') : '';
+        if (!quoi && !vend) return '';
+        return `<div class="m-desc">`
+          + (quoi ? `<span class="md-quoi" title="${esc(quoi)}">${esc(quoi)}</span>` : '')
+          + (vend ? `<span class="md-vend" title="Devis établi par ${esc(vend)}">${esc(vend)}</span>` : '')
+          + `</div>`;
+      };
       const typeBadges = (d) => {
         const types = d.item_types || [];
         // Un dépannage n'a aucun produit : sans badge il se lirait comme un devis vide.
@@ -1373,8 +1404,8 @@
         // commande Harol est bloquée, et l'oubli ne se voyait qu'au moment de commander.
         // Rien sur un devis refusé ou annulé : on ne le commandera jamais.
         const manque = (DEAD_STATUSES.includes(d.statut) || !SSUI.badgeManquants) ? '' : SSUI.badgeManquants(d);
-        if (!types.length && !manque && !dep && !suite) return '';
-        return `<div class="type-badges">${dep}${suite}${types.map(t => `<span class="badge">${esc(TYPE_LABEL[t] || t)}</span>`).join('')}${manque}</div>`;
+        if (!manque && !dep && !suite) return '';
+        return `<div class="type-badges">${dep}${suite}${manque}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
       el('tableHost').innerHTML = `<div class="mix-list">${rows.map(d => {
@@ -1392,6 +1423,7 @@
                 ${d.portfolio ? `<span class="badge badge-gold" title="Dans le portfolio de réalisations">${icon('star', 10)}</span>` : ''}
               </span>
             </div>
+            ${ligneResume(d)}
             <div class="m-sub">
               ${pill(d)}
               <span class="id">#${d.id}</span>
