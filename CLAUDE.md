@@ -121,12 +121,20 @@ Le VENDEUR accompagne le résumé, mais seulement quand la liste en contient plu
 c'est du bruit. Règle générale : ce qui est évident pour celui qui a rédigé le devis ne l'est
 jamais pour l'autre.
 
-**10. Un BON D'INTERVENTION ne se relance pas.** Les relances font ACCEPTER une offre ; sur des
+**10. Le VOCABULAIRE vit dans `ui.js`, jamais en copie locale.** Noms des types de produit
+(`SSUI.TYPE_LABEL`, formes singulier/pluriel dans `TYPE_FORMES`) et noms des vendeurs
+(`SSUI.SELLER_LABELS`). Les types ont vécu en **13 copies** et elles avaient déjà divergé : le
+tableau de bord ignorait `pergola` et `store_banne`, donc son filtre affichait « pergola » en
+minuscule brut à côté de « Screen ». Ne pas confondre avec `SSProducts.ITEM_TYPES`, qui liste ce
+qu'on peut encore CRÉER (4 types) — la table d'affichage garde en plus les types historiques,
+parce qu'un devis de 2024 doit rester lisible.
+
+**11. Un BON D'INTERVENTION ne se relance pas.** Les relances font ACCEPTER une offre ; sur des
 travaux déjà faits il n'y a plus rien à accepter, et ce qu'on chasse c'est le paiement (factures,
 alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
 `depannage_mode === 'realise'`. Une PROPOSITION de dépannage se relance normalement.
 
-**11. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
+**12. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
 ## Pièges déjà payés — ne pas les repayer
