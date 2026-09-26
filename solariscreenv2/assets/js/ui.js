@@ -350,14 +350,28 @@
   // client en a besoin aussi, donc il monte ici plutôt que d'être recopié une deuxième fois.
   const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
 
-  const TYPE_RESUME = {
+  /* Noms affichables des types de produit — SOURCE UNIQUE.
+     Ils vivaient en 13 copies locales, et elles avaient déjà divergé : le tableau de bord ne
+     connaissait ni `pergola` ni `store_banne`, donc son filtre produit affichait « pergola » en
+     minuscule brut à côté de « Screen » et « Volet ». Une page oubliée = une clé technique
+     montrée à l'écran, et un jour sur un document client.
+     ⚠️ Deux notions à ne pas confondre :
+       • CE QU'ON PEUT ENCORE CRÉER → `SSProducts.ITEM_TYPES` (4 types, liste du simulateur) ;
+       • CE QU'IL FAUT SAVOIR AFFICHER → cette table, qui garde en plus les types HISTORIQUES.
+     Un devis de 2024 contient une pergola : on ne la propose plus, mais elle doit rester lisible. */
+  // Singulier ET pluriel côte à côte : « 1 Screen » / « 3 Screens ». Une seule table, deux
+  // colonnes — c'est le même vocabulaire, il n'a aucune raison de vivre à deux endroits.
+  const TYPE_FORMES = {
     screen:        ['Screen', 'Screens'],
     volet_roulant: ['Volet', 'Volets'],
     tente_solaire: ['Tente solaire', 'Tentes solaires'],
-    tablier_volet: ['Tablier', 'Tabliers'],
-    pergola:       ['Pergola', 'Pergolas'],
+    tablier_volet: ['Tablier volet', 'Tabliers de volet'],
+    pergola:       ['Pergola', 'Pergolas'],        // plus proposé à la création, encore affiché
     store_banne:   ['Store banne', 'Stores bannes'],
+    volet:         ['Volet', 'Volets'],            // clé héritée d'anciens devis
   };
+  const TYPE_LABEL = {};
+  Object.keys(TYPE_FORMES).forEach(function (k) { TYPE_LABEL[k] = TYPE_FORMES[k][0]; });
 
   /** Résumé court : « 3 Screens SC 90 · Façade sud ». Chaîne vide si on ne sait rien dire —
    *  l'appelant n'affiche alors aucune ligne plutôt qu'un tiret creux.
@@ -379,7 +393,7 @@
     if (!parType.size) return '';
     const quoi = [...parType.entries()].sort(function (a, b) { return b[1] - a[1]; })
       .map(function (e) {
-        const l = TYPE_RESUME[e[0]] || [e[0], e[0]];
+        const l = TYPE_FORMES[e[0]] || [e[0], e[0]];
         return e[1] > 1 ? e[1] + ' ' + l[1] : l[0];
       }).join(' + ');
 
@@ -1375,7 +1389,7 @@
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
-    resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
+    resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
