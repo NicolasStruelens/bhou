@@ -120,10 +120,24 @@
     .cm-empty { font-size: var(--fs-sm); color: var(--text-muted); }
 
     /* ── Créneaux proposés (prise de RDV) ── */
-    .creneau { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--crc, var(--border-strong)); border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); }
-    .creneau .input, .creneau .select { height: 32px; font-size: var(--fs-sm); }
-    .creneau .cr-date { max-width: 150px; }
+    .creneau { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--crc, var(--border-strong)); border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); }
+    /* Pas de `height` fixe : `.input`/`.select` portent 0,65 rem de padding en haut ET en bas, soit
+       ~37 px de contenu. Forcer 32 px coupait « Matin (9h — 12h) » en deux dans le sens de la
+       hauteur — invisible à la mesure (scrollHeight d'un select ne bouge pas), visible à l'écran.
+       On resserre le padding, la hauteur suit. */
+    .creneau .input, .creneau .select { padding: 0.3rem 0.5rem; font-size: var(--fs-sm); }
+    /* Largeurs explicites pour que la rangée tienne sur UNE ligne au bureau : sans elles, chaque
+       champ réclame 100 % et la ligne se replie en trois étages. */
+    .creneau .cr-date { flex: 0 0 150px; max-width: 150px; }
+    .creneau .select { flex: 1 1 170px; }
     .creneau .cr-state { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--crc, var(--text-subtle)); margin-left: auto; white-space: nowrap; }
+    /* Disponibilité réelle du créneau (planning.js). `flex: 0 0 auto` et pas de rognage : cette
+       pastille doit rester lisible, c'est elle qui empêche de promettre une heure déjà prise. */
+    .creneau .cr-dispo { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 0.1rem 0.4rem; border-radius: var(--r-sm); white-space: nowrap; }
+    .creneau .cr-dispo.libre { color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); }
+    .creneau .cr-dispo.occupe { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+    .creneau .cr-dispo.hors { color: var(--text-subtle); border: 1px dashed var(--border-strong); }
     .creneau .cr-btn { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: var(--r-sm); width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer; flex: none; }
     .creneau .cr-btn:hover { border-color: var(--ok); color: var(--ok); }
     .creneau .cr-btn.del:hover { border-color: var(--danger); color: var(--danger); }
@@ -256,6 +270,10 @@
   <script src="../assets/js/nav.js?v=rdv1"></script>
   <script src="../assets/js/api.js?v=rdv1"></script>
   <script src="../assets/js/postal-be.js"></script>
+  <!-- Réglages + moteur du temps : indispensables pour proposer des créneaux RÉELLEMENT libres.
+       Sans config.js, la trame hebdomadaire est vide et personne n'est jamais disponible. -->
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
@@ -308,6 +326,10 @@
       renderSellerChips();
       renderViewToggle();
       render();
+      // Planning en arrière-plan : il sert à proposer des créneaux vraiment libres et à signaler
+      // qu'on s'apprête à donner au client une heure déjà prise. Jamais bloquant — sans lui, les
+      // créneaux se saisissent à la main comme avant.
+      chargerPlanning();
       // Identité (Nicolas/Yannick) en arrière-plan — ne bloque pas l'affichage.
       try { window.SSNav.getIdentity().then(id => { if (id) IDENTITY = id; }); } catch (e) {}
       // Annuaire clients en arrière-plan → autocomplétion « client déjà enregistré » dans la fiche.
@@ -681,6 +703,7 @@
             <label class="label">Créneaux proposés au client</label>
             <div id="creneauxHost"></div>
             <button type="button" class="btn btn-ghost btn-sm" onclick="addCreneau()">${icon('plus', 13)} Ajouter un créneau</button>
+            <button type="button" class="btn btn-terrain btn-sm" onclick="proposerLibres()" title="Remplit avec les prochaines disponibilités réelles de la personne en charge">${icon('clock', 13)} Mes créneaux libres</button>
             ${r.dates_proposees ? `<div class="msg-hint">Ancienne saisie libre : ${esc(r.dates_proposees)}</div>` : ''}
           </div>
           <div class="field"><label class="label">Date de visite fixée</label><input class="input" id="f_daterdv" type="datetime-local" value="${esc(r.date_rdv || '')}"></div>
@@ -747,6 +770,93 @@
     window.removePhoto = (i) => { PENDING_PHOTOS.splice(i, 1); renderPhotos(); };
 
 
+    // ── Disponibilités réelles (assets/js/planning.js) ───────────────────────────────────
+    // « Quand peut-on venir ? » se répondait de mémoire : on proposait des créneaux sans voir ses
+    // propres poses, ni celles de l'autre, ni les dépannages. Le moteur du temps répond à partir de
+    // la trame hebdomadaire moins tout ce qui est déjà planifié.
+    const P = window.SSPlanning;
+    let PLAN = { evenements: [], dispos: [], reglages: null, pret: false };
+
+    async function chargerPlanning() {
+      if (!P) return;
+      try {
+        const r = await P.charger();
+        PLAN = { evenements: r.evenements, dispos: r.sources.dispos, reglages: r.reglages, pret: true };
+        if (CURRENT) renderCreneaux();   // une fiche peut déjà être ouverte quand la réponse arrive
+      } catch (e) { console.warn('[RDV] planning indisponible:', e.message); }
+    }
+
+    /** Qui fera cette visite. Le champ de la fiche prime : il peut venir d'être changé. */
+    function quiVisite() {
+      const champ = el('f_assigned');
+      return (champ && champ.value) || (CURRENT && CURRENT.assigned_to) || '';
+    }
+    /** Demi-journée correspondant à une heure de début (les créneaux se négocient ainsi). */
+    function momentDeHeure(hhmm) {
+      const m = P.hhmmMin(hhmm, 9 * 60);
+      if (m < 12 * 60) return 'matin';
+      if (m < 14 * 60) return 'midi';
+      if (m < 17 * 60) return 'aprem';
+      return 'fin';
+    }
+    /** Demi-journée à proposer pour une plage libre donnée.
+     *  On retient celle dont l'HEURE DE RÉFÉRENCE tombe dans la plage : une disponibilité de 13 h à
+     *  17 h traduite en « Midi (12h — 14h) » se faisait aussitôt marquer « hors dispo » par sa
+     *  propre pastille, puisque 12 h tombe en pleine pause. */
+    function momentDePlage(debutMin, finMin) {
+      const dedans = MOMENTS.filter(m => { const h = P.hhmmMin(m.h, 0); return h >= debutMin && h < finMin; });
+      return dedans.length ? dedans[0].k : momentDeHeure(P.minHhmm(debutMin));
+    }
+    /** Ce que vaut un créneau proposé face au planning : libre, déjà pris, ou hors trame. */
+    function etatPlanning(cr) {
+      const qui = quiVisite();
+      if (!P || !PLAN.pret || !qui || !cr.date) return null;
+      const m = moment(cr.moment);
+      const debut = P.hhmmMin(m.h, 9 * 60);
+      const candidat = {
+        id: 'visite:' + ((CURRENT && CURRENT.id) || 'nouvelle'), source: 'visite',
+        date: cr.date, heure: m.h, qui: [qui], titre: '',
+        duree_h: Number(P.conf(PLAN.reglages).duree_visite_h) || 1,
+      };
+      const conflits = P.conflitsDe(candidat, PLAN.evenements, PLAN.reglages);
+      if (conflits.length) return { k: 'occupe', txt: conflits[0].autre.titre || 'déjà pris' };
+      const blocs = P.blocsTheoriques(qui, cr.date, PLAN.dispos, PLAN.reglages);
+      if (!blocs.some(b => debut >= b.debut && debut < b.fin)) return { k: 'hors', txt: 'hors disponibilité' };
+      return { k: 'libre', txt: 'libre' };
+    }
+
+    /** Remplit les créneaux avec les prochaines vraies disponibilités de la personne en charge. */
+    window.proposerLibres = () => {
+      const qui = quiVisite();
+      if (!qui) { toast('Attribue d’abord la demande à Nicolas ou Yannick.', 'warn', 5000); return; }
+      if (!PLAN.pret) { toast('Planning pas encore chargé — réessaie dans un instant.', 'warn'); return; }
+      const duree = Number(P.conf(PLAN.reglages).duree_visite_h) || 1;
+      // On demande large puis on ne garde qu'UN créneau par jour : trois propositions réparties sur
+      // trois jours laissent plus de choix au client que matin + après-midi du même mardi.
+      const bruts = P.prochainsCreneaux(qui, PLAN.evenements, PLAN.dispos, { limite: 12, duree_h: duree }, PLAN.reglages);
+      const trouves = [];
+      bruts.forEach(t => {
+        if (trouves.length >= 3 || trouves.some(x => x.date === t.date)) return;
+        const essai = { date: t.date, moment: momentDePlage(P.hhmmMin(t.debut, 0), P.hhmmMin(t.fin, 0)), statut: 'propose' };
+        // On ne propose QUE ce que la pastille confirmera libre : une demi-journée qui s'affiche
+        // « pris » à la seconde où on la propose ne donne pas confiance dans l'outil.
+        const ep = etatPlanning(essai);
+        if (ep && ep.k !== 'libre') return;
+        trouves.push(essai);
+      });
+      const nom = (window.SSUI.SELLER_LABELS[qui] || qui);
+      if (!trouves.length) {
+        toast('Aucun créneau libre pour ' + nom + ' dans les trois prochaines semaines. Vérifie sa trame dans le planning.', 'warn', 7000);
+        return;
+      }
+      const retenus = (CURRENT.creneaux || []).filter(c => c.statut === 'accepte');
+      const aJeter = (CURRENT.creneaux || []).length - retenus.length;
+      if (aJeter > 0 && !confirm('Remplacer ' + aJeter + ' créneau(x) proposé(s) par les disponibilités réelles de ' + nom + ' ?')) return;
+      CURRENT.creneaux = retenus.concat(trouves);
+      renderCreneaux(); fillMsg();
+      toast(trouves.length + ' créneau(x) libre(s) pour ' + nom, 'ok', 4000);
+    };
+
     // ── Créneaux proposés ────────────────────────────────────────────────────────────────
     // But : arrêter de négocier les dates dans un champ texte libre. Chaque créneau porte un état ;
     // « accepter » un créneau fixe la visite (date + heure) et fait passer la demande en « RDV fixé ».
@@ -754,11 +864,16 @@
       const list = CURRENT.creneaux || [];
       el('creneauxHost').innerHTML = list.length ? list.map((cr, i) => {
         const st = CRENEAU_STATE[cr.statut] || CRENEAU_STATE.propose;
+        // Pastille de disponibilité : proposer au client une heure où l'on est déjà chez quelqu'un
+        // d'autre est l'erreur que ce module doit rendre impossible à commettre sans le voir.
+        const ep = etatPlanning(cr);
+        const pastille = ep ? `<span class="cr-dispo ${ep.k}" title="${esc(ep.k === 'occupe' ? 'Déjà pris : ' + ep.txt : (ep.k === 'hors' ? 'En dehors de la trame de disponibilité' : 'Créneau libre'))}">${esc(ep.k === 'occupe' ? 'pris' : (ep.k === 'hors' ? 'hors dispo' : 'libre'))}</span>` : '';
         return `<div class="creneau" style="--crc:${st.color};">
           <input class="input cr-date" type="date" value="${esc(cr.date || '')}" onchange="setCreneau(${i},'date',this.value)" aria-label="Date du créneau ${i + 1}">
           <select class="select" onchange="setCreneau(${i},'moment',this.value)" aria-label="Moment du créneau ${i + 1}">
             ${MOMENTS.map(m => `<option value="${m.k}" ${cr.moment === m.k ? 'selected' : ''}>${m.l}</option>`).join('')}
           </select>
+          ${pastille}
           <span class="cr-state">${st.l}</span>
           <button type="button" class="cr-btn" onclick="acceptCreneau(${i})" title="Le client a retenu ce créneau" aria-label="Retenir le créneau ${i + 1}">${icon('check', 13)}</button>
           <button type="button" class="cr-btn del" onclick="removeCreneau(${i})" title="Retirer ce créneau" aria-label="Retirer le créneau ${i + 1}">${icon('x', 12)}</button>
@@ -778,12 +893,18 @@
     window.setCreneau = (i, field, val) => {
       if (!CURRENT.creneaux || !CURRENT.creneaux[i]) return;
       CURRENT.creneaux[i][field] = val;
+      renderCreneaux();   // la pastille de disponibilité doit suivre la date et la demi-journée
       fillMsg();
     };
     window.removeCreneau = (i) => { (CURRENT.creneaux || []).splice(i, 1); renderCreneaux(); fillMsg(); };
     window.acceptCreneau = (i) => {
       const cr = (CURRENT.creneaux || [])[i];
       if (!cr || !cr.date) { toast('Renseigne d’abord la date de ce créneau.', 'warn'); return; }
+      // Dernier filet avant de fixer la visite : si ce créneau percute autre chose, on le dit avec
+      // le nom de ce qui occupe déjà. Un avertissement, jamais un blocage — c'est peut-être voulu.
+      const ep = etatPlanning(cr);
+      if (ep && ep.k === 'occupe' && !confirm('Attention : ' + (window.SSUI.SELLER_LABELS[quiVisite()] || 'cette personne') +
+          ' a déjà « ' + ep.txt +' » le ' + fmtDate(cr.date) + '.\n\nFixer la visite quand même ?')) return;
       // Un seul créneau retenu : les autres redeviennent de simples propositions.
       CURRENT.creneaux.forEach((c, j) => { c.statut = (j === i) ? 'accepte' : (c.statut === 'accepte' ? 'propose' : c.statut); });
       el('f_daterdv').value = cr.date + 'T' + moment(cr.moment).h;
