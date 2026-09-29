@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — planning</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    h2 { color:#93a8bf; font-size:14px; text-transform:uppercase; letter-spacing:0.08em; margin:22px 0 4px; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:900px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests planning.js</h1>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script>
+    const P = window.SSPlanning;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    const blocs = (l) => l.map(b => P.minHhmm(b.debut) + '-' + P.minHhmm(b.fin));
+
+    // Réglages FIXES : les tests ne doivent jamais dépendre des réglages enregistrés sur la machine.
+    const REG = {
+      planning: {
+        heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
+        trame: {
+          nicolas: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'non', dim: 'non' },
+          yannick: { lun: 'journee', mar: 'matin', mer: 'non', jeu: 'journee', ven: 'apresmidi', sam: 'journee', dim: 'non' },
+        },
+        duree_visite_h: 1, duree_pose_h: 4, duree_depannage_h: 2,
+      },
+    };
+    // 2026-03-02 est un LUNDI (vérifié au calendrier) : toute la série s'appuie dessus.
+    const LUN = '2026-03-02', MAR = '2026-03-03', MER = '2026-03-04', SAM = '2026-03-07', DIM = '2026-03-08';
+
+    // ══════════ 1. Dates ══════════
+    // Le piège : toISOString() renvoie une date UTC — entre minuit et 2 h du matin en heure d'été
+    // belge, « aujourd'hui » devenait la veille. Tout passe donc par des dates locales.
+    check('D1 lundi = index 0', P.indexJour(LUN), 0);
+    check('D2 dimanche = index 6', P.indexJour(DIM), 6);
+    check('D3 samedi est un week-end', P.estWeekend(SAM), true);
+    check('D4 mercredi n’est pas un week-end', P.estWeekend(MER), false);
+    check('D5 lundi de la semaine (depuis mercredi)', P.lundiDe(MER), LUN);
+    check('D6 lundi de la semaine (depuis dimanche)', P.lundiDe(DIM), LUN);
+    check('D7 passage de mois (2026 non bissextile)', P.plusJours('2026-02-28', 1), '2026-03-01');
+    check('D8 passage d’année', P.plusJours('2026-12-31', 1), '2027-01-01');
+    check('D9 recul sur mois précédent', P.plusJours('2026-03-01', -1), '2026-02-28');
+    check('D10 écart en jours', P.ecartJours(LUN, DIM), 6);
+    check('D11 suite de jours (lun→dim)', P.jours(LUN, DIM).length, 7);
+    check('D12 clé du jour', P.cleJour(SAM), 'sam');
+
+    // ══════════ 2. Heures et durées ══════════
+    check('H1 08:30 en minutes', P.hhmmMin('08:30'), 510);
+    check('H2 heure vide → défaut', P.hhmmMin('', 480), 480);
+    check('H3 heure absurde → défaut', P.hhmmMin('99:99', 480), 480);
+    check('H4 minutes → heure', P.minHhmm(510), '08:30');
+    check('H5 durée 1,5 h', P.fmtDuree(1.5), '1 h 30');
+    check('H6 durée 2 h', P.fmtDuree(2), '2 h');
+    check('H7 durée 0,5 h', P.fmtDuree(0.5), '30 min');
+
+    // ══════════ 3. Blocs : fusion et soustraction ══════════
+    check('B1 blocs qui se chevauchent fusionnent',
+      blocs(P.fusionnerBlocs([{ debut: 480, fin: 600 }, { debut: 540, fin: 660 }])), ['08:00-11:00']);
+    check('B2 blocs adjacents fusionnent',
+      blocs(P.fusionnerBlocs([{ debut: 480, fin: 600 }, { debut: 600, fin: 660 }])), ['08:00-11:00']);
+    check('B3 blocs disjoints restent deux',
+      blocs(P.fusionnerBlocs([{ debut: 480, fin: 540 }, { debut: 600, fin: 660 }])), ['08:00-09:00', '10:00-11:00']);
+    check('B4 bloc vide ignoré', P.fusionnerBlocs([{ debut: 600, fin: 600 }]).length, 0);
+    check('B5 trou au milieu',
+      blocs(P.soustraire([{ debut: 480, fin: 720 }], [{ debut: 540, fin: 600 }])), ['08:00-09:00', '10:00-12:00']);
+    check('B6 rognage au début',
+      blocs(P.soustraire([{ debut: 480, fin: 720 }], [{ debut: 420, fin: 540 }])), ['09:00-12:00']);
+    check('B7 rognage à la fin',
+      blocs(P.soustraire([{ debut: 480, fin: 720 }], [{ debut: 660, fin: 900 }])), ['08:00-11:00']);
+    check('B8 recouvrement total', P.soustraire([{ debut: 480, fin: 720 }], [{ debut: 400, fin: 800 }]).length, 0);
+    check('B9 occupation hors du bloc ne change rien',
+      blocs(P.soustraire([{ debut: 480, fin: 720 }], [{ debut: 780, fin: 900 }])), ['08:00-12:00']);
+
+    // ══════════ 4. Trame hebdomadaire ══════════
+    check('T1 journée = matin + après-midi', blocs(P.blocsTheoriques('nicolas', LUN, [], REG)), ['08:00-12:00', '13:00-17:00']);
+    check('T2 « matin » = un seul bloc', blocs(P.blocsTheoriques('yannick', MAR, [], REG)), ['08:00-12:00']);
+    check('T3 « non » = aucune disponibilité', P.blocsTheoriques('yannick', MER, [], REG).length, 0);
+    check('T4 samedi travaillé pour Yannick', blocs(P.blocsTheoriques('yannick', SAM, [], REG)), ['08:00-12:00', '13:00-17:00']);
+    check('T5 samedi non travaillé pour Nicolas', P.blocsTheoriques('nicolas', SAM, [], REG).length, 0);
+    // Une personne dont la trame n'existe pas n'est JAMAIS « toujours libre » : un planning vide
+    // vaut mieux qu'un planning qui ment.
+    check('T6 personne inconnue = aucune disponibilité', P.blocsTheoriques('jean', LUN, [], REG).length, 0);
+    // Disponibilité exceptionnelle : « ce samedi-là, je peux ».
+    const DISPO_SAM = [{ id: 'X1', kind: 'dispo', qui: 'nicolas', du: SAM, au: SAM, journee: true }];
+    check('T7 dispo exceptionnelle ouvre un jour fermé',
+      blocs(P.blocsTheoriques('nicolas', SAM, DISPO_SAM, REG)), ['08:00-12:00', '13:00-17:00']);
+    check('T8 elle ne déborde pas sur le lendemain', P.blocsTheoriques('nicolas', DIM, DISPO_SAM, REG).length, 0);
+
+    // ══════════ 5. Construction des événements ══════════
+    const DEVIS = [
+      { id: 'D1', statut: 'signe', client: { nom: 'Depaepe', prenom: 'Marc', adresse: { rue: 'Rue Haute', numero: '3', code_postal: '1180', ville: 'Uccle' } },
+        chantier: { date_pose: LUN, duree_h: 4, equipe: 'nicolas' }, items: [] },
+      { id: 'D2', statut: 'signe', client: { nom: 'Martin', prenom: 'Luc' },
+        chantier: { date_pose: MAR, duree_h: 3, equipe: 'sous_traitant' }, items: [] },
+      // Pose déjà faite → sort du planning (c'est isPoseDone qui tranche, comme partout).
+      { id: 'D3', statut: 'termine', client: { nom: 'Dubois', prenom: 'Martine' },
+        chantier: { date_pose: LUN, duree_h: 4, equipe: 'nicolas' }, commande: { statut: 'pose' }, items: [] },
+      // Brouillon : rien n'est signé, il n'a rien à faire dans un planning.
+      { id: 'D4', statut: 'brouillon', client: { nom: 'Leroy', prenom: 'Anne' },
+        chantier: { date_pose: LUN }, items: [] },
+      // LE dépannage : daté, chiffré, attribué — et invisible de tout agenda avant ce module.
+      { id: 'D5', type_document: 'depannage', depannage_mode: 'a_realiser', statut: 'signe', client: { nom: 'Petit', prenom: 'Jean' },
+        depannage: { date_intervention: LUN, heure: '10:00', duree_h: 2, techniciens: ['Nicolas'], motif: 'Moteur bloqué' } },
+    ];
+    const RDVS = [
+      { id: 'R1', statut: 'rdv_fixe', date_rdv: LUN + 'T14:00', assigned_to: 'yannick', client: { nom: 'Noel', prenom: 'Eva' }, projet: 'Screens façade' },
+      { id: 'R2', statut: 'nouveau', date_rdv: LUN + 'T09:00', assigned_to: 'nicolas', client: { nom: 'Ancien', prenom: 'Cas' } },
+      { id: 'R3', statut: 'rdv_fixe', date_rdv: MAR + 'T09:00', assigned_to: '', client: { nom: 'Orphelin', prenom: 'Sans' } },
+    ];
+    const EVS = P.construire({ devis: DEVIS, rdvs: RDVS, dispos: [] }, null, REG);
+    check('E1 nombre d’événements retenus', EVS.length, 5);
+    check('E2 le dépannage est un événement', EVS.filter(e => e.source === 'depannage').length, 1);
+    check('E3 le dépannage porte ses intervenants', EVS.filter(e => e.source === 'depannage')[0].qui, ['nicolas']);
+    check('E4 une pose déjà faite est exclue', EVS.filter(e => e.ref === 'D3').length, 0);
+    check('E5 un brouillon est exclu', EVS.filter(e => e.ref === 'D4').length, 0);
+    check('E6 un RDV non fixé est exclu', EVS.filter(e => e.ref === 'R2').length, 0);
+    check('E7 le sous-traitant n’occupe personne', EVS.filter(e => e.ref === 'D2')[0].qui, []);
+    check('E8 visite non attribuée signalée', EVS.filter(e => e.ref === 'R3')[0].alerte, 'Visite non attribuée');
+    check('E9 l’adresse est reconstituée', EVS.filter(e => e.ref === 'D1')[0].adresse, 'Rue Haute 3, 1180 Uccle');
+    check('E10 tri chronologique dans la journée',
+      EVS.filter(e => e.date === LUN).map(e => e.ref), ['D1', 'D5', 'R1']);
+    // La projection légère de la LISTE (depannage_plan) doit donner le même résultat que le devis complet.
+    const EVS_LISTE = P.construire({ devis: [{ id: 'D6', type_document: 'depannage', statut: 'signe', client: { nom: 'X', prenom: 'Y' },
+      depannage_plan: { date_intervention: MAR, heure: '08:00', duree_h: 1, techniciens: ['Yannick'] } }], rdvs: [], dispos: [] }, null, REG);
+    check('E11 projection de liste équivalente', EVS_LISTE.length && EVS_LISTE[0].qui, ['yannick']);
+    // Bornes : la fenêtre affichée ne doit rien laisser passer d'autre.
+    check('E12 fenêtre respectée', P.construire({ devis: DEVIS, rdvs: RDVS, dispos: [] }, { du: MAR, au: MAR }, REG).length, 2);
+
+    // ══════════ 6. Occupation et conflits ══════════
+    // Une pose sans heure démarre au début de journée : sans ça, impossible de la comparer à un
+    // rendez-vous horodaté — et c'est exactement le télescopage qu'on veut voir.
+    const posLun = EVS.filter(e => e.ref === 'D1')[0];
+    check('O1 pose sans heure → début de journée', P.minHhmm(P.occupation(posLun, REG).debut), '08:00');
+    check('O2 fin = début + durée', P.minHhmm(P.occupation(posLun, REG).fin), '12:00');
+
+    const CONFLITS = P.conflits(EVS, REG);
+    check('C1 pose 08-12 et dépannage 10-12 : conflit pour Nicolas', CONFLITS.length, 1);
+    check('C2 le conflit nomme la bonne personne', CONFLITS[0] && CONFLITS[0].qui, 'nicolas');
+    // Deux personnes différentes au même moment : ce n'est pas un conflit, c'est une équipe.
+    check('C3 deux personnes en parallèle = aucun conflit',
+      P.conflits([
+        { id: 'a', source: 'pose', date: LUN, heure: '08:00', duree_h: 4, qui: ['nicolas'] },
+        { id: 'b', source: 'visite', date: LUN, heure: '09:00', duree_h: 1, qui: ['yannick'] },
+      ], REG).length, 0);
+    check('C4 rendez-vous qui se suivent sans se toucher',
+      P.conflits([
+        { id: 'a', source: 'visite', date: LUN, heure: '08:00', duree_h: 1, qui: ['nicolas'] },
+        { id: 'b', source: 'visite', date: LUN, heure: '09:00', duree_h: 1, qui: ['nicolas'] },
+      ], REG).length, 0);
+    check('C5 deux congés qui se recouvrent ne sont pas un conflit',
+      P.conflits([
+        { id: 'a', source: 'indispo', date: LUN, heure: '', duree_h: 9, qui: ['nicolas'] },
+        { id: 'b', source: 'indispo', date: LUN, heure: '', duree_h: 9, qui: ['nicolas'] },
+      ], REG).length, 0);
+    check('C6 un congé qui recouvre une pose, si',
+      P.conflits([
+        { id: 'a', source: 'indispo', date: LUN, heure: '', duree_h: 9, qui: ['nicolas'] },
+        { id: 'b', source: 'pose', date: LUN, heure: '09:00', duree_h: 2, qui: ['nicolas'] },
+      ], REG).length, 1);
+    // Avant d'écrire une date, on veut savoir ce qu'elle percuterait.
+    const CANDIDAT = { id: 'pose:NEW', source: 'pose', date: LUN, heure: '', duree_h: 4, qui: ['nicolas'], titre: 'nouveau' };
+    check('C7 conflit annoncé avant enregistrement', P.conflitsDe(CANDIDAT, EVS, REG).length, 2);
+    check('C8 aucun conflit un jour libre',
+      P.conflitsDe(Object.assign({}, CANDIDAT, { date: MER }), EVS, REG).length, 0);
+    check('C9 un événement n’entre pas en conflit avec lui-même',
+      P.conflitsDe(posLun, EVS, REG).filter(c => c.autre.id === posLun.id).length, 0);
+
+    // ══════════ 7. Disponibilité réelle ══════════
+    // Nicolas le lundi : pose 08-12 + dépannage 10-12 → il ne reste que l'après-midi.
+    check('L1 créneaux libres après soustraction',
+      blocs(P.libres('nicolas', LUN, EVS, [], 1, REG)), ['13:00-17:00']);
+    // Yannick a une visite de 14 h à 15 h : il reste la matinée, l'heure qui précède le rendez-vous
+    // et la fin d'après-midi. C'est bien trois créneaux — oublier celui d'avant ferait passer une
+    // heure disponible pour une heure perdue.
+    check('L2 trou autour d’un rendez-vous',
+      blocs(P.libres('yannick', LUN, EVS, [], 0.5, REG)), ['08:00-12:00', '13:00-14:00', '15:00-17:00']);
+    check('L3 un trou trop court n’est pas un créneau',
+      blocs(P.libres('yannick', LUN, EVS, [], 3, REG)), ['08:00-12:00']);
+    check('L4 jour non travaillé = aucun créneau', P.libres('yannick', MER, EVS, [], 1, REG).length, 0);
+    // Congé posé : la journée disparaît même si la trame la déclarait ouverte.
+    const CONGE = [{ id: 'C', kind: 'indispo', qui: 'nicolas', du: MER, au: MER, journee: true, motif: 'Congé' }];
+    const EVS_CONGE = P.construire({ devis: DEVIS, rdvs: RDVS, dispos: CONGE }, null, REG);
+    check('L5 un congé retire la journée', P.libres('nicolas', MER, EVS_CONGE, CONGE, 1, REG).length, 0);
+    check('L6 le congé devient un événement visible', EVS_CONGE.filter(e => e.source === 'indispo').length, 1);
+    // Congé sur une plage : un événement par jour, bornes incluses.
+    const SEMAINE_OFF = [{ id: 'S', kind: 'indispo', qui: 'yannick', du: LUN, au: MER, journee: true, motif: 'Vacances' }];
+    check('L7 une période devient un événement par jour',
+      P.construire({ devis: [], rdvs: [], dispos: SEMAINE_OFF }, null, REG).length, 3);
+    // Indisponibilité partielle : seule la tranche concernée est retirée.
+    const APREM_OFF = [{ id: 'A', kind: 'indispo', qui: 'nicolas', du: MER, au: MER, journee: false, debut: '13:00', fin: '17:00' }];
+    const EVS_APREM = P.construire({ devis: [], rdvs: [], dispos: APREM_OFF }, null, REG);
+    check('L8 indisponibilité partielle : le matin reste',
+      blocs(P.libres('nicolas', MER, EVS_APREM, APREM_OFF, 1, REG)), ['08:00-12:00']);
+
+    // ══════════ 8. Prochains créneaux et charge ══════════
+    const PROCHAINS = P.prochainsCreneaux('nicolas', EVS, [], { depuis: LUN, limite: 3, duree_h: 1 }, REG);
+    check('P1 trois créneaux proposés', PROCHAINS.length, 3);
+    check('P2 le premier est l’après-midi du lundi', PROCHAINS[0].date + ' ' + PROCHAINS[0].debut, LUN + ' 13:00');
+    check('P3 aucun créneau le samedi pour Nicolas', PROCHAINS.filter(c => c.date === SAM).length, 0);
+    const CH = P.charge('nicolas', LUN, LUN, EVS, [], REG);
+    check('P4 heures occupées le lundi', CH.occupe, 6);          // pose 4 h + dépannage 2 h
+    check('P5 capacité du lundi', CH.capacite, 8);               // 08-12 + 13-17
+    check('P6 taux de remplissage', CH.pct, 75);
+    check('P7 un jour sans trame n’a pas de capacité', P.charge('yannick', MER, MER, EVS, [], REG).capacite, 0);
+
+    // ══════════ Résultat ══════════
+    document.getElementById('out').innerHTML =
+      '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S) sur ' + total + '.</span>';
+    document.title = (fail === 0 ? 'OK ' : 'ECHEC ') + pass + '/' + total + ' — Tests planning';
+  </script>
+</body>
+</html>

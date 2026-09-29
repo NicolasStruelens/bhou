@@ -94,3 +94,22 @@ CREATE TABLE IF NOT EXISTS connections (
   page_count        INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_connections_start ON connections(start_time DESC);
+
+-- ── DISPOS (exceptions de planning : congés, indisponibilités, disponibilité exceptionnelle) ──
+-- On n'enregistre JAMAIS les créneaux libres : ils se déduisent de la trame hebdomadaire (réglages)
+-- moins ce qui est déjà planifié. Seules les EXCEPTIONS méritent une ligne, d'où le peu de volume.
+--   kind = 'indispo' : retire du temps (congé, rendez-vous perso, autre chantier)
+--   kind = 'dispo'   : en ajoute (« exceptionnellement, ce samedi-là je peux »)
+-- Table créée aussi à la volée par le backend : la migration n'est pas indispensable avant de
+-- déployer, elle documente le schéma complet.
+CREATE TABLE IF NOT EXISTS dispos (
+  id                TEXT PRIMARY KEY,   -- ex : DISPO-2026-XXXXXX
+  qui               TEXT NOT NULL DEFAULT '',   -- 'nicolas' | 'yannick'
+  kind              TEXT NOT NULL DEFAULT 'indispo',
+  du                TEXT NOT NULL DEFAULT '',   -- 'YYYY-MM-DD' (inclus)
+  au                TEXT NOT NULL DEFAULT '',   -- 'YYYY-MM-DD' (inclus)
+  date_modification TEXT,
+  data              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dispos_qui ON dispos(qui, du);
+CREATE INDEX IF NOT EXISTS idx_dispos_au  ON dispos(au DESC);

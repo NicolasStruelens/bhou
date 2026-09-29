@@ -74,7 +74,7 @@
       { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
     ] },
     { title: 'Chantier', pages: [
-      { href: 'agenda.html', label: 'Agenda poses & visites', icon: 'calendar' },
+      { href: 'planning.html', label: 'Planning', icon: 'calendar' },
       { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
       { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
       // Depannage : meme ecran que le devis, ouvert directement sur le bon type de document.
