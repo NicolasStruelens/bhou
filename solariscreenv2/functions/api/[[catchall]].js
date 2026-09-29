@@ -398,8 +398,8 @@ export async function onRequest(context) {
                -- Projection MINIMALE de la planification d'un dépannage (jamais le rapport complet,
                -- qui porte motif, constat et notes). Sans elle, une intervention datée, chiffrée et
                -- attribuée n'apparaissait dans AUCUN planning : on pouvait la caler à la même heure
-               -- qu'une pose sans qu'un seul écran le signale. Nommée `_plan` justement pour qu'on
-               -- ne la confonde jamais avec l'objet `depannage` complet et qu'on ne la réécrive pas.
+               -- qu'une pose sans qu'un seul écran le signale. Nommée « _plan » justement pour qu'on
+               -- ne la confonde jamais avec l'objet « depannage » complet et qu'on ne la réécrive pas.
                json_extract(data, '$.depannage.date_intervention') AS dep_date,
                json_extract(data, '$.depannage.heure')            AS dep_heure,
                json_extract(data, '$.depannage.duree_h')          AS dep_duree_h,

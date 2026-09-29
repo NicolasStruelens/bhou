@@ -191,6 +191,16 @@ d'indisponibilité, l'autre planifie dessus en croyant la place libre.
   bloc des MONTANTS est rendu APRÈS les ouvertures. Brancher en `if/else`, jamais en sortie.
 - **Le serveur de test doit envoyer `Cache-Control: no-store`** : sans lui le navigateur resservait
   un `ui.js` d'il y a dix minutes, et les vérifications portaient sur du code déjà remplacé.
+- **Un backtick dans un commentaire à l'intérieur d'un `template literal`** le termine : citer un
+  nom de champ entre backticks au milieu de la requête SQL de `/api/devis` a cassé tout le fichier,
+  et **le déploiement Cloudflare a échoué** sans que rien ne le montre en local. Écrire « _plan »
+  avec des guillemets dans ces commentaires-là.
+- **Aucun navigateur ne charge `functions/api/[[catchall]].js`** : une faute de syntaxe y passe
+  toutes les vérifications de page et ne se voit qu'au déploiement. Node n'est pas installé sur la
+  machine de Nicolas, donc pas de `node --check` — le contrôle se fait dans la console du
+  navigateur, avec le serveur de test lancé :
+  `await import('/functions/api/%5B%5Bcatchall%5D%5D.js?v=' + Date.now())`. Il doit renvoyer
+  `{ onRequest }` ; toute autre réponse est une erreur de syntaxe.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et
