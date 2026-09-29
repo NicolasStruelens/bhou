@@ -113,3 +113,27 @@ CREATE TABLE IF NOT EXISTS dispos (
 );
 CREATE INDEX IF NOT EXISTS idx_dispos_qui ON dispos(qui, du);
 CREATE INDEX IF NOT EXISTS idx_dispos_au  ON dispos(au DESC);
+
+-- ── SUJETS (le fil d'échange interne : à faire, questions, idées, choses en attente) ──
+-- Pourquoi une table plutôt que des notes sur les dossiers : les échanges existaient déjà, mais
+-- ENFERMÉS dans une fiche (demande de RDV, devis). Pour savoir si l'autre avait répondu, il fallait
+-- rouvrir le bon dossier — donc savoir lequel. Et une idée qui ne concerne aucun client n'avait
+-- nulle part où aller. Ici tout ce qui attend quelqu'un se lit au même endroit.
+--   kind     = afaire | question | idee | attente
+--   awaiting = de QUI on attend quelque chose (moteur du badge et du tri)
+CREATE TABLE IF NOT EXISTS sujets (
+  id                TEXT PRIMARY KEY,   -- ex : SUJ-2026-XXXXXX
+  kind              TEXT NOT NULL DEFAULT 'afaire',
+  statut            TEXT NOT NULL DEFAULT 'ouvert',   -- ouvert | fait
+  auteur            TEXT,               -- signé par le serveur, jamais choisi dans un menu
+  pour              TEXT,               -- 'nicolas' | 'yannick' | '' (les deux)
+  awaiting          TEXT,               -- '' quand la balle n'est dans le camp de personne
+  client_key        TEXT,               -- lien CRM facultatif
+  devis_id          TEXT,               -- lien dossier facultatif
+  echeance          TEXT,               -- 'YYYY-MM-DD' facultatif
+  date_creation     TEXT,
+  date_modification TEXT,
+  data              TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sujets_statut ON sujets(statut, date_modification DESC);
+CREATE INDEX IF NOT EXISTS idx_sujets_await  ON sujets(awaiting);

@@ -11,6 +11,7 @@
   const LS_RDV = 'ss_rdv_cache';
   const LS_OUTILLAGE = 'ss_outillage_cache';
   const LS_DISPOS = 'ss_dispos_cache';
+  const LS_SUJETS = 'ss_sujets_cache';
   const LS_OUTBOX = 'ss_outbox';   // ce qui est écrit LOCALEMENT mais pas encore parti au serveur
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -769,6 +770,40 @@
         return { ok: false, error: MSG_SESSION };
       }
     },
+
+    // ── Fil d'échange interne (à faire, questions, idées, en attente) ──
+    async listSujets() {
+      try {
+        const d = (await req('/sujets')).data || [];
+        localSujets.remplacer(d);
+        return d;
+      } catch (e) { console.warn('[SS] listSujets → cache local:', e.message); return localSujets.list(); }
+    },
+    async saveSujet(s) {
+      try { return await req('/sujets', { method: 'POST', body: JSON.stringify(s) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : à renvoyer une fois la connexion revenue, sinon l’autre ne le verra jamais.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    // Écriture ciblée côté serveur : deux réponses simultanées ne s'écrasent pas.
+    async repondreSujet(id, payload) {
+      try { return await req('/sujets/' + encodeURIComponent(id) + '/reponse', { method: 'POST', body: JSON.stringify(payload) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : ta réponse n’arriverait pas — réessaie une fois connecté.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async deleteSujet(id) {
+      try { return await req('/sujets/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
   };
 
   const localRdv = {
@@ -809,6 +844,16 @@
     list: function () { try { return JSON.parse(localStorage.getItem(LS_DISPOS) || '[]'); } catch (e) { return []; } },
     remplacer: function (l) {
       try { localStorage.setItem(LS_DISPOS, JSON.stringify(l || [])); } catch (e) { console.warn('[SS] cache dispos plein:', e.message); }
+    },
+  };
+
+  // Fil d'échange interne. Même parti pris que les dispos : on LIT hors-ligne (relire ce que
+  // l'autre a écrit depuis un chantier est utile), on n'ÉCRIT pas (une réponse qui reste sur un
+  // seul téléphone laisse l'autre attendre indéfiniment, ce qui est pire que pas de réponse).
+  const localSujets = {
+    list: function () { try { return JSON.parse(localStorage.getItem(LS_SUJETS) || '[]'); } catch (e) { return []; } },
+    remplacer: function (l) {
+      try { localStorage.setItem(LS_SUJETS, JSON.stringify(l || [])); } catch (e) { console.warn('[SS] cache sujets plein:', e.message); }
     },
   };
 

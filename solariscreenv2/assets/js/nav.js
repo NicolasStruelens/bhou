@@ -85,6 +85,9 @@
     ] },
     { title: 'Gestion', pages: [
       { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
+      // Le fil d'échange interne. Rangé ici et non dans Vente : il ne concerne pas un client en
+      // particulier, il concerne Nicolas et Yannick — y compris pour ce qui ne touche aucun dossier.
+      { href: 'echanges.html', label: 'Échanges', icon: 'message', badge: 'echanges' },
       { href: 'factures.html', label: 'Facturation', icon: 'filetext', badge: 'factures' },
       { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
       { href: 'parametres.html', label: 'Paramètres', icon: 'settings' },
@@ -100,12 +103,14 @@
   async function computeBadges() {
     if (badgesCache && Date.now() - badgesAt < 60000) return badgesCache;
     const SS = window.SS;
-    if (!SS) return { rdv: 0, sav: 0, factures: 0 };
+    if (!SS) return { rdv: 0, sav: 0, factures: 0, echanges: 0 };
     const today = new Date().toISOString().slice(0, 10);
-    const [devis, factures, rdv] = await Promise.all([
+    const [devis, factures, rdv, sujets, moi] = await Promise.all([
       SS.listDevis().catch(function () { return []; }),
       SS.listFactures().catch(function () { return []; }),
       (SS.listRdv ? SS.listRdv().catch(function () { return []; }) : Promise.resolve([])),
+      (SS.listSujets ? SS.listSujets().catch(function () { return []; }) : Promise.resolve([])),
+      getIdentity().catch(function () { return { key: '' }; }),
     ]);
     // Demandes entrantes que personne n'a prises en charge (hors annulées/converties).
     const nbRdv = (rdv || []).filter(function (r) {
@@ -121,7 +126,12 @@
       const paye = (f.paiements || []).reduce(function (s, p) { return s + (Number(p.montant) || 0); }, 0);
       return f.echeance && f.echeance < today && paye < (Number(f.total_ttc) || 0) - 0.005;
     }).length;
-    badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac };
+    // Ce qui attend une réponse ou une action DE MOI. Sans identité (session Access expirée,
+    // page ouverte hors ligne), on n'affiche rien plutôt qu'un compteur faux.
+    const nbEch = (moi && moi.key)
+      ? (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length
+      : 0;
+    badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac, echanges: nbEch };
     badgesAt = Date.now();
     return badgesCache;
   }
