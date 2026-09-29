@@ -10,6 +10,7 @@
   const LS_FACTURES = 'ss_factures_cache';
   const LS_RDV = 'ss_rdv_cache';
   const LS_OUTILLAGE = 'ss_outillage_cache';
+  const LS_DISPOS = 'ss_dispos_cache';
   const LS_OUTBOX = 'ss_outbox';   // ce qui est écrit LOCALEMENT mais pas encore parti au serveur
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -740,6 +741,34 @@
         return { ok: true, offline: true };
       }
     },
+
+    // ── Exceptions de planning (congés, indisponibilités, disponibilité exceptionnelle) ──
+    async listDispos() {
+      try {
+        const d = (await req('/dispos')).data || [];
+        localDispos.remplacer(d);   // la réponse du serveur fait foi : on remplace, on ne fusionne pas
+        return d;
+      } catch (e) { console.warn('[SS] listDispos → cache local:', e.message); return localDispos.list(); }
+    },
+    // Écriture VOLONTAIREMENT refusée hors-ligne. Une indisponibilité qui n'existe que sur le
+    // téléphone de celui qui l'a saisie est pire que pas d'indisponibilité du tout : l'autre
+    // continue de planifier dessus en croyant la place libre. Mieux vaut le dire tout de suite.
+    async saveDispo(x) {
+      try { return await req('/dispos', { method: 'POST', body: JSON.stringify(x) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : à enregistrer une fois la connexion revenue, sinon l’autre ne la verrait pas.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async deleteDispo(id) {
+      try { return await req('/dispos/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
   };
 
   const localRdv = {
@@ -771,6 +800,15 @@
     },
     delete: function (id) {
       localStorage.setItem(LS_OUTILLAGE, JSON.stringify(localOutillage.list().filter(function (o) { return o.id !== id; })));
+    },
+  };
+
+  // Exceptions de planning (congés, indisponibilités). Le cache sert à CONSULTER le planning sans
+  // réseau — typiquement sur un chantier. L'écriture, elle, exige la connexion : voir saveDispo().
+  const localDispos = {
+    list: function () { try { return JSON.parse(localStorage.getItem(LS_DISPOS) || '[]'); } catch (e) { return []; } },
+    remplacer: function (l) {
+      try { localStorage.setItem(LS_DISPOS, JSON.stringify(l || [])); } catch (e) { console.warn('[SS] cache dispos plein:', e.message); }
     },
   };
 

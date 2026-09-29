@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SolariScreen — Planning</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    /* ── Barre d'outils ─────────────────────────────────────────────────────────────────────── */
+    .pl-bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .pl-seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; }
+    .pl-seg button { background: none; border: none; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-2xs);
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 0.4rem 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .pl-seg button.active { background: var(--accent); color: var(--on-accent); }
+    .pl-nav { display: inline-flex; align-items: center; gap: var(--sp-2); }
+    .pl-nav .pl-fleche { width: 32px; height: 32px; flex: none; display: grid; place-items: center; background: none;
+      border: 1px solid var(--border-strong); border-radius: var(--r-sm); color: var(--text-muted); cursor: pointer; }
+    .pl-nav .pl-fleche:hover { border-color: var(--accent); color: var(--accent); }
+    .pl-periode { font-family: var(--font-display); font-size: var(--fs-md); color: var(--text); min-width: 10ch; }
+    .pl-spacer { flex: 1 1 auto; }
+
+    /* ── Conflits et avertissements ─────────────────────────────────────────────────────────── */
+    .pl-alertes { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .pl-alerte { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4);
+      border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); border-left: 3px solid var(--danger);
+      border-radius: var(--r-sm); background: color-mix(in srgb, var(--danger) 8%, transparent); font-size: var(--fs-sm); }
+    .pl-alerte.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); border-left-color: var(--warn);
+      background: color-mix(in srgb, var(--warn) 8%, transparent); }
+    .pl-alerte svg { flex: none; margin-top: 2px; color: var(--danger); }
+    .pl-alerte.warn svg { color: var(--warn); }
+    .pl-alerte b { color: var(--text); }
+
+    /* ── Vue SEMAINE ────────────────────────────────────────────────────────────────────────── */
+    .pl-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-2); align-items: start; }
+    .pl-col { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-2);
+      display: flex; flex-direction: column; gap: var(--sp-2); min-height: 120px; }
+    .pl-col.is-we { background: var(--surface-2); }
+    .pl-col.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .pl-col.is-passe { opacity: 0.55; }
+    .pl-colh { display: flex; align-items: baseline; gap: 0.4rem; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border); }
+    .pl-colh .j { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    .pl-colh .n { font-family: var(--font-display); font-size: var(--fs-md); color: var(--text); }
+    .pl-col.is-today .pl-colh .n { color: var(--accent); }
+    .pl-colh .mois { font-size: var(--fs-3xs); color: var(--text-subtle); margin-left: auto; }
+
+    /* Barre d'occupation : la journée vue de 8 h à 17 h. Le gris = hors trame, le vert = libre,
+       les segments colorés = ce qui est déjà pris. C'est le coup d'œil « reste-t-il de la place ». */
+    .pl-jauge { display: flex; align-items: center; gap: 0.4rem; }
+    .pl-jauge .qui { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); width: 2ch; flex: none; }
+    .pl-piste { position: relative; height: 9px; flex: 1 1 auto; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+    .pl-piste span { position: absolute; top: 0; bottom: 0; }
+    .pl-piste .libre { background: color-mix(in srgb, var(--ok) 32%, transparent); }
+    .pl-piste .pris { background: var(--c, var(--accent)); }
+
+    .pl-evs { display: flex; flex-direction: column; gap: 0.3rem; }
+    .pl-ev { display: block; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border);
+      border-left: 3px solid var(--c, var(--accent)); border-radius: var(--r-sm); padding: 0.35rem 0.5rem; cursor: pointer; color: inherit; }
+    .pl-ev:hover { border-color: var(--border-strong); background: var(--surface-3); }
+    .pl-ev .l1 { display: flex; align-items: baseline; gap: 0.35rem; }
+    .pl-ev .h { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--c, var(--accent)); flex: 0 0 auto; }
+    /* Le nom du client IDENTIFIE la carte : on lui donne un plancher et on interdit au reste de
+       l'écraser — un nom réduit à une lettre ne sert plus à rien (piège déjà payé sur le CRM). */
+    .pl-ev .t { font-size: var(--fs-xs); font-weight: 600; color: var(--text); min-width: 5ch;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* `display: block` est indispensable : en inline, le résumé et la ligne de nature se suivaient
+       sur la même ligne et se lisaient « Screens pour la vérandaVisite · 1 h · Yan ». */
+    .pl-ev .s { display: block; font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-ev .w { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .pl-ev.is-indispo { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 5px, var(--surface-3) 5px, var(--surface-3) 10px); }
+
+    .pl-libres { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .pl-libre { font-family: var(--font-mono); font-size: var(--fs-3xs); padding: 0.15rem 0.4rem; border-radius: var(--r-sm);
+      border: 1px dashed color-mix(in srgb, var(--ok) 50%, transparent); color: var(--ok); background: none; cursor: pointer; }
+    .pl-libre:hover { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+    .pl-vide { font-size: var(--fs-3xs); color: var(--text-subtle); font-style: italic; }
+
+    /* ── Vue MOIS ───────────────────────────────────────────────────────────────────────────── */
+    .pl-mois { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+    .pl-mois .entete { background: var(--surface-2); padding: 0.4rem; text-align: center; font-family: var(--font-mono);
+      font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
+    .pl-case { background: var(--surface); min-height: 74px; padding: 0.35rem; display: flex; flex-direction: column; gap: 0.25rem;
+      border: none; text-align: left; cursor: pointer; color: inherit; }
+    .pl-case:hover { background: var(--surface-2); }
+    .pl-case.hors { opacity: 0.4; }
+    .pl-case.is-we { background: var(--surface-2); }
+    .pl-case.is-today .num { color: var(--accent); font-weight: 800; }
+    .pl-case .num { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .pl-case .pts { display: flex; flex-wrap: wrap; gap: 2px; }
+    .pl-case .pt { width: 100%; height: 3px; border-radius: 2px; background: var(--c, var(--accent)); }
+    .pl-case .mini { font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Vue JOUR ───────────────────────────────────────────────────────────────────────────── */
+    .pl-jour { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: var(--sp-3); }
+    .pl-pers { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); }
+    .pl-persh { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border); }
+    .pl-persh .nom { font-family: var(--font-display); font-size: var(--fs-md); color: var(--text); }
+    .pl-persh .taux { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .pl-suite { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .pl-bloc { display: flex; gap: var(--sp-3); align-items: stretch; }
+    .pl-bloc .heures { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); width: 14ch; flex: none; padding-top: 0.15rem; white-space: nowrap; }
+    .pl-bloc .corps { flex: 1 1 auto; border-left: 3px solid var(--c, var(--border-strong)); padding: 0.4rem 0 0.4rem var(--sp-3); }
+    .pl-bloc.libre .corps { border-left-style: dashed; border-left-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+    .pl-bloc .nomc { font-weight: 600; color: var(--text); }
+    .pl-bloc .detail { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.15rem; }
+    .pl-bloc .lieu { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .pl-bloc .lieu a { color: var(--accent-2); }
+    .pl-bloc .libtxt { color: var(--ok); font-size: var(--fs-sm); }
+
+    /* ── À planifier ────────────────────────────────────────────────────────────────────────── */
+    .pl-titre { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs);
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-6) 0 var(--sp-3); }
+    .pl-titre .n { color: var(--text-muted); }
+    .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: var(--sp-3); }
+    .pl-carte { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); }
+    .pl-carte .tete { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+    .pl-carte .cli { font-weight: 700; min-width: 6ch; }
+    .pl-carte .badge { flex: 0 0 auto; }
+    .pl-carte .adr { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    .pl-carte .adr a { color: var(--accent-2); }
+    .pl-carte .res { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-2); }
+    .pl-carte .champs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .pl-carte .champs .field { margin: 0; }
+    .pl-carte .champs .plein { grid-column: 1 / -1; }
+    .pl-carte .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); flex-wrap: wrap; }
+
+    /* ── Fenêtres ───────────────────────────────────────────────────────────────────────────── */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
+      width: 620px; max-width: 100%; max-height: 92vh; display: flex; flex-direction: column; }
+    .mhead { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border);
+      font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent); }
+    .mbody { padding: var(--sp-5); overflow: auto; }
+    .mfoot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); flex-wrap: wrap; }
+    .m2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+
+    /* Trame hebdomadaire : une ligne par jour, une colonne par personne. */
+    .tr-table { width: 100%; border-collapse: collapse; }
+    .tr-table th, .tr-table td { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; }
+    .tr-table th { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); font-weight: 400; }
+    .tr-table td:first-child { font-size: var(--fs-sm); color: var(--text-muted); }
+    .tr-table .select { height: 34px; font-size: var(--fs-sm); }
+    .ex-ligne { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
+      border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); font-size: var(--fs-sm); }
+    .ex-ligne.dispo { border-left-color: var(--ok); }
+    .ex-ligne .qui { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .ex-ligne .quand { color: var(--text); }
+    .ex-ligne .motif { color: var(--text-subtle); font-size: var(--fs-xs); }
+    .ex-ligne .sup { margin-left: auto; width: 30px; height: 30px; flex: none; display: grid; place-items: center; background: none;
+      border: 1px solid var(--border-strong); border-radius: var(--r-sm); color: var(--text-muted); cursor: pointer; }
+    .ex-ligne .sup:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Téléphone ──────────────────────────────────────────────────────────────────────────── */
+    /* Une grille de 7 colonnes sur 375 px donne des colonnes de 45 px : illisible. La semaine
+       s'empile donc en 7 blocs. Le mois, lui, tient : ses cases ne portent que des pastilles. */
+    @media (max-width: 900px) {
+      .pl-sem { grid-template-columns: 1fr; }
+      .pl-col { min-height: 0; }
+      .pl-colh .mois { margin-left: 0; }
+      .pl-col.is-passe { display: none; }   /* la semaine en cours se lit à partir d'aujourd'hui */
+    }
+    @media (max-width: 560px) {
+      .pl-bar { gap: var(--sp-2); }
+      .pl-periode { font-size: var(--fs-sm); min-width: 0; }
+      .pl-spacer { display: none; }
+      .pl-case { min-height: 58px; }
+      .pl-case .mini { display: none; }
+      .m2 { grid-template-columns: 1fr; }
+      .pl-carte .champs { grid-template-columns: 1fr; }
+      .pl-carte .champs .plein { grid-column: auto; }   /* span dans une grille à 1 colonne = colonne fantôme */
+      /* Sous 560 px, « 08:00 → 12:00 » et le contenu du créneau ne tiennent plus côte à côte :
+         l'heure passe au-dessus. Surtout pas de largeur rognée — le texte se casserait
+         lettre par lettre, exactement comme le titre du bon d'intervention. */
+      .pl-bloc { flex-direction: column; gap: 0.15rem; }
+      .pl-bloc .heures { width: auto; }
+      .pl-bloc .corps { border-left-width: 2px; padding-left: var(--sp-2); }
+    }
+    /* Composants maison : `@media (pointer: coarse)` de base.css ne couvre que `.btn` et consorts,
+       ceux-ci resteraient à 21 px de haut sur un vrai téléphone. */
+    @media (pointer: coarse) {
+      .pl-seg button { min-height: 38px; }
+      .pl-fleche { width: 38px; height: 38px; }
+      .pl-libre { min-height: 30px; padding: 0.3rem 0.5rem; }
+      .ex-ligne .sup { width: 38px; height: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Planning</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="pl-bar">
+      <div class="pl-seg" id="segVue"></div>
+      <div class="pl-nav">
+        <button class="pl-fleche" id="btnPrec" onclick="naviguer(-1)" aria-label="Période précédente"></button>
+        <button class="btn btn-ghost btn-sm" onclick="allerAujourdhui()">Aujourd'hui</button>
+        <button class="pl-fleche" id="btnSuiv" onclick="naviguer(1)" aria-label="Période suivante"></button>
+      </div>
+      <div class="pl-periode" id="periode"></div>
+      <div class="pl-spacer"></div>
+      <div class="pl-seg" id="segQui"></div>
+      <button class="btn btn-ghost btn-sm" onclick="ouvrirTrame()" id="btnTrame">Disponibilités</button>
+      <button class="btn btn-primary btn-sm" onclick="ouvrirIndispo()" id="btnIndispo">Bloquer du temps</button>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+    <div class="pl-alertes" id="alertes"></div>
+    <div id="vueHost"><div class="pl-sem" aria-busy="true"><div class="skl" style="height:150px"></div><div class="skl" style="height:150px"></div><div class="skl" style="height:150px"></div></div></div>
+    <div id="basHost"></div>
+  </main>
+
+  <!-- ══════════ Bloquer du temps / disponibilité exceptionnelle ══════════ -->
+  <div class="modal-bg" id="mIndispoBg">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mIndispoTitre">
+      <div class="mhead"><span id="mIndispoIc"></span><span id="mIndispoTitre">Bloquer du temps</span></div>
+      <div class="mbody" id="mIndispoBody"></div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerIndispo()">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="enregistrerIndispo()" id="btnSaveIndispo">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ Trame hebdomadaire + exceptions en cours ══════════ -->
+  <div class="modal-bg" id="mTrameBg">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTrameTitre">
+      <div class="mhead"><span id="mTrameIc"></span><span id="mTrameTitre">Disponibilités</span></div>
+      <div class="mbody" id="mTrameBody"></div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerTrame()">Fermer</button>
+        <button class="btn btn-primary btn-sm" onclick="enregistrerTrame()" id="btnSaveTrame">Enregistrer la trame</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script>
+    const SS = window.SS;
+    const P = window.SSPlanning;
+    const { el, icon, toast, escHtml, fmtDate, qp } = window.SSUI;
+    const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique du vocabulaire : ui.js
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    const PERSONNES = ['nicolas', 'yannick'];
+    const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    // Abréviations d'usage : couper à quatre lettres donnait « octo. » et confondait juin et juillet.
+    const MOIS_COURT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+    // État de l'écran. `ANCRE` est la date de référence : la vue s'organise autour d'elle.
+    // Sur téléphone, la vue du matin est celle du JOUR : on part sur un chantier, on veut savoir
+    // ce qu'il y a aujourd'hui, pas relire la semaine. Au bureau, la semaine reste la bonne entrée.
+    // Un choix déjà fait par l'utilisateur l'emporte toujours sur cette valeur de départ.
+    let VUE = qp('vue') || localStorage.getItem('ss_planning_vue') || (window.innerWidth <= 560 ? 'jour' : 'semaine');
+    let QUI = localStorage.getItem('ss_planning_qui') || 'tous';
+    let ANCRE = qp('date') || P.aujourdhui();
+    let EVS = [];          // événements de la fenêtre affichée
+    let TOUS_EVS = [];     // tous les événements connus (les conflits ne s'arrêtent pas au dimanche)
+    let DISPOS = [];
+    let REGLAGES = null;
+    let A_PLANIFIER = [];
+    let IDENTITE = { key: '' };
+
+    if (['semaine', 'mois', 'jour'].indexOf(VUE) < 0) VUE = 'semaine';
+
+    // ── Bornes de la période affichée ────────────────────────────────────────────────────────
+    function bornes() {
+      if (VUE === 'jour') return { du: ANCRE, au: ANCRE };
+      if (VUE === 'semaine') { const l = P.lundiDe(ANCRE); return { du: l, au: P.plusJours(l, 6) }; }
+      // Mois : la grille déborde sur les jours voisins pour commencer un lundi et finir un dimanche.
+      const d = P.dateDe(ANCRE);
+      const premier = P.ymd(new Date(d.getFullYear(), d.getMonth(), 1));
+      const dernier = P.ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+      return { du: P.lundiDe(premier), au: P.plusJours(P.lundiDe(dernier), 6) };
+    }
+    function titrePeriode() {
+      const b = bornes();
+      if (VUE === 'jour') {
+        const d = P.dateDe(ANCRE);
+        return P.JOURS[P.indexJour(ANCRE)].long + ' ' + d.getDate() + ' ' + MOIS[d.getMonth()];
+      }
+      if (VUE === 'semaine') {
+        const a = P.dateDe(b.du), z = P.dateDe(b.au);
+        // Une semaine à cheval sur deux mois porte son mois de chaque côté. Mettre les deux noms
+        // à la fin donnait « 28 → 4 septembre – octobre », qui ne veut rien dire.
+        if (a.getMonth() === z.getMonth()) return a.getDate() + ' → ' + z.getDate() + ' ' + MOIS[a.getMonth()];
+        return a.getDate() + ' ' + MOIS_COURT[a.getMonth()] + ' → ' + z.getDate() + ' ' + MOIS_COURT[z.getMonth()];
+      }
+      const d = P.dateDe(ANCRE);
+      return MOIS[d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    // ── Chargement ───────────────────────────────────────────────────────────────────────────
+    async function charger() {
+      const r = await P.charger();                    // aucune borne : les conflits débordent la semaine
+      TOUS_EVS = r.evenements;
+      DISPOS = r.sources.dispos;
+      REGLAGES = r.reglages;
+      A_PLANIFIER = r.aPlanifier;
+      try { IDENTITE = await window.SSNav.getIdentity(); } catch (e) { IDENTITE = { key: '' }; }
+      rendre();
+    }
+
+    function evsPeriode() {
+      const b = bornes();
+      return TOUS_EVS.filter(function (e) {
+        if (e.date < b.du || e.date > b.au) return false;
+        if (QUI === 'tous') return true;
+        // Un événement sans personne assignée reste visible dans une vue filtrée : c'est
+        // justement celui dont personne ne s'occupe, le cacher serait le meilleur moyen de l'oublier.
+        return !e.qui.length || e.qui.indexOf(QUI) >= 0;
+      });
+    }
+    function personnesVues() { return QUI === 'tous' ? PERSONNES : [QUI]; }
+
+    // ── Rendu ────────────────────────────────────────────────────────────────────────────────
+    function rendre() {
+      EVS = evsPeriode();
+      el('periode').textContent = titrePeriode();
+      rendreSegments();
+      rendreKpis();
+      rendreAlertes();
+      if (VUE === 'semaine') el('vueHost').innerHTML = vueSemaine();
+      else if (VUE === 'mois') el('vueHost').innerHTML = vueMois();
+      else el('vueHost').innerHTML = vueJour();
+      el('basHost').innerHTML = sectionAPlanifier();
+    }
+
+    function rendreSegments() {
+      el('btnPrec').innerHTML = icon('chevronright', 15);
+      el('btnPrec').style.transform = 'rotate(180deg)';
+      el('btnSuiv').innerHTML = icon('chevronright', 15);
+      el('btnTrame').innerHTML = icon('clock', 13) + ' Disponibilités';
+      el('btnIndispo').innerHTML = icon('lock', 13) + ' Bloquer du temps';
+      const vues = [['semaine', 'Semaine'], ['mois', 'Mois'], ['jour', 'Jour']];
+      el('segVue').innerHTML = vues.map(function (v) {
+        return '<button class="' + (VUE === v[0] ? 'active' : '') + '" onclick="setVue(\'' + v[0] + '\')">' + v[1] + '</button>';
+      }).join('');
+      const quis = [['tous', 'Tous']].concat(PERSONNES.map(function (p) { return [p, SELLER_LABELS[p] || p]; }));
+      el('segQui').innerHTML = quis.map(function (q) {
+        return '<button class="' + (QUI === q[0] ? 'active' : '') + '" onclick="setQui(\'' + q[0] + '\')">' + escHtml(q[1]) + '</button>';
+      }).join('');
+    }
+
+    function rendreKpis() {
+      const b = bornes();
+      const compte = function (src) { return EVS.filter(function (e) { return e.source === src; }).length; };
+      const cartes = [
+        '<div class="kpi ticked accent"><div class="kpi-label">Visites</div><div class="kpi-value">' + compte('visite') + '</div><div class="kpi-sub">sur la période</div></div>',
+        '<div class="kpi ticked gold"><div class="kpi-label">Poses</div><div class="kpi-value">' + compte('pose') + '</div><div class="kpi-sub">sur la période</div></div>',
+        '<div class="kpi ticked danger"><div class="kpi-label">Dépannages</div><div class="kpi-value">' + compte('depannage') + '</div><div class="kpi-sub">sur la période</div></div>',
+      ];
+      // Taux de remplissage : la seule façon de répondre « est-ce qu'on peut encore prendre
+      // un chantier cette semaine ? » sans ouvrir chaque dossier.
+      personnesVues().forEach(function (p) {
+        const c = P.charge(p, b.du, b.au, TOUS_EVS, DISPOS, REGLAGES);
+        const sousTitre = c.capacite ? (c.occupe + ' h sur ' + c.capacite + ' h') : 'aucune disponibilité déclarée';
+        cartes.push('<div class="kpi ticked"><div class="kpi-label">Charge ' + escHtml(SELLER_LABELS[p] || p) + '</div>' +
+          '<div class="kpi-value">' + (c.capacite ? c.pct + '%' : '—') + '</div><div class="kpi-sub">' + escHtml(sousTitre) + '</div></div>');
+      });
+      el('kpis').innerHTML = cartes.join('');
+      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
+    }
+
+    function rendreAlertes() {
+      const out = [];
+      // Les conflits se cherchent sur TOUT le planning, pas seulement sur la période affichée :
+      // un télescopage la semaine prochaine doit se voir aujourd'hui.
+      const futurs = TOUS_EVS.filter(function (e) { return e.date >= P.aujourdhui(); });
+      P.conflits(futurs, REGLAGES).slice(0, 4).forEach(function (c) {
+        const oa = P.occupation(c.a, REGLAGES), ob = P.occupation(c.b, REGLAGES);
+        out.push('<div class="pl-alerte">' + icon('warning', 15) +
+          '<div><b>' + escHtml(SELLER_LABELS[c.qui] || c.qui) + ' est pris deux fois le ' + escHtml(fmtDate(c.date)) + '.</b><br>' +
+          escHtml(nature(c.a) + ' ' + c.a.titre + ' (' + P.minHhmm(oa.debut) + '–' + P.minHhmm(oa.fin) + ')') + ' et ' +
+          escHtml(nature(c.b) + ' ' + c.b.titre + ' (' + P.minHhmm(ob.debut) + '–' + P.minHhmm(ob.fin) + ')') + '.</div></div>');
+      });
+      // Une intervention ou une visite sans personne assignée n'appartient à personne : c'est le
+      // rendez-vous que les deux croient que l'autre prend.
+      const orphelins = futurs.filter(function (e) { return e.source !== 'indispo' && !e.qui.length; });
+      if (orphelins.length) {
+        out.push('<div class="pl-alerte warn">' + icon('warning', 15) +
+          '<div><b>' + orphelins.length + ' rendez-vous sans personne attribuée.</b><br>' +
+          escHtml(orphelins.slice(0, 3).map(function (e) { return e.titre + ' — ' + fmtDate(e.date); }).join(' · ')) +
+          (orphelins.length > 3 ? ' …' : '') + '</div></div>');
+      }
+      // Un chantier dont la date est passée sans être marqué posé : il reste à traiter.
+      const retard = TOUS_EVS.filter(function (e) { return e.source !== 'indispo' && e.date < P.aujourdhui(); });
+      if (retard.length) {
+        out.push('<div class="pl-alerte warn">' + icon('clock', 15) +
+          '<div><b>' + retard.length + ' rendez-vous passé' + (retard.length > 1 ? 's' : '') + ' sans suite.</b><br>' +
+          escHtml(retard.slice(0, 3).map(function (e) { return nature(e) + ' ' + e.titre + ' — ' + fmtDate(e.date); }).join(' · ')) +
+          (retard.length > 3 ? ' …' : '') + '</div></div>');
+      }
+      el('alertes').innerHTML = out.join('');
+    }
+    function nature(e) { return (P.NATURES[e.source] || {}).label || e.source; }
+
+    // ── Vue SEMAINE ──────────────────────────────────────────────────────────────────────────
+    function vueSemaine() {
+      const b = bornes();
+      const auj = P.aujourdhui();
+      return '<div class="pl-sem">' + P.jours(b.du, b.au).map(function (j) {
+        const d = P.dateDe(j);
+        const cls = [
+          P.estWeekend(j) ? 'is-we' : '',
+          j === auj ? 'is-today' : '',
+          j < auj ? 'is-passe' : '',
+        ].filter(Boolean).join(' ');
+        const evs = EVS.filter(function (e) { return e.date === j; });
+        return '<div class="pl-col ' + cls + '">' +
+          '<div class="pl-colh"><span class="j">' + P.JOURS[P.indexJour(j)].court + '</span>' +
+            '<span class="n">' + d.getDate() + '</span><span class="mois">' + MOIS_COURT[d.getMonth()] + '</span></div>' +
+          personnesVues().map(function (p) { return jauge(p, j); }).join('') +
+          (evs.length ? '<div class="pl-evs">' + evs.map(carteEv).join('') + '</div>' : '') +
+          creneauxLibres(j) +
+          '</div>';
+      }).join('') + '</div>';
+    }
+
+    /** Barre d'occupation d'une personne sur une journée, en pourcentage de l'amplitude de travail. */
+    function jauge(qui, date) {
+      const c = P.conf(REGLAGES).heures || {};
+      const h0 = P.hhmmMin(c.debut, 480), h1 = P.hhmmMin(c.fin, 1020);
+      const span = Math.max(1, h1 - h0);
+      const pos = function (min) { return Math.max(0, Math.min(100, ((min - h0) / span) * 100)); };
+      const blocs = P.blocsTheoriques(qui, date, DISPOS, REGLAGES);
+      if (!blocs.length) return '';   // pas de trame ce jour-là : aucune barre, pas de fausse promesse
+      const pris = TOUS_EVS.filter(function (e) { return e.date === date && e.qui.indexOf(qui) >= 0; });
+      const seg = [];
+      blocs.forEach(function (bl) {
+        seg.push('<span class="libre" style="left:' + pos(bl.debut) + '%;right:' + (100 - pos(bl.fin)) + '%"></span>');
+      });
+      pris.forEach(function (e) {
+        const o = P.occupation(e, REGLAGES);
+        seg.push('<span class="pris" style="left:' + pos(o.debut) + '%;right:' + (100 - pos(o.fin)) + '%;--c:' + (P.NATURES[e.source] || {}).couleur + '"></span>');
+      });
+      return '<div class="pl-jauge" title="' + escHtml((SELLER_LABELS[qui] || qui) + ' — ' + fmtDate(date)) + '">' +
+        '<span class="qui">' + escHtml((SELLER_LABELS[qui] || qui).slice(0, 1)) + '</span>' +
+        '<span class="pl-piste">' + seg.join('') + '</span></div>';
+    }
+
+    function carteEv(e) {
+      const n = P.NATURES[e.source] || {};
+      const heure = e.heure || '';
+      const duree = P.fmtDuree(e.duree_h);
+      const qui = e.qui.map(function (q) { return (SELLER_LABELS[q] || q).slice(0, 3); }).join('+');
+      const clic = e.href ? 'location.href=\'' + e.href + '\'' : 'modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')';
+      return '<button class="pl-ev ' + (e.source === 'indispo' ? 'is-indispo' : '') + '" style="--c:' + n.couleur + '" onclick="' + clic + '" ' +
+        'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '')) + '">' +
+        '<span class="l1">' + (heure ? '<span class="h">' + escHtml(heure) + '</span>' : '') +
+        '<span class="t">' + escHtml(e.titre) + '</span></span>' +
+        (e.detail ? '<span class="s">' + escHtml(e.detail) + '</span>' : '') +
+        '<span class="w">' + escHtml([nature(e), duree, qui].filter(Boolean).join(' · ')) + '</span>' +
+        (e.alerte ? '<span class="s" style="color:var(--warn)">' + escHtml(e.alerte) + '</span>' : '') +
+        '</button>';
+    }
+
+    /** Ce qui reste libre après soustraction — c'est l'information qui n'existait nulle part. */
+    function creneauxLibres(date) {
+      if (date < P.aujourdhui()) return '';
+      const parts = [];
+      personnesVues().forEach(function (p) {
+        P.libres(p, date, TOUS_EVS, DISPOS, 1, REGLAGES).forEach(function (bl) {
+          parts.push('<button class="pl-libre" onclick="ouvrirIndispo({qui:\'' + p + '\',du:\'' + date + '\',debut:\'' + P.minHhmm(bl.debut) + '\',fin:\'' + P.minHhmm(bl.fin) + '\'})" ' +
+            'title="Bloquer ce créneau">' + escHtml((SELLER_LABELS[p] || p).slice(0, 3) + ' ' + P.minHhmm(bl.debut) + '–' + P.minHhmm(bl.fin)) + '</button>');
+        });
+      });
+      if (!parts.length) {
+        // « Complet » et « personne ne travaille ce jour-là » sont deux situations opposées : la
+        // première invite à déplacer un rendez-vous, la seconde à ouvrir une disponibilité.
+        // Les confondre ferait croire à une journée chargée un dimanche vide.
+        const ouvert = personnesVues().some(function (p) { return P.blocsTheoriques(p, date, DISPOS, REGLAGES).length > 0; });
+        return '<div class="pl-vide">' + (ouvert ? 'Complet' : 'Non travaillé') + '</div>';
+      }
+      return '<div class="pl-libres">' + parts.join('') + '</div>';
+    }
+
+    // ── Vue MOIS ─────────────────────────────────────────────────────────────────────────────
+    function vueMois() {
+      const b = bornes();
+      const auj = P.aujourdhui();
+      const moisAffiche = P.dateDe(ANCRE).getMonth();
+      const entetes = P.JOURS.map(function (j) { return '<div class="entete">' + j.court + '</div>'; }).join('');
+      const cases = P.jours(b.du, b.au).map(function (j) {
+        const d = P.dateDe(j);
+        const evs = EVS.filter(function (e) { return e.date === j; });
+        const cls = [
+          d.getMonth() !== moisAffiche ? 'hors' : '',
+          P.estWeekend(j) ? 'is-we' : '',
+          j === auj ? 'is-today' : '',
+        ].filter(Boolean).join(' ');
+        const pastilles = evs.slice(0, 4).map(function (e) {
+          return '<span class="pt" style="--c:' + (P.NATURES[e.source] || {}).couleur + '" title="' + escHtml(nature(e) + ' — ' + e.titre) + '"></span>';
+        }).join('');
+        const premier = evs[0];
+        return '<button class="pl-case ' + cls + '" onclick="ouvrirJour(\'' + j + '\')">' +
+          '<span class="num">' + d.getDate() + '</span>' +
+          (pastilles ? '<span class="pts">' + pastilles + '</span>' : '') +
+          (premier ? '<span class="mini">' + escHtml(premier.titre) + (evs.length > 1 ? ' +' + (evs.length - 1) : '') + '</span>' : '') +
+          '</button>';
+      }).join('');
+      return '<div class="pl-mois">' + entetes + cases + '</div>';
+    }
+
+    // ── Vue JOUR ─────────────────────────────────────────────────────────────────────────────
+    // La suite chronologique de la journée, personne par personne : ce qui est pris et, entre les
+    // deux, ce qui est libre. C'est la vue du matin, avant de partir.
+    function vueJour() {
+      const b = bornes();
+      return '<div class="pl-jour">' + personnesVues().map(function (p) {
+        const c = P.charge(p, b.du, b.au, TOUS_EVS, DISPOS, REGLAGES);
+        const pris = TOUS_EVS.filter(function (e) { return e.date === ANCRE && e.qui.indexOf(p) >= 0; })
+          .map(function (e) { return { ev: e, o: P.occupation(e, REGLAGES) }; });
+        const libres = P.libres(p, ANCRE, TOUS_EVS, DISPOS, 0.5, REGLAGES)
+          .map(function (bl) { return { ev: null, o: bl }; });
+        const suite = pris.concat(libres).sort(function (x, y) { return x.o.debut - y.o.debut; });
+        return '<div class="pl-pers">' +
+          '<div class="pl-persh">' + icon('user', 15) + '<span class="nom">' + escHtml(SELLER_LABELS[p] || p) + '</span>' +
+            '<span class="taux">' + (c.capacite ? c.occupe + ' h / ' + c.capacite + ' h' : 'non disponible') + '</span></div>' +
+          (suite.length ? '<div class="pl-suite">' + suite.map(function (s) { return blocJour(p, s); }).join('') + '</div>'
+                        : '<div class="pl-vide">Rien de prévu, et aucune disponibilité déclarée ce jour-là.</div>') +
+          '</div>';
+      }).join('') + rendreOrphelinsDuJour() + '</div>';
+    }
+
+    function blocJour(qui, s) {
+      const heures = P.minHhmm(s.o.debut) + ' → ' + P.minHhmm(s.o.fin);
+      if (!s.ev) {
+        return '<div class="pl-bloc libre"><div class="heures">' + heures + '</div>' +
+          '<div class="corps"><span class="libtxt">Libre — ' + escHtml(P.fmtDuree((s.o.fin - s.o.debut) / 60)) + '</span>' +
+          '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirIndispo({qui:\'' + qui + '\',du:\'' + ANCRE + '\',debut:\'' + P.minHhmm(s.o.debut) + '\',fin:\'' + P.minHhmm(s.o.fin) + '\'})">Bloquer</button></div></div></div>';
+      }
+      const e = s.ev, n = P.NATURES[e.source] || {};
+      const maps = e.adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(e.adresse) : '';
+      return '<div class="pl-bloc" style="--c:' + n.couleur + '"><div class="heures">' + heures + '</div>' +
+        '<div class="corps">' +
+        '<div class="nomc">' + escHtml(e.titre) + ' <span class="w" style="color:' + n.couleur + ';font-family:var(--font-mono);font-size:var(--fs-3xs)">' + escHtml(nature(e)) + '</span></div>' +
+        (e.detail ? '<div class="detail">' + escHtml(e.detail) + '</div>' : '') +
+        (e.adresse ? '<div class="lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
+        (e.href ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="location.href=\'' + e.href + '\'">Ouvrir la fiche</button></div>' : '') +
+        '</div></div>';
+    }
+
+    /** Les rendez-vous du jour que personne n'a pris : ils n'apparaissent dans aucune colonne. */
+    function rendreOrphelinsDuJour() {
+      const orph = EVS.filter(function (e) { return e.date === ANCRE && !e.qui.length; });
+      if (!orph.length) return '';
+      return '<div class="pl-pers">' +
+        '<div class="pl-persh">' + icon('warning', 15) + '<span class="nom">Sans personne attribuée</span></div>' +
+        '<div class="pl-evs">' + orph.map(carteEv).join('') + '</div></div>';
+    }
+
+    // ── À planifier (chantiers signés qui n'ont pas encore de date) ──────────────────────────
+    function sectionAPlanifier() {
+      if (!A_PLANIFIER.length) return '';
+      return '<div class="pl-titre">' + icon('calendar', 13) + ' À planifier <span class="n">(' + A_PLANIFIER.length + ')</span></div>' +
+        '<div class="pl-grid">' + A_PLANIFIER.map(carteAPlanifier).join('') + '</div>';
+    }
+    function carteAPlanifier(d) {
+      const cl = d.client || {}, adr = cl.adresse || {};
+      const adresse = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
+      const maps = adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(adresse) : '';
+      const ch = d.chantier || {};
+      const resume = (window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || '';
+      const equipes = { nicolas: 'Nicolas', yannick: 'Yannick', nicolas_yannick: 'Nicolas + Yannick', sous_traitant: 'Sous-traitant' };
+      const id = window.SSUI.jsAttr(d.id);
+      return '<div class="pl-carte ticked">' +
+        '<div class="tete"><div><div class="cli">' + escHtml(((cl.prenom || '') + ' ' + (cl.nom || '')).trim() || '—') + '</div>' +
+        '<div class="adr">' + (adresse ? (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(adresse) + '</a>' : escHtml(adresse)) : 'Adresse non renseignée') + '</div></div>' +
+        (d.statut === 'termine' ? '<span class="badge badge-warn" title="Marqué « Terminé » alors qu\'aucune pose n\'est enregistrée.">Terminé sans pose</span>' : '<span class="badge">Sans date</span>') +
+        '</div>' +
+        (resume ? '<div class="res">' + escHtml(resume) + '</div>' : '') +
+        '<div class="champs">' +
+        '<div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="" onchange="fixerPose(\'' + id + '\', this.value)"></div>' +
+        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (ch.duree_h != null ? ch.duree_h : '') + '" onchange="setChantier(\'' + id + '\',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
+        '<div class="field plein"><label class="label">Équipe</label><select class="select" onchange="setChantier(\'' + id + '\',\'equipe\', this.value)">' +
+        Object.keys(equipes).map(function (k) { return '<option value="' + k + '"' + ((ch.equipe || 'nicolas') === k ? ' selected' : '') + '>' + equipes[k] + '</option>'; }).join('') +
+        '</select></div></div>' +
+        '<div class="actions"><button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(d.id) + '\'">' + icon('window', 14) + ' Voir la fiche</button></div>' +
+        '</div>';
+    }
+
+    /** Écrit un champ du chantier. Le devis complet n'est chargé QU'ICI, au moment de modifier :
+     *  la liste suffit à tout afficher, inutile de rapatrier les photos de trente dossiers. */
+    async function setChantier(id, champ, valeur) {
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable — recharge la page.', 'error'); return null; }
+      // On étale le devis et on ne surcharge que ce qui change : une énumération de champs perdrait
+      // silencieusement tout ce qu'elle ne connaît pas (règle 2 du guide).
+      d.chantier = Object.assign({}, d.chantier || {}, { [champ]: valeur });
+      d.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(d);
+      if (res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return null; }
+      if (res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return null; }
+      toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour', res.offline ? 'warn' : 'ok');
+      return d;
+    }
+    window.setChantier = async function (id, champ, valeur) {
+      const d = await setChantier(id, champ, valeur);
+      if (d) charger();
+    };
+
+    /** Fixer une date de pose : on prévient AVANT d'écrire si la personne est déjà prise ce jour-là.
+     *  Un avertissement, jamais un blocage — deux petites poses dans la même journée, ça se fait. */
+    window.fixerPose = async function (id, date) {
+      if (!date) return;
+      const d = (A_PLANIFIER.filter(function (x) { return x.id === id; })[0]) || null;
+      const ch = (d && d.chantier) || {};
+      const candidat = {
+        id: 'pose:' + id, source: 'pose', date: date, heure: '',
+        duree_h: Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4,
+        qui: P.quiDeEquipe(ch.equipe), titre: 'ce chantier',
+      };
+      const cs = P.conflitsDe(candidat, TOUS_EVS, REGLAGES);
+      if (cs.length) {
+        const l = cs.map(function (c) { return (SELLER_LABELS[c.qui] || c.qui) + ' : ' + nature(c.autre) + ' ' + c.autre.titre; }).join('\n');
+        if (!confirm('Attention, ce créneau est déjà occupé le ' + fmtDate(date) + ' :\n\n' + l + '\n\nPlanifier quand même ?')) return;
+      }
+      const res = await setChantier(id, 'date_pose', date);
+      if (res) charger();
+    };
+
+    // ── Navigation ───────────────────────────────────────────────────────────────────────────
+    window.setVue = function (v) { VUE = v; localStorage.setItem('ss_planning_vue', v); rendre(); };
+    window.setQui = function (q) { QUI = q; localStorage.setItem('ss_planning_qui', q); rendre(); };
+    window.allerAujourdhui = function () { ANCRE = P.aujourdhui(); rendre(); };
+    window.ouvrirJour = function (j) { ANCRE = j; VUE = 'jour'; localStorage.setItem('ss_planning_vue', 'jour'); rendre(); };
+    window.naviguer = function (sens) {
+      if (VUE === 'jour') ANCRE = P.plusJours(ANCRE, sens);
+      else if (VUE === 'semaine') ANCRE = P.plusJours(ANCRE, 7 * sens);
+      else {
+        const d = P.dateDe(ANCRE);
+        // Le 31 : passer au mois suivant donnerait le 3 du mois d'après (31 février n'existe pas).
+        // On se cale sur le 1er, qui existe dans tous les mois.
+        ANCRE = P.ymd(new Date(d.getFullYear(), d.getMonth() + sens, 1));
+      }
+      rendre();
+    };
+
+    // ── Fenêtre « Bloquer du temps » ─────────────────────────────────────────────────────────
+    let INDISPO = null;
+    window.ouvrirIndispo = function (pre) {
+      const p = pre || {};
+      INDISPO = {
+        id: 'DISPO-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        qui: p.qui || IDENTITE.key || 'nicolas',
+        kind: 'indispo',
+        du: p.du || ANCRE, au: p.au || p.du || ANCRE,
+        journee: !p.debut,
+        debut: p.debut || '', fin: p.fin || '',
+        motif: '',
+        nouveau: true,
+      };
+      remplirIndispo();
+      el('mIndispoBg').classList.add('open');
+    };
+    window.modifierIndispo = function (id) {
+      const x = DISPOS.filter(function (d) { return String(d.id) === String(id); })[0];
+      if (!x) return;
+      INDISPO = Object.assign({}, x, { nouveau: false });
+      remplirIndispo();
+      el('mIndispoBg').classList.add('open');
+    };
+    window.fermerIndispo = function () { el('mIndispoBg').classList.remove('open'); INDISPO = null; };
+
+    function remplirIndispo() {
+      const x = INDISPO;
+      el('mIndispoIc').innerHTML = icon('lock', 16);
+      el('mIndispoTitre').textContent = x.nouveau ? 'Bloquer du temps' : 'Modifier l’indisponibilité';
+      el('mIndispoBody').innerHTML =
+        '<div class="m2">' +
+        '<div class="field"><label class="label">Qui</label><select class="select" id="i_qui">' +
+          PERSONNES.map(function (p) { return '<option value="' + p + '"' + (x.qui === p ? ' selected' : '') + '>' + escHtml(SELLER_LABELS[p] || p) + '</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="field"><label class="label">Nature</label><select class="select" id="i_kind">' +
+          '<option value="indispo"' + (x.kind === 'indispo' ? ' selected' : '') + '>Indisponible</option>' +
+          '<option value="dispo"' + (x.kind === 'dispo' ? ' selected' : '') + '>Disponible exceptionnellement</option>' +
+        '</select></div>' +
+        '<div class="field"><label class="label">Du</label><input class="input" type="date" id="i_du" value="' + escHtml(x.du) + '"></div>' +
+        '<div class="field"><label class="label">Au (inclus)</label><input class="input" type="date" id="i_au" value="' + escHtml(x.au || x.du) + '"></div>' +
+        '</div>' +
+        '<div class="field" style="margin-top:var(--sp-3)"><label class="label" style="cursor:pointer">' +
+          '<input type="checkbox" id="i_journee" ' + (x.journee !== false ? 'checked' : '') + ' onchange="majHoraires()" style="vertical-align:-1px"> Toute la journée</label></div>' +
+        '<div class="m2" id="i_horaires" style="' + (x.journee !== false ? 'display:none' : '') + '">' +
+        '<div class="field"><label class="label">De</label><input class="input" type="time" id="i_debut" value="' + escHtml(x.debut || '08:00') + '"></div>' +
+        '<div class="field"><label class="label">À</label><input class="input" type="time" id="i_fin" value="' + escHtml(x.fin || '17:00') + '"></div>' +
+        '</div>' +
+        '<div class="field" style="margin-top:var(--sp-3)"><label class="label">Motif (visible par l’autre)</label>' +
+          '<input class="input" id="i_motif" maxlength="200" placeholder="Congé, chantier Multimedian, rendez-vous personnel…" value="' + escHtml(x.motif || '') + '"></div>';
+      const foot = el('btnSaveIndispo').parentNode;
+      const ancien = document.getElementById('btnSupIndispo');
+      if (ancien) ancien.remove();
+      if (!x.nouveau) {
+        const b = document.createElement('button');
+        b.className = 'btn btn-ghost btn-sm';
+        b.id = 'btnSupIndispo';
+        b.style.cssText = 'color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);margin-right:auto;';
+        b.textContent = 'Supprimer';
+        b.onclick = supprimerIndispo;
+        foot.insertBefore(b, foot.firstChild);
+      }
+    }
+    window.majHoraires = function () {
+      el('i_horaires').style.display = el('i_journee').checked ? 'none' : '';
+    };
+
+    window.enregistrerIndispo = async function () {
+      const journee = el('i_journee').checked;
+      const x = Object.assign({}, INDISPO, {
+        qui: el('i_qui').value,
+        kind: el('i_kind').value,
+        du: el('i_du').value,
+        au: el('i_au').value || el('i_du').value,
+        journee: journee,
+        debut: journee ? '' : el('i_debut').value,
+        fin: journee ? '' : el('i_fin').value,
+        motif: el('i_motif').value.trim(),
+      });
+      delete x.nouveau;
+      if (!x.du) { toast('Il faut au moins une date.', 'error'); return; }
+      if (x.au < x.du) { toast('La date de fin précède la date de début.', 'error'); return; }
+      if (!journee && x.fin <= x.debut) { toast('L’heure de fin doit suivre l’heure de début.', 'error'); return; }
+      const btn = el('btnSaveIndispo'); btn.disabled = true;
+      const res = await SS.saveDispo(x);
+      btn.disabled = false;
+      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      toast(x.kind === 'dispo' ? 'Disponibilité ajoutée' : 'Temps bloqué', 'ok');
+      fermerIndispo();
+      charger();
+    };
+
+    async function supprimerIndispo() {
+      if (!INDISPO || !confirm('Supprimer cette indisponibilité ?')) return;
+      const res = await SS.deleteDispo(INDISPO.id);
+      if (res.ok === false) { toast(res.error || 'Suppression impossible.', 'error', 7000); return; }
+      toast('Supprimée', 'ok');
+      fermerIndispo();
+      charger();
+    }
+
+    // ── Fenêtre « Disponibilités » (trame hebdomadaire + exceptions en cours) ────────────────
+    window.ouvrirTrame = function () {
+      const c = P.conf(REGLAGES);
+      const h = c.heures || {};
+      el('mTrameIc').innerHTML = icon('clock', 16);
+      el('mTrameBody').innerHTML =
+        '<p style="font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 var(--sp-4);line-height:1.55;">' +
+        'Une semaine <b>ordinaire</b> : ce que chacun peut prendre en temps normal. L’ERP enlève tout seul ' +
+        'ce qui est déjà planifié — poses, visites, dépannages. On ne saisit donc jamais ses créneaux libres, ' +
+        'seulement les exceptions.</p>' +
+        '<table class="tr-table"><thead><tr><th>Jour</th>' +
+        PERSONNES.map(function (p) { return '<th>' + escHtml(SELLER_LABELS[p] || p) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        P.JOURS.map(function (j) {
+          return '<tr><td>' + j.long + '</td>' + PERSONNES.map(function (p) {
+            const v = P.trameDe(p, REGLAGES)[j.k] || 'non';
+            return '<td><select class="select" id="t_' + p + '_' + j.k + '">' +
+              Object.keys(P.FORMES_JOUR).map(function (k) {
+                return '<option value="' + k + '"' + (v === k ? ' selected' : '') + '>' + escHtml(P.FORMES_JOUR[k]) + '</option>';
+              }).join('') + '</select></td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table>' +
+        '<div class="pl-titre">' + icon('clock', 13) + ' Horaires de journée</div>' +
+        '<div class="m2">' +
+        '<div class="field"><label class="label">Début</label><input class="input" type="time" id="h_debut" value="' + escHtml(h.debut || '08:00') + '"></div>' +
+        '<div class="field"><label class="label">Pause de</label><input class="input" type="time" id="h_midi" value="' + escHtml(h.midi || '12:00') + '"></div>' +
+        '<div class="field"><label class="label">Reprise</label><input class="input" type="time" id="h_reprise" value="' + escHtml(h.reprise || '13:00') + '"></div>' +
+        '<div class="field"><label class="label">Fin</label><input class="input" type="time" id="h_fin" value="' + escHtml(h.fin || '17:00') + '"></div>' +
+        '</div>' +
+        '<div class="pl-titre">' + icon('lock', 13) + ' Exceptions à venir <span class="n">(' + exceptionsAVenir().length + ')</span></div>' +
+        (exceptionsAVenir().length ? exceptionsAVenir().map(ligneException).join('')
+          : '<div class="pl-vide">Aucune. Le bouton « Bloquer du temps » en ajoute une.</div>');
+      el('mTrameBg').classList.add('open');
+    };
+    window.fermerTrame = function () { el('mTrameBg').classList.remove('open'); };
+
+    function exceptionsAVenir() {
+      const auj = P.aujourdhui();
+      return DISPOS.filter(function (x) { return String(x.au || x.du) >= auj; })
+        .sort(function (a, b) { return String(a.du).localeCompare(String(b.du)); });
+    }
+    function ligneException(x) {
+      const quand = x.du === x.au ? fmtDate(x.du) : fmtDate(x.du) + ' → ' + fmtDate(x.au);
+      const heures = x.journee === false ? ' · ' + escHtml(x.debut + '–' + x.fin) : '';
+      return '<div class="ex-ligne ' + (x.kind === 'dispo' ? 'dispo' : '') + '">' +
+        '<span class="qui">' + escHtml((SELLER_LABELS[x.qui] || x.qui).slice(0, 3)) + '</span>' +
+        '<span class="quand">' + escHtml(quand) + heures + '</span>' +
+        (x.motif ? '<span class="motif">' + escHtml(x.motif) + '</span>' : '') +
+        '<button class="sup" onclick="fermerTrame();modifierIndispo(\'' + window.SSUI.jsAttr(String(x.id)) + '\')" title="Modifier">' + icon('edit', 13) + '</button>' +
+        '</div>';
+    }
+
+    window.enregistrerTrame = async function () {
+      const btn = el('btnSaveTrame'); btn.disabled = true;
+      // On relit les réglages du serveur juste avant d'écrire : le blob est global, et l'autre a pu
+      // changer une marge entre-temps. On ne renvoie donc que le bloc `planning` par-dessus la
+      // version fraîche, jamais la copie chargée à l'ouverture de la page.
+      let frais = null;
+      try { frais = await SS.getSettings(); } catch (e) { frais = null; }
+      if (!frais) { toast('Réglages illisibles — réessaie une fois connecté.', 'error', 6000); btn.disabled = false; return; }
+      const trame = {};
+      PERSONNES.forEach(function (p) {
+        trame[p] = {};
+        P.JOURS.forEach(function (j) {
+          const champ = el('t_' + p + '_' + j.k);
+          trame[p][j.k] = champ ? champ.value : 'non';
+        });
+      });
+      const heures = {
+        debut: el('h_debut').value || '08:00', midi: el('h_midi').value || '12:00',
+        reprise: el('h_reprise').value || '13:00', fin: el('h_fin').value || '17:00',
+      };
+      if (heures.fin <= heures.debut) { toast('La fin de journée doit suivre le début.', 'error'); btn.disabled = false; return; }
+      const conf = Object.assign({}, frais, { planning: Object.assign({}, frais.planning || {}, { trame: trame, heures: heures }) });
+      const res = await window.SSConf.enregistrer(conf, 'Planning : trame de disponibilités');
+      btn.disabled = false;
+      if (res && res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      toast('Trame enregistrée', 'ok');
+      fermerTrame();
+      charger();
+    };
+
+    // Fermer les fenêtres au clic sur le fond ou avec Échap : partout ailleurs dans l'ERP c'est
+    // le comportement attendu, une fenêtre qui ne se ferme qu'au bouton surprend.
+    ['mIndispoBg', 'mTrameBg'].forEach(function (id) {
+      el(id).addEventListener('click', function (ev) { if (ev.target === el(id)) el(id).classList.remove('open'); });
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Escape') return;
+      ['mIndispoBg', 'mTrameBg'].forEach(function (id) { el(id).classList.remove('open'); });
+    });
+
+    charger();
+  </script>
+</body>
+</html>

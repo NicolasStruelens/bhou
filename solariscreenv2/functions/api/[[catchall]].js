@@ -395,6 +395,16 @@ export async function onRequest(context) {
                -- Suite à donner d'un dépannage (pièce commandée, retour à planifier) : c'est ce
                -- qu'on oublie, parce que le dossier a l'air terminé — il est signé et facturé.
                json_extract(data, '$.depannage.suite') AS depannage_suite,
+               -- Projection MINIMALE de la planification d'un dépannage (jamais le rapport complet,
+               -- qui porte motif, constat et notes). Sans elle, une intervention datée, chiffrée et
+               -- attribuée n'apparaissait dans AUCUN planning : on pouvait la caler à la même heure
+               -- qu'une pose sans qu'un seul écran le signale. Nommée « _plan » justement pour qu'on
+               -- ne la confonde jamais avec l'objet « depannage » complet et qu'on ne la réécrive pas.
+               json_extract(data, '$.depannage.date_intervention') AS dep_date,
+               json_extract(data, '$.depannage.heure')            AS dep_heure,
+               json_extract(data, '$.depannage.duree_h')          AS dep_duree_h,
+               json_extract(data, '$.depannage.motif')            AS dep_motif,
+               json_extract(data, '$.depannage.techniciens')      AS dep_techniciens_json,
                json_extract(data, '$.client') AS client_json,
                COALESCE(json_extract(data, '$.item_types'),
                         (SELECT json_group_array(t) FROM (SELECT DISTINCT json_extract(je.value, '$.type') AS t
@@ -441,8 +451,19 @@ export async function onRequest(context) {
         const items_min = safeParse(r.items_min_json) || [];
         // Relances envoyées : nécessaires au tableau de bord pour savoir quelle relance est due.
         const relances = safeParse(r.relances_json) || [];
+        // Planification d'un dépannage, regroupée pour le planning. On garde `motif` parce que c'est
+        // le seul texte qui identifie une intervention dans une grille ; le reste du rapport
+        // (constat, garantie, suite à donner) n'a rien à faire dans une liste.
+        const depannage_plan = r.dep_date ? {
+          date_intervention: r.dep_date,
+          heure: r.dep_heure || '',
+          duree_h: Number(r.dep_duree_h) || 0,
+          motif: r.dep_motif || '',
+          techniciens: safeParse(r.dep_techniciens_json) || [],
+        } : null;
         delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json; delete r.items_min_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, items_min, relances };
+        delete r.dep_date; delete r.dep_heure; delete r.dep_duree_h; delete r.dep_motif; delete r.dep_techniciens_json;
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, items_min, relances, depannage_plan };
       });
       return json({ ok: true, data });
     }
@@ -1089,6 +1110,65 @@ export async function onRequest(context) {
         await env.DB.prepare('DELETE FROM rdv WHERE id = ?').bind(id).run();
         return json({ ok: true });
       }
+    }
+
+    // ══════════ DISPOS (exceptions de planning : congés, indisponibilités, dispo exceptionnelle) ══
+    // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle avant de déployer.
+    // On n'enregistre JAMAIS les créneaux libres : ils se déduisent de la trame hebdomadaire moins
+    // ce qui est déjà planifié (voir assets/js/planning.js). Seules les EXCEPTIONS ont une ligne.
+    // Donnée interne — qui travaille quand — jamais exposée sur une page publique.
+    if (path === '/api/dispos' || path.indexOf('/api/dispos/') === 0) {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS dispos (id TEXT PRIMARY KEY, qui TEXT NOT NULL DEFAULT '', " +
+        "kind TEXT NOT NULL DEFAULT 'indispo', du TEXT NOT NULL DEFAULT '', au TEXT NOT NULL DEFAULT '', " +
+        "date_modification TEXT, data TEXT NOT NULL)"
+      ).run();
+    }
+    if (path === '/api/dispos' && method === 'GET') {
+      // Triées par date de début : le planning les consomme dans l'ordre où elles arrivent.
+      const { results } = await env.DB.prepare('SELECT data FROM dispos ORDER BY du ASC').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/dispos' && method === 'POST') {
+      const x = await request.json().catch(() => null);
+      if (!x || typeof x !== 'object') return json({ ok: false, error: 'Requête invalide' }, 400);
+      if (!x.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      // Une donnée de planning mal formée ne casse pas un prix, mais elle fausse une grille et un
+      // calcul de disponibilité : on valide ici plutôt que de laisser chaque écran se défendre.
+      const estJour = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+      const qui = String(x.qui || '');
+      if (!['nicolas', 'yannick'].includes(qui)) return json({ ok: false, error: 'Personne inconnue' }, 400);
+      const kind = ['indispo', 'dispo'].includes(x.kind) ? x.kind : 'indispo';
+      const du = String(x.du || '').slice(0, 10);
+      const au = String(x.au || du).slice(0, 10);
+      if (!estJour(du) || !estJour(au)) return json({ ok: false, error: 'Dates invalides' }, 400);
+      if (au < du) return json({ ok: false, error: 'La date de fin précède la date de début' }, 400);
+      // Le serveur signe tout seul : jamais de liste « qui écrit ? » (l'identité vient d'Access).
+      const emailDispo = parseAccessEmail(request);
+      const acteur = (emailDispo && IDENTITIES[emailDispo.toLowerCase()]) || emailDispo || null;
+      const now = new Date().toISOString();
+      const propre = {
+        ...x, id: String(x.id).slice(0, 60), qui, kind, du, au,
+        journee: x.journee !== false,
+        debut: String(x.debut || '').slice(0, 5),
+        fin: String(x.fin || '').slice(0, 5),
+        motif: String(x.motif || '').slice(0, 200),
+        acteur, date_modification: now,
+        date_creation: x.date_creation || now,
+      };
+      await env.DB.prepare(`
+        INSERT INTO dispos (id, qui, kind, du, au, date_modification, data) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET qui = excluded.qui, kind = excluded.kind, du = excluded.du,
+          au = excluded.au, date_modification = excluded.date_modification, data = excluded.data
+      `).bind(propre.id, qui, kind, du, au, now, JSON.stringify(propre)).run();
+      return json({ ok: true, id: propre.id, data: propre });
+    }
+    let mDispo = path.match(/^\/api\/dispos\/([^/]+)$/);
+    if (mDispo && method === 'DELETE') {
+      const id = decodeURIComponent(mDispo[1]);
+      const r = await env.DB.prepare('DELETE FROM dispos WHERE id = ?').bind(id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Indisponibilité introuvable' }, 404);
+      return json({ ok: true });
     }
 
     // ══════════ OUTILLAGE (catalogue perso de références : visserie, fixations, outils…) ══════════

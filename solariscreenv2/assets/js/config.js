@@ -54,6 +54,25 @@
       mantra: true,              // pensée du jour dans le bandeau
       meteo: true,               // météo chez le client
     },
+    // ── PLANNING ──────────────────────────────────────────────────────────────────────────────
+    // La TRAME décrit une semaine ORDINAIRE : ce que chacun peut prendre, en temps normal.
+    // On ne saisit jamais ses créneaux libres — un planning qu'il faut nourrir chaque semaine est
+    // abandonné en trois semaines. On pose cette trame UNE FOIS, l'ERP soustrait tout seul ce qui
+    // est déjà planifié (poses, visites, dépannages), et on n'ajoute à la main que les exceptions
+    // (congé, « pas dispo jeudi », « exceptionnellement ce samedi-là »).
+    // Valeurs d'un jour : 'non' | 'matin' | 'apresmidi' | 'journee'.
+    planning: {
+      heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
+      trame: {
+        nicolas: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'non', dim: 'non' },
+        yannick: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'non', dim: 'non' },
+      },
+      // Durées retenues quand le dossier n'en porte pas. Elles ne changent AUCUN prix : elles ne
+      // servent qu'à occuper la bonne place dans la journée et à repérer les chevauchements.
+      duree_visite_h: 1,
+      duree_pose_h: 4,
+      duree_depannage_h: 2,
+    },
   };
 
   const CLE_CACHE = 'ss_reglages';

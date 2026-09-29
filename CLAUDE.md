@@ -61,8 +61,10 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
+| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 74 tests (`window.SSPlanning`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 41 tests du moteur. À ouvrir dans un navigateur. |
+| `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -137,6 +139,27 @@ alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
 **12. Ce que le client écrit finit dans une page authentifiée.** Toute valeur venant de
 `devis-review.html` (raison de refus, question) doit être échappée avant affichage.
 
+**13. La DISPONIBILITÉ ne se saisit jamais, elle se déduit.** Un planning qu'il faut nourrir chaque
+semaine est abandonné en trois semaines — c'est la raison d'être de `assets/js/planning.js`. Chacun
+pose **une fois** sa trame hebdomadaire (réglages `planning.trame`, valeurs `non` / `matin` /
+`apresmidi` / `journee`), l'ERP **soustrait** ce qui est déjà planifié, et on n'ajoute à la main que
+les EXCEPTIONS : table `dispos`, `kind: 'indispo'` (congé, rendez-vous perso) ou `kind: 'dispo'`
+(« exceptionnellement, ce samedi-là je peux »). Ce qui reste est libre, par construction — donc
+juste dès le premier jour, sans rien remplir.
+Trois sources deviennent un même ÉVÉNEMENT : la POSE (devis signé, `chantier.date_pose`), la VISITE
+(`rdv` au statut `rdv_fixe`) et le DÉPANNAGE (`depannage.date_intervention`). Le dépannage
+n'apparaissait dans AUCUN agenda alors qu'il porte date, heure, durée et intervenants : on pouvait
+caler une intervention et une pose à la même heure sans qu'un écran ne dise rien. La liste des devis
+le projette désormais sous `depannage_plan` — une projection de LECTURE, comme `items_min`, jamais
+l'objet `depannage` complet et jamais à réécrire.
+Conséquences à respecter : `sous_traitant` n'occupe **ni Nicolas ni Yannick** (c'est l'intérêt d'y
+faire appel) ; un bon d'intervention passé (`depannage_mode: 'realise'`) est un compte rendu, pas un
+rendez-vous, et ne prend pas de place dans le futur ; une personne sans trame n'est **jamais**
+« toujours libre » (mieux vaut un planning vide qu'un planning qui ment) ; un conflit s'AVERTIT, il
+ne se bloque pas (deux petites poses dans la journée, ça se fait). Les dispos ne s'écrivent pas
+hors-ligne : une indisponibilité visible du seul téléphone qui l'a saisie est pire que pas
+d'indisponibilité, l'autre planifie dessus en croyant la place libre.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
@@ -168,6 +191,16 @@ alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
   bloc des MONTANTS est rendu APRÈS les ouvertures. Brancher en `if/else`, jamais en sortie.
 - **Le serveur de test doit envoyer `Cache-Control: no-store`** : sans lui le navigateur resservait
   un `ui.js` d'il y a dix minutes, et les vérifications portaient sur du code déjà remplacé.
+- **Un backtick dans un commentaire à l'intérieur d'un `template literal`** le termine : citer un
+  nom de champ entre backticks au milieu de la requête SQL de `/api/devis` a cassé tout le fichier,
+  et **le déploiement Cloudflare a échoué** sans que rien ne le montre en local. Écrire « _plan »
+  avec des guillemets dans ces commentaires-là.
+- **Aucun navigateur ne charge `functions/api/[[catchall]].js`** : une faute de syntaxe y passe
+  toutes les vérifications de page et ne se voit qu'au déploiement. Node n'est pas installé sur la
+  machine de Nicolas, donc pas de `node --check` — le contrôle se fait dans la console du
+  navigateur, avec le serveur de test lancé :
+  `await import('/functions/api/%5B%5Bcatchall%5D%5D.js?v=' + Date.now())`. Il doit renvoyer
+  `{ onRequest }` ; toute autre réponse est une erreur de syntaxe.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et
@@ -185,6 +218,9 @@ alerte « acompte non payé »). `relanceEtat` sort donc immédiatement quand
 
 1. **Les 41 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
+   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ». Les dates s'y
+   manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
+   UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
    déborde de sa boîte.
 3. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
