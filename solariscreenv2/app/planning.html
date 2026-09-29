@@ -66,7 +66,9 @@
     .pl-jauge .qui { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); width: 2ch; flex: none; }
     .pl-piste { position: relative; height: 9px; flex: 1 1 auto; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
     .pl-piste span { position: absolute; top: 0; bottom: 0; }
-    .pl-piste .libre { background: color-mix(in srgb, var(--ok) 32%, transparent); }
+    /* 32 % de vert passait pour du gris en thème clair : la barre ne se distinguait plus du fond
+       et ne racontait plus rien. Il faut que « libre » se voie d'un coup d'œil, c'est son seul rôle. */
+    .pl-piste .libre { background: color-mix(in srgb, var(--ok) 60%, transparent); }
     .pl-piste .pris { background: var(--c, var(--accent)); }
 
     .pl-evs { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -84,6 +86,9 @@
     .pl-ev .s { display: block; font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pl-ev .w { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
     .pl-ev.is-indispo { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 5px, var(--surface-3) 5px, var(--surface-3) 10px); }
+    /* Météo prévue : vide tant que la réponse n'est pas là, et alors elle ne prend aucune place. */
+    .pl-meteo { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .pl-meteo:empty { display: none; }
 
     .pl-libres { display: flex; flex-wrap: wrap; gap: 0.25rem; }
     .pl-libre { font-family: var(--font-mono); font-size: var(--fs-3xs); padding: 0.15rem 0.4rem; border-radius: var(--r-sm);
@@ -156,7 +161,11 @@
     .tr-table th, .tr-table td { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border); text-align: left; }
     .tr-table th { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); font-weight: 400; }
     .tr-table td:first-child { font-size: var(--fs-sm); color: var(--text-muted); }
-    .tr-table .select { height: 34px; font-size: var(--fs-sm); }
+    /* JAMAIS de `height` fixe ici : `.select` porte déjà 0,65 rem de padding en haut ET en bas,
+       soit ~37 px de contenu. Forcer 34 px poussait le texte hors de la boîte et « Journée »
+       s'affichait coupé en deux dans le sens de la hauteur. On resserre le padding, la hauteur
+       suit toute seule. */
+    .tr-table .select { padding: 0.35rem 0.5rem; font-size: var(--fs-sm); }
     .ex-ligne { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
       border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); font-size: var(--fs-sm); }
     .ex-ligne.dispo { border-left-color: var(--ok); }
@@ -360,6 +369,26 @@
       else if (VUE === 'mois') el('vueHost').innerHTML = vueMois();
       else el('vueHost').innerHTML = vueJour();
       el('basHost').innerHTML = sectionAPlanifier();
+      chargerMeteo();
+    }
+
+    // ── Météo prévue chez le client (Open-Meteo, 16 jours) ───────────────────────────────
+    // Reprise de l'ancien agenda : poser des screens par grand vent, ça ne se fait pas, et c'est
+    // une décision qu'on veut prendre en regardant la semaine — pas la veille au soir. Chargée en
+    // tâche de fond, silencieuse si indisponible, et coupée si le réglage d'affichage la masque.
+    function chargerMeteo() {
+      if (VUE === 'mois') return;   // les cases du mois ne portent pas cette ligne
+      const aff = (REGLAGES && REGLAGES.affichage) || {};
+      if (aff.meteo === false) return;
+      const auj = P.aujourdhui(), limite = P.plusJours(auj, 16);
+      EVS.filter(function (e) {
+        return e.source !== 'indispo' && e.ville && e.date >= auj && e.date <= limite;
+      }).forEach(function (e) {
+        window.SSUI.fetchWeather(e.ville, e.date, e.cp).then(function (w) {
+          const box = el('meteo-' + e.id);
+          if (w && box) box.textContent = w.label + ' ' + Math.round(w.tmin) + '° / ' + Math.round(w.tmax) + '°';
+        }).catch(function () { /* la météo ne fait jamais échouer un planning */ });
+      });
     }
 
     function rendreSegments() {
@@ -488,6 +517,7 @@
         (e.detail ? '<span class="s">' + escHtml(e.detail) + '</span>' : '') +
         '<span class="w">' + escHtml([nature(e), duree, qui].filter(Boolean).join(' · ')) + '</span>' +
         (e.alerte ? '<span class="s" style="color:var(--warn)">' + escHtml(e.alerte) + '</span>' : '') +
+        '<span class="pl-meteo" id="meteo-' + escHtml(e.id) + '"></span>' +
         '</button>';
     }
 
@@ -495,10 +525,30 @@
     function creneauxLibres(date) {
       if (date < P.aujourdhui()) return '';
       const parts = [];
+      const pastille = function (p, debut, fin, texte) {
+        return '<button class="pl-libre" onclick="ouvrirIndispo({qui:\'' + p + '\',du:\'' + date + '\',debut:\'' + P.minHhmm(debut) + '\',fin:\'' + P.minHhmm(fin) + '\'})" ' +
+          'title="' + escHtml((SELLER_LABELS[p] || p) + ' libre de ' + P.minHhmm(debut) + ' à ' + P.minHhmm(fin) + ' — cliquer pour bloquer') + '">' +
+          escHtml(texte) + '</button>';
+      };
+      const duree = function (l) { return l.reduce(function (s, b) { return s + (b.fin - b.debut); }, 0); };
       personnesVues().forEach(function (p) {
-        P.libres(p, date, TOUS_EVS, DISPOS, 1, REGLAGES).forEach(function (bl) {
-          parts.push('<button class="pl-libre" onclick="ouvrirIndispo({qui:\'' + p + '\',du:\'' + date + '\',debut:\'' + P.minHhmm(bl.debut) + '\',fin:\'' + P.minHhmm(bl.fin) + '\'})" ' +
-            'title="Bloquer ce créneau">' + escHtml((SELLER_LABELS[p] || p).slice(0, 3) + ' ' + P.minHhmm(bl.debut) + '–' + P.minHhmm(bl.fin)) + '</button>');
+        const theoriques = P.blocsTheoriques(p, date, DISPOS, REGLAGES);
+        if (!theoriques.length) return;
+        const libres = P.libres(p, date, TOUS_EVS, DISPOS, 1, REGLAGES);
+        if (!libres.length) return;
+        const court = (SELLER_LABELS[p] || p).slice(0, 3);
+        // Journée intacte : une seule pastille qui dit la FORME du jour. Détailler
+        // « 08:00–12:00 » puis « 13:00–17:00 » pour chacun donnait quatre lignes identiques par
+        // colonne — vingt-huit sur une semaine vide, qui n'apprenaient rien à personne.
+        if (duree(libres) === duree(theoriques)) {
+          const forme = P.trameDe(p, REGLAGES)[P.cleJour(date)] || '';
+          const mot = forme === 'matin' ? 'matin' : (forme === 'apresmidi' ? 'après-midi' : 'journée');
+          parts.push(pastille(p, theoriques[0].debut, theoriques[theoriques.length - 1].fin, court + ' · ' + mot));
+          return;
+        }
+        // Journée entamée : là, l'horaire exact est justement ce qu'on cherche.
+        libres.forEach(function (bl) {
+          parts.push(pastille(p, bl.debut, bl.fin, court + ' ' + P.minHhmm(bl.debut) + '–' + P.minHhmm(bl.fin)));
         });
       });
       if (!parts.length) {
@@ -573,6 +623,7 @@
         '<div class="nomc">' + escHtml(e.titre) + ' <span class="w" style="color:' + n.couleur + ';font-family:var(--font-mono);font-size:var(--fs-3xs)">' + escHtml(nature(e)) + '</span></div>' +
         (e.detail ? '<div class="detail">' + escHtml(e.detail) + '</div>' : '') +
         (e.adresse ? '<div class="lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
+        '<div class="lieu pl-meteo" id="meteo-' + escHtml(e.id) + '"></div>' +
         (e.href ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="location.href=\'' + e.href + '\'">Ouvrir la fiche</button></div>' : '') +
         '</div></div>';
     }
