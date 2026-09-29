@@ -152,7 +152,17 @@
       width: 620px; max-width: 100%; max-height: 92vh; display: flex; flex-direction: column; }
     .mhead { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border);
       font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent); }
+    .mhead .mid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
     .mbody { padding: var(--sp-5); overflow: auto; }
+    /* Qui s'en occupe : des cases à cocher pour un dépannage (on peut être deux), un choix unique
+       pour une pose ou une visite. Hauteur explicite — `pointer: coarse` ne couvre pas ce composant. */
+    .qui-box { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+    .qui-opt { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 38px; padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border-strong); border-radius: var(--r-sm); cursor: pointer; font-size: var(--fs-sm); color: var(--text-muted); }
+    .qui-opt.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .ev-lieu { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-2); }
+    .ev-lieu a { color: var(--accent-2); }
+    .ev-note { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-3); line-height: 1.5; }
     .mfoot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); flex-wrap: wrap; }
     .m2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
 
@@ -164,8 +174,10 @@
     /* JAMAIS de `height` fixe ici : `.select` porte déjà 0,65 rem de padding en haut ET en bas,
        soit ~37 px de contenu. Forcer 34 px poussait le texte hors de la boîte et « Journée »
        s'affichait coupé en deux dans le sens de la hauteur. On resserre le padding, la hauteur
-       suit toute seule. */
-    .tr-table .select { padding: 0.35rem 0.5rem; font-size: var(--fs-sm); }
+       suit toute seule. `line-height` est fixé explicitement pour la même raison : hérité, il vaut
+       1,6 et réclame plus de place que le padding n'en laisse — le bas des lettres se fait rogner,
+       et pas de la même façon selon le navigateur. */
+    .tr-table .select { padding: 0.4rem 0.5rem; font-size: var(--fs-sm); line-height: 1.25; height: auto; }
     .ex-ligne { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
       border-radius: var(--r-sm); padding: 0.4rem var(--sp-2); margin-bottom: 0.4rem; background: var(--surface-2); font-size: var(--fs-sm); }
     .ex-ligne.dispo { border-left-color: var(--ok); }
@@ -258,6 +270,23 @@
       <div class="mfoot">
         <button class="btn btn-ghost btn-sm" onclick="fermerIndispo()">Annuler</button>
         <button class="btn btn-primary btn-sm" onclick="enregistrerIndispo()" id="btnSaveIndispo">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ Un rendez-vous : qui s'en occupe, quand, combien de temps ══════════ -->
+  <!-- Répond à « comment j'attribue une tâche à Yannick ? ». L'attribution vivait dans TROIS
+       écrans différents selon la nature du travail — fiche devis pour une pose, demande de RDV
+       pour une visite, simulateur pour un dépannage — et aucun n'était atteignable depuis le
+       planning, c'est-à-dire depuis l'écran où l'on voit justement qui a le temps. -->
+  <div class="modal-bg" id="mEvBg">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mEvTitre">
+      <div class="mhead"><span id="mEvIc"></span><span id="mEvTitre">Rendez-vous</span><span class="mid" id="mEvRef"></span></div>
+      <div class="mbody" id="mEvBody"></div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" id="btnEvFiche" onclick="ouvrirFicheEv()">Ouvrir la fiche</button>
+        <button class="btn btn-ghost btn-sm" onclick="fermerEvenement()">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="enregistrerEvenement()" id="btnSaveEv">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -509,9 +538,13 @@
       const heure = e.heure || '';
       const duree = P.fmtDuree(e.duree_h);
       const qui = e.qui.map(function (q) { return (SELLER_LABELS[q] || q).slice(0, 3); }).join('+');
-      const clic = e.href ? 'location.href=\'' + e.href + '\'' : 'modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')';
+      // Un clic ouvre le rendez-vous : c'est là qu'on change qui s'en occupe, la date et la durée.
+      // Avant, il envoyait sur la fiche du devis — utile pour consulter, inutile pour réattribuer.
+      const clic = e.source === 'indispo'
+        ? 'modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')'
+        : 'ouvrirEvenement(\'' + window.SSUI.jsAttr(e.id) + '\')';
       return '<button class="pl-ev ' + (e.source === 'indispo' ? 'is-indispo' : '') + '" style="--c:' + n.couleur + '" onclick="' + clic + '" ' +
-        'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '')) + '">' +
+        'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '') + ' · cliquer pour attribuer ou replanifier') + '">' +
         '<span class="l1">' + (heure ? '<span class="h">' + escHtml(heure) + '</span>' : '') +
         '<span class="t">' + escHtml(e.titre) + '</span></span>' +
         (e.detail ? '<span class="s">' + escHtml(e.detail) + '</span>' : '') +
@@ -624,7 +657,9 @@
         (e.detail ? '<div class="detail">' + escHtml(e.detail) + '</div>' : '') +
         (e.adresse ? '<div class="lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
         '<div class="lieu pl-meteo" id="meteo-' + escHtml(e.id) + '"></div>' +
-        (e.href ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="location.href=\'' + e.href + '\'">Ouvrir la fiche</button></div>' : '') +
+        (e.source === 'indispo'
+          ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')">Modifier</button></div>'
+          : '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirEvenement(\'' + window.SSUI.jsAttr(e.id) + '\')">' + icon('users', 13) + ' Qui s’en occupe</button></div>') +
         '</div></div>';
     }
 
@@ -722,6 +757,152 @@
         ANCRE = P.ymd(new Date(d.getFullYear(), d.getMonth() + sens, 1));
       }
       rendre();
+    };
+
+    // ── Fenêtre « Rendez-vous » : quand, combien de temps, et QUI s'en occupe ────────────────
+    // L'attribution vivait dans trois écrans selon la nature du travail — fiche devis pour une
+    // pose, demande de RDV pour une visite, simulateur pour un dépannage. Aucun n'était atteignable
+    // depuis le planning, c'est-à-dire depuis le seul écran qui montre qui a du temps.
+    const EQUIPES = { nicolas: 'Nicolas', yannick: 'Yannick', nicolas_yannick: 'Nicolas + Yannick', sous_traitant: 'Sous-traitant' };
+    let EV = null;        // événement affiché
+    let EV_EDIT = null;   // ce qu'on est en train de lui faire dire
+
+    /** Équipe d'une pose reconstituée depuis les personnes mobilisées (l'inverse de quiDeEquipe). */
+    function equipeDeQui(qui) {
+      const n = qui.indexOf('nicolas') >= 0, y = qui.indexOf('yannick') >= 0;
+      if (n && y) return 'nicolas_yannick';
+      if (y) return 'yannick';
+      if (n) return 'nicolas';
+      return 'sous_traitant';
+    }
+
+    window.ouvrirEvenement = function (id) {
+      const e = TOUS_EVS.filter(function (x) { return x.id === id; })[0];
+      if (!e) return;
+      EV = e;
+      EV_EDIT = {
+        equipe: e.source === 'pose' ? equipeDeQui(e.qui) : '',
+        assigned: e.source === 'visite' ? (e.qui[0] || '') : '',
+        techs: e.qui.slice(),
+      };
+      const n = P.NATURES[e.source] || {};
+      el('mEvIc').innerHTML = icon(n.icone || 'calendar', 16);
+      el('mEvTitre').textContent = nature(e) + ' — ' + e.titre;
+      el('mEvRef').textContent = e.ref || '';
+      el('btnEvFiche').style.display = e.href ? '' : 'none';
+      remplirEvenement();
+      el('mEvBg').classList.add('open');
+    };
+    window.fermerEvenement = function () { el('mEvBg').classList.remove('open'); EV = null; EV_EDIT = null; };
+    window.ouvrirFicheEv = function () { if (EV && EV.href) location.href = EV.href; };
+    window.basculerTech = function (p) {
+      const i = EV_EDIT.techs.indexOf(p);
+      if (i >= 0) EV_EDIT.techs.splice(i, 1); else EV_EDIT.techs.push(p);
+      remplirEvenement();
+    };
+    window.choisirEquipe = function (k) { EV_EDIT.equipe = k; remplirEvenement(); };
+    window.choisirAssigne = function (p) { EV_EDIT.assigned = p; remplirEvenement(); };
+
+    function remplirEvenement() {
+      const e = EV;
+      const maps = e.adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(e.adresse) : '';
+      const opt = function (actif, onclick, texte) {
+        return '<button type="button" class="qui-opt ' + (actif ? 'on' : '') + '" onclick="' + onclick + '">' +
+          (actif ? icon('check', 13) : '') + escHtml(texte) + '</button>';
+      };
+      let quiHtml = '', note = '';
+      if (e.source === 'depannage') {
+        // Un dépannage peut mobiliser les deux : cases à cocher, pas un choix unique.
+        quiHtml = PERSONNES.map(function (p) {
+          return opt(EV_EDIT.techs.indexOf(p) >= 0, 'basculerTech(\'' + p + '\')', SELLER_LABELS[p] || p);
+        }).join('');
+        note = 'Un intervenant extérieur saisi dans la fiche du dépannage est conservé tel quel.';
+      } else if (e.source === 'pose') {
+        quiHtml = Object.keys(EQUIPES).map(function (k) {
+          return opt(EV_EDIT.equipe === k, 'choisirEquipe(\'' + k + '\')', EQUIPES[k]);
+        }).join('');
+        note = 'Un chantier confié à un sous-traitant n’occupe ni Nicolas ni Yannick : c’est voulu.';
+      } else {
+        quiHtml = PERSONNES.map(function (p) {
+          return opt(EV_EDIT.assigned === p, 'choisirAssigne(\'' + p + '\')', SELLER_LABELS[p] || p);
+        }).join('') + opt(!EV_EDIT.assigned, 'choisirAssigne(\'\')', 'Non attribué');
+      }
+      el('mEvBody').innerHTML =
+        (e.adresse ? '<div class="ev-lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
+        (e.detail ? '<div class="ev-note">' + escHtml(e.detail) + '</div>' : '') +
+        '<div class="field" style="margin-top:var(--sp-4)"><label class="label">Qui s’en occupe</label><div class="qui-box">' + quiHtml + '</div></div>' +
+        '<div class="m2" style="margin-top:var(--sp-3)">' +
+        '<div class="field"><label class="label">Date</label><input class="input" type="date" id="ev_date" value="' + escHtml(e.date) + '"></div>' +
+        '<div class="field"><label class="label">Heure' + (e.source === 'pose' ? ' (facultative)' : '') + '</label>' +
+          '<input class="input" type="time" id="ev_heure" value="' + escHtml(e.heure || '') + '"></div>' +
+        // `step` décimal obligatoire : sans lui le champ refuse la valeur qu'il affiche, et une
+        // main-d'œuvre d'1 h 30 se retrouve tronquée à 1 h à chaque enregistrement.
+        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" id="ev_duree" value="' + escHtml(String(e.duree_h || '')) + '"></div>' +
+        '</div>' +
+        (note ? '<div class="ev-note">' + escHtml(note) + '</div>' : '');
+    }
+
+    /** Personnes mobilisées par l'état courant de la fenêtre — sert à chercher les conflits. */
+    function quiDeEdit(source) {
+      if (source === 'pose') return P.quiDeEquipe(EV_EDIT.equipe);
+      if (source === 'visite') return EV_EDIT.assigned ? [EV_EDIT.assigned] : [];
+      return EV_EDIT.techs.slice();
+    }
+
+    window.enregistrerEvenement = async function () {
+      const e = EV;
+      const date = el('ev_date').value;
+      const heure = el('ev_heure').value || '';
+      const duree = parseFloat(el('ev_duree').value) || 0;
+      if (!date) { toast('Il faut une date.', 'error'); return; }
+      const qui = quiDeEdit(e.source);
+      const candidat = { id: e.id, source: e.source, date: date, heure: heure, duree_h: duree, qui: qui, titre: e.titre };
+      const cs = P.conflitsDe(candidat, TOUS_EVS, REGLAGES);
+      if (cs.length) {
+        const l = cs.map(function (c) { return (SELLER_LABELS[c.qui] || c.qui) + ' : ' + nature(c.autre) + ' ' + c.autre.titre; }).join('\n');
+        if (!confirm('Ce créneau est déjà occupé le ' + fmtDate(date) + ' :\n\n' + l + '\n\nEnregistrer quand même ?')) return;
+      }
+      const btn = el('btnSaveEv'); btn.disabled = true;
+      let res = null;
+      try {
+        if (e.source === 'visite') {
+          const r = await SS.getRdv(e.ref);
+          if (!r || !r.id) { toast('Demande introuvable — recharge la page.', 'error'); btn.disabled = false; return; }
+          // On étale l'objet et on ne surcharge que ce qui change : une énumération de champs
+          // perdrait silencieusement tout ce qu'elle ne connaît pas (règle 2 du guide).
+          r.date_rdv = date + 'T' + (heure || '09:00');
+          r.assigned_to = EV_EDIT.assigned;
+          r.duree_h = duree || undefined;
+          r.date_modification = new Date().toISOString();
+          res = await SS.saveRdv(r);
+        } else {
+          const d = await SS.getDevis(e.ref);
+          if (!d || !d.id) { toast('Devis introuvable — recharge la page.', 'error'); btn.disabled = false; return; }
+          if (e.source === 'pose') {
+            d.chantier = Object.assign({}, d.chantier || {}, { date_pose: date, heure_pose: heure, duree_h: duree, equipe: EV_EDIT.equipe });
+          } else {
+            // Les intervenants sont stockés en clair (« Nicolas », « Jean ») : on ne remplace que
+            // les deux identités de l'ERP et on garde les tiers exactement comme ils sont saisis.
+            const anciens = (d.depannage && d.depannage.techniciens) || [];
+            const tiers = anciens.filter(function (t) {
+              const k = String(t || '').trim().toLowerCase();
+              return k !== 'nicolas' && k !== 'yannick';
+            });
+            const techs = EV_EDIT.techs.map(function (p) { return SELLER_LABELS[p] || p; }).concat(tiers);
+            d.depannage = Object.assign({}, d.depannage || {}, { date_intervention: date, heure: heure, duree_h: duree, techniciens: techs });
+          }
+          d.date_modification = new Date().toISOString();
+          res = await SS.saveDevis(d);
+        }
+      } catch (err) {
+        btn.disabled = false; toast('Enregistrement impossible : ' + err.message, 'error', 7000); return;
+      }
+      btn.disabled = false;
+      if (res && res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 7000); return; }
+      if (res && res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return; }
+      toast(res && res.offline ? 'Enregistré hors-ligne' : 'Rendez-vous mis à jour', res && res.offline ? 'warn' : 'ok');
+      fermerEvenement();
+      charger();
     };
 
     // ── Fenêtre « Bloquer du temps » ─────────────────────────────────────────────────────────
@@ -908,12 +1089,12 @@
 
     // Fermer les fenêtres au clic sur le fond ou avec Échap : partout ailleurs dans l'ERP c'est
     // le comportement attendu, une fenêtre qui ne se ferme qu'au bouton surprend.
-    ['mIndispoBg', 'mTrameBg'].forEach(function (id) {
+    ['mIndispoBg', 'mTrameBg', 'mEvBg'].forEach(function (id) {
       el(id).addEventListener('click', function (ev) { if (ev.target === el(id)) el(id).classList.remove('open'); });
     });
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'Escape') return;
-      ['mIndispoBg', 'mTrameBg'].forEach(function (id) { el(id).classList.remove('open'); });
+      ['mIndispoBg', 'mTrameBg', 'mEvBg'].forEach(function (id) { el(id).classList.remove('open'); });
     });
 
     charger();
