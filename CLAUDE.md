@@ -160,6 +160,22 @@ ne se bloque pas (deux petites poses dans la journée, ça se fait). Les dispos 
 hors-ligne : une indisponibilité visible du seul téléphone qui l'a saisie est pire que pas
 d'indisponibilité, l'autre planifie dessus en croyant la place libre.
 
+**14. Ce qui attend quelqu'un se lit à UN endroit** (`app/echanges.html`, table `sujets`). Les
+échanges existaient déjà — notes de devis, « échange interne » d'une demande de RDV — mais
+**enfermés dans une fiche** : pour savoir si l'autre avait répondu, il fallait rouvrir le bon
+dossier, donc savoir lequel. Et une idée qui ne concerne aucun client n'avait nulle part où aller.
+Quatre natures, pas davantage (`afaire` / `question` / `idee` / `attente`) : au-delà on hésite au
+moment d'écrire, et un outil où l'on hésite à écrire ne sert plus à rien. Le lien vers un client ou
+un dossier est FACULTATIF — c'est ce qui permet de déposer une idée en dix secondes.
+Le moteur est `awaiting` : **de qui on attend quelque chose**. Il pilote le tri (ce qui m'attend
+passe devant), le badge du menu, et les compteurs. Répondre LIBÈRE l'attente ; la case « et je lui
+redemande » la repasse explicitement. Une chose classée n'attend plus personne, sinon le badge
+compterait du travail terminé. L'auteur est signé par le SERVEUR à la création et ne change plus :
+c'est lui qui reçoit la balle en retour.
+⚠️ Les RÉPONSES ne transitent jamais par `POST /api/sujets` : elles ont leur route, qui écrit sur la
+valeur actuelle de la ligne (règle 3). Le serveur les réinjecte à chaque enregistrement du sujet —
+sans quoi renommer un titre effacerait le fil que l'autre vient d'écrire.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
@@ -201,6 +217,14 @@ d'indisponibilité, l'autre planifie dessus en croyant la place libre.
   navigateur, avec le serveur de test lancé :
   `await import('/functions/api/%5B%5Bcatchall%5D%5D.js?v=' + Date.now())`. Il doit renvoyer
   `{ onRequest }` ; toute autre réponse est une erreur de syntaxe.
+- **Fixer une `height` sur un `.input`/`.select`** pour le rendre compact : le padding de base fait
+  déjà ~37 px de contenu et `line-height` vaut 1,6 par héritage. Le texte sort de la boîte et se
+  fait rogner — « Journée », « Matin (9h — 12h) ». Le rognage dépend du navigateur, donc un rendu
+  correct sur une machine ne prouve rien. Resserrer le `padding` ET fixer `line-height: 1.25`,
+  jamais la hauteur. À noter : `scrollHeight > clientHeight` ne détecte PAS ce cas sur un `select`
+  — seule la capture d'écran le montre.
+- **`SSUI.clientKeyOf` prend `(prenom, nom)`, pas l'objet client.** Lui passer la fiche entière
+  produit la clé « |[object object] », qui ne rapproche évidemment aucune fiche CRM — et sans erreur.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et

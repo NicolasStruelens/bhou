@@ -1112,6 +1112,117 @@ export async function onRequest(context) {
       }
     }
 
+    // ══════════ SUJETS (fil d'échange interne : à faire, questions, idées, en attente) ══════════
+    // Table créée à la volée → aucune migration à lancer avant de déployer.
+    // Les échanges existaient déjà mais ENFERMÉS dans une fiche : pour savoir si l'autre avait
+    // répondu, il fallait rouvrir le bon dossier. Ici tout ce qui attend quelqu'un est au même
+    // endroit, y compris ce qui ne concerne aucun client.
+    if (path === '/api/sujets' || path.indexOf('/api/sujets/') === 0) {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS sujets (id TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'afaire', " +
+        "statut TEXT NOT NULL DEFAULT 'ouvert', auteur TEXT, pour TEXT, awaiting TEXT, client_key TEXT, " +
+        "devis_id TEXT, echeance TEXT, date_creation TEXT, date_modification TEXT, data TEXT NOT NULL)"
+      ).run();
+    }
+    if (path === '/api/sujets' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT data FROM sujets ORDER BY date_modification DESC LIMIT 500').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/sujets' && method === 'POST') {
+      const s = await request.json().catch(() => null);
+      if (!s || typeof s !== 'object') return json({ ok: false, error: 'Requête invalide' }, 400);
+      if (!s.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      const titre = String(s.titre || '').trim();
+      if (!titre) return json({ ok: false, error: 'Il faut au moins une phrase' }, 400);
+      const kind = ['afaire', 'question', 'idee', 'attente'].includes(s.kind) ? s.kind : 'afaire';
+      const pour = ['nicolas', 'yannick'].includes(s.pour) ? s.pour : '';
+      const statut = s.statut === 'fait' ? 'fait' : 'ouvert';
+      const emailSuj = parseAccessEmail(request);
+      const acteur = (emailSuj && IDENTITIES[emailSuj.toLowerCase()]) || emailSuj || null;
+      const now = new Date().toISOString();
+      const existant = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(s.id).first();
+      const ancien = (existant && safeParse(existant.data)) || null;
+      // Les RÉPONSES ne transitent jamais par cette route : elles ont la leur, qui écrit sur la
+      // valeur actuelle de la ligne. Réécrire le sujet entier effacerait ce que l'autre vient
+      // d'ajouter — c'est exactement l'accident que la règle 3 du guide décrit.
+      const reponses = (ancien && ancien.reponses) || [];
+      const propre = {
+        ...(ancien || {}), ...s,
+        id: String(s.id).slice(0, 60),
+        kind, pour, statut,
+        titre: titre.slice(0, 200),
+        corps: String(s.corps || '').slice(0, 5000),
+        client_key: String(s.client_key || '').slice(0, 120),
+        client_nom: String(s.client_nom || '').slice(0, 120),
+        devis_id: String(s.devis_id || '').slice(0, 60),
+        echeance: /^\d{4}-\d{2}-\d{2}$/.test(String(s.echeance || '')) ? s.echeance : '',
+        reponses, reponses_count: reponses.length,
+        // L'auteur est signé par le serveur à la CRÉATION et ne change plus ensuite : c'est lui
+        // qui reçoit la balle en retour quand l'autre répond.
+        auteur: (ancien && ancien.auteur) || acteur,
+        // Statut « fait » : on garde qui a clos et quand, sinon personne ne sait qui a agi.
+        fait_par: statut === 'fait' ? ((ancien && ancien.statut === 'fait' && ancien.fait_par) || acteur) : '',
+        fait_le: statut === 'fait' ? ((ancien && ancien.statut === 'fait' && ancien.fait_le) || now) : '',
+        // Une chose close n'attend plus personne, sinon le badge compterait du travail terminé.
+        awaiting: statut === 'fait' ? '' : pour,
+        date_creation: (ancien && ancien.date_creation) || now,
+        date_modification: now,
+      };
+      await env.DB.prepare(`
+        INSERT INTO sujets (id, kind, statut, auteur, pour, awaiting, client_key, devis_id, echeance, date_creation, date_modification, data)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, statut = excluded.statut, pour = excluded.pour,
+          awaiting = excluded.awaiting, client_key = excluded.client_key, devis_id = excluded.devis_id,
+          echeance = excluded.echeance, date_modification = excluded.date_modification, data = excluded.data
+      `).bind(propre.id, kind, statut, propre.auteur, pour, propre.awaiting, propre.client_key,
+              propre.devis_id, propre.echeance, propre.date_creation, now, JSON.stringify(propre)).run();
+      return json({ ok: true, id: propre.id, data: propre });
+    }
+    // Réponse à un sujet — écriture CIBLÉE : deux personnes peuvent répondre en même temps sans
+    // qu'un message soit perdu. `awaiting` se libère quand la personne attendue a répondu.
+    let mSujRep = path.match(/^\/api\/sujets\/([^/]+)\/reponse$/);
+    if (mSujRep && method === 'POST') {
+      const id = decodeURIComponent(mSujRep[1]);
+      const body = await request.json().catch(() => ({}));
+      const texte = String(body.texte || '').trim();
+      if (!texte) return json({ ok: false, error: 'Réponse vide' }, 400);
+      const emailRep = parseAccessEmail(request);
+      const auteur = (emailRep && IDENTITIES[emailRep.toLowerCase()]) || emailRep || 'nicolas';
+      const now = new Date().toISOString();
+      const reponse = { id: crypto.randomUUID(), auteur, texte: texte.slice(0, 5000), date: now };
+      // `relance` : la réponse repasse explicitement la balle à l'autre (« et toi, tu en penses quoi ? »)
+      const relance = ['nicolas', 'yannick'].includes(body.relance) ? body.relance : '';
+      const r = await env.DB.prepare(
+        `UPDATE sujets SET
+           data = json_set(
+                    json_insert(
+                      json_set(data, '$.reponses', json(COALESCE(json_extract(data, '$.reponses'), '[]'))),
+                      '$.reponses[#]', json(?1)),
+                    '$.reponses_count', COALESCE(json_array_length(data, '$.reponses'), 0) + 1,
+                    '$.awaiting', CASE
+                      WHEN ?4 <> '' THEN ?4
+                      WHEN COALESCE(json_extract(data, '$.awaiting'), '') = ?5
+                        THEN COALESCE(json_extract(data, '$.auteur'), '')
+                      ELSE COALESCE(json_extract(data, '$.awaiting'), '') END,
+                    '$.date_modification', ?2),
+           awaiting = json_extract(data, '$.awaiting'),
+           date_modification = ?2
+         WHERE id = ?3`
+      ).bind(JSON.stringify(reponse), now, id, relance, auteur).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      // `awaiting` de la COLONNE est recalculé après coup : json_set vient d'écrire le blob, la
+      // colonne doit refléter la même valeur pour que l'index et les compteurs restent justes.
+      await env.DB.prepare("UPDATE sujets SET awaiting = COALESCE(json_extract(data, '$.awaiting'), '') WHERE id = ?").bind(id).run();
+      return json({ ok: true, reponse });
+    }
+    let mSuj = path.match(/^\/api\/sujets\/([^/]+)$/);
+    if (mSuj && method === 'DELETE') {
+      const id = decodeURIComponent(mSuj[1]);
+      const r = await env.DB.prepare('DELETE FROM sujets WHERE id = ?').bind(id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      return json({ ok: true });
+    }
+
     // ══════════ DISPOS (exceptions de planning : congés, indisponibilités, dispo exceptionnelle) ══
     // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle avant de déployer.
     // On n'enregistre JAMAIS les créneaux libres : ils se déduisent de la trame hebdomadaire moins

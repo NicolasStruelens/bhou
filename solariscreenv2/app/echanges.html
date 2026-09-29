@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SolariScreen — Échanges</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/logo-solariscreen.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    /* ── Zone de saisie : toujours en haut, toujours prête ─────────────────────────────────── */
+    .ec-poster { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); margin-bottom: var(--sp-5); }
+    .ec-poster .textarea { min-height: 62px; }
+    .ec-opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
+    .ec-opts .sep { width: 1px; height: 22px; background: var(--border); flex: none; }
+    .ec-poster .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
+    .ec-poster .ec-fin .input, .ec-poster .ec-fin .select { height: auto; padding: 0.4rem 0.6rem; font-size: var(--fs-sm); line-height: 1.25; }
+    .ec-lie { flex: 1 1 220px; min-width: 160px; }
+    .ec-envoi { margin-left: auto; }
+
+    /* Une puce = une nature ou un destinataire. Hauteur explicite : `pointer: coarse` de base.css
+       ne couvre pas les composants maison, ils resteraient à 21 px sur un vrai téléphone. */
+    .ec-chip { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 34px; padding: 0.3rem 0.65rem;
+      border: 1px solid var(--border-strong); border-radius: var(--r-pill); background: none; color: var(--text-muted);
+      font-size: var(--fs-xs); cursor: pointer; white-space: nowrap; }
+    .ec-chip.on { border-color: var(--kc, var(--accent)); color: var(--kc, var(--accent)); background: color-mix(in srgb, var(--kc, var(--accent)) 12%, transparent); }
+
+    /* ── Liste ─────────────────────────────────────────────────────────────────────────────── */
+    .ec-bar { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-4); }
+    .ec-bar .rech { flex: 1 1 200px; min-width: 160px; }
+    .ec-liste { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .ec-suj { border: 1px solid var(--border); border-left: 3px solid var(--kc, var(--accent)); border-radius: var(--r-md);
+      background: var(--surface); padding: var(--sp-4); }
+    .ec-suj.pour-moi { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .ec-suj.est-fait { opacity: 0.6; }
+    .ec-tete { display: flex; align-items: flex-start; gap: var(--sp-2); flex-wrap: wrap; }
+    /* Le titre porte le sens : on lui donne un plancher et on refuse aux badges de grandir,
+       sinon c'est lui qui cède et on lit une lettre et demie. */
+    .ec-titre { font-weight: 700; color: var(--text); flex: 1 1 12ch; min-width: 12ch; }
+    .ec-suj.est-fait .ec-titre { text-decoration: line-through; }
+    .ec-nat { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 0.15rem 0.5rem; border-radius: var(--r-sm); color: var(--kc, var(--accent));
+      border: 1px solid color-mix(in srgb, var(--kc, var(--accent)) 45%, transparent); }
+    .ec-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.3rem; }
+    .ec-meta .ec-lien { color: var(--accent-2); }
+    .ec-corps { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); white-space: pre-wrap; line-height: 1.55; }
+    .ec-balle { display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto; font-family: var(--font-mono);
+      font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; padding: 0.15rem 0.5rem;
+      border-radius: var(--r-pill); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+    .ec-balle.moi { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+    .ec-fil { margin-top: var(--sp-3); border-top: 1px solid var(--border); padding-top: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+    .ec-rep { display: flex; gap: var(--sp-2); }
+    .ec-ava { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; color: var(--on-accent); background: var(--ac, var(--accent)); }
+    .ec-rep .txt { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; line-height: 1.5; }
+    .ec-rep .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .ec-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+    .ec-repbox { margin-top: var(--sp-3); display: none; }
+    .ec-repbox.on { display: block; }
+    .ec-repbox .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-2); }
+
+    @media (max-width: 560px) {
+      .ec-envoi { margin-left: 0; width: 100%; justify-content: center; }
+      .ec-lie { flex: 1 1 100%; }
+      .ec-opts .sep { display: none; }
+    }
+    @media (pointer: coarse) {
+      .ec-chip { min-height: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.png" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Échanges</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+
+    <!-- Écrire doit être la chose la plus facile de la page : la zone est en haut, ouverte,
+         sans bouton « nouveau sujet » à trouver d'abord. -->
+    <div class="ec-poster">
+      <textarea class="textarea" id="pTitre" placeholder="Une chose à faire, une question, une idée… (Ctrl+Entrée pour envoyer)"></textarea>
+      <div class="ec-opts" id="pNatures"></div>
+      <div class="ec-fin">
+        <span class="ec-opts" id="pPour" style="margin-top:0"></span>
+        <span class="sep"></span>
+        <input class="input ec-lie" id="pClient" list="dlClients" placeholder="Lié à un client (facultatif)" autocomplete="off">
+        <input class="input" id="pEcheance" type="date" title="Pour quand (facultatif)" style="max-width:160px">
+        <button class="btn btn-primary btn-sm ec-envoi" id="btnPublier" onclick="publier()">Publier</button>
+      </div>
+      <datalist id="dlClients"></datalist>
+    </div>
+
+    <div class="ec-bar">
+      <div class="ec-opts" id="fNatures" style="margin-top:0"></div>
+      <input class="input rech" id="rech" type="search" placeholder="Rechercher…" oninput="rendre()">
+      <label class="chip" style="cursor:pointer;"><input type="checkbox" id="voirFaits" onchange="rendre()" style="vertical-align:-1px"> Voir ce qui est fait</label>
+    </div>
+
+    <div id="host"><div class="ec-liste" aria-busy="true"><div class="skl" style="height:110px"></div><div class="skl" style="height:110px"></div></div></div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script>
+    const SS = window.SS;
+    const { el, icon, toast, escHtml, fmtDate, relTime, qp } = window.SSUI;
+    const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique du vocabulaire : ui.js
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+    window.SSNav.mount(document.getElementById('quickNav'));
+
+    // Vocabulaire des natures. Quatre, pas davantage : au-delà on hésite au moment d'écrire,
+    // et un outil où l'on hésite à écrire ne sert plus à rien.
+    const NATURES = {
+      afaire:   { label: 'À faire',    icone: 'check',   couleur: 'var(--accent)' },
+      question: { label: 'Question',   icone: 'help',    couleur: 'var(--warn)' },
+      idee:     { label: 'Idée',       icone: 'sparkle', couleur: 'var(--accent-2)' },
+      attente:  { label: 'En attente', icone: 'clock',   couleur: 'var(--text-subtle)' },
+    };
+    const PERSONNES = ['nicolas', 'yannick'];
+
+    let SUJETS = [];
+    let MOI = { key: '', name: '' };
+    let CLIENTS = [];
+    let P_KIND = 'afaire';
+    let P_POUR = '';
+    let F_KIND = '';                 // filtre de nature, vide = toutes
+    let REPOND = '';                 // sujet dont la zone de réponse est ouverte
+
+    function autre(k) { return k === 'nicolas' ? 'yannick' : 'nicolas'; }
+    function nomDe(k) { return SELLER_LABELS[k] || k || '—'; }
+
+    async function charger() {
+      try { MOI = await window.SSNav.getIdentity(); } catch (e) { MOI = { key: '' }; }
+      SUJETS = (await SS.listSujets()) || [];
+      // Destinataire par défaut : l'AUTRE. Un sujet qu'on s'adresse à soi-même n'attend personne,
+      // et c'est presque toujours à l'autre qu'on écrit.
+      if (!P_POUR) P_POUR = MOI.key ? autre(MOI.key) : '';
+      rendre();
+      chargerClients();
+      const c = qp('client');
+      if (c) el('pClient').value = c;
+    }
+
+    /** Annuaire pour le champ « lié à un client » — les clients des devis suffisent. */
+    async function chargerClients() {
+      const devis = (await SS.listDevis().catch(function () { return []; })) || [];
+      const vus = new Set();
+      devis.forEach(function (d) {
+        const c = d.client || {};
+        const nom = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+        // clientKeyOf prend (prenom, nom) — pas l'objet client : lui passer la fiche entière
+        // produisait la clé « |[object object] », qui ne rapproche évidemment aucune fiche CRM.
+        if (nom && !vus.has(nom)) { vus.add(nom); CLIENTS.push({ nom: nom, key: window.SSUI.clientKeyOf(c.prenom, c.nom) }); }
+      });
+      el('dlClients').innerHTML = CLIENTS.map(function (c) { return '<option value="' + escHtml(c.nom) + '"></option>'; }).join('');
+    }
+
+    // ── Rendu ────────────────────────────────────────────────────────────────────────────────
+    function rendre() {
+      rendrePuces();
+      rendreKpis();
+      const q = (el('rech').value || '').trim().toLowerCase();
+      const voirFaits = el('voirFaits').checked;
+      let liste = SUJETS.filter(function (s) {
+        if (!voirFaits && s.statut === 'fait') return false;
+        if (F_KIND && s.kind !== F_KIND) return false;
+        if (!q) return true;
+        const foin = [s.titre, s.corps, s.client_nom, nomDe(s.auteur), (s.reponses || []).map(function (r) { return r.texte; }).join(' ')].join(' ').toLowerCase();
+        return foin.indexOf(q) >= 0;
+      });
+      // Ce qui m'attend passe devant : c'est la seule question qu'on se pose en ouvrant la page.
+      liste.sort(function (a, b) {
+        const am = (a.awaiting === MOI.key && a.statut !== 'fait') ? 0 : 1;
+        const bm = (b.awaiting === MOI.key && b.statut !== 'fait') ? 0 : 1;
+        if (am !== bm) return am - bm;
+        return String(b.date_modification || '').localeCompare(String(a.date_modification || ''));
+      });
+      if (!liste.length) {
+        el('host').innerHTML = '<div class="empty"><div class="big">' + icon('message', 40) + '</div>' +
+          (SUJETS.length ? 'Rien ne correspond à ce filtre.' :
+            'Rien pour l’instant.<br>Écris ce que tu as en tête là-haut : une chose à faire, une question pour ' +
+            escHtml(nomDe(autre(MOI.key))) + ', ou une idée à garder.') + '</div>';
+        return;
+      }
+      el('host').innerHTML = '<div class="ec-liste">' + liste.map(carte).join('') + '</div>';
+    }
+
+    function rendrePuces() {
+      el('pNatures').innerHTML = Object.keys(NATURES).map(function (k) {
+        const n = NATURES[k];
+        return '<button type="button" class="ec-chip ' + (P_KIND === k ? 'on' : '') + '" style="--kc:' + n.couleur + '" onclick="setKind(\'' + k + '\')">' +
+          icon(n.icone, 13) + escHtml(n.label) + '</button>';
+      }).join('');
+      el('pPour').innerHTML = PERSONNES.map(function (p) {
+        return '<button type="button" class="ec-chip ' + (P_POUR === p ? 'on' : '') + '" onclick="setPour(\'' + p + '\')">' +
+          escHtml('Pour ' + nomDe(p)) + '</button>';
+      }).join('') +
+        '<button type="button" class="ec-chip ' + (!P_POUR ? 'on' : '') + '" onclick="setPour(\'\')">Pour nous deux</button>';
+      el('fNatures').innerHTML = '<button type="button" class="ec-chip ' + (!F_KIND ? 'on' : '') + '" onclick="setFiltre(\'\')">Tout</button>' +
+        Object.keys(NATURES).map(function (k) {
+          const n = NATURES[k];
+          const nb = SUJETS.filter(function (s) { return s.kind === k && s.statut !== 'fait'; }).length;
+          return '<button type="button" class="ec-chip ' + (F_KIND === k ? 'on' : '') + '" style="--kc:' + n.couleur + '" onclick="setFiltre(\'' + k + '\')">' +
+            icon(n.icone, 13) + escHtml(n.label) + (nb ? ' ' + nb : '') + '</button>';
+        }).join('');
+    }
+
+    function rendreKpis() {
+      const ouverts = SUJETS.filter(function (s) { return s.statut !== 'fait'; });
+      const pourMoi = ouverts.filter(function (s) { return s.awaiting === MOI.key; }).length;
+      const pourAutre = ouverts.filter(function (s) { return s.awaiting && s.awaiting !== MOI.key; }).length;
+      const enAttente = ouverts.filter(function (s) { return s.kind === 'attente'; }).length;
+      const enRetard = ouverts.filter(function (s) { return s.echeance && s.echeance < new Date().toISOString().slice(0, 10); }).length;
+      el('kpis').innerHTML =
+        '<div class="kpi ticked accent"><div class="kpi-label">Ça t’attend</div><div class="kpi-value">' + pourMoi + '</div><div class="kpi-sub">réponse ou action de ta part</div></div>' +
+        '<div class="kpi ticked"><div class="kpi-label">Chez ' + escHtml(nomDe(autre(MOI.key))) + '</div><div class="kpi-value">' + pourAutre + '</div><div class="kpi-sub">la balle est dans son camp</div></div>' +
+        '<div class="kpi ticked gold"><div class="kpi-label">En attente</div><div class="kpi-value">' + enAttente + '</div><div class="kpi-sub">bloqué par un tiers</div></div>' +
+        '<div class="kpi ticked danger"><div class="kpi-label">En retard</div><div class="kpi-value">' + enRetard + '</div><div class="kpi-sub">échéance dépassée</div></div>';
+      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
+    }
+
+    function avatar(k) {
+      const couleur = k === 'yannick' ? 'var(--accent-2)' : 'var(--accent)';
+      return '<span class="ec-ava" style="--ac:' + couleur + '">' + escHtml(nomDe(k).slice(0, 1)) + '</span>';
+    }
+
+    function carte(s) {
+      const n = NATURES[s.kind] || NATURES.afaire;
+      const pourMoi = s.awaiting === MOI.key && s.statut !== 'fait';
+      const id = window.SSUI.jsAttr(s.id);
+      const enRetard = s.echeance && s.echeance < new Date().toISOString().slice(0, 10) && s.statut !== 'fait';
+      const meta = [
+        nomDe(s.auteur),
+        relTime(s.date_creation),
+        s.pour ? 'pour ' + nomDe(s.pour) : 'pour nous deux',
+        s.echeance ? (enRetard ? '⚠ ' : '') + 'pour le ' + fmtDate(s.echeance) : '',
+      ].filter(Boolean).join(' · ');
+      const lienClient = s.client_nom
+        ? ' · <a class="ec-lien" href="clients.html?q=' + encodeURIComponent(s.client_nom) + '">' + escHtml(s.client_nom) + '</a>'
+        : '';
+      return '<div class="ec-suj ' + (pourMoi ? 'pour-moi' : '') + ' ' + (s.statut === 'fait' ? 'est-fait' : '') + '" style="--kc:' + n.couleur + '" id="suj-' + escHtml(s.id) + '">' +
+        '<div class="ec-tete">' +
+          '<span class="ec-nat">' + escHtml(n.label) + '</span>' +
+          '<span class="ec-titre">' + escHtml(s.titre) + '</span>' +
+          (s.statut === 'fait'
+            ? '<span class="ec-balle" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)">Fait</span>'
+            : (s.awaiting ? '<span class="ec-balle ' + (pourMoi ? 'moi' : '') + '">' + (pourMoi ? 'À toi de jouer' : 'Chez ' + escHtml(nomDe(s.awaiting))) + '</span>' : '')) +
+        '</div>' +
+        '<div class="ec-meta">' + escHtml(meta) + lienClient + '</div>' +
+        (s.corps ? '<div class="ec-corps">' + escHtml(s.corps) + '</div>' : '') +
+        ((s.reponses || []).length ? '<div class="ec-fil">' + s.reponses.map(function (r) {
+          return '<div class="ec-rep">' + avatar(r.auteur) + '<div><div class="txt">' + escHtml(r.texte) + '</div>' +
+            '<div class="qd">' + escHtml(nomDe(r.auteur) + ' · ' + relTime(r.date)) + '</div></div></div>';
+        }).join('') + '</div>' : '') +
+        '<div class="ec-actions">' +
+          (s.statut === 'fait'
+            ? '<button class="btn btn-ghost btn-sm" onclick="rouvrir(\'' + id + '\')">' + icon('reply', 13) + ' Rouvrir</button>'
+            : '<button class="btn btn-ghost btn-sm" onclick="ouvrirReponse(\'' + id + '\')">' + icon('message', 13) + ' Répondre</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="marquerFait(\'' + id + '\')">' + icon('check', 13) + ' C’est fait</button>') +
+          (s.devis_id ? '<button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(s.devis_id) + '\'">' + icon('window', 13) + ' Le dossier</button>' : '') +
+          '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(\'' + id + '\')">Supprimer</button>' +
+        '</div>' +
+        '<div class="ec-repbox ' + (REPOND === s.id ? 'on' : '') + '" id="rep-' + escHtml(s.id) + '">' +
+          '<textarea class="textarea" id="rt-' + escHtml(s.id) + '" placeholder="Ta réponse…" style="min-height:58px"></textarea>' +
+          '<div class="ec-fin">' +
+            '<label class="chip" style="cursor:pointer"><input type="checkbox" id="rl-' + escHtml(s.id) + '" style="vertical-align:-1px"> Et je lui redemande</label>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="envoyerReponse(\'' + id + '\')">Envoyer</button>' +
+          '</div>' +
+        '</div>' +
+        '</div>';
+    }
+
+    // ── Actions ──────────────────────────────────────────────────────────────────────────────
+    window.setKind = function (k) { P_KIND = k; rendrePuces(); };
+    window.setPour = function (p) { P_POUR = p; rendrePuces(); };
+    window.setFiltre = function (k) { F_KIND = k; rendre(); };
+
+    window.publier = async function () {
+      const brut = el('pTitre').value.trim();
+      if (!brut) { toast('Écris quelque chose d’abord.', 'warn'); return; }
+      // Première ligne = titre, le reste = corps. Personne n'a envie de remplir deux champs pour
+      // noter une idée en dix secondes.
+      const lignes = brut.split('\n');
+      const titre = lignes[0].trim().slice(0, 200);
+      const corps = lignes.slice(1).join('\n').trim();
+      const nomClient = el('pClient').value.trim();
+      const lie = CLIENTS.filter(function (c) { return c.nom.toLowerCase() === nomClient.toLowerCase(); })[0];
+      const s = {
+        id: 'SUJ-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        kind: P_KIND, pour: P_POUR, statut: 'ouvert',
+        titre: titre, corps: corps,
+        client_nom: nomClient, client_key: (lie && lie.key) || '',
+        echeance: el('pEcheance').value || '',
+      };
+      const btn = el('btnPublier'); btn.disabled = true;
+      const res = await SS.saveSujet(s);
+      btn.disabled = false;
+      if (res.ok === false) { toast(res.error || 'Non publié.', 'error', 7000); return; }
+      el('pTitre').value = ''; el('pClient').value = ''; el('pEcheance').value = '';
+      toast(P_POUR ? 'Envoyé à ' + nomDe(P_POUR) : 'Publié', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
+    window.ouvrirReponse = function (id) {
+      REPOND = REPOND === id ? '' : id;
+      rendre();
+      const t = el('rt-' + id);
+      if (t) t.focus();
+    };
+
+    window.envoyerReponse = async function (id) {
+      const champ = el('rt-' + id);
+      const texte = (champ && champ.value.trim()) || '';
+      if (!texte) { toast('Ta réponse est vide.', 'warn'); return; }
+      const relanceCase = el('rl-' + id);
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      // « Et je lui redemande » repasse explicitement la balle. Sans cette case, répondre libère
+      // l'attente : c'est le comportement voulu neuf fois sur dix.
+      const relance = (relanceCase && relanceCase.checked && s) ? (s.auteur === MOI.key ? autre(MOI.key) : s.auteur) : '';
+      const res = await SS.repondreSujet(id, { texte: texte, relance: relance });
+      if (res.ok === false) { toast(res.error || 'Réponse non enregistrée.', 'error', 7000); return; }
+      REPOND = '';
+      toast('Réponse envoyée', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
+    async function majStatut(id, statut) {
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!s) return;
+      // On étale le sujet et on ne change que le statut : une énumération de champs perdrait
+      // silencieusement ce qu'elle ne connaît pas (règle 2 du guide). Les RÉPONSES, elles, ne
+      // passent jamais par ici — le serveur les conserve et elles ont leur propre route.
+      const res = await SS.saveSujet(Object.assign({}, s, { statut: statut }));
+      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      toast(statut === 'fait' ? 'Classé' : 'Rouvert', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    }
+    window.marquerFait = function (id) { majStatut(id, 'fait'); };
+    window.rouvrir = function (id) { majStatut(id, 'ouvert'); };
+
+    window.supprimer = async function (id) {
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!s || !confirm('Supprimer « ' + s.titre +' » et toutes ses réponses ?')) return;
+      const res = await SS.deleteSujet(id);
+      if (res.ok === false) { toast(res.error || 'Suppression impossible.', 'error', 7000); return; }
+      toast('Supprimé', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
+    // Ctrl+Entrée publie : on note une idée en passant, sans lâcher le clavier.
+    el('pTitre').addEventListener('keydown', function (ev) {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); publier(); }
+    });
+
+    charger();
+  </script>
+</body>
+</html>
