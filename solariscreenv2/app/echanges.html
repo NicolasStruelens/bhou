@@ -39,6 +39,35 @@
       font-size: var(--fs-xs); cursor: pointer; white-space: nowrap; }
     .ec-chip.on { border-color: var(--kc, var(--accent)); color: var(--kc, var(--accent)); background: color-mix(in srgb, var(--kc, var(--accent)) 12%, transparent); }
 
+    /* ── Ce qui attend (les quatre modules réunis) ─────────────────────────────────────────── */
+    .at-bloc { margin-bottom: var(--sp-5); }
+    .at-titre { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs);
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: var(--sp-3); }
+    .at-titre .n { color: var(--text-muted); }
+    .at-titre.alerte { color: var(--danger); }
+    .at-liste { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .at-item { display: flex; align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap;
+      border: 1px solid var(--border); border-left: 3px solid var(--uc, var(--border-strong)); border-radius: var(--r-md);
+      background: var(--surface); padding: var(--sp-3) var(--sp-4); }
+    .at-item.orphelin { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+    .at-corps { flex: 1 1 14ch; min-width: 14ch; }
+    .at-l1 { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
+    .at-quoi { font-weight: 600; color: var(--text); }
+    .at-nom { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .at-src { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 0.1rem 0.45rem; border-radius: var(--r-sm); color: var(--sc, var(--accent));
+      border: 1px solid color-mix(in srgb, var(--sc, var(--accent)) 40%, transparent); }
+    .at-detail { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 0.2rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .at-age { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .at-age.vieux { color: var(--warn); }
+    .at-age.tresvieux { color: var(--danger); font-weight: 700; }
+    .at-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; flex: 0 0 auto; }
+    .at-plie { background: none; border: none; color: var(--text-subtle); font-family: var(--font-mono);
+      font-size: var(--fs-2xs); cursor: pointer; text-decoration: underline; padding: 0; }
+    .at-vide { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: var(--sp-5);
+      text-align: center; color: var(--text-subtle); font-size: var(--fs-sm); }
+
     /* ── Liste ─────────────────────────────────────────────────────────────────────────────── */
     .ec-bar { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-4); }
     .ec-bar .rech { flex: 1 1 200px; min-width: 160px; }
@@ -106,6 +135,12 @@
   <main class="container">
     <div class="kpis" id="kpis"></div>
 
+    <!-- CE QUI ATTEND — les quatre modules réunis (demandes de RDV, planning, SAV, échanges).
+         Chacun savait déjà dire « ça attend quelqu'un », mais chacun dans son coin : il fallait
+         ouvrir quatre écrans pour le savoir, donc on ne le faisait pas. Ici, tout est au même
+         endroit ET chaque ligne porte son action : attribuer sans changer de page. -->
+    <div id="attenteHost"></div>
+
     <!-- Écrire doit être la chose la plus facile de la page : la zone est en haut, ouverte,
          sans bouton « nouveau sujet » à trouver d'abord. -->
     <div class="ec-poster">
@@ -133,6 +168,12 @@
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
+  <!-- `attente.js` agrège les quatre sources (demandes, planning, SAV, échanges) et a besoin du
+       moteur du temps pour les conflits et les rendez-vous orphelins ; `config.js` lui donne la
+       trame, sans laquelle personne n'est jamais disponible. -->
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
   <script>
     const SS = window.SS;
     const { el, icon, toast, escHtml, fmtDate, relTime, qp } = window.SSUI;
@@ -150,7 +191,10 @@
     };
     const PERSONNES = ['nicolas', 'yannick'];
 
+    const A = window.SSAttente;
     let SUJETS = [];
+    let ATTENTES = [];        // les quatre sources réunies (voir assets/js/attente.js)
+    let PLIE_AUTRE = true;    // ce qui est chez l'autre : replié par défaut, ce n'est pas mon travail
     let MOI = { key: '', name: '' };
     let CLIENTS = [];
     let P_KIND = 'afaire';
@@ -163,7 +207,12 @@
 
     async function charger() {
       try { MOI = await window.SSNav.getIdentity(); } catch (e) { MOI = { key: '' }; }
-      SUJETS = (await SS.listSujets()) || [];
+      // Les quatre sources en une fois. `charger()` de SSAttente rapatrie déjà les sujets : on
+      // réutilise ce qu'il a lu plutôt que de redemander la même liste au serveur.
+      let paquet = null;
+      try { paquet = await A.charger(); } catch (e) { console.warn('[Échanges] attentes indisponibles:', e.message); }
+      ATTENTES = (paquet && paquet.items) || [];
+      SUJETS = (paquet && paquet.sources && paquet.sources.sujets) || (await SS.listSujets()) || [];
       // Destinataire par défaut : l'AUTRE. Un sujet qu'on s'adresse à soi-même n'attend personne,
       // et c'est presque toujours à l'autre qu'on écrit.
       if (!P_POUR) P_POUR = MOI.key ? autre(MOI.key) : '';
@@ -191,6 +240,7 @@
     function rendre() {
       rendrePuces();
       rendreKpis();
+      rendreAttentes();
       const q = (el('rech').value || '').trim().toLowerCase();
       const voirFaits = el('voirFaits').checked;
       let liste = SUJETS.filter(function (s) {
@@ -237,19 +287,129 @@
         }).join('');
     }
 
+    // Les compteurs portent désormais sur TOUT l'ERP, pas seulement sur les sujets écrits ici :
+    // c'est ce qui fait de cet écran la bible de qui fait quoi plutôt qu'un chat de plus.
     function rendreKpis() {
-      const ouverts = SUJETS.filter(function (s) { return s.statut !== 'fait'; });
-      const pourMoi = ouverts.filter(function (s) { return s.awaiting === MOI.key; }).length;
-      const pourAutre = ouverts.filter(function (s) { return s.awaiting && s.awaiting !== MOI.key; }).length;
-      const enAttente = ouverts.filter(function (s) { return s.kind === 'attente'; }).length;
-      const enRetard = ouverts.filter(function (s) { return s.echeance && s.echeance < new Date().toISOString().slice(0, 10); }).length;
+      const c = A.compter(ATTENTES);
+      const pourMoi = A.pourQui(ATTENTES, MOI.key).length;
+      const pourAutre = A.pourQui(ATTENTES, autre(MOI.key)).length;
       el('kpis').innerHTML =
+        '<div class="kpi ticked danger"><div class="kpi-label">Personne dessus</div><div class="kpi-value">' + c.sansPersonne + '</div><div class="kpi-sub">à attribuer — rien n’avance sans ça</div></div>' +
         '<div class="kpi ticked accent"><div class="kpi-label">Ça t’attend</div><div class="kpi-value">' + pourMoi + '</div><div class="kpi-sub">réponse ou action de ta part</div></div>' +
         '<div class="kpi ticked"><div class="kpi-label">Chez ' + escHtml(nomDe(autre(MOI.key))) + '</div><div class="kpi-value">' + pourAutre + '</div><div class="kpi-sub">la balle est dans son camp</div></div>' +
-        '<div class="kpi ticked gold"><div class="kpi-label">En attente</div><div class="kpi-value">' + enAttente + '</div><div class="kpi-sub">bloqué par un tiers</div></div>' +
-        '<div class="kpi ticked danger"><div class="kpi-label">En retard</div><div class="kpi-value">' + enRetard + '</div><div class="kpi-sub">échéance dépassée</div></div>';
+        '<div class="kpi ticked gold"><div class="kpi-label">Critique</div><div class="kpi-value">' + c.critique + '</div><div class="kpi-sub">conflit, client qui attend, retard</div></div>';
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
     }
+
+    // ── Ce qui attend ────────────────────────────────────────────────────────────────────────
+    function ligneAttente(it) {
+      const s = A.SOURCES[it.source] || {};
+      const j = A.joursDepuis(it.depuis);
+      const clAge = j >= A.SEUILS.ATTENTE_TRES_LONGUE_J ? 'tresvieux' : (j >= A.SEUILS.ATTENTE_LONGUE_J ? 'vieux' : '');
+      const id = window.SSUI.jsAttr(it.id);
+      // Attribuer d'un clic, sans quitter l'écran : c'est le saut vers une autre page qui casse
+      // le geste et fait qu'on remet à plus tard. Ce qui n'est pas attribuable renvoie à sa fiche.
+      let actions = '';
+      if (it.peutPrendre && !it.qui) {
+        actions = '<button class="btn btn-primary btn-sm" onclick="attribuer(\'' + id + '\',\'' + MOI.key + '\')">Je prends</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="attribuer(\'' + id + '\',\'' + autre(MOI.key) + '\')">Pour ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+      } else if (it.peutPrendre && it.qui === MOI.key) {
+        actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(\'' + id + '\',\'' + autre(MOI.key) + '\')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+      }
+      if (it.href) actions += '<button class="btn btn-ghost btn-sm" onclick="location.href=\'' + it.href + '\'">Ouvrir</button>';
+      return '<div class="at-item ' + (it.qui ? '' : 'orphelin') + '" style="--uc:' + (s.couleur || 'var(--accent)') + '">' +
+        '<div class="at-corps">' +
+          '<div class="at-l1">' +
+            '<span class="at-src" style="--sc:' + (s.couleur || 'var(--accent)') + '">' + escHtml(s.label || it.source) + '</span>' +
+            '<span class="at-quoi">' + escHtml(it.quoi) + '</span>' +
+            '<span class="at-nom">' + escHtml(it.titre) + '</span>' +
+            '<span class="at-age ' + clAge + '">' + escHtml(A.delai(it.depuis)) + '</span>' +
+          '</div>' +
+          (it.detail ? '<div class="at-detail">' + escHtml(it.detail) + '</div>' : '') +
+        '</div>' +
+        '<div class="at-actions">' + actions + '</div>' +
+        '</div>';
+    }
+
+    function rendreAttentes() {
+      const orphelins = A.sansPersonne(ATTENTES);
+      const miennes = A.pourQui(ATTENTES, MOI.key);
+      const autres = A.pourQui(ATTENTES, autre(MOI.key));
+      let html = '';
+      // L'ordre n'est pas décoratif : ce que PERSONNE n'a pris passe avant tout le reste, parce
+      // que c'est exactement ce dont chacun croit que l'autre s'occupe.
+      if (orphelins.length) {
+        html += '<div class="at-bloc"><div class="at-titre alerte">' + icon('warning', 13) +
+          ' Personne ne s’en occupe <span class="n">(' + orphelins.length + ')</span></div>' +
+          '<div class="at-liste">' + orphelins.map(ligneAttente).join('') + '</div></div>';
+      }
+      if (miennes.length) {
+        html += '<div class="at-bloc"><div class="at-titre">' + icon('user', 13) +
+          ' Ça t’attend <span class="n">(' + miennes.length + ')</span></div>' +
+          '<div class="at-liste">' + miennes.map(ligneAttente).join('') + '</div></div>';
+      }
+      if (autres.length) {
+        html += '<div class="at-bloc"><div class="at-titre">' + icon('clock', 13) +
+          ' Chez ' + escHtml(nomDe(autre(MOI.key))) + ' <span class="n">(' + autres.length + ')</span>' +
+          ' <button class="at-plie" onclick="basculerAutre()">' + (PLIE_AUTRE ? 'voir' : 'masquer') + '</button></div>' +
+          (PLIE_AUTRE ? '' : '<div class="at-liste">' + autres.map(ligneAttente).join('') + '</div>') + '</div>';
+      }
+      if (!orphelins.length && !miennes.length) {
+        html = '<div class="at-vide">' + icon('check', 20) + ' Rien ne bloque : tout ce qui est en cours a un nom dessus.</div>' + html;
+      }
+      el('attenteHost').innerHTML = html;
+    }
+    window.basculerAutre = function () { PLIE_AUTRE = !PLIE_AUTRE; rendreAttentes(); };
+
+    /** Attribue un élément À SA SOURCE — chaque module range l'information à un endroit différent,
+     *  c'est précisément ce qui rendait l'attribution introuvable depuis un écran commun. */
+    window.attribuer = async function (itemId, qui) {
+      const it = ATTENTES.filter(function (x) { return x.id === itemId; })[0];
+      if (!it) return;
+      let res = null;
+      try {
+        if (it.source === 'rdv') {
+          const r = await SS.getRdv(it.rdv_id);
+          if (!r || !r.id) { toast('Demande introuvable — recharge la page.', 'error'); return; }
+          r.assigned_to = qui;
+          r.date_modification = new Date().toISOString();
+          res = await SS.saveRdv(r);
+        } else if (it.source === 'sav') {
+          const d = await SS.getDevis(it.devis_id);
+          const t = ((d && d.sav_tickets) || []).filter(function (x) { return String(x.id) === String(it.ticket_id); })[0];
+          if (!t) { toast('Ticket introuvable — recharge la page.', 'error'); return; }
+          // On renvoie le ticket ENTIER : le serveur le reconstruit champ par champ, omettre une
+          // clé l'effacerait.
+          res = await SS.saveSavTicket(it.devis_id, Object.assign({}, t, { pour: qui }));
+        } else if (it.source === 'echange') {
+          const s = SUJETS.filter(function (x) { return x.id === it.sujet_id; })[0];
+          if (!s) { toast('Sujet introuvable — recharge la page.', 'error'); return; }
+          res = await SS.saveSujet(Object.assign({}, s, { pour: qui }));
+        } else if (it.source === 'planning') {
+          const d = await SS.getDevis(it.devis_id);
+          if (!d || !d.id) { toast('Dossier introuvable — recharge la page.', 'error'); return; }
+          if (it.nature === 'depannage') {
+            // Les intervenants sont saisis en clair : on préserve les tiers (« Jean (intérim) »).
+            const anciens = (d.depannage && d.depannage.techniciens) || [];
+            const tiers = anciens.filter(function (t) {
+              const k = String(t || '').trim().toLowerCase();
+              return k !== 'nicolas' && k !== 'yannick';
+            });
+            d.depannage = Object.assign({}, d.depannage || {}, { techniciens: [nomDe(qui)].concat(tiers) });
+          } else {
+            d.chantier = Object.assign({}, d.chantier || {}, { equipe: qui });
+          }
+          d.date_modification = new Date().toISOString();
+          res = await SS.saveDevis(d);
+        }
+      } catch (e) {
+        toast('Attribution impossible : ' + e.message, 'error', 7000); return;
+      }
+      if (res && res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 7000); return; }
+      if (res && res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return; }
+      toast(qui === MOI.key ? 'C’est pour toi' : 'Confié à ' + nomDe(qui), 'ok');
+      charger();
+    };
 
     function avatar(k) {
       const couleur = k === 'yannick' ? 'var(--accent-2)' : 'var(--accent)';

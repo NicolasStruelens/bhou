@@ -126,11 +126,22 @@
       const paye = (f.paiements || []).reduce(function (s, p) { return s + (Number(p.montant) || 0); }, 0);
       return f.echeance && f.echeance < today && paye < (Number(f.total_ttc) || 0) - 0.005;
     }).length;
-    // Ce qui attend une réponse ou une action DE MOI. Sans identité (session Access expirée,
-    // page ouverte hors ligne), on n'affiche rien plutôt qu'un compteur faux.
-    const nbEch = (moi && moi.key)
-      ? (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length
-      : 0;
+    // Ce qui attend une action DE MOI, plus ce que PERSONNE n'a pris — c'est ce second cas qui
+    // pourrit, chacun croyant que l'autre s'en occupe. Sans identité (session Access expirée,
+    // page hors ligne), on n'affiche rien plutôt qu'un compteur faux.
+    // Le calcul passe par SSAttente quand il est chargé, pour que le badge dise exactement la même
+    // chose que l'écran Échanges. Les alertes du PLANNING (conflits) en sont volontairement
+    // exclues : elles exigeraient de charger le moteur du temps sur chacune des seize pages.
+    let nbEch = 0;
+    if (moi && moi.key) {
+      const A = window.SSAttente;
+      if (A) {
+        const items = [].concat(A.depuisRdv(rdv), A.depuisSav(devis), A.depuisSujets(sujets));
+        nbEch = A.concerne(items, moi.key).length;
+      } else {
+        nbEch = (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length;
+      }
+    }
     badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac, echanges: nbEch };
     badgesAt = Date.now();
     return badgesCache;

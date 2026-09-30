@@ -777,7 +777,19 @@
                   <option value="autre">Autre</option>
                 </select>
               </div>
-              <div></div>
+              <!-- Responsable et échéance : un ticket SAV n'attendait personne nommément, donc
+                   chacun pouvait croire que l'autre s'en occupait. Sans nom dessus rien n'avance,
+                   sans date rien n'est jamais urgent (voir assets/js/attente.js). -->
+              <div class="field"><label class="label" for="savPour">Qui s'en occupe</label>
+                <select class="select" id="savPour">
+                  <option value="">— Personne —</option>
+                  <option value="nicolas">Nicolas</option>
+                  <option value="yannick">Yannick</option>
+                </select>
+              </div>
+              <div class="field"><label class="label" for="savEcheance">Pour quand</label>
+                <input class="input" type="date" id="savEcheance">
+              </div>
             </div>
             <textarea class="textarea" id="savDescription" style="min-height:52px;margin-top:var(--sp-2);" placeholder="Décris le problème…"></textarea>
             <div class="sav-photos-preview" id="savPhotosPreview"></div>
@@ -1735,6 +1747,8 @@
         probleme: el('savProbleme').value,
         description,
         statut: existing ? existing.statut : 'ouvert',
+        pour: el('savPour').value,
+        echeance: el('savEcheance').value,
         photos: PENDING_SAV_PHOTOS.slice(),
       });
       if (res.ok === false) { toast(res.error || 'Ticket SAV NON enregistré — réessaie.', 'error', 6000); return; }
@@ -1752,6 +1766,8 @@
       PENDING_SAV_PHOTOS = (t.photos || []).slice();
       el('savProbleme').value = t.probleme;
       el('savDescription').value = t.description;
+      el('savPour').value = t.pour || '';
+      el('savEcheance').value = t.echeance || '';
       renderSavPhotosPreview();
       el('savSubmitBtn').innerHTML = `${icon('check', 14)} Enregistrer les modifications`;
       el('savCancelBtn').classList.remove('hidden');
@@ -1762,6 +1778,8 @@
       PENDING_SAV_PHOTOS = [];
       el('savProbleme').value = 'moteur';
       el('savDescription').value = '';
+      el('savPour').value = '';
+      el('savEcheance').value = '';
       renderSavPhotosPreview();
       el('savSubmitBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket`;
       el('savCancelBtn').classList.add('hidden');
@@ -1800,8 +1818,11 @@
       if (savMenuEl) savMenuEl.classList.remove('open');
       const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
       if (!t || t.statut === statut) return;
+      // `pour` et `echeance` sont RENVOYÉS tels quels : le serveur reconstruit le ticket champ par
+      // champ, les omettre ici effacerait le responsable à chaque changement de statut.
       const res = await SS.saveSavTicket(DEVIS.id, {
         id: t.id, probleme: t.probleme, description: t.description, statut, photos: t.photos || [],
+        pour: t.pour || '', echeance: t.echeance || '',
       });
       if (res.ok === false) { toast(res.error || 'Statut du ticket NON enregistré — réessaie.', 'error', 6000); return; }
       DEVIS.sav_tickets = res.sav_tickets || DEVIS.sav_tickets;

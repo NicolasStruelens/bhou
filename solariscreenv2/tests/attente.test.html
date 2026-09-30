@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — attente</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:900px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests attente.js</h1>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script>
+    const A = window.SSAttente;
+    const P = window.SSPlanning;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    // Dates RELATIVES : les règles portent sur des délais, pas sur un calendrier. Un test calé sur
+    // des dates fixes commencerait à mentir le lendemain.
+    const ilYaH = (h) => new Date(Date.now() - h * 3600000).toISOString();
+    const jour = (n) => { const d = new Date(); d.setDate(d.getDate() + n);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const AUJ = jour(0), DEMAIN = jour(1), HIER = jour(-1);
+    const quoi = (l) => l.map(i => i.quoi);
+    const cli = (nom) => ({ nom: nom, prenom: '' });
+
+    // ══════════ 1. Demandes de RDV ══════════
+    check('R1 une demande que personne n’a prise', quoi(A.depuisRdv([
+      { id: 'R1', statut: 'nouveau', assigned_to: '', client: cli('Dupont'), date_creation: ilYaH(1) },
+    ])), ['Personne ne l’a prise en charge']);
+    check('R2 … et elle n’appartient à personne', A.depuisRdv([
+      { id: 'R1', statut: 'nouveau', assigned_to: '', client: cli('Dupont'), date_creation: ilYaH(1) },
+    ])[0].qui, '');
+    // Un client qui attend un jour entier appelle le concurrent : l'urgence doit monter avec l'âge.
+    check('R3 urgence monte après 4 h', A.depuisRdv([
+      { id: 'R1', statut: 'nouveau', assigned_to: '', client: cli('D'), date_creation: ilYaH(5) },
+    ])[0].urgence, A.URGENCE.HAUTE);
+    check('R4 urgence critique après 24 h', A.depuisRdv([
+      { id: 'R1', statut: 'nouveau', assigned_to: '', client: cli('D'), date_creation: ilYaH(30) },
+    ])[0].urgence, A.URGENCE.CRITIQUE);
+    check('R5 une demande prise en charge ne remonte pas', A.depuisRdv([
+      { id: 'R1', statut: 'nouveau', assigned_to: 'nicolas', client: cli('D'), date_creation: ilYaH(1), date_rdv: DEMAIN },
+    ]).filter(i => i.quoi.indexOf('Personne') === 0).length, 0);
+    check('R6 annulée et convertie sont ignorées', A.depuisRdv([
+      { id: 'A', statut: 'annule', assigned_to: '', client: cli('X'), date_creation: ilYaH(50) },
+      { id: 'B', statut: 'converti', assigned_to: '', client: cli('Y'), date_creation: ilYaH(50) },
+    ]).length, 0);
+    check('R7 une réponse t’est demandée', A.depuisRdv([
+      { id: 'R', statut: 'a_contacter', assigned_to: 'nicolas', awaiting: 'yannick', client: cli('D'),
+        date_creation: ilYaH(2), date_modification: ilYaH(2), comments: [{ ask: 'yannick', text: 'On y va ?', date: ilYaH(2) }] },
+    ]).filter(i => i.quoi.indexOf('réponse') >= 0)[0].qui, 'yannick');
+    check('R8 visite demain → rappel', quoi(A.depuisRdv([
+      { id: 'R', statut: 'rdv_fixe', assigned_to: 'nicolas', client: cli('D'), date_rdv: DEMAIN + 'T09:00', date_creation: ilYaH(48) },
+    ])), ['Visite demain — penser au rappel']);
+    check('R9 demande de 3 jours sans rendez-vous', quoi(A.depuisRdv([
+      { id: 'R', statut: 'a_contacter', assigned_to: 'nicolas', client: cli('D'), date_creation: ilYaH(72) },
+    ])), ['À recontacter — aucun rendez-vous fixé']);
+    check('R10 visite passée sans devis', quoi(A.depuisRdv([
+      { id: 'R', statut: 'rdv_fixe', assigned_to: 'nicolas', client: cli('D'), date_rdv: HIER + 'T09:00', date_creation: ilYaH(96) },
+    ])), ['Visite passée — et le devis ?']);
+    check('R11 visité, devis pas fait', quoi(A.depuisRdv([
+      { id: 'R', statut: 'visite', assigned_to: 'nicolas', client: cli('D'), devis_id: '', date_modification: ilYaH(20) },
+    ])), ['Visité, en attente du devis']);
+    check('R12 rappel daté échu', quoi(A.depuisRdv([
+      { id: 'R', statut: 'a_contacter', assigned_to: 'nicolas', client: cli('D'), rappel_date: AUJ, date_creation: ilYaH(2), date_rdv: DEMAIN },
+    ])), ['Rappel prévu aujourd’hui']);
+
+    // ══════════ 2. SAV ══════════
+    const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
+    check('S1 ticket sans responsable', A.depuisSav(devisSav(
+      { id: 't1', statut: 'ouvert', description: 'Moteur HS', date_creation: ilYaH(2) }))[0].quoi,
+      'Ticket SAV sans responsable');
+    check('S2 … et personne dessus', A.depuisSav(devisSav(
+      { id: 't1', statut: 'ouvert', description: 'x', date_creation: ilYaH(2) }))[0].qui, '');
+    // Trois jours sans responsable sur un client mécontent : c'est le pire cas de l'ERP.
+    check('S3 sans responsable depuis 3 j = critique', A.depuisSav(devisSav(
+      { id: 't1', statut: 'ouvert', description: 'x', date_creation: ilYaH(80) }))[0].urgence, A.URGENCE.CRITIQUE);
+    check('S4 avec responsable → il lui appartient', A.depuisSav(devisSav(
+      { id: 't1', statut: 'en_cours', pour: 'yannick', description: 'x', date_creation: ilYaH(2) }))[0].qui, 'yannick');
+    check('S5 ticket résolu ignoré', A.depuisSav(devisSav(
+      { id: 't1', statut: 'resolu', pour: 'yannick', description: 'x', date_creation: ilYaH(200) })).length, 0);
+    check('S6 devis archivé ignoré', A.depuisSav([
+      { id: 'D', archive: 1, client: cli('M'), sav_tickets: [{ id: 't', statut: 'ouvert', description: 'x', date_creation: ilYaH(2) }] },
+    ]).length, 0);
+
+    // ══════════ 3. Échanges ══════════
+    check('E1 un sujet qui attend quelqu’un', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'Coulisses ?', awaiting: 'nicolas', date_modification: ilYaH(2) },
+    ])[0].qui, 'nicolas');
+    // Une idée que personne n'attend n'est pas un blocage : elle a sa place dans les Échanges,
+    // pas dans la liste de ce qui empêche d'avancer.
+    check('E2 une idée sans destinataire n’est pas une attente', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'Forfait entretien', awaiting: '', echeance: '', date_modification: ilYaH(2) },
+    ]).length, 0);
+    check('E3 un sujet classé ne remonte plus', A.depuisSujets([
+      { id: 'S', statut: 'fait', titre: 'x', awaiting: 'nicolas', date_modification: ilYaH(2) },
+    ]).length, 0);
+    check('E4 échéance dépassée = critique', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'x', awaiting: '', echeance: HIER, date_modification: ilYaH(2) },
+    ])[0].urgence, A.URGENCE.CRITIQUE);
+    check('E5 une question qui dort 3 j devient urgente', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'x', awaiting: 'yannick', date_modification: ilYaH(80) },
+    ])[0].urgence, A.URGENCE.HAUTE);
+    check('E6 … et 7 j, critique', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'x', awaiting: 'yannick', date_modification: ilYaH(200) },
+    ])[0].urgence, A.URGENCE.CRITIQUE);
+
+    // ══════════ 4. Planning ══════════
+    const REG = { planning: { heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
+      trame: { nicolas: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'non', dim: 'non' },
+               yannick: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'non', dim: 'non' } },
+      duree_visite_h: 1, duree_pose_h: 4, duree_depannage_h: 2 } };
+    const EV_ORPHELIN = [
+      { id: 'pose:D1', source: 'pose', date: jour(3), heure: '', duree_h: 4, qui: [], titre: 'Chantier X', ref: 'D1', href: 'vue.html?id=D1' },
+      { id: 'rdv:R1', source: 'visite', date: jour(3), heure: '09:00', duree_h: 1, qui: [], titre: 'Visite Y', ref: 'R1', href: 'rdv.html?open=R1' },
+    ];
+    // Une visite orpheline est DÉJÀ signalée par les demandes de RDV : la reprendre ici la ferait
+    // apparaître deux fois dans l'écran commun, et une liste qui se répète perd sa crédibilité.
+    check('P1 écran commun : la visite orpheline n’est pas reprise',
+      A.depuisPlanning(EV_ORPHELIN, [], REG).length, 1);
+    check('P2 … c’est bien la pose qui reste',
+      A.depuisPlanning(EV_ORPHELIN, [], REG)[0].nature, 'pose');
+    check('P3 écran du planning : les deux sont montrées',
+      A.depuisPlanning(EV_ORPHELIN, [], REG, { inclureVisites: true }).length, 2);
+    // Deux rendez-vous pour la même personne à la même heure : le télescopage invisible d'avant.
+    const EV_CONFLIT = [
+      { id: 'a', source: 'pose', date: jour(2), heure: '08:00', duree_h: 4, qui: ['nicolas'], titre: 'Depaepe', ref: 'D1', href: '' },
+      { id: 'b', source: 'depannage', date: jour(2), heure: '10:00', duree_h: 2, qui: ['nicolas'], titre: 'Petit', ref: 'D2', href: '' },
+    ];
+    check('P4 conflit détecté', A.depuisPlanning(EV_CONFLIT, [], REG).filter(i => i.quoi.indexOf('même heure') >= 0).length, 1);
+    check('P5 le conflit nomme la personne', A.depuisPlanning(EV_CONFLIT, [], REG).filter(i => i.quoi.indexOf('même heure') >= 0)[0].qui, 'nicolas');
+    check('P6 rendez-vous passé sans suite', A.depuisPlanning([
+      { id: 'pose:D9', source: 'pose', date: jour(-4), heure: '', duree_h: 4, qui: ['yannick'], titre: 'Z', ref: 'D9', href: '' },
+    ], [], REG).filter(i => i.quoi.indexOf('passé') >= 0).length, 1);
+    check('P7 chantier signé sans date', A.depuisPlanning([], [
+      { id: 'D5', client: cli('Sans date'), date_modification: ilYaH(48) },
+    ], REG).filter(i => i.quoi.indexOf('sans date') >= 0).length, 1);
+
+    // ══════════ 5. Tri et regroupements ══════════
+    // L'ordre EST la règle métier : ce que personne n'a pris passe avant tout, même moins urgent.
+    const MELANGE = A.trier([
+      { id: '1', qui: 'nicolas', urgence: A.URGENCE.CRITIQUE, depuis: ilYaH(1) },
+      { id: '2', qui: '', urgence: A.URGENCE.MOYENNE, depuis: ilYaH(1) },
+      { id: '3', qui: 'nicolas', urgence: A.URGENCE.HAUTE, depuis: ilYaH(1) },
+    ]);
+    check('T1 sans personne passe devant, même moins urgent', MELANGE[0].id, '2');
+    check('T2 puis l’urgence décide', MELANGE[1].id, '1');
+    check('T3 à égalité, le plus ancien d’abord', A.trier([
+      { id: 'recent', qui: 'nicolas', urgence: 1, depuis: ilYaH(1) },
+      { id: 'vieux', qui: 'nicolas', urgence: 1, depuis: ilYaH(100) },
+    ])[0].id, 'vieux');
+
+    const LOT = [
+      { id: 'a', qui: '', urgence: A.URGENCE.CRITIQUE, source: 'rdv', depuis: ilYaH(1) },
+      { id: 'b', qui: 'nicolas', urgence: A.URGENCE.MOYENNE, source: 'sav', depuis: ilYaH(1) },
+      { id: 'c', qui: 'yannick', urgence: A.URGENCE.HAUTE, source: 'echange', depuis: ilYaH(1) },
+    ];
+    check('G1 ce qui m’attend', A.pourQui(LOT, 'nicolas').map(i => i.id), ['b']);
+    check('G2 ce que personne n’a pris', A.sansPersonne(LOT).map(i => i.id), ['a']);
+    // « Me concerne » inclut ce que personne n'a pris : sinon chacun l'ignore en pensant que
+    // l'autre l'a vu, ce qui est exactement le problème à résoudre.
+    check('G3 me concerne = le mien + l’orphelin', A.concerne(LOT, 'nicolas').map(i => i.id), ['a', 'b']);
+    check('G4 comptage', A.compter(LOT), { total: 3, sansPersonne: 1, critique: 1, parSource: { rdv: 1, sav: 1, echange: 1 } });
+
+    // ══════════ 6. Assemblage complet ══════════
+    const TOUT = A.construire({
+      rdvs: [{ id: 'R', statut: 'nouveau', assigned_to: '', client: cli('Neuf'), date_creation: ilYaH(30) }],
+      devis: devisSav({ id: 't', statut: 'ouvert', description: 'x', date_creation: ilYaH(2) }),
+      sujets: [{ id: 'S', statut: 'ouvert', titre: 'q', awaiting: 'nicolas', date_modification: ilYaH(2) }],
+      evenements: EV_CONFLIT, aPlanifier: [], reglages: REG,
+    });
+    check('C1 les quatre sources sont réunies',
+      [...new Set(TOUT.map(i => i.source))].sort(), ['echange', 'planning', 'rdv', 'sav']);
+    check('C2 les orphelins ouvrent la liste', TOUT[0].qui, '');
+    check('C3 un identifiant unique par ligne', TOUT.length, [...new Set(TOUT.map(i => i.id))].length);
+
+    // ══════════ Résultat ══════════
+    document.getElementById('out').innerHTML =
+      '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S) sur ' + total + '.</span>';
+    document.title = (fail === 0 ? 'OK ' : 'ECHEC ') + pass + '/' + total + ' — Tests attente';
+  </script>
+</body>
+</html>

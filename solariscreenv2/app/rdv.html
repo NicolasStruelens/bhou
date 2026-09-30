@@ -274,6 +274,7 @@
        Sans config.js, la trame hebdomadaire est vide et personne n'est jamais disponible. -->
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
   <script>
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
@@ -308,8 +309,8 @@
       accepte: { l: 'Accepté', color: 'var(--ok)' },
       refuse: { l: 'Refusé', color: 'var(--danger)' },
     };
-    // Délai de prise en charge d'un lead : au-delà, on alerte (un client qui attend appelle ailleurs).
-    const LEAD_WARN_H = 4, LEAD_DANGER_H = 24;
+    // Les délais de prise en charge d'un lead vivent dans SSAttente.SEUILS (assets/js/attente.js),
+    // avec toutes les autres règles du « qui doit agir » : deux copies finiraient par diverger.
 
     let RDV = [];
     let VIEW = localStorage.getItem('ss_rdv_view') || 'kanban';
@@ -402,11 +403,6 @@
       return `<span class="st-pill" style="--st:${s.color}"><span class="dot"></span>${s.label}</span>`;
     }
     function clientName(r) { const c = r.client || {}; return ((c.prenom || '') + ' ' + (c.nom || '')).trim() || 'Sans nom'; }
-    function daysSince(iso) { if (!iso) return 0; return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
-    function hoursSince(iso) { if (!iso) return 0; return Math.floor((Date.now() - new Date(iso).getTime()) / 3600000); }
-    function ageTxt(h) { return h < 1 ? 'moins d\'1 h' : (h < 24 ? h + ' h' : Math.floor(h / 24) + ' j'); }
-    function todayStr() { return new Date().toISOString().slice(0, 10); }
-    function tomorrowStr() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
 
     // ── Filtrage ──
     function filtered() {
@@ -425,50 +421,20 @@
     }
 
     // ── Rappels « À traiter » ──
+    // Le brief « À traiter » ne calcule plus ses propres règles : il lit SSAttente, la source
+    // unique du « qui doit agir » (assets/js/attente.js). Ces règles vivaient ICI et nulle part
+    // ailleurs, ce qui obligeait à ouvrir cette page pour savoir qu'un contact attendait. Les
+    // déménager, c'est garantir que cet écran, celui des Échanges et le badge du menu ne pourront
+    // jamais se contredire — la leçon déjà payée par TYPE_LABEL et par l'argent dû.
     function renderBrief() {
-      const items = [];
-      RDV.forEach(r => {
-        if (r.statut === 'annule' || r.statut === 'converti') return;
-        // PERSONNE ne l'a prise en charge : c'est LA décision à trancher entre Nicolas et Yannick.
-        // Un contact entrant qui attend est un contact qui appelle le concurrent → priorité maximale.
-        if (!r.assigned_to) {
-          const h = hoursSince(r.date_creation);
-          items.push({ r, prio: h >= LEAD_DANGER_H ? 3 : (h >= LEAD_WARN_H ? 2 : 1), txt: `${clientName(r)} — personne ne l'a prise en charge (depuis ${ageTxt(h)})` });
-        }
-        // Visite DEMAIN : c'est le moment d'envoyer le rappel au client.
-        if (r.statut === 'rdv_fixe' && r.date_rdv && r.date_rdv.slice(0, 10) === tomorrowStr()) {
-          items.push({ r, prio: 2, txt: `${clientName(r)} — visite DEMAIN, pense au message de rappel` });
-        }
-        // À contacter / nouveau depuis > 2 j sans date de visite
-        if (['nouveau', 'a_contacter'].includes(r.statut) && !r.date_rdv) {
-          const d = daysSince(r.date_creation);
-          if (d >= 2) items.push({ r, prio: 2, txt: `${clientName(r)} — à recontacter (demande depuis ${d} j, pas de RDV fixé)` });
-        }
-        // RDV fixé mais date passée sans devis
-        if (r.statut === 'rdv_fixe' && r.date_rdv && r.date_rdv.slice(0, 10) < todayStr()) {
-          items.push({ r, txt: `${clientName(r)} — visite passée le ${fmtDate(r.date_rdv.slice(0, 10))}, à traiter (devis ?)` });
-        }
-        // Visité sans devis
-        if (r.statut === 'visite' && !r.devis_id) {
-          items.push({ r, txt: `${clientName(r)} — visité, en attente du devis` });
-        }
-        // Rappel daté échu
-        if (r.rappel_date && r.rappel_date <= todayStr()) {
-          items.push({ r, txt: `${clientName(r)} — rappel prévu le ${fmtDate(r.rappel_date)}` });
-        }
-        // Échange interne : une réponse T'est demandée → priorité maximale, c'est TOI qui bloques.
-        if (r.awaiting && r.awaiting === (IDENTITY.key || 'nicolas')) {
-          const last = (r.comments || []).slice().reverse().find(c => c.ask);
-          items.push({ r, prio: 4, txt: `${clientName(r)} — ${(r.awaiting === 'yannick' ? 'Nicolas' : 'Yannick')} attend ta réponse${last ? ' : « ' + String(last.text).slice(0, 60) + ' »' : ''}` });
-        }
-      });
       const host = el('briefHost');
+      const A = window.SSAttente;
+      if (!A) { host.innerHTML = ''; return; }
+      const items = A.concerne(A.depuisRdv(RDV), IDENTITY.key || '');
       if (!items.length) { host.innerHTML = ''; return; }
-      // Le plus urgent en tête (contact entrant que personne n'a pris depuis longtemps).
-      items.sort((a, b) => (b.prio || 1) - (a.prio || 1));
       host.innerHTML = `<div class="rdv-brief">
         <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
-        <ul>${items.slice(0, 8).map(it => `<li onclick="openEdit('${it.r.id}')"><span class="rb-dot"></span>${esc(it.txt)}</li>`).join('')}</ul>
+        <ul>${items.slice(0, 8).map(it => `<li onclick="openEdit('${esc(it.rdv_id)}')"><span class="rb-dot"></span>${esc(it.titre + ' — ' + it.quoi + (it.qui ? '' : ' (personne)') + ' · ' + A.age(it.depuis))}</li>`).join('')}</ul>
       </div>`;
     }
 
@@ -491,9 +457,10 @@
       // Ancienneté d'un contact entrant que PERSONNE n'a encore pris : visible d'un coup d'œil,
       // vire à l'orange puis au rouge. C'est le principal levier de conversion sur un lead web.
       if (!r.assigned_to && !['converti', 'annule'].includes(r.statut)) {
-        const h = hoursSince(r.date_creation);
-        const cls = h >= LEAD_DANGER_H ? 'danger' : (h >= LEAD_WARN_H ? 'warn' : '');
-        badges.push(`<span class="lead-age ${cls}" title="Personne n'a encore pris cette demande en charge">${icon('clock', 10)} ${ageTxt(h)}</span>`);
+        const A = window.SSAttente;
+        const h = A ? A.heuresDepuis(r.date_creation) : 0;
+        const cls = h >= A.SEUILS.LEAD_CRITIQUE_H ? 'danger' : (h >= A.SEUILS.LEAD_ATTENTION_H ? 'warn' : '');
+        badges.push(`<span class="lead-age ${cls}" title="Personne n'a encore pris cette demande en charge">${icon('clock', 10)} ${esc(A.age(r.date_creation))}</span>`);
       }
       if ((r.creneaux || []).some(cr => cr.statut === 'accepte')) badges.push('<span class="badge badge-ok">Créneau retenu</span>');
       if (r.pref_contact === 'tel') badges.push('<span class="badge badge-cyan">Préf. tél</span>');
