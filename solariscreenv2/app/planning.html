@@ -308,6 +308,7 @@
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
   <script>
     const SS = window.SS;
     const P = window.SSPlanning;
@@ -456,36 +457,25 @@
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
     }
 
+    // Les alertes ne recalculent plus leurs propres règles : elles lisent SSAttente, la source
+    // unique du « qui doit agir » (assets/js/attente.js). Conflit, rendez-vous sans personne et
+    // rendez-vous passé sans suite doivent se dire EXACTEMENT de la même façon ici, dans l'écran
+    // Échanges et dans le badge du menu — sinon les trois finiront par se contredire, comme
+    // l'avaient fait TYPE_LABEL en treize copies et l'argent dû sur trois écrans.
+    // `inclureVisites` : ici on les garde, c'est l'écran du planning. L'écran commun les exclut,
+    // parce que les demandes de RDV les signalent déjà.
     function rendreAlertes() {
-      const out = [];
-      // Les conflits se cherchent sur TOUT le planning, pas seulement sur la période affichée :
-      // un télescopage la semaine prochaine doit se voir aujourd'hui.
-      const futurs = TOUS_EVS.filter(function (e) { return e.date >= P.aujourdhui(); });
-      P.conflits(futurs, REGLAGES).slice(0, 4).forEach(function (c) {
-        const oa = P.occupation(c.a, REGLAGES), ob = P.occupation(c.b, REGLAGES);
-        out.push('<div class="pl-alerte">' + icon('warning', 15) +
-          '<div><b>' + escHtml(SELLER_LABELS[c.qui] || c.qui) + ' est pris deux fois le ' + escHtml(fmtDate(c.date)) + '.</b><br>' +
-          escHtml(nature(c.a) + ' ' + c.a.titre + ' (' + P.minHhmm(oa.debut) + '–' + P.minHhmm(oa.fin) + ')') + ' et ' +
-          escHtml(nature(c.b) + ' ' + c.b.titre + ' (' + P.minHhmm(ob.debut) + '–' + P.minHhmm(ob.fin) + ')') + '.</div></div>');
-      });
-      // Une intervention ou une visite sans personne assignée n'appartient à personne : c'est le
-      // rendez-vous que les deux croient que l'autre prend.
-      const orphelins = futurs.filter(function (e) { return e.source !== 'indispo' && !e.qui.length; });
-      if (orphelins.length) {
-        out.push('<div class="pl-alerte warn">' + icon('warning', 15) +
-          '<div><b>' + orphelins.length + ' rendez-vous sans personne attribuée.</b><br>' +
-          escHtml(orphelins.slice(0, 3).map(function (e) { return e.titre + ' — ' + fmtDate(e.date); }).join(' · ')) +
-          (orphelins.length > 3 ? ' …' : '') + '</div></div>');
-      }
-      // Un chantier dont la date est passée sans être marqué posé : il reste à traiter.
-      const retard = TOUS_EVS.filter(function (e) { return e.source !== 'indispo' && e.date < P.aujourdhui(); });
-      if (retard.length) {
-        out.push('<div class="pl-alerte warn">' + icon('clock', 15) +
-          '<div><b>' + retard.length + ' rendez-vous passé' + (retard.length > 1 ? 's' : '') + ' sans suite.</b><br>' +
-          escHtml(retard.slice(0, 3).map(function (e) { return nature(e) + ' ' + e.titre + ' — ' + fmtDate(e.date); }).join(' · ')) +
-          (retard.length > 3 ? ' …' : '') + '</div></div>');
-      }
-      el('alertes').innerHTML = out.join('');
+      const A = window.SSAttente;
+      if (!A) { el('alertes').innerHTML = ''; return; }
+      const items = A.depuisPlanning(TOUS_EVS, A_PLANIFIER, REGLAGES, { inclureVisites: true })
+        .filter(function (i) { return i.quoi.indexOf('sans date de pose') < 0; });   // déjà listé plus bas
+      el('alertes').innerHTML = items.slice(0, 6).map(function (i) {
+        const grave = i.urgence >= A.URGENCE.CRITIQUE;
+        const qui = i.qui ? (SELLER_LABELS[i.qui] || i.qui) : 'Personne';
+        return '<div class="pl-alerte ' + (grave ? '' : 'warn') + '">' + icon(grave ? 'warning' : 'clock', 15) +
+          '<div><b>' + escHtml(i.quoi) + ' — ' + escHtml(i.titre) + '</b><br>' +
+          escHtml([qui, i.detail, A.delai(i.depuis)].filter(Boolean).join(' · ')) + '</div></div>';
+      }).join('');
     }
     function nature(e) { return (P.NATURES[e.source] || {}).label || e.source; }
 

@@ -637,6 +637,11 @@ export async function onRequest(context) {
         description: description.slice(0, 5000),
         statut,
         photos: Array.isArray(body.photos) ? body.photos.slice(0, 20) : ((idx !== -1 && tickets[idx].photos) || []),
+        // Responsable et échéance. Un ticket SAV n'attendait PERSONNE nommément : un client
+        // mécontent, et chacun pouvait croire que l'autre s'en occupait. Sans nom dessus, rien
+        // n'avance ; sans date, rien n'est jamais urgent (voir assets/js/attente.js).
+        pour: ['nicolas', 'yannick'].includes(body.pour) ? body.pour : '',
+        echeance: /^\d{4}-\d{2}-\d{2}$/.test(String(body.echeance || '')) ? body.echeance : '',
         date_creation: (idx !== -1) ? tickets[idx].date_creation : now,
         // Horodate la résolution au moment où le ticket passe (ou reste) « résolu ».
         date_resolution: statut === 'resolu' ? (((idx !== -1) && tickets[idx].date_resolution) || now) : null,

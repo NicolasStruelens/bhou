@@ -62,9 +62,11 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 74 tests (`window.SSPlanning`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 41 tests (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
+| `tests/attente.test.html` | Les 41 tests du « qui doit agir ». Même principe. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -175,6 +177,24 @@ c'est lui qui reçoit la balle en retour.
 ⚠️ Les RÉPONSES ne transitent jamais par `POST /api/sujets` : elles ont leur route, qui écrit sur la
 valeur actuelle de la ligne (règle 3). Le serveur les réinjecte à chaque enregistrement du sujet —
 sans quoi renommer un titre effacerait le fil que l'autre vient d'écrire.
+
+**15. Le « QUI DOIT AGIR » vit dans `assets/js/attente.js`, jamais en copie locale.** Quatre modules
+savaient dire « ça attend quelqu'un » — le brief des demandes de RDV, les alertes du planning, les
+tickets SAV, le `awaiting` des Échanges — et aucun ne parlait aux trois autres. Il fallait donc
+ouvrir quatre écrans pour savoir ce qui nous attendait : personne ne le fait, et c'est exactement
+là que les choses se perdaient. Les règles ont été DÉMÉNAGÉES (pas copiées) dans ce module ; le
+brief de `rdv.html` et les alertes de `planning.html` le consomment, le badge du menu aussi.
+Deux principes que le module impose, et qui sont la réponse à « aucune décision n'est prise » :
+**une chose sans NOM dessus n'avance pas** (chacun croit que l'autre s'en occupe) — d'où le tri,
+qui fait passer ce que personne n'a pris AVANT le plus urgent ; et **une chose sans DATE n'est
+jamais urgente** — d'où l'ancienneté affichée partout, qui devient gênante à 3 jours et criante à 7.
+Un ticket SAV porte donc désormais `pour` et `echeance`. ⚠️ Le serveur reconstruit le ticket CHAMP
+PAR CHAMP : tout appelant de `saveSavTicket` doit renvoyer `pour` et `echeance`, sinon il les efface.
+`depuisPlanning(…, { inclureVisites })` : l'écran commun EXCLUT les visites (les demandes de RDV les
+signalent déjà, et une liste qui se répète perd sa crédibilité), le planning les INCLUT — c'est son
+écran. Même raison pour « à recontacter », qui n'est produit que si quelqu'un est déjà assigné.
+Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
+étaient dans `rdv.html`, ils n'y sont plus.
 
 ## Pièges déjà payés — ne pas les repayer
 
