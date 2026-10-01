@@ -1017,6 +1017,26 @@ export async function onRequest(context) {
        paiement à la valeur ACTUELLE de la ligne, sans jamais relire ni réécrire l'ensemble.
        Chaque paiement reçoit un identifiant : c'est lui qui permet d'en retirer un précisément,
        plutôt que par sa position dans un tableau qui a pu bouger entre-temps. */
+    /* ── RÉFÉRENCE COMPTABLE EXTERNE : écriture CIBLÉE ────────────────────
+       SolariScreen facture sous la société SysCore : la pièce officielle, celle qui porte le
+       numéro de TVA, est établie dans Falco. L'ERP, lui, est un suivi interne (voir CLAUDE.md).
+       Rien ne reliait les deux : impossible de dire quelle ligne d'ici correspond à quelle pièce
+       là-bas. Ce champ fait le pont — et il s'écrit SEUL, sans réécrire la facture, parce que le
+       numéro n'est connu qu'APRÈS coup et qu'un encaissement a pu être saisi entre-temps. */
+    let mRef = path.match(/^\/api\/factures\/([^/]+)\/reference$/);
+    if (mRef && method === 'POST') {
+      const id = decodeURIComponent(mRef[1]);
+      const body = await request.json().catch(() => ({}));
+      const ref = String(body.ref_externe || '').trim().slice(0, 60);
+      const now = new Date().toISOString();
+      const r = await env.DB.prepare(
+        `UPDATE factures SET data = json_set(data, '$.ref_externe', ?1, '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(ref, now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Facture introuvable' }, 404);
+      return json({ ok: true, ref_externe: ref });
+    }
+
     let mPay = path.match(/^\/api\/factures\/([^/]+)\/paiement$/);
     if (mPay && method === 'POST') {
       const id = decodeURIComponent(mPay[1]);

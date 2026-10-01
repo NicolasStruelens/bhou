@@ -365,8 +365,15 @@ le solde facturerait aussi les ouvertures non encore posées.
 
 ## Contexte métier
 
-- **La comptabilité officielle passe par SysCore**, pas par l'ERP. Les factures F2026-xxx d'ici sont
-  un suivi interne. Toute question de conformité (facture électronique, Peppol) concerne SysCore.
+- **La comptabilité officielle passe par SysCore**, pas par l'ERP. SolariScreen facture sous la
+  société **SysCore** (Avenue de la Gare 60, 1401 Nivelles, **BE 1016.367.186**) : la pièce qui part
+  au client, celle qui porte le numéro de TVA, est établie dans le logiciel comptable **Falco**, avec
+  sa propre série de numéros. Les factures F2026-xxx d'ici sont un **suivi interne** : elles disent
+  COMBIEN facturer et suivent l'encaissement, elles ne remplacent jamais la pièce Falco.
+  Chaque facture porte donc un champ **`ref_externe`** (« Référence SysCore / Falco »), saisissable
+  à tout moment — le numéro n'est connu qu'APRÈS — par une route d'écriture ciblée, et cherchable.
+  Une ligne d'ici = une pièce là-bas. Toute question de conformité (TVA, facture électronique,
+  Peppol) concerne SysCore, jamais cet ERP.
 - Deux utilisateurs : **Nicolas** et **Yannick**. L'identité vient de Cloudflare Access, et le
   serveur signe les notes tout seul — il n'y a jamais de liste déroulante « qui écrit ? ».
 - Vocabulaire : *devis*, *ouverture* (une baie), *pose*, *relance*, *acompte*, *solde*.
