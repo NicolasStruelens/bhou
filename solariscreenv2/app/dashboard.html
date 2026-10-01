@@ -881,25 +881,57 @@
     // Toute la logique métier existe déjà sous forme de prédicats (relance due, acompte impayé,
     // pose à planifier…) mais restait éparpillée dans les pastilles globales du briefing. Ici on
     // la condense en UNE phrase par ligne — l'ordre des tests EST l'ordre de priorité.
+    // ── Les SIX familles d'action ───────────────────────────────────────────────
+    // Le liseré se lit AVANT le texte : il doit dire « quel genre de travail ? » en un balayage.
+    // Deux contraintes qui se contredisent, d'où cette table :
+    //   • deux genres de travail ne partagent JAMAIS une couleur (règle 21) ;
+    //   • le thème ne contient que SIX teintes vraiment distinctes sur 3 px de large.
+    // En sombre, --accent-2 (#ffd23f) et --warn (#ffb020) sont deux jaunes à 12° d'écart, et ils
+    // servaient à CINQ actions sur neuf : « Pose à planifier », « Acompte à encaisser » et
+    // « Relance 2 » se ressemblaient tous. Le chantier est donc passé en VIOLET (--accent-3), la
+    // seule sixième teinte franche du jeu, et l'or a quitté le liseré.
+    // Neuf actions pour six familles : ce qui se regroupe se regroupe VOLONTAIREMENT — relancer un
+    // devis et réclamer un acompte, c'est le même geste, pousser le client — et c'est le TEXTE,
+    // toujours affiché à côté, qui dit lequel des deux.
+    // L'icône est portée par l'ACTION, jamais déduite de la couleur : la déduire propageait chaque
+    // collision de teinte au pictogramme, qui ne pouvait donc pas rattraper l'ambiguïté.
+    const FAM = {
+      rien:     { color: 'var(--text-subtle)', ic: 'chevronright' }, // la balle est chez le client
+      ecrire:   { color: 'var(--accent)',      ic: 'edit'         }, // à rédiger de mon côté
+      pousser:  { color: 'var(--warn)',        ic: 'clock'        }, // relancer, réclamer
+      perdre:   { color: 'var(--danger)',      ic: 'warning'      }, // se perd si je ne fais rien
+      gagne:    { color: 'var(--ok)',          ic: 'check'        }, // gagné, reste à formaliser
+      chantier: { color: 'var(--accent-3)',    ic: 'hammer'       }, // à organiser sur le terrain
+    };
+    // `hash` : ancre de la fiche où l'action s'exécute — présente = le chip devient cliquable.
+    const mk = (fam, txt, ic, hash) => ({ txt: txt, color: fam.color, ic: ic || fam.ic, hash: hash || '' });
+
     // Renvoie null quand il n'y a rien à faire (dossier clos, payé, refusé…).
     function prochaineAction(d) {
+      // AVANT la sortie sur dossier clos : une question posée mérite une réponse même sur un devis
+      // refusé ou archivé (c'était déjà le cas, le test vivait en double dans les deux appelants).
+      if (d.client_question_open) return mk(FAM.ecrire, 'Question client — à répondre', 'message', '#question');
       if (d.archive || ['refuse', 'annule'].includes(d.statut)) return null;
-      if (d.statut === 'brouillon') return { txt: 'À finaliser et envoyer', color: 'var(--text-subtle)' };
-      if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return { txt: 'Accepté par le client — à faire signer', color: 'var(--ok)' };
+      // Finir un devis m'incombe : c'est le BLEU des choses à rédiger. Le gris est réservé à ce qui
+      // n'attend rien de moi. Les peindre pareil mêlait les deux extrêmes : ce que je dois faire,
+      // et ce sur quoi je ne peux rien.
+      if (d.statut === 'brouillon') return mk(FAM.ecrire, 'À finaliser et envoyer');
+      if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return mk(FAM.gagne, 'Accepté par le client — à faire signer');
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
         const faites = relancesFaites(d);
-        // Un client qui a rouvert son devis plusieurs fois est chaud → on le signale et on passe en or.
+        // Un client qui a rouvert son devis plusieurs fois est chaud : dit dans le TEXTE, et non par
+        // une teinte à part — l'or employé ici était celui du chantier, deux sens pour une couleur.
         const hot = d.review_views >= SEUIL_CHAUD();
-        return { txt: `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, color: hot ? 'var(--accent-2)' : 'var(--warn)' };
+        return mk(FAM.pousser, `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, null, '#relance');
       }
-      if (isDevisExpire(d)) return { txt: 'Devis expiré (30 j) — à relancer ou classer', color: 'var(--danger)' };
-      if (isAcompteUnpaid(d)) return { txt: 'Acompte à encaisser', color: 'var(--warn)' };
+      if (isDevisExpire(d)) return mk(FAM.perdre, 'Devis expiré (30 j) — à relancer ou classer', null, '#relance');
+      if (isAcompteUnpaid(d)) return mk(FAM.pousser, 'Acompte à encaisser', 'coin');
       if (d.statut === 'signe' && !window.SSUI.isPoseDone(d) && !(d.chantier && d.chantier.date_pose)) {
-        return { txt: 'Pose à planifier', color: 'var(--accent-2)' };
+        return mk(FAM.chantier, 'Pose à planifier', 'calendar');
       }
-      if (isChantierAPreparer(d)) return { txt: 'Chantier à préparer', color: 'var(--accent-2)' };
-      if (isSoldeUnpaid(d)) return { txt: 'Solde à encaisser', color: 'var(--warn)' };
-      if (WAITING_STATUSES.includes(d.statut)) return { txt: 'En attente de réponse client', color: 'var(--text-subtle)' };
+      if (isChantierAPreparer(d)) return mk(FAM.chantier, 'Chantier à préparer');
+      if (isSoldeUnpaid(d)) return mk(FAM.pousser, 'Solde à encaisser', 'coin');
+      if (WAITING_STATUSES.includes(d.statut)) return mk(FAM.rien, 'En attente de réponse client');
       return null;
     }
     // Seuil « client chaud » : nombre de consultations de l'espace client à partir duquel on
@@ -938,16 +970,8 @@
     }
     // Filet de couleur à gauche = couleur de l'action la plus urgente (sinon couleur du statut).
     function railColor(d) {
-      if (d.client_question_open) return 'var(--warn)';
       const a = prochaineAction(d);
       return a ? a.color : ((STATUSES[d.statut] || {}).color || 'var(--border-strong)');
-    }
-    function signalIcon(color) {
-      if (color.includes('--ok')) return icon('check', 12);
-      if (color.includes('--danger')) return icon('warning', 12);
-      if (color.includes('--accent-2')) return icon('sparkle', 12);
-      if (color.includes('--warn')) return icon('clock', 12);
-      return icon('chevronright', 12);
     }
     // Date affichée sur la ligne : jamais une valeur illisible. `fmtDate` renvoie l'entrée BRUTE
     // quand elle n'est pas parsable (ex. « zz ») — ici on préfère un tiret discret.
@@ -974,8 +998,6 @@
     // Quand l'action est directement exécutable (relance, question), le chip devient CLIQUABLE (#25)
     // et emmène au bon endroit de la fiche — plus besoin d'ouvrir puis de chercher la bonne carte.
     function signalChip(d) {
-      if (d.client_question_open)
-        return `<span class="m-sig act" style="--sc:var(--warn)" onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#question'" title="Répondre à la question du client">${icon('message', 12)} Question client — à répondre</span>`;
       const a = prochaineAction(d);
       const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
       if (!a) {
@@ -983,8 +1005,13 @@
         const extra = d.statut === 'refuse' && d.raison_refus ? ' · ' + esc(d.raison_refus) : '';
         return `<span class="m-sig muted" title="${esc((s.label || '') + (d.raison_refus ? ' — ' + d.raison_refus : ''))}">${esc(s.label || '')}${extra}</span>`;
       }
-      const isRelance = /Relance/i.test(a.txt);
-      return `<span class="m-sig ${hot ? 'hot' : ''}${isRelance ? ' act' : ''}" style="--sc:${a.color}"${isRelance ? ` onclick="event.stopPropagation();location.href='vue.html?id=${d.id}#relance'"` : ''} title="${esc(a.txt)}${isRelance ? ' — clic : préparer le message' : ''}">${signalIcon(a.color)} ${esc(a.txt)}</span>`;
+      // La cliquabilité vient de l'ACTION (`hash`), plus d'une regex sur le texte affiché : /Relance/i
+      // attrapait aussi « à relancer » du devis expiré — vrai par chance, et cassé au premier
+      // libellé reformulé.
+      const astuce = a.hash === '#relance' ? ' — clic : préparer le message'
+                   : a.hash === '#question' ? ' — clic : ouvrir la réponse' : '';
+      const clic = a.hash ? ` onclick="event.stopPropagation();location.href='vue.html?id=${d.id}${a.hash}'"` : '';
+      return `<span class="m-sig ${hot ? 'hot' : ''}${a.hash ? ' act' : ''}" style="--sc:${a.color}"${clic} title="${esc(a.txt + astuce)}">${icon(a.ic, 12)} ${esc(a.txt)}</span>`;
     }
     // Micro-parcours : Créé · Envoyé · Signé · Posé · Payé. Masqué pour brouillon/refusé/annulé.
     function milestoneDots(d) {
@@ -1195,13 +1222,13 @@
       const visitesJour = rdvActifs.filter(r => r.statut === 'rdv_fixe' && String(r.date_rdv || '').slice(0, 10) === todayIso);
       if (nonPris.length) chips.push({ label: `${nonPris.length} demande${nonPris.length > 1 ? 's' : ''} sans personne en charge`, color: 'var(--danger)', href: 'rdv.html', ic: 'warning' });
       if (visitesJour.length) chips.push({ label: `${visitesJour.length} visite${visitesJour.length > 1 ? 's' : ''} client aujourd'hui`, color: 'var(--accent)', href: 'planning.html', ic: 'calendar' });
-      if (questionsClient.length) chips.push({ label: `${questionsClient.length} question${questionsClient.length > 1 ? 's' : ''} client — à répondre`, color: 'var(--warn)', filter: 'question_client', ic: 'message' });
+      if (questionsClient.length) chips.push({ label: `${questionsClient.length} question${questionsClient.length > 1 ? 's' : ''} client — à répondre`, color: 'var(--accent)', filter: 'question_client', ic: 'message' });
       if (acceptes.length) chips.push({ label: `${acceptes.length} devis accepté${acceptes.length > 1 ? 's' : ''} par le client — à faire signer`, color: 'var(--ok)', filter: 'accepte_client', ic: 'check' });
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
       if (enRetard.length) chips.push({ label: `${enRetard.length} paiement${enRetard.length > 1 ? 's' : ''} en retard`, color: 'var(--danger)', filter: 'en_retard', ic: 'warning' });
       if (acompteAttente.length) chips.push({ label: `${acompteAttente.length} acompte${acompteAttente.length > 1 ? 's' : ''} non payé${acompteAttente.length > 1 ? 's' : ''}`, color: 'var(--warn)', filter: 'acompte_attente', ic: 'coin' });
-      if (soldeAttente.length) chips.push({ label: `${soldeAttente.length} solde${soldeAttente.length > 1 ? 's' : ''} à encaisser`, color: 'var(--accent-2)', filter: 'solde_attente', ic: 'coin' });
-      if (aPreparer.length) chips.push({ label: `${aPreparer.length} chantier${aPreparer.length > 1 ? 's' : ''} à préparer`, color: 'var(--accent-2)', filter: 'a_preparer', ic: 'calendar' });
+      if (soldeAttente.length) chips.push({ label: `${soldeAttente.length} solde${soldeAttente.length > 1 ? 's' : ''} à encaisser`, color: 'var(--warn)', filter: 'solde_attente', ic: 'coin' });
+      if (aPreparer.length) chips.push({ label: `${aPreparer.length} chantier${aPreparer.length > 1 ? 's' : ''} à préparer`, color: 'var(--accent-3)', filter: 'a_preparer', ic: 'calendar' });
       if (expires.length) chips.push({ label: `${expires.length} devis expiré${expires.length > 1 ? 's' : ''}`, color: 'var(--danger)', filter: 'expire', ic: 'warning' });
       // Lien envoyé mais jamais ouvert (#26) : on ne le signale qu'après 3 jours (avant, c'est normal).
       const jamaisOuvert = visible.filter(d => isLinkNeverOpened(d) && daysInCurrentStatus(d) >= 3);

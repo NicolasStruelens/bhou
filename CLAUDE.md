@@ -62,11 +62,11 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 74 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 41 tests (`window.SSAttente`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 70 tests (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
-| `tests/attente.test.html` | Les 41 tests du « qui doit agir ». Même principe. |
+| `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -255,14 +255,37 @@ Les deux écrans du SAV — `app/sav.html` et la carte de `app/vue.html` — doi
 chose, sinon on refait le diagnostic.
 
 **21. Deux statuts différents ne portent JAMAIS la même couleur** (`SSUI.STATUT_DEVIS_COULEUR`).
-Sur le tableau de bord, le liseré est ce qu'on voit AVANT de lire le statut. `relance_1` et
-`relance_2` étaient toutes deux en `--warn`, `brouillon` et `annule` toutes deux en
+`relance_1` et `relance_2` étaient toutes deux en `--warn`, `brouillon` et `annule` toutes deux en
 `--text-subtle` : un devis relancé deux fois ressemblait à un devis relancé une fois, et un
 brouillon EN COURS à un dossier abandonné. La couleur raconte la progression — neutre, bleu,
 orange, rouge-orangé, puis vert gagné / rouge perdu / éteint abandonné.
 `relance_2` n'est pas le rouge de `refuse` : une relance 2 est encore en jeu, un refus ne l'est
 plus. Même teinte dans le CRM (`.badge-relance2`) et sur le tableau de bord, sinon les deux écrans
 racontent deux histoires. `annule` se distingue de `brouillon` par l'extinction, pas par la teinte.
+
+**21 bis. Le liseré du tableau de bord ne montre PAS le statut, il montre l'ACTION à faire**
+(`prochaineAction`, puis `railColor`). À ne pas confondre avec la règle 21 : corriger les couleurs
+de STATUT n'a strictement rien changé à l'écran, parce que le statut n'est qu'un REPLI, utilisé
+seulement quand il n'y a rien à faire. On a cherché au mauvais endroit un aller-retour entier.
+Neuf actions pour SIX familles — une famille = un genre de travail = une couleur ET une icône :
+rien à faire (gris `--text-subtle`), à rédiger de mon côté (bleu `--accent`), à pousser le client,
+devis ou paiement (ambre `--warn`), ça se perd (rouge `--danger`), gagné à formaliser (vert `--ok`),
+chantier à organiser (violet `--accent-3`). Ce qui se regroupe se regroupe VOLONTAIREMENT : c'est
+le texte, toujours affiché à côté, qui dit lequel. Les pastilles « Aujourd'hui » désignent les
+mêmes actions sur la même page et suivent donc les mêmes familles.
+Trois pièges, tous payés ici :
+• **Une teinte ne se juge qu'en THÈME SOMBRE.** `--accent-2` (#ffd23f) et `--warn` (#ffb020) sont
+  deux jaunes à ΔE **18,8** en sombre, mais à ΔE 42,5 en clair : la collision n'existait QUE dans le
+  thème réellement utilisé. Vérifier en clair aurait conclu « tout va bien ». L'or a donc quitté le
+  liseré (il reste au halo « client chaud », qui est une ombre, pas une teinte de texte).
+• **Se mesurer, pas s'estimer** : résoudre chaque `var(--…)` en RGB réel via `getComputedStyle`,
+  convertir en Lab et exiger un ΔE ≥ 25 entre deux familles. La paire la plus serrée aujourd'hui est
+  bleu / violet (ΔE 25 en sombre, 31,7 en clair).
+• **L'icône se porte par l'ACTION, jamais déduite de la couleur.** `signalIcon(color)` devinait le
+  pictogramme en reniflant la chaîne `var(--…)` : chaque collision de teinte se propageait donc à
+  l'icône, qui ne pouvait pas rattraper l'ambiguïté. Même remarque pour la cliquabilité, qui se
+  déduisait d'une regex sur le LIBELLÉ affiché (`/Relance/i`) — vrai par chance pour « à relancer »
+  du devis expiré, et cassé au premier libellé reformulé. L'action porte `ic` et `hash`.
 
 ## Pièges déjà payés — ne pas les repayer
 
