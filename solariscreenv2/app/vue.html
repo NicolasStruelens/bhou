@@ -169,6 +169,14 @@
     /* `.reply-banner` (réponse à une note d'équipe) vit dans base.css : la fenêtre du tableau de
        bord l'utilise aussi, et deux copies du même style finiraient par diverger. */
 
+    .sav-ticket-fix { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-2);
+      padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm);
+      border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+      background: color-mix(in srgb, var(--ok) 8%, transparent); }
+    .sav-ticket-fix svg { color: var(--ok); flex: none; margin-top: 2px; }
+    .sav-ticket-cause { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.15rem; }
+    .sav-ticket-notes { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--text-muted); }
+
     /* Echanges rattaches au dossier : la memoire commune, lisible depuis le dossier lui-meme. */
     .sl-box { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
     .sl-head { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs);
@@ -1734,6 +1742,12 @@
           </div>
           <div class="sav-ticket-desc">${esc(t.description)}</div>
           ${photosHtml}
+          <!-- Responsable, et surtout CE QUI A ETE REPARE : les deux ecrans du SAV (cette fiche et
+               app/sav.html) doivent dire la meme chose, sinon on recommence le diagnostic. -->
+          ${t.statut !== 'resolu' && t.pour ? `<div class="sav-ticket-date mt-1">${icon('user', 11)} ${esc(SSUI.SELLER_LABELS[t.pour] || t.pour)}${t.echeance ? ' · pour le ' + fmtDate(t.echeance) : ''}</div>` : ''}
+          ${t.statut !== 'resolu' && !t.pour ? `<div class="sav-ticket-date mt-1" style="color:var(--danger)">${icon('warning', 11)} Personne ne s’en occupe</div>` : ''}
+          ${t.resolution ? `<div class="sav-ticket-fix">${icon('check', 12)} <div><b>Réparé :</b> ${esc(t.resolution)}${t.cause ? `<div class="sav-ticket-cause">Cause : ${esc(t.cause)}</div>` : ''}</div></div>` : ''}
+          ${(t.notes || []).length ? `<div class="sav-ticket-notes">${t.notes.map(n => `<div>${esc(SSUI.SELLER_LABELS[n.auteur] || n.auteur || '—')} : ${esc(n.texte)}</div>`).join('')}</div>` : ''}
           ${t.date_resolution ? `<div class="sav-ticket-date mt-1">Résolu le ${fmtDate(t.date_resolution)}</div>` : ''}
           <div class="sav-ticket-actions">
             <button type="button" class="ci-copy" title="Modifier" aria-label="Modifier ce ticket" onclick="editSavTicket('${t.id}')">${icon('edit', 13)}</button>

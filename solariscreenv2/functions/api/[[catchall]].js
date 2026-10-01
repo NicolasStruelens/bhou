@@ -645,6 +645,17 @@ export async function onRequest(context) {
         date_creation: (idx !== -1) ? tickets[idx].date_creation : now,
         // Horodate la résolution au moment où le ticket passe (ou reste) « résolu ».
         date_resolution: statut === 'resolu' ? (((idx !== -1) && tickets[idx].date_resolution) || now) : null,
+        // CE QUI A ÉTÉ FAIT. Même raison que la décision d'un sujet : un ticket qu'on classe sans
+        // noter la cause ni le remède ne sert plus à rien le jour où le même défaut revient — et
+        // sur des screens, il revient. Conservé si le ticket rouvre : un constat reste un fait.
+        cause: String(body.cause || ((idx !== -1) && tickets[idx].cause) || '').slice(0, 2000),
+        resolution: String(body.resolution || ((idx !== -1) && tickets[idx].resolution) || '').slice(0, 2000),
+        // Signé par le SERVEUR, et seulement quand la résolution est écrite pour la première fois.
+        resolu_par: (body.resolution && !((idx !== -1) && tickets[idx].resolution))
+          ? ((parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null)
+          : ((idx !== -1) && tickets[idx].resolu_par) || null,
+        // Notes internes : elles ont leur propre route (écriture ciblée), jamais écrasées ici.
+        notes: ((idx !== -1) && Array.isArray(tickets[idx].notes)) ? tickets[idx].notes : [],
       };
       if (idx !== -1) tickets[idx] = ticket; else tickets.push(ticket);
       await env.DB.prepare(
@@ -653,6 +664,38 @@ export async function onRequest(context) {
       ).bind(JSON.stringify(tickets), now, id).run();
       return json({ ok: true, ticket, sav_tickets: tickets, date_modification: now });
     }
+    // ── TICKET SAV : note interne (écriture CIBLÉE sur le seul ticket concerné) ──
+    // « J'ai appelé le client, il rappelle lundi », « pièce commandée chez Harol ». Sans ça, un
+    // ticket ouvert depuis trois semaines ne dit pas ce qui a déjà été tenté — et on recommence.
+    let mSavNote = path.match(/^\/api\/devis\/([^/]+)\/sav\/([^/]+)\/note$/);
+    if (mSavNote && method === 'POST') {
+      const id = decodeURIComponent(mSavNote[1]);
+      const tid = decodeURIComponent(mSavNote[2]);
+      const body = await request.json().catch(() => ({}));
+      const texte = String(body.texte || '').trim();
+      if (!texte) return json({ ok: false, error: 'Note vide' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const tickets = Array.isArray(d.sav_tickets) ? d.sav_tickets.slice() : [];
+      const idx = tickets.findIndex(t => String(t.id) === String(tid));
+      if (idx === -1) return json({ ok: false, error: 'Ticket introuvable' }, 404);
+      const emailNote = parseAccessEmail(request);
+      const now = new Date().toISOString();
+      const note = {
+        id: crypto.randomUUID(),
+        auteur: (emailNote && IDENTITIES[emailNote.toLowerCase()]) || emailNote || null,
+        texte: texte.slice(0, 2000),
+        date: now,
+      };
+      tickets[idx] = { ...tickets[idx], notes: (tickets[idx].notes || []).concat([note]) };
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.sav_tickets', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(tickets), now, id).run();
+      return json({ ok: true, note, sav_tickets: tickets });
+    }
+
     // ── TICKET SAV : suppression CIBLÉE ──
     let mSavDel = path.match(/^\/api\/devis\/([^/]+)\/sav\/([^/]+)$/);
     if (mSavDel && method === 'DELETE') {
