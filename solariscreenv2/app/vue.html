@@ -1032,7 +1032,7 @@
       const startIso = (DEVIS.reception && DEVIS.reception.date) || ch.date_pose;
       const startDay = startIso ? String(startIso).slice(0, 10) : '';
       // La garantie ne peut pas courir depuis une date FUTURE (pose pas encore faite) : on masque le badge.
-      if (DEVIS.statut !== 'termine' || !startDay || startDay > new Date().toISOString().slice(0, 10)) { badge.classList.add('hidden'); return; }
+      if (DEVIS.statut !== 'termine' || !startDay || startDay > SSUI.aujourdhui()) { badge.classList.add('hidden'); return; }
       const poseDate = new Date(startIso);
       const structureEnd = new Date(poseDate); structureEnd.setFullYear(structureEnd.getFullYear() + 5);
       const items = DEVIS.items || [];
@@ -1533,7 +1533,7 @@
         return;
       }
       const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale' };
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = SSUI.aujourdhui();
       el('paiementsList').innerHTML = facs.map(f => {
         const paid = paidSum(f);
         const due = f.total_ttc || 0;
@@ -1599,7 +1599,7 @@
     window.setCommandeStage = async (stage) => {
       DEVIS.commande = DEVIS.commande || {};
       DEVIS.commande.statut = stage;
-      if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = new Date().toISOString().slice(0, 10);
+      if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = SSUI.aujourdhui();
       await persistCommande();
     };
     window.saveCommande = async () => {
@@ -1621,7 +1621,7 @@
       el('chEquipe').value = ch.equipe || 'nicolas';
       let infoTxt = 'Renseigne la date de pose pour la voir apparaître dans l’agenda.', retard = false;
       if (ch.date_pose) {
-        const days = Math.round((new Date(ch.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+        const days = Math.round((new Date(ch.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
         if (DEVIS.statut === 'termine') infoTxt = 'Pose effectuée.';
         else if (days === 0) infoTxt = "Pose prévue aujourd'hui.";
         else if (days > 0) infoTxt = `Pose prévue dans ${days} jour(s).`;
@@ -1920,7 +1920,7 @@
         } catch (e) { ratees++; }
       }
       if (ratees) toast(ratees + ' photo(s) illisible(s) ignorée(s).', 'warn');
-      if (!el('jDate').value) el('jDate').value = new Date().toISOString().slice(0, 10);
+      if (!el('jDate').value) el('jDate').value = SSUI.aujourdhui();
       renderJournalPending();
       el('jPhotoInput').value = '';
     };
@@ -2103,7 +2103,7 @@
       // Ancienneté en jours de CALENDRIER, pas en tranches de 24 h : on compare deux minuits.
       // (Un devis créé hier à 9 h est vieux de 1 jour, pas de 2 — c'est ce que renvoyait un
       //  arrondi sur l'écart horaire dès qu'on dépassait midi, et l'avancement sautait d'un cran.)
-      const aujourdhui = new Date().toISOString().slice(0, 10);
+      const aujourdhui = SSUI.aujourdhui();
       // Repli local si ui.js est déployé en retard : la fiche entière ne doit pas tomber pour
       // une règle graduée (le déploiement se fait fichier par fichier, la divergence arrive).
       const jEntre = (a, b) => (window.SSUI && SSUI.joursEntre) ? SSUI.joursEntre(a, b)
@@ -2272,7 +2272,7 @@
     function isChantierAPreparerFiche() {
       const d = DEVIS;
       if (d.statut !== 'signe' || window.SSUI.isPoseDone(d) || !(d.chantier && d.chantier.date_pose)) return false;
-      const days = Math.round((new Date(d.chantier.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+      const days = Math.round((new Date(d.chantier.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
       return days >= 0 && days <= 7;
     }
 
@@ -2311,7 +2311,7 @@
     const relanceState = (d) => {
       if (window.SSUI && window.SSUI.relanceEtat) return window.SSUI.relanceEtat(d);
       const plan = RELANCE_PLAN[d.informatif ? 'informatif' : 'visite'];
-      const envoi = dateEnvoiOf(d), today = new Date().toISOString().slice(0, 10);
+      const envoi = dateEnvoiOf(d), today = SSUI.aujourdhui();
       const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
       let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
       const nS = STATUT_RELANCE_N[d.statut] || 0;
@@ -2442,7 +2442,7 @@
     // Complète la cadence jusqu'à la n-ième relance SANS réécrire celles déjà enregistrées : leur date
     // réelle est une information de suivi (« relancé le 12 »), on ne la remplace jamais par aujourd'hui.
     function relancesUpTo(d, n, by) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = SSUI.aujourdhui();
       const out = (d.relances || []).slice();
       for (let i = 1; i <= n; i++) {
         if (!out.some(r => (r.n || 0) === i)) out.push({ n: i, date: today, by: by || CONNECTED_KEY || 'nicolas' });
@@ -2538,7 +2538,7 @@
       if (opts.auto && st.done.some(r => (r.n || 0) === n)) return;   // déjà notée : 2e canal, on ne fait rien
       const prev = (DEVIS.relances || []).slice();
       const prevStatut = DEVIS.statut, prevHist = (DEVIS.statut_history || []).slice();
-      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: new Date().toISOString().slice(0, 10), by: CONNECTED_KEY || 'nicolas' }])
+      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: SSUI.aujourdhui(), by: CONNECTED_KEY || 'nicolas' }])
         .sort((a, b) => (a.n || 0) - (b.n || 0));
       // Miroir du pont statut → cadence : la pastille du bandeau (et donc le tableau de bord) doit
       // dire « Relance 1 » dès qu'une relance est partie. On n'avance JAMAIS à reculons ni depuis un
