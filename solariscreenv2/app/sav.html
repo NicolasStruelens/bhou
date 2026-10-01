@@ -52,6 +52,14 @@
     .sav-note .sn-qui { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent); flex: 0 0 auto; }
     .sav-note .sn-txt { flex: 1 1 10ch; min-width: 10ch; color: var(--text-muted); }
     .sav-note .sn-qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); flex: 0 0 auto; }
+    .sav-photos { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); }
+    .sav-photos .sp-lbl { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.25rem; }
+    .sav-photos .sp-lbl.apres { color: var(--ok); }
+    .sav-photos .sp-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .sav-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); display: block; }
+    .sav-ajout-photo { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
+    .sav-ajout-photo .sp-attente { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
     .sav-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
     .sav-box { display: none; margin-top: var(--sp-3); }
     .sav-box.on { display: block; }
@@ -121,7 +129,7 @@
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
-    const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
+    const SAV_TYPE_LABEL = window.SSUI.SAV_TYPE_LABEL;   // source unique : assets/js/ui.js
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     let ELIGIBLES = [];   // chantiers sur lesquels un ticket SAV a du sens (pose faite)
     let TICKETS = [];     // tickets a plat, avec leur devis (pour la garantie et l'attribution)
@@ -140,7 +148,7 @@
       // Un SAV concerne un chantier POSÉ (jalon partagé isPoseDone : PV de réception signé ou
       // étape fournisseur « Posé »), ou déjà marqué terminé. Les archivés sont exclus.
       ELIGIBLES = tous
-        .filter(d => !d.archive && (window.SSUI.isPoseDone(d) || d.statut === 'termine'))
+        .filter(window.SSUI.savPossible)
         .sort((a, b) => String(b.date_modification).localeCompare(String(a.date_modification)));
       const all = [];
       // On garde le DEVIS entier avec le ticket : la garantie se deduit de la date de pose, et
@@ -197,6 +205,30 @@
     };
     /** Clore un ticket EXIGE d'ecrire ce qui a ete repare : sans ca, le meme defaut revient six
      *  mois plus tard et personne ne sait ce qui avait ete fait. Meme regle que les decisions. */
+    /** Photo APRES : meme chemin que partout (compression + depot R2), puis ecriture du ticket.
+     *  On enregistre tout de suite plutot qu'a la cloture : si la page est fermee entre-temps, la
+     *  photo prise sur le chantier ne doit pas etre perdue. */
+    window.ajouterPhotoApres = async (devisId, ticketId, input) => {
+      const fichiers = [...(input.files || [])];
+      input.value = '';
+      if (!fichiers.length) return;
+      const etat = el('pa-' + ticketId);
+      if (etat) etat.textContent = 'Envoi…';
+      const t = ticketDe(devisId, ticketId);
+      if (!t) { toast('Ticket introuvable — recharge la page.', 'error'); return; }
+      const urls = [];
+      for (const f of fichiers) {
+        try { urls.push(await window.SSUI.compressAndUploadPhoto(f, devisId)); }
+        catch (e) { toast('Photo non envoyée : ' + e.message, 'error', 6000); }
+      }
+      if (!urls.length) { if (etat) etat.textContent = ''; return; }
+      if (await majTicket(devisId, ticketId, { photos_apres: (t.photos_apres || []).concat(urls) })) {
+        toast(urls.length + ' photo(s) ajoutée(s)', 'ok');
+        RESOUT = ticketId;   // on garde la zone de clôture ouverte, on était en train de clore
+        load();
+      }
+    };
+
     window.cloturer = async (devisId, ticketId) => {
       const champ = el('rs-' + ticketId);
       const texte = (champ && champ.value.trim()) || '';
@@ -259,6 +291,10 @@
               ? icon('user', 11) + ' ' + esc(nomDe(t.pour))
               : '<span style="color:var(--danger)">' + icon('warning', 11) + ' Personne ne s’en occupe</span>')
             + (t.echeance ? ' · pour le ' + esc(fmtDate(t.echeance)) : '')}</div>
+          ${(t.photos || []).length || (t.photos_apres || []).length ? `<div class="sav-photos">
+            ${(t.photos || []).length ? `<div class="sp-col"><div class="sp-lbl">Avant</div><div class="sp-row">${t.photos.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Constat"></a>`).join('')}</div></div>` : ''}
+            ${(t.photos_apres || []).length ? `<div class="sp-col"><div class="sp-lbl apres">Après</div><div class="sp-row">${t.photos_apres.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Réparation"></a>`).join('')}</div></div>` : ''}
+          </div>` : ''}
           ${t.resolution ? `<div class="sav-resolution">${icon('check', 12)}
             <div><b>Réparé :</b> ${esc(t.resolution)}
             ${t.cause ? `<div class="sav-cause">Cause : ${esc(t.cause)}</div>` : ''}
@@ -286,6 +322,12 @@
           <div class="sav-box ${RESOUT === t.id ? 'on' : ''}">
             <textarea class="textarea" id="rs-${esc(t.id)}" style="min-height:52px" placeholder="Ce qui a été réparé (obligatoire)…"></textarea>
             <input class="input" id="cs-${esc(t.id)}" style="margin-top:var(--sp-2)" placeholder="La cause, si elle est connue (facultatif)">
+            <div class="sav-ajout-photo">
+              <label class="btn btn-ghost btn-sm">${icon('camera', 13)} Photo après
+                <input type="file" accept="image/*" multiple style="display:none" onchange="ajouterPhotoApres(${dev}, ${id}, this)">
+              </label>
+              <span class="sp-attente" id="pa-${esc(t.id)}">${(t.photos_apres || []).length ? (t.photos_apres.length + ' photo(s) enregistrée(s)') : ''}</span>
+            </div>
             <div class="sav-box-fin">
               <button class="btn btn-ghost btn-sm" onclick="ouvrirResolution(${id})">Annuler</button>
               <button class="btn btn-primary btn-sm" onclick="cloturer(${dev}, ${id})">Marquer réparé</button>

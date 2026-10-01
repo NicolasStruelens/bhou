@@ -151,6 +151,22 @@
     check('W6 mois normal', window.SSUI.plusMois('2026-03-15', 12), '2027-03-15');
     check('W7 une date absurde ne renvoie pas n importe quoi', window.SSUI.plusMois('pas-une-date', 12), '');
 
+    // Pose PREVUE (dans le futur) : la garantie n'a pas commence. L'afficher « sous garantie »
+    // pousserait a ne pas facturer une intervention qui l'est.
+    check('W8 pose prevue = garantie non demarree',
+      window.SSUI.garantieDe({ statut: 'signe', chantier: { date_pose: jour(20) } }, R12).sous_garantie, false);
+    check('W9 … et on dit pourquoi',
+      window.SSUI.garantieDe({ statut: 'signe', chantier: { date_pose: jour(20) } }, R12).avant_pose, true);
+    check('W10 signe sans date = pose pas encore faite',
+      window.SSUI.garantieDe({ statut: 'signe' }, R12).avant_pose, true);
+    // Un SAV se cree des que le devis est SIGNE : un materiel livre defectueux se constate avant
+    // la pose -- c'est le cas des 33 screens dont un seul etait casse.
+    check('W11 SAV possible sur un devis signe', window.SSUI.savPossible({ statut: 'signe' }), true);
+    check('W12 pas sur un brouillon', window.SSUI.savPossible({ statut: 'brouillon' }), false);
+    check('W13 pas sur un dossier archive', window.SSUI.savPossible({ statut: 'signe', archive: 1 }), false);
+    check('W14 mais oui s il porte deja un ticket',
+      window.SSUI.savPossible({ statut: 'brouillon', sav_tickets: [{ id: 't' }] }), true);
+
     // ══════════ 2. SAV ══════════
     const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
     check('S1 ticket sans responsable', A.depuisSav(devisSav(

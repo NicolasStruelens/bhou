@@ -636,7 +636,11 @@ export async function onRequest(context) {
         probleme: String(body.probleme || 'autre').slice(0, 40),
         description: description.slice(0, 5000),
         statut,
+        // Deux series distinctes : le CONSTAT (ce qu'on a trouvé) et la RÉPARATION (ce qu'on a
+        // laissé). Les mélanger faisait perdre la seule preuve utile en cas de contestation —
+        // et on ne savait plus, six mois après, à quoi ressemblait le défaut d'origine.
         photos: Array.isArray(body.photos) ? body.photos.slice(0, 20) : ((idx !== -1 && tickets[idx].photos) || []),
+        photos_apres: Array.isArray(body.photos_apres) ? body.photos_apres.slice(0, 20) : ((idx !== -1 && tickets[idx].photos_apres) || []),
         // Responsable et échéance. Un ticket SAV n'attendait PERSONNE nommément : un client
         // mécontent, et chacun pouvait croire que l'autre s'en occupait. Sans nom dessus, rien
         // n'avance ; sans date, rien n'est jamais urgent (voir assets/js/attente.js).

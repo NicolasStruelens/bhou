@@ -169,6 +169,8 @@
     /* `.reply-banner` (réponse à une note d'équipe) vit dans base.css : la fenêtre du tableau de
        bord l'utilise aussi, et deux copies du même style finiraient par diverger. */
 
+    /* Les photos APRES se distinguent du constat : sans ca on ne sait plus laquelle est laquelle. */
+    .sav-apres { border-left: 2px solid color-mix(in srgb, var(--ok) 55%, transparent); padding-left: var(--sp-2); }
     .sav-ticket-fix { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-2);
       padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm);
       border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
@@ -788,13 +790,9 @@
           <div class="sav-form">
             <div class="grid grid-2">
               <div class="field"><label class="label" for="savProbleme">Type de problème</label>
-                <select class="select" id="savProbleme">
-                  <option value="moteur">Moteur</option>
-                  <option value="toile">Toile</option>
-                  <option value="reglage">Réglage</option>
-                  <option value="garantie">Garantie</option>
-                  <option value="autre">Autre</option>
-                </select>
+                <!-- Rempli depuis SSUI.SAV_TYPE_LABEL (source unique) : une liste en dur ici
+                     aurait diverge de celle de la page SAV a la premiere nature ajoutee. -->
+                <select class="select" id="savProbleme"></select>
               </div>
               <!-- Responsable et échéance : un ticket SAV n'attendait personne nommément, donc
                    chacun pouvait croire que l'autre s'en occupait. Sans nom dessus rien n'avance,
@@ -1703,18 +1701,22 @@
     };
 
     // ── SAV (uniquement une fois l'installation terminée) ──
-    const SAV_TYPE_LABEL = { moteur: 'Moteur', toile: 'Toile', reglage: 'Réglage', garantie: 'Garantie', autre: 'Autre' };
+    const SAV_TYPE_LABEL = window.SSUI.SAV_TYPE_LABEL;   // source unique : assets/js/ui.js
+    (function remplirNaturesSav() {
+      const sel = el('savProbleme');
+      if (sel) sel.innerHTML = Object.keys(SAV_TYPE_LABEL)
+        .map(k => `<option value="${k}">${SAV_TYPE_LABEL[k]}</option>`).join('');
+    })();
     const SAV_STATUT_LABEL = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu' };
     const SAV_STATUT_COLOR = { ouvert: 'var(--danger)', en_cours: 'var(--warn)', resolu: 'var(--ok)' };
     let EDITING_SAV_ID = null, PENDING_SAV_PHOTOS = [];
     function renderSav() {
       const card = el('savCard');
-      // Le SAV devient pertinent dès que la pose est FAITE — pas seulement quand le devis a été
-      // repassé en « Terminé » à la main. On utilise le jalon partagé isPoseDone (PV de réception
-      // signé ou étape fournisseur « Posé »), cohérent avec l'agenda et la garantie. Et si des
-      // tickets existent déjà, la carte reste évidemment visible quel que soit le statut.
+      // Le SAV est possible dès que le devis est SIGNÉ (règle partagée SSUI.savPossible) : sur
+      // 33 screens livrés, un seul était défectueux — AVANT la pose. Le limiter aux chantiers
+      // posés rendait ce cas, pourtant réel, impossible à enregistrer nulle part.
       const tickets0 = DEVIS.sav_tickets || [];
-      const show = window.SSUI.isPoseDone(DEVIS) || DEVIS.statut === 'termine' || tickets0.length > 0;
+      const show = window.SSUI.savPossible(DEVIS);
       card.classList.toggle('hidden', !show);
       if (!show) return;
       // Un ticket non résolu est une action en attente : on déplie la carte d'office (sinon elle
@@ -1746,6 +1748,11 @@
                app/sav.html) doivent dire la meme chose, sinon on recommence le diagnostic. -->
           ${t.statut !== 'resolu' && t.pour ? `<div class="sav-ticket-date mt-1">${icon('user', 11)} ${esc(SSUI.SELLER_LABELS[t.pour] || t.pour)}${t.echeance ? ' · pour le ' + fmtDate(t.echeance) : ''}</div>` : ''}
           ${t.statut !== 'resolu' && !t.pour ? `<div class="sav-ticket-date mt-1" style="color:var(--danger)">${icon('warning', 11)} Personne ne s’en occupe</div>` : ''}
+          ${(t.photos_apres || []).length ? `<div class="sav-ticket-photos sav-apres">${t.photos_apres.map(p => {
+            const i2 = PHOTOS.length;
+            PHOTOS.push({ src: p, cap: `Ticket SAV — après réparation`, sav: true });
+            return `<button type="button" class="sav-photo-mini" onclick="lbOpen(${i2})" aria-label="Agrandir la photo"><img src="${p}" alt=""></button>`;
+          }).join('')}</div>` : ''}
           ${t.resolution ? `<div class="sav-ticket-fix">${icon('check', 12)} <div><b>Réparé :</b> ${esc(t.resolution)}${t.cause ? `<div class="sav-ticket-cause">Cause : ${esc(t.cause)}</div>` : ''}</div></div>` : ''}
           ${(t.notes || []).length ? `<div class="sav-ticket-notes">${t.notes.map(n => `<div>${esc(SSUI.SELLER_LABELS[n.auteur] || n.auteur || '—')} : ${esc(n.texte)}</div>`).join('')}</div>` : ''}
           ${t.date_resolution ? `<div class="sav-ticket-date mt-1">Résolu le ${fmtDate(t.date_resolution)}</div>` : ''}
