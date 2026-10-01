@@ -99,6 +99,13 @@
       font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; color: var(--on-accent); background: var(--ac, var(--accent)); }
     .ec-rep .txt { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; line-height: 1.5; }
     .ec-rep .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    /* La décision : mise en avant, c'est ce qu'on vient relire des semaines plus tard. */
+    .ec-decision { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-3);
+      padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+      background: color-mix(in srgb, var(--ok) 8%, transparent); }
+    .ec-decision svg { color: var(--ok); flex: none; margin-top: 2px; }
+    .ec-decision .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.2rem; }
     .ec-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
     .ec-repbox { margin-top: var(--sp-3); display: none; }
     .ec-repbox.on { display: block; }
@@ -201,6 +208,7 @@
     let P_POUR = '';
     let F_KIND = '';                 // filtre de nature, vide = toutes
     let REPOND = '';                 // sujet dont la zone de réponse est ouverte
+    let DECIDE = '';                 // sujet dont la zone « ce qui a été décidé » est ouverte
 
     function autre(k) { return k === 'nicolas' ? 'yannick' : 'nicolas'; }
     function nomDe(k) { return SELLER_LABELS[k] || k || '—'; }
@@ -247,7 +255,8 @@
         if (!voirFaits && s.statut === 'fait') return false;
         if (F_KIND && s.kind !== F_KIND) return false;
         if (!q) return true;
-        const foin = [s.titre, s.corps, s.client_nom, nomDe(s.auteur), (s.reponses || []).map(function (r) { return r.texte; }).join(' ')].join(' ').toLowerCase();
+        const foin = [s.titre, s.corps, s.client_nom, s.decision, nomDe(s.auteur),
+          (s.reponses || []).map(function (r) { return r.texte; }).join(' ')].join(' ').toLowerCase();
         return foin.indexOf(q) >= 0;
       });
       // Ce qui m'attend passe devant : c'est la seule question qu'on se pose en ouvrant la page.
@@ -311,10 +320,10 @@
       // le geste et fait qu'on remet à plus tard. Ce qui n'est pas attribuable renvoie à sa fiche.
       let actions = '';
       if (it.peutPrendre && !it.qui) {
-        actions = '<button class="btn btn-primary btn-sm" onclick="attribuer(\'' + id + '\',\'' + MOI.key + '\')">Je prends</button>' +
-          '<button class="btn btn-ghost btn-sm" onclick="attribuer(\'' + id + '\',\'' + autre(MOI.key) + '\')">Pour ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+        actions = '<button class="btn btn-primary btn-sm" onclick="attribuer(' + id + ',\'' + MOI.key + '\')">Je prends</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',\'' + autre(MOI.key) + '\')">Pour ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
       } else if (it.peutPrendre && it.qui === MOI.key) {
-        actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(\'' + id + '\',\'' + autre(MOI.key) + '\')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+        actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',\'' + autre(MOI.key) + '\')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
       }
       if (it.href) actions += '<button class="btn btn-ghost btn-sm" onclick="location.href=\'' + it.href + '\'">Ouvrir</button>';
       return '<div class="at-item ' + (it.qui ? '' : 'orphelin') + '" style="--uc:' + (s.couleur || 'var(--accent)') + '">' +
@@ -440,23 +449,34 @@
         '</div>' +
         '<div class="ec-meta">' + escHtml(meta) + lienClient + '</div>' +
         (s.corps ? '<div class="ec-corps">' + escHtml(s.corps) + '</div>' : '') +
+        (s.decision ? '<div class="ec-decision">' + icon('check', 13) +
+          '<div><b>Décidé :</b> ' + escHtml(s.decision) +
+          '<div class="qd">' + escHtml(nomDe(s.decision_par) + (s.decision_le ? ' · ' + relTime(s.decision_le) : '')) + '</div></div></div>' : '') +
         ((s.reponses || []).length ? '<div class="ec-fil">' + s.reponses.map(function (r) {
           return '<div class="ec-rep">' + avatar(r.auteur) + '<div><div class="txt">' + escHtml(r.texte) + '</div>' +
             '<div class="qd">' + escHtml(nomDe(r.auteur) + ' · ' + relTime(r.date)) + '</div></div></div>';
         }).join('') + '</div>' : '') +
         '<div class="ec-actions">' +
           (s.statut === 'fait'
-            ? '<button class="btn btn-ghost btn-sm" onclick="rouvrir(\'' + id + '\')">' + icon('reply', 13) + ' Rouvrir</button>'
-            : '<button class="btn btn-ghost btn-sm" onclick="ouvrirReponse(\'' + id + '\')">' + icon('message', 13) + ' Répondre</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="marquerFait(\'' + id + '\')">' + icon('check', 13) + ' C’est fait</button>') +
+            ? '<button class="btn btn-ghost btn-sm" onclick="rouvrir(' + id + ')">' + icon('reply', 13) + ' Rouvrir</button>'
+            : '<button class="btn btn-ghost btn-sm" onclick="ouvrirReponse(' + id + ')">' + icon('message', 13) + ' Répondre</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="marquerFait(' + id + ')">' + icon('check', 13) + ' C’est fait</button>') +
           (s.devis_id ? '<button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(s.devis_id) + '\'">' + icon('window', 13) + ' Le dossier</button>' : '') +
-          '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(\'' + id + '\')">Supprimer</button>' +
+          '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(' + id + ')">Supprimer</button>' +
+        '</div>' +
+        '<div class="ec-repbox ' + (DECIDE === s.id ? 'on' : '') + '" id="dec-' + escHtml(s.id) + '">' +
+          '<textarea class="textarea" id="dt-' + escHtml(s.id) + '" style="min-height:58px" placeholder="' +
+            (s.kind === 'question' ? 'Ce qui a été décidé (obligatoire sur une question)…' : 'Ce qui a été décidé, ou fait (facultatif)…') + '"></textarea>' +
+          '<div class="ec-fin">' +
+            '<button class="btn btn-ghost btn-sm" onclick="ouvrirDecision(' + id + ')">Annuler</button>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="classerAvecDecision(' + id + ')">Classer</button>' +
+          '</div>' +
         '</div>' +
         '<div class="ec-repbox ' + (REPOND === s.id ? 'on' : '') + '" id="rep-' + escHtml(s.id) + '">' +
           '<textarea class="textarea" id="rt-' + escHtml(s.id) + '" placeholder="Ta réponse…" style="min-height:58px"></textarea>' +
           '<div class="ec-fin">' +
             '<label class="chip" style="cursor:pointer"><input type="checkbox" id="rl-' + escHtml(s.id) + '" style="vertical-align:-1px"> Et je lui redemande</label>' +
-            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="envoyerReponse(\'' + id + '\')">Envoyer</button>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="envoyerReponse(' + id + ')">Envoyer</button>' +
           '</div>' +
         '</div>' +
         '</div>';
@@ -518,19 +538,47 @@
       rendre();
     };
 
-    async function majStatut(id, statut) {
+    // ── La décision ──────────────────────────────────────────────────────────────────────────
+    // C'est elle qui fait la différence entre une messagerie et une mémoire commune : « on avait
+    // dit quoi pour les coulisses de Depaepe ? » doit avoir une réponse dans l'ERP, pas dans un
+    // SMS perdu. On la demande AU MOMENT de classer — après, personne ne revient l'écrire.
+    window.ouvrirDecision = function (id) {
+      DECIDE = DECIDE === id ? '' : id;
+      rendre();
+      const t = el('dt-' + id);
+      if (t) t.focus();
+    };
+    window.classerAvecDecision = async function (id) {
+      const champ = el('dt-' + id);
+      const texte = (champ && champ.value.trim()) || '';
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!s) return;
+      // Sur une QUESTION, la décision est le résultat même : la classer sans rien noter, c'est
+      // perdre exactement ce qu'on voulait garder. Ailleurs elle reste facultative.
+      if (!texte && s.kind === 'question') {
+        toast('Écris ce qui a été décidé — c’est tout l’intérêt de classer une question.', 'warn', 6000);
+        if (champ) champ.focus();
+        return;
+      }
+      DECIDE = '';
+      await majStatut(id, 'fait', texte);
+    };
+
+    async function majStatut(id, statut, decision) {
       const s = SUJETS.filter(function (x) { return x.id === id; })[0];
       if (!s) return;
       // On étale le sujet et on ne change que le statut : une énumération de champs perdrait
       // silencieusement ce qu'elle ne connaît pas (règle 2 du guide). Les RÉPONSES, elles, ne
       // passent jamais par ici — le serveur les conserve et elles ont leur propre route.
-      const res = await SS.saveSujet(Object.assign({}, s, { statut: statut }));
+      const patch = { statut: statut };
+      if (decision) patch.decision = decision;
+      const res = await SS.saveSujet(Object.assign({}, s, patch));
       if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
       toast(statut === 'fait' ? 'Classé' : 'Rouvert', 'ok');
       SUJETS = (await SS.listSujets()) || [];
       rendre();
     }
-    window.marquerFait = function (id) { majStatut(id, 'fait'); };
+    window.marquerFait = function (id) { ouvrirDecision(id); };
     window.rouvrir = function (id) { majStatut(id, 'ouvert'); };
 
     window.supprimer = async function (id) {

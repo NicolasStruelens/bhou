@@ -196,6 +196,14 @@ signalent déjà, et une liste qui se répète perd sa crédibilité), le planni
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
 
+**16. Une question qu'on classe doit laisser une DÉCISION ÉCRITE.** C'est ce qui sépare une
+messagerie d'une mémoire commune : « on avait dit quoi pour les coulisses de Depaepe ? » doit avoir
+une réponse dans l'ERP, pas dans un SMS perdu. La décision est demandée AU MOMENT de classer (après,
+personne ne revient l'écrire), **obligatoire sur une `question`** et facultative ailleurs. Le serveur
+la signe et l'horodate, et seulement quand elle CHANGE — renvoyer le sujet pour une autre raison ne
+doit pas réattribuer une décision prise par l'autre. Elle survit à une réouverture (une décision
+prise reste un fait) et elle est cherchable : c'est ce qu'on vient relire des semaines plus tard.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
@@ -245,6 +253,20 @@ Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttent
   — seule la capture d'écran le montre.
 - **`SSUI.clientKeyOf` prend `(prenom, nom)`, pas l'objet client.** Lui passer la fiche entière
   produit la clé « |[object object] », qui ne rapproche évidemment aucune fiche CRM — et sans erreur.
+- **`SSUI.jsAttr()` renvoie la valeur AVEC ses guillemets** (`JSON.stringify`, puis `"` → `&quot;`).
+  L'entourer de quotes en plus produit `attribuer('"sav:2026-0012:abc"')` : l'identifiant arrive
+  avec des guillemets LITTÉRAUX, ne correspond à rien, et la fonction sort en silence. S'écrit
+  `onclick="f(' + jsAttr(x) + ')"`, jamais `onclick="f('' + jsAttr(x) + '')"`. Ce défaut a cassé
+  d'un coup « Je prends », le clic sur un événement du planning, la date de pose, et Répondre /
+  Classer / Supprimer sur un sujet — **sans une seule erreur en console**.
+- **Une `function X()` au premier niveau d'un script classique crée déjà `window.X`.** Réassigner
+  `window.X = function …` ensuite fait que l'appel interne à `X()` résout vers la NOUVELLE fonction :
+  récursion infinie, « Maximum call stack size exceeded », et plus rien ne s'enregistre. Donner un
+  nom distinct à la fonction interne (`ecrireChantier` vs `window.setChantier`).
+- **Tester un bouton en appelant sa fonction depuis la console ne prouve RIEN** : `fixerPose(id, v)`
+  marchait parfaitement alors que le bouton était cassé, parce que l'erreur était dans la chaîne
+  `onclick` générée. Cliquer pour de vrai (`element.click()` ou un clic sur la référence), et lire
+  l'attribut `onclick` rendu quand on doute.
 - **Une transition CSS sur un fond en `color-mix(…, transparent)`** ne s'anime pas dans Chrome et
   reste bloquée sur sa valeur de départ : le fond n'apparaît jamais. Ne pas animer ce fond.
 - **`grid-column: span N` dans une grille repliée sur une colonne** crée une colonne implicite et
