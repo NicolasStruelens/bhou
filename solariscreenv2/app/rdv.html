@@ -277,6 +277,7 @@
   <script src="../assets/js/attente.js"></script>
   <script>
     const SS = window.SS;
+    const A = window.SSAttente;   // source unique du « qui doit agir » (assets/js/attente.js)
     const { mountThemeToggle } = window.SSTheme;
     const { fmtDate, el, toast, qp, icon, compressImage, generateDevisId, clientKeyOf, jsAttr } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
@@ -320,6 +321,7 @@
     let PENDING_PHOTOS = [];    // photos de la fiche ouverte
     let CLIENT_DIRECTORY = [];  // annuaire clients (base CRM + clients des devis) pour l'autocomplétion
     let DEVIS_IDS = new Set();  // ids des devis existants → détecte un devis lié qui a été supprimé
+    let DEVIS_LISTE = [];       // les devis eux-mêmes : on a besoin de leur STATUT, pas juste de leur id
 
     // ── Chargement ──
     async function load() {
@@ -345,6 +347,8 @@
     async function buildClientDirectory() {
       const [clients, devisList] = await Promise.all([SS.listClients(), SS.listDevis()]);
       DEVIS_IDS = new Set((devisList || []).map(d => String(d.id)));
+      DEVIS_LISTE = devisList || [];
+      render();   // le brief et les badges dépendent de l'état des devis, arrivé après le 1er rendu
       const map = new Map();
       (devisList || []).forEach(d => {
         const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
@@ -428,9 +432,8 @@
     // jamais se contredire — la leçon déjà payée par TYPE_LABEL et par l'argent dû.
     function renderBrief() {
       const host = el('briefHost');
-      const A = window.SSAttente;
       if (!A) { host.innerHTML = ''; return; }
-      const items = A.concerne(A.depuisRdv(RDV), IDENTITY.key || '');
+      const items = A.concerne(A.depuisRdv(RDV, DEVIS_LISTE), IDENTITY.key || '');
       if (!items.length) { host.innerHTML = ''; return; }
       host.innerHTML = `<div class="rdv-brief">
         <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
@@ -457,7 +460,6 @@
       // Ancienneté d'un contact entrant que PERSONNE n'a encore pris : visible d'un coup d'œil,
       // vire à l'orange puis au rouge. C'est le principal levier de conversion sur un lead web.
       if (!r.assigned_to && !['converti', 'annule'].includes(r.statut)) {
-        const A = window.SSAttente;
         const h = A ? A.heuresDepuis(r.date_creation) : 0;
         const cls = h >= A.SEUILS.LEAD_CRITIQUE_H ? 'danger' : (h >= A.SEUILS.LEAD_ATTENTION_H ? 'warn' : '');
         badges.push(`<span class="lead-age ${cls}" title="Personne n'a encore pris cette demande en charge">${icon('clock', 10)} ${esc(A.age(r.date_creation))}</span>`);
@@ -473,7 +475,18 @@
         const mine = r.awaiting === (IDENTITY.key || 'nicolas');
         badges.push(`<span class="rb-await ${mine ? 'me' : ''}" title="${mine ? 'On attend TA réponse' : 'En attente de la réponse de ' + (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}">${icon('clock', 10)} ${mine ? 'à toi de répondre' : (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</span>`);
       }
-      if (r.devis_id) badges.push('<span class="badge badge-ok">Devis lié</span>');
+      // « Devis lié » ne disait pas l'essentiel : établi ? envoyé ? signé ? C'est pourtant la seule
+      // chose qu'on veut savoir après une visite. L'état vient du devis lui-même, jamais ressaisi.
+      const lienDevis = A ? A.devisDeRdv(r, DEVIS_LISTE) : null;
+      if (lienDevis) {
+        const d = lienDevis.devis;
+        const st = String(d.statut || 'brouillon');
+        const cls = st === 'brouillon' ? 'badge-warn' : (['signe', 'termine'].includes(st) ? 'badge-ok' : 'badge-accent');
+        const txt = st === 'brouillon' ? 'Devis à envoyer' : 'Devis ' + (window.SSUI.STATUT_DEVIS_LABEL[st] || st).toLowerCase();
+        badges.push(`<span class="badge ${cls}" title="Devis #${esc(d.id)}${lienDevis.lien === 'probable' ? ' — rapproché par le nom du client' : ''}">${txt}</span>`);
+      } else if (r.devis_id) {
+        badges.push('<span class="badge badge-ok">Devis lié</span>');
+      }
       // « Visite faite » en UN clic, directement sur la carte : le glisser-déposer vers la colonne
       // « Visité » existe mais personne ne le devine — résultat, les visites passées restaient
       // coincées en « RDV fixé » (constaté en prod avec une vraie visite du 20/07).

@@ -84,6 +84,45 @@
       { id: 'R', statut: 'a_contacter', assigned_to: 'nicolas', client: cli('D'), rappel_date: AUJ, date_creation: ilYaH(2), date_rdv: DEMAIN },
     ])), ['Rappel prévu aujourd’hui']);
 
+    // ══════════ 1 bis. Apres la visite : ou en est le DEVIS ? ══════════
+    // Sans ce rapprochement, une demande visitee dont le devis avait ete fait au simulateur
+    // restait « en attente du devis » POUR TOUJOURS : l'ERP ne pouvait pas savoir qu'il existait.
+    const VISITE = { id: 'RV', statut: 'visite', assigned_to: 'nicolas', client: { nom: 'Zurstrassen', prenom: 'Doris' },
+                     devis_id: '', date_modification: ilYaH(48) };
+    check('V1 aucun devis → on le reclame', quoi(A.depuisRdv([VISITE], [])), ['Visité, en attente du devis']);
+    // Lien EXPLICITE (bouton « Creer le devis » : il pose devis.rdv_id).
+    check('V2 devis lie en brouillon → c’est l’envoi qui manque',
+      quoi(A.depuisRdv([VISITE], [{ id: 'D1', rdv_id: 'RV', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' } }])),
+      ['Devis commencé, pas encore envoyé']);
+    // Devis parti : les relances du devis prennent le relais, on ne reclame plus rien ici.
+    check('V3 devis envoye → plus rien a reclamer',
+      A.depuisRdv([VISITE], [{ id: 'D1', rdv_id: 'RV', statut: 'envoye_client', client: { nom: 'Zurstrassen', prenom: 'Doris' } }]).length, 0);
+    check('V4 devis signe → plus rien a reclamer',
+      A.depuisRdv([VISITE], [{ id: 'D1', rdv_id: 'RV', statut: 'signe', client: { nom: 'Zurstrassen', prenom: 'Doris' } }]).length, 0);
+    // Lien PROBABLE : devis fait directement au simulateur, rapproche par le nom du client.
+    check('V5 devis du meme client, sans lien explicite',
+      quoi(A.depuisRdv([VISITE], [{ id: 'D9', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' } }])),
+      ['Devis commencé, pas encore envoyé']);
+    check('V6 le rapprochement est signale comme tel',
+      A.depuisRdv([VISITE], [{ id: 'D9', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' } }])[0].detail.indexOf('rapproché') >= 0, true);
+    check('V7 un autre client ne compte pas',
+      quoi(A.depuisRdv([VISITE], [{ id: 'D9', statut: 'brouillon', client: { nom: 'Autre', prenom: 'Jean' } }])),
+      ['Visité, en attente du devis']);
+    // Une demande deja « convertie » mais dont le devis dort en brouillon : le travail SEMBLE fait,
+    // c'est exactement celle qu'on oublie.
+    check('V8 convertie avec devis en brouillon → signale quand meme',
+      quoi(A.depuisRdv([{ id: 'RC', statut: 'converti', assigned_to: 'nicolas', client: { nom: 'X', prenom: 'Y' },
+                         devis_id: 'D2', date_modification: ilYaH(48) }],
+                       [{ id: 'D2', statut: 'brouillon', client: { nom: 'X', prenom: 'Y' } }])),
+      ['Devis commencé, pas encore envoyé']);
+    check('V9 un devis archive ne sert pas de rapprochement',
+      A.devisDeRdv(VISITE, [{ id: 'D9', archive: 1, statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' } }]), null);
+    check('V10 le lien explicite prime sur le rapprochement',
+      A.devisDeRdv(VISITE, [
+        { id: 'DX', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' }, date_creation: '2026-09-01' },
+        { id: 'DY', rdv_id: 'RV', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' }, date_creation: '2026-01-01' },
+      ]).devis.id, 'DY');
+
     // ══════════ 2. SAV ══════════
     const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
     check('S1 ticket sans responsable', A.depuisSav(devisSav(

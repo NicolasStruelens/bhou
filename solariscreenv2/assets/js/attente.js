@@ -85,6 +85,34 @@
     const o = c || {};
     return ((o.prenom || '') + ' ' + (o.nom || '')).trim() || 'Sans nom';
   }
+  function cleClient(c) {
+    const o = c || {};
+    const n = String(o.nom || '').trim().toLowerCase();
+    const p = String(o.prenom || '').trim().toLowerCase();
+    return (n || p) ? (n + '|' + p).replace(/\s+/g, ' ') : '';
+  }
+
+  /** Le devis qui correspond à une demande de RDV.
+   *  • lien EXPLICITE : `devis.rdv_id` (posé par « Créer le devis ») ou `rdv.devis_id` ;
+   *  • lien PROBABLE : même client, pour un devis établi directement au simulateur.
+   *  Sans ce rapprochement, une demande visitée dont le devis a été fait ailleurs restait
+   *  « en attente du devis » POUR TOUJOURS — l'ERP ne pouvait pas savoir qu'il était parti. */
+  function devisDeRdv(rdv, devis) {
+    if (!rdv) return null;
+    const liste = devis || [];
+    const explicite = liste.filter(function (d) {
+      return (rdv.devis_id && String(d.id) === String(rdv.devis_id))
+          || (d.rdv_id && String(d.rdv_id) === String(rdv.id));
+    })[0];
+    if (explicite) return { devis: explicite, lien: 'explicite' };
+    const cle = cleClient(rdv.client);
+    if (!cle) return null;
+    // Le plus RÉCENT : un client peut avoir plusieurs devis, c'est celui qui suit la visite
+    // qui nous intéresse.
+    const proches = liste.filter(function (d) { return d && !d.archive && cleClient(d.client) === cle; })
+      .sort(function (a, b) { return String(b.date_creation || '').localeCompare(String(a.date_creation || '')); });
+    return proches.length ? { devis: proches[0], lien: 'probable' } : null;
+  }
 
   /** Fabrique un élément d'attente. `qui` vide = PERSONNE, et c'est le cas le plus grave. */
   function item(o) {
@@ -106,13 +134,36 @@
 
   // ── DEMANDES DE RDV ───────────────────────────────────────────────────────────────────────
   // Règles reprises telles quelles du brief de rdv.html, qui les avait déjà éprouvées.
-  function depuisRdv(rdvs) {
+  /** Signale un devis resté en brouillon pour cette demande. Renvoie `true` si un devis a été
+   *  trouvé (brouillon ou non) — l'appelant sait alors qu'il n'a plus à en réclamer un. */
+  function devisEnBrouillon(r, devis, out, nom, href) {
+    const lien = devisDeRdv(r, devis);
+    if (!lien) return false;
+    if (String(lien.devis.statut || 'brouillon') === 'brouillon') {
+      out.push(item({
+        id: 'rdv:' + r.id + ':devisbrouillon', source: 'rdv', ref: r.id, rdv_id: r.id,
+        devis_id: lien.devis.id,
+        qui: r.assigned_to || '', titre: nom, quoi: 'Devis commencé, pas encore envoyé',
+        detail: 'Devis #' + lien.devis.id + (lien.lien === 'probable' ? ' (rapproché par le nom du client)' : ''),
+        depuis: lien.devis.date_modification || r.date_modification,
+        href: 'vue.html?id=' + encodeURIComponent(lien.devis.id), urgence: URGENCE.HAUTE,
+      }));
+    }
+    return true;
+  }
+
+  function depuisRdv(rdvs, devis) {
     const out = [];
     const auj = aujourdhui(), dem = demain();
     (rdvs || []).forEach(function (r) {
-      if (!r || ['annule', 'converti'].indexOf(r.statut) >= 0) return;
+      if (!r || r.statut === 'annule') return;
       const nom = nomClient(r.client);
       const href = 'rdv.html?open=' + encodeURIComponent(r.id);
+      // Une demande CONVERTIE a quitté le circuit : l'affaire vit dans le devis, et les relances
+      // du devis prennent le relais. Une seule exception se rattrape ici — le devis est resté en
+      // brouillon : la demande est classée, le travail semble fait, et personne ne revient voir
+      // qu'il n'est jamais parti.
+      if (r.statut === 'converti') { devisEnBrouillon(r, devis, out, nom, href); return; }
       if (!r.assigned_to) {
         const h = heuresDepuis(r.date_creation);
         out.push(item({
@@ -157,7 +208,10 @@
           depuis: r.date_rdv, href: href, urgence: URGENCE.HAUTE,
         }));
       }
-      if (r.statut === 'visite' && !r.devis_id) {
+      // Après la visite, c'est le DEVIS qui fait avancer l'affaire : on regarde son état RÉEL au
+      // lieu de supposer. Un devis déjà parti ne doit plus être réclamé — avant, « en attente du
+      // devis » restait affiché pour toujours, puisque rien ne reliait la demande au devis.
+      if (r.statut === 'visite' && !devisEnBrouillon(r, devis, out, nom, href)) {
         out.push(item({
           id: 'rdv:' + r.id + ':sansdevis', source: 'rdv', ref: r.id, rdv_id: r.id,
           qui: r.assigned_to || '', titre: nom, quoi: 'Visité, en attente du devis',
@@ -288,7 +342,7 @@
   function construire(sources) {
     const s = sources || {};
     return trier([]
-      .concat(depuisRdv(s.rdvs))
+      .concat(depuisRdv(s.rdvs, s.devis))
       .concat(depuisSav(s.devis))
       .concat(depuisPlanning(s.evenements, s.aPlanifier, s.reglages))
       .concat(depuisSujets(s.sujets)));
@@ -353,6 +407,7 @@
     aujourdhui: aujourdhui, demain: demain,
     heuresDepuis: heuresDepuis, joursDepuis: joursDepuis, age: age, delai: delai,
     depuisRdv: depuisRdv, depuisSav: depuisSav, depuisPlanning: depuisPlanning, depuisSujets: depuisSujets,
+    devisDeRdv: devisDeRdv, cleClient: cleClient,
     construire: construire, trier: trier,
     pourQui: pourQui, sansPersonne: sansPersonne, concerne: concerne, compter: compter,
     charger: charger,

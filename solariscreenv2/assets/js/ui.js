@@ -350,6 +350,22 @@
   // client en a besoin aussi, donc il monte ici plutôt que d'être recopié une deuxième fois.
   const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
 
+  // Statuts d'un DEVIS. Ces libellés vivaient en cinq copies (clients, dashboard ×2, stats, vue) ;
+  // voici la source officielle vers laquelle elles doivent converger — même raison que TYPE_LABEL,
+  // qui avait fini en treize exemplaires divergents.
+  // ⚠️ Le statut « envoyé » s'appelle `envoye_client`, pas `envoye` : s'y tromper fait silencieusement
+  // retomber sur la valeur brute.
+  const STATUT_DEVIS_LABEL = {
+    brouillon: 'Brouillon',
+    envoye_client: 'Envoyé',
+    relance_1: 'Relance 1',
+    relance_2: 'Relance 2',
+    signe: 'Signé',
+    termine: 'Terminé',
+    refuse: 'Refusé',
+    annule: 'Annulé',
+  };
+
   /* Noms affichables des types de produit — SOURCE UNIQUE.
      Ils vivaient en 13 copies locales, et elles avaient déjà divergé : le tableau de bord ne
      connaissait ni `pergola` ni `store_banne`, donc son filtre produit affichait « pergola » en
@@ -1390,6 +1406,7 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
+    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
