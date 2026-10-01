@@ -254,6 +254,16 @@ le ticket ENTIER (`pour`, `echeance`, `cause`, `resolution`, `notes`…), sinon 
 Les deux écrans du SAV — `app/sav.html` et la carte de `app/vue.html` — doivent afficher la même
 chose, sinon on refait le diagnostic.
 
+**21. Deux statuts différents ne portent JAMAIS la même couleur** (`SSUI.STATUT_DEVIS_COULEUR`).
+Sur le tableau de bord, le liseré est ce qu'on voit AVANT de lire le statut. `relance_1` et
+`relance_2` étaient toutes deux en `--warn`, `brouillon` et `annule` toutes deux en
+`--text-subtle` : un devis relancé deux fois ressemblait à un devis relancé une fois, et un
+brouillon EN COURS à un dossier abandonné. La couleur raconte la progression — neutre, bleu,
+orange, rouge-orangé, puis vert gagné / rouge perdu / éteint abandonné.
+`relance_2` n'est pas le rouge de `refuse` : une relance 2 est encore en jeu, un refus ne l'est
+plus. Même teinte dans le CRM (`.badge-relance2`) et sur le tableau de bord, sinon les deux écrans
+racontent deux histoires. `annule` se distingue de `brouillon` par l'extinction, pas par la teinte.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un

@@ -391,6 +391,23 @@
     return ['signe', 'termine'].indexOf(d.statut) >= 0 || isPoseDone(d);
   }
 
+  // COULEUR par statut. Deux paires etaient strictement identiques : relance_1 et relance_2
+  // toutes deux en `--warn`, brouillon et annule toutes deux en `--text-subtle`. Sur le tableau de
+  // bord, le lisere de couleur est ce qu'on voit AVANT de lire le statut : un devis relance deux
+  // fois ressemblait a un devis relance une fois, et un brouillon en cours a un dossier abandonne.
+  // La progression doit se lire a la couleur seule : neutre -> bleu -> orange -> rouge-orange,
+  // puis vert quand c'est gagne, rouge quand c'est perdu, eteint quand c'est abandonne.
+  const STATUT_DEVIS_COULEUR = {
+    brouillon:     'var(--text-subtle)',                                  // rien n'est parti
+    envoye_client: 'var(--accent)',                                       // la balle est chez le client
+    relance_1:     'var(--warn)',                                         // ca traine
+    relance_2:     'color-mix(in srgb, var(--warn) 40%, var(--danger))',  // ca traine VRAIMENT
+    signe:         'var(--ok)',                                           // gagne
+    termine:       'var(--accent-2)',                                     // fini
+    refuse:        'var(--danger)',                                       // perdu
+    annule:        'color-mix(in srgb, var(--text-subtle) 45%, transparent)',  // eteint
+  };
+
   const STATUT_DEVIS_LABEL = {
     brouillon: 'Brouillon',
     envoye_client: 'Envoyé',
@@ -1503,7 +1520,7 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
-    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, lienSujet: lienSujet,
+    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
