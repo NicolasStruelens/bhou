@@ -60,6 +60,12 @@
     .pay-hist .ph-y { flex: 1; min-width: 0; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pay-hist .ph-x { flex: none; background: none; border: none; color: var(--text-subtle); cursor: pointer; display: inline-flex; padding: 3px; border-radius: var(--r-sm); }
     .pay-hist .ph-x:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+    /* Référence de la pièce officielle (SysCore / Falco) : discrète quand elle existe,
+       invitante quand elle manque — c'est elle qui relie ce suivi à la comptabilité réelle. */
+    .ref-ext { display: block; margin-top: 0.15rem; background: none; border: none; padding: 0;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent-2); cursor: pointer; text-align: left; }
+    .ref-ext.vide { color: var(--text-subtle); opacity: 0.6; }
+    .ref-ext:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -84,7 +90,7 @@
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <label for="search" class="sr-only">Rechercher une facture</label>
-        <input class="input" id="search" placeholder="Rechercher (n°, client)…" oninput="render()">
+        <input class="input" id="search" placeholder="Rechercher (n°, réf. SysCore, client)…" oninput="render()">
       </div>
       <select class="select" id="filter" style="max-width:200px;" onchange="render()" aria-label="Filtrer les factures">
         <option value="tous">Toutes</option>
@@ -120,6 +126,9 @@
           <div class="poses-help">Laisse le compte complet pour ce qui est terminé, réduis-le pour ce qui reste à poser. Le montant se recalcule tout seul.</div>
           <div id="mPoses"></div>
         </div>
+        <!-- La piece officielle est etablie dans Falco, sous SysCore : ce champ relie la ligne
+             d'ici a cette piece-la. Facultatif, car le numero n'est souvent connu qu'apres. -->
+        <div class="field mt-4"><label class="label" for="mRefExterne">Référence SysCore / Falco <span class="text-muted" style="font-weight:400">(facultatif)</span></label><input class="input" id="mRefExterne" placeholder="ex. 2600001" autocomplete="off"></div>
         <div class="field mt-4"><label class="label" for="mEcheance">Échéance (jours)</label><input class="input input-num" id="mEcheance" type="number" min="0" value="15"></div>
         <div class="mt-4" id="mPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
       </div>
@@ -250,7 +259,7 @@
       let rows = FACTURES.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       if (filter === 'retard') rows = rows.filter(isOverdue);
       else if (filter !== 'tous') rows = rows.filter(f => statutOf(f) === filter);
-      if (q) rows = rows.filter(f => (`${f.id} ${f.client && f.client.prenom} ${f.client && f.client.nom}`).toLowerCase().includes(q));
+      if (q) rows = rows.filter(f => (`${f.id} ${f.ref_externe || ''} ${f.client && f.client.prenom} ${f.client && f.client.nom}`).toLowerCase().includes(q));
       el('count').textContent = `${rows.length} facture(s)`;
 
       if (!rows.length) {
@@ -264,7 +273,10 @@
             <thead><tr><th>N°</th><th>Client</th><th>Type</th><th>Date</th><th>Échéance</th><th class="num">Montant</th><th class="num">Payé</th><th>Statut</th><th style="text-align:right;">Actions</th></tr></thead>
             <tbody>${rows.map(f => `
               <tr>
-                <td class="text-mono">${esc(f.id)}</td>
+                <td class="text-mono">${esc(f.id)}
+                  <button class="ref-ext ${f.ref_externe ? '' : 'vide'}" title="Référence de la pièce officielle (SysCore / Falco)"
+                    onclick="editerRef(${SSUI.jsAttr(f.id)})">${f.ref_externe ? esc(f.ref_externe) : '+ réf.'}</button>
+                </td>
                 <td>${esc((f.client && f.client.prenom) || '')} ${esc((f.client && f.client.nom) || '')}</td>
                 <td class="text-muted" style="font-size:var(--fs-2xs)">${esc(TYPE_LABEL_FAC[f.type] || f.type)}${f.avoir_de ? ' <span class="text-mono" style="opacity:.7">de ' + esc(f.avoir_de) + '</span>' : ''}</td>
                 <td class="text-muted">${fmtDate(f.date)}</td>
@@ -305,6 +317,7 @@
       // ensuite écrasé par celui du devis choisi (onDevisPick) — c'est lui qui fait foi.
       const CONF_F = (window.SSConf && window.SSConf.get()) || null;
       el('mEcheance').value = CONF_F ? CONF_F.usage.echeance_facture : 15;
+      el('mRefExterne').value = '';
       el('mPct').value = CONF_F ? CONF_F.prix.acompte_pct : 30;
       el('mType').value = 'acompte';
       if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
@@ -536,6 +549,7 @@
         // même si le devis source venait à disparaître, et sans une lecture de plus à l'affichage.
         source_type: a.devis.type_document || 'devis',
         date: today(), echeance: addDays(Number(el('mEcheance').value) || 15),
+        ref_externe: (el('mRefExterne').value || '').trim(),
         client: a.devis.client || {},
         lines: buildLines(a.devis, type, a, pct),
         total_ht: Math.round(a.total_ht * 100) / 100, total_tva: Math.round(a.total_tva * 100) / 100,
@@ -560,6 +574,22 @@
     // et c'est aussi ce qui permet de refacturer le devis proprement ensuite : le total négatif
     // vient en déduction du « déjà facturé » et rouvre le montant disponible.
     let avoirTarget = null;
+    /** La piece officielle est etablie dans Falco, souvent APRES la ligne d'ici : on doit pouvoir
+     *  rattacher le numero a tout moment, sans rouvrir ni reecrire la facture. */
+    window.editerRef = async (id) => {
+      const f = FACTURES.filter(x => String(x.id) === String(id))[0];
+      if (!f) { toast('Facture introuvable — recharge la page.', 'error'); return; }
+      const saisi = prompt('Référence de la pièce SysCore / Falco pour ' + id + ' :', f.ref_externe || '');
+      if (saisi === null) return;                       // annulé
+      const ref = saisi.trim();
+      if (ref === (f.ref_externe || '')) return;        // rien n'a changé
+      const res = await SS.setRefFacture(id, ref);
+      if (res.ok === false) { toast(res.error || 'Référence non enregistrée.', 'error', 6000); return; }
+      f.ref_externe = ref;
+      toast(ref ? 'Référence enregistrée' : 'Référence retirée', 'ok');
+      render();
+    };
+
     window.openAvoir = (encId) => {
       const id = decodeURIComponent(encId);
       avoirTarget = FACTURES.find(f => f.id === id);
