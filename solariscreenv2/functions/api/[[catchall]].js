@@ -1151,6 +1151,9 @@ export async function onRequest(context) {
       // valeur actuelle de la ligne. Réécrire le sujet entier effacerait ce que l'autre vient
       // d'ajouter — c'est exactement l'accident que la règle 3 du guide décrit.
       const reponses = (ancien && ancien.reponses) || [];
+      const decisionNeuve = String(s.decision || '').trim();
+      const decisionAncienne = String((ancien && ancien.decision) || '');
+      const decisionChange = !!decisionNeuve && decisionNeuve !== decisionAncienne;
       const propre = {
         ...(ancien || {}), ...s,
         id: String(s.id).slice(0, 60),
@@ -1168,6 +1171,15 @@ export async function onRequest(context) {
         // Statut « fait » : on garde qui a clos et quand, sinon personne ne sait qui a agi.
         fait_par: statut === 'fait' ? ((ancien && ancien.statut === 'fait' && ancien.fait_par) || acteur) : '',
         fait_le: statut === 'fait' ? ((ancien && ancien.statut === 'fait' && ancien.fait_le) || now) : '',
+        // LA DÉCISION. C'est elle qui transforme ce fil en mémoire commune plutôt qu'en messagerie :
+        // « on avait dit quoi pour les coulisses de Depaepe ? » doit avoir une réponse dans l'ERP,
+        // pas dans un SMS perdu. Signée et horodatée par le serveur, conservée si le sujet rouvre —
+        // une décision prise reste un fait, même si le sujet repart.
+        decision: (decisionNeuve || decisionAncienne).slice(0, 2000),
+        // Signée seulement quand elle CHANGE : renvoyer le sujet pour une autre raison (changement
+        // de statut, de destinataire) ne doit pas réattribuer une décision prise par l'autre.
+        decision_par: decisionChange ? acteur : ((ancien && ancien.decision_par) || ''),
+        decision_le: decisionChange ? now : ((ancien && ancien.decision_le) || ''),
         // Une chose close n'attend plus personne, sinon le badge compterait du travail terminé.
         awaiting: statut === 'fait' ? '' : pour,
         date_creation: (ancien && ancien.date_creation) || now,

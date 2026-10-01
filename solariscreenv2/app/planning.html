@@ -531,8 +531,8 @@
       // Un clic ouvre le rendez-vous : c'est là qu'on change qui s'en occupe, la date et la durée.
       // Avant, il envoyait sur la fiche du devis — utile pour consulter, inutile pour réattribuer.
       const clic = e.source === 'indispo'
-        ? 'modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')'
-        : 'ouvrirEvenement(\'' + window.SSUI.jsAttr(e.id) + '\')';
+        ? 'modifierIndispo(' + window.SSUI.jsAttr(String(e.ref)) + ')'
+        : 'ouvrirEvenement(' + window.SSUI.jsAttr(e.id) + ')';
       return '<button class="pl-ev ' + (e.source === 'indispo' ? 'is-indispo' : '') + '" style="--c:' + n.couleur + '" onclick="' + clic + '" ' +
         'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '') + ' · cliquer pour attribuer ou replanifier') + '">' +
         '<span class="l1">' + (heure ? '<span class="h">' + escHtml(heure) + '</span>' : '') +
@@ -648,8 +648,8 @@
         (e.adresse ? '<div class="lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
         '<div class="lieu pl-meteo" id="meteo-' + escHtml(e.id) + '"></div>' +
         (e.source === 'indispo'
-          ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="modifierIndispo(\'' + window.SSUI.jsAttr(String(e.ref)) + '\')">Modifier</button></div>'
-          : '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirEvenement(\'' + window.SSUI.jsAttr(e.id) + '\')">' + icon('users', 13) + ' Qui s’en occupe</button></div>') +
+          ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="modifierIndispo(' + window.SSUI.jsAttr(String(e.ref)) + ')">Modifier</button></div>'
+          : '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirEvenement(' + window.SSUI.jsAttr(e.id) + ')">' + icon('users', 13) + ' Qui s’en occupe</button></div>') +
         '</div></div>';
     }
 
@@ -683,9 +683,9 @@
         '</div>' +
         (resume ? '<div class="res">' + escHtml(resume) + '</div>' : '') +
         '<div class="champs">' +
-        '<div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="" onchange="fixerPose(\'' + id + '\', this.value)"></div>' +
-        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (ch.duree_h != null ? ch.duree_h : '') + '" onchange="setChantier(\'' + id + '\',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
-        '<div class="field plein"><label class="label">Équipe</label><select class="select" onchange="setChantier(\'' + id + '\',\'equipe\', this.value)">' +
+        '<div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="" onchange="fixerPose(' + id + ', this.value)"></div>' +
+        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (ch.duree_h != null ? ch.duree_h : '') + '" onchange="setChantier(' + id + ',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
+        '<div class="field plein"><label class="label">Équipe</label><select class="select" onchange="setChantier(' + id + ',\'equipe\', this.value)">' +
         Object.keys(equipes).map(function (k) { return '<option value="' + k + '"' + ((ch.equipe || 'nicolas') === k ? ' selected' : '') + '>' + equipes[k] + '</option>'; }).join('') +
         '</select></div></div>' +
         '<div class="actions"><button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(d.id) + '\'">' + icon('window', 14) + ' Voir la fiche</button></div>' +
@@ -694,7 +694,11 @@
 
     /** Écrit un champ du chantier. Le devis complet n'est chargé QU'ICI, au moment de modifier :
      *  la liste suffit à tout afficher, inutile de rapatrier les photos de trente dossiers. */
-    async function setChantier(id, champ, valeur) {
+    // Nom DISTINCT de window.setChantier : une fonction declaree au premier niveau d'un script
+    // classique devient deja une propriete de window. Reassigner window.setChantier ensuite
+    // faisait que l'appel interne se rappelait lui-meme -- recursion infinie, et aucune
+    // planification n'etait enregistree.
+    async function ecrireChantier(id, champ, valeur) {
       const d = await SS.getDevis(id);
       if (!d) { toast('Devis introuvable — recharge la page.', 'error'); return null; }
       // On étale le devis et on ne surcharge que ce qui change : une énumération de champs perdrait
@@ -708,7 +712,7 @@
       return d;
     }
     window.setChantier = async function (id, champ, valeur) {
-      const d = await setChantier(id, champ, valeur);
+      const d = await ecrireChantier(id, champ, valeur);
       if (d) charger();
     };
 
@@ -728,7 +732,7 @@
         const l = cs.map(function (c) { return (SELLER_LABELS[c.qui] || c.qui) + ' : ' + nature(c.autre) + ' ' + c.autre.titre; }).join('\n');
         if (!confirm('Attention, ce créneau est déjà occupé le ' + fmtDate(date) + ' :\n\n' + l + '\n\nPlanifier quand même ?')) return;
       }
-      const res = await setChantier(id, 'date_pose', date);
+      const res = await ecrireChantier(id, 'date_pose', date);
       if (res) charger();
     };
 
@@ -1043,7 +1047,7 @@
         '<span class="qui">' + escHtml((SELLER_LABELS[x.qui] || x.qui).slice(0, 3)) + '</span>' +
         '<span class="quand">' + escHtml(quand) + heures + '</span>' +
         (x.motif ? '<span class="motif">' + escHtml(x.motif) + '</span>' : '') +
-        '<button class="sup" onclick="fermerTrame();modifierIndispo(\'' + window.SSUI.jsAttr(String(x.id)) + '\')" title="Modifier">' + icon('edit', 13) + '</button>' +
+        '<button class="sup" onclick="fermerTrame();modifierIndispo(' + window.SSUI.jsAttr(String(x.id)) + ')" title="Modifier">' + icon('edit', 13) + '</button>' +
         '</div>';
     }
 
