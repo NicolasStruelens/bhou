@@ -25,6 +25,8 @@
     /* ── Zone de saisie : toujours en haut, toujours prête ─────────────────────────────────── */
     .ec-poster { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); margin-bottom: var(--sp-5); }
     .ec-poster .textarea { min-height: 62px; }
+    .ec-contexte { margin-top: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); }
+    .ec-contexte:empty { display: none; }
     .ec-opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
     .ec-opts .sep { width: 1px; height: 22px; background: var(--border); flex: none; }
     .ec-poster .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
@@ -160,6 +162,7 @@
         <input class="input" id="pEcheance" type="date" title="Pour quand (facultatif)" style="max-width:160px">
         <button class="btn btn-primary btn-sm ec-envoi" id="btnPublier" onclick="publier()">Publier</button>
       </div>
+      <div class="ec-contexte" id="pContexte"></div>
       <datalist id="dlClients"></datalist>
     </div>
 
@@ -226,9 +229,32 @@
       if (!P_POUR) P_POUR = MOI.key ? autre(MOI.key) : '';
       rendre();
       chargerClients();
+      prefixerDepuisUrl();
+    }
+
+    // Arriver ici depuis un dossier, une demande ou un ticket : le contexte est deja pose et le
+    // curseur est dans le champ. Sans ca il fallait revenir aux Echanges et RETAPER le nom du
+    // client -- trois gestes pour une question de dix secondes, donc on ne la posait pas.
+    let DEVIS_LIE = '';
+    function prefixerDepuisUrl() {
       const c = qp('client');
       if (c) el('pClient').value = c;
+      DEVIS_LIE = qp('devis') || '';
+      const pour = qp('pour');
+      if (pour === 'nicolas' || pour === 'yannick') P_POUR = pour;
+      const kind = qp('kind');
+      if (NATURES[kind]) P_KIND = kind;
+      const titre = qp('titre');
+      if (titre) el('pTitre').value = titre;
+      if (!DEVIS_LIE && !c && !titre) return;
+      rendrePuces();
+      el('pTitre').focus();
+      if (DEVIS_LIE) {
+        el('pContexte').innerHTML = icon('window', 12) + ' Rattaché au dossier #' + escHtml(DEVIS_LIE) +
+          ' <button type="button" class="at-plie" onclick="detacherDossier()">détacher</button>';
+      }
     }
+    window.detacherDossier = function () { DEVIS_LIE = ''; el('pContexte').innerHTML = ''; };
 
     /** Annuaire pour le champ « lié à un client » — les clients des devis suffisent. */
     async function chargerClients() {
@@ -501,7 +527,7 @@
         id: 'SUJ-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
         kind: P_KIND, pour: P_POUR, statut: 'ouvert',
         titre: titre, corps: corps,
-        client_nom: nomClient, client_key: (lie && lie.key) || '',
+        client_nom: nomClient, client_key: (lie && lie.key) || '', devis_id: DEVIS_LIE,
         echeance: el('pEcheance').value || '',
       };
       const btn = el('btnPublier'); btn.disabled = true;
@@ -509,6 +535,7 @@
       btn.disabled = false;
       if (res.ok === false) { toast(res.error || 'Non publié.', 'error', 7000); return; }
       el('pTitre').value = ''; el('pClient').value = ''; el('pEcheance').value = '';
+      DEVIS_LIE = ''; el('pContexte').innerHTML = '';
       toast(P_POUR ? 'Envoyé à ' + nomDe(P_POUR) : 'Publié', 'ok');
       SUJETS = (await SS.listSujets()) || [];
       rendre();

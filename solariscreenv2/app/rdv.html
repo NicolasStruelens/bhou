@@ -259,6 +259,7 @@
         <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-sm" id="btnVisiteOk" onclick="visiteFaiteModal()" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);">Visite faite</button>
+        <button class="btn btn-ghost btn-sm" onclick="demanderSurCetteDemande()" title="Poser une question ou noter une chose à faire sur cette demande, pour l'autre">Demander à l’autre</button>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
         <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveCurrent()">Enregistrer</button>
       </div>
@@ -1275,6 +1276,20 @@
 
     // ── Conversion en devis ──
     let CONVERTING = false;
+    // Le contexte (client, et le dossier s'il existe deja) voyage dans l'URL : les Echanges le
+    // posent a l'arrivee, curseur dans le champ. Zero ressaisie.
+    window.demanderSurCetteDemande = () => {
+      if (!CURRENT) return;
+      const c = CURRENT.client || {};
+      const nom = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
+      const lien = A ? A.devisDeRdv(CURRENT, DEVIS_LISTE) : null;
+      const pour = IDENTITY.key === 'yannick' ? 'nicolas' : 'yannick';
+      location.href = window.SSUI.lienSujet({
+        client: nom, devis_id: (lien && lien.devis.id) || CURRENT.devis_id || '',
+        pour: pour, kind: 'question',
+      });
+    };
+
     window.convertToDevis = async () => {
       if (!CURRENT || CONVERTING) return;
       collect();

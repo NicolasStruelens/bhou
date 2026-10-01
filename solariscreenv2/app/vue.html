@@ -169,6 +169,17 @@
     /* `.reply-banner` (réponse à une note d'équipe) vit dans base.css : la fenêtre du tableau de
        bord l'utilise aussi, et deux copies du même style finiraient par diverger. */
 
+    /* Echanges rattaches au dossier : la memoire commune, lisible depuis le dossier lui-meme. */
+    .sl-box { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+    .sl-head { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-subtle); margin-bottom: var(--sp-2); }
+    .sl-head .sl-n { color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+    .sl-item { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-sm); margin-bottom: 0.35rem; }
+    .sl-pt { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; margin-top: 0.45rem; }
+    .sl-pt.fait { background: var(--ok); }
+    .sl-dec { font-size: var(--fs-xs); color: var(--ok); margin-top: 0.1rem; }
+    .sl-plus { display: inline-block; margin-top: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs); }
+
     /* ── Fiche client ──
        Le rond aux initiales a disparu : deux lettres à côté du nom écrit juste
        derrière n'apprenaient rien, et c'était la seule forme ronde de la page.
@@ -1204,8 +1215,13 @@
         <div class="ch-actions">
           <button class="btn btn-ghost btn-sm" onclick="ssCopy(${SSUI.jsAttr([nomComplet, cl.telephone || '', cl.email || '', adresseTxt].filter(Boolean).join('\n'))}, 'Fiche client')" title="Nom, téléphone, email et adresse d'un coup">${icon('copy', 14)} Copier la fiche</button>
           <button class="btn btn-ghost btn-sm" onclick="openRelance()">${icon('message', 14)} Relancer le client</button>
-        </div>`;
+          <!-- Poser la question LA OU ELLE SE POSE. Avant, il fallait ouvrir les Echanges et
+               retaper le nom du client : trois gestes, donc la question repartait par SMS. -->
+          <button class="btn btn-ghost btn-sm" onclick="demanderSurCeDossier()" title="Poser une question ou noter une chose a faire sur ce dossier, pour l'autre">${icon('message', 14)} Demander à l’autre</button>
+        </div>
+        <div id="sujetsLies"></div>`;
       renderSalutation();
+      renderSujetsLies();
 
       // Météo actuelle chez le client (ambiance, jamais bloquant) — ville/code postal du devis.
       if (adr.ville || adr.code_postal) {
@@ -2609,6 +2625,42 @@
       }
       updateRelanceLinks();
     };
+    // Le LIEN DANS L'AUTRE SENS : ce qui a ete demande ou decide sur ce dossier se lit ICI.
+    // Sans ca, la decision existait mais restait introuvable depuis le dossier qu'elle concerne.
+    async function renderSujetsLies() {
+      const host = el('sujetsLies');
+      if (!host || !SS.listSujets) return;
+      let sujets = [];
+      try { sujets = (await SS.listSujets()) || []; } catch (e) { return; }
+      const cle = SSUI.clientKeyOf((DEVIS.client || {}).prenom, (DEVIS.client || {}).nom);
+      const miens = sujets.filter(s => String(s.devis_id || '') === String(DEVIS.id)
+        || (cle && String(s.client_key || '') === cle));
+      if (!miens.length) { host.innerHTML = ''; return; }
+      const ouverts = miens.filter(s => s.statut !== 'fait');
+      const decides = miens.filter(s => s.decision);
+      const ligne = (s) => `<div class="sl-item">
+          <span class="sl-pt ${s.statut === 'fait' ? 'fait' : ''}"></span>
+          <div><a href="echanges.html#suj-${encodeURIComponent(s.id)}">${esc(s.titre)}</a>
+          ${s.decision ? `<div class="sl-dec">${icon('check', 11)} ${esc(s.decision)}</div>` : ''}</div>
+        </div>`;
+      host.innerHTML = `<div class="sl-box">
+          <div class="sl-head">${icon('message', 12)} Échanges sur ce dossier
+            <span class="sl-n">${ouverts.length ? ouverts.length + ' en cours' : 'tout est traité'}${decides.length ? ' · ' + decides.length + ' décision(s)' : ''}</span></div>
+          ${miens.slice(0, 5).map(ligne).join('')}
+          <a class="sl-plus" href="${SSUI.lienSujet({ client: ((DEVIS.client || {}).prenom || '') + ' ' + ((DEVIS.client || {}).nom || ''), devis_id: DEVIS.id })}">Tout voir / ajouter</a>
+        </div>`;
+    }
+
+    window.demanderSurCeDossier = async () => {
+      const cl = (DEVIS && DEVIS.client) || {};
+      const nom = ((cl.prenom || '') + ' ' + (cl.nom || '')).trim();
+      let moi = { key: '' };
+      try { moi = await window.SSNav.getIdentity(); } catch (e) {}
+      // Destinataire par defaut : l'AUTRE. On s'ecrit rarement a soi-meme.
+      const pour = moi.key === 'yannick' ? 'nicolas' : 'yannick';
+      location.href = SSUI.lienSujet({ client: nom, devis_id: DEVIS.id, pour: pour, kind: 'question' });
+    };
+
     window.openRelance = () => {
       // Sélectionne d'office la relance que la cadence recommande aujourd'hui.
       const st = relanceState(DEVIS);

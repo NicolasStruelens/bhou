@@ -355,6 +355,21 @@
   // qui avait fini en treize exemplaires divergents.
   // ⚠️ Le statut « envoyé » s'appelle `envoye_client`, pas `envoye` : s'y tromper fait silencieusement
   // retomber sur la valeur brute.
+  /** Lien vers les Échanges avec le CONTEXTE déjà posé (client, dossier, destinataire, nature).
+   *  Poser une question depuis un dossier demandait d'aller aux Échanges et de RETAPER le nom du
+   *  client : trois gestes pour une question de dix secondes, donc on ne la posait pas et elle
+   *  repartait par SMS — exactement ce qu'on cherche à éviter. */
+  function lienSujet(o) {
+    const opt = o || {};
+    const q = [];
+    if (opt.client) q.push('client=' + encodeURIComponent(opt.client));
+    if (opt.devis_id) q.push('devis=' + encodeURIComponent(opt.devis_id));
+    if (opt.pour) q.push('pour=' + encodeURIComponent(opt.pour));
+    if (opt.kind) q.push('kind=' + encodeURIComponent(opt.kind));
+    if (opt.titre) q.push('titre=' + encodeURIComponent(opt.titre));
+    return 'echanges.html' + (q.length ? '?' + q.join('&') : '');
+  }
+
   const STATUT_DEVIS_LABEL = {
     brouillon: 'Brouillon',
     envoye_client: 'Envoyé',
@@ -1406,7 +1421,7 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
-    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL,
+    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, lienSujet: lienSujet,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
