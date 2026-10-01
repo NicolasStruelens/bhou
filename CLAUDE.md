@@ -230,7 +230,18 @@ destinataire, nature) via `SSUI.lienSujet()`, curseur dans le champ. Avant, il f
 repartait par SMS. Dans l'autre sens, la fiche devis affiche « Échanges sur ce dossier » — et
 surtout les DÉCISIONS prises, lisibles là où elles servent.
 
-**20. Un SAV se juge d'abord sur la GARANTIE, et se clôt sur CE QUI A ÉTÉ RÉPARÉ.**
+**20. Un SAV se crée dès que le devis est SIGNÉ** (`SSUI.savPossible`), pas seulement après la
+pose : sur 33 screens livrés, un seul était défectueux — AVANT la pose. Le limiter aux chantiers
+posés rendait ce cas, pourtant réel, impossible à enregistrer nulle part. D'où aussi la nature
+`materiel` (« Matériel / livraison ») dans `SSUI.SAV_TYPE_LABEL`, source unique des natures.
+La GARANTIE ne court qu'à partir de la pose RÉELLE : une date de pose PRÉVUE ne la démarre pas
+(sinon un chantier planifié s'affiche « sous garantie », ce qui pousserait à ne pas facturer une
+intervention qui l'est). Trois réponses distinctes : « sous garantie », « pose prévue le … —
+garantie non démarrée », « garantie inconnue — pas de date de pose ».
+Les photos sont en DEUX séries, `photos` (le constat) et `photos_apres` (la réparation) : les
+mélanger fait perdre la seule preuve utile et on ne sait plus à quoi ressemblait le défaut.
+
+**20 bis. Un SAV se juge d'abord sur la GARANTIE, et se clôt sur CE QUI A ÉTÉ RÉPARÉ.**
 `SSUI.garantieDe(devis, reglages)` répond à « facturable ou pas ? » depuis la date de pose et
 `prix.garantie_mois` (12 par défaut) — la question se posait de tête, dossier par dossier. Sans date
 de pose, on répond « inconnue » : on ne devine pas.
@@ -340,6 +351,17 @@ chose, sinon on refait le diagnostic.
 3. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
 4. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
    trouvés sur une capture d'écran alors que les mesures disaient « tout va bien ».
+
+## La facturation en plusieurs fois — vérifié, ne pas « corriger »
+
+Trois types coexistent et se recomposent EXACTEMENT, sans perdre un centime :
+**acompte** (% du total, plafonné au restant), **partielle** (la part POSÉE moins ce qui est déjà
+facturé) et **solde** (tout le restant). Rejoué sur le cas réel de l'École du Bonheur — 33 screens,
+acompte de 30 %, 28 posés : 8 768,79 + 16 031,82 + 4 428,68 = 29 229,29 €, **écart nul**.
+⚠️ `computeAmounts()` renvoie `total_ttc` = le montant de LA FACTURE, et `ttc` = le total du DEVIS.
+Les confondre fait croire à un bug qui n'existe pas.
+Pour un chantier partiellement posé, c'est une facture **partielle** qu'il faut, pas un « solde » :
+le solde facturerait aussi les ouvertures non encore posées.
 
 ## Contexte métier
 

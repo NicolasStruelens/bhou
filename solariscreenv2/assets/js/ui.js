@@ -370,6 +370,27 @@
     return 'echanges.html' + (q.length ? '?' + q.join('&') : '');
   }
 
+  // Natures d'un ticket SAV. Vivait en double (sav.html + vue.html) ; source unique ici.
+  // `materiel` est né d'un cas réel : sur 33 screens livrés, un seul était défectueux — AVANT la
+  // pose. Ce n'est ni un moteur grillé ni un réglage, et ça devait pouvoir se tracer.
+  const SAV_TYPE_LABEL = {
+    moteur: 'Moteur',
+    toile: 'Toile',
+    reglage: 'Réglage',
+    materiel: 'Matériel / livraison',
+    garantie: 'Garantie',
+    autre: 'Autre',
+  };
+
+  /** Un SAV est-il possible sur ce dossier ? Dès que le devis est SIGNÉ : un matériel livré
+   *  défectueux se constate bien avant la pose, et il fallait pouvoir l'enregistrer. Un dossier
+   *  qui porte déjà des tickets reste évidemment éligible, quel que soit son statut. */
+  function savPossible(d) {
+    if (!d || d.archive) return false;
+    if ((d.sav_tickets || []).length) return true;
+    return ['signe', 'termine'].indexOf(d.statut) >= 0 || isPoseDone(d);
+  }
+
   const STATUT_DEVIS_LABEL = {
     brouillon: 'Brouillon',
     envoye_client: 'Envoyé',
@@ -626,11 +647,22 @@
     const debut = (d.chantier && d.chantier.date_pose) || d.reception_date || '';
     const mois = Number(reglages && reglages.prix && reglages.prix.garantie_mois) || 12;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(debut).slice(0, 10))) {
-      return { connue: false, sous_garantie: false, debut: '', fin: '', jours: 0,
-               texte: 'Garantie inconnue — pas de date de pose' };
+      // « Pas encore posé » et « on ne sait pas » sont deux situations différentes : la première
+      // est normale (le chantier est en cours), la seconde signale une donnée manquante.
+      const signe = d.statut === 'signe' && !isPoseDone(d);
+      return { connue: false, sous_garantie: false, avant_pose: signe, debut: '', fin: '', jours: 0,
+               texte: signe ? 'Pose pas encore faite — garantie non démarrée'
+                            : 'Garantie inconnue — pas de date de pose' };
+    }
+    const auj = aujourdhui();
+    // La garantie court à partir de la pose RÉELLE. Une date de pose PRÉVUE (dans le futur) ne la
+    // démarre pas : sinon un chantier planifié pour la semaine prochaine s'affichait « sous
+    // garantie », ce qui est faux et pousserait à ne pas facturer une intervention qui l'est.
+    if (debut > auj) {
+      return { connue: false, sous_garantie: false, avant_pose: true, debut: debut, fin: '', jours: 0,
+               texte: 'Pose prévue le ' + fmtDate(debut) + ' — garantie non démarrée' };
     }
     const fin = plusMois(debut, mois);
-    const auj = aujourdhui();
     const sous = auj <= fin;
     const jours = Math.round((new Date(fin + 'T00:00:00Z') - new Date(auj + 'T00:00:00Z')) / 86400000);
     return {
@@ -1472,6 +1504,7 @@
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, lienSujet: lienSujet,
+    SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
