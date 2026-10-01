@@ -126,8 +126,9 @@ c'est du bruit. Règle générale : ce qui est évident pour celui qui a rédig�
 jamais pour l'autre.
 
 **10. Le VOCABULAIRE vit dans `ui.js`, jamais en copie locale.** Noms des types de produit
-(`SSUI.TYPE_LABEL`, formes singulier/pluriel dans `TYPE_FORMES`) et noms des vendeurs
-(`SSUI.SELLER_LABELS`). Les types ont vécu en **13 copies** et elles avaient déjà divergé : le
+(`SSUI.TYPE_LABEL`, formes singulier/pluriel dans `TYPE_FORMES`), noms des vendeurs
+(`SSUI.SELLER_LABELS`) et libellés des statuts de devis (`SSUI.STATUT_DEVIS_LABEL` — ils vivaient
+en cinq copies, les tables locales ne gardent plus que leur couleur ou leur classe de badge). Les types ont vécu en **13 copies** et elles avaient déjà divergé : le
 tableau de bord ignorait `pergola` et `store_banne`, donc son filtre affichait « pergola » en
 minuscule brut à côté de « Screen ». Ne pas confondre avec `SSProducts.ITEM_TYPES`, qui liste ce
 qu'on peut encore CRÉER (4 types) — la table d'affichage garde en plus les types historiques,
@@ -214,6 +215,20 @@ contraire celui resté en BROUILLON, y compris sur une demande déjà `converti`
 oublie, puisque le travail semble fait. Le badge de la carte dit « Devis à envoyer / envoyé /
 signé » au lieu du simple « Devis lié », sans aucune ressaisie.
 ⚠️ Le statut « envoyé » s'appelle **`envoye_client`**, pas `envoye`.
+
+**18. « Aujourd'hui » se calcule en heure LOCALE** (`SSUI.aujourdhui()`, `SSUI.isoDate(date)`).
+`new Date().toISOString().slice(0,10)` renvoie une date UTC : entre minuit et 2 h du matin en heure
+d'été belge (1 h en hiver), c'est LA VEILLE. Un devis créé à 00h30 portait donc la mauvaise date —
+et une date ÉCRITE en base reste fausse pour toujours. Restent justes, et ne doivent pas être
+« corrigés » : les calculs qui partent d'une chaîne ISO forcée en UTC (`… + 'T00:00:00Z'`) et y
+restent d'un bout à l'autre, puisque aucune heure locale n'y intervient.
+
+**19. Une question se pose LÀ OÙ ELLE SE POSE.** Depuis une fiche devis ou une demande de RDV, le
+bouton « Demander à l'autre » ouvre les Échanges avec le contexte déjà posé (client, dossier,
+destinataire, nature) via `SSUI.lienSujet()`, curseur dans le champ. Avant, il fallait ouvrir les
+Échanges et RETAPER le nom du client : trois gestes pour une question de dix secondes, donc elle
+repartait par SMS. Dans l'autre sens, la fiche devis affiche « Échanges sur ce dossier » — et
+surtout les DÉCISIONS prises, lisibles là où elles servent.
 
 ## Pièges déjà payés — ne pas les repayer
 

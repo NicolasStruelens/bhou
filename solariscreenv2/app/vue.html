@@ -169,6 +169,17 @@
     /* `.reply-banner` (réponse à une note d'équipe) vit dans base.css : la fenêtre du tableau de
        bord l'utilise aussi, et deux copies du même style finiraient par diverger. */
 
+    /* Echanges rattaches au dossier : la memoire commune, lisible depuis le dossier lui-meme. */
+    .sl-box { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+    .sl-head { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-subtle); margin-bottom: var(--sp-2); }
+    .sl-head .sl-n { color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+    .sl-item { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-sm); margin-bottom: 0.35rem; }
+    .sl-pt { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); flex: none; margin-top: 0.45rem; }
+    .sl-pt.fait { background: var(--ok); }
+    .sl-dec { font-size: var(--fs-xs); color: var(--ok); margin-top: 0.1rem; }
+    .sl-plus { display: inline-block; margin-top: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs); }
+
     /* ── Fiche client ──
        Le rond aux initiales a disparu : deux lettres à côté du nom écrit juste
        derrière n'apprenaient rien, et c'était la seule forme ronde de la page.
@@ -980,15 +991,19 @@
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
+    // Les LIBELLÉS viennent de ui.js (source unique, règle 10) ; seule la propriété de style
+    // reste propre à cette page. Ce vocabulaire vivait en CINQ copies — c'est exactement
+    // ainsi que TYPE_LABEL avait fini en treize exemplaires divergents.
+    const LIB_STATUT = window.SSUI.STATUT_DEVIS_LABEL;
     const STATUSES = {
-      brouillon: { label: 'Brouillon', color: 'var(--text-subtle)' },
-      envoye_client: { label: 'Envoyé', color: 'var(--accent)' },
-      relance_1: { label: 'Relance 1', color: 'var(--warn)' },
-      relance_2: { label: 'Relance 2', color: 'var(--warn)' },
-      signe: { label: 'Signé', color: 'var(--ok)' },
-      termine: { label: 'Terminé', color: 'var(--accent-2)' },
-      refuse: { label: 'Refusé', color: 'var(--danger)' },
-      annule: { label: 'Annulé', color: 'var(--text-subtle)' },
+      brouillon: { label: LIB_STATUT.brouillon, color: 'var(--text-subtle)' },
+      envoye_client: { label: LIB_STATUT.envoye_client, color: 'var(--accent)' },
+      relance_1: { label: LIB_STATUT.relance_1, color: 'var(--warn)' },
+      relance_2: { label: LIB_STATUT.relance_2, color: 'var(--warn)' },
+      signe: { label: LIB_STATUT.signe, color: 'var(--ok)' },
+      termine: { label: LIB_STATUT.termine, color: 'var(--accent-2)' },
+      refuse: { label: LIB_STATUT.refuse, color: 'var(--danger)' },
+      annule: { label: LIB_STATUT.annule, color: 'var(--text-subtle)' },
     };
     const WAITING_STATUSES_ALL = ['brouillon', 'envoye_client', 'relance_1', 'relance_2'];
     // Deux façons d'affirmer « j'ai relancé » cohabitaient sans se parler : la PASTILLE DE STATUT
@@ -1021,7 +1036,7 @@
       const startIso = (DEVIS.reception && DEVIS.reception.date) || ch.date_pose;
       const startDay = startIso ? String(startIso).slice(0, 10) : '';
       // La garantie ne peut pas courir depuis une date FUTURE (pose pas encore faite) : on masque le badge.
-      if (DEVIS.statut !== 'termine' || !startDay || startDay > new Date().toISOString().slice(0, 10)) { badge.classList.add('hidden'); return; }
+      if (DEVIS.statut !== 'termine' || !startDay || startDay > SSUI.aujourdhui()) { badge.classList.add('hidden'); return; }
       const poseDate = new Date(startIso);
       const structureEnd = new Date(poseDate); structureEnd.setFullYear(structureEnd.getFullYear() + 5);
       const items = DEVIS.items || [];
@@ -1204,8 +1219,13 @@
         <div class="ch-actions">
           <button class="btn btn-ghost btn-sm" onclick="ssCopy(${SSUI.jsAttr([nomComplet, cl.telephone || '', cl.email || '', adresseTxt].filter(Boolean).join('\n'))}, 'Fiche client')" title="Nom, téléphone, email et adresse d'un coup">${icon('copy', 14)} Copier la fiche</button>
           <button class="btn btn-ghost btn-sm" onclick="openRelance()">${icon('message', 14)} Relancer le client</button>
-        </div>`;
+          <!-- Poser la question LA OU ELLE SE POSE. Avant, il fallait ouvrir les Echanges et
+               retaper le nom du client : trois gestes, donc la question repartait par SMS. -->
+          <button class="btn btn-ghost btn-sm" onclick="demanderSurCeDossier()" title="Poser une question ou noter une chose a faire sur ce dossier, pour l'autre">${icon('message', 14)} Demander à l’autre</button>
+        </div>
+        <div id="sujetsLies"></div>`;
       renderSalutation();
+      renderSujetsLies();
 
       // Météo actuelle chez le client (ambiance, jamais bloquant) — ville/code postal du devis.
       if (adr.ville || adr.code_postal) {
@@ -1517,7 +1537,7 @@
         return;
       }
       const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale' };
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = SSUI.aujourdhui();
       el('paiementsList').innerHTML = facs.map(f => {
         const paid = paidSum(f);
         const due = f.total_ttc || 0;
@@ -1583,7 +1603,7 @@
     window.setCommandeStage = async (stage) => {
       DEVIS.commande = DEVIS.commande || {};
       DEVIS.commande.statut = stage;
-      if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = new Date().toISOString().slice(0, 10);
+      if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = SSUI.aujourdhui();
       await persistCommande();
     };
     window.saveCommande = async () => {
@@ -1605,7 +1625,7 @@
       el('chEquipe').value = ch.equipe || 'nicolas';
       let infoTxt = 'Renseigne la date de pose pour la voir apparaître dans l’agenda.', retard = false;
       if (ch.date_pose) {
-        const days = Math.round((new Date(ch.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+        const days = Math.round((new Date(ch.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
         if (DEVIS.statut === 'termine') infoTxt = 'Pose effectuée.';
         else if (days === 0) infoTxt = "Pose prévue aujourd'hui.";
         else if (days > 0) infoTxt = `Pose prévue dans ${days} jour(s).`;
@@ -1904,7 +1924,7 @@
         } catch (e) { ratees++; }
       }
       if (ratees) toast(ratees + ' photo(s) illisible(s) ignorée(s).', 'warn');
-      if (!el('jDate').value) el('jDate').value = new Date().toISOString().slice(0, 10);
+      if (!el('jDate').value) el('jDate').value = SSUI.aujourdhui();
       renderJournalPending();
       el('jPhotoInput').value = '';
     };
@@ -2087,7 +2107,7 @@
       // Ancienneté en jours de CALENDRIER, pas en tranches de 24 h : on compare deux minuits.
       // (Un devis créé hier à 9 h est vieux de 1 jour, pas de 2 — c'est ce que renvoyait un
       //  arrondi sur l'écart horaire dès qu'on dépassait midi, et l'avancement sautait d'un cran.)
-      const aujourdhui = new Date().toISOString().slice(0, 10);
+      const aujourdhui = SSUI.aujourdhui();
       // Repli local si ui.js est déployé en retard : la fiche entière ne doit pas tomber pour
       // une règle graduée (le déploiement se fait fichier par fichier, la divergence arrive).
       const jEntre = (a, b) => (window.SSUI && SSUI.joursEntre) ? SSUI.joursEntre(a, b)
@@ -2256,7 +2276,7 @@
     function isChantierAPreparerFiche() {
       const d = DEVIS;
       if (d.statut !== 'signe' || window.SSUI.isPoseDone(d) || !(d.chantier && d.chantier.date_pose)) return false;
-      const days = Math.round((new Date(d.chantier.date_pose) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+      const days = Math.round((new Date(d.chantier.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
       return days >= 0 && days <= 7;
     }
 
@@ -2295,7 +2315,7 @@
     const relanceState = (d) => {
       if (window.SSUI && window.SSUI.relanceEtat) return window.SSUI.relanceEtat(d);
       const plan = RELANCE_PLAN[d.informatif ? 'informatif' : 'visite'];
-      const envoi = dateEnvoiOf(d), today = new Date().toISOString().slice(0, 10);
+      const envoi = dateEnvoiOf(d), today = SSUI.aujourdhui();
       const done = (d.relances || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
       let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
       const nS = STATUT_RELANCE_N[d.statut] || 0;
@@ -2426,7 +2446,7 @@
     // Complète la cadence jusqu'à la n-ième relance SANS réécrire celles déjà enregistrées : leur date
     // réelle est une information de suivi (« relancé le 12 »), on ne la remplace jamais par aujourd'hui.
     function relancesUpTo(d, n, by) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = SSUI.aujourdhui();
       const out = (d.relances || []).slice();
       for (let i = 1; i <= n; i++) {
         if (!out.some(r => (r.n || 0) === i)) out.push({ n: i, date: today, by: by || CONNECTED_KEY || 'nicolas' });
@@ -2522,7 +2542,7 @@
       if (opts.auto && st.done.some(r => (r.n || 0) === n)) return;   // déjà notée : 2e canal, on ne fait rien
       const prev = (DEVIS.relances || []).slice();
       const prevStatut = DEVIS.statut, prevHist = (DEVIS.statut_history || []).slice();
-      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: new Date().toISOString().slice(0, 10), by: CONNECTED_KEY || 'nicolas' }])
+      DEVIS.relances = prev.filter(r => r.n !== n).concat([{ n, date: SSUI.aujourdhui(), by: CONNECTED_KEY || 'nicolas' }])
         .sort((a, b) => (a.n || 0) - (b.n || 0));
       // Miroir du pont statut → cadence : la pastille du bandeau (et donc le tableau de bord) doit
       // dire « Relance 1 » dès qu'une relance est partie. On n'avance JAMAIS à reculons ni depuis un
@@ -2609,6 +2629,42 @@
       }
       updateRelanceLinks();
     };
+    // Le LIEN DANS L'AUTRE SENS : ce qui a ete demande ou decide sur ce dossier se lit ICI.
+    // Sans ca, la decision existait mais restait introuvable depuis le dossier qu'elle concerne.
+    async function renderSujetsLies() {
+      const host = el('sujetsLies');
+      if (!host || !SS.listSujets) return;
+      let sujets = [];
+      try { sujets = (await SS.listSujets()) || []; } catch (e) { return; }
+      const cle = SSUI.clientKeyOf((DEVIS.client || {}).prenom, (DEVIS.client || {}).nom);
+      const miens = sujets.filter(s => String(s.devis_id || '') === String(DEVIS.id)
+        || (cle && String(s.client_key || '') === cle));
+      if (!miens.length) { host.innerHTML = ''; return; }
+      const ouverts = miens.filter(s => s.statut !== 'fait');
+      const decides = miens.filter(s => s.decision);
+      const ligne = (s) => `<div class="sl-item">
+          <span class="sl-pt ${s.statut === 'fait' ? 'fait' : ''}"></span>
+          <div><a href="echanges.html#suj-${encodeURIComponent(s.id)}">${esc(s.titre)}</a>
+          ${s.decision ? `<div class="sl-dec">${icon('check', 11)} ${esc(s.decision)}</div>` : ''}</div>
+        </div>`;
+      host.innerHTML = `<div class="sl-box">
+          <div class="sl-head">${icon('message', 12)} Échanges sur ce dossier
+            <span class="sl-n">${ouverts.length ? ouverts.length + ' en cours' : 'tout est traité'}${decides.length ? ' · ' + decides.length + ' décision(s)' : ''}</span></div>
+          ${miens.slice(0, 5).map(ligne).join('')}
+          <a class="sl-plus" href="${SSUI.lienSujet({ client: ((DEVIS.client || {}).prenom || '') + ' ' + ((DEVIS.client || {}).nom || ''), devis_id: DEVIS.id })}">Tout voir / ajouter</a>
+        </div>`;
+    }
+
+    window.demanderSurCeDossier = async () => {
+      const cl = (DEVIS && DEVIS.client) || {};
+      const nom = ((cl.prenom || '') + ' ' + (cl.nom || '')).trim();
+      let moi = { key: '' };
+      try { moi = await window.SSNav.getIdentity(); } catch (e) {}
+      // Destinataire par defaut : l'AUTRE. On s'ecrit rarement a soi-meme.
+      const pour = moi.key === 'yannick' ? 'nicolas' : 'yannick';
+      location.href = SSUI.lienSujet({ client: nom, devis_id: DEVIS.id, pour: pour, kind: 'question' });
+    };
+
     window.openRelance = () => {
       // Sélectionne d'office la relance que la cadence recommande aujourd'hui.
       const st = relanceState(DEVIS);

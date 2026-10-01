@@ -104,7 +104,7 @@
     if (badgesCache && Date.now() - badgesAt < 60000) return badgesCache;
     const SS = window.SS;
     if (!SS) return { rdv: 0, sav: 0, factures: 0, echanges: 0 };
-    const today = new Date().toISOString().slice(0, 10);
+    const today = window.SSUI.aujourdhui();
     const [devis, factures, rdv, sujets, moi] = await Promise.all([
       SS.listDevis().catch(function () { return []; }),
       SS.listFactures().catch(function () { return []; }),

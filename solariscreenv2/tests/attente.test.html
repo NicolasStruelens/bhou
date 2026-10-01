@@ -123,6 +123,19 @@
         { id: 'DY', rdv_id: 'RV', statut: 'brouillon', client: { nom: 'Zurstrassen', prenom: 'Doris' }, date_creation: '2026-01-01' },
       ]).devis.id, 'DY');
 
+    // ══════════ 1 ter. « Aujourd'hui » en heure LOCALE ══════════
+    // toISOString() renvoie de l'UTC : une date construite a 00h30 heure belge y devient LA VEILLE.
+    // Un devis cree a cette heure-la portait donc une date fausse -- et une date ECRITE en base
+    // reste fausse pour toujours.
+    const MINUIT30 = new Date(2026, 6, 15, 0, 30);        // 15 juillet 2026, 00h30 LOCAL
+    check('U1 minuit passe reste le bon jour', window.SSUI.isoDate(MINUIT30), '2026-07-15');
+    check('U2 fin de journee aussi', window.SSUI.isoDate(new Date(2026, 6, 15, 23, 45)), '2026-07-15');
+    check('U3 aujourd hui = date locale du jour', window.SSUI.aujourdhui(), window.SSUI.isoDate(new Date()));
+    check('U4 une date illisible ne renvoie pas n importe quoi', window.SSUI.isoDate('pas une date'), '');
+    // La preuve que le defaut etait reel : sur un fuseau en avance sur UTC, les deux divergent.
+    const decalage = -new Date(2026, 6, 15).getTimezoneOffset();   // minutes a l'est de UTC
+    check('U5 le defaut est bien evite', decalage > 0 ? (MINUIT30.toISOString().slice(0, 10) !== window.SSUI.isoDate(MINUIT30)) : true, true);
+
     // ══════════ 2. SAV ══════════
     const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
     check('S1 ticket sans responsable', A.depuisSav(devisSav(

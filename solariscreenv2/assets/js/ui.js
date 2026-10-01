@@ -355,6 +355,21 @@
   // qui avait fini en treize exemplaires divergents.
   // ⚠️ Le statut « envoyé » s'appelle `envoye_client`, pas `envoye` : s'y tromper fait silencieusement
   // retomber sur la valeur brute.
+  /** Lien vers les Échanges avec le CONTEXTE déjà posé (client, dossier, destinataire, nature).
+   *  Poser une question depuis un dossier demandait d'aller aux Échanges et de RETAPER le nom du
+   *  client : trois gestes pour une question de dix secondes, donc on ne la posait pas et elle
+   *  repartait par SMS — exactement ce qu'on cherche à éviter. */
+  function lienSujet(o) {
+    const opt = o || {};
+    const q = [];
+    if (opt.client) q.push('client=' + encodeURIComponent(opt.client));
+    if (opt.devis_id) q.push('devis=' + encodeURIComponent(opt.devis_id));
+    if (opt.pour) q.push('pour=' + encodeURIComponent(opt.pour));
+    if (opt.kind) q.push('kind=' + encodeURIComponent(opt.kind));
+    if (opt.titre) q.push('titre=' + encodeURIComponent(opt.titre));
+    return 'echanges.html' + (q.length ? '?' + q.join('&') : '');
+  }
+
   const STATUT_DEVIS_LABEL = {
     brouillon: 'Brouillon',
     envoye_client: 'Envoyé',
@@ -524,7 +539,7 @@
   }
   async function fetchWeather(ville, dateStr, codePostal) {
     if ((!ville && !codePostal) || !dateStr) return null;
-    const days = Math.round((new Date(dateStr) - new Date(new Date().toISOString().slice(0, 10))) / 86400000);
+    const days = Math.round((new Date(dateStr) - new Date(aujourdhui())) / 86400000);
     if (days < 0 || days > 15) return null; // hors couverture de la prévision gratuite (16 jours)
     try {
       const loc = await geocodeVille(ville, codePostal);
@@ -576,6 +591,18 @@
 
   // Clé d'appariement client (même normalisation que clients.html) — centralisée ici
   // pour que dashboard/vue puissent retrouver une fiche CRM sans la dupliquer.
+  // ── « Aujourd'hui », en heure LOCALE ───────────────────────────────────────────────────────
+  // `new Date().toISOString().slice(0,10)` renvoie une date UTC : entre minuit et 2 h du matin en
+  // heure d'été belge (1 h en hiver), c'est LA VEILLE. Un devis créé à 00h30 portait donc la
+  // mauvaise date — et une date écrite en base reste fausse pour toujours.
+  /** Date locale d'un objet Date, au format YYYY-MM-DD. */
+  function isoDate(d) {
+    const x = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(x)) return '';
+    return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  }
+  function aujourdhui() { return isoDate(new Date()); }
+
   function clientKeyOf(prenom, nom) {
     return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
   }
@@ -1253,13 +1280,13 @@
     // rôle des factures et de l'alerte « acompte non payé » du tableau de bord.
     // Une PROPOSITION de dépannage (`a_realiser`), elle, se relance comme n'importe quel devis.
     if (d && d.type_document === 'depannage' && (d.depannage_mode || 'realise') === 'realise') {
-      return { kind: 'intervention', plan: [], envoi: dateEnvoiOf(d), today: new Date().toISOString().slice(0, 10),
+      return { kind: 'intervention', plan: [], envoi: dateEnvoiOf(d), today: aujourdhui(),
                done: [], doneMax: 0, step: null, jours: 0, due: null, retard: false, joursRetard: 0, epuise: true };
     }
     const kind = d && d.informatif ? 'informatif' : 'visite';
     const plan = planRelance(kind);
     const envoi = dateEnvoiOf(d || {});
-    const today = new Date().toISOString().slice(0, 10);
+    const today = aujourdhui();
     const done = ((d && d.relances) || []).slice().sort((a, b) => (a.n || 0) - (b.n || 0));
     let doneMax = done.reduce((m, r) => Math.max(m, r.n || 0), 0);
     // Plancher par le statut : un devis marqué « Relance 2 » a forcément vu partir R1 et R2.
@@ -1406,11 +1433,11 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
-    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL,
+    STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, lienSujet: lienSujet,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
-    clientKeyOf: clientKeyOf,
+    clientKeyOf: clientKeyOf, isoDate: isoDate, aujourdhui: aujourdhui,
     fetchWeather: fetchWeather,
     fetchCurrentWeather: fetchCurrentWeather,
     fetchCurrentWeatherByCoords: fetchCurrentWeatherByCoords,
