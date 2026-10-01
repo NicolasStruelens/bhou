@@ -136,7 +136,7 @@
     if (moi && moi.key) {
       const A = window.SSAttente;
       if (A) {
-        const items = [].concat(A.depuisRdv(rdv), A.depuisSav(devis), A.depuisSujets(sujets));
+        const items = [].concat(A.depuisRdv(rdv, devis), A.depuisSav(devis), A.depuisSujets(sujets));
         nbEch = A.concerne(items, moi.key).length;
       } else {
         nbEch = (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length;

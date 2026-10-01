@@ -204,6 +204,17 @@ la signe et l'horodate, et seulement quand elle CHANGE — renvoyer le sujet pou
 doit pas réattribuer une décision prise par l'autre. Elle survit à une réouverture (une décision
 prise reste un fait) et elle est cherchable : c'est ce qu'on vient relire des semaines plus tard.
 
+**17. Après la visite, c'est le DEVIS qui dit où en est l'affaire.** Une demande de RDV s'arrête à
+`converti` ; l'état réel (brouillon / envoyé / signé) vit dans le devis. Les deux ne se parlaient
+pas : une demande visitée dont le devis avait été fait au simulateur restait « en attente du devis »
+POUR TOUJOURS. `SSAttente.devisDeRdv(rdv, devis)` fait le rapprochement — lien EXPLICITE
+(`devis.rdv_id`, posé par « Créer le devis », ou `rdv.devis_id`) ou PROBABLE (même client, pour un
+devis établi directement). Conséquences : on ne réclame plus un devis qui existe ; on signale au
+contraire celui resté en BROUILLON, y compris sur une demande déjà `converti` — c'est celui qu'on
+oublie, puisque le travail semble fait. Le badge de la carte dit « Devis à envoyer / envoyé /
+signé » au lieu du simple « Devis lié », sans aucune ressaisie.
+⚠️ Le statut « envoyé » s'appelle **`envoye_client`**, pas `envoye`.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
@@ -253,6 +264,15 @@ prise reste un fait) et elle est cherchable : c'est ce qu'on vient relire des se
   — seule la capture d'écran le montre.
 - **`SSUI.clientKeyOf` prend `(prenom, nom)`, pas l'objet client.** Lui passer la fiche entière
   produit la clé « |[object object] », qui ne rapproche évidemment aucune fiche CRM — et sans erreur.
+- **Déclarer une constante APRÈS la fonction qui l'utilise** ne tient que par l'ordre d'exécution :
+  `const A = window.SSAttente` posé 270 lignes sous `cardHtml` a fait planter tout le rendu du
+  kanban (`A is not defined`) dès qu'un rendu est survenu plus tôt. Déclarer ces raccourcis en tête
+  de script, avec `const SS = window.SS`.
+- **Un `pkill` ne tue pas toujours le serveur de test sous Windows** : les pages continuaient de
+  servir d'anciennes données et le scénario testé n'existait pas. Relancer sur un NOUVEAU port.
+- **Mesurer la mise en page quand le panneau du navigateur est masqué** donne `clientWidth: 0`, donc
+  un faux « ça déborde » — et `requestAnimationFrame` ne se déclenche jamais, ce qui fait expirer le
+  script. Vérifier que la largeur est non nulle avant de conclure.
 - **`SSUI.jsAttr()` renvoie la valeur AVEC ses guillemets** (`JSON.stringify`, puis `"` → `&quot;`).
   L'entourer de quotes en plus produit `attribuer('"sav:2026-0012:abc"')` : l'identifiant arrive
   avec des guillemets LITTÉRAUX, ne correspond à rien, et la fonction sort en silence. S'écrit
