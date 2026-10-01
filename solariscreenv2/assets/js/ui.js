@@ -603,6 +603,44 @@
   }
   function aujourdhui() { return isoDate(new Date()); }
 
+  /** Ajoute `n` mois à une date ISO, en restant sur une date locale valide.
+   *  Le 31 janvier + 1 mois donnerait le 3 mars (février n'a pas de 31) : on recule alors au
+   *  dernier jour du mois visé, ce qui est la seule lecture raisonnable d'une garantie. */
+  function plusMois(iso, n) {
+    const p = String(iso || '').slice(0, 10).split('-');
+    if (p.length !== 3) return '';
+    const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    if (isNaN(d)) return '';
+    const jour = d.getDate();
+    d.setMonth(d.getMonth() + n);
+    if (d.getDate() !== jour) d.setDate(0);
+    return isoDate(d);
+  }
+
+  /** Un SAV sous garantie ne se facture pas : c'est LA première question devant un ticket, et
+   *  elle se répondait de tête, dossier par dossier. Elle se calcule pourtant : date de pose du
+   *  chantier + durée de garantie des réglages (12 mois par défaut).
+   *  @returns { connue, sous_garantie, debut, fin, jours, texte } */
+  function garantieDe(devis, reglages) {
+    const d = devis || {};
+    const debut = (d.chantier && d.chantier.date_pose) || d.reception_date || '';
+    const mois = Number(reglages && reglages.prix && reglages.prix.garantie_mois) || 12;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(debut).slice(0, 10))) {
+      return { connue: false, sous_garantie: false, debut: '', fin: '', jours: 0,
+               texte: 'Garantie inconnue — pas de date de pose' };
+    }
+    const fin = plusMois(debut, mois);
+    const auj = aujourdhui();
+    const sous = auj <= fin;
+    const jours = Math.round((new Date(fin + 'T00:00:00Z') - new Date(auj + 'T00:00:00Z')) / 86400000);
+    return {
+      connue: true, sous_garantie: sous, debut: String(debut).slice(0, 10), fin: fin, jours: jours,
+      texte: sous
+        ? (jours <= 60 ? 'Sous garantie — fin dans ' + jours + ' j' : 'Sous garantie jusqu’au ' + fmtDate(fin))
+        : 'Hors garantie depuis le ' + fmtDate(fin),
+    };
+  }
+
   function clientKeyOf(prenom, nom) {
     return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
   }
@@ -1438,6 +1476,7 @@
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf, isoDate: isoDate, aujourdhui: aujourdhui,
+    plusMois: plusMois, garantieDe: garantieDe,
     fetchWeather: fetchWeather,
     fetchCurrentWeather: fetchCurrentWeather,
     fetchCurrentWeatherByCoords: fetchCurrentWeatherByCoords,

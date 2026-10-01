@@ -230,6 +230,19 @@ destinataire, nature) via `SSUI.lienSujet()`, curseur dans le champ. Avant, il f
 repartait par SMS. Dans l'autre sens, la fiche devis affiche « Échanges sur ce dossier » — et
 surtout les DÉCISIONS prises, lisibles là où elles servent.
 
+**20. Un SAV se juge d'abord sur la GARANTIE, et se clôt sur CE QUI A ÉTÉ RÉPARÉ.**
+`SSUI.garantieDe(devis, reglages)` répond à « facturable ou pas ? » depuis la date de pose et
+`prix.garantie_mois` (12 par défaut) — la question se posait de tête, dossier par dossier. Sans date
+de pose, on répond « inconnue » : on ne devine pas.
+Clore un ticket EXIGE d'écrire la réparation (la cause reste facultative) — même règle que la
+décision d'un sujet : six mois plus tard, le même défaut revient et personne ne sait ce qui avait
+été fait. Signée et horodatée par le serveur, conservée si le ticket rouvre.
+Les NOTES du ticket ont leur propre route (`/api/devis/:id/sav/:tid/note`), en écriture ciblée.
+⚠️ Le serveur reconstruit un ticket CHAMP PAR CHAMP : tout appelant de `saveSavTicket` doit renvoyer
+le ticket ENTIER (`pour`, `echeance`, `cause`, `resolution`, `notes`…), sinon il les efface.
+Les deux écrans du SAV — `app/sav.html` et la carte de `app/vue.html` — doivent afficher la même
+chose, sinon on refait le diagnostic.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un

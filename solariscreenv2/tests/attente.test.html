@@ -136,6 +136,21 @@
     const decalage = -new Date(2026, 6, 15).getTimezoneOffset();   // minutes a l'est de UTC
     check('U5 le defaut est bien evite', decalage > 0 ? (MINUIT30.toISOString().slice(0, 10) !== window.SSUI.isoDate(MINUIT30)) : true, true);
 
+    // ══════════ 1 quater. GARANTIE d'un SAV ══════════
+    // « Facturable ou pas ? » est la premiere question devant un ticket. Elle se repondait de tete,
+    // dossier par dossier ; elle se deduit de la date de pose et de la duree de garantie.
+    const R12 = { prix: { garantie_mois: 12 } };
+    const poseIlYa = (mois) => { const d = new Date(); d.setMonth(d.getMonth() - mois); return { chantier: { date_pose: window.SSUI.isoDate(d) } }; };
+    check('W1 pose recente = sous garantie', window.SSUI.garantieDe(poseIlYa(3), R12).sous_garantie, true);
+    check('W2 pose de 3 ans = hors garantie', window.SSUI.garantieDe(poseIlYa(36), R12).sous_garantie, false);
+    check('W3 sans date de pose, on ne devine pas', window.SSUI.garantieDe({}, R12).connue, false);
+    check('W4 la duree vient des reglages',
+      window.SSUI.garantieDe(poseIlYa(18), { prix: { garantie_mois: 24 } }).sous_garantie, true);
+    // Le 31 janvier + 1 mois donnerait le 3 mars : on recule au dernier jour du mois visé.
+    check('W5 fin de mois courte', window.SSUI.plusMois('2026-01-31', 1), '2026-02-28');
+    check('W6 mois normal', window.SSUI.plusMois('2026-03-15', 12), '2027-03-15');
+    check('W7 une date absurde ne renvoie pas n importe quoi', window.SSUI.plusMois('pas-une-date', 12), '');
+
     // ══════════ 2. SAV ══════════
     const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
     check('S1 ticket sans responsable', A.depuisSav(devisSav(

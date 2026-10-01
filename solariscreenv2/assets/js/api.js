@@ -389,6 +389,18 @@
         return { ok: false, error: 'Hors-ligne : le ticket SAV sera à ressaisir une fois la connexion revenue.' };
       }
     },
+    // Note interne sur un ticket : route dediee, ecriture ciblee cote serveur -- deux notes
+    // simultanees ne s'ecrasent pas, et aucun ticket voisin n'est reecrit au passage.
+    async addSavNote(devisId, ticketId, texte) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/sav/' + encodeURIComponent(ticketId) + '/note',
+          { method: 'POST', body: JSON.stringify({ texte: texte }) });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : la note n’arriverait pas — reessaie une fois connecte.' };
+      }
+    },
     async deleteSavTicket(devisId, ticketId) {
       try {
         return await req('/devis/' + encodeURIComponent(devisId) + '/sav/' + encodeURIComponent(ticketId), { method: 'DELETE' });
