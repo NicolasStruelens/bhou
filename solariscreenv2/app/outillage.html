@@ -325,7 +325,15 @@
       setTimeout(() => el('fNom').focus(), 60);
     };
     window.closeForm = () => { el('overlay').classList.remove('open'); editing = null; formPhotos = []; };
-    el('overlay').addEventListener('click', (e) => { if (e.target === el('overlay')) closeForm(); });
+    // Ne ferme que si le geste a COMMENCÉ sur le fond : sélectionner du texte dans un champ et
+    // relâcher la souris en dehors adresse le `click` au plus proche ancêtre commun, c'est-à-dire au
+    // fond — et la saisie partait avec. Même correctif que la modale de demande de RDV.
+    let FOND_OUTIL = false;
+    el('overlay').addEventListener('mousedown', (e) => { FOND_OUTIL = (e.target === el('overlay')); });
+    el('overlay').addEventListener('click', (e) => {
+      if (e.target === el('overlay') && FOND_OUTIL) closeForm();
+      FOND_OUTIL = false;
+    });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (el('lb').classList.contains('open')) lbClose(); else if (el('overlay').classList.contains('open')) closeForm(); } });
 
     function renderThumbs() {

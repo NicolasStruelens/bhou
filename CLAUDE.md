@@ -345,6 +345,17 @@ atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
   défilable (`scrollHeight` 2042 pour un `clientHeight` de 800). Un `scrollIntoView` qui « ne marche
   pas » n'y prouve donc rien : vérifier d'abord qu'un `scrollTo` manuel bouge, sinon c'est l'outil.
   À ne pas confondre avec `innerHeight: 0`, qui est le même panneau simplement masqué.
+- **Fermer une modale sur `e.target === leFond` perd les saisies.** Sélectionner du texte dans un
+  champ et relâcher la souris EN DEHORS de la fenêtre envoie le `click` au plus proche ancêtre
+  commun du mousedown et du mouseup — c'est-à-dire le fond. La modale se fermait donc « toute
+  seule » en pleine saisie, et comme aucun brouillon n'existe, vingt champs partaient avec. Exiger
+  que le geste ait COMMENCÉ sur le fond (drapeau posé au `mousedown`). Corrigé sur la demande de
+  RDV, les commentaires du tableau de bord, la relance et le formulaire d'outillage ; les
+  visionneuses d'images gardent le clic simple, il n'y a rien à y perdre.
+- **`Échap` remonte depuis le sélecteur de date du navigateur.** Refermer le petit calendrier d'un
+  `input[type=date]` fermait la modale entière. Ignorer la touche quand la cible est un `SELECT`
+  ou un champ date/heure. Et toute fermeture qui n'enregistre rien demande confirmation dès qu'un
+  caractère a été tapé — pas avant, sinon on apprend à cliquer OK sans lire.
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
   navigateur de bureau ne le déclenche pas : une mise en page validée au bureau peut être cassée
   sur téléphone. Fixer explicitement la taille des boutons à icône seule.
