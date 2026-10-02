@@ -311,6 +311,12 @@
   }
 
   // ── ÉCHANGES ──────────────────────────────────────────────────────────────────────────────
+  const QUOI_SUJET = {
+    question: 'Attend une réponse',
+    afaire:   'À faire',
+    idee:     'À faire',          // une idée n'arrive ici que si quelqu'un s'en est chargé
+    attente:  'En attente d’un tiers',
+  };
   function depuisSujets(sujets) {
     const out = [];
     const auj = aujourdhui();
@@ -328,7 +334,9 @@
         id: 'suj:' + s.id, source: 'echange', ref: s.id, sujet_id: s.id,
         devis_id: s.devis_id || '',
         qui: s.awaiting || '', titre: s.titre,
-        quoi: enRetard ? 'En retard sur l’échéance' : 'Attend une réponse',
+        // Le libellé suit la NATURE : « Attend une réponse » sur une tâche qu'on vient de prendre
+        // est faux, et ça se voyait dès qu'une idée de la réserve devenait une tâche.
+        quoi: enRetard ? 'En retard sur l’échéance' : (QUOI_SUJET[s.kind] || 'Attend une réponse'),
         detail: [s.client_nom, s.corps].filter(Boolean).join(' — ').slice(0, 140),
         depuis: s.date_modification, href: 'echanges.html#suj-' + encodeURIComponent(s.id),
         peutPrendre: !s.awaiting, urgence: urg,

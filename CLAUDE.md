@@ -314,8 +314,37 @@ Trois contraintes à ne pas perdre en retouchant :
 • **Sur téléphone la pastille rétrécit à 21 px** : à 26 px elle faisait déborder `.m-nm` de 6 px et
   rabotait le nom de 80 à 60 px. C'est le NOM qui identifie ; la couleur n'est qu'un appui.
 
+**23. Ce qui n'attend personne doit quand même revenir** (revue des idées, `app/echanges.html`).
+`SSAttente.depuisSujets` écarte volontairement un sujet sans destinataire ET sans échéance : c'est une
+idée en réserve, pas quelque chose qui bloque, et la liste de ce qui attend se remplirait d'idées.
+Mais sans contrepartie ces sujets-là ne remontent **jamais** — or ce sont justement les « choses à
+mettre en place », celles qu'on dépose ici PARCE QU'elles n'ont pas de client. Le bandeau « en
+réserve depuis plus de deux mois » est cette contrepartie, et son critère est l'exact complément de
+l'exclusion de `attente.js` : **si l'une change, l'autre doit changer avec elle**, sinon une idée
+tombe dans le trou entre les deux ou s'affiche aux deux endroits.
+Quatre sorties, pas une de moins : « Je prends » et « Pour l'autre » en font une TÂCHE avec un nom
+dessus (une chose sans nom n'avance pas — règle 15), « Classer » passe par la décision habituelle,
+et « Garder » écrit `revu_le` et repousse de deux mois. **Ne pas supprimer « Garder »** : sans lui le
+bandeau harcèlerait pour une idée qu'on veut précisément laisser mûrir, et on apprendrait à ne plus
+le lire — ce qui coûterait aussi les trois autres.
+`revu_le` survit parce que tous les appelants étalent le sujet (`{...s, ...}`, règle 2) et que le
+serveur valide le format ; une énumération de champs l'effacerait en silence.
+
+**23 bis. Les décisions sont dans le Ctrl+K.** Elles étaient cherchables depuis toujours — mais
+seulement en pensant à ouvrir l'écran des Échanges, donc on ne les retrouvait pas. Le groupe
+« Échanges et décisions » est volontairement le DERNIER de la palette : on cherche d'abord un
+dossier, et un sujet qui remonterait devant le devis du même client ferait manquer le devis.
+Le résultat pointe vers `echanges.html?sujet=<id>`. ⚠️ Une décision vit sur un sujet CLASSÉ, donc
+masqué par défaut : l'arrivée coche « voir ce qui est fait » avant de viser la carte, sinon on
+atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
+
 ## Pièges déjà payés — ne pas les repayer
 
+- **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,
+  `body.scrollTop` et `documentElement.scrollTop` laissent tous `scrollY` à 0 sur une page pourtant
+  défilable (`scrollHeight` 2042 pour un `clientHeight` de 800). Un `scrollIntoView` qui « ne marche
+  pas » n'y prouve donc rien : vérifier d'abord qu'un `scrollTo` manuel bouge, sinon c'est l'outil.
+  À ne pas confondre avec `innerHeight: 0`, qui est le même panneau simplement masqué.
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un
   navigateur de bureau ne le déclenche pas : une mise en page validée au bureau peut être cassée
   sur téléphone. Fixer explicitement la taille des boutons à icône seule.
