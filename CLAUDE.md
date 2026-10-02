@@ -215,6 +215,14 @@ contraire celui resté en BROUILLON, y compris sur une demande déjà `converti`
 oublie, puisque le travail semble fait. Le badge de la carte dit « Devis à envoyer / envoyé /
 signé » au lieu du simple « Devis lié », sans aucune ressaisie.
 ⚠️ Le statut « envoyé » s'appelle **`envoye_client`**, pas `envoye`.
+La COLONNE du kanban suit la même source (`colonneDe` dans `rdv.html`). `converti` n'était posé que
+par le bouton « Créer le devis » : un devis établi au simulateur ou directement laissait la demande
+en « Visité » POUR TOUJOURS, pendant que sa pastille annonçait « Devis envoyé » juste en dessous.
+La colonne disait donc « est passée par ce bouton-là » en faisant croire à « a un devis ».
+Deux garde-fous à ne pas retirer : la déduction ne s'applique qu'au statut `visite` — sinon une
+demande encore « Nouveau » sauterait en « Converti » parce que le client a un vieux devis sans
+rapport, `devisDeRdv` rapprochant par CLIENT sans aucune garde de date ; et le statut STOCKÉ n'est
+jamais réécrit, on n'enregistre pas une donnée déduite d'une heuristique.
 
 **18. « Aujourd'hui » se calcule en heure LOCALE** (`SSUI.aujourdhui()`, `SSUI.isoDate(date)`).
 `new Date().toISOString().slice(0,10)` renvoie une date UTC : entre minuit et 2 h du matin en heure
@@ -224,6 +232,14 @@ et une date ÉCRITE en base reste fausse pour toujours. Restent justes, et ne do
 restent d'un bout à l'autre, puisque aucune heure locale n'y intervient.
 
 **19. Une question se pose LÀ OÙ ELLE SE POSE.** Depuis une fiche devis ou une demande de RDV, le
+⚠️ UNE SEULE PORTE PAR ÉCRAN. `app/rdv.html` est le seul à porter déjà un fil interne
+(« Un mot à Yannick ») : il est en contexte, il ne fait pas quitter la page, et son `awaiting`
+alimente la liste partagée exactement comme un sujet. Le bouton « Demander à l'autre » y faisait
+donc doublon — deux portes pour la même intention, sans que rien ne dise laquelle prendre — et il
+était pire que redondant : posé dans le pied à côté d'« Enregistrer », il faisait un `location.href`
+sans garde, donc sur une demande pas encore enregistrée il emportait tout le formulaire.
+Il a été retiré de là, et SEULEMENT de là. Sur la fiche devis et le SAV, `lienSujet` reste la seule
+porte : ne pas l'y toucher.
 bouton « Demander à l'autre » ouvre les Échanges avec le contexte déjà posé (client, dossier,
 destinataire, nature) via `SSUI.lienSujet()`, curseur dans le champ. Avant, il fallait ouvrir les
 Échanges et RETAPER le nom du client : trois gestes pour une question de dix secondes, donc elle
