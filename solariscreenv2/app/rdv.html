@@ -1180,14 +1180,18 @@
       const t = el('chatText');
       const txt = (t && t.value || '').trim();
       if (!txt) { toast('Écris un message avant d’envoyer.', 'warn'); return; }
-      await postChat(txt, ask || '', ask ? 'question' : 'note');
-      if (t) t.value = '';
+      // On ne vide le champ QUE si le message est vraiment parti. Avant, le vidage était
+      // inconditionnel : sur une demande pas encore enregistrée, postChat sortait en silence et
+      // le texte écrit pour Yannick disparaissait avec. Le chemin des messages rapides, lui,
+      // conservait déjà le texte — les deux se comportent désormais pareil.
+      const parti = await postChat(txt, ask || '', ask ? 'question' : 'note');
+      if (parti && t) t.value = '';
     };
     async function postChat(text, ask, kind) {
-      if (!rdvEnregistre()) { toast('Enregistre d’abord la demande, puis discute.', 'warn', 5000); return; }
+      if (!rdvEnregistre()) { toast('Enregistre d’abord la demande — ton message est gardé dans le champ.', 'warn', 6000); return false; }
       const me = IDENTITY.key || 'nicolas';
       const res = await SS.addRdvComment(CURRENT.id, { author: me, text, ask, kind });
-      if (!res || res.ok === false) { toast((res && res.error) || 'Message non envoyé', 'error', 6000); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Message non envoyé', 'error', 6000); return false; }
       CURRENT.comments = (CURRENT.comments || []).concat([res.comment]);
       // Même règle que le serveur : on passe la balle (ask) > une DÉCISION clôt le débat >
       // sinon celui qui était attendu vient de répondre → la balle se libère.
@@ -1198,6 +1202,7 @@
       renderChat();
       render();   // met à jour les compteurs/badges des cartes derrière la fiche
       toast(ask ? `Envoyé — ${WHO[ask] || ask} est prévenu` : 'Message envoyé ✓', 'ok');
+      return true;
     }
     window.clearAwaiting = async () => {
       if (!CURRENT) return;
