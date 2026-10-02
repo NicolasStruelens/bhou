@@ -251,7 +251,7 @@
         <span id="mIcon"></span>
         <span id="mTitle">Demande de RDV</span>
         <span class="mid" id="mId"></span>
-        <button class="mclose" onclick="closeModal()" aria-label="Fermer">✕</button>
+        <button class="mclose" onclick="fermerModale()" aria-label="Fermer">✕</button>
       </div>
       <div class="mbody" id="mBody"></div>
       <div class="mfoot">
@@ -615,7 +615,22 @@
       PENDING_PHOTOS = (CURRENT.photos || []).slice();
       renderModal(false);
     };
-    window.closeModal = () => { el('modalBg').classList.remove('open'); CURRENT = null; };
+    // Fermeture BRUTE : réservée aux sorties volontaires (enregistrement, suppression, annulation),
+    // où la demande vient d'être traitée et où il n'y a plus rien à perdre.
+    window.closeModal = () => { el('modalBg').classList.remove('open'); CURRENT = null; MODAL_TOUCHE = false; };
+
+    // « Quelque chose a-t-il été tapé depuis l'ouverture ? » Mis à vrai par le moindre input/change
+    // dans la modale, remis à faux à chaque ouverture (renderModal) et à chaque fermeture.
+    let MODAL_TOUCHE = false;
+
+    // Fermeture PROTÉGÉE : toute sortie qui n'enregistre rien passe par ici. Une demande de RDV se
+    // remplit en deux minutes à vingt champs ; la reperdre sans un mot est le pire défaut possible.
+    function fermerModale() {
+      if (MODAL_TOUCHE &&
+          !confirm('Tu as commencé à remplir cette demande.\n\nOK = fermer et PERDRE la saisie\nAnnuler = revenir au formulaire')) return;
+      closeModal();
+    }
+    window.fermerModale = fermerModale;
 
     function renderModal(isNew) {
       const r = CURRENT, c = r.client, a = c.adresse || {};
@@ -735,6 +750,15 @@
       renderPhotos();
       renderChat();   // remplace l'ancien bloc « Notes internes » (même champ `comments`, rien n'est perdu)
       el('modalBg').classList.add('open');
+      // On repart d'une ardoise propre à chaque ouverture. C'est juste ici parce que renderModal
+      // n'est appelée QUE par les deux points d'entrée (openNew et openRdv) : si elle venait un
+      // jour à être rappelée pendant l'édition, cette ligne annulerait la protection en silence.
+      MODAL_TOUCHE = false;
+      if (!el('modalBg').dataset.ecoute) {
+        el('modalBg').dataset.ecoute = '1';
+        el('modalBg').addEventListener('input', () => { MODAL_TOUCHE = true; });
+        el('modalBg').addEventListener('change', () => { MODAL_TOUCHE = true; });
+      }
     }
 
     function renderPhotos() {
@@ -1330,8 +1354,25 @@
       setTimeout(() => { location.href = 'simulateur.html?id=' + encodeURIComponent(devisId); }, 500);
     };
 
-    el('modalBg').addEventListener('click', (e) => { if (e.target === el('modalBg')) closeModal(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('modalBg').classList.contains('open')) closeModal(); });
+    // Le clic sur le fond ne ferme que si le geste a COMMENCÉ sur le fond. Sans cette condition,
+    // sélectionner du texte dans un champ et relacher la souris en dehors de la fenêtre fermait
+    // tout : le navigateur adresse alors le `click` au plus proche ancêtre commun du mousedown et
+    // du mouseup, c'est-à-dire le fond, et le test sur `e.target` seul n'y voit que du feu.
+    let FOND_PRESSE = false;
+    el('modalBg').addEventListener('mousedown', (e) => { FOND_PRESSE = (e.target === el('modalBg')); });
+    el('modalBg').addEventListener('click', (e) => {
+      if (e.target === el('modalBg') && FOND_PRESSE) fermerModale();
+      FOND_PRESSE = false;
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !el('modalBg').classList.contains('open')) return;
+      // Échap sur un champ DATE ou une liste déroulante ferme le sélecteur du navigateur, pas la
+      // modale : la touche remonte quand même jusqu'ici, et fermait tout alors qu'on voulait juste
+      // refermer le petit calendrier.
+      const c = e.target || {};
+      if (c.tagName === 'SELECT' || /^(date|datetime-local|time|month|week)$/.test(c.type || '')) return;
+      fermerModale();
+    });
 
     load();
   </script>
