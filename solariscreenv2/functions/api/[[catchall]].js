@@ -1231,6 +1231,12 @@ export async function onRequest(context) {
         client_nom: String(s.client_nom || '').slice(0, 120),
         devis_id: String(s.devis_id || '').slice(0, 60),
         echeance: /^\d{4}-\d{2}-\d{2}$/.test(String(s.echeance || '')) ? s.echeance : '',
+        // Date de la dernière « revue des idées ». Une chose que personne n'attend et qui n'a pas
+        // d'échéance ne remonte NULLE PART — c'est voulu (sinon la liste de ce qui bloque se
+        // remplirait d'idées), mais ça veut dire qu'elle s'enterre toute seule. L'écran la ressort
+        // au bout de deux mois ; « Garder » écrit cette date et la repousse d'autant, ce qui évite
+        // qu'un bandeau harcèle pour une idée qu'on veut justement laisser mûrir.
+        revu_le: /^\d{4}-\d{2}-\d{2}$/.test(String(s.revu_le || '')) ? s.revu_le : '',
         reponses, reponses_count: reponses.length,
         // L'auteur est signé par le serveur à la CRÉATION et ne change plus ensuite : c'est lui
         // qui reçoit la balle en retour quand l'autre répond.

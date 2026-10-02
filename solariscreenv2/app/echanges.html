@@ -71,6 +71,9 @@
       text-align: center; color: var(--text-subtle); font-size: var(--fs-sm); }
 
     /* ── Liste ─────────────────────────────────────────────────────────────────────────────── */
+    /* Repère bref après un saut depuis la recherche : sans lui, on atterrit au milieu d'une liste
+       sans savoir laquelle des cartes on était venu lire. */
+    .ec-suj.vise { box-shadow: 0 0 0 2px var(--accent); }
     .ec-bar { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-4); }
     .ec-bar .rech { flex: 1 1 200px; min-width: 160px; }
     .ec-liste { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -117,6 +120,10 @@
       .ec-envoi { margin-left: 0; width: 100%; justify-content: center; }
       .ec-lie { flex: 1 1 100%; }
       .ec-opts .sep { display: none; }
+      /* La revue porte QUATRE actions, une de plus que le bandeau des attentes. À 390 px la rangée
+         ne se repliait pas (.at-actions est en flex: 0 0 auto) et poussait la page de 78 px. On lui
+         rend toute la largeur ici seulement : le bandeau des attentes, lui, tient à trois. */
+      #revueHost .at-actions { flex: 1 1 100%; }
     }
     @media (pointer: coarse) {
       .ec-chip { min-height: 38px; }
@@ -165,6 +172,11 @@
       <div class="ec-contexte" id="pContexte"></div>
       <datalist id="dlClients"></datalist>
     </div>
+
+    <!-- REVUE DES IDÉES — ce qui dort depuis deux mois. Une chose que personne n'attend et qui n'a
+         pas d'échéance ne remonte nulle part : c'est voulu (sinon la liste de ce qui bloque se
+         remplirait d'idées), mais ça veut dire qu'elle s'enterre toute seule. -->
+    <div id="revueHost"></div>
 
     <div class="ec-bar">
       <div class="ec-opts" id="fNatures" style="margin-top:0"></div>
@@ -230,6 +242,27 @@
       rendre();
       chargerClients();
       prefixerDepuisUrl();
+      allerAuSujet();
+    }
+
+    // Arriver depuis la recherche globale (Ctrl+K). Une décision vit sur un sujet CLASSÉ, donc
+    // masqué par défaut : il faut décocher le filtre avant de chercher à faire défiler, sinon on
+    // atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
+    function allerAuSujet() {
+      const cible = qp('sujet');
+      if (!cible) return;
+      const x = SUJETS.filter(function (y) { return y.id === cible; })[0];
+      if (!x) { toast('Ce sujet n’existe plus.', 'warn'); return; }
+      if (x.statut === 'fait' && !el('voirFaits').checked) { el('voirFaits').checked = true; rendre(); }
+      const noeud = document.getElementById('suj-' + cible);
+      if (!noeud) return;
+      noeud.classList.add('vise');
+      setTimeout(function () { noeud.classList.remove('vise'); }, 2600);
+      // Différé d'un tick : le bandeau des attentes et les compteurs finissent de se poser juste
+      // après, et un défilement lancé avant eux vise une position qui n'existe déjà plus.
+      // Instantané et non « smooth » : une animation de défilement s'annule au moindre changement
+      // de hauteur, et ici c'est un saut vers une cible, pas un effet.
+      setTimeout(function () { noeud.scrollIntoView({ block: 'center' }); }, 0);
     }
 
     // Arriver ici depuis un dossier, une demande ou un ticket : le contexte est deja pose et le
@@ -275,6 +308,7 @@
       rendrePuces();
       rendreKpis();
       rendreAttentes();
+      rendreRevue();
       const q = (el('rech').value || '').trim().toLowerCase();
       const voirFaits = el('voirFaits').checked;
       let liste = SUJETS.filter(function (s) {
@@ -335,6 +369,68 @@
         '<div class="kpi ticked gold"><div class="kpi-label">Critique</div><div class="kpi-value">' + c.critique + '</div><div class="kpi-sub">conflit, client qui attend, retard</div></div>';
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
     }
+
+    // ── Revue des idées ───────────────────────────────────────────────────────
+    // SSAttente écarte volontairement un sujet que personne n'attend et qui n'a pas d'échéance :
+    // c'est une idée en réserve, pas quelque chose qui bloque. Sans contrepartie, ces sujets-là ne
+    // remontent JAMAIS — or ce sont justement les « choses à mettre en place », celles qu'on dépose
+    // ici parce qu'elles n'ont pas de client. Ce bandeau est cette contrepartie : au bout de deux
+    // mois il les ressort avec la seule question qui compte, on en fait quoi ?
+    // « Garder » écrit `revu_le` et repousse d'autant : sans ça le bandeau harcèlerait pour une idée
+    // qu'on veut précisément laisser mûrir, et on apprendrait à ne plus le lire.
+    const REVUE_J = 60;
+    function enReserve() {
+      const auj = window.SSUI.aujourdhui();
+      return SUJETS.filter(function (x) {
+        if (x.statut === 'fait') return false;
+        const enRetard = x.echeance && x.echeance < auj;
+        if (x.awaiting || enRetard) return false;   // déjà porté par « ce qui attend »
+        return A.joursDepuis(x.revu_le || x.date_creation) >= REVUE_J;
+      });
+    }
+    function rendreRevue() {
+      const liste = enReserve();
+      if (!liste.length) { el('revueHost').innerHTML = ''; return; }
+      const lautre = autre(MOI.key);
+      el('revueHost').innerHTML =
+        '<div class="at-bloc"><div class="at-titre">' + icon('sparkle', 14) +
+        ' En réserve depuis plus de deux mois <span class="at-nom">— on en fait quoi ?</span></div>' +
+        '<div class="at-liste">' + liste.map(function (x) {
+          const id = window.SSUI.jsAttr(x.id);
+          const n = NATURES[x.kind] || NATURES.idee;
+          return '<div class="at-item">' +
+            '<span class="at-src">' + escHtml(n.label) + '</span>' +
+            '<div class="at-corps"><div class="at-quoi">' + escHtml(x.titre) + '</div>' +
+            (x.corps ? '<div class="at-detail">' + escHtml(x.corps.slice(0, 140)) + '</div>' : '') +
+            '<div class="at-age">' + escHtml(nomDe(x.auteur)) + ' · ' + relTime(x.revu_le || x.date_creation) + '</div></div>' +
+            '<div class="at-actions">' +
+              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + window.SSUI.jsAttr(MOI.key) + ')">' + icon('check', 13) + ' Je prends</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + window.SSUI.jsAttr(lautre) + ')">' + icon('user', 13) + ' Pour ' + escHtml(nomDe(lautre)) + '</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="revueGarder(' + id + ')">' + icon('clock', 13) + ' Garder</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="marquerFait(' + id + ')">' + icon('x', 13) + ' Classer</button>' +
+            '</div></div>';
+        }).join('') + '</div></div>';
+    }
+    // Prendre une idée, c'est en faire une TÂCHE avec un nom dessus : une chose sans nom n'avance
+    // pas, c'est tout le principe du module. Le serveur en déduit `awaiting` et elle remonte.
+    window.revuePour = async function (id, qui) {
+      const x = SUJETS.filter(function (y) { return y.id === id; })[0];
+      if (!x) return;
+      const res = await SS.saveSujet(Object.assign({}, x, { pour: qui, kind: 'afaire' }));
+      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      toast(qui === MOI.key ? 'C’est pour toi' : 'Pour ' + nomDe(qui), 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+    window.revueGarder = async function (id) {
+      const x = SUJETS.filter(function (y) { return y.id === id; })[0];
+      if (!x) return;
+      const res = await SS.saveSujet(Object.assign({}, x, { revu_le: window.SSUI.aujourdhui() }));
+      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      toast('Gardée — on en reparle dans deux mois', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
 
     // ── Ce qui attend ────────────────────────────────────────────────────────────────────────
     function ligneAttente(it) {

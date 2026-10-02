@@ -39,6 +39,7 @@
       .cmdk-item .ci-ic { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono, monospace); font-size: 0.62rem; font-weight: 700; background: color-mix(in srgb, var(--accent,#4d7cff) 16%, transparent); color: var(--accent,#4d7cff); }
       .cmdk-item .ci-ic.F { background: color-mix(in srgb, var(--accent-2,#ffd23f) 16%, transparent); color: var(--accent-2,#ffd23f); }
       .cmdk-item .ci-ic.R { background: color-mix(in srgb, var(--accent-3,#a78bfa) 16%, transparent); color: var(--accent-3,#a78bfa); }
+      .cmdk-item .ci-ic.E { background: color-mix(in srgb, var(--ok,#34d399) 16%, transparent); color: var(--ok,#34d399); }
       .cmdk-item .ci-t { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .cmdk-item .ci-s { font-size: 0.62rem; color: var(--text-subtle,#6675a0); font-family: var(--font-mono, monospace); flex: none; }
       .cmdk-empty { padding: 1.4rem; text-align: center; color: var(--text-subtle,#6675a0); font-size: 0.85rem; }
@@ -444,7 +445,7 @@
     mountWhoAmI(container);
   }
 
-  // ── Palette de recherche globale (Ctrl+K / ⌘K) — devis, clients, factures, RDV ──
+  // ── Palette de recherche globale (Ctrl+K / ⌘K) — devis, clients, factures, RDV, échanges ──
   (function commandPalette() {
     let ov = null, input = null, resultsEl = null, DATA = null, dataAt = 0, sel = 0, flat = [];
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -453,7 +454,7 @@
       ov = document.createElement('div'); ov.className = 'cmdk-ov';
       ov.innerHTML = '<div class="cmdk" role="dialog" aria-label="Recherche globale">' +
         '<div class="cmdk-input">' + window.SSUI.icon('search', 16) +
-        '<input type="text" placeholder="Rechercher un devis, client, facture, RDV…" aria-label="Recherche" autocomplete="off">' +
+        '<input type="text" placeholder="Rechercher un devis, client, facture, RDV, une décision…" aria-label="Recherche" autocomplete="off">' +
         '<span class="cmdk-kbd">Échap</span></div><div class="cmdk-results"></div></div>';
       document.body.appendChild(ov);
       input = ov.querySelector('input'); resultsEl = ov.querySelector('.cmdk-results');
@@ -464,11 +465,12 @@
     async function loadData() {
       if (DATA && Date.now() - dataAt < 60000) return DATA;
       const SS = window.SS;
-      const [devis, clients, factures, rdv] = await Promise.all([
+      const [devis, clients, factures, rdv, sujets] = await Promise.all([
         SS.listDevis().catch(() => []), SS.listClients().catch(() => []), SS.listFactures().catch(() => []),
         (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
+        (SS.listSujets ? SS.listSujets().catch(() => []) : Promise.resolve([])),
       ]);
-      DATA = { devis: devis || [], clients: clients || [], factures: factures || [], rdv: rdv || [] };
+      DATA = { devis: devis || [], clients: clients || [], factures: factures || [], rdv: rdv || [], sujets: sujets || [] };
       dataAt = Date.now(); return DATA;
     }
     function openP() {
@@ -482,7 +484,7 @@
       if (!DATA) return;
       const q = input.value.trim().toLowerCase();
       flat = [];
-      if (!q) { resultsEl.innerHTML = '<div class="cmdk-empty">Tape pour chercher un devis, un client, une facture ou une demande de RDV.</div>'; return; }
+      if (!q) { resultsEl.innerHTML = '<div class="cmdk-empty">Tape pour chercher un devis, un client, une facture, une demande de RDV — ou une décision prise.</div>'; return; }
       const groups = [];
       const dv = DATA.devis.map(d => {
         const prenom = d.client_prenom || (d.client && d.client.prenom) || '', nom = d.client_nom || (d.client && d.client.nom) || '';
@@ -511,6 +513,20 @@
         return { label: full || 'Demande', sub: r.source || '', hay: (full + ' ' + (r.source || '') + ' ' + ((r.client && r.client.adresse && r.client.adresse.ville) || '')).toLowerCase(), href: 'rdv.html?open=' + encodeURIComponent(r.id), ic: 'R' };
       }).filter(x => x.hay.includes(q)).slice(0, 5);
       if (rv.length) groups.push({ title: 'Demandes de RDV', items: rv });
+      // Échanges et DÉCISIONS. C'est la réponse à « on avait dit quoi pour les coulisses de
+      // Depaepe ? » : la décision était déjà cherchable, mais seulement en pensant à ouvrir
+      // l'écran des Échanges — donc on ne la retrouvait pas. Le texte des réponses entre aussi
+      // dans la meule : la décision est parfois dans le fil plutôt que dans le champ.
+      const su = DATA.sujets.map(s => {
+        const dec = String(s.decision || '').trim();
+        const reps = (s.reponses || []).map(r => r.texte || '').join(' ');
+        return { label: s.titre || 'Sujet',
+          // Ce qu'on vient relire, c'est la DÉCISION : elle passe donc devant le nom du client.
+          sub: dec ? '✓ ' + dec.slice(0, 90) : (s.client_nom || ''),
+          hay: [s.titre, s.corps, dec, s.client_nom, reps].filter(Boolean).join(' ').toLowerCase(),
+          href: 'echanges.html?sujet=' + encodeURIComponent(s.id), ic: 'E' };
+      }).filter(x => x.hay.includes(q)).slice(0, 5);
+      if (su.length) groups.push({ title: 'Échanges et décisions', items: su });
       if (!groups.length) { resultsEl.innerHTML = '<div class="cmdk-empty">Aucun résultat pour « ' + esc(input.value) + ' ».</div>'; return; }
       let html = '', idx = 0;
       groups.forEach(g => {
