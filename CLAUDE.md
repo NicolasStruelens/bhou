@@ -345,6 +345,15 @@ atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
   défilable (`scrollHeight` 2042 pour un `clientHeight` de 800). Un `scrollIntoView` qui « ne marche
   pas » n'y prouve donc rien : vérifier d'abord qu'un `scrollTo` manuel bouge, sinon c'est l'outil.
   À ne pas confondre avec `innerHeight: 0`, qui est le même panneau simplement masqué.
+- **Un conteneur `flex` en colonne avec `max-height` ÉCRASE ses enfants au lieu de défiler.**
+  `flex-shrink` vaut 1 par défaut : sur un écran court, les deux cartes du rail de la fiche devis
+  perdaient 42 et 57 px, et comme chacune porte `overflow: hidden`, « Ajouter au portfolio » et les
+  dernières entrées du sommaire devenaient **inatteignables** — pas rognées : absentes.
+  ⚠️ Le piège est que la MESURE dit que tout va bien : le conteneur annonce
+  `scrollHeight === clientHeight`, donc aucune barre de défilement et rien à faire défiler. Il faut
+  mesurer les ENFANTS (`enfant.scrollHeight > enfant.clientHeight`), pas le parent. Correctif :
+  `.vue-rail > * { flex: none; }` — le parent déborde alors pour de vrai et son `overflow-y: auto`
+  reprend son rôle. Vérifié à 808, 620, 528, 420 et 320 px de hauteur de rail.
 - **Fermer une modale sur `e.target === leFond` perd les saisies.** Sélectionner du texte dans un
   champ et relâcher la souris EN DEHORS de la fenêtre envoie le `click` au plus proche ancêtre
   commun du mousedown et du mouseup — c'est-à-dire le fond. La modale se fermait donc « toute
