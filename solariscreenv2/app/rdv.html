@@ -259,7 +259,6 @@
         <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
         <div class="spacer"></div>
         <button class="btn btn-ghost btn-sm" id="btnVisiteOk" onclick="visiteFaiteModal()" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);">Visite faite</button>
-        <button class="btn btn-ghost btn-sm" onclick="demanderSurCetteDemande()" title="Poser une question ou noter une chose à faire sur cette demande, pour l'autre">Demander à l’autre</button>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
         <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveCurrent()">Enregistrer</button>
       </div>
@@ -524,13 +523,28 @@
       toast('Visite marquée ✓ — pense au devis !', 'ok', 3000);
     };
 
+    // La colonne d'une demande VISITÉE suit l'existence d'un devis, pas le bouton par lequel on est
+    // passé. « Converti » n'était posé que par « Créer le devis » : un devis établi au simulateur ou
+    // directement laissait la demande en « Visité » pour toujours, alors que sa pastille annonçait
+    // « Devis envoyé » juste en dessous. La colonne disait donc « est passée par ce bouton-là » en
+    // faisant croire à « a un devis ».
+    // On réutilise `SSAttente.devisDeRdv` — déjà la source de la pastille ET du moteur d'attente
+    // (règle 17) : les trois disent enfin la même chose. Le statut STOCKÉ n'est pas réécrit, on ne
+    // déduit pas une donnée à partir d'une heuristique.
+    // Restreint à `visite` : une demande encore « Nouveau » ne doit pas sauter en « Converti »
+    // parce que le client a un vieux devis sans rapport.
+    function colonneDe(r) {
+      if (r.statut === 'visite' && A && A.devisDeRdv(r, DEVIS_LISTE)) return 'converti';
+      return r.statut;
+    }
+
     function renderKanban(rows) {
       // Colonne "Annulé" ajoutée seulement si la case "Voir annulés" est cochée (sinon les annulés
       // n'ont nulle part où apparaître en Kanban → la case n'avait aucun effet dans cette vue).
       const order = el('showAnnules').checked ? KANBAN_ORDER.concat('annule') : KANBAN_ORDER;
       return `<div class="kanban">${order.map(st => {
         const s = STATUSES[st];
-        const cards = rows.filter(r => r.statut === st);
+        const cards = rows.filter(r => colonneDe(r) === st);
         return `<div class="kcol" data-statut="${st}" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropCard(event,'${st}')">
           <div class="kcol-head"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block;"></span>
             <strong style="font-size:var(--fs-sm);">${s.label}</strong><span class="k-count">${cards.length}</span></div>
@@ -1305,20 +1319,6 @@
 
     // ── Conversion en devis ──
     let CONVERTING = false;
-    // Le contexte (client, et le dossier s'il existe deja) voyage dans l'URL : les Echanges le
-    // posent a l'arrivee, curseur dans le champ. Zero ressaisie.
-    window.demanderSurCetteDemande = () => {
-      if (!CURRENT) return;
-      const c = CURRENT.client || {};
-      const nom = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
-      const lien = A ? A.devisDeRdv(CURRENT, DEVIS_LISTE) : null;
-      const pour = IDENTITY.key === 'yannick' ? 'nicolas' : 'yannick';
-      location.href = window.SSUI.lienSujet({
-        client: nom, devis_id: (lien && lien.devis.id) || CURRENT.devis_id || '',
-        pour: pour, kind: 'question',
-      });
-    };
-
     window.convertToDevis = async () => {
       if (!CURRENT || CONVERTING) return;
       collect();
