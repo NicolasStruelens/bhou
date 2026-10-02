@@ -42,6 +42,15 @@
     .ec-chip.on { border-color: var(--kc, var(--accent)); color: var(--kc, var(--accent)); background: color-mix(in srgb, var(--kc, var(--accent)) 12%, transparent); }
 
     /* ── Ce qui attend (les quatre modules réunis) ─────────────────────────────────────────── */
+    /* Flux de TEXTE, pas une rangee flex : en flex, les morceaux de texte deviennent des elements
+       anonymes et se retrouvaient cote a cote en deux colonnes qui se cassaient chacune de leur
+       cote sur telephone. En bloc, la phrase se replie comme une phrase. */
+    .at-critique { display: block; margin-bottom: var(--sp-4);
+      padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-family: var(--font-mono);
+      font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+      background: color-mix(in srgb, var(--danger) 8%, transparent); line-height: 1.5; }
+    .at-critique svg { vertical-align: -2px; margin-right: 6px; }
     .at-bloc { margin-bottom: var(--sp-5); }
     .at-titre { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs);
       text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: var(--sp-3); }
@@ -149,14 +158,11 @@
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
-
-    <!-- CE QUI ATTEND — les quatre modules réunis (demandes de RDV, planning, SAV, échanges).
-         Chacun savait déjà dire « ça attend quelqu'un », mais chacun dans son coin : il fallait
-         ouvrir quatre écrans pour le savoir, donc on ne le faisait pas. Ici, tout est au même
-         endroit ET chaque ligne porte son action : attribuer sans changer de page. -->
-    <div id="attenteHost"></div>
-
+    <!-- ÉCRIRE EN PREMIER. Cette zone était sous les compteurs, sous les trois bandes d'attente et
+         sous la revue des idées : il fallait dérouler toute la page pour déposer une pensée de dix
+         secondes. L'intention d'origine — « écrire doit être la chose la plus facile de la page » —
+         était restée dans le commentaire pendant que l'écran se remplissait par-dessus.
+         Un outil où l'on hésite à écrire ne sert plus à rien : la zone passe donc avant tout. -->
     <!-- Écrire doit être la chose la plus facile de la page : la zone est en haut, ouverte,
          sans bouton « nouveau sujet » à trouver d'abord. -->
     <div class="ec-poster">
@@ -172,6 +178,13 @@
       <div class="ec-contexte" id="pContexte"></div>
       <datalist id="dlClients"></datalist>
     </div>
+
+    <!-- CE QUI ATTEND — les quatre modules réunis (demandes de RDV, planning, SAV, échanges).
+         Chacun savait déjà dire « ça attend quelqu'un », mais chacun dans son coin : il fallait
+         ouvrir quatre écrans pour le savoir, donc on ne le faisait pas. Ici, tout est au même
+         endroit ET chaque ligne porte son action : attribuer sans changer de page. -->
+    <div id="attenteHost"></div>
+
 
     <!-- REVUE DES IDÉES — ce qui dort depuis deux mois. Une chose que personne n'attend et qui n'a
          pas d'échéance ne remonte nulle part : c'est voulu (sinon la liste de ce qui bloque se
@@ -306,7 +319,6 @@
     // ── Rendu ────────────────────────────────────────────────────────────────────────────────
     function rendre() {
       rendrePuces();
-      rendreKpis();
       rendreAttentes();
       rendreRevue();
       const q = (el('rech').value || '').trim().toLowerCase();
@@ -358,17 +370,6 @@
 
     // Les compteurs portent désormais sur TOUT l'ERP, pas seulement sur les sujets écrits ici :
     // c'est ce qui fait de cet écran la bible de qui fait quoi plutôt qu'un chat de plus.
-    function rendreKpis() {
-      const c = A.compter(ATTENTES);
-      const pourMoi = A.pourQui(ATTENTES, MOI.key).length;
-      const pourAutre = A.pourQui(ATTENTES, autre(MOI.key)).length;
-      el('kpis').innerHTML =
-        '<div class="kpi ticked danger"><div class="kpi-label">Personne dessus</div><div class="kpi-value">' + c.sansPersonne + '</div><div class="kpi-sub">à attribuer — rien n’avance sans ça</div></div>' +
-        '<div class="kpi ticked accent"><div class="kpi-label">Ça t’attend</div><div class="kpi-value">' + pourMoi + '</div><div class="kpi-sub">réponse ou action de ta part</div></div>' +
-        '<div class="kpi ticked"><div class="kpi-label">Chez ' + escHtml(nomDe(autre(MOI.key))) + '</div><div class="kpi-value">' + pourAutre + '</div><div class="kpi-sub">la balle est dans son camp</div></div>' +
-        '<div class="kpi ticked gold"><div class="kpi-label">Critique</div><div class="kpi-value">' + c.critique + '</div><div class="kpi-sub">conflit, client qui attend, retard</div></div>';
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
-    }
 
     // ── Revue des idées ───────────────────────────────────────────────────────
     // SSAttente écarte volontairement un sujet que personne n'attend et qui n'a pas d'échéance :
@@ -476,6 +477,15 @@
       const miennes = A.pourQui(ATTENTES, MOI.key);
       const autres = A.pourQui(ATTENTES, autre(MOI.key));
       let html = '';
+      // « Critique » était le seul des quatre compteurs à ne pas être répété par un titre de bande :
+      // il survit ici, mais seulement QUAND IL Y EN A. Un gros « 0 » permanent n'apprend rien et
+      // occupe la place de ce qui compte.
+      const nbCritique = A.compter(ATTENTES).critique;
+      if (nbCritique) {
+        html += '<div class="at-critique">' + icon('warning', 13) + ' <strong>' + nbCritique +
+          '</strong> ' + (nbCritique > 1 ? 'situations critiques' : 'situation critique') +
+          ' <span class="at-nom">— conflit, client qui attend, retard</span></div>';
+      }
       // L'ordre n'est pas décoratif : ce que PERSONNE n'a pris passe avant tout le reste, parce
       // que c'est exactement ce dont chacun croit que l'autre s'occupe.
       if (orphelins.length) {
