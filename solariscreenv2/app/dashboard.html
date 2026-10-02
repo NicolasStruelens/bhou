@@ -311,6 +311,23 @@
     .m-jp svg { display: block; }
     @media (max-width: 700px) { .m-jump { margin-left: 0; } }
     .m-nm { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    /* Pastille d'identite : la seule chose qui dise QUI sur la ligne, le liseré disant QUOI FAIRE.
+       `flex: 0 0 auto` est obligatoire — sans lui c'est le NOM qui cède (piège déjà payé : un texte
+       en ellipsis à côté d'un badge, dans une rangée flex, tombe à une seule lettre).
+       Seule la teinte (--ah) vient du nom ; saturation et clarté viennent du thème. */
+    .m-ava { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; line-height: 1;
+      letter-spacing: 0.02em; user-select: none;
+      /* Chaque couleur est déclarée DEUX fois : la première est un repli neutre, gardé seulement
+         par un navigateur qui ne connaîtrait pas OKLCH — il affiche alors une pastille grise mais
+         lisible, au lieu de rien du tout. */
+      color: var(--text-muted);
+      color: oklch(calc(var(--ava-ink-l) - var(--at) * 0.09) var(--ava-c) var(--ah));
+      background: var(--surface-2);
+      background: oklch(calc(var(--ava-bg-l) - var(--at) * 0.09) var(--ava-c) var(--ah) / var(--ava-bg-a));
+      border: 1px solid var(--border);
+      border: 1px solid oklch(calc(var(--ava-bd-l) - var(--at) * 0.09) var(--ava-c) var(--ah) / 0.5); }
     .m-name { font-weight: 600; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* De quoi parle le devis — une ligne calme sous le nom, jamais concurrente du nom.
        `min-width: 0` sur l'enfant : sans lui un texte long refuse de rétrécir et pousse la
@@ -379,7 +396,10 @@
          de 190 px (le montant occupant l'autre) et se cassait en trois rangées. .m-main n'a ni
          fond ni bordure ni marge — la dissoudre ne fait donc rien perdre visuellement. */
       .m-main { display: contents; }
-      .m-nm { grid-column: 1; }
+      /* Pastille rétrécie et écart resserré : à 26 px elle faisait déborder .m-nm de 6 px et rabotait
+         le nom de 80 à 60 px — or c'est le NOM qui identifie, la couleur n'est qu'un appui. */
+      .m-nm { grid-column: 1; gap: 6px; }
+      .m-ava { width: 21px; height: 21px; }
       /* Sur téléphone c'est ici que le résumé compte le plus : le n° de devis et les pastilles
          de type sont masqués, il ne resterait QUE le nom et le montant pour distinguer deux
          devis d'un même client. */
@@ -1440,13 +1460,18 @@
         return `<div class="type-badges">${dep}${suite}${manque}</div>`;
       };
       if (window.__mediaPreviewReset) window.__mediaPreviewReset();   // ferme un aperçu ouvert avant de réécrire le tableau
+      // Les pastilles se calculent sur la LISTE entière, pas ligne par ligne : c'est ce qui permet
+      // d'écarter deux clients qui tomberaient sur la même couleur (cf. SSUI.avatarsClients).
+      const PASTILLES = window.SSUI.avatarsClients(rows);
       el('tableHost').innerHTML = `<div class="mix-list">${rows.map(d => {
         const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
         const pay = paymentInfo(d);
+        const ava = PASTILLES.get(clientKeyOf(d.prenom, d.nom)) || window.SSUI.avatarClient(d.prenom, d.nom);
         return `
         <div class="mrow ${hot ? 'is-hot' : ''}" data-id="${d.id}" style="--rail:${railColor(d)}" title="Ouvrir la fiche du devis">
           <div class="m-main">
             <div class="m-nm">
+              <span class="m-ava" style="--ah:${ava.teinte};--at:${ava.ton}" aria-hidden="true">${esc(ava.initiales)}</span>
               <span class="m-name" title="${esc(nameTitle(d))}">${esc(d.prenom)} ${esc(d.nom) || '—'}</span>
               ${typeBadges(d)}
               <span class="m-nb">

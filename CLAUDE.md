@@ -287,6 +287,33 @@ Trois pièges, tous payés ici :
   déduisait d'une regex sur le LIBELLÉ affiché (`/Relance/i`) — vrai par chance pour « à relancer »
   du devis expiré, et cassé au premier libellé reformulé. L'action porte `ic` et `hash`.
 
+**22. Une couleur ne peut pas identifier un client à elle seule** (`SSUI.avatarsClients`).
+Le liseré dit QUOI FAIRE (règle 21 bis), donc trois clients qui attendent un acompte sortent en
+trois filets identiques — et la liste se lit comme un bloc. D'où la pastille à côté du nom :
+initiales + teinte, qui répond « qui ? » pendant que le liseré répond « quoi ? ».
+⚠️ Ne pas la réécrire en « simple couleur calculée depuis le nom » : ça a été essayé, c'est faux.
+Avec 48 combinaisons, sept clients affichés ensemble en partagent une **une fois sur trois**
+(paradoxe des anniversaires) — mesuré sur les données de test : trois des sept clients tombaient
+sur la MÊME couleur, ΔE 0. Et agrandir la palette ne règle rien : à 54 combinaisons le plancher
+tombe à ΔE 6, c'est-à-dire des QUASI-doublons, où l'on hésite au lieu de lire — pire qu'un doublon
+franc. Vingt clients ne peuvent pas avoir vingt couleurs distinctes, aucun réglage n'y change rien.
+La solution tient en une phrase : **le nom donne la case de départ, la LISTE arbitre les chocs.**
+Un client garde sa couleur (même sur plusieurs devis, même d'un écran à l'autre), mais une pastille
+qui tomberait à moins de `AVA_SEUIL` d'une déjà posée dans la même liste est déplacée vers la case
+libre la plus éloignée de toutes les autres — et non vers la première libre venue, qui est souvent
+la voisine immédiate de celle qu'on fuit. Ce qui est à l'écran est donc toujours séparable.
+Mesuré après coup : ΔE minimal **20,9** à 7 clients, 17,6 à 10, 10,6 à 20, et **jamais de doublon**.
+Trois contraintes à ne pas perdre en retouchant :
+• **Le contraste passe avant l'écart.** Les variantes à 3 tons largement espacés gagnaient 2 points
+  de ΔE mais faisaient tomber les initiales à 2,5 de contraste : illisibles. On tient 5,1 (sombre)
+  et 4,6 (clair), donc au-dessus du seuil AA.
+• **Mesurer en peignant un pixel**, jamais en lisant `getComputedStyle().color` : depuis le passage
+  à OKLCH il renvoie la chaîne `oklch(0.84 0.12 120)` telle quelle, et une conversion qui attend du
+  `rgb()` lit la TEINTE comme une composante rouge. Ça a produit un « ΔE 12,2 » entièrement faux,
+  identique dans les deux thèmes — ce qui était le seul indice. Passer par un canvas 1×1.
+• **Sur téléphone la pastille rétrécit à 21 px** : à 26 px elle faisait déborder `.m-nm` de 6 px et
+  rabotait le nom de 80 à 60 px. C'est le NOM qui identifie ; la couleur n'est qu'un appui.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`@media (pointer: coarse)`** impose `min-height: 44px` aux boutons sur écran tactile. Un

@@ -694,6 +694,86 @@
     return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
   }
 
+  // ── Pastilles d'identité client ─────────────────────────────────────────────
+  // Le liseré d'une ligne dit QUOI FAIRE ; il ne peut donc pas dire QUI, et trois clients qui
+  // attendent un acompte sortent en trois filets identiques. La pastille répond à « qui ? ».
+  //
+  // Pourquoi ce n'est PAS une simple couleur calculée depuis le nom : avec 48 combinaisons, sept
+  // clients affichés ensemble en partagent une une fois sur trois (paradoxe des anniversaires —
+  // mesuré : trois des sept clients de test tombaient sur la même). Et agrandir la palette ne
+  // règle rien, ça remplace les doublons francs par des QUASI-doublons à ΔE 6, où l'on hésite au
+  // lieu de lire. Aucun réglage ne permet à vingt clients d'avoir vingt couleurs distinctes.
+  //
+  // D'où : le nom donne la case de départ (un client garde sa couleur, y compris sur plusieurs
+  // devis, et d'un écran à l'autre), mais une pastille qui tomberait trop près d'une déjà posée
+  // DANS LA MÊME LISTE est déplacée vers la case la plus éloignée encore libre. Ce qui est à
+  // l'écran est donc toujours séparable, et le déplacement ne se produit que lors d'un vrai choc.
+  // La couleur reste un APPUI : ce sont les lettres, et le nom juste à côté, qui identifient.
+  const AVA_TEINTES = 16, AVA_TONS = 3;         // 48 cases ; clarté et chroma viennent du thème
+  const AVA_SEUIL = 0.34;                       // en-deçà, deux pastilles se ressemblent trop
+
+  function avaIndex(cle) {
+    // FNV-1a : court, stable, bien dispersé — un simple cumul de codes de caractères rapprochait
+    // « Dubois » et « Dubois-Martin ».
+    let h = 0x811c9dc5;
+    for (let i = 0; i < cle.length; i++) { h ^= cle.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0) % (AVA_TEINTES * AVA_TONS);
+  }
+  // Écart perçu entre deux cases, ramené à [0,1]. La teinte se voit bien plus que la clarté :
+  // elle pèse donc davantage, sinon deux pastilles de même couleur à un ton d'écart passeraient
+  // pour « assez différentes » alors qu'elles se confondent.
+  function avaEcart(a, b) {
+    let dh = Math.abs((a % AVA_TEINTES) - (b % AVA_TEINTES));
+    if (dh > AVA_TEINTES / 2) dh = AVA_TEINTES - dh;
+    const dt = Math.abs(Math.floor(a / AVA_TEINTES) - Math.floor(b / AVA_TEINTES));
+    return dh / (AVA_TEINTES / 2) + 0.55 * (dt / (AVA_TONS - 1));
+  }
+  function avaInitiales(prenom, nom) {
+    const p0 = String(prenom || '').trim(), n0 = String(nom || '').trim();
+    // Une société n'a pas de prénom : on prend alors les deux premières lettres du nom, sinon
+    // toutes les sociétés se ressemblent.
+    const ini = p0 ? (p0.charAt(0) + (n0.charAt(0) || '')) : n0.slice(0, 2);
+    return (ini || '?').toUpperCase();
+  }
+  function avaDepuisIndex(idx, prenom, nom) {
+    return { teinte: (idx % AVA_TEINTES) * (360 / AVA_TEINTES),
+             ton: Math.floor(idx / AVA_TEINTES),
+             initiales: avaInitiales(prenom, nom) };
+  }
+
+  // Pastille d'un seul client, sans contexte de liste (fiche, recherche…).
+  function avatarClient(prenom, nom) {
+    return avaDepuisIndex(avaIndex(clientKeyOf(prenom, nom)), prenom, nom);
+  }
+
+  // Pastilles d'une LISTE affichée, garanties séparables entre elles.
+  // `liste` : des objets portant `prenom` et `nom`, dans l'ordre d'affichage.
+  function avatarsClients(liste) {
+    const pris = [], sortie = new Map();
+    (liste || []).forEach(function (c) {
+      const cle = clientKeyOf(c.prenom, c.nom);
+      if (sortie.has(cle)) return;            // même client plus bas dans la liste : même pastille
+      let idx = avaIndex(cle);
+      let proche = Infinity;
+      for (let j = 0; j < pris.length; j++) proche = Math.min(proche, avaEcart(idx, pris[j]));
+      if (proche < AVA_SEUIL) {
+        // On prend la case libre qui s'éloigne le plus de TOUTES celles déjà posées (et non la
+        // première libre venue, qui serait souvent la voisine immédiate de celle qu'on fuit).
+        let meilleur = idx, score = -1;
+        for (let i = 0; i < AVA_TEINTES * AVA_TONS; i++) {
+          if (pris.indexOf(i) !== -1) continue;
+          let m = Infinity;
+          for (let j = 0; j < pris.length; j++) m = Math.min(m, avaEcart(i, pris[j]));
+          if (m > score) { score = m; meilleur = i; }
+        }
+        idx = meilleur;
+      }
+      pris.push(idx);
+      sortie.set(cle, avaDepuisIndex(idx, c.prenom, c.nom));
+    });
+    return sortie;
+  }
+
   // Depuis quand un devis est-il dans SON statut actuel (basé sur statut_history,
   // repli sur date_modification pour les devis créés avant l'ajout de l'historique).
   function daysInCurrentStatus(d) {
@@ -1525,7 +1605,7 @@
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
-    clientKeyOf: clientKeyOf, isoDate: isoDate, aujourdhui: aujourdhui,
+    clientKeyOf: clientKeyOf, avatarClient: avatarClient, avatarsClients: avatarsClients, isoDate: isoDate, aujourdhui: aujourdhui,
     plusMois: plusMois, garantieDe: garantieDe,
     fetchWeather: fetchWeather,
     fetchCurrentWeather: fetchCurrentWeather,
