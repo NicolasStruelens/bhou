@@ -568,7 +568,14 @@
     function renderList(rows) {
       if (!rows.length) return `<div class="empty"><div class="big">${icon('calendar', 40)}</div>Aucune demande de RDV.<br><button class="btn btn-ghost btn-sm" onclick="openNew()">${icon('plus', 13)} Nouvelle demande</button></div>`;
       const sorted = rows.slice().sort((a, b) => String(b.date_modification || '').localeCompare(String(a.date_modification || '')));
-      return `<div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;">
+      // `overflow:hidden` etait pose pour que les coins arrondis rognent le tableau -- mais il
+      // ecrasait le `overflow-x: auto` de .table-wrap (base.css) et SUPPRIMAIT le defilement.
+      // Sur telephone, le tableau fait 596 px dans une boite de 356 : la derniere colonne finissait
+      // 223 px hors ecran, sans aucun moyen d y acceder. Le `body { overflow-x: hidden }` global
+      // masquait le symptome -- la page ne debordait pas, donc tout avait l air normal.
+      // Les DEUX axes sont poses explicitement : avec `overflow-x: auto` seul, la spec CSS bascule
+      // aussi l axe vertical sur auto, et une ombre d un pixel suffit a faire apparaitre une barre.
+      return `<div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--r-md);overflow-x:auto;overflow-y:hidden;">
         <table class="rdv-table">
           <thead><tr><th>Client</th><th>Statut</th><th>Chargé</th><th>Échange</th><th>Visite</th><th>Contact</th><th>Source</th></tr></thead>
           <tbody>${sorted.map(r => {
