@@ -820,6 +820,25 @@
         return { ok: false, error: MSG_SESSION };
       }
     },
+    // Photos d'un sujet : ecriture CIBLEE, comme les reponses. L'image part dans R2 AVANT
+    // (SSUI.compressAndUploadPhoto) ; on n'envoie ici que son adresse.
+    // Pas de file d'attente hors-ligne : une photo qui n'existe que sur le telephone qui l'a prise
+    // est pire qu'une photo absente -- l'autre croirait l'avoir vue.
+    async addSujetPhoto(id, payload) {
+      try { return await req('/sujets/' + encodeURIComponent(id) + '/photo', { method: 'POST', body: JSON.stringify(payload) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : la photo n’arriverait pas — réessaie une fois connecté.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async removeSujetPhoto(id, photoId) {
+      try { return await req('/sujets/' + encodeURIComponent(id) + '/photo/' + encodeURIComponent(photoId), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
     async deleteSujet(id) {
       try { return await req('/sujets/' + encodeURIComponent(id), { method: 'DELETE' }); }
       catch (e) {
