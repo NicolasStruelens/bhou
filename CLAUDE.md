@@ -419,6 +419,32 @@ envoyée. L’échéance retenue est la plus TARDIVE des deux.
 ce plancher : on ne sait pas quand elles sont parties, et leur inventer une date retarderait la
 suivante sans raison. Un devis jamais relancé reste donc en retard de son vrai nombre de jours.
 
+**28. Un décor de fête vit dans `assets/js/fetes.js`, jamais dans une page.** Un décor saisonnier
+recopié sur vingt pages, c'est vingt endroits à retrouver le 2 novembre — donc des toiles
+d'araignée encore en place à Noël. Le calendrier décide seul (bornes en `MM-JJ`, qui reviennent
+chaque année sans millésime à tenir à jour), et **ajouter une fête = une entrée dans `FETES`** :
+les emplacements (`coin` et sa `bete`, `marque`, `volants`) sont les mêmes pour toutes, on
+remplace les dessins, pas le code. Un dessin s'écrit en SVG en ligne (`svg:`) ou en fichier
+(`img:`) ; le SVG est préféré, il suit le thème via `currentColor` et ne coûte aucune requête.
+Trois règles, et ce sont elles qui justifient le module :
+• **JAMAIS SUR CE QUE LE CLIENT VOIT.** Rien dans `.paper`, rien sur `devis-review.html` ni
+  `track.html` (les deux pages servies par lien à jeton, hors Access), rien à l'impression. Une
+  araignée sur un devis d'école, ce n'est pas drôle : c'est une facture qu'on ne prend pas au
+  sérieux. Le script n'est pas inclus sur ces pages ET le module s'y arrête de lui-même.
+• **LE DÉCOR NE DIT RIEN.** Ici la couleur porte du sens (règles 21 bis et 22). Les décors se
+  reconnaissent à leur FORME et vivent en opacité basse : personne ne prend une citrouille pour
+  une alerte, même si son orange est voisin de `--warn`.
+• **ÇA DOIT POUVOIR S'ÉTEINDRE**, et par APPAREIL (`localStorage`, réglage dans Paramètres) :
+  un client par-dessus l'épaule et l'envie de chauves-souris tombe, sans rien changer pour l'autre.
+⚠️ Les coins se reposent à chaque rendu (`MutationObserver`). Presque toutes les listes de l'ERP
+arrivent de l'API APRÈS le chargement : un décor posé une seule fois n'apparaissait sur AUCUN de
+ces écrans, et disparaissait au premier filtre sur les autres. L'observateur est groupé par
+`setTimeout`, **pas** `requestAnimationFrame` — voir le piège ci-dessous.
+⚠️ L'hôte d'un décor se choisit sur la PLACE DISPONIBLE (`260 × 130` px), pas sur une liste noire
+qui n'aurait jamais fini de grandir. Les tuiles de chiffres s'écrivent `class="kpi ticked"` et les
+modales `class="modal ticked"` : sans ça, une toile de 58 px atterrissait sur un carré de 150, et
+une autre sur une fenêtre de saisie masquée, prête à surgir.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,
@@ -520,6 +546,10 @@ suivante sans raison. Un devis jamais relancé reste donc en retard de son vrai 
 - **Mesurer la mise en page quand le panneau du navigateur est masqué** donne `clientWidth: 0`, donc
   un faux « ça déborde » — et `requestAnimationFrame` ne se déclenche jamais, ce qui fait expirer le
   script. Vérifier que la largeur est non nulle avant de conclure.
+  ⚠️ Ce n'est pas qu'un défaut d'outil : **rAF ne tire pas non plus dans un ONGLET en arrière-plan**.
+  Toute logique qui doit s'exécuter même sans être regardée (ici, décorer une liste rendue pendant
+  qu'on est sur un autre onglet) passe par `setTimeout`. Avec rAF, ça ne se produisait jamais, et
+  rien ne le signalait.
 - **`SSUI.jsAttr()` renvoie la valeur AVEC ses guillemets** (`JSON.stringify`, puis `"` → `&quot;`).
   L'entourer de quotes en plus produit `attribuer('"sav:2026-0012:abc"')` : l'identifiant arrive
   avec des guillemets LITTÉRAUX, ne correspond à rien, et la fonction sort en silence. S'écrit

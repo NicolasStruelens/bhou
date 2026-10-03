@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — fêtes</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    h2 { color:#93a8bf; font-size:14px; margin-top:22px; text-transform:uppercase; letter-spacing:.08em; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:900px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests fetes.js</h1>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/fetes.js"></script>
+  <script>
+    const F = window.SSFetes;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    // Un vrai objet Date LOCAL : c'est précisément ce que le module doit lire, et ce qu'une
+    // conversion en UTC casserait.
+    const d = (a, m, j, h) => new Date(a, m - 1, j, h === undefined ? 12 : h, 0, 0);
+    const nom = (x) => (x ? x.nom : null);
+
+    // ══════════ 1. La lecture de la date est LOCALE ══════════
+    // new Date().toISOString().slice(0,10) renvoie une date UTC : le 1er novembre à 00 h 30 en
+    // heure belge, c'est encore le 31 octobre pour UTC. Les toiles resteraient un jour de trop.
+    check('minuit et demi reste le bon jour',  F._moisJour(d(2026, 11, 1, 0)), '11-01');
+    check('23 h 30 reste le bon jour',         F._moisJour(d(2026, 10, 31, 23)), '10-31');
+    check('un chiffre est complété à deux',    F._moisJour(d(2026, 1, 5)), '01-05');
+
+    // ══════════ 2. Une période normale ══════════
+    check('avant la borne', F._dansLaPeriode('09-30', '10-01', '11-02'), false);
+    check('le jour pile',   F._dansLaPeriode('10-01', '10-01', '11-02'), true);
+    check('au milieu',      F._dansLaPeriode('10-31', '10-01', '11-02'), true);
+    check('dernier jour INCLUS', F._dansLaPeriode('11-02', '10-01', '11-02'), true);
+    check('le lendemain',   F._dansLaPeriode('11-03', '10-01', '11-02'), false);
+
+    // ══════════ 3. Une période qui enjambe le 1er janvier ══════════
+    // Écrite du:'12-26' au:'01-02', elle ne peut pas se tester par un simple « du <= x <= au ».
+    // C'est le seul cas où la comparaison bascule, et donc le seul qui puisse casser en silence
+    // le jour où l'on ajoutera le Nouvel An.
+    check('fin décembre',      F._dansLaPeriode('12-28', '12-26', '01-02'), true);
+    check('le 31 décembre',    F._dansLaPeriode('12-31', '12-26', '01-02'), true);
+    check('le 1er janvier',    F._dansLaPeriode('01-01', '12-26', '01-02'), true);
+    check('dernier jour',      F._dansLaPeriode('01-02', '12-26', '01-02'), true);
+    check('le 3 janvier, non', F._dansLaPeriode('01-03', '12-26', '01-02'), false);
+    check('juillet, non',      F._dansLaPeriode('07-14', '12-26', '01-02'), false);
+
+    // ══════════ 4. Halloween, de bout en bout ══════════
+    check('30 septembre : rien',     nom(F.active(d(2026, 9, 30))), null);
+    check('1er octobre : Halloween', nom(F.active(d(2026, 10, 1))), 'Halloween');
+    check('31 octobre : Halloween',  nom(F.active(d(2026, 10, 31))), 'Halloween');
+    check('2 novembre : encore',     nom(F.active(d(2026, 11, 2))), 'Halloween');
+    // Le lendemain de la Toussaint, tout disparaît SEUL. C'est la raison d'être du module :
+    // sans lui, il faudrait penser à retirer les toiles à la main sur vingt pages.
+    check('3 novembre : plus rien',  nom(F.active(d(2026, 11, 3))), null);
+    check('en plein été : rien',     nom(F.active(d(2026, 7, 14))), null);
+    check("l'année suivante aussi",  nom(F.active(d(2027, 10, 15))), 'Halloween');
+
+    // ══════════ 5. Le contrat que toute fête doit respecter ══════════
+    // Ajouter une fête, c'est ajouter une entrée. Ces règles disent ce qu'une entrée doit porter.
+    F.FETES.forEach(function (f) {
+      check(f.id + ' : a un nom', typeof f.nom === 'string' && f.nom.length > 0, true);
+      check(f.id + ' : bornes au format MM-JJ', /^\d{2}-\d{2}$/.test(f.du) && /^\d{2}-\d{2}$/.test(f.au), true);
+      const slots = ['coin', 'suspendu', 'marque'].filter(function (k) { return f[k]; })
+        .map(function (k) { return f[k]; }).concat(f.volants || []);
+      check(f.id + ' : au moins un décor', slots.length > 0, true);
+      // Un décor est soit du SVG en ligne, soit un fichier — jamais ni l'un ni l'autre, sinon
+      // il se monte dans le vide sans la moindre erreur.
+      check(f.id + ' : chaque décor porte un dessin',
+        slots.every(function (s) { return (typeof s.svg === 'string' && s.svg.indexOf('<svg') === 0) || typeof s.img === 'string'; }), true);
+      // Les décors ne doivent pas se lire comme un statut : ils vivent en opacité basse.
+      check(f.id + ' : opacités raisonnables',
+        slots.every(function (s) { return s.opacite === undefined || (s.opacite > 0 && s.opacite <= 1); }), true);
+    });
+
+    // ══════════ 6. L'extinction ══════════
+    check('allumé par défaut', F.estAllumee(), true);
+    F.allumer(false);
+    check('éteint après réglage', F.estAllumee(), false);
+    F.allumer(true);
+    check('rallumé', F.estAllumee(), true);
+
+    document.getElementById('out').innerHTML =
+      '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>—</th></tr>' + rows.join('') + '</table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S)</span> sur ' + total;
+    document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests fêtes';
+  </script>
+</body>
+</html>
