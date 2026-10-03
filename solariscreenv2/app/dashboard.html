@@ -100,13 +100,22 @@
     .status-pill:hover { box-shadow: var(--glow-soft); }
 
     /* ── Vue "Aujourd'hui" : briefing discret, uniquement s'il y a quelque chose à signaler ── */
+    /* Deux RANGÉES et non une seule file : la bande portait des pastilles d'apparence identique
+       qui font des choses opposées — les unes filtrent la liste ci-dessous, les autres quittent la
+       page. On ne peut pas deviner laquelle avant de cliquer, et se retrouver ailleurs quand on
+       croyait filtrer est exactement ce qui donne l'impression de brouillon. */
     .today-brief {
-      display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+      display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); flex-wrap: nowrap;
       padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
       --tick-color: var(--accent-2);
     }
     .today-brief.hidden { display: none; }
+    .tb-ligne { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+    /* Le libellé ANNONCE l'effet du clic. C'est lui le correctif : le regroupement seul ne dirait
+       pas pourquoi ces pastilles-là sont ensemble. */
+    .tb-effet { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: none;
+      letter-spacing: 0; color: var(--text-subtle); font-weight: 400; }
     .tb-label { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-2); display: flex; align-items: center; gap: 0.4rem; flex: none; }
     .tb-chip {
       display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600;
@@ -1285,10 +1294,14 @@
       if (jamaisOuvert.length) chips.push({ label: `${jamaisOuvert.length} lien${jamaisOuvert.length > 1 ? 's' : ''} jamais ouvert${jamaisOuvert.length > 1 ? 's' : ''} — le client l'a-t-il reçu ?`, color: 'var(--text-subtle)', filter: 'lien_jamais_ouvert', ic: 'lock' });
       if (!chips.length) { box.classList.add('hidden'); return; }
       box.classList.remove('hidden');
-      box.innerHTML = `
-        <span class="tb-label">${icon('sliders', 13)} Aujourd'hui</span>
-        ${chips.map(c => `<button class="tb-chip" style="--tbc:${c.color}" onclick="${c.href ? `location.href='${c.href}'` : `setFilter('${c.filter}')`}">${icon(c.ic, 12)} ${c.label}</button>`).join('')}
-      `;
+      // Le partage ne s'invente pas : il existait déjà dans les données. Une pastille porte soit un
+      // `href` (elle emmène), soit un `filter` (elle filtre la liste). On le rend simplement VISIBLE.
+      const bouton = (c) => `<button class="tb-chip" style="--tbc:${c.color}" onclick="${c.href ? `location.href='${c.href}'` : `setFilter('${c.filter}')`}">${icon(c.ic, 12)} ${c.label}</button>`;
+      const ailleurs = chips.filter(c => c.href);
+      const surDevis = chips.filter(c => !c.href);
+      box.innerHTML =
+        (ailleurs.length ? `<div class="tb-ligne"><span class="tb-label">${icon('bellphone', 13)} Ça t’attend <span class="tb-effet">— ouvre le module</span></span>${ailleurs.map(bouton).join('')}</div>` : '') +
+        (surDevis.length ? `<div class="tb-ligne"><span class="tb-label">${icon('sliders', 13)} Sur tes devis <span class="tb-effet">— filtre la liste ci-dessous</span></span>${surDevis.map(bouton).join('')}</div>` : '');
     }
 
     // ── Filtres avancés (montant, date de création, chantier planifié) ──
