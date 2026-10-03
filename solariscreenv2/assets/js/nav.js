@@ -105,6 +105,12 @@
         padding: 3px; border: 1px solid var(--accent, #4d8bff); border-radius: var(--r-sm, 3px); }
       .ssrail-brand .ssrail-lbl { font-family: var(--font-display, inherit); font-weight: 700;
         color: var(--accent, #4d8bff); letter-spacing: 0.02em; font-size: var(--fs-base, 0.95rem); }
+      /* Les deux marques sont des LIENS depuis qu'on peut cliquer dessus pour rentrer. Elles ne
+         doivent pas se mettre a ressembler a du texte souligne pour autant. */
+      .ssrail-brand, a.brand-logo { text-decoration: none; }
+      .ssrail-brand:hover .ssrail-lbl, a.brand-logo:hover { opacity: 0.85; }
+      .ssrail-brand:focus-visible, a.brand-logo:focus-visible {
+        outline: 2px solid var(--accent, #4d8bff); outline-offset: 2px; }
       .ssrail-item { position: relative; display: flex; align-items: center; gap: 0.6rem;
         padding: 0.44rem 0.55rem; border-radius: var(--r-sm, 3px); text-decoration: none;
         color: var(--text-muted, #97a4cc); font-size: var(--fs-sm, 0.86rem); white-space: nowrap; }
@@ -412,6 +418,25 @@
   // se rétracterait sous les yeux à chaque chargement de page.
   try { if (localStorage.getItem('ss_rail') === 'reduit') document.documentElement.classList.add('ss-rail-reduit'); } catch (e) {}
 
+  /* LE LOGO RAMENE AU TABLEAU DE BORD. Le <span class="brand-logo"> devient un <a> de meme
+     classe : tout le style tient a la classe, donc rien ne bouge visuellement. On remplace au
+     lieu d'envelopper -- un <a> en display:contents autour aurait garde la mise en page, mais
+     ce mode est mal rendu dans l'arbre d'accessibilite de plusieurs navigateurs, et un lien
+     qu'un lecteur d'ecran ne voit pas n'est pas un lien.
+     Toutes les pages qui chargent nav.js vivent dans /app/, d'ou le href relatif -- le meme que
+     celui que porte deja le <h1>. */
+  function logoCliquable() {
+    const sp = document.querySelector('span.brand-logo');
+    if (!sp) return;
+    const a = document.createElement('a');
+    a.className = sp.className;
+    a.href = 'dashboard.html';
+    a.title = 'Retour au tableau de bord';
+    a.setAttribute('aria-label', 'Retour au tableau de bord');
+    a.innerHTML = sp.innerHTML;
+    sp.replaceWith(a);
+  }
+
   function mountRail(cur) {
     if (document.querySelector('.ssrail')) return;
     const icon = window.SSUI.icon;
@@ -419,7 +444,7 @@
     rail.className = 'ssrail';
     rail.setAttribute('aria-label', 'Navigation');
     rail.innerHTML =
-      '<div class="ssrail-brand" title="SolariScreen"><svg viewBox="60.7 69.8 359.3 359.3" aria-hidden="true"><circle cx="205" cy="261.4" r="134.1" fill="#FFC501"/><path d="M158.4,83L315.5,83A8,8 0 0 1 323.2,89L407.2,406A8,8 0 0 1 399.5,416L242.4,416A8,8 0 0 1 234.7,410L150.7,93A8,8 0 0 1 158.4,83Z" fill="#1F319D"/></svg><span class="ssrail-lbl">SolariScreen</span></div>' +
+      '<a class="ssrail-brand" href="dashboard.html" title="Retour au tableau de bord"><svg viewBox="60.7 69.8 359.3 359.3" aria-hidden="true"><circle cx="205" cy="261.4" r="134.1" fill="#FFC501"/><path d="M158.4,83L315.5,83A8,8 0 0 1 323.2,89L407.2,406A8,8 0 0 1 399.5,416L242.4,416A8,8 0 0 1 234.7,410L150.7,93A8,8 0 0 1 158.4,83Z" fill="#1F319D"/></svg><span class="ssrail-lbl">SolariScreen</span></a>' +
       '<button class="ssrail-toggle" type="button" title="Réduire ou déployer le menu">' +
         icon('grid9', 14) + '<span class="ssrail-lbl">Menu</span></button>' +
       '<button class="ssrail-item ssrail-search" type="button" style="border:none;background:none;cursor:pointer;width:100%;text-align:left;" title="Rechercher (Ctrl+K)">' +
@@ -444,6 +469,7 @@
   }
 
   function mount(container) {
+    logoCliquable();
     if (!container) return;
     const icon = window.SSUI.icon;
     const cur = location.pathname.split('/').pop();

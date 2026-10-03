@@ -386,6 +386,14 @@ suite. Au-delà de 1400 px le bandeau masque donc `.brand-logo` et `.brand h1`, 
 à droite (le badge « HORS-LIGNE » passait sur deux lignes). Sous 1400 px, rien ne change : pas de
 rail, donc la marque reste dans le bandeau. C'est la MÊME media query qui décide des deux, donc
 elles ne peuvent pas se désynchroniser.
+Contrepartie obligatoire : **le logo RAMÈNE au tableau de bord**, aux deux endroits où la marque
+vit (le logo du bandeau et la marque du rail), donc le raccourci existe quelle que soit la
+largeur. Seul le NOM était cliquable auparavant (`<h1><a>`) — jamais le logo — et masquer le
+bandeau au-delà de 1400 px avait purement supprimé le raccourci sur grand écran. Posé dans
+`nav.js` (`logoCliquable`), pas dans les 20 pages. Le `<span class="brand-logo">` est REMPLACÉ
+par un `<a>` de même classe, jamais enveloppé dans un `<a display:contents>` : ce mode est mal
+rendu dans l'arbre d'accessibilité de plusieurs navigateurs, et un lien qu'un lecteur d'écran ne
+voit pas n'est pas un lien.
 
 **25. Une PHOTO sur un sujet suit la même discipline que les réponses.** Une photo est souvent LE
 message — une pièce cassée, un mail fournisseur, un repérage de façade — et la décrire coûte dix
