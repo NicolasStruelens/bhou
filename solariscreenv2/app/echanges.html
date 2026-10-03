@@ -83,6 +83,16 @@
     /* Repère bref après un saut depuis la recherche : sans lui, on atterrit au milieu d'une liste
        sans savoir laquelle des cartes on était venu lire. */
     .ec-suj.vise { box-shadow: 0 0 0 2px var(--accent); }
+    /* Vignettes : assez grandes pour reconnaitre la photo sans l'ouvrir, assez petites pour qu'une
+       serie n'ecrase pas le texte du sujet. */
+    .ec-vign { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .ec-ph { position: relative; width: 84px; height: 84px; border-radius: var(--r-sm);
+      overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
+    .ec-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ec-ph button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0;
+      border-radius: 50%; border: none; cursor: pointer; line-height: 1;
+      background: color-mix(in srgb, var(--danger) 85%, transparent); color: #fff; font-size: 12px; }
+    .ec-ph-att { opacity: 0.75; }
     .ec-bar { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-4); }
     .ec-bar .rech { flex: 1 1 200px; min-width: 160px; }
     .ec-liste { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -173,8 +183,11 @@
         <span class="sep"></span>
         <input class="input ec-lie" id="pClient" list="dlClients" placeholder="Lié à un client (facultatif)" autocomplete="off">
         <input class="input" id="pEcheance" type="date" title="Pour quand (facultatif)" style="max-width:160px">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnPhoto" onclick="document.getElementById('pPhoto').click()" title="Joindre une ou plusieurs photos">Photo</button>
+        <input type="file" id="pPhoto" accept="image/*" multiple hidden onchange="ajouterPhotos(this)">
         <button class="btn btn-primary btn-sm ec-envoi" id="btnPublier" onclick="publier()">Publier</button>
       </div>
+      <div class="ec-vign" id="pVignettes"></div>
       <div class="ec-contexte" id="pContexte"></div>
       <datalist id="dlClients"></datalist>
     </div>
@@ -601,6 +614,13 @@
         '</div>' +
         '<div class="ec-meta">' + escHtml(meta) + lienClient + '</div>' +
         (s.corps ? '<div class="ec-corps">' + escHtml(s.corps) + '</div>' : '') +
+        ((s.photos || []).length
+          ? '<div class="ec-vign">' + s.photos.map(function (ph) {
+              return '<div class="ec-ph"><a href="' + escHtml(ph.url) + '" target="_blank" rel="noopener" title="Ouvrir en grand">' +
+                '<img src="' + escHtml(ph.url) + '" alt="" loading="lazy"></a>' +
+                '<button type="button" title="Supprimer cette photo" onclick="supprimerPhoto(' + id + ', ' + window.SSUI.jsAttr(ph.id) + ')">✕</button></div>';
+            }).join('') + '</div>'
+          : '') +
         (s.decision ? '<div class="ec-decision">' + icon('check', 13) +
           '<div><b>Décidé :</b> ' + escHtml(s.decision) +
           '<div class="qd">' + escHtml(nomDe(s.decision_par) + (s.decision_le ? ' · ' + relTime(s.decision_le) : '')) + '</div></div></div>' : '') +
@@ -639,6 +659,26 @@
     window.setPour = function (p) { P_POUR = p; rendrePuces(); };
     window.setFiltre = function (k) { F_KIND = k; rendre(); };
 
+    // Photos CHOISIES mais pas encore envoyees : elles attendent l'identifiant du sujet.
+    let PHOTOS_EN_ATTENTE = [];
+    window.ajouterPhotos = function (input) {
+      const fichiers = [...(input.files || [])];
+      input.value = '';                       // sinon rechoisir le meme fichier ne declenche rien
+      fichiers.forEach(function (f) {
+        if (!/^image\//.test(f.type)) { toast('« ' + f.name + ' » n’est pas une image.', 'warn'); return; }
+        const lecteur = new FileReader();
+        lecteur.onload = function () { PHOTOS_EN_ATTENTE.push({ fichier: f, apercu: lecteur.result }); rendreVignettes(); };
+        lecteur.readAsDataURL(f);
+      });
+    };
+    window.retirerPhotoEnAttente = function (i) { PHOTOS_EN_ATTENTE.splice(i, 1); rendreVignettes(); };
+    function rendreVignettes() {
+      el('pVignettes').innerHTML = PHOTOS_EN_ATTENTE.map(function (p, i) {
+        return '<div class="ec-ph ec-ph-att"><img src="' + p.apercu + '" alt="">' +
+          '<button type="button" title="Retirer" onclick="retirerPhotoEnAttente(' + i + ')">✕</button></div>';
+      }).join('');
+    }
+
     window.publier = async function () {
       const brut = el('pTitre').value.trim();
       if (!brut) { toast('Écris quelque chose d’abord.', 'warn'); return; }
@@ -662,6 +702,20 @@
       if (res.ok === false) { toast(res.error || 'Non publié.', 'error', 7000); return; }
       el('pTitre').value = ''; el('pClient').value = ''; el('pEcheance').value = '';
       DEVIS_LIE = ''; el('pContexte').innerHTML = '';
+      // Les photos partent MAINTENANT : la route ciblée a besoin de l'identifiant, qui n'existait
+      // pas avant l'enregistrement. Chaque échec est dit — une photo qu'on croit jointe et qui ne
+      // l'est pas vaut moins que pas de photo du tout.
+      if (PHOTOS_EN_ATTENTE.length) {
+        toast('Envoi de ' + PHOTOS_EN_ATTENTE.length + ' photo(s)…', 'ok', 2500);
+        for (const ph of PHOTOS_EN_ATTENTE) {
+          const url = await window.SSUI.compressAndUploadPhoto(ph.fichier, s.id, 1600, 0.82).catch(function () { return null; });
+          if (!url) { toast('Une photo n’a pas pu être envoyée.', 'error', 6000); continue; }
+          const r = await SS.addSujetPhoto(s.id, { url: url });
+          if (r.ok === false) toast(r.error || 'Photo non jointe.', 'error', 6000);
+        }
+        PHOTOS_EN_ATTENTE = [];
+        rendreVignettes();
+      }
       toast(P_POUR ? 'Envoyé à ' + nomDe(P_POUR) : 'Publié', 'ok');
       SUJETS = (await SS.listSujets()) || [];
       rendre();
@@ -733,6 +787,15 @@
     }
     window.marquerFait = function (id) { ouvrirDecision(id); };
     window.rouvrir = function (id) { majStatut(id, 'ouvert'); };
+
+    window.supprimerPhoto = async function (id, photoId) {
+      if (!confirm('Supprimer cette photo ?')) return;
+      const res = await SS.removeSujetPhoto(id, photoId);
+      if (res.ok === false) { toast(res.error || 'Non supprimée.', 'error', 7000); return; }
+      toast('Photo supprimée', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
 
     window.supprimer = async function (id) {
       const s = SUJETS.filter(function (x) { return x.id === id; })[0];

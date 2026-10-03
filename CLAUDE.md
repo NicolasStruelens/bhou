@@ -380,6 +380,20 @@ Trois règles à ne pas défaire :
   même addition.
 Le total du point rouge ne compte QUE le volet : sinon le rail le doublerait.
 
+**25. Une PHOTO sur un sujet suit la même discipline que les réponses.** Une photo est souvent LE
+message — une pièce cassée, un mail fournisseur, un repérage de façade — et la décrire coûte dix
+fois plus cher que la montrer. Route ciblée `POST /api/sujets/:id/photo` (et `DELETE …/photo/:pid`),
+et les photos sont RÉINJECTÉES à l’enregistrement complet : sans ça, renommer un titre effacerait la
+photo que l’autre vient d’ajouter — exactement ce qui était arrivé aux notes avant la règle 3.
+L’image part dans R2 AVANT (`SSUI.compressAndUploadPhoto`) ; la base ne reçoit que l’adresse. La
+borne de 2 Mo sur l’url ne sert qu’au repli dataURL quand R2 est indisponible : mieux vaut une photo
+lourde qu’une photo perdue.
+⚠️ La photo se CHOISIT avant de publier (on écrit et on montre, c’est le même geste) mais ne PART
+qu’après : la route ciblée a besoin de l’identifiant, qui n’existe pas avant l’enregistrement. D’où
+la file `PHOTOS_EN_ATTENTE`. Chaque échec d’envoi est DIT — une photo qu’on croit jointe et qui ne
+l’est pas vaut moins que pas de photo du tout. Et aucune file d’attente hors-ligne : une photo qui
+n’existe que sur le téléphone qui l’a prise est pire qu’une photo absente, l’autre croirait l’avoir vue.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,

@@ -1218,6 +1218,10 @@ export async function onRequest(context) {
       // valeur actuelle de la ligne. Réécrire le sujet entier effacerait ce que l'autre vient
       // d'ajouter — c'est exactement l'accident que la règle 3 du guide décrit.
       const reponses = (ancien && ancien.reponses) || [];
+      // Même discipline que les réponses : les photos ne transitent JAMAIS par cet enregistrement,
+      // elles ont leur route ciblée. Sans cette ligne, renommer un titre effacerait la photo que
+      // l'autre vient d'ajouter — c'est exactement ce qui est arrivé aux notes avant la règle 3.
+      const photos = (ancien && ancien.photos) || [];
       const decisionNeuve = String(s.decision || '').trim();
       const decisionAncienne = String((ancien && ancien.decision) || '');
       const decisionChange = !!decisionNeuve && decisionNeuve !== decisionAncienne;
@@ -1238,6 +1242,7 @@ export async function onRequest(context) {
         // qu'un bandeau harcèle pour une idée qu'on veut justement laisser mûrir.
         revu_le: /^\d{4}-\d{2}-\d{2}$/.test(String(s.revu_le || '')) ? s.revu_le : '',
         reponses, reponses_count: reponses.length,
+        photos, photos_count: photos.length,
         // L'auteur est signé par le serveur à la CRÉATION et ne change plus ensuite : c'est lui
         // qui reçoit la balle en retour quand l'autre répond.
         auteur: (ancien && ancien.auteur) || acteur,
@@ -1270,6 +1275,57 @@ export async function onRequest(context) {
     }
     // Réponse à un sujet — écriture CIBLÉE : deux personnes peuvent répondre en même temps sans
     // qu'un message soit perdu. `awaiting` se libère quand la personne attendue a répondu.
+    // ── PHOTO d'un sujet ─────────────────────────────────────────────────────
+    // L'image part dans R2 AVANT cet appel (SSUI.compressAndUploadPhoto) : on ne stocke ici que
+    // sa métadonnée. Embarquer l'image en base64 dans le JSON a déjà fait exploser un devis à
+    // 1,69 Mo — on ne recommence pas. La borne sur l'url ne sert que pour le repli dataURL quand
+    // R2 est indisponible : mieux vaut une photo lourde qu'une photo perdue.
+    let mSujPhoto = path.match(/^\/api\/sujets\/([^/]+)\/photo$/);
+    if (mSujPhoto && method === 'POST') {
+      const id = decodeURIComponent(mSujPhoto[1]);
+      const body = await request.json().catch(() => ({}));
+      const url = String(body.url || '').trim();
+      if (!url) return json({ ok: false, error: 'Photo manquante' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      // L'auteur est signé par le SERVEUR, jamais par le client — même discipline que les réponses.
+      // `acteur` n'existe que dans le bloc d'enregistrement du sujet : on relit l'identité ici.
+      const emailPhoto = parseAccessEmail(request);
+      const parQui = (emailPhoto && IDENTITIES[emailPhoto.toLowerCase()]) || emailPhoto || 'nicolas';
+      const now = new Date().toISOString();
+      const photo = {
+        id: crypto.randomUUID(),
+        url: url.slice(0, 2000000),
+        legende: String(body.legende || '').slice(0, 300),
+        par: parQui,
+        date: now,
+      };
+      await env.DB.prepare(
+        `UPDATE sujets SET data = json_set(
+                    json_insert(
+                      json_set(data, '$.photos', json(COALESCE(json_extract(data, '$.photos'), '[]'))),
+                      '$.photos[#]', json(?1)),
+                    '$.photos_count', COALESCE(json_array_length(data, '$.photos'), 0) + 1,
+                    '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(photo), now, id).run();
+      return json({ ok: true, photo });
+    }
+    let mSujPhotoDel = path.match(/^\/api\/sujets\/([^/]+)\/photo\/([^/]+)$/);
+    if (mSujPhotoDel && method === 'DELETE') {
+      const id = decodeURIComponent(mSujPhotoDel[1]);
+      const pid = decodeURIComponent(mSujPhotoDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const restantes = (Array.isArray(d.photos) ? d.photos : []).filter(x => String(x.id) !== String(pid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE sujets SET data = json_set(data, '$.photos', json(?1), '$.photos_count', ?2, '$.date_modification', ?3),
+           date_modification = ?3 WHERE id = ?4`
+      ).bind(JSON.stringify(restantes), restantes.length, now, id).run();
+      return json({ ok: true, photos: restantes });
+    }
     let mSujRep = path.match(/^\/api\/sujets\/([^/]+)\/reponse$/);
     if (mSujRep && method === 'POST') {
       const id = decodeURIComponent(mSujRep[1]);
