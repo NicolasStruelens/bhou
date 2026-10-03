@@ -150,7 +150,9 @@
       volants: [
         { svg: CHAUVE_SOURIS, taille: 46, haut: '16%', duree: 24, retard: 3, ailes: true,
           teinte: { sombre: '#b9a6e8', clair: '#7a63c4' }, opacite: { sombre: 0.42, clair: 0.3 } },
-        { svg: SORCIERE, taille: 92, haut: '58%', duree: 38, retard: 16, rare: true,
+        { svg: CHAUVE_SOURIS, taille: 30, haut: '74%', duree: 31, retard: 19, ailes: true,
+          teinte: { sombre: '#a692dd', clair: '#6d55bb' }, opacite: { sombre: 0.3, clair: 0.22 } },
+        { svg: SORCIERE, taille: 92, haut: '38%', duree: 38, retard: 16, rare: true,
           teinte: { sombre: '#cdbaf0', clair: '#8a74cf' }, opacite: { sombre: 0.34, clair: 0.26 } },
       ],
     },
