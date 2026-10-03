@@ -29,6 +29,11 @@
     .toolbar2 .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
     td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
     .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; }
+    /* Place RESERVEE de la relance : elle n existe que sur une facture en retard, mais si sa
+       colonne disparaissait, toutes les icones de la ligne se decaleraient et on ne pourrait
+       jamais apprendre laquelle est ou. */
+    .icon-btn-vide { width: 30px; height: 30px; display: inline-block; }
+    .act-encaisser { white-space: nowrap; }
     .icon-btn:hover { border-color: var(--accent); color: var(--accent); } .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
@@ -294,11 +299,17 @@
                 <td class="num text-muted">${fmtEur(paidSum(f))}</td>
                 <td>${badgeFor(f)}</td>
                 <td><div class="actions">
+                  <!-- La relance n'existe que sur une facture en retard, mais sa PLACE est toujours
+                       là : sans ça le nombre d'icônes change d'une ligne à l'autre, donc leur position
+                       aussi, et on ne peut jamais apprendre où se trouve laquelle. -->
+                  ${!isOverdue(f) ? '<span class="icon-btn-vide" aria-hidden="true"></span>' : ''}
                   ${isOverdue(f) ? `<button class="icon-btn" title="Relancer le client par email (texte prêt)" aria-label="Relancer la facture ${f.id}" onclick="relancerFacture('${encodeURIComponent(f.id)}')" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);">${icon('clock', 15)}</button>` : ''}
-                  <button class="icon-btn" title="Voir / PDF" aria-label="Voir la facture ${f.id} en PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 15)}</button>
-                  ${estAvoir(f) ? '' : `<button class="icon-btn" title="Paiement" aria-label="Enregistrer un paiement pour ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>`}
+                  <button class="icon-btn" title="Ouvrir la facture en PDF (pour l'imprimer ou l'envoyer)" aria-label="Voir la facture ${f.id} en PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 15)}</button>
+                  ${estAvoir(f) ? '' : (statutOf(f) === 'payee'
+                    ? `<button class="icon-btn" title="Voir ou corriger les encaissements déjà saisis" aria-label="Encaissements de ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>`
+                    : `<button class="btn btn-primary btn-sm act-encaisser" title="Enregistrer le paiement reçu — le montant restant est pré-rempli" aria-label="Encaisser la facture ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 14)} Encaisser</button>`)}
                   ${estAvoir(f) || avoirExistantPour(f.id) ? '' : `<button class="icon-btn" title="Établir une note de crédit (annule tout ou partie de cette facture)" aria-label="Note de crédit pour ${f.id}" onclick="openAvoir('${encodeURIComponent(f.id)}')" style="color:var(--accent-3);border-color:color-mix(in srgb,var(--accent-3) 45%,transparent);">${icon('arrowleft', 15)}</button>`}
-                  <button class="icon-btn danger" title="Supprimer" aria-label="Supprimer la facture ${f.id}" onclick="delFacture('${encodeURIComponent(f.id)}')">${icon('trash', 15)}</button>
+                  <button class="icon-btn danger" title="Supprimer cette facture définitivement" aria-label="Supprimer la facture ${f.id}" onclick="delFacture('${encodeURIComponent(f.id)}')">${icon('trash', 15)}</button>
                 </div></td>
               </tr>`).join('')}</tbody>
           </table>
