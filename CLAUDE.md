@@ -394,6 +394,18 @@ la file `PHOTOS_EN_ATTENTE`. Chaque échec d’envoi est DIT — une photo qu’
 l’est pas vaut moins que pas de photo du tout. Et aucune file d’attente hors-ligne : une photo qui
 n’existe que sur le téléphone qui l’a prise est pire qu’une photo absente, l’autre croirait l’avoir vue.
 
+**26. Une photo s’ouvre DANS la page** (`SSUI.ouvrirPhotos(urls, index)`, `SSUI.fermerPhotos()`).
+Partir sur un autre onglet fait perdre sa place dans la liste et oblige à revenir en arrière pour
+continuer à lire. Fermeture par la croix, par Échap ou par le fond ; flèches clavier et boutons
+pour passer d’une photo à l’autre, masqués quand il n’y en a qu’une — elles ne mèneraient nulle part.
+Le défilement du fond est bloqué à l’ouverture, sinon on retrouve la liste ailleurs en fermant.
+⚠️ Quatre pages (`vue`, `portfolio`, `outillage`, `devis-review`) portent ENCORE leur propre
+visionneuse en copie locale — leur STYLE, lui, était déjà dédoublonné dans `base.css`. Le helper
+partagé utilise donc l’identifiant `ssLightbox` et non `lightbox` : deux éléments de même id dans
+un document, c’est le genre de collision qu’on ne voit qu’un jour de malchance. Toute nouvelle page
+passe par le helper ; les quatre copies restent à ramener dessus, quand on y touchera pour autre chose.
+Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,

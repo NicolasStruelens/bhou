@@ -89,6 +89,10 @@
     .ec-ph { position: relative; width: 84px; height: 84px; border-radius: var(--r-sm);
       overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
     .ec-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* La vignette est un BOUTON (elle ouvre la visionneuse, elle ne navigue pas) : on lui retire
+       toute apparence de bouton pour qu elle reste une image. */
+    .ec-ph-voir { display: block; width: 100%; height: 100%; padding: 0; border: none;
+      background: none; cursor: zoom-in; }
     .ec-ph button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0;
       border-radius: 50%; border: none; cursor: pointer; line-height: 1;
       background: color-mix(in srgb, var(--danger) 85%, transparent); color: #fff; font-size: 12px; }
@@ -615,9 +619,12 @@
         '<div class="ec-meta">' + escHtml(meta) + lienClient + '</div>' +
         (s.corps ? '<div class="ec-corps">' + escHtml(s.corps) + '</div>' : '') +
         ((s.photos || []).length
-          ? '<div class="ec-vign">' + s.photos.map(function (ph) {
-              return '<div class="ec-ph"><a href="' + escHtml(ph.url) + '" target="_blank" rel="noopener" title="Ouvrir en grand">' +
-                '<img src="' + escHtml(ph.url) + '" alt="" loading="lazy"></a>' +
+          ? '<div class="ec-vign">' + s.photos.map(function (ph, i) {
+              // On ouvre DANS la page : partir sur un autre onglet faisait perdre sa place dans
+              // la liste, et il fallait revenir en arriere pour continuer a lire.
+              return '<div class="ec-ph"><button type="button" class="ec-ph-voir" title="Ouvrir en grand" ' +
+                'onclick="voirPhotos(' + id + ', ' + i + ')">' +
+                '<img src="' + escHtml(ph.url) + '" alt="" loading="lazy"></button>' +
                 '<button type="button" title="Supprimer cette photo" onclick="supprimerPhoto(' + id + ', ' + window.SSUI.jsAttr(ph.id) + ')">✕</button></div>';
             }).join('') + '</div>'
           : '') +
@@ -787,6 +794,14 @@
     }
     window.marquerFait = function (id) { ouvrirDecision(id); };
     window.rouvrir = function (id) { majStatut(id, 'ouvert'); };
+
+    // On passe TOUTES les photos du sujet et l index du clic : les fleches servent alors a passer
+    // d une photo a l autre sans refermer -- c est le geste naturel quand il y en a plusieurs.
+    window.voirPhotos = function (id, index) {
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!s) return;
+      window.SSUI.ouvrirPhotos((s.photos || []).map(function (p) { return p.url; }), index);
+    };
 
     window.supprimerPhoto = async function (id, photoId) {
       if (!confirm('Supprimer cette photo ?')) return;
