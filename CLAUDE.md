@@ -194,6 +194,13 @@ PAR CHAMP : tout appelant de `saveSavTicket` doit renvoyer `pour` et `echeance`,
 `depuisPlanning(…, { inclureVisites })` : l'écran commun EXCLUT les visites (les demandes de RDV les
 signalent déjà, et une liste qui se répète perd sa crédibilité), le planning les INCLUT — c'est son
 écran. Même raison pour « à recontacter », qui n'est produit que si quelqu'un est déjà assigné.
+Le TABLEAU DE BORD le consomme aussi depuis le 03/10/2026. Il ne chargeait même pas `attente.js` :
+on ouvrait l'ERP sur un écran qui annonçait la journée en ignorant les tickets SAV et les échanges,
+pendant que le badge du menu, lui, les comptait. La bande « Aujourd'hui » en tire désormais ses
+pastilles SAV et Échanges, donc les chiffres ne peuvent plus diverger d'un écran à l'autre.
+⚠️ Les pastilles DEVIS de cette bande (relances, acompte, solde, devis expiré, lien jamais ouvert)
+ne sont PAS des copies : `attente.js` ne couvre ni les relances ni l'argent. Les deux sources sont
+COMPLÉMENTAIRES — ne pas les « dédoublonner » en croyant bien faire, on perdrait la moitié du brief.
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
 
