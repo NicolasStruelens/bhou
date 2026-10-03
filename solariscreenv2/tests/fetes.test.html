@@ -73,12 +73,23 @@
     check("l'année suivante aussi",  nom(F.active(d(2027, 10, 15))), 'Halloween');
 
     // ══════════ 5. Le contrat que toute fête doit respecter ══════════
-    // Ajouter une fête, c'est ajouter une entrée. Ces règles disent ce qu'une entrée doit porter.
+    // Ajouter une fête, c'est ajouter une entrée. Ces règles disent ce qu'une entrée doit porter,
+    // et elles sont là pour la PROCHAINE fête : c'est elle qui se trompera, pas Halloween.
+    const decorsDe = (f) => {
+      const l = [];
+      if (f.coin) { l.push(f.coin); if (f.coin.bete) l.push(f.coin.bete); }
+      if (f.marque) l.push(f.marque);
+      if (f.rail) { if (f.rail.coin) l.push(f.rail.coin); if (f.rail.pied) l.push(f.rail.pied); }
+      return l.concat(f.volants || []);
+    };
+    // Une teinte s'écrit { sombre, clair } ou en valeur simple ; une valeur simple sert alors
+    // dans les deux thèmes.
+    const tons = (v) => (v && typeof v === 'object') ? [v.sombre, v.clair] : [v, v];
+
     F.FETES.forEach(function (f) {
       check(f.id + ' : a un nom', typeof f.nom === 'string' && f.nom.length > 0, true);
       check(f.id + ' : bornes au format MM-JJ', /^\d{2}-\d{2}$/.test(f.du) && /^\d{2}-\d{2}$/.test(f.au), true);
-      const slots = ['coin', 'suspendu', 'marque'].filter(function (k) { return f[k]; })
-        .map(function (k) { return f[k]; }).concat(f.volants || []);
+      const slots = decorsDe(f);
       check(f.id + ' : au moins un décor', slots.length > 0, true);
       // Un décor est soit du SVG en ligne, soit un fichier — jamais ni l'un ni l'autre, sinon
       // il se monte dans le vide sans la moindre erreur.
@@ -86,7 +97,17 @@
         slots.every(function (s) { return (typeof s.svg === 'string' && s.svg.indexOf('<svg') === 0) || typeof s.img === 'string'; }), true);
       // Les décors ne doivent pas se lire comme un statut : ils vivent en opacité basse.
       check(f.id + ' : opacités raisonnables',
-        slots.every(function (s) { return s.opacite === undefined || (s.opacite > 0 && s.opacite <= 1); }), true);
+        slots.every(function (s) { return tons(s.opacite).every(function (o) { return o === undefined || (o > 0 && o <= 1); }); }), true);
+      /* LES DEUX THÈMES, TOUJOURS. Les décors ont d'abord été calibrés en sombre et coloriés en
+         dur : en clair — le thème réellement utilisé en production — la toile ne se voyait
+         presque plus. Une teinte sans ses deux tons est donc une erreur, pas un oubli anodin. */
+      check(f.id + ' : chaque teinte a ses deux tons',
+        slots.every(function (s) { return tons(s.teinte).every(function (t) { return typeof t === 'string' && t.length > 0; }); }), true);
+      check(f.id + ' : chaque opacité a ses deux tons',
+        slots.every(function (s) { return tons(s.opacite).every(function (o) { return typeof o === 'number'; }); }), true);
+      // Un volant sans durée resterait figé au bord de l'écran.
+      check(f.id + ' : chaque volant a une durée et une hauteur',
+        (f.volants || []).every(function (v) { return v.duree > 0 && typeof v.haut === 'string'; }), true);
     });
 
     // ══════════ 6. L'extinction ══════════
