@@ -120,7 +120,16 @@
             <option value="totale">Facture totale</option>
           </select>
         </div>
-        <div class="field mt-4" id="mPctField"><label class="label" for="mPct">Pourcentage d'acompte</label><div class="input-unit"><input class="input input-num" id="mPct" type="number" min="1" max="100" value="30"><span class="unit">%</span></div></div>
+        <!-- Deux unites possibles mais UN SEUL champ : deux champs qui definissent la meme chose,
+             on ne sait plus lequel fait foi. Le bouton change l'unite, pas le nombre de saisies. -->
+        <div class="field mt-4" id="mPctField">
+          <label class="label" for="mPct">Acompte</label>
+          <div class="salut-seg" id="mAcompteUnite" style="margin-bottom:0.4rem;">
+            <button type="button" data-unite="pct" class="active" onclick="setUniteAcompte('pct')">En %</button>
+            <button type="button" data-unite="eur" onclick="setUniteAcompte('eur')">En €</button>
+          </div>
+          <div class="input-unit"><input class="input input-num" id="mPct" type="number" min="1" max="100" value="30" oninput="updatePreview()"><span class="unit" id="mPctUnite">%</span></div>
+        </div>
         <div class="field mt-4 hidden" id="mPosesField">
           <label class="label">Ouvertures réellement posées</label>
           <div class="poses-help">Laisse le compte complet pour ce qui est terminé, réduis-le pour ce qui reste à poser. Le montant se recalcule tout seul.</div>
@@ -318,6 +327,16 @@
       const CONF_F = (window.SSConf && window.SSConf.get()) || null;
       el('mEcheance').value = CONF_F ? CONF_F.usage.echeance_facture : 15;
       el('mRefExterne').value = '';
+      // Toute ouverture de la modale repart en POURCENTAGE : c'est le cas courant, et hériter
+      // silencieusement de l'unité précédente ferait lire « 30 » comme 30 €.
+      UNITE_ACOMPTE = 'pct';
+      if (document.getElementById('mAcompteUnite')) {
+        [...document.querySelectorAll('#mAcompteUnite button')].forEach(function (b) {
+          b.classList.toggle('active', b.dataset.unite === 'pct');
+        });
+        el('mPctUnite').textContent = '%';
+        el('mPct').max = '100'; el('mPct').step = '1'; el('mPct').removeAttribute('placeholder');
+      }
       el('mPct').value = CONF_F ? CONF_F.prix.acompte_pct : 30;
       el('mType').value = 'acompte';
       if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
@@ -387,7 +406,9 @@
       const type = el('mType').value;
       if (id && (type === 'acompte' || type === 'partielle')) {
         const d = await SS.getDevis(id);
-        if (d && type === 'acompte') {
+        // En euro, on NE touche pas au champ : le pourcentage du devis ecraserait le montant
+        // que Nicolas vient de taper, et 2000 deviendrait 30 sans un mot.
+        if (d && type === 'acompte' && UNITE_ACOMPTE !== 'eur') {
           const p = d.pricing_v2 || {}, c = d.calculs || {};
           el('mPct').value = p.acompte_pct != null ? p.acompte_pct : (c.acompte_pct != null ? c.acompte_pct : 30);
         }
@@ -436,7 +457,10 @@
       const remaining = Math.max(0, ttc - already);
       let factor = 1;
       if (type === 'acompte') {
-        const wanted = ttc * ((Number(pct) || 0) / 100);
+        // En euro, le montant saisi est le montant TVAC voulu ; en pourcentage, on le déduit du
+        // total. Dans les deux cas on retombe sur un `factor`, donc HT et TVA suivent tout seuls
+        // et le solde reste « tout le restant ».
+        const wanted = (UNITE_ACOMPTE === 'eur') ? (Number(pct) || 0) : ttc * ((Number(pct) || 0) / 100);
         factor = ttc > 0 ? Math.min(wanted, remaining) / ttc : 0;   // acompte plafonné au restant
       } else if (type === 'solde') {
         factor = ttc > 0 ? remaining / ttc : 0;                     // solde = tout le restant
@@ -455,12 +479,48 @@
                tva_pct: tvaPct, factor, already, ttc, part: type === 'partielle' ? partPosee(d, poses) : 1 };
     }
 
+    // 'pct' (defaut, inchange) ou 'eur' : montant TVAC saisi librement.
+    let UNITE_ACOMPTE = 'pct';
+    window.setUniteAcompte = function (u) {
+      UNITE_ACOMPTE = (u === 'eur') ? 'eur' : 'pct';
+      [...document.querySelectorAll('#mAcompteUnite button')].forEach(function (b) {
+        b.classList.toggle('active', b.dataset.unite === UNITE_ACOMPTE);
+      });
+      const champ = el('mPct');
+      el('mPctUnite').textContent = UNITE_ACOMPTE === 'eur' ? '\u20ac' : '%';
+      if (UNITE_ACOMPTE === 'eur') {
+        champ.removeAttribute('max');          // un montant n'est pas borne a 100
+        champ.step = '0.01';
+        champ.value = '';                      // on ne convertit PAS : un 30 qui devient 30 EUR
+        champ.placeholder = 'ex. 2000';        // serait un piege silencieux sur de l'argent
+      } else {
+        champ.max = '100'; champ.step = '1';
+        // CONF_F est LOCALE a la fonction qui ouvre la modale : on relit la configuration ici
+        // plutot que d'esperer la voir depuis une autre portee.
+        const conf = (window.SSConf && window.SSConf.get()) || null;
+        champ.value = conf ? conf.prix.acompte_pct : 30;
+        champ.removeAttribute('placeholder');
+      }
+      updatePreview();
+    };
+
     async function updatePreview() {
       const id = el('mDevis').value, type = el('mType').value, pct = el('mPct').value;
       if (!id) return;
       const d = type === 'partielle' ? await SS.getDevis(id) : null;
       const a = await computeAmounts(id, type, pct, posesSaisies(d));
       let detail = `Montant de la facture : <strong style="color:var(--accent-2)">${fmtEur(a.total_ttc)}</strong> TVAC (HT ${fmtEur(a.total_ht)} + TVA ${fmtEur(a.total_tva)})`;
+      // Le plafonnement au restant était SILENCIEUX : on demandait 2 000 €, on en obtenait 800 sans
+      // un mot. Sur de l'argent, un écart qu'on ne s'explique pas passe pour une erreur du logiciel.
+      if (type === 'acompte') {
+        const voulu = UNITE_ACOMPTE === 'eur' ? (Number(pct) || 0) : a.ttc * ((Number(pct) || 0) / 100);
+        if (voulu - a.total_ttc > 0.005) {
+          detail += `<div class="mt-2" style="font-size:var(--fs-2xs);line-height:1.6;color:var(--warn);">`
+            + `Ramené de ${fmtEur(voulu)} à ${fmtEur(a.total_ttc)} : c'est tout ce qui reste à facturer sur ce devis`
+            + (a.already > 0.005 ? ` (déjà facturé : ${fmtEur(a.already)})` : '')
+            + `.</div>`;
+        }
+      }
       if (type === 'partielle') {
         // On montre le raisonnement complet : sans lui, un montant qui n'est ni la part posée ni
         // le total ressemble à une erreur. Avec, il se vérifie de tête.
