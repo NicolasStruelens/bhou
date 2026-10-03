@@ -60,6 +60,49 @@
         .ssnav-dot { animation: ssnavPulse 2.4s ease-in-out infinite; }
         @keyframes ssnavPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
       }
+
+      /* ── RAIL DE NAVIGATION ──────────────────────────────────────────────────
+         Il n'apparaît qu'au-delà de 1400 px : en dessous, le volet déroulant reste le seul menu, et
+         sur téléphone rien ne change. AUCUNE branche JS sur la largeur — tout passe par cette media
+         query, donc rien ne peut se désynchroniser en redimensionnant la fenêtre.
+         Quand le rail est là, le volet déroulant DISPARAÎT : deux navigations côte à côte, ce serait
+         exactement le défaut des « deux portes » corrigé ailleurs. */
+      .ssrail { display: none; }
+      @media (min-width: 1400px) {
+        .ssrail { display: flex; flex-direction: column; gap: 2px;
+          position: fixed; left: 0; top: 0; bottom: 0; width: 212px; z-index: 90;
+          padding: var(--sp-3, 0.75rem) var(--sp-2, 0.5rem);
+          background: var(--surface, #0e1530); border-right: 1px solid var(--border, #243056);
+          overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+        body { padding-left: 212px; }
+        .ssnav { display: none; }
+        html.ss-rail-reduit .ssrail { width: 60px; align-items: stretch; }
+        html.ss-rail-reduit body { padding-left: 60px; }
+        html.ss-rail-reduit .ssrail-lbl, html.ss-rail-reduit .ssrail-group { display: none; }
+        html.ss-rail-reduit .ssrail-item { justify-content: center; padding-left: 0; padding-right: 0; }
+        /* Réduit, le compteur se pose en pastille sur l'icône : c'est tout l'intérêt du rail, il
+           reste lisible même sans les libellés. */
+        html.ss-rail-reduit .ssrail-item .ssnav-count { position: absolute; top: 3px; right: 5px;
+          min-width: 15px; padding: 0 3px; font-size: 0.58rem; line-height: 15px; }
+      }
+      .ssrail-item { position: relative; display: flex; align-items: center; gap: 0.6rem;
+        padding: 0.44rem 0.55rem; border-radius: var(--r-sm, 3px); text-decoration: none;
+        color: var(--text-muted, #97a4cc); font-size: var(--fs-sm, 0.86rem); white-space: nowrap; }
+      .ssrail-item:hover { background: color-mix(in srgb, var(--accent, #4d8bff) 10%, transparent);
+        color: var(--text, #e9eefb); }
+      .ssrail-item.active { background: color-mix(in srgb, var(--accent, #4d8bff) 16%, transparent);
+        color: var(--accent, #4d8bff); font-weight: 600; }
+      .ssrail-item svg { flex: none; }
+      .ssrail-lbl { overflow: hidden; text-overflow: ellipsis; }
+      .ssrail-group { font-family: var(--font-mono, monospace); font-size: var(--fs-3xs, 0.62rem);
+        text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle, #8593bf);
+        padding: var(--sp-3, 0.75rem) 0.55rem 0.25rem; }
+      .ssrail-toggle { display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+        margin-bottom: var(--sp-2, 0.5rem); padding: 0.4rem; border-radius: var(--r-sm, 3px);
+        background: none; border: 1px solid var(--border, #243056); cursor: pointer;
+        color: var(--text-subtle, #8593bf); font-family: var(--font-mono, monospace);
+        font-size: var(--fs-3xs, 0.62rem); }
+      .ssrail-toggle:hover { color: var(--text, #e9eefb); border-color: var(--border-strong, #324273); }
     `;
     document.head.appendChild(style);
   }
@@ -345,6 +388,40 @@
   // en propre parce qu'il se charge avant ui.js).
   const ICO_MOON_MENU = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 
+  // État replié appliqué LE PLUS TÔT POSSIBLE : posé après coup, le rail s'afficherait large puis
+  // se rétracterait sous les yeux à chaque chargement de page.
+  try { if (localStorage.getItem('ss_rail') === 'reduit') document.documentElement.classList.add('ss-rail-reduit'); } catch (e) {}
+
+  function mountRail(cur) {
+    if (document.querySelector('.ssrail')) return;
+    const icon = window.SSUI.icon;
+    const rail = document.createElement('aside');
+    rail.className = 'ssrail';
+    rail.setAttribute('aria-label', 'Navigation');
+    rail.innerHTML =
+      '<button class="ssrail-toggle" type="button" title="Réduire ou déployer le menu">' +
+        icon('grid9', 14) + '<span class="ssrail-lbl">Menu</span></button>' +
+      '<button class="ssrail-item ssrail-search" type="button" style="border:none;background:none;cursor:pointer;width:100%;text-align:left;" title="Rechercher (Ctrl+K)">' +
+        icon('search', 15) + '<span class="ssrail-lbl">Recherche</span></button>' +
+      NAV_GROUPS.map(function (g) {
+        return '<div class="ssrail-group">' + g.title + '</div>' +
+          g.pages.map(function (pg) {
+            return '<a class="ssrail-item' + (pg.href === cur ? ' active' : '') + '" href="' + pg.href + '"' +
+              (pg.badge ? ' data-badge="' + pg.badge + '"' : '') + ' title="' + pg.label + '">' +
+              icon(pg.icon, 15) + '<span class="ssrail-lbl">' + pg.label + '</span></a>';
+          }).join('');
+      }).join('');
+    document.body.appendChild(rail);
+    rail.querySelector('.ssrail-toggle').addEventListener('click', function () {
+      const reduit = document.documentElement.classList.toggle('ss-rail-reduit');
+      try { localStorage.setItem('ss_rail', reduit ? 'reduit' : 'large'); } catch (e) {}
+    });
+    rail.querySelector('.ssrail-search').addEventListener('click', function () {
+      if (window.ssCommandPalette) window.ssCommandPalette();
+    });
+    return rail;
+  }
+
   function mount(container) {
     if (!container) return;
     const icon = window.SSUI.icon;
@@ -361,6 +438,7 @@
           `).join('')}
         </div>
       </div>`;
+    mountRail(cur);
     const root = container.querySelector('.ssnav');
     const btn = root.querySelector('.ssnav-toggle');
     const menu = root.querySelector('.ssnav-menu');
@@ -406,12 +484,14 @@
       if (!b) return;
       const CLS = { rdv: '', sav: '', factures: 'warn' };   // RDV/SAV = rouge, factures = orange
       let total = 0;
-      root.querySelectorAll('.ssnav-item[data-badge]').forEach(function (a) {
+      // Le rail autant que le volet : c'est tout l'objet du rail, des compteurs qu'on n'a pas
+      // besoin d'ouvrir un menu pour voir. On interroge donc le DOCUMENT, pas le seul volet.
+      document.querySelectorAll('.ssnav-item[data-badge], .ssrail-item[data-badge]').forEach(function (a) {
         const k = a.getAttribute('data-badge'), n = b[k] || 0;
         const old = a.querySelector('.ssnav-count');
         if (old) old.remove();
         if (!n) return;
-        total += n;
+        if (a.classList.contains('ssnav-item')) total += n;   // sinon le rail doublerait le total
         const s = document.createElement('span');
         s.className = 'ssnav-count' + (CLS[k] ? ' ' + CLS[k] : '');
         s.textContent = n > 99 ? '99+' : String(n);
