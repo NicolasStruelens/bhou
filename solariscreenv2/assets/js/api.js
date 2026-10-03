@@ -139,9 +139,12 @@
   // EXACTEMENT comme une coupure réseau. Vérifié en conditions réelles sur la prod (12/07/2026).
   // Discriminateur fiable : un fichier statique (/assets/*, exempté d'Access) répond toujours tant
   // que le réseau fonctionne. Statique OK + API morte = session expirée, pas hors-ligne.
+  // La sonde vise le logo VECTORIEL (380 octets) et non l'ancien PNG (58 Ko) : avec `cache:
+  // no-store` chaque appel retéléchargeait le fichier en entier, et la sonde se déclenche
+  // justement quand le réseau va mal — en Mode Terrain, sur un téléphone en 4G faible.
   async function isReallyOffline() {
     try {
-      await fetch('/assets/img/logo-solariscreen.png?ping=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
+      await fetch('/assets/img/logo-solariscreen.svg?ping=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' });
       return false; // le réseau répond → l'échec API vient d'Access/du serveur, pas du réseau
     } catch (e) { return true; }
   }

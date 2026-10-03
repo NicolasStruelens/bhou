@@ -435,6 +435,17 @@ suivante sans raison. Un devis jamais relancé reste donc en retard de son vrai 
   mesurer les ENFANTS (`enfant.scrollHeight > enfant.clientHeight`), pas le parent. Correctif :
   `.vue-rail > * { flex: none; }` — le parent déborde alors pour de vrai et son `overflow-y: auto`
   reprend son rôle. Vérifié à 808, 620, 528, 420 et 320 px de hauteur de rail.
+- **`.section` porte DÉJÀ un `::before` ET un `::after`** — ce sont les coins « ticked »
+  (`width/height: var(--tick)`, soit 8 px). Y ajouter un décor en `::before` ne crée pas un second
+  pseudo-élément : il écrase le premier, donc le coin DISPARAÎT, et le nouveau décor hérite en
+  silence du `width: 8px` qu'il n'a pas déclaré. Un filigrane posé en `inset: 0` sortait ainsi à
+  **8 × 8 px**, invisible, en ayant l'air parfaitement configuré : `maskImage`, `opacity` et
+  `z-index` étaient tous corrects à la lecture. Même famille que `.ec-ph button`, et la même leçon
+  qu'il a fallu payer deux fois : **mesurer la TAILLE rendue de l'élément qu'on ajoute**, pas
+  seulement vérifier que ses propriétés sont les bonnes. Tout décor sur une `.section` passe par un
+  ÉLÉMENT RÉEL (`.filigrane-marque`), jamais par un pseudo.
+  ⚠️ Un élément en `z-index: -1` a besoin d'`isolation: isolate` sur son hôte, sinon il part
+  derrière le fond de la section et disparaît tout autant.
 - **Un `style="overflow:hidden"` en ligne sur un `.table-wrap` coupe les colonnes.** Il est pose
   pour que les coins arrondis rognent le tableau, mais il écrase le `overflow-x: auto` de
   `base.css` — et sur téléphone la dernière colonne finit hors écran, SANS aucun moyen d’y accéder.
