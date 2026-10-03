@@ -304,15 +304,26 @@
 
     /** Annuaire pour le champ « lié à un client » — les clients des devis suffisent. */
     async function chargerClients() {
-      const devis = (await SS.listDevis().catch(function () { return []; })) || [];
+      // LES DEUX SOURCES. La liste ne venait que des DEVIS : un client du CRM qui n'a pas encore
+      // de devis n'apparaissait jamais dans la saisie, alors que c'est justement sur lui qu'on a
+      // le plus de choses a noter -- un prospect a rappeler, une visite a caler.
+      const [devis, fiches] = await Promise.all([
+        SS.listDevis().catch(function () { return []; }),
+        SS.listClients ? SS.listClients().catch(function () { return []; }) : Promise.resolve([]),
+      ]);
       const vus = new Set();
-      devis.forEach(function (d) {
-        const c = d.client || {};
-        const nom = ((c.prenom || '') + ' ' + (c.nom || '')).trim();
-        // clientKeyOf prend (prenom, nom) — pas l'objet client : lui passer la fiche entière
-        // produisait la clé « |[object object] », qui ne rapproche évidemment aucune fiche CRM.
-        if (nom && !vus.has(nom)) { vus.add(nom); CLIENTS.push({ nom: nom, key: window.SSUI.clientKeyOf(c.prenom, c.nom) }); }
-      });
+      const ajouter = function (prenom, nom) {
+        const complet = ((prenom || '') + ' ' + (nom || '')).trim();
+        if (!complet || vus.has(complet)) return;
+        vus.add(complet);
+        // clientKeyOf prend (prenom, nom) -- pas l'objet client : lui passer la fiche entiere
+        // produisait la cle « |[object object] », qui ne rapproche evidemment aucune fiche CRM.
+        CLIENTS.push({ nom: complet, key: window.SSUI.clientKeyOf(prenom, nom) });
+      };
+      // Le CRM d'abord : c'est la liste de reference, les devis ne font que la completer.
+      (fiches || []).forEach(function (c) { ajouter(c.prenom, c.nom); });
+      (devis || []).forEach(function (d) { const c = d.client || {}; ajouter(c.prenom, c.nom); });
+      CLIENTS.sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
       el('dlClients').innerHTML = CLIENTS.map(function (c) { return '<option value="' + escHtml(c.nom) + '"></option>'; }).join('');
     }
 
