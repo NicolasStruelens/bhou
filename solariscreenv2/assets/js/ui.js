@@ -690,6 +690,77 @@
     };
   }
 
+  // ── Visionneuse de photos ──────────────────────────────────────────────────
+  // Ouvrir une photo ne doit pas faire QUITTER la page : on perd sa place dans la liste et il faut
+  // revenir en arrière pour continuer à lire. Les styles (.lightbox, .lb-btn…) vivent déjà dans
+  // base.css, où ils avaient été dédoublonnés ; seul le comportement était recopié de page en page.
+  // Identifiant DISTINCT (ssLightbox) : quatre pages portent encore leur propre #lightbox, et deux
+  // éléments de même id dans un document, c'est le genre de collision qu'on ne voit qu'un jour de
+  // malchance.
+  let _vis = null, _visUrls = [], _visIdx = 0, _visFond = false;
+  function _visMonter() {
+    if (_vis) return _vis;
+    _vis = document.createElement('div');
+    _vis.className = 'lightbox';
+    _vis.id = 'ssLightbox';
+    _vis.setAttribute('role', 'dialog');
+    _vis.setAttribute('aria-label', 'Photo agrandie');
+    _vis.innerHTML =
+      '<div class="lb-count"></div>' +
+      '<button class="lb-btn lb-close" type="button" aria-label="Fermer">\u2715</button>' +
+      '<button class="lb-btn lb-prev" type="button" aria-label="Photo pr\u00e9c\u00e9dente">\u2039</button>' +
+      '<img alt="">' +
+      '<button class="lb-btn lb-next" type="button" aria-label="Photo suivante">\u203a</button>';
+    document.body.appendChild(_vis);
+    _vis.querySelector('.lb-close').addEventListener('click', fermerPhotos);
+    _vis.querySelector('.lb-prev').addEventListener('click', function () { _visNav(-1); });
+    _vis.querySelector('.lb-next').addEventListener('click', function () { _visNav(1); });
+    // Ne ferme que si le geste a COMMENC\u00c9 sur le fond : rel\u00e2cher une s\u00e9lection ou un d\u00e9placement
+    // d'image en dehors adresse le clic au fond, et la visionneuse se refermait toute seule.
+    _vis.addEventListener('mousedown', function (e) { _visFond = (e.target === _vis); });
+    _vis.addEventListener('click', function (e) {
+      if (e.target === _vis && _visFond) fermerPhotos();
+      _visFond = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!_vis || !_vis.classList.contains('open')) return;
+      if (e.key === 'Escape') fermerPhotos();
+      else if (e.key === 'ArrowLeft') _visNav(-1);
+      else if (e.key === 'ArrowRight') _visNav(1);
+    });
+    return _vis;
+  }
+  function _visAfficher() {
+    const n = _visUrls.length;
+    _vis.querySelector('img').src = _visUrls[_visIdx] || '';
+    _vis.querySelector('.lb-count').textContent = n > 1 ? (_visIdx + 1) + ' / ' + n : '';
+    // Une seule photo : pas de fl\u00e8ches, elles ne m\u00e8neraient nulle part.
+    _vis.querySelector('.lb-prev').style.display = n > 1 ? '' : 'none';
+    _vis.querySelector('.lb-next').style.display = n > 1 ? '' : 'none';
+  }
+  function _visNav(d) {
+    if (_visUrls.length < 2) return;
+    _visIdx = (_visIdx + d + _visUrls.length) % _visUrls.length;
+    _visAfficher();
+  }
+  /** Ouvre la visionneuse sur `urls[index]`. Les fl\u00e8ches n'apparaissent qu'\u00e0 partir de deux photos. */
+  function ouvrirPhotos(urls, index) {
+    const liste = (urls || []).filter(Boolean);
+    if (!liste.length) return;
+    _visMonter();
+    _visUrls = liste;
+    _visIdx = Math.min(Math.max(0, index || 0), liste.length - 1);
+    _visAfficher();
+    _vis.classList.add('open');
+    // Le fond ne doit pas d\u00e9filer derri\u00e8re la photo : on retrouverait la liste ailleurs en fermant.
+    document.body.style.overflow = 'hidden';
+  }
+  function fermerPhotos() {
+    if (!_vis) return;
+    _vis.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
   function clientKeyOf(prenom, nom) {
     return (String(nom || '').trim() + '|' + String(prenom || '').trim()).toLowerCase().replace(/\s+/g, ' ');
   }
@@ -1605,7 +1676,8 @@
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
-    clientKeyOf: clientKeyOf, avatarClient: avatarClient, avatarsClients: avatarsClients, isoDate: isoDate, aujourdhui: aujourdhui,
+    clientKeyOf: clientKeyOf, avatarClient: avatarClient, avatarsClients: avatarsClients,
+    ouvrirPhotos: ouvrirPhotos, fermerPhotos: fermerPhotos, isoDate: isoDate, aujourdhui: aujourdhui,
     plusMois: plusMois, garantieDe: garantieDe,
     fetchWeather: fetchWeather,
     fetchCurrentWeather: fetchCurrentWeather,
