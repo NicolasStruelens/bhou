@@ -86,6 +86,18 @@
           min-width: 15px; padding: 0 3px; font-size: 0.58rem; line-height: 15px; }
         /* Replie, il ne reste que le logo : c'est le seul repere de marque encore visible. */
         html.ss-rail-reduit .ssrail-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+
+        /* UNE SEULE MARQUE À L'ÉCRAN. Dès que le rail est là, il porte le logo et le nom — les
+           répéter dans le bandeau juste à côté faisait deux fois la même chose à 200 px
+           d'intervalle. Le bandeau annonce donc la PAGE, ce qui est son rôle, et récupère au
+           passage la place qui manquait à droite (le badge « HORS-LIGNE » passait sur deux
+           lignes). Sous 1400 px le rail n'existe pas : la marque reste dans le bandeau,
+           inchangée. Aucune branche JS — c'est la même media query qui décide des deux. */
+        .brand-logo, .brand h1 { display: none; }
+        .brand .module {
+          font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700;
+          color: var(--text); letter-spacing: 0.04em; text-transform: uppercase;
+        }
       }
       .ssrail-brand { display: flex; align-items: center; gap: 0.5rem;
         padding: 0 0.55rem var(--sp-3, 0.75rem); }

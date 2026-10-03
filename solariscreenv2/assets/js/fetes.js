@@ -56,7 +56,7 @@
      de grandir : un encadré trop petit pour accueillir une toile de 58 px n'en reçoit pas, quel
      que soit son nom. Elle écarte aussi toute boîte repliée ou masquée, qui mesure 0. */
   const MIN_L = 260, MIN_H = 130;
-  const MAX_COINS = 3;             // au-delà ce n'est plus un décor, c'est un envahissement
+  const MAX_COINS = 6;             // au-delà ce n'est plus un décor, c'est un envahissement
 
   /* ── Les dessins ────────────────────────────────────────────────────────────────────────────
      Tous en `currentColor` : la teinte est donnée par l'emplacement, donc un même dessin peut
@@ -120,22 +120,40 @@
       id: 'halloween',
       nom: 'Halloween',
       du: '10-01', au: '11-02',
-      // Le coin des encadrés. C'est le décor le plus présent, donc le plus discret.
       /* Le coin des encadrés. C'est le décor le plus présent, donc le plus discret — et `bete`
          est ce qui y pend. Une araignée ancrée au BANDEAU a été essayée et retirée : à 16 % elle
          tombait sur « Compact », à 34 % sur un filtre des demandes de RDV. Aucune valeur ne
          convient sur 21 pages, puisque c'est la page qui décide de ce qu'il y a sous le bandeau.
          Dans la toile, elle est chez elle et l'espace est déjà celui du décor. */
       coin: {
-        svg: TOILE, taille: 58, opacite: 0.35, teinte: '#9fb0d8',
-        bete: { svg: ARAIGNEE, taille: 20, opacite: 0.8, teinte: '#c3cde8', fil: 14 },
+        svg: TOILE, taille: 58,
+        teinte: { sombre: '#9fb0d8', clair: '#5b6a96' }, opacite: { sombre: 0.35, clair: 0.38 },
+        bete: {
+          svg: ARAIGNEE, taille: 20, fil: 14,
+          teinte: { sombre: '#c3cde8', clair: '#44507a' }, opacite: { sombre: 0.8, clair: 0.75 },
+        },
       },
       // Petite marque fixe à côté du logo.
-      marque: { svg: CITROUILLE, taille: 20, opacite: 1, teinte: '#ff9f1c' },
+      marque: { svg: CITROUILLE, taille: 20,
+        teinte: { sombre: '#ff9f1c', clair: '#e07c00' }, opacite: { sombre: 1, clair: 1 } },
+      /* Le rail de navigation est un décor à part : c'est une colonne, pas un encadré. La toile
+         s'y pose au coin haut-droit DERRIÈRE les entrées (z-index 0), et la citrouille se cale
+         en pied de colonne — `margin-top: auto` dans un conteneur en colonne. Replié en icônes,
+         les deux tiennent encore dans 60 px. */
+      rail: {
+        coin: { svg: TOILE, taille: 54,
+          teinte: { sombre: '#9fb0d8', clair: '#5b6a96' }, opacite: { sombre: 0.3, clair: 0.3 } },
+        pied: { svg: CITROUILLE, taille: 26,
+          teinte: { sombre: '#ff9f1c', clair: '#e07c00' }, opacite: { sombre: 0.85, clair: 0.9 } },
+      },
       // Traversent l'écran. `rare: true` = masqué sur petit écran (voir le CSS).
       volants: [
-        { svg: CHAUVE_SOURIS, taille: 46, haut: '16%', duree: 24, retard: 3,  opacite: 0.42, teinte: '#b9a6e8', ailes: true },
-        { svg: SORCIERE,      taille: 92, haut: '58%', duree: 38, retard: 16, opacite: 0.34, teinte: '#cdbaf0', rare: true },
+        { svg: CHAUVE_SOURIS, taille: 46, haut: '16%', duree: 24, retard: 3, ailes: true,
+          teinte: { sombre: '#b9a6e8', clair: '#7a63c4' }, opacite: { sombre: 0.42, clair: 0.3 } },
+        { svg: CHAUVE_SOURIS, taille: 30, haut: '74%', duree: 31, retard: 19, ailes: true,
+          teinte: { sombre: '#a692dd', clair: '#6d55bb' }, opacite: { sombre: 0.3, clair: 0.22 } },
+        { svg: SORCIERE, taille: 92, haut: '38%', duree: 38, retard: 16, rare: true,
+          teinte: { sombre: '#cdbaf0', clair: '#8a74cf' }, opacite: { sombre: 0.34, clair: 0.26 } },
       ],
     },
   ];
@@ -168,6 +186,48 @@
     if (oui) monter();
   }
 
+  /* ── TEINTES PAR THÈME ──────────────────────────────────────────────────────────────────────
+     Les décors étaient coloriés EN LIGNE, donc identiques dans les deux thèmes — or ils ont été
+     calibrés en sombre, et en CLAIR (le thème réellement utilisé en production) une toile gris
+     bleuté à 35 % sur du blanc ne se voyait presque plus. Chaque teinte s'écrit donc
+     { sombre, clair }, et le module en fait des variables CSS : c'est la feuille de style qui
+     colorie, donc le décor suit le bouton lune/soleil sans une seule ligne de JS.
+     Une valeur simple reste acceptée, et sert alors dans les deux thèmes. */
+  function ton(v, quoi) {
+    if (v === null || v === undefined) return null;
+    return (typeof v === 'object') ? v[quoi] : v;
+  }
+
+  /* Tous les décors d'une fête, NOMMÉS. Ce nom devient celui de la variable CSS et celui de la
+     règle qui l'utilise : ajouter un emplacement, c'est l'ajouter ici et nulle part ailleurs. */
+  function emplacements(f) {
+    const l = [];
+    if (f.coin) { l.push(['coin', f.coin]); if (f.coin.bete) l.push(['bete', f.coin.bete]); }
+    if (f.marque) l.push(['marque', f.marque]);
+    if (f.rail && f.rail.coin) l.push(['railcoin', f.rail.coin]);
+    if (f.rail && f.rail.pied) l.push(['railpied', f.rail.pied]);
+    (f.volants || []).forEach(function (v, i) { l.push(['vol' + i, v]); });
+    return l;
+  }
+
+  const CIBLE = {
+    coin: '.ssfete-coin', bete: '.ssfete-pendu', marque: '.ssfete-marque',
+    railcoin: '.ssfete-railcoin', railpied: '.ssfete-railpied',
+  };
+
+  function cssTeintes(f) {
+    const sombre = [], clair = [], regles = [];
+    emplacements(f).forEach(function (e) {
+      const n = e[0], d = e[1];
+      sombre.push('--ssf-' + n + '-c:' + ton(d.teinte, 'sombre') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'sombre') + ';');
+      clair.push('--ssf-' + n + '-c:' + ton(d.teinte, 'clair') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'clair') + ';');
+      const sel = CIBLE[n] || ('.ssfete-vol[data-i="' + n.slice(3) + '"]');
+      regles.push(sel + ' { color: var(--ssf-' + n + '-c); opacity: var(--ssf-' + n + '-o); }');
+    });
+    return ':root {' + sombre.join('') + '}\n      [data-theme="light"] {' + clair.join('') +
+      '}\n      ' + regles.join('\n      ');
+  }
+
   /* Un dessin s'écrit en SVG en ligne OU en fichier. Le `<img>` ne suit pas `currentColor` : on
      ne s'en sert donc que pour une image déjà coloriée. */
   function dessin(d) {
@@ -182,8 +242,7 @@
      l'animal — et que le fil doit partir du point d'accroche, pas du dos de l'animal. */
   function beteHtml(b) {
     if (!b) return '';
-    return '<div class="ssfete-pendu" style="--fil:' + b.fil + 'px;width:' + b.taille + 'px;color:' +
-      b.teinte + ';opacity:' + b.opacite + '">' +
+    return '<div class="ssfete-pendu" style="--fil:' + b.fil + 'px;width:' + b.taille + 'px">' +
       '<div class="ssfete-fil"></div>' +
       '<div class="ssfete-bete" style="width:' + b.taille + 'px">' + dessin(b) + '</div></div>';
   }
@@ -195,6 +254,8 @@
      filtre sur les autres, puisque le rendu remplace l'innerHTML. */
   function poserCoins(f) {
     if (!f.coin) return;
+    const deja = document.querySelectorAll('.ssfete-coin').length;
+    if (deja >= MAX_COINS) return;
     Array.prototype.filter.call(document.querySelectorAll(HOTES_COIN), function (h) {
       // `closest` se teste lui-même : couvre l'élément ET tout ce qui vit dedans.
       if (h.closest(PAS_HOTE)) return false;
@@ -203,14 +264,20 @@
       if (h.querySelector(':scope > .ssfete-coin')) return false;   // jamais deux fois
       if (!h.getClientRects().length) return false;                 // masqué = pas de décor
       return h.offsetWidth >= MIN_L && h.offsetHeight >= MIN_H;
-    }).slice(0, MAX_COINS).forEach(function (h) {
+    }).slice(0, MAX_COINS - deja).forEach(function (h, i) {
+      /* Le rang se compte sur les toiles DÉJÀ posées, pas sur l'index de cette passe : les
+         encadrés arrivent par vagues (chaque rendu de liste en apporte), et repartir de zéro à
+         chaque passe aurait cassé l'alternance des coins. */
+      const rang = deja + i;
+      const haut = (rang % 2 === 0);
       const d = document.createElement('div');
-      d.className = 'ssfete ssfete-coin';
+      d.className = 'ssfete ssfete-coin ' + (haut ? 'ssfete-coin--hd' : 'ssfete-coin--bg');
       d.setAttribute('aria-hidden', 'true');
       d.style.width = f.coin.taille + 'px';
-      d.style.color = f.coin.teinte;
-      d.style.opacity = f.coin.opacite;
-      d.innerHTML = dessin(f.coin) + beteHtml(f.coin.bete);
+      // L'araignée n'habite que la PREMIÈRE toile : une par encadré en ferait une invasion, et
+      // dans un coin bas-gauche elle pendrait hors de l'encadré.
+      d.innerHTML = '<div class="ssfete-toile">' + dessin(f.coin) + '</div>' +
+        (rang === 0 ? beteHtml(f.coin.bete) : '');
       /* `.section` et `.ticked` sont déjà en `position: relative` (base.css), mais pas forcément
          `.ec-poster`. Sans ça le décor, qui est en `position: absolute`, se placerait par rapport
          au premier ANCÊTRE positionné — donc n'importe où sur la page, et sans la moindre erreur
@@ -220,6 +287,36 @@
     });
   }
 
+  /* LE RAIL. Posé à part des encadrés pour deux raisons : c'est une COLONNE (212 px de large,
+     donc sous le minimum exigé d'un encadré), et il est construit par nav.js, qui peut passer
+     après nous. D'où le même traitement que les coins : rejouable, et rappelé par
+     l'observateur — sans quoi le décor dépendait de l'ordre d'exécution de deux scripts. */
+  function poserRail(f) {
+    if (!f.rail) return;
+    const rail = document.querySelector('.ssrail');
+    if (!rail) return;
+    if (f.rail.coin && !rail.querySelector('.ssfete-railcoin')) {
+      const d = document.createElement('div');
+      d.className = 'ssfete ssfete-railcoin';
+      d.setAttribute('aria-hidden', 'true');
+      d.style.width = f.rail.coin.taille + 'px';
+      d.innerHTML = '<div class="ssfete-toile">' + dessin(f.rail.coin) + '</div>';
+      rail.appendChild(d);
+    }
+    if (f.rail.pied && !rail.querySelector('.ssfete-railpied')) {
+      const d = document.createElement('div');
+      d.className = 'ssfete ssfete-railpied';
+      d.setAttribute('aria-hidden', 'true');
+      d.style.width = f.rail.pied.taille + 'px';
+      d.title = f.nom;
+      d.innerHTML = dessin(f.rail.pied);
+      rail.appendChild(d);
+    }
+  }
+
+  /* Tout ce qui peut apparaître après coup se repose ici, en un seul endroit. */
+  function poser(f) { poserCoins(f); poserRail(f); }
+
   /* Surveiller les rendus. Groupé derrière un `setTimeout` : un rendu de liste produit des
      centaines de mutations, on ne veut repasser qu'UNE fois à la fin. Poser un décor déclenche
      à son tour l'observateur, mais la passe suivante ne trouve plus rien à faire (le filtre
@@ -228,12 +325,12 @@
      masqué. Avec lui, une liste rendue pendant que l'onglet est en arrière-plan n'était jamais
      décorée, et rien ne le signalait. */
   function surveiller(f) {
-    if (!f.coin || !window.MutationObserver) return;
+    if ((!f.coin && !f.rail) || !window.MutationObserver) return;
     let prevu = false;
     new MutationObserver(function () {
       if (prevu) return;
       prevu = true;
-      setTimeout(function () { prevu = false; poserCoins(f); }, 120);
+      setTimeout(function () { prevu = false; poser(f); }, 120);
     }).observe(document.body, { childList: true, subtree: true });
   }
 
@@ -245,10 +342,36 @@
       /* Rien de tout ceci ne doit JAMAIS intercepter un clic ni déplacer quoi que ce soit. */
       .ssfete, #${SKY} { pointer-events: none; }
       .ssfete svg, #${SKY} svg { width: 100%; height: auto; display: block; }
+      .ssfete-toile { line-height: 0; }
 
-      /* Le coin des encadrés. Posé en haut à DROITE : en haut à gauche il tomberait sur le titre
-         de la section, et les coins « ticked » occupent déjà haut-gauche et bas-droite. */
-      .ssfete-coin { position: absolute; top: 0; right: 0; z-index: 2; }
+      ${cssTeintes(f)}
+
+      /* LE COIN DES ENCADRÉS — et l'ORIENTATION, qui était fausse.
+         La toile est dessinée avec son moyeu à l'origine du viewBox, donc en HAUT À GAUCHE de
+         son carré. Posée telle quelle en haut à droite d'un encadré, son moyeu se retrouvait
+         58 px À L'INTÉRIEUR : ça ne se lisait plus comme une toile accrochée dans l'angle, mais
+         comme une tache posée à côté. Invisible à cette taille et à 35 % d'opacité — il a fallu
+         l'agrandir en rouge pour le voir. On la retourne donc selon le coin qu'elle occupe.
+         ⚠️ Le miroir porte sur la TOILE SEULE, pas sur le conteneur : appliqué au conteneur, il
+         retournerait aussi l'araignée, qui pendrait vers le haut dans le coin bas-gauche.
+         Les coins alternent haut-droite / bas-gauche : ce sont les deux angles libres (les coins
+         « ticked » occupent haut-gauche et bas-droite), et alterner évite la répétition
+         mécanique quand plusieurs encadrés se suivent. */
+      .ssfete-coin { position: absolute; z-index: 2; }
+      .ssfete-coin--hd { top: 0; right: 0; }
+      .ssfete-coin--hd .ssfete-toile { transform: scaleX(-1); }
+      .ssfete-coin--bg { bottom: 0; left: 0; }
+      .ssfete-coin--bg .ssfete-toile { transform: scaleY(-1); }
+
+      /* LE RAIL. La toile se pose derrière les entrées (z-index 0, elles n'en ont pas), et la
+         citrouille se cale en pied de colonne. */
+      .ssfete-railcoin { position: absolute; top: 0; right: 0; z-index: 0; }
+      .ssfete-railcoin .ssfete-toile { transform: scaleX(-1); }
+      /* La citrouille du rail est HORS DU FLUX, et ce n'est pas un detail de style : en flux
+         elle ajoutait 30 px a la colonne, le rail passait en defilement des 820 px de haut, et
+         la barre lui volait 10 px de largeur -- << Outillage & references >> se faisait tronquer.
+         Ancree par le bas, elle n'allonge plus le contenu, donc elle ne peut plus declencher ca. */
+      .ssfete-railpied { position: absolute; bottom: 10px; left: 0; right: 0; margin: 0 auto; }
 
       /* Ce qui pend dans la toile : un fil, puis la bête. L'ensemble se balance depuis le
          POINT D'ACCROCHE (transform-origin en haut), sinon il pivote sur son ventre. */
@@ -291,7 +414,11 @@
          ce qui n'était pas possible tant qu'elle pendait sous le bandeau. */
       @media (max-width: 900px) { .ssfete-vol[data-rare="1"] { display: none; } }
       @media (max-width: 700px) {
-        .ssfete-coin { transform: scale(0.62); transform-origin: top right; }
+        /* L'origine suit le coin occupé : avec un « top right » unique, la toile du bas-gauche se
+           réduisait en s'éloignant de son angle. */
+        .ssfete-coin--hd { transform: scale(0.62); transform-origin: top right; }
+        .ssfete-coin--bg { transform: scale(0.62); transform-origin: bottom left; }
+        .ssfete-railcoin { transform: scale(0.7); transform-origin: top right; }
         .ssfete-pendu { display: none; }
       }
 
@@ -323,8 +450,8 @@
 
     style(f);
 
-    // 1. Les coins, puis on les repose à chaque rendu (voir surveiller()).
-    poserCoins(f);
+    // 1. Les coins et le rail, puis on les repose à chaque rendu (voir surveiller()).
+    poser(f);
     surveiller(f);
 
     // 2. La marque à côté du logo.
@@ -334,8 +461,6 @@
       d.className = 'ssfete ssfete-marque';
       d.setAttribute('aria-hidden', 'true');
       d.style.width = f.marque.taille + 'px';
-      d.style.color = f.marque.teinte;
-      d.style.opacity = f.marque.opacite;
       d.title = f.nom;
       d.innerHTML = dessin(f.marque);
       marque.parentElement.insertBefore(d, marque.nextSibling);
@@ -346,14 +471,13 @@
       const ciel = document.createElement('div');
       ciel.id = SKY;
       ciel.setAttribute('aria-hidden', 'true');
-      f.volants.forEach(function (v) {
+      f.volants.forEach(function (v, i) {
         const d = document.createElement('div');
         d.className = 'ssfete-vol';
         if (v.rare) d.setAttribute('data-rare', '1');
+        d.setAttribute('data-i', String(i));   // cible la règle de teinte de CE volant
         d.style.width = v.taille + 'px';
         d.style.top = v.haut;
-        d.style.color = v.teinte;
-        d.style.opacity = v.opacite;
         // Un retard négatif démarre l'animation EN COURS de route : sans lui, toutes les bêtes
         // partiraient en même temps au chargement, en file indienne.
         d.style.animation = 'ssfete-traverse ' + v.duree + 's linear ' + (-v.retard) + 's infinite';

@@ -379,6 +379,13 @@ Trois règles à ne pas défaire :
   1500 + 212, et son complément à 1711. Toute page qui ajoute une mise en page large doit faire la
   même addition.
 Le total du point rouge ne compte QUE le volet : sinon le rail le doublerait.
+⚠️ **UNE SEULE MARQUE À L'ÉCRAN.** Dès que le rail est là, il porte le logo et le nom ; le bandeau
+les répétait 200 px plus loin — deux fois la même chose, et c'est ce que Nicolas a vu tout de
+suite. Au-delà de 1400 px le bandeau masque donc `.brand-logo` et `.brand h1`, et promeut
+`.brand .module` : il annonce la PAGE, ce qui est son rôle. Il y gagne la place qui lui manquait
+à droite (le badge « HORS-LIGNE » passait sur deux lignes). Sous 1400 px, rien ne change : pas de
+rail, donc la marque reste dans le bandeau. C'est la MÊME media query qui décide des deux, donc
+elles ne peuvent pas se désynchroniser.
 
 **25. Une PHOTO sur un sujet suit la même discipline que les réponses.** Une photo est souvent LE
 message — une pièce cassée, un mail fournisseur, un repérage de façade — et la décrire coûte dix
@@ -440,6 +447,21 @@ Trois règles, et ce sont elles qui justifient le module :
 arrivent de l'API APRÈS le chargement : un décor posé une seule fois n'apparaissait sur AUCUN de
 ces écrans, et disparaissait au premier filtre sur les autres. L'observateur est groupé par
 `setTimeout`, **pas** `requestAnimationFrame` — voir le piège ci-dessous.
+⚠️ **Une teinte de décor s'écrit `{ sombre, clair }`**, et le module en fait des variables CSS.
+Coloriés en dur, les décors étaient calibrés en SOMBRE : en clair — le thème réellement utilisé en
+production — la toile grise à 35 % sur du blanc ne se voyait presque plus. Deux tests du contrat
+l'exigent désormais, pour que la prochaine fête ne puisse pas l'oublier.
+⚠️ **Un décor de coin doit être RETOURNÉ selon le coin qu'il occupe.** La toile est dessinée avec
+son moyeu à l'origine du viewBox, donc en haut à gauche ; posée telle quelle en haut à DROITE, son
+moyeu se retrouvait 58 px à l'intérieur de l'encadré — ça ne se lisait plus comme une toile
+accrochée dans l'angle. À 35 % d'opacité et 58 px, c'était invisible : il a fallu l'agrandir en
+rouge pour le voir. Le miroir porte sur la TOILE SEULE et jamais sur le conteneur, sinon
+l'araignée pendrait vers le haut dans le coin bas-gauche. Les coins alternent haut-droite /
+bas-gauche — les deux angles que les coins « ticked » laissent libres.
+⚠️ **Un décor posé DANS le rail doit être hors du flux.** La citrouille de pied, en flux, ajoutait
+30 px à la colonne : le rail passait en défilement dès 820 px de haut, et la barre lui volait 10 px
+de largeur — « Outillage & références » se faisait tronquer. Ancrée par le bas, elle n'allonge plus
+le contenu. Mesurer `scrollHeight > clientHeight` ET `clientWidth` du rail après tout ajout.
 ⚠️ L'hôte d'un décor se choisit sur la PLACE DISPONIBLE (`260 × 130` px), pas sur une liste noire
 qui n'aurait jamais fini de grandir. Les tuiles de chiffres s'écrivent `class="kpi ticked"` et les
 modales `class="modal ticked"` : sans ça, une toile de 58 px atterrissait sur un carré de 150, et
