@@ -435,6 +435,13 @@ suivante sans raison. Un devis jamais relancé reste donc en retard de son vrai 
   mesurer les ENFANTS (`enfant.scrollHeight > enfant.clientHeight`), pas le parent. Correctif :
   `.vue-rail > * { flex: none; }` — le parent déborde alors pour de vrai et son `overflow-y: auto`
   reprend son rôle. Vérifié à 808, 620, 528, 420 et 320 px de hauteur de rail.
+- **Un `style="overflow:hidden"` en ligne sur un `.table-wrap` coupe les colonnes.** Il est pose
+  pour que les coins arrondis rognent le tableau, mais il écrase le `overflow-x: auto` de
+  `base.css` — et sur téléphone la dernière colonne finit hors écran, SANS aucun moyen d’y accéder.
+  Le `body { overflow-x: hidden }` global masque le symptôme : la page ne déborde pas, tout a l’air
+  normal. **Mesurer les ENFANTS, et vérifier qu’un ancêtre défile vraiment** (`overflowX` en
+  `auto`/`scroll`) — pas seulement `document.scrollWidth`. Poser les DEUX axes :
+  `overflow-x: auto; overflow-y: hidden`, sinon la spec bascule aussi l’axe vertical sur auto.
 - **Fermer une modale sur `e.target === leFond` perd les saisies.** Sélectionner du texte dans un
   champ et relâcher la souris EN DEHORS de la fenêtre envoie le `click` au plus proche ancêtre
   commun du mousedown et du mouseup — c'est-à-dire le fond. La modale se fermait donc « toute
