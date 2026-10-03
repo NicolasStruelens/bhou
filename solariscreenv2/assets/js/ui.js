@@ -1534,7 +1534,26 @@
     for (let i = doneMax + 1; i <= nStatut; i++) done.push({ n: i, date: null, implied: true });
     doneMax = Math.max(doneMax, nStatut);
     const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
-    const due = step && envoi ? plusJours(envoi, step.j) : null;
+    let due = step && envoi ? plusJours(envoi, step.j) : null;
+    // ÉCART MINIMUM APRÈS UNE RELANCE RÉELLE.
+    // L'échéance ci-dessus est ancrée sur la date d'envoi, ce qui est voulu : un devis oublié
+    // rattrape son retard. Mais prise seule, elle réclamait la relance suivante à la seconde où
+    // l'on enregistrait la précédente, dès que le devis était parti depuis plus longtemps que le
+    // plan — deux relances le même jour, ce qu'on ne fait jamais.
+    // On impose donc l'écart que le PLAN LUI-MÊME prévoit entre ces deux étapes (9 − 4 = 5 jours
+    // entre R1 et R2, 21 − 9 = 12 entre R2 et R3), compté depuis la dernière relance réellement
+    // envoyée. Les relances seulement DÉDUITES du statut (date: null) ne comptent pas : on ne sait
+    // pas quand elles sont parties, et inventer une date retarderait la suivante sans raison.
+    if (step && due) {
+      const reelles = done.filter(r => r && r.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const derniere = reelles[reelles.length - 1];
+      if (derniere) {
+        const jPrecedent = (plan.find(x => x.n === step.n - 1) || { j: 0 }).j;
+        const ecart = Math.max(1, step.j - jPrecedent);
+        const plancher = plusJours(derniere.date, ecart);
+        if (plancher > due) due = plancher;
+      }
+    }
     return {
       kind: kind, plan: plan, envoi: envoi, today: today, done: done, doneMax: doneMax, step: step,
       jours: envoi ? joursEntre(envoi, today) : 0,

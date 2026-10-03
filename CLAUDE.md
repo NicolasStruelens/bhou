@@ -406,6 +406,19 @@ un document, c’est le genre de collision qu’on ne voit qu’un jour de malch
 passe par le helper ; les quatre copies restent à ramener dessus, quand on y touchera pour autre chose.
 Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
 
+**27. Une relance ne se réclame jamais le jour où l’on vient d’en envoyer une** (`relanceEtat`).
+L’échéance de chaque relance est ancrée sur la date d’ENVOI du devis (R1 à J+4, R2 à J+9, R3 à
+J+21), et c’est VOULU : un devis oublié rattrape son retard. Mais prise seule, cette règle
+réclamait la relance suivante à la seconde où l’on enregistrait la précédente, dès que le devis
+était parti depuis plus longtemps que le plan — deux relances le même jour, ce qu’on ne fait
+jamais, et le compteur « 1 devis à relancer » qui ne descendait pas.
+S’ajoute donc un PLANCHER : l’écart que le plan lui-même prévoit entre ces deux étapes (9 − 4 = 5
+jours entre R1 et R2, 21 − 9 = 12 entre R2 et R3), compté depuis la dernière relance RÉELLEMENT
+envoyée. L’échéance retenue est la plus TARDIVE des deux.
+⚠️ Les relances seulement DÉDUITES du statut (`implied: true`, `date: null`) ne comptent pas dans
+ce plancher : on ne sait pas quand elles sont parties, et leur inventer une date retarderait la
+suivante sans raison. Un devis jamais relancé reste donc en retard de son vrai nombre de jours.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,
