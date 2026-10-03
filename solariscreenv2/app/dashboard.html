@@ -679,8 +679,16 @@
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <!-- Le « qui doit agir » : même moteur que l'écran des Échanges et que le badge du menu. -->
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
   <script>
     const SS = window.SS;
+    // Déclarés en TÊTE de script : une constante posée sous la fonction qui l'utilise ne tient que
+    // par l'ordre d'exécution, et ça a déjà fait planter tout un rendu ici.
+    const ATT = window.SSAttente || null;
+    let SUJETS = [];
+    let MOI_KEY = '';
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, fmtDate, el, setText, toast, normDevis, icon, daysInCurrentStatus, clientKeyOf } = window.SSUI;
 
@@ -1242,6 +1250,28 @@
       const visitesJour = rdvActifs.filter(r => r.statut === 'rdv_fixe' && String(r.date_rdv || '').slice(0, 10) === todayIso);
       if (nonPris.length) chips.push({ label: `${nonPris.length} demande${nonPris.length > 1 ? 's' : ''} sans personne en charge`, color: 'var(--danger)', href: 'rdv.html', ic: 'warning' });
       if (visitesJour.length) chips.push({ label: `${visitesJour.length} visite${visitesJour.length > 1 ? 's' : ''} client aujourd'hui`, color: 'var(--accent)', href: 'planning.html', ic: 'calendar' });
+      // ── SAV et ÉCHANGES ────────────────────────────────────────────────────────
+      // L'accueil les ignorait complètement : on ouvrait l'ERP sur un écran qui annonçait la
+      // journée en en cachant la moitié, pendant que le badge du menu, lui, les comptait.
+      // Même moteur que l'écran des Échanges (règle 15) : les chiffres ne peuvent plus diverger.
+      // Les tickets SAV vivent DANS les devis, déjà chargés : seuls les échanges coûtent une lecture.
+      if (ATT) {
+        const sav = ATT.depuisSav(visible);
+        const ech = ATT.depuisSujets(SUJETS);
+        const savOrphelins = ATT.sansPersonne(sav);
+        const savPourMoi = MOI_KEY ? ATT.pourQui(sav, MOI_KEY) : [];
+        const echOrphelins = ATT.sansPersonne(ech);
+        const echPourMoi = MOI_KEY ? ATT.pourQui(ech, MOI_KEY) : [];
+        // Ce que PERSONNE n'a pris passe devant : c'est ce dont chacun croit que l'autre s'occupe.
+        if (savOrphelins.length) chips.push({ label: `${savOrphelins.length} SAV sans personne en charge`, color: 'var(--danger)', href: 'sav.html', ic: 'warning' });
+        if (echOrphelins.length) chips.push({ label: `${echOrphelins.length} échange${echOrphelins.length > 1 ? 's' : ''} sans personne en charge`, color: 'var(--danger)', href: 'echanges.html', ic: 'warning' });
+        // SAV en VIOLET, comme « chantiers à préparer » : même famille, du terrain à organiser.
+        // Ce n’est pas une collision mais un regroupement voulu — c’est le libellé, toujours affiché,
+        // qui dit lequel des deux. Le doublon à éviter serait l’or : en thème sombre il ne se
+        // distingue pas de l’ambre de l’argent (ΔE 18,8, mesuré).
+        if (savPourMoi.length) chips.push({ label: `${savPourMoi.length} SAV qui t'attend${savPourMoi.length > 1 ? 'ent' : ''}`, color: 'var(--accent-3)', href: 'sav.html', ic: 'wrench' });
+        if (echPourMoi.length) chips.push({ label: `${echPourMoi.length} échange${echPourMoi.length > 1 ? 's' : ''} qui t'attend${echPourMoi.length > 1 ? 'ent' : ''}`, color: 'var(--accent)', href: 'echanges.html', ic: 'message' });
+      }
       if (questionsClient.length) chips.push({ label: `${questionsClient.length} question${questionsClient.length > 1 ? 's' : ''} client — à répondre`, color: 'var(--accent)', filter: 'question_client', ic: 'message' });
       if (acceptes.length) chips.push({ label: `${acceptes.length} devis accepté${acceptes.length > 1 ? 's' : ''} par le client — à faire signer`, color: 'var(--ok)', filter: 'accepte_client', ic: 'check' });
       if (toRelance.length) chips.push({ label: `${toRelance.length} devis à relancer`, color: 'var(--warn)', filter: 'a_relancer', ic: 'clock' });
@@ -2294,12 +2324,18 @@
     // fonction est aussi appelée à chaque retour sur la page, et une fenêtre qui surgit sur un
     // simple retour d'onglet serait insupportable.
     async function rafraichir() {
-      const [raw, facs, clients, rdvs] = await Promise.all([
+      const [raw, facs, clients, rdvs, sujets] = await Promise.all([
         SS.listDevis(), SS.listFactures(), SS.listClients(),
         (SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([])),
+        // Les échanges : une lecture de plus, et l'accueil cesse d'ignorer la moitié du travail.
+        (SS.listSujets ? SS.listSujets().catch(() => []) : Promise.resolve([])),
       ]);
+      // L'identité se lit ICI, avec le reste : sans elle on ne peut pas distinguer « ça t'attend »
+      // de « personne ne l'a pris », et les pastilles correspondantes ne sortent jamais.
+      try { MOI_KEY = ((await window.SSNav.getIdentity()) || {}).key || ''; } catch (e) { MOI_KEY = ''; }
       DEVIS = (raw || []).map(normDevis);
       RDV_LIST = rdvs || [];
+      SUJETS = sujets || [];
       FACTURES = facs || [];
       CLIENT_TAGS = new Map((clients || []).filter(c => (c.tags || []).length).map(c => [c.key, c.tags]));
       render();
