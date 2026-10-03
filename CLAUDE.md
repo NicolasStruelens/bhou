@@ -361,6 +361,25 @@ Le résultat pointe vers `echanges.html?sujet=<id>`. ⚠️ Une décision vit su
 masqué par défaut : l'arrivée coche « voir ce qui est fait » avant de viser la carte, sinon on
 atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
 
+**24. Le RAIL DE NAVIGATION rend les compteurs permanents** (`nav.js`, `.ssrail`).
+Les badges d’alerte vivaient DANS le volet déroulant : fermé, il ne restait qu’un point rouge qui
+disait « quelque chose, quelque part » sans dire quoi ni combien. Il fallait donc OUVRIR le menu
+pour apprendre qu’un SAV attendait — un geste qu’on ne fait pas, d’où l’impression que les modules
+vivent chacun dans leur coin. Le rail les affiche en continu, sur les 20 pages, même replié en
+icônes (le compteur devient alors une pastille sur l’icône : c’est tout l’intérêt du repli).
+Trois règles à ne pas défaire :
+• **Le rail n’apparaît qu’au-delà de 1400 px, et le volet déroulant DISPARAÎT alors.** Les deux
+  ensemble, ce serait deux navigations côte à côte — le défaut des « deux portes » (règle 19).
+• **Aucune branche JS sur la largeur** : tout passe par la media query, donc rien ne peut se
+  désynchroniser en redimensionnant. L’état replié est posé sur `<html>` AVANT le rendu, sinon le
+  rail s’affiche large puis se rétracte sous les yeux à chaque chargement.
+• ⚠️ **Une media query mesure la FENÊTRE, pas la place disponible.** La fiche devis passait en trois
+  colonnes dès 1500 px en croyant disposer de 1500, alors que le rail en prenait 212 : les colonnes
+  se serraient (17 px de débord interne, 41 sur une rangée). Son seuil est donc passé à 1712 =
+  1500 + 212, et son complément à 1711. Toute page qui ajoute une mise en page large doit faire la
+  même addition.
+Le total du point rouge ne compte QUE le volet : sinon le rail le doublerait.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,
