@@ -350,6 +350,24 @@
   // client en a besoin aussi, donc il monte ici plutôt que d'être recopié une deuxième fois.
   const SELLER_LABELS = { nicolas: 'Nicolas', yannick: 'Yannick', autre: 'Autre' };
 
+  /* IDENTITÉ CONNECTÉE (Cloudflare Access). Volontairement distincte de SELLER_LABELS, qui
+     décrit QUI A VENDU : les deux tables portent les mêmes noms aujourd'hui, mais ce sont deux
+     notions différentes (un « autre » vendeur existe, un « autre » connecté n'a pas de sens).
+     Elle vivait en DEUX copies, dans nav.js et dans stats.html. */
+  const IDENTITE_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
+
+  /** Durée lisible à partir de millisecondes. Était elle aussi en deux copies.
+   *  ⚠️ La garde sur `ms` invalide ou négatif n'est pas décorative : un `start_time` ou un
+   *  `last_seen` manquant donne NaN, et « NaN h » s'affichait tel quel. */
+  function fmtDuree(ms) {
+    if (!isFinite(ms) || ms < 0) return '—';
+    const min = Math.round(ms / 60000);
+    if (min < 1) return '< 1 min';
+    if (min < 60) return min + ' min';
+    const h = Math.floor(min / 60), m = min % 60;
+    return h + ' h' + (m ? ' ' + String(m).padStart(2, '0') : '');
+  }
+
   // Statuts d'un DEVIS. Ces libellés vivaient en cinq copies (clients, dashboard ×2, stats, vue) ;
   // voici la source officielle vers laquelle elles doivent converger — même raison que TYPE_LABEL,
   // qui avait fini en treize exemplaires divergents.
@@ -1690,6 +1708,7 @@
     toast: toast, generateDevisId: generateDevisId, qp: qp,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
+    IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
