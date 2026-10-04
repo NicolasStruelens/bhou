@@ -2262,57 +2262,64 @@
     }
     window.openCardAndScroll = openCardAndScroll;
     /**
-     * QUI PREND QUOI SUR CE DOSSIER.
+     * CE QUE CE CHANTIER ME RAPPORTE.
      *
      * Les commissions étaient déjà là ; la PAIE DE POSE ne l'était nulle part — alors qu'elle
-     * représente souvent plus que la commission (125 € brut par ouverture, soit 50 € nets, contre
-     * 18 % du catalogue). On ne pouvait donc pas répondre à « ce chantier, il me rapporte quoi ? »
-     * sans rouvrir le simulateur.
+     * dépasse souvent la commission. On ne pouvait donc pas répondre à « ce chantier, il me
+     * rapporte quoi ? » sans rouvrir le simulateur et faire le calcul de tête.
      *
-     * ⚠️ Tout le calcul vient de SSRemu (fonctions pures, 80 tests). Cette fonction ne fait que
+     * ⚠️ Écrit du point de vue de NICOLAS. Yannick est le patron : sa commission reste affichée
+     * juste au-dessus (bloc « Interne »), parce qu'elle fait partie du partage de la marge, mais
+     * ce bloc-ci ne concerne que ce que Nicolas doit encaisser.
+     *
+     * ⚠️ Tout le calcul vient de SSRemu (fonctions pures, 77 tests). Cette fonction ne fait que
      * mettre en forme : un chiffre d'argent calculé dans une page HTML n'est testable par personne.
      */
     function blocQuiPrendQuoi(d, c) {
       const R = window.SSRemu;
       if (!R) return '';
-      const x = R.parDossier(d, [], (window.SSConf && SSConf.get()) || null);
-      const poseBrut = (c.tech1_total || 0) + (c.tech2_total || 0);
-      if (!poseBrut && !x.du.nicolas.total_net && !x.du.yannick.total_net) return '';
+      const x = R.parDossier(d, [], (window.SSConf && SSConf.get()) || null, SSUI.aujourdhui());
+      if (!x.actif || (!x.total && !x.pose_tarifee)) return '';
 
-      const PRENOM = { nicolas: 'Nicolas', yannick: 'Yannick' };
-      // L'équipe est la DONNÉE qui décide : sans elle, la paie de pose n'est à personne, et le
-      // dire ici est le seul moment où quelqu'un est en position de la corriger.
-      const equipe = x.poseurs === null
-        ? '<span class="badge badge-warn" title="Renseignez « Équipe » dans la planification de pose : sans elle, la paie de pose n’est attribuée à personne.">équipe à renseigner</span>'
-        : (x.poseurs.length ? esc(x.poseurs.map(g => PRENOM[g]).join(' + ')) : 'sous-traitée');
+      // L'état de la pose, en une ligne — et SURTOUT ce qu'il faut faire quand il manque quelque
+      // chose. Un écran qui dit « incomplet » sans dire quoi remplir ne sert à rien.
+      let etat, alerte = '';
+      if (x.incomplet.includes('equipe')) {
+        etat = '<span class="badge badge-warn">équipe à renseigner</span>';
+        alerte = `Renseigne « Équipe » dans la planification de pose ci-dessus : sans elle, l'ERP ne sait pas
+                  si c'est toi qui as posé, et ${fmtEur(x.pose_tarifee)} de paie de pose restent en suspens.`;
+      } else if (x.incomplet.includes('pose')) {
+        etat = '<span class="badge badge-warn">pose à confirmer</span>';
+        alerte = `Rien ne dit si ce chantier a été posé : ni date de pose, ni PV de réception, ni commande
+                  passée en « posé ». Mets la date et ${fmtEur(x.pose_tarifee)} rentreront tout seuls.`;
+      } else if (!x.jy_etais) {
+        etat = `<span class="text-muted">${x.poseurs && x.poseurs.length ? 'Yannick' : 'sous-traitée'}</span>`;
+      } else if (!x.pose_faite) {
+        etat = '<span class="text-muted">pose à venir</span>';
+      } else {
+        etat = x.pose_certaine ? 'toi' : 'toi (d\'après la date de pose)';
+      }
 
-      const ligne = (g) => {
-        const v = x.du[g];
-        if (!v.total_net) return '';
-        return `<div class="h-line"><span class="k">${PRENOM[g]} — pose</span><span class="v">${fmtEur(v.pose_brut)} / <strong style="color:var(--accent-2)">${fmtEur(v.pose_net)}</strong></span></div>`;
-      };
-      const totalLigne = (g) => {
-        const v = x.du[g];
-        if (!v.total_net) return '';
-        return `<div class="h-line"><span class="k"><strong>${PRENOM[g]} — total net</strong></span><span class="v"><strong>${fmtEur(v.total_net)}</strong></span></div>`;
-      };
-      // L'écart ne se paie pas (règle 6 du moteur) : il dit que le devis a été sous-chiffré, et la
-      // correction se fait sur le devis SUIVANT. Il est donc signalé, jamais additionné.
-      const ecart = x.ecart.manque_net > 0.004
-        ? `<div class="pricing-note" style="margin-top:var(--sp-3);">${icon('warning', 15)}<div class="txt">
-             Chiffré sous la cible : ${fmtEur(x.ecart.par_ouverture)} nets par ouverture pour celui qui pose,
-             soit ${fmtEur(x.ecart.manque_net)} de moins que voulu sur ce dossier.
-             Ce montant n'est pas dû — il se corrige en chiffrant la ligne « Technicien 1 » plus haut sur les devis à venir.</div></div>`
-        : '';
+      /* Le détail des ouvertures n'a de sens que si cette pose PEUT revenir à Nicolas. Sur un
+         chantier fait par Yannick seul ou sous-traité, afficher « 10 × Screen → 500 € … en
+         suspens » laissait croire à de l'argent bloqué alors qu'il n'a jamais été à lui. */
+      const meConcerne = x.jy_etais || x.incomplet.includes('equipe');
+      // Quand ça le concerne, le détail rend le montant VÉRIFIABLE : « 33 × 50 € », pas
+      // « 1 650 € » tombé du ciel.
+      const lignes = !meConcerne ? '' : x.pose_detail.map(l =>
+        `<div class="h-line"><span class="k">${l.qte} × ${esc(SSUI.TYPE_LABEL[l.type] || l.type)}</span>` +
+        `<span class="v">${fmtEur(l.unitaire)} → ${x.pose ? '<strong>' + fmtEur(l.total) + '</strong>' : '<span class="text-muted">' + fmtEur(l.total) + '</span>'}</span></div>`).join('');
 
       return `
-        <div class="subhead" style="margin:var(--sp-3) 0 var(--sp-2);border-top:1px dashed var(--border);padding-top:var(--sp-3);">Qui prend quoi sur ce chantier</div>
-        <div class="h-line"><span class="k">Équipe de pose</span><span class="v">${equipe}</span></div>
-        ${ligne('nicolas')}${ligne('yannick')}
-        ${x.du.societe.pose_brut > 0 ? `<div class="h-line"><span class="k">Société — pose non attribuée</span><span class="v">${fmtEur(x.du.societe.pose_brut)} / ${fmtEur(x.du.societe.pose_net)}</span></div>` : ''}
-        ${x.du.societe.outillage_brut > 0 ? `<div class="h-line"><span class="k">Société — outillage</span><span class="v">${fmtEur(x.du.societe.outillage_brut)} / ${fmtEur(x.du.societe.outillage_net)}</span></div>` : ''}
-        ${totalLigne('nicolas')}${totalLigne('yannick')}
-        ${ecart}`;
+        <div class="subhead" style="margin:var(--sp-3) 0 var(--sp-2);border-top:1px dashed var(--border);padding-top:var(--sp-3);">Ce que ce chantier me rapporte</div>
+        <div class="h-line"><span class="k">Posé par</span><span class="v">${etat}</span></div>
+        ${lignes}
+        ${meConcerne && x.pose_detail.length ? `<div class="h-line"><span class="k">Paie de pose</span><span class="v">${
+          x.pose ? '<strong style="color:var(--ok)">' + fmtEur(x.pose) + '</strong>'
+                 : '<span class="text-muted">' + (x.incomplet.length ? 'en suspens' : 'à venir') + '</span>'}</span></div>` : ''}
+        <div class="h-line"><span class="k">Ma commission (net)</span><span class="v">${fmtEur(x.commission.nicolas.net)}</span></div>
+        <div class="h-line"><span class="k"><strong>Total pour moi</strong></span><span class="v"><strong>${fmtEur(x.total)}</strong></span></div>
+        ${alerte ? `<div class="pricing-note" style="margin-top:var(--sp-3);">${icon('warning', 15)}<div class="txt">${alerte}</div></div>` : ''}`;
     }
 
     function renderNextAction() {

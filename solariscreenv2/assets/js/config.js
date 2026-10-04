@@ -74,16 +74,17 @@
       duree_depannage_h: 2,
     },
     // ── RÉMUNÉRATION ───────────────────────────────────────────────────────────
-    // CIBLE : ce que l'on veut toucher EN NET par ouverture posée. Ce ne sont PAS des primes à
-    // verser en plus — cet argent est déjà dans le devis, à la ligne « Tech 1 » (125 € brut
-    // ÷ 2,5 = 50 € net). La cible sert à MESURER : « ce devis te paie-t-il bien 50 € par
-    // screen ? ». Une tente chiffrée comme un screen sort à 50 € au lieu de 100, et l'écran de
-    // rémunération le signale pour qu'on chiffre la suivante à 250 € brut.
-    // ⚠️ Ces trois valeurs doivent rester identiques à SSRemu.CIBLE_DEFAUT, qui les porte pour
+    // TARIF DE POSE de Nicolas, en NET et par ouverture POSÉE. C'est un montant convenu avec
+    // Yannick, pas une part du devis : il se compte en OUVERTURES (50 € × le nombre de screens
+    // posés), et il est dû quoi que le devis ait chiffré sur sa ligne « Technicien 1 ».
+    // ⚠️ Ne pas le confondre avec prix.tech1_gross : celui-là dit comment la pose est FINANCÉE
+    // dans le devis (125 € bruts, soit 50 € nets à 2,5 — ça tombe juste sur un screen, pas sur
+    // une tente). Le tarif ci-dessous dit ce que Nicolas TOUCHE. Voir remuneration.js.
+    // ⚠️ Ces trois valeurs doivent rester identiques à SSRemu.TARIF_DEFAUT, qui les porte pour
     // le moteur appelé sans réglages. Un test de remuneration.test.html compare les deux : il
     // échouera si l'une des deux bouge seule.
     remu: {
-      cible: { screen: 50, volet_roulant: 50, tente_solaire: 100 },
+      pose: { screen: 50, volet_roulant: 50, tente_solaire: 100 },
     },
   };
 
