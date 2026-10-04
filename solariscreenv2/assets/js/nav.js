@@ -24,6 +24,9 @@
       .conn-log-who { font-weight: 700; flex: none; min-width: 58px; color: var(--text, #e9eefb); }
       .conn-log-when { flex: 1; color: var(--text-muted, #97a4cc); font-family: var(--font-mono, monospace); font-size: 0.72rem; }
       .conn-log-dur { flex: none; font-family: var(--font-mono, monospace); font-size: 0.72rem; color: var(--accent-2, #ffd23f); }
+      .conn-log-tout { display: block; padding: 0.55rem 0.9rem; font-size: 0.72rem; text-align: center;
+        color: var(--accent, #6ea8ff); border-top: 1px solid var(--border, #233049); text-decoration: none; }
+      .conn-log-tout:hover { background: var(--surface-2, #141c2f); }
       /* ── Palette de recherche globale (Ctrl+K) ── */
       .cmdk-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 6000; display: none; align-items: flex-start; justify-content: center; padding: 12vh 1rem 1rem; }
       .cmdk-ov.open { display: flex; }
@@ -267,17 +270,11 @@
   }
 
   // ── Historique de connexion (popover ouvert en cliquant sur le badge d'identité) ──
-  const IDENTITY_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick' };
+  // Source unique : assets/js/ui.js (ces deux-là vivaient en double, ici et dans stats.html).
+  const IDENTITY_LABEL = window.SSUI.IDENTITE_LABEL;
   // Échappement HTML partagé (le badge d'identité et le popover injectent des valeurs serveur).
   function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-  function fmtDuration(ms) {
-    if (!isFinite(ms) || ms < 0) return '—';   // start_time/last_seen manquant ou incohérent → pas de « NaN h »
-    const min = Math.round(ms / 60000);
-    if (min < 1) return '< 1 min';
-    if (min < 60) return min + ' min';
-    const h = Math.floor(min / 60), m = min % 60;
-    return h + ' h' + (m ? ' ' + m + ' min' : '');
-  }
+  const fmtDuration = window.SSUI.fmtDuree;
   function fmtDateTime(iso) {
     const d = new Date(iso);
     return d.toLocaleDateString('fr-BE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' +
@@ -305,14 +302,15 @@
       const res = await fetch('/api/connections', { credentials: 'same-origin' }).then(function (r) { return r.json(); });
       const rows = (res && res.data) || [];
       if (!rows.length) { connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Aucune connexion enregistrée.</div>'; return; }
-      connLogEl.innerHTML = '<div class="conn-log-head">Historique de connexion</div>' + rows.slice(0, 80).map(function (c) {
+      connLogEl.innerHTML = '<div class="conn-log-head">Dernières plages d’activité</div>' + rows.slice(0, 8).map(function (c) {
         // Durée d'une plage d'utilisation ACTIVE : une pause (navigateur réduit / onglet en
         // arrière-plan / PC laissé ouvert > SESSION_GAP) coupe la session et en démarre une
         // nouvelle, donc cet écart début→fin ne reflète que du temps réellement actif.
         const dur = fmtDuration(new Date(c.last_seen) - new Date(c.start_time));
         const label = IDENTITY_LABEL[c.identity] || c.email || 'Inconnu';
         return '<div class="conn-log-row"><span class="conn-log-who">' + escHtml(label) + '</span><span class="conn-log-when">' + fmtDateTime(c.start_time) + '</span><span class="conn-log-dur" title="Temps actif (onglet visible + interactions)">' + dur + '</span></div>';
-      }).join('');
+      }).join('') +
+        '<a class="conn-log-tout" href="stats.html#connexions">Historique complet et rythmes de travail →</a>';
     } catch (e2) {
       connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Historique indisponible hors-ligne.</div>';
     }
