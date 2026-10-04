@@ -36,6 +36,15 @@
   const CLE = 'ss_fetes';          // 'non' = éteint ; absent = allumé
   const SKY = 'ssfete-ciel';
 
+  /* APERÇU. Regarder une fête hors de sa période, depuis les Paramètres. Ça n'est pas un confort
+     de développeur : la console n'existe pas sur iPhone, et c'est sur iPhone que Nicolas teste.
+     Sans ça, un décor de décembre ne pouvait être jugé qu'en décembre — donc trop tard.
+     Volontairement NON persistant : il disparaît au rechargement. Un aperçu qu'on oublierait
+     allumé afficherait Noël en juillet, et on finirait par ne plus croire au calendrier. */
+  let FORCE = null;
+  let COURANTE = null;            // la fête réellement montée, lue par l'observateur
+  let SURVEILLE = false;          // un seul observateur, quoi qu'il arrive
+
   /* OÙ SE POSE UN DÉCOR DE COIN. Une seule liste, ici, et c'est tout l'intérêt : une classe
      ajoutée ici décore les vingt pages d'un coup, au lieu d'être recopiée vingt fois.
      `.section` et `.ticked` sont les encadrés du design system (ce sont eux qui portent déjà les
@@ -200,6 +209,42 @@
     '<g stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round">' +
     '<path d="M13,40C10,34 12,28 19,26"/><path d="M13,40L76,40"/><path d="M76,40C81,37 81,32 76,31"/></g></svg>';
 
+  /* ── Nouvel An ──────────────────────────────────────────────────────────────────────────── */
+
+  // Le feu d'artifice occupe l'angle comme la toile et la branche : rayons depuis (0,0),
+  // étincelle au bout de chacun, plus une couronne intermédiaire.
+  const FEU =
+    '<svg viewBox="0 0 100 100" fill="currentColor">' +
+    '<g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+    '<path d="M16.0,0.0L74.0,0.0M15.7,3.1L54.9,10.9M14.8,6.1L68.4,28.3M13.3,8.9L46.6,31.1' +
+    'M11.3,11.3L52.3,52.3M8.9,13.3L31.1,46.6M6.1,14.8L28.3,68.4M3.1,15.7L10.9,54.9M0.0,16.0L0.0,74.0"/></g>' +
+    '<circle cx="77.0" cy="0.0" r="3.2"/><circle cx="57.9" cy="11.5" r="2.2"/><circle cx="33.3" cy="6.6" r="1.7"/>' +
+    '<circle cx="71.1" cy="29.5" r="3.2"/><circle cx="49.1" cy="32.8" r="2.2"/><circle cx="28.3" cy="18.9" r="1.7"/>' +
+    '<circle cx="54.4" cy="54.4" r="3.2"/><circle cx="32.8" cy="49.1" r="2.2"/><circle cx="18.9" cy="28.3" r="1.7"/>' +
+    '<circle cx="29.5" cy="71.1" r="3.2"/><circle cx="11.5" cy="57.9" r="2.2"/><circle cx="6.6" cy="33.3" r="1.7"/>' +
+    '<circle cx="0.0" cy="77.0" r="3.2"/></svg>';
+
+  const FLUTE =
+    '<svg viewBox="0 0 24 44" fill="currentColor">' +
+    '<path d="M6,2L18,2L16.5,18C16.2,21.5 14.2,23.5 12,23.5C9.8,23.5 7.8,21.5 7.5,18Z"/>' +
+    '<rect x="11" y="23" width="2" height="14"/><rect x="5.5" y="37" width="13" height="3" rx="1.5"/>' +
+    '<g opacity=".55"><circle cx="9.5" cy="9" r="1.5" fill="var(--surface)"/>' +
+    '<circle cx="14" cy="12.5" r="1.1" fill="var(--surface)"/><circle cx="11.5" cy="15.5" r="0.9" fill="var(--surface)"/></g>' +
+    '<circle cx="19" cy="6" r="1.8" opacity=".5"/><circle cx="21.5" cy="1.8" r="1.2" opacity=".35"/></svg>';
+
+  // Minuit : c'est l'image du Nouvel An qui ne demande aucune explication.
+  const HORLOGE =
+    '<svg viewBox="0 0 34 36" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">' +
+    '<circle cx="17" cy="20" r="14"/>' +
+    '<path d="M17,11L17,20L17,20" stroke-width="2.6"/><path d="M17,20L17,13.5"/>' +
+    '<path d="M9,6L13,2M25,6L21,2" stroke-width="2.6"/>' +
+    '<circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none"/></svg>';
+
+  // Un confetti : un simple ruban. Sa COULEUR vient de la palette (voir `tombe.palette`),
+  // pas du thème — des confettis d'une seule couleur, ce ne sont plus des confettis.
+  const CONFETTI =
+    '<svg viewBox="0 0 12 18" fill="currentColor"><rect x="0" y="0" width="12" height="18" rx="2.5"/></svg>';
+
   /* ── Le calendrier ──────────────────────────────────────────────────────────────────────────
      Les bornes s'écrivent en MM-JJ : elles reviennent toutes seules chaque année, il n'y a aucun
      millésime à tenir à jour. `au` est INCLUS. Une période qui enjambe le 31 décembre (Nouvel An)
@@ -312,6 +357,43 @@
       tombe: { svg: FLOCON, taille: 16, nombre: 14, duree: 14,
         teinte: { sombre: '#dce9ff', clair: '#8ba6cc' }, opacite: { sombre: 0.55, clair: 0.4 } },
     },
+
+    /* NOUVEL AN — du 27 décembre au 2 janvier. C'est la SEULE période qui enjambe le 1er janvier,
+       donc la seule qui exerce vraiment la bascule de `dansLaPeriode` ; elle était testée depuis
+       le premier jour sans qu'aucune fête ne s'en serve. */
+    {
+      id: 'nouvel-an',
+      nom: 'Nouvel An',
+      du: '12-27', au: '01-02',
+      coin: {
+        svg: FEU, taille: 60,
+        teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.42, clair: 0.4 },
+      },
+      marque: { svg: FLUTE, taille: 15,
+        teinte: { sombre: '#ffd45e', clair: '#9a6f00' }, opacite: { sombre: 1, clair: 1 } },
+      rail: {
+        coin: { svg: FEU, taille: 54,
+          teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.3, clair: 0.3 } },
+        pied: { svg: HORLOGE, taille: 30,
+          teinte: { sombre: '#cfe3ff', clair: '#49618c' }, opacite: { sombre: 0.85, clair: 0.9 } },
+      },
+      /* UN SEUL volant, et c'est un choix. Une fusee a ete dessinee puis retiree : agrandie, elle
+         ne se lisait pas (une tache orange allongee), et elle faisait doublon avec l'etoile
+         filante — deux trainees lumineuses qui traversent, ca n'ajoute rien. Les feux d'artifice
+         des coins et les seize confettis portent deja la fete. */
+      volants: [
+        { svg: ETOILE_FILANTE, taille: 40, haut: '14%', duree: 21, retard: 3,
+          teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.5, clair: 0.36 } },
+      ],
+      /* Les confettis réutilisent le mécanisme de la neige — c'est exactement pour ça que
+         l'emplacement s'appelle « tombe » et non « neige ». Seule la PALETTE est nouvelle :
+         des confettis d'une seule couleur ne sont plus des confettis. */
+      tombe: {
+        svg: CONFETTI, taille: 13, nombre: 16, duree: 11,
+        palette: ['#ffd45e', '#ff6b8a', '#5ad1ff', '#8fe36b', '#c08cff', '#ff9e5e'],
+        teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.75, clair: 0.6 },
+      },
+    },
   ];
 
   /* ── Quelle fête aujourd'hui ? ──────────────────────────────────────────────────────────────
@@ -327,6 +409,12 @@
                     : (mj >= du || mj <= au);     // période qui enjambe le 1er janvier
   }
   function active(d) {
+    // Une date EXPLICITE l'emporte toujours sur l'aperçu : sinon les tests, qui passent leurs
+    // propres dates, se mettraient à mentir dès qu'un aperçu serait actif.
+    if (!d && FORCE) {
+      const forcee = FETES.find(function (f) { return f.id === FORCE; });
+      if (forcee) return forcee;
+    }
     const mj = moisJour(d);
     return FETES.find(function (f) { return dansLaPeriode(mj, f.du, f.au); }) || null;
   }
@@ -334,12 +422,28 @@
   function estAllumee() {
     try { return localStorage.getItem(CLE) !== 'non'; } catch (e) { return true; }
   }
+  /* ⚠️ La FEUILLE DE STYLE fait partie de ce qu'il faut retirer. Elle porte les variables de
+     teinte de la fête courante et `style()` sort immédiatement si elle existe déjà : la garder
+     ferait afficher les dessins de Noël avec les teintes d'Halloween, sans la moindre erreur. */
+  function nettoyer() {
+    ['ssfete-style', SKY].forEach(function (id) {
+      const n = document.getElementById(id);
+      if (n) n.remove();
+    });
+    document.querySelectorAll('.ssfete').forEach(function (n) { n.remove(); });
+  }
+
   function allumer(oui) {
     try { localStorage.setItem(CLE, oui ? 'oui' : 'non'); } catch (e) {}
-    const ciel = document.getElementById(SKY);
-    if (ciel) ciel.remove();
-    document.querySelectorAll('.ssfete').forEach(function (n) { n.remove(); });
+    nettoyer();
     if (oui) monter();
+  }
+
+  // `id` vide = on revient au calendrier.
+  function apercu(id) {
+    FORCE = id || null;
+    nettoyer();
+    monter(true);   // on passe outre le réglage : c'est une demande explicite de regarder
   }
 
   /* ── TEINTES PAR THÈME ──────────────────────────────────────────────────────────────────────
@@ -487,13 +591,18 @@
      ⚠️ `setTimeout` et non `requestAnimationFrame` : rAF ne se déclenche PAS dans un onglet
      masqué. Avec lui, une liste rendue pendant que l'onglet est en arrière-plan n'était jamais
      décorée, et rien ne le signalait. */
-  function surveiller(f) {
-    if ((!f.coin && !f.rail) || !window.MutationObserver) return;
+  /* ⚠️ UN SEUL observateur pour toute la vie de la page, et il lit la fête COURANTE au lieu de
+     la capturer. Deux raisons, toutes deux constatées : chaque remontage (le réglage qu'on
+     éteint et rallume, un aperçu) en empilait un de plus, et un observateur qui aurait gardé
+     SA fête aurait continué à reposer les toiles d'Halloween pendant l'aperçu de Noël. */
+  function surveiller() {
+    if (!window.MutationObserver || SURVEILLE) return;
+    SURVEILLE = true;
     let prevu = false;
     new MutationObserver(function () {
-      if (prevu) return;
+      if (prevu || !COURANTE) return;
       prevu = true;
-      setTimeout(function () { prevu = false; poser(f); }, 120);
+      setTimeout(function () { prevu = false; if (COURANTE) poser(COURANTE); }, 120);
     }).observe(document.body, { childList: true, subtree: true });
   }
 
@@ -615,9 +724,11 @@
   }
 
   /* ── Le montage ─────────────────────────────────────────────────────────────────────────── */
-  function monter() {
+  function monter(forcer) {
     const f = active();
-    if (!f || !estAllumee()) return;
+    COURANTE = null;
+    if (!f || (!forcer && !estAllumee())) return;
+    COURANTE = f;
 
     /* Les pages que le CLIENT ouvre ne sont JAMAIS décorées. Elles sont servies par un lien à
        jeton, hors Cloudflare Access : `devis-review.html` (le devis à accepter) et `track.html`
@@ -630,7 +741,7 @@
 
     // 1. Les coins et le rail, puis on les repose à chaque rendu (voir surveiller()).
     poser(f);
-    surveiller(f);
+    surveiller();
 
     // 2. La marque à côté du logo.
     const marque = document.querySelector('.brand-logo');
@@ -677,6 +788,8 @@
           // partiraient du haut en même temps, en rideau.
           d.style.animation = 'ssfete-chute ' + (t.duree + (i % 5) * 2.6) + 's linear ' +
             (-(i * 1.9).toFixed(1)) + 's infinite';
+          // Une palette l'emporte sur la teinte de thème : voir le commentaire de `tombe`.
+          if (t.palette && t.palette.length) d.style.color = t.palette[i % t.palette.length];
           d.innerHTML = dessin(t);
           ciel.appendChild(d);
         }
@@ -690,6 +803,7 @@
     active: active,
     estAllumee: estAllumee,
     allumer: allumer,
+    apercu: apercu,
     FETES: FETES,
     // exposés pour les tests : ils décident de tout et ne doivent pas dériver en silence
     _moisJour: moisJour,
