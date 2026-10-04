@@ -509,20 +509,21 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
   normal. **Mesurer les ENFANTS, et vérifier qu’un ancêtre défile vraiment** (`overflowX` en
   `auto`/`scroll`) — pas seulement `document.scrollWidth`. Poser les DEUX axes :
   `overflow-x: auto; overflow-y: hidden`, sinon la spec bascule aussi l’axe vertical sur auto.
-- **`body { overflow-x: hidden }` EMPECHE le bandeau de rester en haut.** C'est la meme regle de
-  spec que le piege du `.table-wrap` ci-dessus, avec une consequence bien plus visible : avec
-  `overflow-x: hidden` et `overflow-y: visible`, la valeur UTILISEE de `overflow-y` bascule sur
-  `auto`. Le body devient alors un conteneur de defilement, et `position: sticky` sur un enfant
-  colle a CE conteneur — qui ne defile jamais, sa hauteur suivant son contenu. Le bandeau etait
-  donc `position: sticky` depuis toujours et partait quand meme avec la page, sur telephone comme
-  au bureau, **sans que rien ne le signale**.
-  Correctif : `overflow-x: clip`, qui coupe le debordement horizontal exactement pareil mais ne
-  cree PAS de conteneur de defilement. `hidden` reste en repli sous `@supports` pour Safari < 16.
-  ⚠️ Mesurer, pas deduire : **le defilement est inerte dans le panneau d'automatisation**, donc on
-  ne peut pas verifier un sticky en faisant defiler la page. Deux voies qui marchent : monter deux
-  elements identiques a une propriete pres dans un conteneur qu'on PEUT defiler (`scrollTop` d'un
-  element fonctionne, lui), et verifier sur la vraie page qu'AUCUN ancetre du bandeau n'a un
-  `overflow` different de `visible`. C'est cette seconde condition qui decide de tout.
+- **NE PAS remplacer `body { overflow-x: hidden }` par `overflow-x: clip` pour « reparer » le
+  bandeau collant.** Essaye le 03/10/2026, publie, puis retire le lendemain : le bandeau tenait
+  tres bien avec `hidden`, et c'est `clip` qui l'a fait lacher sur iPhone.
+  Le raisonnement etait pourtant juste sur le papier — avec `overflow-x: hidden` et
+  `overflow-y: visible`, la valeur UTILISEE de `overflow-y` bascule sur `auto` (meme regle de spec
+  que le piege du `.table-wrap` ci-dessus), le body devient un conteneur de defilement, et un
+  `position: sticky` enfant devrait coller a CE conteneur, qui ne defile jamais. Un montage de
+  controle dans Chromium le confirmait meme : avec `hidden` l'element sticky part a −400 px, avec
+  `clip` il reste a 0. **Sur iOS Safari, c'est l'inverse.**
+  ⚠️ La lecon porte sur la METHODE, pas sur l'overflow. **Le defilement est inerte dans le panneau
+  d'automatisation** : on ne peut pas y verifier un sticky en faisant defiler, et un montage de
+  controle dans un moteur ne dit RIEN du comportement d'un autre moteur. Un raisonnement de spec
+  plus une mesure Chromium, ca reste une hypothese tant que l'appareil ne l'a pas confirmee — et
+  ici l'appareil disait le contraire. Ne rien changer a cette ligne sans pouvoir tester sur
+  l'iPhone de Nicolas.
 - **`backdrop-filter` rend le texte FLOU sur iOS.** Il promeut l'element en couche composite, et
   le texte de cette couche est alors lisse en NIVEAUX DE GRIS au lieu du sous-pixel. Sur le
   bandeau, le libelle du module — 10,88 px en mono — paraissait flou sur iPhone. Ce n'etait PAS un
