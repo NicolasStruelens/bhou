@@ -731,6 +731,7 @@
             <div class="field"><label class="label" for="chDuree">Durée estimée (heures)</label><input class="input input-num" type="number" min="0" step="0.5" id="chDuree" onchange="saveChantier()"></div>
             <div class="field" style="grid-column:span 2;"><label class="label" for="chEquipe">Équipe</label>
               <select class="select" id="chEquipe" onchange="saveChantier()">
+                <option value="">— à renseigner —</option>
                 <option value="nicolas">Nicolas</option>
                 <option value="yannick">Yannick</option>
                 <option value="nicolas_yannick">Nicolas + Yannick</option>
@@ -738,6 +739,7 @@
               </select>
             </div>
           </div>
+          <div class="cc-eta" id="chantierEquipeHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierInfo"></div>
           <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
         </div>
@@ -1650,7 +1652,18 @@
       const ch = DEVIS.chantier || {};
       el('chDate').value = ch.date_pose || '';
       el('chDuree').value = ch.duree_h ?? '';
-      el('chEquipe').value = ch.equipe || 'nicolas';
+      /* ⚠️ JAMAIS « || 'nicolas' » ICI. Le select affichait « Nicolas » alors que rien n'était
+         enregistré : on lisait « Nicolas » à l'écran, donc on ne touchait pas au champ, donc
+         saveChantier() n'était jamais appelé et la base restait vide. La fiche annonçait une
+         donnée qu'elle n'avait pas — et la rémunération, qui lit la BASE, sortait « équipe ? »
+         sur un chantier que Nicolas voyait pourtant renseigné. Un champ vide se montre vide.
+         (Le défaut à Nicolas de SSPlanning.quiDeEquipe est, lui, délibéré : mieux vaut une case
+         occupée qu'un trou dans un planning. Ce n'est pas le même besoin.) */
+      el('chEquipe').value = ch.equipe || '';
+      // Et on DIT ce que coute le vide, là où il se corrige.
+      el('chantierEquipeHint').innerHTML = ch.equipe ? '' :
+        'Équipe non renseignée : la pose de ce chantier n’est attribuée à personne dans ' +
+        '<a href="stats.html">ta rémunération</a>.';
       let infoTxt = 'Renseigne la date de pose pour la voir apparaître dans l’agenda.', retard = false;
       if (ch.date_pose) {
         const days = Math.round((new Date(ch.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
