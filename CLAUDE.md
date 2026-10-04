@@ -69,7 +69,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
-| `tests/fetes.test.html` | Les 61 tests du calendrier des fêtes et du contrat des décors. |
+| `tests/fetes.test.html` | Les 79 tests du calendrier des fêtes et du contrat des décors. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -482,8 +482,24 @@ cheminée, fumée — et se lit d'un coup d'œil. Avant de peaufiner un décor f
 ⚠️ **Les périodes ne doivent JAMAIS se chevaucher.** `active` retient la PREMIÈRE qui correspond,
 donc deux fêtes qui se recouvrent se voleraient la vedette — et laquelle gagne dépendrait de
 l'ordre dans la table, ce qui ne se devine pas en la lisant. Un test balaie les 365 jours.
-L'emplacement **`tombe`** (neige, et demain les confettis du Carnaval et du Nouvel An) s'appelle
-ainsi et non « neige » parce que seul le dessin changera. Chaque élément tire sa colonne, sa
+L'emplacement **`tombe`** (neige en décembre, confettis au Nouvel An, et demain au Carnaval)
+s'appelle ainsi et non « neige » parce que seul le dessin change. Il accepte une **`palette`** :
+sans elle, les confettis sortiraient tous de la même couleur — et des confettis d'une seule
+couleur ne sont plus des confettis. Une palette est faite de couleurs LITTÉRALES, volontairement
+indépendantes du thème.
+⚠️ **L'APERÇU** (`SSFetes.apercu(id)`, sélecteur dans Paramètres) sert à juger un décor de
+décembre en octobre. Ce n'est pas un confort de développeur : **la console n'existe pas sur
+iPhone**, et c'est là que Nicolas teste — sans lui, un décor ne pouvait être jugé qu'une fois sa
+période arrivée, donc trop tard. Il est volontairement NON persistant (il disparaît au
+rechargement : un aperçu oublié afficherait Noël en juillet), et une date EXPLICITE passée à
+`active(d)` l'emporte toujours sur lui, sinon les tests se mettraient à mentir dès qu'il est actif.
+⚠️ Le `MutationObserver` est posé UNE SEULE FOIS pour la vie de la page, et il lit la fête
+COURANTE au lieu de la capturer. Chaque remontage (réglage éteint puis rallumé, aperçu) en
+empilait un de plus, et un observateur qui aurait gardé SA fête aurait continué à reposer les
+toiles d'Halloween pendant l'aperçu de Noël.
+⚠️ `nettoyer()` retire aussi la FEUILLE DE STYLE : elle porte les variables de teinte de la fête
+courante et `style()` sort immédiatement si elle existe déjà. La garder ferait afficher les
+dessins de Noël avec les teintes d'Halloween, sans la moindre erreur. Chaque élément tire sa colonne, sa
 durée, sa dérive et sa rotation de son RANG : pas de tirage au hasard, donc un rendu reproductible
 d'un chargement à l'autre, et un bug qui se reproduit.
 ⚠️ L'hôte d'un décor se choisit sur la PLACE DISPONIBLE (`260 × 130` px), pas sur une liste noire
