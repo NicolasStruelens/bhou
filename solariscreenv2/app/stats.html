@@ -386,8 +386,9 @@
       devisFull.filter(d => !d.archive).forEach(d => (d.items || []).forEach(it => {
         const t = it.type || 'autre';
         byType[t] = byType[t] || { count: 0, ca: 0 };
-        byType[t].count += it.quantite || 1;
-        byType[t].ca += (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+        const q = SSRemu.quantiteDe(it);
+        byType[t].count += q;
+        byType[t].ca += (it.prix_catalogue_ht || 0) * q;
       }));
       const entries = Object.entries(byType).sort((a, b) => b[1].ca - a[1].ca);
       const max = Math.max(1, ...entries.map(([, v]) => v.ca));
@@ -409,7 +410,7 @@
       el('bySeller').innerHTML = signes.length ? `
         ${barRow('Nicolas', nicolasNet, max, fmtEur(nicolasNet), 'var(--accent)')}
         ${barRow('Yannick', yannickNet, max, fmtEur(yannickNet), 'var(--accent-2)')}
-        <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Nicolas vendeur principal sur ${nicolasCount} devis · Yannick sur ${yannickCount} devis${autreCount > 0 ? ` · Autre sur ${autreCount} devis` : ''} (${signes.length} signés/terminés au total).</div>
+        <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Nicolas vendeur principal sur ${nicolasCount} devis · Yannick sur ${yannickCount} devis${autreCount > 0 ? ` · Autre sur ${autreCount} devis` : ''} (${signes.length} signés/terminés, archives comprises — un dossier archivé a quand même rapporté sa commission).</div>
       ` : "<div class=\"empty-mini\">Aucun devis signé pour l'instant.</div>";
     }
 
@@ -471,7 +472,7 @@
       const conv = tranches > 0 ? Math.round((signesTous.length / tranches) * 100) : 0;
       el('kpis').innerHTML = `
         <div class="kpi accent ticked"><div class="kpi-label">Devis (hors archives)</div><div class="kpi-value">${visible.length}</div><div class="kpi-sub">${fmtEur(caTotal)} au total</div></div>
-        <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub">${signes.length} devis signés/terminés</div></div>
+        <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub" title="Les devis archivés sont exclus de cette tuile, comme du compteur de gauche.">${signes.length} devis signés/terminés · hors archives</div></div>
         <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
         <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub" title="Archives comprises : ranger un devis refusé ne doit pas embellir le taux">${signesTous.length} signé${signesTous.length > 1 ? 's' : ''} / ${tranches} tranché${tranches > 1 ? 's' : ''} (archives comprises)${envoyes.length ? ` · ${envoyes.length} en attente` : ''}</div></div>`;
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
@@ -485,12 +486,12 @@
       const byType = {};
       signes.forEach(d => {
         const items = d.items || [];
-        const totalCatalog = items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
+        const totalCatalog = items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * SSRemu.quantiteDe(it), 0);
         const totalNet = (d.calculs?.nicolas_net || 0) + (d.calculs?.yannick_net || 0);
         if (totalCatalog <= 0 || !totalNet) return;
         items.forEach(it => {
           const t = it.type || 'autre';
-          const itemVal = (it.prix_catalogue_ht || 0) * (it.quantite || 1);
+          const itemVal = (it.prix_catalogue_ht || 0) * SSRemu.quantiteDe(it);
           byType[t] = (byType[t] || 0) + totalNet * (itemVal / totalCatalog);
         });
       });
@@ -721,7 +722,7 @@
           <div class="remu-card moi">
             <div class="remu-big-lbl">Ce que SolariScreen me doit</div>
             <div class="remu-big ${Math.abs(c.reste) < 0.005 ? 'zero' : ''}">${fmtEur(c.reste)}</div>
-            <div class="remu-sous">Sur ${c.dossiers} dossier${c.dossiers > 1 ? 's' : ''} signé${c.dossiers > 1 ? 's' : ''} ou terminé${c.dossiers > 1 ? 's' : ''}, depuis le début.</div>
+            <div class="remu-sous">Sur ${c.dossiers} dossier${c.dossiers > 1 ? 's' : ''} signé${c.dossiers > 1 ? 's' : ''} ou terminé${c.dossiers > 1 ? 's' : ''}, depuis le début, <span title="Archiver est un rangement d'affichage : ça ne retire pas le travail fait ni la commission gagnée. Les tuiles du haut de page, elles, excluent les archives.">archives comprises</span>.</div>
             <div class="remu-sep">
               ${lignesPose || '<div class="remu-sous">Aucune ouverture posée pour l\'instant.</div>'}
               ${remuLigne('Paie de pose', `<strong>${fmtEur(c.pose)}</strong>`, 'Tarif convenu avec Yannick, compté sur les ouvertures posées.', true)}
@@ -760,7 +761,14 @@
     // Le détail dossier par dossier : c'est CE tableau qu'on met sous les yeux de Yannick.
     // Trié par ce qu'il rapporte, le plus gros d'abord.
     function renderRemuDossiers() {
-      const lignes = _REMU_DOSSIERS.slice().sort((a, b) => b.r.total - a.r.total);
+      /* On n'affiche QUE les dossiers qui apprennent quelque chose : ceux qui rapportent, et
+         ceux qui ont de l'argent en suspens. Un dépannage signé ne porte aucune ouverture et
+         aucune commission — il sortait en ligne à 0,00 € partout, et à force d'en accumuler il
+         aurait noyé les dossiers qui comptent. Le nombre de masqués est dit sous le tableau :
+         un filtre silencieux ferait douter du total. */
+      const tous = _REMU_DOSSIERS.slice().sort((a, b) => b.r.total - a.r.total);
+      const lignes = tous.filter(x => x.r.total > 0.004 || x.r.incomplet.length || x.r.pose_tarifee > 0.004);
+      const masques = tous.length - lignes.length;
       el('remuDossiers').innerHTML = `
         <div class="table-wrap" style="overflow-x:auto;overflow-y:hidden;">
           <table class="data">
@@ -778,11 +786,16 @@
               <td class="num">${fmtEur(_REMU_CUMUL.pose)}</td>
               <td class="num">${fmtEur(_REMU_CUMUL.commission)}</td>
               <td class="num">${fmtEur(_REMU_CUMUL.total)}</td>
-              <td class="num">${fmtEur(_REMU_CUMUL.couvert)}</td>
+              ${/* ⚠️ Cette colonne affiche des POURCENTAGES ligne par ligne : y poser un montant
+                     en euros dans le pied mélangeait deux unités dans la même colonne. On donne
+                     donc le pourcentage global, et le montant en infobulle. */ ''}
+              <td class="num" title="${fmtEur(_REMU_CUMUL.couvert)} couverts sur ${fmtEur(_REMU_CUMUL.total)}">${
+                _REMU_CUMUL.total > 0 ? Math.round((_REMU_CUMUL.couvert / _REMU_CUMUL.total) * 100) : 0}&nbsp;%</td>
             </tr></tfoot>
           </table>
         </div>
         <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">
+          ${masques ? `${masques} dossier${masques > 1 ? 's' : ''} sans rien à te verser ${masques > 1 ? 'sont masqués' : 'est masqué'} (dépannages, dossiers sans ouverture ni commission).<br>` : ''}
           Tous les montants sont <strong>nets</strong>. La pose est comptée sur les ouvertures réellement posées
           (${fmtEur(REMU.tarifPose(_REMU_REGL).screen)} le screen ou le volet, ${fmtEur(REMU.tarifPose(_REMU_REGL).tente_solaire)} la tente),
           pas sur ce que le devis a chiffré. La commission est lue sur chaque devis, avec la répartition qui y a été convenue.
@@ -805,16 +818,26 @@
         pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée : l'ERP ne sait pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
       } else if (r.incomplet.includes('pose')) {
         pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date de pose.">posé ?</a>`;
+      } else if (r.poseurs === null) {
+        /* Équipe non renseignée MAIS rien à payer dessus (un dépannage n'a aucune ouverture).
+           Afficher « sous-traitée » ici était un MENSONGE : rien ne dit que ça l'a été, c'est
+           simplement sans objet. Un écran qui invente une réponse plutôt que d'admettre qu'il
+           n'en a pas est pire qu'un écran vide. */
+        pose = '<span class="text-muted" title="Aucune équipe renseignée — et rien à payer sur ce dossier.">—</span>';
       } else if (!r.jy_etais) {
-        pose = `<span class="text-muted">${r.poseurs && r.poseurs.length ? 'Yannick' : 'sous-traitée'}</span>`;
+        pose = `<span class="text-muted">${r.poseurs.length ? 'Yannick' : 'sous-traitée'}</span>`;
       } else if (!r.pose_faite) {
         pose = '<span class="text-muted" title="Chantier planifié, pas encore posé.">à venir</span>';
       } else {
         pose = r.pose_certaine ? 'toi' : '<span title="Déduit d\'une date de pose passée : le PV de réception n\'a pas été rempli.">toi<sup>*</sup></span>';
       }
       return `<tr>
-        <td><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a></td>
-        <td class="text-muted" style="font-size:var(--fs-2xs);max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(SSUI.resumeDevis(d) || d.id)}</td>
+        ${/* L'archivage est un rangement d'affichage, pas un evenement commercial : un dossier
+               archive garde sa paie. Mais les KPI du haut, eux, EXCLUENT les archives — sans ce
+               reperage, l'ecart entre les deux serait inexplicable. */ ''}
+        <td><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a>${
+          d.archive ? ' <span class="text-muted" style="font-size:var(--fs-2xs);" title="Dossier archivé : il compte ici (la paie reste due) mais pas dans les chiffres du haut de page.">archivé</span>' : ''}</td>
+        <td class="text-muted" style="font-size:var(--fs-2xs);max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(SSUI.resumeDevis(d) || (d.type_document === 'depannage' ? 'Dépannage' : d.id))}</td>
         <td>${pose}</td>
         <td class="num">${ouvertures || '—'}</td>
         <td class="num">${r.pose ? fmtEur(r.pose) : '<span class="text-muted">—</span>'}</td>

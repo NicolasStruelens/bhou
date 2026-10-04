@@ -132,6 +132,33 @@
     check('items_min fait foi quand items est absent',
       R.detailPose({ items_min: [item('volet_roulant', 4)] }, null).total, 200);
 
+    /* ⚠️ LA QUANTITÉ, cas par cas. Trouvé en rejouant la page Statistiques sur des données
+       dégradées, le 04/10/2026. L'ancien « num(quantite) || 1 » avait deux défauts :
+        • une quantité à ZÉRO devenait 1 — on payait une ouverture qui n'existe pas ;
+        • une quantité NÉGATIVE passait telle quelle : −3 screens = −150 € SOUSTRAITS du total,
+          sur une ligne que l'écran masque (il cache les dossiers qui ne rapportent rien). Le
+          chiffre baissait sans qu'aucune ligne ne l'explique. Faux ET caché.
+       Le repli à 1 ne vaut que pour le champ ABSENT, parce que beaucoup d'items n'en portent
+       pas. Un zéro ÉCRIT, lui, est une réponse. */
+    const unScreenQte = function (v) { return R.detailPose({ items: [{ type: 'screen', quantite: v }] }, null).total; };
+    check('champ absent → une ouverture', unScreenQte(undefined), 50);
+    check('null → une ouverture', unScreenQte(null), 50);
+    check('chaîne vide → une ouverture', unScreenQte(''), 50);
+    check('texte illisible → une ouverture', unScreenQte('abc'), 50);
+    check('zéro ÉCRIT → on ne paie rien', unScreenQte(0), 0);
+    check('⚠️ quantité NÉGATIVE → zéro, JAMAIS un montant négatif', unScreenQte(-3), 0);
+    check('une quantité en texte reste lue', unScreenQte('4'), 200);
+    check('une demi-ouverture se paie au prorata', unScreenQte(2.5), 125);
+    check('un type tombé à zéro ne laisse pas de ligne dans le détail',
+      R.detailPose({ items: [{ type: 'screen', quantite: 0 }] }, null).detail, []);
+    check('et il disparaît aussi du compte des ouvertures',
+      R.ouverturesParType({ items: [{ type: 'screen', quantite: -3 }, { type: 'volet_roulant', quantite: 2 }] }),
+      { volet_roulant: 2 });
+    // Le cas qui a motivé tout ça, de bout en bout : plus aucun total négatif.
+    const negatif = dossier({ items: [item('screen', -3)], equipe: 'nicolas', calculs: { total_ttc: 1000, nicolas_net: 10 } });
+    check('un dossier à quantité négative ne retire plus rien du cumul',
+      [negatif.pose, negatif.total, R.cumul([negatif], []).total], [0, 10, 10]);
+
     // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Règle 2 : sur le chantier, il touche TOUTES les ouvertures');
     // ═════════════════════════════════════════════════════════════════════════════════════

@@ -136,6 +136,23 @@
     return { faite: passee, certaine: false, datee: !!date };
   }
 
+  /**
+   * La quantité d'une ouverture, telle qu'on PEUT la payer.
+   * ⚠️ « num(it.quantite) || 1 » était faux sur deux cas, et le second coûtait de l'argent :
+   *  • une quantité à ZÉRO devenait 1 — on payait 50 € pour une ouverture qui n'existe pas ;
+   *  • une quantité NÉGATIVE passait telle quelle : −3 screens = −150 € de pose, soustraits du
+   *    total. Et comme l'écran masque les dossiers qui ne rapportent rien, la ligne était
+   *    INVISIBLE : le chiffre baissait sans qu'aucune ligne ne l'explique. C'est la pire forme
+   *    d'erreur d'argent — fausse ET cachée.
+   * Le repli à 1 reste pour le champ ABSENT : beaucoup d'items n'ont pas de « quantite », et
+   * une ouverture sans quantité, c'est une ouverture. Mais un zéro ÉCRIT est une réponse.
+   */
+  function quantiteDe(it) {
+    const q = parseFloat(it && it.quantite);
+    if (!isFinite(q)) return 1;          // champ absent, vide ou illisible : une ouverture
+    return q > 0 ? q : 0;                // zéro ou négatif : rien à payer, et JAMAIS de négatif
+  }
+
   /** Les ouvertures d'un devis, par type et par quantité. « items » sur une fiche complète,
    *  « items_min » dans une liste — le tableau de bord ne charge jamais les items entiers. */
   function ouverturesParType(devis) {
@@ -143,8 +160,10 @@
     const par = {};
     src.forEach(function (it) {
       if (!it || !it.type) return;
-      par[it.type] = (par[it.type] || 0) + (num(it.quantite) || 1);
+      par[it.type] = (par[it.type] || 0) + quantiteDe(it);
     });
+    // Un type tombé à zéro ne doit pas laisser une ligne « 0 × Screen » dans le détail.
+    Object.keys(par).forEach(function (t) { if (!(par[t] > 0)) delete par[t]; });
     return par;
   }
 
@@ -289,6 +308,7 @@
     diviseurNet: diviseurNet,
     poseurs: poseurs,
     poseFaite: poseFaite,
+    quantiteDe: quantiteDe,
     ouverturesParType: ouverturesParType,
     detailPose: detailPose,
     encaisseDe: encaisseDe,
