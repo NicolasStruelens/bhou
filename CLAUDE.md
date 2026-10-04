@@ -67,6 +67,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
 | `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
+| `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
+| `tests/themes.test.html` | Les 23 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -475,6 +477,29 @@ qui n'aurait jamais fini de grandir. Les tuiles de chiffres s'écrivent `class="
 modales `class="modal ticked"` : sans ça, une toile de 58 px atterrissait sur un carré de 150, et
 une autre sur une fenêtre de saisie masquée, prête à surgir.
 
+**29. Un thème se MESURE avant de se publier** (`assets/js/theme.js`, `tests/themes.test.html`).
+Ici la couleur porte du sens — le liseré dit l'ACTION (règle 21 bis), la pastille dit le CLIENT
+(règle 22), le badge dit le STATUT (règle 21). Un thème dont les teintes se ressemblent trop
+ferait lire un devis perdu comme un devis gagné : **un thème qui ne passe pas les tests ne se
+publie pas, même s'il est beau.** Les seuils sont calés sur les deux thèmes d'origine, et le
+relevé en tête du fichier de tests donne les valeurs de chacun.
+⚠️ Le sombre est **pile au seuil** sur les familles d'action (ΔE 25,02 pour un minimum de 25) :
+il n'y a aucune marge, toute retouche de `--accent` ou `--accent-3` doit être remesurée.
+**La table `THEMES` est la source unique** : le sélecteur des Paramètres, le bouton lune/soleil,
+les décors de fête et les tests la lisent tous. Ajouter un thème = une entrée + sa feuille
+`theme-<id>.css`. Ne jamais recopier la liste dans une page — c'est l'erreur des types de produit,
+qui ont vécu en 13 copies avant de diverger.
+`clair: true` n'est pas un goût, c'est une INFORMATION TECHNIQUE : elle dit sur quel fond le thème
+pose son contenu. Les décors de fête s'en servent pour choisir leurs teintes (sans quoi le premier
+thème clair ajouté hériterait des teintes du SOMBRE et deviendrait invisible sur blanc), et le
+bouton lune/soleil pour savoir dans quelle famille basculer.
+⚠️ Le bandeau garde DEUX boutons, pas une liste : jour/nuit est le geste qu'on fait vingt fois par
+jour, le choix du thème se fait une fois dans les Paramètres. Les boutons visent donc une FAMILLE
+et reviennent au dernier thème choisi dedans — sinon, à dix thèmes, le bouton devient inutilisable.
+⚠️ Le réglage du thème est PAR APPAREIL (`localStorage`), pas dans les réglages partagés : Nicolas
+et Yannick n'ont aucune raison de vouloir le même. Le réglage serveur `affichage.theme_defaut` ne
+sert qu'à un appareil qui n'a encore jamais choisi.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement par SCRIPT est inerte dans le panneau d'automatisation, mais la MOLETTE marche.**
@@ -657,7 +682,8 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
 
 1. **Les 41 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
-   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ». Les dates s'y
+   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
+   Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 23/23 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne

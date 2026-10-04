@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — thèmes</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    h2 { color:#93a8bf; font-size:14px; margin-top:26px; text-transform:uppercase; letter-spacing:.08em; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1000px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { color:#93a8bf; font-size:12.5px; max-width:900px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests des thèmes</h1>
+  <p class="note">
+    Un thème n'est pas qu'une affaire de goût : ici la couleur <strong>porte du sens</strong> — le liseré
+    dit l'ACTION, la pastille dit le CLIENT, le badge dit le STATUT. Ces tests mesurent, pour
+    <strong>chaque thème déclaré dans <code>SSTheme.THEMES</code></strong>, que les textes restent lisibles et que les
+    familles d'action restent séparables. Un thème qui n'y passe pas ne se publie pas, même s'il est beau.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/theme.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script>
+    const T = window.SSTheme;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, ok, mesure) {
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + (mesure === undefined ? '—' : mesure) +
+        '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+
+    /* ─ RÉSOLUTION DES COULEURS ─────────────────────────────────────────────────────────────
+       Deux pièges déjà payés sont évités ici, et il ne faut pas « simplifier » cette fonction :
+       • `getComputedStyle(x).color` renvoie la chaîne `oklch(...)` TELLE QUELLE depuis le
+         passage à OKLCH. Une conversion qui attend du `rgb()` y lit la teinte comme une
+         composante rouge, et produit des écarts entièrement faux — identiques dans les deux
+         thèmes, ce qui était le seul indice. On peint donc un pixel.
+       • Les valeurs de `STATUT_DEVIS_COULEUR` sont des `var(…)` et des `color-mix(…)`. Elles
+         n'ont de sens que posées sur un ÉLÉMENT du document : `canvas.fillStyle` ne sait pas
+         les résoudre et garde silencieusement sa valeur précédente — ce qui a failli faire
+         conclure à deux statuts de couleur identique.
+       D'où : on pose l'expression sur une sonde, on lit la valeur calculée, on peint CELLE-LÀ. */
+    const sonde = document.createElement('div');
+    sonde.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px';
+    document.body.appendChild(sonde);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+
+    function couleur(expr) {
+      sonde.style.backgroundColor = '';
+      sonde.style.backgroundColor = expr;
+      const calc = getComputedStyle(sonde).backgroundColor;
+      cx.clearRect(0, 0, 1, 1);
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, 1, 1);   // fond blanc : une teinte semi-transparente se compose
+      cx.fillStyle = calc; cx.fillRect(0, 0, 1, 1);
+      const d = cx.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    }
+    const V = (n) => couleur(getComputedStyle(document.documentElement).getPropertyValue(n).trim() || 'rgba(0,0,0,0)');
+    const brut = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+    const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    const contraste = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    function lab([r, g, b]) {
+      const [R, G, B] = [lin(r), lin(g), lin(b)];
+      let X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047, Y = R * 0.2126 + G * 0.7152 + B * 0.0722,
+          Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+      const k = (t) => t > 0.008856 ? Math.cbrt(t) : (7.787 * t) + 16 / 116;
+      return [116 * k(Y) - 16, 500 * (k(X) - k(Y)), 200 * (k(Y) - k(Z))];
+    }
+    const dE = (a, b) => { const A = lab(a), B = lab(b); return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]); };
+
+    // CONTRÔLE D'INTÉGRITÉ. Sans lui, une résolution silencieusement cassée rendrait TOUS les
+    // écarts faux — et le fichier annoncerait fièrement que tout va bien.
+    const rouge = couleur('rgb(255,0,0)'), vert = couleur('rgb(0,255,0)');
+    const sain = rouge[0] > 200 && rouge[1] < 60 && vert[1] > 200 && vert[0] < 60;
+    check('la mesure des couleurs est fiable (rouge et vert se distinguent)', sain,
+      'rouge ' + rouge.join(',') + ' · vert ' + vert.join(','));
+
+    // ══════════ 1. La table elle-même ══════════
+    check('au moins un thème déclaré', T.THEMES.length >= 1, T.THEMES.length + ' thème(s)');
+    check('identifiants uniques', new Set(T.THEMES.map(t => t.id)).size === T.THEMES.length);
+    check('au moins un thème CLAIR et un thème SOMBRE',
+      T.THEMES.some(t => t.clair) && T.THEMES.some(t => !t.clair),
+      T.THEMES.filter(t => t.clair).length + ' clair(s), ' + T.THEMES.filter(t => !t.clair).length + ' sombre(s)');
+    check('chaque thème a un nom et une aide',
+      T.THEMES.every(t => typeof t.nom === 'string' && t.nom && typeof t.aide === 'string' && t.aide));
+
+    /* Un thème déclaré dans la table mais SANS bloc de styles s'appliquerait en silence : le
+       navigateur garderait les variables du thème précédent et tout semblerait normal. */
+    const selecteurs = [];
+    for (const sh of document.styleSheets) {
+      try { for (const r of sh.cssRules) if (r.selectorText) selecteurs.push(r.selectorText); } catch (e) {}
+    }
+    T.THEMES.forEach(function (t) {
+      check(t.nom + ' : a bien un bloc de styles',
+        selecteurs.some(s => s.indexOf('[data-theme="' + t.id + '"]') !== -1), '[data-theme="' + t.id + '"]');
+    });
+
+    // ══════════ 2. Chaque thème déclare TOUTES les variables ══════════
+    // Relevé sur theme-dark.css. tokens.css ne déclare AUCUNE de ces couleurs : une variable
+    // oubliée dans un thème ressort donc vide, et ce test l'attrape.
+    const REQUISES = ['--bg','--bg-grid','--surface','--surface-2','--surface-3','--border','--border-strong',
+      '--text','--text-muted','--text-subtle','--accent','--accent-strong','--accent-2','--accent-2-ink',
+      '--accent-3','--ok','--warn','--danger','--ava-c','--ava-ink-l','--ava-bg-l','--ava-bg-a','--ava-bd-l',
+      '--on-accent','--input-bg','--input-border','--shadow','--shadow-sm','--glow-accent','--glow-soft',
+      '--glow-hero','--tick-color','--font-display','--fx-scanlines','--fx-line','--fx-grid'];
+
+    // ══════════ 3. Les mesures, thème par thème ══════════
+    // Seuils calés sur les deux thèmes existants (valeurs relevées entre parenthèses) : ils
+    // passent tous, avec de la marge sauf là où c'est signalé.
+    const SEUILS = {
+      texte_bg: 7,        // relevé 16,9 (sombre) / 15,8 (clair)
+      texte_surface: 7,   // 15,5 / 17,1
+      muted: 4.5,         // 7,3 / 6,2
+      subtle: 4.5,        // 5,9 / 5,7
+      accent: 4.5,        // 5,5 / 9,8
+      familles: 25,       // 25,02 / 31,7  ⚠️ le sombre est PILE au seuil
+      statuts: 8,         // 18,8 / 10,9
+    };
+    const FAMILLES = { rien: '--text-subtle', 'à écrire': '--accent', 'à pousser': '--warn',
+                       'ça se perd': '--danger', gagné: '--ok', chantier: '--accent-3' };
+    const SC = window.SSUI.STATUT_DEVIS_COULEUR;
+    const mesures = [];
+
+    const themeAvant = T.getTheme();
+    T.THEMES.forEach(function (t) {
+      document.documentElement.setAttribute('data-theme', t.id);
+
+      const manquantes = REQUISES.filter(v => !brut(v));
+      check(t.nom + ' : déclare les ' + REQUISES.length + ' variables', manquantes.length === 0,
+        manquantes.length ? 'manque ' + manquantes.join(' ') : 'toutes présentes');
+
+      const bg = V('--bg'), surface = V('--surface');
+      const c = {
+        texte_bg: contraste(V('--text'), bg),
+        texte_surface: contraste(V('--text'), surface),
+        muted: contraste(V('--text-muted'), surface),
+        subtle: contraste(V('--text-subtle'), surface),
+        accent: contraste(V('--accent'), surface),
+      };
+      check(t.nom + ' : texte sur le fond ≥ ' + SEUILS.texte_bg, c.texte_bg >= SEUILS.texte_bg, c.texte_bg.toFixed(2) + ':1');
+      check(t.nom + ' : texte sur une carte ≥ ' + SEUILS.texte_surface, c.texte_surface >= SEUILS.texte_surface, c.texte_surface.toFixed(2) + ':1');
+      check(t.nom + ' : texte secondaire ≥ ' + SEUILS.muted + ' (AA)', c.muted >= SEUILS.muted, c.muted.toFixed(2) + ':1');
+      check(t.nom + ' : labels et méta ≥ ' + SEUILS.subtle + ' (AA)', c.subtle >= SEUILS.subtle, c.subtle.toFixed(2) + ':1');
+      check(t.nom + ' : couleur de marque ≥ ' + SEUILS.accent, c.accent >= SEUILS.accent, c.accent.toFixed(2) + ':1');
+
+      // Les SIX familles d'action du tableau de bord doivent rester séparables (règle 21 bis).
+      const noms = Object.keys(FAMILLES), col = {};
+      noms.forEach(n => col[n] = V(FAMILLES[n]));
+      let pireF = Infinity, paireF = '';
+      for (let i = 0; i < noms.length; i++) for (let j = i + 1; j < noms.length; j++) {
+        const d = dE(col[noms[i]], col[noms[j]]);
+        if (d < pireF) { pireF = d; paireF = noms[i] + ' / ' + noms[j]; }
+      }
+      check(t.nom + ' : familles d\'action séparables (ΔE ≥ ' + SEUILS.familles + ')', pireF >= SEUILS.familles,
+        'ΔE ' + pireF.toFixed(1) + ' — ' + paireF);
+
+      // Deux statuts ne portent jamais la même couleur (règle 21).
+      const ks = Object.keys(SC), cs = {};
+      ks.forEach(k => cs[k] = couleur(SC[k]));
+      let pireS = Infinity, paireS = '';
+      for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) {
+        const d = dE(cs[ks[i]], cs[ks[j]]);
+        if (d < pireS) { pireS = d; paireS = ks[i] + ' / ' + ks[j]; }
+      }
+      check(t.nom + ' : statuts distinguables (ΔE ≥ ' + SEUILS.statuts + ')', pireS >= SEUILS.statuts,
+        'ΔE ' + pireS.toFixed(1) + ' — ' + paireS);
+
+      mesures.push('<tr><td><strong>' + t.nom + '</strong><br><small>' + t.id + (t.clair ? ' · clair' : ' · sombre') + '</small></td>' +
+        '<td>' + c.texte_bg.toFixed(1) + '</td><td>' + c.texte_surface.toFixed(1) + '</td><td>' + c.muted.toFixed(1) + '</td>' +
+        '<td>' + c.subtle.toFixed(1) + '</td><td>' + c.accent.toFixed(1) + '</td>' +
+        '<td>' + pireF.toFixed(1) + '<br><small>' + paireF + '</small></td>' +
+        '<td>' + pireS.toFixed(1) + '<br><small>' + paireS + '</small></td></tr>');
+    });
+    document.documentElement.setAttribute('data-theme', themeAvant);
+    sonde.remove();
+
+    document.getElementById('out').innerHTML =
+      '<h2>Relevé par thème</h2><table><tr><th>Thème</th><th>texte / fond</th><th>texte / carte</th>' +
+      '<th>secondaire</th><th>labels</th><th>marque</th><th>ΔE familles</th><th>ΔE statuts</th></tr>' +
+      mesures.join('') + '</table>' +
+      '<h2>Détail</h2><table><tr><th>Cas</th><th>Mesure</th><th>—</th></tr>' + rows.join('') + '</table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S)</span> sur ' + total;
+    document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests thèmes';
+  </script>
+</body>
+</html>
