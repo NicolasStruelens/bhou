@@ -30,6 +30,10 @@ body {
      le panneau d'automatisation, rien ici ne permet de verifier un sticky pour de vrai. Tant
      qu'on ne peut pas le tester sur l'appareil, on ne touche pas a cette ligne. */
   overflow-x: hidden;
+  /* Le bandeau etant en `position: fixed`, il ne pousse plus le contenu : on le decale ici.
+     `--ss-header-h` est mesuree par nav.js et vaut 0 par defaut — cinq pages document n'ont
+     pas de bandeau du tout. */
+  padding-top: var(--ss-header-h, 0px);
   -webkit-font-smoothing: antialiased;
   transition: background var(--t-base), color var(--t-base);
 }
@@ -133,8 +137,20 @@ a:hover { text-decoration: underline; }
 @media (max-width: 640px) { .container { padding: var(--sp-4); } }
 
 /* ═══════════ HEADER ═══════════ */
+/* ⚠️ `position: FIXED`, et surtout PAS `sticky` — c'est deja paye deux fois.
+   `sticky` depend d'une question : « quel est mon conteneur de defilement ? ». Or `body` porte
+   `overflow-x: hidden`, ce qui fait basculer la valeur utilisee de `overflow-y` sur `auto` et
+   transforme le body en conteneur de defilement. Les moteurs ne repondent alors PAS pareil :
+   mesure a la molette, Chromium fait coller le bandeau sans probleme, et sur l'iPhone de Nicolas
+   il ne tenait pas. Tenter `overflow-x: clip` pour « reparer » a empire les choses sur iPhone
+   (03-04/10/2026) : c'etait soigner le symptome dans le mauvais moteur.
+   `fixed` ne pose pas la question du tout : il se cale sur la fenetre, point. En contrepartie il
+   sort du flux, donc le contenu doit etre decale — d'ou `--ss-header-h`, mesure et tenu a jour
+   par nav.js (le bandeau change de hauteur quand il passe sur deux lignes).
+   ⚠️ `fixed` ignore le `padding-left` que le rail pose sur le body : son `left` est donc recale
+   dans la media query du rail (nav.js), sinon le bandeau passerait PAR-DESSUS le rail. */
 .app-header {
-  position: sticky; top: 0; z-index: 100;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   height: var(--header-h);
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--sp-4);
