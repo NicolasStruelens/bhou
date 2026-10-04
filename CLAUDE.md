@@ -70,6 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
+| `assets/js/remuneration.js` | **Ce qu'on doit encaisser.** Fonctions pures, 80 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 80 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -547,6 +549,65 @@ et reviennent au dernier thème choisi dedans — sinon, à dix thèmes, le bout
 et Yannick n'ont aucune raison de vouloir le même. Le réglage serveur `affichage.theme_defaut` ne
 sert qu'à un appareil qui n'a encore jamais choisi.
 
+**30. LES 50 € PAR OUVERTURE EXISTENT DEPUIS TOUJOURS — c'est la ligne « Tech 1 ».**
+C'est la chose à savoir avant de toucher à quoi que ce soit en matière de rémunération, et elle
+n'était écrite nulle part. `prix.tech1_gross` vaut **125 € bruts par ouverture** et le diviseur
+brut→net vaut **2,5** : 125 ÷ 2,5 = **50 € nets**, exactement la règle que Nicolas énonce. Et
+280 = 125 + 125 + 30 : la pose facturée au client EST déjà découpée en paie de Tech 1, paie de
+Tech 2 et outillage. Le simulateur l'affiche même en clair (« Tech 1 : 125 € brut / 50 € net »)
+— mais aucun autre écran ne le disait, d'où l'impression que cette paie n'existait pas.
+⚠️ **Ne JAMAIS ajouter une « prime » de 50 € par screen par-dessus la commission** : c'est un
+double paiement, et c'est l'erreur qui a été écrite puis rattrapée le 04/10/2026. Deux tests de
+`remuneration.test.html` sont là pour l'empêcher de revenir ; ne pas les supprimer.
+La seule chose qui manquait vraiment : une **tente solaire** est chiffrée comme un screen (125 €
+bruts) alors qu'elle doit rapporter 100 € nets. La correction est de chiffrer la ligne « Tech 1 »
+à **250 €** sur les prochains devis — pas d'ajouter de l'argent dans le moteur.
+
+**30 bis. QUI A POSÉ vit dans `chantier.equipe`, et nulle part ailleurs.** Quatre valeurs
+(`nicolas` / `yannick` / `nicolas_yannick` / `sous_traitant`), saisies dans la fiche devis ET dans
+le planning, traduites en personnes par `SSPlanning.quiDeEquipe` (règle 10 : le vocabulaire vit
+à un seul endroit). Un `pricing_v2.pose` avait été inventé pour ça : il aurait été **effacé en
+silence**, parce que la fusion serveur d'`upsertDevis` est PEU PROFONDE
+(`Object.assign({}, existant, payload)`) et que le simulateur reconstruit `pricing_v2` de zéro.
+Toute nouvelle donnée sur un devis doit se demander : « quel écran renvoie l'objet parent sans
+ma clé ? »
+⚠️ **`quiDeEquipe('')` retombe sur Nicolas.** Excellent défaut pour un planning (mieux vaut une
+case occupée qu'un trou), désastreux pour de l'argent : il lui attribuerait la paie de TOUS les
+chantiers non renseignés. `SSRemu.poseurs` garde donc sa propre garde avant l'appel, et un test
+vérifie les deux comportements côte à côte pour que la différence reste visible.
+
+**30 ter. La rémunération vit dans `assets/js/remuneration.js`, et elle suit l'argent REÇU.**
+Six règles, toutes détaillées en tête du fichier : (1) la part acquise est au prorata de ce que le
+client a réellement PAYÉ — une facture émise n'est pas de l'argent reçu, et se payer sur un
+encaissement qui n'a pas eu lieu, c'est puiser dans la trésorerie du chantier suivant ; (2) rien
+n'est jamais recalculé, le diviseur brut/net lui-même est relu sur le devis ; (3) la paie de pose
+suit `chantier.equipe` — un seul des nôtres prend UNE ligne de tech et « le reste va pour la
+société » (les mots de Nicolas), à deux elle se partage en parts égales, et les deux cas donnent
+bien 50 € nets à l'ouverture ; (4) sans équipe renseignée, rien n'est attribué et le dossier est
+SIGNALÉ ; (5) un devis refusé ou annulé ne doit rien ; (6) **l'écart avec la cible se SIGNALE, il
+ne se paie pas** — il dit qu'un devis a été sous-chiffré, et ça se corrige sur le devis SUIVANT.
+Les cibles (`remu.cible` dans les réglages) ne versent rien : elles servent à MESURER.
+⚠️ Elles vivent à DEUX endroits, et il faut les deux — `config.js` parce que `fusionner` est une
+liste blanche (une clé absente des DEFAUTS ne peut pas être enregistrée du tout), et
+`remuneration.js` pour que le moteur réponde juste même appelé sans réglages. Un test compare
+les deux : c'est lui qui les empêche de diverger.
+⚠️ Toute page qui affiche de la rémunération charge `planning.js` **avant** `remuneration.js`.
+
+**30 quater. Un « ce qu'on nous doit » sans registre de PRÉLÈVEMENTS ne fait que monter.**
+Table `prelevements` (`/api/prelevements`), une ligne par retrait réellement effectué. Sans elle,
+le chiffre devient faux au premier virement — et un chiffre faux sur de l'argent ne se rattrape
+pas. Aucune écriture hors-ligne, volontairement : un prélèvement qui n'existerait que sur le
+téléphone qui l'a saisi ferait afficher à l'autre un « reste à toucher » trop élevé, donc un
+second retrait sur de l'argent déjà pris. Ce n'est PAS de la comptabilité : la pièce officielle
+reste dans SysCore / Falco, d'où le champ `ref_externe`, comme sur une facture.
+
+**30 quinquies. `/api/stats` a été SUPPRIMÉE le 04/10/2026.** Elle recalculait toutes les
+statistiques côté serveur et **aucun écran ne l'appelait** : `app/stats.html` calcule depuis les
+devis complets. C'était une seconde implémentation dormante des mêmes chiffres — avec la marge
+écrite en dur (`* 0.23`), ce qui viole la règle 1. `SS.getStats()` est parti avec. Ne pas
+réintroduire : si un calcul serveur redevient nécessaire, il devra lire les taux FIGÉS sur chaque
+devis, jamais un taux écrit dans le code.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **Le défilement par SCRIPT est inerte dans le panneau d'automatisation, mais la MOLETTE marche.**
@@ -730,7 +791,9 @@ sert qu'à un appareil qui n'a encore jamais choisi.
 1. **Les 41 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
-   Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 23/23 ». Les dates s'y
+   Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
+   Et dès qu'on touche à `remuneration.js` ou à une cible de rémunération :
+   `tests/remuneration.test.html`, exiger « 80/80 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne

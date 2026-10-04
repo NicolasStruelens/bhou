@@ -994,6 +994,10 @@
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <!-- planning.js AVANT remuneration.js : c'est lui qui porte le vocabulaire des équipes
+       (SSPlanning.quiDeEquipe), et le moteur n'attribue rien sans lui. -->
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
   <script>
     const SS = window.SS;
     const { computeDevis, totalSurface } = window.SSCalc;
@@ -1433,6 +1437,7 @@
         <div class="h-line"><span class="k">Marge matériel brute</span><span class="v">${fmtEur(c.total_material_gross || (c.total_catalog_ht || 0) * ((window.SSCalc && SSCalc.MATERIAL_MARGIN) || 0.23))}</span></div>
         <div class="h-line"><span class="k">Nicolas — brut / net</span><span class="v">${fmtEur(c.nicolas_gross || 0)} / <strong style="color:var(--accent-2)">${fmtEur(c.nicolas_net || 0)}</strong></span></div>
         <div class="h-line"><span class="k">Yannick — brut / net</span><span class="v">${fmtEur(c.yannick_gross || 0)} / <strong style="color:var(--accent-2)">${fmtEur(c.yannick_net || 0)}</strong></span></div>
+        ${blocQuiPrendQuoi(d, c)}
         ${c.total_remises > 0 ? `
         <div class="subhead" style="margin:var(--sp-3) 0 var(--sp-2);border-top:1px dashed var(--border);padding-top:var(--sp-3);">Réductions accordées</div>
         ${c.remise_catalogue?.amount > 0 ? `<div class="h-line"><span class="k">Catalogue</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_catalogue.amount)}</span></div>` : ''}
@@ -2256,6 +2261,60 @@
       c.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     window.openCardAndScroll = openCardAndScroll;
+    /**
+     * QUI PREND QUOI SUR CE DOSSIER.
+     *
+     * Les commissions étaient déjà là ; la PAIE DE POSE ne l'était nulle part — alors qu'elle
+     * représente souvent plus que la commission (125 € brut par ouverture, soit 50 € nets, contre
+     * 18 % du catalogue). On ne pouvait donc pas répondre à « ce chantier, il me rapporte quoi ? »
+     * sans rouvrir le simulateur.
+     *
+     * ⚠️ Tout le calcul vient de SSRemu (fonctions pures, 80 tests). Cette fonction ne fait que
+     * mettre en forme : un chiffre d'argent calculé dans une page HTML n'est testable par personne.
+     */
+    function blocQuiPrendQuoi(d, c) {
+      const R = window.SSRemu;
+      if (!R) return '';
+      const x = R.parDossier(d, [], (window.SSConf && SSConf.get()) || null);
+      const poseBrut = (c.tech1_total || 0) + (c.tech2_total || 0);
+      if (!poseBrut && !x.du.nicolas.total_net && !x.du.yannick.total_net) return '';
+
+      const PRENOM = { nicolas: 'Nicolas', yannick: 'Yannick' };
+      // L'équipe est la DONNÉE qui décide : sans elle, la paie de pose n'est à personne, et le
+      // dire ici est le seul moment où quelqu'un est en position de la corriger.
+      const equipe = x.poseurs === null
+        ? '<span class="badge badge-warn" title="Renseignez « Équipe » dans la planification de pose : sans elle, la paie de pose n’est attribuée à personne.">équipe à renseigner</span>'
+        : (x.poseurs.length ? esc(x.poseurs.map(g => PRENOM[g]).join(' + ')) : 'sous-traitée');
+
+      const ligne = (g) => {
+        const v = x.du[g];
+        if (!v.total_net) return '';
+        return `<div class="h-line"><span class="k">${PRENOM[g]} — pose</span><span class="v">${fmtEur(v.pose_brut)} / <strong style="color:var(--accent-2)">${fmtEur(v.pose_net)}</strong></span></div>`;
+      };
+      const totalLigne = (g) => {
+        const v = x.du[g];
+        if (!v.total_net) return '';
+        return `<div class="h-line"><span class="k"><strong>${PRENOM[g]} — total net</strong></span><span class="v"><strong>${fmtEur(v.total_net)}</strong></span></div>`;
+      };
+      // L'écart ne se paie pas (règle 6 du moteur) : il dit que le devis a été sous-chiffré, et la
+      // correction se fait sur le devis SUIVANT. Il est donc signalé, jamais additionné.
+      const ecart = x.ecart.manque_net > 0.004
+        ? `<div class="pricing-note" style="margin-top:var(--sp-3);">${icon('warning', 15)}<div class="txt">
+             Chiffré sous la cible : ${fmtEur(x.ecart.par_ouverture)} nets par ouverture pour celui qui pose,
+             soit ${fmtEur(x.ecart.manque_net)} de moins que voulu sur ce dossier.
+             Ce montant n'est pas dû — il se corrige en chiffrant la ligne « Technicien 1 » plus haut sur les devis à venir.</div></div>`
+        : '';
+
+      return `
+        <div class="subhead" style="margin:var(--sp-3) 0 var(--sp-2);border-top:1px dashed var(--border);padding-top:var(--sp-3);">Qui prend quoi sur ce chantier</div>
+        <div class="h-line"><span class="k">Équipe de pose</span><span class="v">${equipe}</span></div>
+        ${ligne('nicolas')}${ligne('yannick')}
+        ${x.du.societe.pose_brut > 0 ? `<div class="h-line"><span class="k">Société — pose non attribuée</span><span class="v">${fmtEur(x.du.societe.pose_brut)} / ${fmtEur(x.du.societe.pose_net)}</span></div>` : ''}
+        ${x.du.societe.outillage_brut > 0 ? `<div class="h-line"><span class="k">Société — outillage</span><span class="v">${fmtEur(x.du.societe.outillage_brut)} / ${fmtEur(x.du.societe.outillage_net)}</span></div>` : ''}
+        ${totalLigne('nicolas')}${totalLigne('yannick')}
+        ${ecart}`;
+    }
+
     function renderNextAction() {
       const host = el('nextCard');
       if (!host) return;

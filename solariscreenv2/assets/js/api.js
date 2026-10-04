@@ -617,21 +617,6 @@
       }
     },
 
-    async getStats() {
-      try { return (await req('/stats')).data; }
-      catch (e) {
-        console.warn('[SS] getStats → calcul local:', e.message);
-        const all = local.list();
-        const signes = all.filter(function (d) { return ['signe', 'termine'].includes(d.statut); });
-        const ttc = function (d) { return (d.calculs && d.calculs.total_ttc) || d.total_ttc || 0; };
-        return {
-          total: all.length, signes: signes.length,
-          ca_total_ttc: all.reduce(function (s, d) { return s + ttc(d); }, 0),
-          ca_signe_ttc: signes.reduce(function (s, d) { return s + ttc(d); }, 0),
-          by_status: {}, by_month: {},
-        };
-      }
-    },
     async isOnline() {
       try { const r = await fetch(BASE + '/health', { credentials: 'same-origin' }); return r.ok; }
       catch (e) { return false; }
@@ -789,6 +774,32 @@
         return { ok: false, error: MSG_SESSION };
       }
     },
+    // ── Prélèvements (ce que Nicolas et Yannick ont réellement retiré) ──
+    // Aucun cache local, et aucune écriture hors-ligne : même parti pris que les dispos, pour une
+    // raison plus forte encore. Un prélèvement qui n'existerait que sur le téléphone qui l'a saisi
+    // ferait afficher à l'autre un « reste à toucher » trop élevé — donc un second retrait sur de
+    // l'argent déjà pris. Mieux vaut refuser tout de suite et le dire.
+    async listPrelevements() {
+      const d = (await req('/prelevements')).data || [];
+      return d;
+    },
+    async savePrelevement(x) {
+      try { return await req('/prelevements', { method: 'POST', body: JSON.stringify(x) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : un prélèvement s’enregistre en ligne, sinon l’autre verrait un reste faux.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async deletePrelevement(id) {
+      try { return await req('/prelevements/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+
     async deleteDispo(id) {
       try { return await req('/dispos/' + encodeURIComponent(id), { method: 'DELETE' }); }
       catch (e) {
