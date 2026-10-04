@@ -16,17 +16,19 @@ body {
   line-height: var(--lh-base);
   font-size: var(--fs-md);
   min-height: 100vh;
-  /* `overflow-x: hidden` EMPECHAIT le bandeau de rester en haut quand on descend la page.
-     La spec est formelle : avec `overflow-x: hidden` et `overflow-y: visible`, la valeur
-     UTILISEE de `overflow-y` bascule sur `auto`. Le body devient alors un conteneur de
-     defilement, et `position: sticky` sur un enfant colle a CE conteneur -- qui, lui, ne
-     defile jamais (sa hauteur suit son contenu). Le bandeau partait donc avec la page.
-     Mesure en conditions reelles, deux montages identiques a une propriete pres :
-       overflow-x: hidden -> overflow-y calcule a « auto »,    l'element sticky part a -400 px
-       overflow-x: clip   -> overflow-y calcule a « visible », l'element sticky reste a 0
-     `clip` coupe le debordement horizontal exactement comme `hidden`, mais ne cree PAS de
-     conteneur de defilement. `hidden` reste en repli pour les navigateurs sans `clip`
-     (Safari < 16) : ils retrouvent simplement l'ancien comportement. */
+  /* ⚠️ NE PAS REMPLACER PAR `overflow-x: clip`. C'EST DEJA ESSAYE, ET CA CASSE.
+     Le raisonnement est pourtant seduisant : avec `overflow-x: hidden` et `overflow-y: visible`,
+     la valeur UTILISEE de `overflow-y` bascule sur `auto` (03/10/2026, meme regle de spec que le
+     piege du .table-wrap), le body devient un conteneur de defilement, et `position: sticky` sur
+     un enfant devrait coller a CE conteneur -- qui ne defile jamais. Un montage de controle dans
+     Chromium le confirmait meme noir sur blanc : avec `hidden` l'element sticky part a -400 px,
+     avec `clip` il reste a 0.
+     Sur iPhone, c'est l'INVERSE. Le bandeau tenait tres bien avec `hidden` ; passe a `clip`, il
+     a cesse de tenir. Correctif publie puis retire le 04/10/2026.
+     La lecon n'est pas sur l'overflow, elle est sur la methode : un montage de controle dans un
+     moteur ne prevoit pas le comportement d'un AUTRE moteur, et le defilement etant inerte dans
+     le panneau d'automatisation, rien ici ne permet de verifier un sticky pour de vrai. Tant
+     qu'on ne peut pas le tester sur l'appareil, on ne touche pas a cette ligne. */
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   transition: background var(--t-base), color var(--t-base);
@@ -41,8 +43,6 @@ body {
     linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
   background-size: 44px 44px;
 }
-@supports (overflow-x: clip) { body { overflow-x: clip; } }
-
 body::before {
   content: ''; position: fixed; inset: 0; z-index: 9998; pointer-events: none;
   background: repeating-linear-gradient(0deg,
