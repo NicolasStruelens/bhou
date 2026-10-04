@@ -765,6 +765,28 @@ devis, jamais un taux écrit dans le code.
   `onclick="f(' + jsAttr(x) + ')"`, jamais `onclick="f('' + jsAttr(x) + '')"`. Ce défaut a cassé
   d'un coup « Je prends », le clic sur un événement du planning, la date de pose, et Répondre /
   Classer / Supprimer sur un sujet — **sans une seule erreur en console**.
+- **L'autre moitié de la même famille : une apostrophe dans la DONNÉE.** `onclick="f('…')"` construit
+  avec des quotes simples écrites à la main casse dès que la valeur en contient une — et en Belgique
+  c'est la norme : « L'Hoest », « D'Hondt », « Rue de l'Église », une référence « VIS-L'H-40 ». Le
+  gestionnaire devient `f('VIS-L'H-40', …)` et le navigateur dit **`Uncaught SyntaxError: missing )
+  after argument list`** (ou `Unexpected identifier 'hoest'` quand c'est une affectation du genre
+  `location.href='…'` au lieu d'un appel). Le bouton ne fait alors ABSOLUMENT rien.
+  **Aucun échappement HTML ne protège cette position :**
+  - `esc()` n'échappe pas l'apostrophe du tout ;
+  - `escAttr()` la transforme en `&#39;` — que le parseur HTML **redécode en `'`** avant de compiler
+    le gestionnaire. Protection nulle, et c'est ce qui trompe : le code a l'air échappé ;
+  - `encodeURIComponent()` **laisse l'apostrophe telle quelle** (elle est légale dans une URL).
+    C'est exactement ce qui cassait « Fiche client » du tableau de bord, dont la clé est `nom|prenom`.
+  La seule écriture correcte reste `jsAttr()`, qui produit une chaîne JS entre `&quot;` : l'apostrophe
+  se retrouve dans une chaîne à guillemets doubles, où elle est inoffensive. `escAttr()` garde son
+  usage — le TEXTE d'un attribut (`src`, `alt`, `value`, `title`) — mais jamais l'intérieur d'un `on*`.
+- **Un attribut `on*` est compilé AU DÉCLENCHEMENT de l'événement, pas à l'injection.** Conséquence
+  à retenir avant de chercher pendant deux heures : une faute de syntaxe dans un gestionnaire généré
+  ne produit **rien** au chargement de la page — ni à l'écriture du `innerHTML`, ni au rendu. Elle
+  n'apparaît qu'au clic, et seuls `onerror`/`onload` (une image qui échoue) se déclenchent tout seuls.
+  Donc : une erreur présente DÈS le chargement ne peut pas venir d'un `onclick` généré ; et
+  inversement, instrumenter le `set` de `innerHTML` ne révèle pas la faute — il faut compiler les
+  attributs soi-même.
 - **Une `function X()` au premier niveau d'un script classique crée déjà `window.X`.** Réassigner
   `window.X = function …` ensuite fait que l'appel interne à `X()` résout vers la NOUVELLE fonction :
   récursion infinie, « Maximum call stack size exceeded », et plus rien ne s'enregistre. Donner un
@@ -796,10 +818,23 @@ devis, jamais un taux écrit dans le code.
    `tests/remuneration.test.html`, exiger « 80/80 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
-2. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
+2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.
+   Charger la page AVEC des données dont le nom de client porte une apostrophe (« L'Hoest »), puis
+   coller ceci dans la console : il compile chaque attribut `on*` réellement présent dans le DOM et
+   dit lesquels sont cassés, sans avoir à cliquer sur quoi que ce soit.
+   ```js
+   [...document.querySelectorAll('*')].flatMap(e => [...e.attributes]
+     .filter(a => a.name.startsWith('on') && a.name.length > 2)
+     .map(a => { try { new Function(a.value); return null; }
+                 catch (err) { return { el: e.tagName + '.' + e.className, err: err.message, code: a.value }; } })
+     .filter(Boolean))
+   ```
+   Un tableau vide = tous les gestionnaires de la page compilent. C'est le seul contrôle qui attrape
+   cette famille sans attendre qu'un client au nom apostrophé la déclenche en production.
+3. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
    déborde de sa boîte.
-3. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
-4. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
+4. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
+5. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
    trouvés sur une capture d'écran alors que les mesures disaient « tout va bien ».
 
 ## La facturation en plusieurs fois — vérifié, ne pas « corriger »
