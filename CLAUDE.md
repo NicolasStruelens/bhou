@@ -69,7 +69,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
-| `tests/fetes.test.html` | Les 79 tests du calendrier des fêtes et du contrat des décors. |
+| `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -473,6 +473,23 @@ bas-gauche — les deux angles que les coins « ticked » laissent libres.
 30 px à la colonne : le rail passait en défilement dès 820 px de haut, et la barre lui volait 10 px
 de largeur — « Outillage & références » se faisait tronquer. Ancrée par le bas, elle n'allonge plus
 le contenu. Mesurer `scrollHeight > clientHeight` ET `clientWidth` du rail après tout ajout.
+⚠️ **CE QUI FAIT QU'UN DÉCOR EST SOIGNÉ**, et ce qui manquait aux premières versions de
+décembre — retour de Nicolas, justifié : « c'est la fête, il faut que ce soit magnifique ».
+La différence avec Halloween se nomme précisément, et tient en trois points :
+• **Trois couches par objet** : la masse, un détail DÉCOUPÉ dans `var(--surface)` (le visage de
+  la citrouille, les yeux de l'araignée, le zigzag peint de la boule), et un reflet.
+  Une silhouette pleine d'une seule teinte sort toujours en tache.
+• **Une animation qui APPARTIENT à l'objet**, pas seulement son déplacement : les ailes battent,
+  les bulles montent, l'étoile scintille, la fumée s'échappe. Les classes sont partagées
+  (`ssfete-scintille`, `-bulle`, `-fumee`, `-eclore`, `-eclat`) et s'appliquent à un MORCEAU
+  du dessin. ⚠️ Elles exigent `transform-box: fill-box`, sinon `transform-origin: center`
+  désigne le centre du viewBox et la forme part en diagonale au lieu de pivoter sur elle-même.
+• **De la VARIÉTÉ là où l'objet se répète** : `tombe.svg` accepte une LISTE. Un seul flocon
+  répété seize fois se voit immédiatement — c'est ce qui faisait « pas soigné ».
+⚠️ **Juger sur PLANCHE avant de garder.** Construire une page qui affiche tous les dessins de
+`SSFetes.FETES` côte à côte et agrandis : c'est le seul moyen de voir qu'un décor est plus
+pauvre que ses voisins. Ça a fait retirer la fusée, refaire le traîneau et les confettis, et
+abandonner le saint sur son âne — trois fois que le défaut n'était PAS visible en situation.
 ⚠️ **À 85 px, en mouvement et en opacité basse, il faut QUATRE FORMES FRANCHES — pas une
 illustration.** Saint-Nicolas sur son âne a été dessiné, jugé à l'écran en grand, refait avec
 l'âne en retrait, rejugé, puis ABANDONNÉ : l'âne et le cavalier fusionnaient en une seule masse,
