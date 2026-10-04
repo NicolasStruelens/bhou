@@ -121,129 +121,311 @@
     '<path d="M12,28.5 L16,31.5 L19,28.5 L22,31.5 L25,28.5 L28,31.5 L32,28.5 L30.5,34.5 L13.5,34.5Z"/></g></svg>';
 
 
-  /* ── Décembre : Saint-Nicolas puis Noël ─────────────────────────────────────────────────── */
+  /* ── Décembre et Nouvel An ───────────────────────────────────────────────────────────────
+     Ce qui fait la différence avec une silhouette plate, et qui manquait à la première
+     version : TROIS COUCHES par objet (la masse, un détail découpé dans `var(--surface)`,
+     un reflet), et une ANIMATION QUI APPARTIENT À L'OBJET — les bulles montent, l'étoile
+     scintille, la fumée s'échappe. C'est exactement ce qui rendait Halloween vivant.
+     ───────────────────────────────────────────────────────────────────────────────────────── */
 
-  // Semis d'étoiles pour l'angle (calculé, comme la toile) : c'est la nuit où il passe.
+  // Trois cristaux différents : une neige d'un seul flocon répété se voit tout de suite.
+  const FLOCONS = ['M0,0L10,0M4.4,0l2.09,2.68M4.4,0l2.09,-2.68M7.2,0l1.6,2.05M7.2,0l1.6,-2.05M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.2,3.81l-1.27,3.15M2.2,3.81l3.37,0.47M3.6,6.24l-0.97,2.41M3.6,6.24l2.57,0.36M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.2,3.81l-3.37,0.47M-2.2,3.81l1.27,3.15M-3.6,6.24l-2.57,0.36M-3.6,6.24l0.97,2.41M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-4.4,0l-2.09,-2.68M-4.4,0l-2.09,2.68M-7.2,0l-1.6,-2.05M-7.2,0l-1.6,2.05M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.2,-3.81l1.27,-3.15M-2.2,-3.81l-3.37,-0.47M-3.6,-6.24l0.97,-2.41M-3.6,-6.24l-2.57,-0.36M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.2,-3.81l3.37,-0.47M2.2,-3.81l-1.27,-3.15M3.6,-6.24l2.57,-0.36M3.6,-6.24l-0.97,-2.41M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z', 'M0,0L10,0M5.5,0l1.9,3.29M5.5,0l1.9,-3.29M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.75,4.76l-1.9,3.29M2.75,4.76l3.8,0M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.75,4.76l-3.8,0M-2.75,4.76l1.9,3.29M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-5.5,0l-1.9,-3.29M-5.5,0l-1.9,3.29M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.75,-4.76l1.9,-3.29M-2.75,-4.76l-3.8,0M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.75,-4.76l3.8,0M2.75,-4.76l-1.9,-3.29M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3', 'M0,0L10,0M3.6,0l1.84,1.84M3.6,0l1.84,-1.84M6.2,0l2.26,2.26M6.2,0l2.26,-2.26M8.4,0l1.41,1.41M8.4,0l1.41,-1.41M0,0L5,8.66M1.8,3.12l-0.67,2.51M1.8,3.12l2.51,0.67M3.1,5.37l-0.83,3.09M3.1,5.37l3.09,0.83M4.2,7.27l-0.52,1.93M4.2,7.27l1.93,0.52M0,0L-5,8.66M-1.8,3.12l-2.51,0.67M-1.8,3.12l0.67,2.51M-3.1,5.37l-3.09,0.83M-3.1,5.37l0.83,3.09M-4.2,7.27l-1.93,0.52M-4.2,7.27l0.52,1.93M0,0L-10,0M-3.6,0l-1.84,-1.84M-3.6,0l-1.84,1.84M-6.2,0l-2.26,-2.26M-6.2,0l-2.26,2.26M-8.4,0l-1.41,-1.41M-8.4,0l-1.41,1.41M0,0L-5,-8.66M-1.8,-3.12l0.67,-2.51M-1.8,-3.12l-2.51,-0.67M-3.1,-5.37l0.83,-3.09M-3.1,-5.37l-3.09,-0.83M-4.2,-7.27l0.52,-1.93M-4.2,-7.27l-1.93,-0.52M0,0L5,-8.66M1.8,-3.12l2.51,-0.67M1.8,-3.12l-0.67,-2.51M3.1,-5.37l3.09,-0.83M3.1,-5.37l-0.83,-3.09M4.2,-7.27l1.93,-0.52M4.2,-7.27l-0.52,-1.93M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z'].map(function (d) {
+    return '<svg viewBox="-13 -13 26 26" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><path d="' + d + '"/></svg>';
+  });
+
+  // Semis d'étoiles : chacune scintille avec son propre décalage, sinon elles clignotent en chœur.
   const ETOILES =
-    '<svg viewBox="0 0 100 100" fill="currentColor"><path d="M16.0,1.0C18.9,11.1 18.9,11.1 29.0,14.0C18.9,16.9 18.9,16.9 16.0,27.0C13.1,16.9 13.1,16.9 3.0,14.0C13.1,11.1 13.1,11.1 16.0,1.0ZM52.0,11.0C54.0,18.0 54.0,18.0 61.0,20.0C54.0,22.0 54.0,22.0 52.0,29.0C50.0,22.0 50.0,22.0 43.0,20.0C50.0,18.0 50.0,18.0 52.0,11.0ZM22.0,43.5C23.9,50.1 23.9,50.1 30.5,52.0C23.9,53.9 23.9,53.9 22.0,60.5C20.1,53.9 20.1,53.9 13.5,52.0C20.1,50.1 20.1,50.1 22.0,43.5ZM74.0,39.5C75.4,44.6 75.4,44.6 80.5,46.0C75.4,47.4 75.4,47.4 74.0,52.5C72.6,47.4 72.6,47.4 67.5,46.0C72.6,44.6 72.6,44.6 74.0,39.5ZM44.0,64.0C45.3,68.7 45.3,68.7 50.0,70.0C45.3,71.3 45.3,71.3 44.0,76.0C42.7,71.3 42.7,71.3 38.0,70.0C42.7,68.7 42.7,68.7 44.0,64.0ZM14.0,79.0C15.1,82.9 15.1,82.9 19.0,84.0C15.1,85.1 15.1,85.1 14.0,89.0C12.9,85.1 12.9,85.1 9.0,84.0C12.9,82.9 12.9,82.9 14.0,79.0ZM86.0,75.5C87.0,79.0 87.0,79.0 90.5,80.0C87.0,81.0 87.0,81.0 86.0,84.5C85.0,81.0 85.0,81.0 81.5,80.0C85.0,79.0 85.0,79.0 86.0,75.5Z"/></svg>';
+    '<svg viewBox="0 0 100 100" fill="currentColor"><path class="ssfete-scintille" style="animation-delay:0s" d="M16,0.5C18.7,11.3 18.7,11.3 29.5,14C18.7,16.7 18.7,16.7 16,27.5C13.3,16.7 13.3,16.7 2.5,14C13.3,11.3 13.3,11.3 16,0.5Z"/><path class="ssfete-scintille" style="animation-delay:0.45s" d="M52,10.5C53.9,18.1 53.9,18.1 61.5,20C53.9,21.9 53.9,21.9 52,29.5C50.1,21.9 50.1,21.9 42.5,20C50.1,18.1 50.1,18.1 52,10.5Z"/><path class="ssfete-scintille" style="animation-delay:0.9s" d="M22,43C23.8,50.2 23.8,50.2 31,52C23.8,53.8 23.8,53.8 22,61C20.2,53.8 20.2,53.8 13,52C20.2,50.2 20.2,50.2 22,43Z"/><path class="ssfete-scintille" style="animation-delay:1.35s" d="M74,39C75.4,44.6 75.4,44.6 81,46C75.4,47.4 75.4,47.4 74,53C72.6,47.4 72.6,47.4 67,46C72.6,44.6 72.6,44.6 74,39Z"/><path class="ssfete-scintille" style="animation-delay:1.8s" d="M44,63.5C45.3,68.7 45.3,68.7 50.5,70C45.3,71.3 45.3,71.3 44,76.5C42.7,71.3 42.7,71.3 37.5,70C42.7,68.7 42.7,68.7 44,63.5Z"/><path class="ssfete-scintille" style="animation-delay:2.25s" d="M14,78.5C15.1,82.9 15.1,82.9 19.5,84C15.1,85.1 15.1,85.1 14,89.5C12.9,85.1 12.9,85.1 8.5,84C12.9,82.9 12.9,82.9 14,78.5Z"/><path class="ssfete-scintille" style="animation-delay:2.7s" d="M86,75C87,79 87,79 91,80C87,81 87,81 86,85C85,81 85,81 81,80C85,79 85,79 86,75Z"/><path class="ssfete-scintille" style="animation-delay:3.1s" d="M62,62C62.9,65.6 62.9,65.6 66.5,66.5C62.9,67.4 62.9,67.4 62,71C61.1,67.4 61.1,67.4 57.5,66.5C61.1,65.6 61.1,65.6 62,62Z"/><path class="ssfete-scintille" style="animation-delay:3.5s" d="M36,30C36.8,33.2 36.8,33.2 40,34C36.8,34.8 36.8,34.8 36,38C35.2,34.8 35.2,34.8 32,34C35.2,33.2 35.2,33.2 36,30Z"/><circle class="ssfete-scintille" style="animation-delay:1.1s" cx="66" cy="12" r="1.8"/><circle class="ssfete-scintille" style="animation-delay:2s" cx="8" cy="54" r="1.6"/><circle class="ssfete-scintille" style="animation-delay:2.9s" cx="58" cy="88" r="1.7"/></svg>';
 
-  // Trois rameaux depuis l'angle, aiguilles de part et d'autre.
   const BRANCHE_SAPIN =
     '<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">' +
-    '<path d="M0,0L87.5,28.4M19.0,6.2l9.2,15.9M19.0,6.2l16.7,-7.4M29.5,9.6l8.1,14.1M29.5,9.6l14.9,-6.6M39.9,13.0l7.1,12.3M39.9,13.0l13.0,-5.8M50.4,16.4l6.1,10.6M50.4,16.4l11.2,-5.0M60.9,19.8l5.1,8.8M60.9,19.8l9.3,-4.1M71.3,23.2l4.1,7.1M71.3,23.2l7.4,-3.3M0,0L65.1,65.1M14.1,14.1l1.0,18.3M14.1,14.1l18.3,1.0M21.9,21.9l0.9,16.2M21.9,21.9l16.2,0.9M29.7,29.7l0.7,14.2M29.7,29.7l14.2,0.7M37.5,37.5l0.6,12.2M37.5,37.5l12.2,0.6M45.3,45.3l0.5,10.2M45.3,45.3l10.2,0.5M53.0,53.0l0.4,8.1M53.0,53.0l8.1,0.4M0,0L28.4,87.5M6.2,19.0l-7.4,16.7M6.2,19.0l15.9,9.2M9.6,29.5l-6.6,14.9M9.6,29.5l14.1,8.1M13.0,39.9l-5.8,13.0M13.0,39.9l12.3,7.1M16.4,50.4l-5.0,11.2M16.4,50.4l10.6,6.1M19.8,60.9l-4.1,9.3M19.8,60.9l8.8,5.1M23.2,71.3l-3.3,7.4M23.2,71.3l7.1,4.1"/></svg>';
+    '<path d="M0,0L87.5,28.4M19,6.2l9.2,15.9M19,6.2l16.7,-7.4M29.5,9.6l8.1,14.1M29.5,9.6l14.9,-6.6M39.9,13l7.1,12.3M39.9,13l13,-5.8M50.4,16.4l6.1,10.6M50.4,16.4l11.2,-5M60.9,19.8l5.1,8.8M60.9,19.8l9.3,-4.1M71.3,23.2l4.1,7.1M71.3,23.2l7.4,-3.3M0,0L65.1,65.1M14.1,14.1l1,18.3M14.1,14.1l18.3,1M21.9,21.9l0.9,16.2M21.9,21.9l16.2,0.9M29.7,29.7l0.7,14.2M29.7,29.7l14.2,0.7M37.5,37.5l0.6,12.2M37.5,37.5l12.2,0.6M45.3,45.3l0.5,10.2M45.3,45.3l10.2,0.5M53,53l0.4,8.1M53,53l8.1,0.4M0,0L28.4,87.5M6.2,19l-7.4,16.7M6.2,19l15.9,9.2M9.6,29.5l-6.6,14.9M9.6,29.5l14.1,8.1M13,39.9l-5.8,13M13,39.9l12.3,7.1M16.4,50.4l-5,11.2M16.4,50.4l10.6,6.1M19.8,60.9l-4.1,9.3M19.8,60.9l8.8,5.1M23.2,71.3l-3.3,7.4M23.2,71.3l7.1,4.1"/>' +
+    '<g fill="var(--accent-2)" stroke="none" opacity=".85">' +
+    '<circle cx="62" cy="21" r="3.4"/><circle cx="47" cy="47" r="3"/><circle cx="21" cy="63" r="3.4"/></g></svg>';
 
-  const FLOCON =
-    '<svg viewBox="-11 -11 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
-    '<path d="M0,0L10.00,0.00M4.40,0.00l2.19,2.60M4.40,0.00l2.19,-2.60M7.20,0.00l1.67,1.99M7.20,0.00l1.67,-1.99M0,0L5.00,8.66M2.20,3.81l-1.16,3.19M2.20,3.81l3.35,0.59M3.60,6.24l-0.89,2.44M3.60,6.24l2.56,0.45M0,0L-5.00,8.66M-2.20,3.81l-3.35,0.59M-2.20,3.81l1.16,3.19M-3.60,6.24l-2.56,0.45M-3.60,6.24l0.89,2.44M0,0L-10.00,0.00M-4.40,0.00l-2.19,-2.60M-4.40,0.00l-2.19,2.60M-7.20,0.00l-1.67,-1.99M-7.20,0.00l-1.67,1.99M0,0L-5.00,-8.66M-2.20,-3.81l1.16,-3.19M-2.20,-3.81l-3.35,-0.59M-3.60,-6.24l0.89,-2.44M-3.60,-6.24l-2.56,-0.45M0,0L5.00,-8.66M2.20,-3.81l3.35,-0.59M2.20,-3.81l-1.16,-3.19M3.60,-6.24l2.56,-0.45M3.60,-6.24l-0.89,-2.44"/></svg>';
-
+  /* La mitre : deux arcs, un bandeau serti de trois gemmes, la croix, et les FANONS qui
+     pendent derrière — ce sont eux qui la rendent immédiatement reconnaissable. */
   const MITRE =
-    '<svg viewBox="0 0 40 48" fill="currentColor">' +
-    '<path d="M20,2C27,10 33,18 33,28L33,44L7,44L7,28C7,18 13,10 20,2Z"/>' +
-    '<rect x="7" y="30" width="26" height="5" fill="var(--surface)"/>' +
-    '<g stroke="var(--surface)" stroke-width="2.6" stroke-linecap="round"><path d="M20,11L20,26"/><path d="M14,18.5L26,18.5"/></g></svg>';
+    '<svg viewBox="0 0 46 60" fill="currentColor">' +
+    '<g opacity=".55"><path d="M14,44L12,58L15.5,55L19,58L18,44Z"/><path d="M28,44L27,58L30.5,55L34,58L32,44Z"/></g>' +
+    '<path d="M23,3C31,13 38,23 38,32L38,46L8,46L8,32C8,23 15,13 23,3Z"/>' +
+    '<rect x="8" y="31" width="30" height="7.5" fill="var(--surface)" opacity=".92"/>' +
+    '<g fill="var(--accent-2)"><circle cx="15" cy="34.8" r="2"/><circle cx="23" cy="34.8" r="2.5"/><circle cx="31" cy="34.8" r="2"/></g>' +
+    '<g stroke="var(--surface)" stroke-width="2.8" stroke-linecap="round"><path d="M23,12L23,26"/><path d="M16.5,18.5L29.5,18.5"/></g>' +
+    '<rect x="8" y="43" width="30" height="3" fill="var(--surface)" opacity=".5"/></svg>';
 
-  // Le spéculoos : en Belgique c'est L'objet de la Saint-Nicolas.
+  /* Le spéculoos : un biscuit ESTAMPÉ. Sans le relief en creux, ce n'était qu'un rectangle. */
   const SPECULOOS =
-    '<svg viewBox="0 0 30 34" fill="currentColor">' +
-    '<rect x="2" y="2" width="26" height="30" rx="4"/>' +
-    '<g fill="var(--surface)" opacity=".5"><circle cx="15" cy="10" r="3.4"/>' +
-    '<path d="M9,16C9,15 21,15 21,16L19.5,25L10.5,25Z"/><path d="M8,18L5,22M22,18L25,22"/></g></svg>';
+    '<svg viewBox="0 0 36 44" fill="currentColor">' +
+    '<path d="M6,5C6,2.8 7.6,1.5 9.8,1.5L26.2,1.5C28.4,1.5 30,2.8 30,5L30,39C30,41.2 28.4,42.5 26.2,42.5L9.8,42.5C7.6,42.5 6,41.2 6,39Z"/>' +
+    '<g fill="var(--surface)" opacity=".42">' +
+    '<path d="M18,7.5C21,10.5 23,13.5 23,16.5L13,16.5C13,13.5 15,10.5 18,7.5Z"/>' +
+    '<circle cx="18" cy="20" r="3.2"/>' +
+    '<path d="M12,25.5C12,23 24,23 24,25.5L25,37L11,37Z"/></g>' +
+    '<g fill="var(--surface)" opacity=".16"><circle cx="9.5" cy="9" r="1.1"/><circle cx="27" cy="12" r="0.9"/>' +
+    '<circle cx="9" cy="33" r="0.9"/><circle cx="27.5" cy="35" r="1.1"/></g></svg>';
 
+  /* Le sabot : la pointe relevée, le veinage du bois, l'ouverture en creux — et la carotte
+     avec ses fanes, qui est la moitié de l'image. */
   const SABOT =
-    '<svg viewBox="0 0 46 30" fill="currentColor">' +
-    '<path d="M18,2L22,10L25,8.6L21,1Z" fill="#e07c00"/>' +
-    '<path d="M17,1.5C15,0 13,0.5 13,2C13,3.4 15,4 17,3Z" fill="#6b8f3a"/>' +
-    '<path d="M7,26C2.5,22 3,14.5 9.5,11.5C12.5,10 16.5,9.5 21,9.5L33,9.5C38.5,9.5 43,13.5 43,18C43,22.4 39.5,26 35,26Z"/></svg>';
+    '<svg viewBox="0 0 56 40" fill="currentColor">' +
+    '<path d="M30,13L36,2.5L40.5,5.5L34.5,15Z" fill="#e07c00"/>' +
+    '<path d="M35,3.5C33,0.5 29.8,1 29.3,3.5C31.4,4 33,4 35,3.5Z" fill="#6b8f3a"/>' +
+    '<path d="M37.5,2.5C37.5,-0.6 40.6,-0.6 41.5,1.4C40,2.5 38.5,2.7 37.5,2.5Z" fill="#6b8f3a"/>' +
+    '<path d="M9,34C3,29 3,19 11,15C15,13 20,12.5 26,12.5L41,12.5C48,12.5 53,17 53,24C53,30 48,34 42,34Z"/>' +
+    '<ellipse cx="22" cy="15.5" rx="11" ry="3.2" fill="var(--surface)" opacity=".45"/>' +
+    '<g fill="none" stroke="var(--surface)" stroke-width="1" opacity=".3">' +
+    '<path d="M16,23C24,21 38,21 46,24"/><path d="M15,28C24,26 38,26 47,29"/></g>' +
+    '<path d="M9,34C4,30 5,22 10.5,19" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
 
-  // Saint-Nicolas sur son âne. Le plus complexe des dessins : mitre, barbe, crosse et cape
-  // suffisent à le rendre reconnaissable même à 80 px.
-  /* LE BATEAU DE SAINT-NICOLAS. Dans la tradition belge, il arrive d'Espagne par bateau — d'ou
-     un decor qui TRAVERSE l'ecran pour une raison evidente, au lieu de flotter sans raison.
-     ⚠️ Le saint sur son ane a ete essaye DEUX fois et abandonne : a 84 px, en mouvement et en
-     opacite basse, l'ane et le cavalier fusionnaient en une seule masse. Mettre l'ane en retrait
-     a aide sans suffire. La lecon vaut pour les prochaines fetes : a cette taille il faut QUATRE
-     formes franches, pas une illustration. */
+  /* Le bateau de Saint-Nicolas. Il arrive d'Espagne par bateau — d'où un décor qui TRAVERSE
+     l'écran pour une raison évidente. La fumée s'échappe vraiment (trois bouffées décalées),
+     la coque a sa ligne de flottaison et ses hublots, et il y a des caisses sur le pont.
+     ⚠️ Le saint sur son âne a été essayé DEUX fois et abandonné : à cette taille, en mouvement,
+     l'âne et le cavalier fusionnaient. Il faut QUATRE formes franches, pas une illustration. */
   const BATEAU =
-    '<svg viewBox="0 0 100 58" fill="currentColor">' +
-    '<path d="M8,37L92,37L84,51L16,51Z"/>' +
-    '<rect x="28" y="22" width="34" height="15" rx="2"/>' +
-    '<rect x="33" y="26" width="7" height="7" rx="1" fill="var(--surface)"/>' +
-    '<rect x="46" y="26" width="7" height="7" rx="1" fill="var(--surface)"/>' +
-    '<rect x="66" y="15" width="10" height="22" rx="2"/>' +
-    '<rect x="63.5" y="12" width="15" height="4.5" rx="1.5"/>' +
-    '<circle cx="73" cy="5.5" r="4.2" opacity=".5"/><circle cx="84" cy="2.5" r="2.8" opacity=".35"/>' +
-    '<g stroke="currentColor" fill="none" stroke-linecap="round">' +
-    '<path d="M20,37L20,13" stroke-width="2.4"/>' +
-    '<path d="M3,52C13,47.5 23,56 33,51.5C43,47 53,55.5 63,51C73,46.5 85,55 97,50.5" stroke-width="2.4" opacity=".45"/></g>' +
-    '<path d="M20,13L35,17.5L20,22Z"/></svg>';
+    '<svg viewBox="0 0 120 72" fill="currentColor">' +
+    '<g opacity=".55"><circle class="ssfete-fumee" cx="84" cy="14" r="4.5" style="animation-delay:0s"/>' +
+    '<circle class="ssfete-fumee" cx="84" cy="14" r="3.4" style="animation-delay:1.5s"/>' +
+    '<circle class="ssfete-fumee" cx="84" cy="14" r="2.6" style="animation-delay:3s"/></g>' +
+    '<rect x="78" y="16" width="12" height="26" rx="2"/>' +
+    '<rect x="75.5" y="12.5" width="17" height="5" rx="2"/>' +
+    '<rect x="78" y="21" width="12" height="3.5" fill="var(--surface)" opacity=".5"/>' +
+    '<rect x="32" y="22" width="40" height="20" rx="2.5"/><rect x="29" y="18.5" width="46" height="4.5" rx="1.5"/>' +
+    '<g fill="var(--surface)" opacity=".55"><rect x="37" y="27" width="8" height="8" rx="1.5"/>' +
+    '<rect x="49" y="27" width="8" height="8" rx="1.5"/><rect x="61" y="27" width="7" height="8" rx="1.5"/></g>' +
+    '<rect x="13" y="30" width="14" height="12" rx="1.5"/>' +
+    '<g stroke="var(--surface)" stroke-width="1.5" opacity=".5"><path d="M20,30L20,42"/><path d="M13,36L27,36"/></g>' +
+    '<path d="M6,42L112,42L102,60L18,60Z"/>' +
+    '<path d="M10,50L107,50" stroke="var(--surface)" stroke-width="2.4" opacity=".4"/>' +
+    '<g fill="var(--surface)" opacity=".5"><circle cx="34" cy="46" r="2.4"/><circle cx="46" cy="46" r="2.4"/>' +
+    '<circle cx="58" cy="46" r="2.4"/><circle cx="70" cy="46" r="2.4"/></g>' +
+    '<path d="M22,42L22,9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+    '<path d="M22,9L41,14.5L22,20Z"/>' +
+    '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
+    '<path d="M2,64C14,59 26,69 38,64C50,59 62,69 74,64C86,59 100,69 114,64" stroke-width="2.6" opacity=".45"/>' +
+    '<path d="M8,70C20,66 32,74 44,70C56,66 70,74 84,70" stroke-width="2" opacity=".26"/></g></svg>';
 
-  const BOULE =
-    '<svg viewBox="0 0 30 38" fill="currentColor">' +
-    '<path d="M12,7L12,4.5C12,2.6 13.3,1.5 15,1.5C16.7,1.5 18,2.6 18,4.5L18,7" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
-    '<rect x="11.2" y="6" width="7.6" height="5" rx="1.5"/>' +
-    '<circle cx="15" cy="24" r="12"/>' +
-    '<path d="M5,20C9,17.5 21,17.5 25,20" fill="none" stroke="var(--surface)" stroke-width="1.6" opacity=".45"/>' +
-    '<circle cx="10.5" cy="19" r="2.3" fill="var(--surface)" opacity=".35"/></svg>';
-
+  /* Le sapin : quatre étages, des guirlandes, des boules, et l'étoile qui scintille.
+     La première version était un triangle en escalier — d'où le retour « pas assez soigné ». */
   const SAPIN =
-    '<svg viewBox="0 0 32 42" fill="currentColor">' +
-    '<rect x="13.5" y="34" width="5" height="6"/>' +
-    '<path d="M16,2L24,14L20,14L27,25L22,25L30,35L2,35L10,25L5,25L12,14L8,14Z"/></svg>';
+    '<svg viewBox="0 0 42 58" fill="currentColor">' +
+    '<rect x="18" y="47" width="6" height="8" rx="1.5" opacity=".7"/>' +
+    '<path d="M21,30L37,49Q21,45.5 5,49Z"/>' +
+    '<path d="M21,19L33,35Q21,31.5 9,35Z"/>' +
+    '<path d="M21,10L29,23Q21,20 13,23Z"/>' +
+    '<g fill="none" stroke="var(--surface)" stroke-linecap="round">' +
+    '<path d="M8,44Q21,38.5 34,44" stroke-width="1.4" opacity=".42"/>' +
+    '<path d="M11.5,31Q21,26.5 30.5,31" stroke-width="1.2" opacity=".36"/></g>' +
+    '<g fill="var(--surface)"><circle cx="13" cy="43.5" r="2" opacity=".6"/><circle cx="27.5" cy="44" r="1.8" opacity=".55"/>' +
+    '<circle cx="16.5" cy="31.5" r="1.6" opacity=".5"/><circle cx="25.5" cy="32" r="1.6" opacity=".5"/>' +
+    '<circle cx="21" cy="21.5" r="1.4" opacity=".45"/></g>' +
+    '<path class="ssfete-scintille" fill="var(--accent-2)" d="M21,0C22.4,5.6 22.4,5.6 28,7C22.4,8.4 22.4,8.4 21,14C19.6,8.4 19.6,8.4 14,7C19.6,5.6 19.6,5.6 21,0Z"/></svg>';
 
+  /* La boule : calotte et anneau, un zigzag peint, une étoile gravée, et un reflet qui
+     respire. Avant : un disque avec un point blanc. */
+  const BOULE =
+    '<svg viewBox="0 0 36 48" fill="currentColor">' +
+    '<path d="M15,9L15,5.6A3.2,3.2 0 0 1 21,5.6L21,9" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+    '<rect x="12.5" y="7.5" width="11" height="6.5" rx="2"/>' +
+    '<rect x="12.5" y="10.2" width="11" height="1.6" fill="var(--surface)" opacity=".45"/>' +
+    '<circle cx="18" cy="29" r="15"/>' +
+    '<path d="M4.6,26L9,23L13.4,26L17.8,23L22.2,26L26.6,23L31,26" fill="none" stroke="var(--surface)" stroke-width="2" opacity=".5"/>' +
+    '<path d="M5.4,34.5C10,37 26,37 30.6,34.5" fill="none" stroke="var(--surface)" stroke-width="1.5" opacity=".32"/>' +
+    '<path fill="var(--surface)" opacity=".38" d="M18,25.5C18.9,28.6 18.9,28.6 22,29.5C18.9,30.4 18.9,30.4 18,33.5C17.1,30.4 17.1,30.4 14,29.5C17.1,28.6 17.1,28.6 18,25.5Z"/>' +
+    '<ellipse class="ssfete-eclat" cx="11.5" cy="22.5" rx="3.4" ry="4.6" transform="rotate(-25 11.5 22.5)" fill="var(--surface)"/></svg>';
+
+  /* Le cadeau : couvercle débordant, deux rubans, et un VRAI nœud — deux boucles, un centre,
+     deux pans. C'est le nœud qui fait la différence avec une boîte quelconque. */
   const CADEAU =
-    '<svg viewBox="0 0 34 32" fill="currentColor">' +
-    '<rect x="3" y="12" width="28" height="19" rx="1.5"/>' +
-    '<rect x="1" y="7.5" width="32" height="6" rx="1.5"/>' +
-    '<rect x="14.5" y="7.5" width="5" height="23.5" fill="var(--surface)" opacity=".45"/>' +
-    '<path d="M17,8C13,8 10,5 11,2.5C12,0.5 15,1.5 17,8ZM17,8C21,8 24,5 23,2.5C22,0.5 19,1.5 17,8Z"/></svg>';
+    '<svg viewBox="0 0 44 44" fill="currentColor">' +
+    '<rect x="4" y="17" width="36" height="24" rx="2"/>' +
+    '<rect x="1" y="11.5" width="42" height="7" rx="2"/>' +
+    '<rect x="18.5" y="11.5" width="7" height="29.5" fill="var(--surface)" opacity=".5"/>' +
+    '<rect x="4" y="26" width="36" height="4" fill="var(--surface)" opacity=".3"/>' +
+    '<path d="M22,11.5C16,11.5 11,8 12,4.4C13,1.4 18,3 22,11.5Z"/>' +
+    '<path d="M22,11.5C28,11.5 33,8 32,4.4C31,1.4 26,3 22,11.5Z"/>' +
+    '<path d="M19.6,12.6L15,19.4L19.2,18Z" opacity=".65"/><path d="M24.4,12.6L29,19.4L24.8,18Z" opacity=".65"/>' +
+    '<circle cx="22" cy="10.4" r="2.7"/>' +
+    '<ellipse cx="18" cy="6.5" rx="1.5" ry="2.2" fill="var(--surface)" opacity=".3" transform="rotate(-25 18 6.5)"/></svg>';
+
+  /* Le traîneau : patins à double courbe, volute au dossier, liseré, cadeaux rubannés, et une
+     traînée d'étincelles qui scintillent. */
+  /* Le traineau. PREMIERE VERSION REFAITE : juge sur planche, il sortait en tache rouge — trop
+     de detail pour sa taille rendue (88 px), et une caisse qui n'occupait que la moitie du
+     cadre. Ici le cadre est resserre, les patins sont epais et leur double courbe est nette,
+     le dossier a sa volute, et les cadeaux sont poses bien en vue. Meme lecon que le saint sur
+     son ane : a cette taille, des formes franches, pas une illustration. */
+  const TRAINEAU =
+    '<svg viewBox="0 0 104 58" fill="currentColor">' +
+    '<g opacity=".5"><circle class="ssfete-scintille" cx="4" cy="26" r="2.6" style="animation-delay:0s"/>' +
+    '<circle class="ssfete-scintille" cx="11" cy="40" r="1.9" style="animation-delay:0.6s"/></g>' +
+    '<rect x="36" y="6" width="22" height="17" rx="2.5"/>' +
+    '<g stroke="var(--surface)" stroke-width="2.2" opacity=".5"><path d="M47,6L47,23"/><path d="M36,14.5L58,14.5"/></g>' +
+    '<rect x="62" y="12" width="16" height="11" rx="2.5"/>' +
+    '<path d="M70,12L70,23" stroke="var(--surface)" stroke-width="2" opacity=".45"/>' +
+    '<path d="M20,40C18,28 24,23 36,23L80,23C89,23 92,29 88,39L86,43L24,43Z"/>' +
+    '<path d="M80,23C90,17 95,22 92,31" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/>' +
+    '<path d="M25,34L86,34" stroke="var(--surface)" stroke-width="2.6" opacity=".38"/>' +
+    '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
+    '<path d="M16,52C10,44 14,35 24,32" stroke-width="4.2"/>' +
+    '<path d="M16,52L92,52" stroke-width="4.2"/>' +
+    '<path d="M92,52C99,48 99,41 92,39" stroke-width="4.2"/>' +
+    '<path d="M36,43.5L36,52M74,43.5L74,52" stroke-width="3"/></g></svg>';
 
   const ETOILE_FILANTE =
-    '<svg viewBox="0 0 62 26" fill="currentColor">' +
-    '<path d="M1,19C12,13 24,10 35,11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".45"/>' +
-    '<path d="M47,2C49.6,11.2 49.6,11.2 58.8,13.8C49.6,16.4 49.6,16.4 47,25.6C44.4,16.4 44.4,16.4 35.2,13.8C44.4,11.2 44.4,11.2 47,2Z"/></svg>';
+    '<svg viewBox="0 0 66 28" fill="currentColor">' +
+    '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
+    '<path d="M1,21C12,15 23,11 34,11" stroke-width="2.4" opacity=".4"/>' +
+    '<path d="M7,26C16,22 25,19 33,18" stroke-width="1.6" opacity=".22"/></g>' +
+    '<path class="ssfete-scintille" d="M48,1C50.8,11.2 50.8,11.2 61,14C50.8,16.8 50.8,16.8 48,27C45.2,16.8 45.2,16.8 35,14C45.2,11.2 45.2,11.2 48,1Z"/></svg>';
 
-  const TRAINEAU =
-    '<svg viewBox="0 0 94 50" fill="currentColor">' +
-    '<rect x="30" y="8" width="15" height="11" rx="2"/><rect x="47" y="11.5" width="11" height="7.5" rx="2"/>' +
-    '<path d="M16,33C14,26 18,19 27,19L63,19C69,19 71,24 69,31L67,35L20,35Z"/>' +
-    '<g stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round">' +
-    '<path d="M13,40C10,34 12,28 19,26"/><path d="M13,40L76,40"/><path d="M76,40C81,37 81,32 76,31"/></g></svg>';
-
-  /* ── Nouvel An ──────────────────────────────────────────────────────────────────────────── */
-
-  // Le feu d'artifice occupe l'angle comme la toile et la branche : rayons depuis (0,0),
-  // étincelle au bout de chacun, plus une couronne intermédiaire.
+  /* Le feu d'artifice : un cœur lumineux, onze rayons de longueurs inégales, deux couronnes
+     d'étincelles — et l'ensemble qui s'épanouit. */
   const FEU =
     '<svg viewBox="0 0 100 100" fill="currentColor">' +
-    '<g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
-    '<path d="M16.0,0.0L74.0,0.0M15.7,3.1L54.9,10.9M14.8,6.1L68.4,28.3M13.3,8.9L46.6,31.1' +
-    'M11.3,11.3L52.3,52.3M8.9,13.3L31.1,46.6M6.1,14.8L28.3,68.4M3.1,15.7L10.9,54.9M0.0,16.0L0.0,74.0"/></g>' +
-    '<circle cx="77.0" cy="0.0" r="3.2"/><circle cx="57.9" cy="11.5" r="2.2"/><circle cx="33.3" cy="6.6" r="1.7"/>' +
-    '<circle cx="71.1" cy="29.5" r="3.2"/><circle cx="49.1" cy="32.8" r="2.2"/><circle cx="28.3" cy="18.9" r="1.7"/>' +
-    '<circle cx="54.4" cy="54.4" r="3.2"/><circle cx="32.8" cy="49.1" r="2.2"/><circle cx="18.9" cy="28.3" r="1.7"/>' +
-    '<circle cx="29.5" cy="71.1" r="3.2"/><circle cx="11.5" cy="57.9" r="2.2"/><circle cx="6.6" cy="33.3" r="1.7"/>' +
-    '<circle cx="0.0" cy="77.0" r="3.2"/></svg>';
+    '<g class="ssfete-eclore">' +
+    '<g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M13,0L82,0M12.84,2.03L53.34,8.45M12.36,4.02L70.38,22.87M11.58,5.9L55.24,28.15M10.52,7.64L59.87,43.5M9.19,9.19L38.18,38.18M7.64,10.52L48.2,66.34M5.9,11.58L24.52,48.11M4.02,12.36L22.87,70.38M2.03,12.84L9.7,61.24M0,13L0,74"/></g>' +
+    '<circle cx="85.5" cy="0" r="3.4"/><circle cx="56.79" cy="8.99" r="2.1"/><circle cx="31.61" cy="5.01" r="1.6" opacity=".7"/><circle cx="73.71" cy="23.95" r="3.4"/><circle cx="58.36" cy="29.74" r="2.1"/><circle cx="28.51" cy="14.53" r="1.6" opacity=".7"/><circle cx="62.7" cy="45.55" r="3.4"/><circle cx="40.66" cy="40.66" r="2.1"/><circle cx="22.63" cy="22.63" r="1.6" opacity=".7"/><circle cx="50.26" cy="69.17" r="3.4"/><circle cx="26.1" cy="51.23" r="2.1"/><circle cx="14.53" cy="28.51" r="1.6" opacity=".7"/><circle cx="23.95" cy="73.71" r="3.4"/><circle cx="10.25" cy="64.69" r="2.1"/><circle cx="5.01" cy="31.61" r="1.6" opacity=".7"/><circle cx="0" cy="77.5" r="3.4"/>' +
+    '<circle cx="0" cy="0" r="9" opacity=".9"/><circle cx="0" cy="0" r="14" opacity=".3"/></g></svg>';
 
+  /* La flûte : le niveau du vin, des bulles qui MONTENT vraiment, le reflet sur la paroi,
+     le pied. Avant : un triangle sur un bâton. */
   const FLUTE =
-    '<svg viewBox="0 0 24 44" fill="currentColor">' +
-    '<path d="M6,2L18,2L16.5,18C16.2,21.5 14.2,23.5 12,23.5C9.8,23.5 7.8,21.5 7.5,18Z"/>' +
-    '<rect x="11" y="23" width="2" height="14"/><rect x="5.5" y="37" width="13" height="3" rx="1.5"/>' +
-    '<g opacity=".55"><circle cx="9.5" cy="9" r="1.5" fill="var(--surface)"/>' +
-    '<circle cx="14" cy="12.5" r="1.1" fill="var(--surface)"/><circle cx="11.5" cy="15.5" r="0.9" fill="var(--surface)"/></g>' +
-    '<circle cx="19" cy="6" r="1.8" opacity=".5"/><circle cx="21.5" cy="1.8" r="1.2" opacity=".35"/></svg>';
+    '<svg viewBox="0 0 32 56" fill="currentColor">' +
+    '<path d="M8,3L24,3L22,22C21.6,26.6 19,29.2 16,29.2C13,29.2 10.4,26.6 10,22Z"/>' +
+    '<path d="M9.3,10.5L22.7,10.5L22,22C21.6,26.6 19,29.2 16,29.2C13,29.2 10.4,26.6 10,22Z" fill="var(--surface)" opacity=".26"/>' +
+    '<g fill="var(--surface)" opacity=".8">' +
+    '<circle class="ssfete-bulle" cx="13" cy="26" r="1.5" style="animation-delay:0s"/>' +
+    '<circle class="ssfete-bulle" cx="17.5" cy="27" r="1.1" style="animation-delay:0.7s"/>' +
+    '<circle class="ssfete-bulle" cx="15" cy="28" r="0.9" style="animation-delay:1.4s"/>' +
+    '<circle class="ssfete-bulle" cx="19" cy="25.5" r="1.2" style="animation-delay:2.1s"/></g>' +
+    '<path d="M11.2,6.5L11.2,20" stroke="var(--surface)" stroke-width="1.6" opacity=".4" stroke-linecap="round" fill="none"/>' +
+    '<rect x="15" y="29" width="2" height="18"/>' +
+    '<path d="M8,51C8,48.2 10.2,47 16,47C21.8,47 24,48.2 24,51Z"/>' +
+    '<g opacity=".45"><circle class="ssfete-bulle" cx="27" cy="8" r="1.8" style="animation-delay:0.4s"/>' +
+    '<circle class="ssfete-bulle" cx="29.5" cy="4" r="1.2" style="animation-delay:1.8s"/></g></svg>';
 
-  // Minuit : c'est l'image du Nouvel An qui ne demande aucune explication.
+  /* L'horloge : cloches, marteau, pieds, un cadran avec ses DOUZE index (les cardinaux plus
+     longs), et les aiguilles à minuit pile. */
   const HORLOGE =
-    '<svg viewBox="0 0 34 36" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">' +
-    '<circle cx="17" cy="20" r="14"/>' +
-    '<path d="M17,11L17,20L17,20" stroke-width="2.6"/><path d="M17,20L17,13.5"/>' +
-    '<path d="M9,6L13,2M25,6L21,2" stroke-width="2.6"/>' +
-    '<circle cx="17" cy="20" r="1.4" fill="currentColor" stroke="none"/></svg>';
+    '<svg viewBox="0 0 46 52" fill="currentColor">' +
+    '<path d="M9.5,11C4,9 3,2.5 7.5,1.2C10.8,0.3 12.5,3.5 12.5,7.5Z"/>' +
+    '<path d="M36.5,11C42,9 43,2.5 38.5,1.2C35.2,0.3 33.5,3.5 33.5,7.5Z"/>' +
+    '<path d="M23,8.5L23,4.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<g stroke="currentColor" stroke-width="3.2" stroke-linecap="round" fill="none">' +
+    '<path d="M12,42L8,50"/><path d="M34,42L38,50"/></g>' +
+    '<circle cx="23" cy="26" r="17.5"/>' +
+    '<circle cx="23" cy="26" r="13.8" fill="var(--surface)" opacity=".92"/>' +
+    '<g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".65"><path d="M23,14.1L23,17.5M28.95,15.69L27.95,17.43M33.31,20.05L31.57,21.05M34.9,26L31.5,26M33.31,31.95L31.57,30.95M28.95,36.31L27.95,34.57M23,37.9L23,34.5M17.05,36.31L18.05,34.57M12.69,31.95L14.43,30.95M11.1,26L14.5,26M12.69,20.05L14.43,21.05M17.05,15.69L18.05,17.43"/></g>' +
+    '<g stroke="currentColor" stroke-linecap="round"><path d="M23,26L23,16.5" stroke-width="2.6"/>' +
+    '<path d="M23,26L23,19.5" stroke-width="3.2"/></g>' +
+    '<circle cx="23" cy="26" r="1.9"/>' +
+    '<path d="M14,18C16.5,15 19.5,13.5 23,13.2" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".28" stroke-linecap="round"/></svg>';
 
-  // Un confetti : un simple ruban. Sa COULEUR vient de la palette (voir `tombe.palette`),
-  // pas du thème — des confettis d'une seule couleur, ce ne sont plus des confettis.
-  const CONFETTI =
-    '<svg viewBox="0 0 12 18" fill="currentColor"><rect x="0" y="0" width="12" height="18" rx="2.5"/></svg>';
+  /* Trois confettis différents : un ruban, un disque, une serpentine. Un seul dessin répété
+     seize fois se voit immédiatement. */
+  /* Quatre confettis. La premiere version — un rectangle plat, un disque plat, un gribouillis —
+     etait la plus pauvre de tout le lot : jugee sur planche, elle ne tenait pas a cote de la
+     boule ou de la flute. Chacun a maintenant son PLI ou son reflet, ce qui lui donne du volume
+     quand il tourne en tombant (la chute applique deja une rotation). */
+  const CONFETTIS = [
+    // ruban plie
+    '<svg viewBox="0 0 14 20" fill="currentColor"><path d="M1,1L13,3L12,19L2,17Z"/>' +
+      '<path d="M7,2L13,3L12,19L7,18Z" fill="var(--surface)" opacity=".26"/></svg>',
+    // pastille, avec son croissant de lumiere
+    '<svg viewBox="0 0 14 14" fill="currentColor"><circle cx="7" cy="7" r="6.5"/>' +
+      '<path d="M7,0.5A6.5,6.5 0 0 1 7,13.5A4.4,6.5 0 0 0 7,0.5Z" fill="var(--surface)" opacity=".24"/></svg>',
+    // serpentin
+    '<svg viewBox="0 0 20 26" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round">' +
+      '<path d="M4,2C14,5 5,11 15,14C19,15.2 19,19 15,21C12,22.5 8,23 5,24"/></svg>',
+    // eclat triangulaire
+    '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M7,0.5L13.5,12.5L0.5,12.5Z"/>' +
+      '<path d="M7,0.5L13.5,12.5L7,12.5Z" fill="var(--surface)" opacity=".22"/></svg>',
+  ];
+
+  /* ── Rentrée scolaire ────────────────────────────────────────────────────────────────────
+     Le rendez-vous le plus UTILE de l'année pour cet ERP : les clients sont des écoles, et
+     c'est fin août que tout se décide. ───────────────────────────────────────────────────── */
+
+  /* Trois crayons en éventail depuis l'angle — même géométrie calculée que la toile et la
+     branche. Chacun a son corps, sa pointe taillée, sa mine, sa bague et sa gomme. */
+  const CRAYONS =
+    '<svg viewBox="0 0 100 100" fill="currentColor">' +
+    '<g><path d="M12.5,7.75L86.24,26.14L88.42,17.41L14.67,-0.98Z"/>' +
+    '<path d="M86.24,26.14L85,22.82L85.77,19.76L88.42,17.41Z" fill="var(--surface)" opacity=".55"/>' +
+    '<path d="M85,22.82L90.24,22.5L85.77,19.76Z" opacity=".85"/>' +
+    '<path d="M3.76,5.58L12.5,7.75L14.67,-0.98L5.94,-3.16Z" fill="#e08a84"/>' +
+    '<path d="M38.31,14.19L40.48,5.46" stroke="var(--accent-2)" stroke-width="3.2" fill="none" opacity=".85"/></g>' +
+    '<g><path d="M7.07,12.73L56.57,62.23L62.23,56.57L12.73,7.07Z"/>' +
+    '<path d="M56.57,62.23L56.99,58.97L58.97,56.99L62.23,56.57Z" fill="var(--surface)" opacity=".55"/>' +
+    '<path d="M56.99,58.97L61.52,61.52L58.97,56.99Z" opacity=".85"/>' +
+    '<path d="M0.71,6.36L7.07,12.73L12.73,7.07L6.36,0.71Z" fill="#e08a84"/>' +
+    '<path d="M24.4,30.05L30.05,24.4" stroke="var(--accent-2)" stroke-width="3.2" fill="none" opacity=".85"/></g>' +
+    '<g><path d="M-0.98,14.67L17.41,88.42L26.14,86.24L7.75,12.5Z"/>' +
+    '<path d="M17.41,88.42L19.76,85.77L22.82,85L26.14,86.24Z" fill="var(--surface)" opacity=".55"/>' +
+    '<path d="M19.76,85.77L22.5,90.24L22.82,85Z" opacity=".85"/>' +
+    '<path d="M-3.16,5.94L-0.98,14.67L7.75,12.5L5.58,3.76Z" fill="#e08a84"/>' +
+    '<path d="M5.46,40.48L14.19,38.31" stroke="var(--accent-2)" stroke-width="3.2" fill="none" opacity=".85"/></g></svg>';
+
+  // Un crayon seul, pour la marque du bandeau : gomme, bague, corps, pointe taillée, mine.
+  const CRAYON =
+    '<svg viewBox="0 0 16 58" fill="currentColor">' +
+    '<rect x="3.5" y="2" width="9" height="8.5" rx="2.5" fill="#e08a84"/>' +
+    '<rect x="3" y="9.5" width="10" height="4.5" fill="var(--accent-2)"/>' +
+    '<rect x="3" y="13.5" width="10" height="31"/>' +
+    '<path d="M5.5,15L5.5,44" stroke="var(--surface)" stroke-width="1.4" opacity=".28"/>' +
+    '<path d="M3,44.5L8,55L13,44.5Z" fill="var(--surface)" opacity=".6"/>' +
+    '<path d="M6,51L8,55L10,51Z"/></svg>';
+
+  /* Le cartable : rabat, boucle, poignée, soufflets. C'est la boucle en accent qui le rend
+     lisible d'un coup d'œil. */
+  const CARTABLE =
+    '<svg viewBox="0 0 40 44" fill="currentColor">' +
+    '<path d="M13,10L13,5.5C13,3.2 15.5,2 20,2C24.5,2 27,3.2 27,5.5L27,10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<path d="M6,15C6,12 8,10.5 11,10.5L29,10.5C32,10.5 34,12 34,15L34,35C34,38 32,39.5 29,39.5L11,39.5C8,39.5 6,38 6,35Z"/>' +
+    '<g fill="var(--surface)" opacity=".3"><rect x="9.5" y="30" width="7" height="2.2" rx="1.1"/><rect x="23.5" y="30" width="7" height="2.2" rx="1.1"/></g>' +
+    '<path d="M4,14C4,11 6,9.5 9,9.5L31,9.5C34,9.5 36,11 36,14L36,23C36,25 34,26 31,26L9,26C6,26 4,25 4,23Z"/>' +
+    '<rect x="16" y="23" width="8" height="7.5" rx="1.8" fill="var(--accent-2)"/>' +
+    '<rect x="17.8" y="25.5" width="4.4" height="2.4" rx="1" fill="var(--surface)" opacity=".55"/></svg>';
+
+  // Une pile de livres, tranches visibles et signet qui dépasse.
+  const LIVRES =
+    '<svg viewBox="0 0 46 42" fill="currentColor">' +
+    '<rect x="4" y="29" width="38" height="9" rx="1.8"/>' +
+    '<rect x="4" y="29" width="5" height="9" fill="var(--surface)" opacity=".38"/>' +
+    '<rect x="7" y="19.5" width="33" height="8.5" rx="1.8"/>' +
+    '<rect x="7" y="19.5" width="4.5" height="8.5" fill="var(--surface)" opacity=".38"/>' +
+    '<rect x="5.5" y="10" width="30" height="8.5" rx="1.8"/>' +
+    '<rect x="5.5" y="10" width="4.5" height="8.5" fill="var(--surface)" opacity=".38"/>' +
+    '<path d="M28,18.5L28,26L30.5,23.5L33,26L33,18.5Z" fill="var(--accent-2)" opacity=".9"/>' +
+    '<g fill="var(--surface)" opacity=".22"><rect x="14" y="13" width="14" height="1.8" rx="0.9"/>' +
+    '<rect x="16" y="22.5" width="16" height="1.8" rx="0.9"/></g></svg>';
+
+  /* L'avion en papier : deux ailes de tons différents (sans quoi c'est un triangle), le pli,
+     et une traînée pointillée. Il traverse l'écran pour une raison évidente. */
+  const AVION =
+    '<svg viewBox="0 0 72 42" fill="currentColor">' +
+    '<path d="M1,33C10,29.5 18,26 26,23.5" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-dasharray="4 4.5" stroke-linecap="round" opacity=".35"/>' +
+    '<path d="M68,5L8,24L31,29Z"/>' +
+    '<path d="M68,5L31,29L37,39Z" opacity=".55"/>' +
+    '<path d="M68,5L31,29" fill="none" stroke="var(--surface)" stroke-width="1.3" opacity=".45"/></svg>';
+
+  /* Trois feuilles différentes : fin août, l'été bascule. Même mécanisme que la neige et les
+     confettis — seul le dessin change. */
+  const FEUILLES = [
+    '<svg viewBox="0 0 22 26" fill="currentColor"><path d="M11,1C17.5,6.5 18.5,16 11,23C3.5,16 4.5,6.5 11,1Z"/>' +
+      '<path d="M11,3.5L11,24" stroke="var(--surface)" stroke-width="1.2" opacity=".45" fill="none"/>' +
+      '<g stroke="var(--surface)" stroke-width="0.9" opacity=".3" fill="none">' +
+      '<path d="M11,9L6.5,7M11,9L15.5,7M11,15L6,13.5M11,15L16,13.5"/></g></svg>',
+    '<svg viewBox="0 0 24 26" fill="currentColor">' +
+      '<path d="M12,1L15.5,8L21,6.5L17.5,12L22,16.5L15.5,16.5L14,25L12,19.5L10,25L8.5,16.5L2,16.5L6.5,12L3,6.5L8.5,8Z"/>' +
+      '<path d="M12,12L12,25" stroke="var(--surface)" stroke-width="1.1" opacity=".4" fill="none"/></svg>',
+    '<svg viewBox="0 0 18 28" fill="currentColor"><path d="M9,1C13,8.5 13,18 9,25C5,18 5,8.5 9,1Z"/>' +
+      '<path d="M9,3L9,27" stroke="var(--surface)" stroke-width="1.1" opacity=".45" fill="none"/></svg>',
+  ];
 
   /* ── Le calendrier ──────────────────────────────────────────────────────────────────────────
      Les bornes s'écrivent en MM-JJ : elles reviennent toutes seules chaque année, il n'y a aucun
@@ -291,6 +473,40 @@
       ],
     },
 
+    /* RENTRÉE SCOLAIRE — du 25 août au 7 septembre. C'est le rendez-vous le plus UTILE de
+       l'année pour cet ERP : les clients sont des écoles, et tout se décide fin août. */
+    {
+      id: 'rentree',
+      nom: 'Rentrée',
+      du: '08-25', au: '09-07',
+      coin: {
+        svg: CRAYONS, taille: 58,
+        teinte: { sombre: '#f0c05a', clair: '#9a6f10' }, opacite: { sombre: 0.42, clair: 0.42 },
+        bete: {
+          svg: CARTABLE, taille: 21, fil: 12,
+          teinte: { sombre: '#c89168', clair: '#7a4e24' }, opacite: { sombre: 0.9, clair: 0.85 },
+        },
+      },
+      marque: { svg: CRAYON, taille: 13,
+        teinte: { sombre: '#f0c05a', clair: '#9a6f10' }, opacite: { sombre: 1, clair: 1 } },
+      rail: {
+        coin: { svg: CRAYONS, taille: 54,
+          teinte: { sombre: '#f0c05a', clair: '#9a6f10' }, opacite: { sombre: 0.28, clair: 0.28 } },
+        pied: { svg: LIVRES, taille: 32,
+          teinte: { sombre: '#78a9d6', clair: '#2f5f8f' }, opacite: { sombre: 0.9, clair: 0.9 } },
+      },
+      volants: [
+        { svg: AVION, taille: 52, haut: '17%', duree: 23, retard: 4,
+          teinte: { sombre: '#dfe6f5', clair: '#5c6b86' }, opacite: { sombre: 0.45, clair: 0.32 } },
+      ],
+      // Fin août, l'été bascule : des feuilles plutôt que de la neige.
+      tombe: {
+        svg: FEUILLES, taille: 17, nombre: 10, duree: 17,
+        palette: ['#d98841', '#c9622f', '#e0a63c', '#a8562a', '#c98a4b'],
+        teinte: { sombre: '#d98841', clair: '#a8562a' }, opacite: { sombre: 0.6, clair: 0.5 },
+      },
+    },
+
     /* SAINT-NICOLAS — six jours seulement, et c'est voulu : la fête EST courte, un décor qui
        traînerait deux semaines lui ferait perdre son caractère d'événement. */
     {
@@ -320,7 +536,7 @@
         { svg: BATEAU, taille: 86, haut: '58%', duree: 34, retard: 15, rare: true,
           teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.45, clair: 0.32 } },
       ],
-      tombe: { svg: FLOCON, taille: 15, nombre: 9, duree: 16,
+      tombe: { svg: FLOCONS, taille: 15, nombre: 9, duree: 16,
         teinte: { sombre: '#cfe3ff', clair: '#7f9ec9' }, opacite: { sombre: 0.5, clair: 0.38 } },
     },
 
@@ -354,7 +570,7 @@
         { svg: TRAINEAU, taille: 88, haut: '60%', duree: 34, retard: 17, rare: true,
           teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.4, clair: 0.3 } },
       ],
-      tombe: { svg: FLOCON, taille: 16, nombre: 14, duree: 14,
+      tombe: { svg: FLOCONS, taille: 16, nombre: 14, duree: 14,
         teinte: { sombre: '#dce9ff', clair: '#8ba6cc' }, opacite: { sombre: 0.55, clair: 0.4 } },
     },
 
@@ -389,7 +605,7 @@
          l'emplacement s'appelle « tombe » et non « neige ». Seule la PALETTE est nouvelle :
          des confettis d'une seule couleur ne sont plus des confettis. */
       tombe: {
-        svg: CONFETTI, taille: 13, nombre: 16, duree: 11,
+        svg: CONFETTIS, taille: 13, nombre: 16, duree: 11,
         palette: ['#ffd45e', '#ff6b8a', '#5ad1ff', '#8fe36b', '#c08cff', '#ff9e5e'],
         teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.75, clair: 0.6 },
       },
@@ -688,6 +904,38 @@
       .ssfete-lueur { animation: ssfete-lueur 2.8s ease-in-out infinite; }
       @keyframes ssfete-lueur { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
 
+      /* ANIMATIONS DE DÉTAIL. C'est ce qui séparait Halloween du reste : les ailes battaient et
+         la citrouille respirait, pendant que les décors de décembre restaient figés. Chacune
+         s'applique à un morceau DANS le dessin, jamais à l'objet entier.
+         ⚠️ << transform-box: fill-box >> est indispensable : sans lui, << transform-origin: center >>
+         désigne le centre du VIEWPORT SVG et non celui de la forme — l'élément part alors en
+         diagonale au lieu de pivoter sur lui-même. */
+      .ssfete-scintille, .ssfete-bulle, .ssfete-fumee, .ssfete-eclore {
+        transform-box: fill-box; transform-origin: center; }
+      .ssfete-scintille { animation: ssfete-scintille 3.2s ease-in-out infinite; }
+      @keyframes ssfete-scintille {
+        0%, 100% { opacity: 0.45; transform: scale(0.82); }
+        50%      { opacity: 1;    transform: scale(1.1); }
+      }
+      .ssfete-bulle { animation: ssfete-bulle 2.8s ease-in infinite; }
+      @keyframes ssfete-bulle {
+        0%   { transform: translateY(2px); opacity: 0; }
+        25%  { opacity: 0.9; }
+        100% { transform: translateY(-13px); opacity: 0; }
+      }
+      .ssfete-fumee { animation: ssfete-fumee 4.5s ease-out infinite; }
+      @keyframes ssfete-fumee {
+        0%   { transform: translate(0, 0) scale(0.55); opacity: 0.6; }
+        100% { transform: translate(8px, -14px) scale(1.6); opacity: 0; }
+      }
+      .ssfete-eclore { animation: ssfete-eclore 3.6s ease-in-out infinite; }
+      @keyframes ssfete-eclore {
+        0%, 100% { transform: scale(0.9); opacity: 0.75; }
+        50%      { transform: scale(1.04); opacity: 1; }
+      }
+      .ssfete-eclat { animation: ssfete-eclat 4.5s ease-in-out infinite; }
+      @keyframes ssfete-eclat { 0%, 100% { opacity: 0.22; } 50% { opacity: 0.6; } }
+
       /* Sur petit écran on allège : l'écran est déjà plein, et c'est là qu'on travaille vite. */
       /* DEUX SEUILS, et ils ne disent pas la même chose.
          900 px : la sorcière fait 92 px de large, elle encombre dès qu'on quitte le grand écran.
@@ -714,7 +962,8 @@
       @media (prefers-reduced-motion: reduce) {
         #${SKY} { display: none; }
         .ssfete-pendu, .ssfete-pendu .ssfete-fil, .ssfete-pendu .ssfete-bete { animation: none; }
-        .ssfete-lueur { animation: none; }
+        .ssfete-lueur, .ssfete-scintille, .ssfete-bulle, .ssfete-fumee,
+        .ssfete-eclore, .ssfete-eclat { animation: none; }
       }
 
       /* À l'impression, rien. Jamais. */
@@ -790,7 +1039,9 @@
             (-(i * 1.9).toFixed(1)) + 's infinite';
           // Une palette l'emporte sur la teinte de thème : voir le commentaire de `tombe`.
           if (t.palette && t.palette.length) d.style.color = t.palette[i % t.palette.length];
-          d.innerHTML = dessin(t);
+          /* `svg` peut être une LISTE : un seul flocon répété seize fois se voit immédiatement,
+             et c'est exactement ce qui faisait « pas soigné ». On alterne par rang. */
+          d.innerHTML = (!t.img && Array.isArray(t.svg)) ? t.svg[i % t.svg.length] : dessin(t);
           ciel.appendChild(d);
         }
       }

@@ -72,6 +72,13 @@
     check('en plein été : rien',     nom(F.active(d(2026, 7, 14))), null);
     check("l'année suivante aussi",  nom(F.active(d(2027, 10, 15))), 'Halloween');
 
+    // ══════════ 4 ante. Rentrée scolaire ══════════
+    check('24 août : rien',          nom(F.active(d(2026, 8, 24))), null);
+    check('25 août : Rentrée',       nom(F.active(d(2026, 8, 25))), 'Rentrée');
+    check('1er septembre : Rentrée', nom(F.active(d(2026, 9, 1))),  'Rentrée');
+    check('7 septembre : Rentrée',   nom(F.active(d(2026, 9, 7))),  'Rentrée');
+    check('8 septembre : plus rien', nom(F.active(d(2026, 9, 8))),  null);
+
     // ══════════ 4 bis. Décembre : Saint-Nicolas puis Noël ══════════
     check('30 novembre : rien',        nom(F.active(d(2026, 11, 30))), null);
     check('1er décembre : Saint-Nicolas', nom(F.active(d(2026, 12, 1))), 'Saint-Nicolas');
@@ -144,8 +151,15 @@
       check(f.id + ' : au moins un décor', slots.length > 0, true);
       // Un décor est soit du SVG en ligne, soit un fichier — jamais ni l'un ni l'autre, sinon
       // il se monte dans le vide sans la moindre erreur.
-      check(f.id + ' : chaque décor porte un dessin',
-        slots.every(function (s) { return (typeof s.svg === 'string' && s.svg.indexOf('<svg') === 0) || typeof s.img === 'string'; }), true);
+      /* Un décor porte soit du SVG en ligne, soit une LISTE de SVG (neige, confettis, feuilles :
+         un seul dessin répété se voit immédiatement), soit un fichier. Jamais rien : il se
+         monterait dans le vide, sans la moindre erreur. */
+      const aUnDessin = function (x) {
+        if (typeof x.img === 'string') return true;
+        if (Array.isArray(x.svg)) return x.svg.length > 0 && x.svg.every(function (v) { return typeof v === 'string' && v.indexOf('<svg') === 0; });
+        return typeof x.svg === 'string' && x.svg.indexOf('<svg') === 0;
+      };
+      check(f.id + ' : chaque décor porte un dessin', slots.every(aUnDessin), true);
       // Les décors ne doivent pas se lire comme un statut : ils vivent en opacité basse.
       check(f.id + ' : opacités raisonnables',
         slots.every(function (s) { return tons(s.opacite).every(function (o) { return o === undefined || (o > 0 && o <= 1); }); }), true);
