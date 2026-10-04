@@ -70,8 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 77 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 77 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 88 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 88 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -629,6 +629,20 @@ devis, jamais un taux écrit dans le code.
 
 ## Pièges déjà payés — ne pas les repayer
 
+- **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
+  parce que beaucoup d'items n'ont pas de champ `quantite` — légitime. Mais il avale aussi :
+  • le **zéro ÉCRIT**, qui devient 1 : on paie une ouverture qui n'existe pas ;
+  • le **négatif**, qui passe tel quel : −3 screens = **−150 € de pose soustraits du total**.
+  Le second est la pire forme d'erreur d'argent, parce qu'elle est **invisible** : l'écran de
+  rémunération masque les dossiers qui ne rapportent rien, donc le total baissait sans qu'aucune
+  ligne ne l'explique. Trouvé le 04/10/2026 en rejouant la page Statistiques sur des données
+  dégradées, pas en relisant le code.
+  `SSRemu.quantiteDe(item)` est la seule source : champ absent/vide/illisible → 1, sinon la valeur
+  si elle est > 0, et **0 dans tous les autres cas, jamais un négatif**. `app/stats.html` la
+  consomme aussi (répartition par type, marge par type) plutôt que d'en garder une copie.
+  La leçon générale : **un `|| valeurParDéfaut` sur un NOMBRE confond « absent » et « zéro »**,
+  et ne dit rien du signe. Sur de l'argent, il faut les trois cas séparément.
+
 - **UN FORMULAIRE QUI AFFICHE UN DÉFAUT NON ENREGISTRÉ MENT, et personne ne s'en aperçoit.**
   `el('chEquipe').value = ch.equipe || 'nicolas'` : le sélecteur d'équipe affichait « Nicolas »
   alors que `chantier.equipe` n'existait pas en base. On lisait « Nicolas » à l'écran, donc on ne
@@ -853,7 +867,7 @@ devis, jamais un taux écrit dans le code.
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
-   `tests/remuneration.test.html`, exiger « 77/77 » — c'est de l'argent réel. Les dates s'y
+   `tests/remuneration.test.html`, exiger « 88/88 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.
@@ -872,7 +886,13 @@ devis, jamais un taux écrit dans le code.
 3. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
    déborde de sa boîte.
 4. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
-5. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
+5. **Rejouer un écran sur des données DÉGRADÉES**, pas seulement sur des données propres : un
+   devis sans `calculs`, sans `client`, sans `items`, un item sans type, une quantité à zéro ou
+   négative, un dossier archivé, un dépannage sans ouverture. C'est comme ça qu'ont été trouvés,
+   d'un coup, le « −150 € invisible » de la quantité négative, un dépannage annoncé
+   « sous-traitée » alors que rien ne le disait, et des euros dans une colonne de pourcentages.
+   Aucun des trois ne se voyait en relisant le code, ni en ouvrant la page avec de vraies données.
+6. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
    trouvés sur une capture d'écran alors que les mesures disaient « tout va bien ».
 
 ## La facturation en plusieurs fois — vérifié, ne pas « corriger »
