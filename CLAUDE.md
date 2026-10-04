@@ -70,8 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
-| `assets/js/remuneration.js` | **Ce qu'on doit encaisser.** Fonctions pures, 80 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 80 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 77 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 77 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -549,59 +549,78 @@ et reviennent au dernier thème choisi dedans — sinon, à dix thèmes, le bout
 et Yannick n'ont aucune raison de vouloir le même. Le réglage serveur `affichage.theme_defaut` ne
 sert qu'à un appareil qui n'a encore jamais choisi.
 
-**30. LES 50 € PAR OUVERTURE EXISTENT DEPUIS TOUJOURS — c'est la ligne « Tech 1 ».**
-C'est la chose à savoir avant de toucher à quoi que ce soit en matière de rémunération, et elle
-n'était écrite nulle part. `prix.tech1_gross` vaut **125 € bruts par ouverture** et le diviseur
-brut→net vaut **2,5** : 125 ÷ 2,5 = **50 € nets**, exactement la règle que Nicolas énonce. Et
-280 = 125 + 125 + 30 : la pose facturée au client EST déjà découpée en paie de Tech 1, paie de
-Tech 2 et outillage. Le simulateur l'affiche même en clair (« Tech 1 : 125 € brut / 50 € net »)
-— mais aucun autre écran ne le disait, d'où l'impression que cette paie n'existait pas.
-⚠️ **Ne JAMAIS ajouter une « prime » de 50 € par screen par-dessus la commission** : c'est un
-double paiement, et c'est l'erreur qui a été écrite puis rattrapée le 04/10/2026. Deux tests de
-`remuneration.test.html` sont là pour l'empêcher de revenir ; ne pas les supprimer.
-La seule chose qui manquait vraiment : une **tente solaire** est chiffrée comme un screen (125 €
-bruts) alors qu'elle doit rapporter 100 € nets. La correction est de chiffrer la ligne « Tech 1 »
-à **250 €** sur les prochains devis — pas d'ajouter de l'argent dans le moteur.
+**30. LA RÉMUNÉRATION EST ÉCRITE DU POINT DE VUE DE NICOLAS, et c'est voulu.**
+SolariScreen facture sous SysCore et **Yannick est le patron** : ce qui lui revient, il en fait ce
+qu'il veut, ça ne se suit pas ici. Sa commission reste affichée — elle fait partie du partage de
+la marge et doit être lisible — mais il n'y a ni « reste à toucher » ni prélèvement pour lui.
+**Ne pas « symétriser » `remuneration.js` en croyant bien faire** : ce serait inventer un
+copropriétaire qui n'existe pas, et noyer le seul chiffre qui compte ici.
 
-**30 bis. QUI A POSÉ vit dans `chantier.equipe`, et nulle part ailleurs.** Quatre valeurs
+**30 bis. LA PAIE DE POSE SE COMPTE EN OUVERTURES, PAS EN EUROS DU DEVIS.**
+50 € nets par screen ou volet roulant posé, 100 € nets par tente solaire, **× le nombre posé,
+quoi qu'il arrive**. C'est un tarif convenu entre Nicolas et Yannick, pas une part du devis : si
+un devis a été sous-chiffré, l'écart est pour la société, jamais pour Nicolas.
+⚠️ **C'EST LE PIÈGE LE PLUS COÛTEUX DE CE MODULE, et il a été payé deux fois en deux jours.**
+`prix.tech1_gross` vaut 125 € bruts et le diviseur brut→net vaut 2,5 : 125 ÷ 2,5 = **50 € nets**,
+exactement le tarif d'un screen. **Ça tombe juste, et c'est précisément ce qui rend l'erreur
+invisible.** Une tente est chiffrée elle aussi à 125 € bruts : lue sur le devis, elle ne payait
+que 50 € au lieu des 100 convenus, et personne ne l'aurait vu.
+**Le devis dit comment la pose est FINANCÉE ; il ne dit pas ce que Nicolas a négocié.** Ne jamais
+rebrancher `calculs.tech1_total` sur la paie de Nicolas. Deux tests sont là pour l'empêcher.
+(Chiffrer une tente à 250 € sur la ligne Tech 1 reste la bonne pratique — ça évite que la
+société paie la différence de sa poche — mais ça ne change RIEN à ce qui est dû à Nicolas.)
+Corollaire : **s'il était sur le chantier, il touche TOUTES les ouvertures**, pas la moitié parce
+que Yannick était là aussi. 10 screens à deux, c'est 500 € pour Nicolas. Décidé explicitement.
+
+**30 ter. QUI A POSÉ vit dans `chantier.equipe`, et nulle part ailleurs.** Quatre valeurs
 (`nicolas` / `yannick` / `nicolas_yannick` / `sous_traitant`), saisies dans la fiche devis ET dans
-le planning, traduites en personnes par `SSPlanning.quiDeEquipe` (règle 10 : le vocabulaire vit
-à un seul endroit). Un `pricing_v2.pose` avait été inventé pour ça : il aurait été **effacé en
+le planning, traduites en personnes par `SSPlanning.quiDeEquipe` (règle 10 : le vocabulaire vit à
+un seul endroit). Un `pricing_v2.pose` avait été inventé pour ça : il aurait été **effacé en
 silence**, parce que la fusion serveur d'`upsertDevis` est PEU PROFONDE
 (`Object.assign({}, existant, payload)`) et que le simulateur reconstruit `pricing_v2` de zéro.
-Toute nouvelle donnée sur un devis doit se demander : « quel écran renvoie l'objet parent sans
-ma clé ? »
+Toute nouvelle donnée sur un devis doit se demander : « quel écran renvoie l'objet parent sans ma
+clé ? »
 ⚠️ **`quiDeEquipe('')` retombe sur Nicolas.** Excellent défaut pour un planning (mieux vaut une
 case occupée qu'un trou), désastreux pour de l'argent : il lui attribuerait la paie de TOUS les
 chantiers non renseignés. `SSRemu.poseurs` garde donc sa propre garde avant l'appel, et un test
 vérifie les deux comportements côte à côte pour que la différence reste visible.
 
-**30 ter. La rémunération vit dans `assets/js/remuneration.js`, et elle suit l'argent REÇU.**
-Six règles, toutes détaillées en tête du fichier : (1) la part acquise est au prorata de ce que le
-client a réellement PAYÉ — une facture émise n'est pas de l'argent reçu, et se payer sur un
-encaissement qui n'a pas eu lieu, c'est puiser dans la trésorerie du chantier suivant ; (2) rien
-n'est jamais recalculé, le diviseur brut/net lui-même est relu sur le devis ; (3) la paie de pose
-suit `chantier.equipe` — un seul des nôtres prend UNE ligne de tech et « le reste va pour la
-société » (les mots de Nicolas), à deux elle se partage en parts égales, et les deux cas donnent
-bien 50 € nets à l'ouverture ; (4) sans équipe renseignée, rien n'est attribué et le dossier est
-SIGNALÉ ; (5) un devis refusé ou annulé ne doit rien ; (6) **l'écart avec la cible se SIGNALE, il
-ne se paie pas** — il dit qu'un devis a été sous-chiffré, et ça se corrige sur le devis SUIVANT.
-Les cibles (`remu.cible` dans les réglages) ne versent rien : elles servent à MESURER.
-⚠️ Elles vivent à DEUX endroits, et il faut les deux — `config.js` parce que `fusionner` est une
-liste blanche (une clé absente des DEFAUTS ne peut pas être enregistrée du tout), et
-`remuneration.js` pour que le moteur réponde juste même appelé sans réglages. Un test compare
-les deux : c'est lui qui les empêche de diverger.
-⚠️ Toute page qui affiche de la rémunération charge `planning.js` **avant** `remuneration.js`.
+**30 quater. LA PAIE SUPPOSE QUE LA POSE A EU LIEU — et l'inconnue se SIGNALE, jamais ne s'ignore.**
+On s'appuie sur `SSUI.isPoseDone` (PV de réception, ou commande au statut « posé »), et à défaut
+sur une **date de pose déjà passée** — sinon un chantier réellement fait dont le PV n'a pas été
+rempli disparaîtrait de la paie, en silence et au détriment de Nicolas. C'est le sens dans lequel
+on ne veut pas se tromper : **toute incertitude fait baisser le total, donc toute incertitude doit
+être signalée à l'écran, avec le montant en jeu et le geste pour le débloquer.**
+⚠️ Un chantier daté dans le FUTUR n'est pas « à compléter » : il est à venir. La distinction
+tient au champ `datee` de `poseFaite` ; sans elle, tout chantier planifié sortait en dossier à
+corriger — et un écran qui réclame pour rien, on apprend très vite à ne plus le lire.
 
-**30 quater. Un « ce qu'on nous doit » sans registre de PRÉLÈVEMENTS ne fait que monter.**
-Table `prelevements` (`/api/prelevements`), une ligne par retrait réellement effectué. Sans elle,
-le chiffre devient faux au premier virement — et un chiffre faux sur de l'argent ne se rattrape
-pas. Aucune écriture hors-ligne, volontairement : un prélèvement qui n'existerait que sur le
-téléphone qui l'a saisi ferait afficher à l'autre un « reste à toucher » trop élevé, donc un
-second retrait sur de l'argent déjà pris. Ce n'est PAS de la comptabilité : la pièce officielle
-reste dans SysCore / Falco, d'où le champ `ref_externe`, comme sur une facture.
+**30 quinquies. AUCUN PRORATA SUR LE TOTAL — le déclencheur du paiement n'est PAS acté.**
+Yannick a évoqué « à chaque CA de SysCore », sans fréquence fixée, et c'est justement ce que
+Nicolas et lui doivent se dire. **Tant que ce n'est pas décidé, l'ERP n'invente pas de règle** : il
+annonce le TOTAL gagné, et donne à côté, en information, la part déjà couverte par l'argent que
+les clients ont réellement versé (`couvert` / `en_attente_client`). Deux nombres, aucun arbitrage.
+Le jour où la règle sera posée, il n'y aura qu'à choisir lequel des deux pilote « reste à
+toucher » — d'où le bandeau qui l'explique à l'écran plutôt qu'un « disponible » inventé.
+La commission, elle, vient du devis et n'est **jamais** recalculée : 18 % / 5 % n'est qu'un défaut,
+une répartition personnalisée est possible (École du Bonheur était en moitié-moitié) et c'est
+`calculs.nicolas_net` qui porte ce qui a été réellement convenu sur CE devis.
+⚠️ Le tarif de pose vit à DEUX endroits, et il faut les deux — `config.js` parce que `fusionner`
+est une liste blanche (une clé absente des DEFAUTS ne peut pas être enregistrée du tout), et
+`remuneration.js` pour que le moteur réponde juste même appelé sans réglages. Un test compare les
+deux : c'est lui qui les empêche de diverger.
+⚠️ Toute page qui affiche de la rémunération charge `ui.js` et `planning.js` **avant**
+`remuneration.js`.
 
-**30 quinquies. `/api/stats` a été SUPPRIMÉE le 04/10/2026.** Elle recalculait toutes les
+**30 sexies. Un « ce qu'on me doit » sans registre de VERSEMENTS ne fait que monter.**
+Table `prelevements` (`/api/prelevements`), une ligne par versement réellement reçu. Sans elle, le
+chiffre devient faux au premier virement — et un chiffre faux sur de l'argent ne se rattrape pas.
+Aucune écriture hors-ligne, volontairement : un versement qui n'existerait que sur le téléphone
+qui l'a saisi ferait afficher un « reste à toucher » trop élevé, donc une seconde réclamation sur
+de l'argent déjà reçu. Ce n'est PAS de la comptabilité : la pièce officielle reste dans
+SysCore / Falco, d'où le champ `ref_externe`, comme sur une facture.
+
+**30 septies. `/api/stats` a été SUPPRIMÉE le 04/10/2026.** Elle recalculait toutes les
 statistiques côté serveur et **aucun écran ne l'appelait** : `app/stats.html` calcule depuis les
 devis complets. C'était une seconde implémentation dormante des mêmes chiffres — avec la marge
 écrite en dur (`* 0.23`), ce qui viole la règle 1. `SS.getStats()` est parti avec. Ne pas
@@ -792,8 +811,8 @@ devis, jamais un taux écrit dans le code.
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
-   Et dès qu'on touche à `remuneration.js` ou à une cible de rémunération :
-   `tests/remuneration.test.html`, exiger « 80/80 » — c'est de l'argent réel. Les dates s'y
+   Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
+   `tests/remuneration.test.html`, exiger « 77/77 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
