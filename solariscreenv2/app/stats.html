@@ -717,6 +717,18 @@
           `mets la date et le montant rentrera tout seul.`);
       }
 
+      /* ⚠️ Avertissement n°3 — un type POSÉ sans tarif. C'est le défaut qui a laissé passer le
+         tablier de volet : il valait zéro en silence, et c'est Nicolas qui a dû le voir sur un
+         chantier terminé. Les deux types historiques (store banne, pergola) peuvent encore
+         remonter d'anciens devis — ils seront dits, pas oubliés. */
+      const sansTarif = Object.entries(c.sans_tarif || {});
+      if (sansTarif.length) {
+        warn += remuWarn(
+          `<strong>${sansTarif.map(([t, q]) => `${q} × ${esc(TYPE_LABEL[t] || t)}`).join(', ')} posé${sansTarif.length > 1 || sansTarif[0][1] > 1 ? 's' : ''} sans tarif</strong> — ` +
+          `ces ouvertures ne te rapportent rien parce qu'aucun tarif n'est fixé pour leur type. ` +
+          `Ajoute-le dans <a href="parametres.html">Paramètres → Ma paie de pose</a>, et le montant rentrera tout seul.`);
+      }
+
       el('remu').innerHTML = `
         <div class="remu-haut">
           <div class="remu-card moi">
@@ -806,7 +818,11 @@
       const d = x.devis, r = x.r;
       const cl = d.client || {};
       const nom = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
-      const ouvertures = r.pose_detail.reduce((s, p) => s + p.qte, 0);
+      /* Les ouvertures NON TARIFÉES comptent ici aussi : la colonne dit combien il y en a, pas
+         combien elles rapportent. Sans elles, un dossier marqué « tarif ? » affichait « — »
+         pendant que le bandeau annonçait « 2 × Store banne » — deux comptes pour une même chose. */
+      const ouvertures = r.pose_detail.reduce((s, p) => s + p.qte, 0)
+        + (r.pose_sans_tarif || []).reduce((s, p) => s + p.qte, 0);
       let pose;
       /* ⚠️ Les deux badges d'alerte sont des LIENS vers la carte « Planification de pose » de la
          fiche, dépliée et centrée (ancre #chantier, déjà en place dans vue.html). Sans ça, l'écran
@@ -816,6 +832,8 @@
       const versChantier = `vue.html?id=${encodeURIComponent(d.id)}#chantier`;
       if (r.incomplet.includes('equipe')) {
         pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée : l'ERP ne sait pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
+      } else if (r.incomplet.includes('tarif')) {
+        pose = `<a class="badge badge-warn" href="parametres.html" title="${esc(r.pose_sans_tarif.map(x => x.qte + ' × ' + (TYPE_LABEL[x.type] || x.type)).join(', '))} — aucun tarif fixé pour ce type. Cliquer pour l'ajouter.">tarif ?</a>`;
       } else if (r.incomplet.includes('pose')) {
         pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date de pose.">posé ?</a>`;
       } else if (r.poseurs === null) {

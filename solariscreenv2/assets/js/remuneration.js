@@ -70,9 +70,18 @@
 
   /* Le tarif de pose convenu, en NET et par ouverture posée. Ce n'est pas une part du devis :
      c'est ce que Nicolas touche, quoi que le devis ait chiffré (règle 1).
-     « tablier_volet » n'y figure pas volontairement : c'est une PIÈCE de rechange, pas une
-     ouverture posée. Lui donner un tarif paierait deux fois le même geste. */
-  const TARIF_DEFAUT = { screen: 50, volet_roulant: 50, tente_solaire: 100 };
+     ⚠️ « tablier_volet » en était EXCLU, à tort : j'avais raisonné qu'une PIÈCE de rechange n'est
+     pas une ouverture posée. C'est faux. REMPLACER un tablier, c'est un déplacement et une pose,
+     et Nicolas touche 50 € comme pour le reste. Corrigé le 04/10/2026, après qu'il a repéré
+     lui-même un chantier terminé qui ne lui rapportait rien — d'où le signalement ajouté dans
+     « detailPose » : un type sans tarif ne doit plus jamais valoir zéro en silence. */
+  const TARIF_DEFAUT = {
+    screen: 50, volet_roulant: 50, tablier_volet: 50, tente_solaire: 100,
+    // Types HISTORIQUES : plus créables, mais présents sur d'anciens devis. À zéro, donc
+    // SIGNALÉS s'ils remontent sur un chantier posé — et réglables, pour que l'avertissement
+    // « ajoute un tarif dans les Réglages » désigne un champ qui existe vraiment.
+    store_banne: 0, pergola: 0,
+  };
 
   /* Diviseur brut→net historique, pour les devis sans taux stockés. Même valeur que
      « SSConf.TAUX_HISTORIQUES.net_divisor ». On ne lit PAS les réglages du jour (règle 4), et on
@@ -167,20 +176,25 @@
     return par;
   }
 
-  /** Le détail de la paie de pose : une ligne par type d'ouverture tarifé. */
+  /** Le détail de la paie de pose : une ligne par type d'ouverture tarifé.
+   *  ⚠️ Les types SANS tarif sont renvoyés à part (« sans_tarif ») au lieu d'être ignorés. Un
+   *  type qui vaut zéro en silence, c'est exactement ce qui a fait passer le tablier de volet
+   *  inaperçu : Nicolas a dû repérer lui-même un chantier terminé qui ne lui rapportait rien.
+   *  Les deux types historiques (store banne, pergola) ne sont plus créables mais existent sur
+   *  d'anciens devis : le jour où l'un d'eux remonte, l'écran le dira. */
   function detailPose(devis, reglages) {
     const t = tarifPose(reglages);
     const par = ouverturesParType(devis);
     let total = 0;
-    const detail = [];
+    const detail = [], sansTarif = [];
     Object.keys(par).forEach(function (type) {
-      const u = num(t[type]);
-      if (u <= 0) return;                      // type sans tarif convenu : rien à compter
       const qte = par[type];
+      const u = num(t[type]);
+      if (u <= 0) { sansTarif.push({ type: type, qte: qte }); return; }
       detail.push({ type: type, qte: qte, unitaire: u, total: r2(qte * u) });
       total += qte * u;
     });
-    return { detail: detail, total: r2(total) };
+    return { detail: detail, total: r2(total), sans_tarif: sansTarif };
   }
 
   /** Encaissé sur un dossier : les paiements reçus sur ses factures, moins les avoirs émis.
@@ -221,8 +235,12 @@
     };
 
     // ── Paie de pose : comptée en OUVERTURES (règles 1 et 2) ──
-    const tarife = actif ? detailPose(d, reglages) : { detail: [], total: 0 };
+    const tarife = actif ? detailPose(d, reglages) : { detail: [], total: 0, sans_tarif: [] };
     const posePayee = (actif && jyEtais && etat.faite) ? tarife.total : 0;
+
+    /* Un type sans tarif sur un chantier que Nicolas a POSÉ : il faut le dire. Ailleurs
+       (sous-traité, posé par Yannick, pas encore posé) ça ne lui coûte rien, donc on se tait. */
+    if (actif && jyEtais && etat.faite && tarife.sans_tarif.length) incomplet.push('tarif');
 
     if (actif && tarife.total > 0) {
       // Règle 5 : on ne devine pas qui a posé.
@@ -248,7 +266,7 @@
       pose_faite: etat.faite, pose_certaine: etat.certaine, pose_datee: etat.datee,
       // Ce que la pose RAPPORTERAIT si elle est bien de Nicolas et bien faite : sert à chiffrer
       // ce qui est en suspens sur un dossier signalé, sans jamais le compter comme dû.
-      pose_tarifee: tarife.total, pose_detail: tarife.detail,
+      pose_tarifee: tarife.total, pose_detail: tarife.detail, pose_sans_tarif: tarife.sans_tarif,
       pose: posePayee,
       commission: commission,
       total: totalNicolas,
@@ -273,6 +291,7 @@
       preleve: 0, reste: 0,
       yannick_commission: 0,
       dossiers: 0, dossiers_incomplets: 0, en_attente_equipe: 0, en_attente_pose: 0,
+      sans_tarif: {},
     };
 
     (dossiers || []).forEach(function (x) {
@@ -288,6 +307,12 @@
       // chercher en allant compléter, et séparé pour qu'on sache QUOI compléter.
       if (x.incomplet.indexOf('equipe') >= 0) out.en_attente_equipe = r2(out.en_attente_equipe + x.pose_tarifee);
       if (x.incomplet.indexOf('pose') >= 0) out.en_attente_pose = r2(out.en_attente_pose + x.pose_tarifee);
+      // Les ouvertures posées dont le type n'a aucun tarif : on les NOMME, sinon on ne saurait
+      // pas quoi aller régler dans les paramètres.
+      (x.pose_sans_tarif || []).forEach(function (st) {
+        if (x.incomplet.indexOf('tarif') < 0) return;
+        out.sans_tarif[st.type] = (out.sans_tarif[st.type] || 0) + st.qte;
+      });
     });
     out.en_attente_client = r2(out.total - out.couvert);
 
