@@ -78,6 +78,19 @@
       border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-muted); }
     .remu-info svg { flex: none; color: var(--accent); margin-top: 1px; }
     .remu-info strong { color: var(--text); }
+    /* Les badges « équipe ? » et « posé ? » sont des LIENS, et ils font 25 px de haut : trop
+       petit pour un doigt. On élargit la cible à 44 px par un pseudo-élément, pas par du padding
+       — le padding ferait grandir toutes les lignes du tableau sur téléphone.
+       ⚠️ Le pseudo n'étend QUE la hauteur (left/right à 0) : une extension horizontale compterait
+       dans le scrollWidth des ancêtres, piège déjà payé sur la pastille de probabilité. */
+    @media (pointer: coarse) {
+      #remuDossiers a.badge { position: relative; }
+      #remuDossiers a.badge::after {
+        content: ''; position: absolute; left: 0; right: 0; top: 50%;
+        height: 44px; transform: translateY(-50%);
+      }
+    }
+
     .remu-prel { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0;
       border-bottom: 1px dashed var(--border); font-size: var(--fs-xs); }
     .remu-prel:last-child { border-bottom: none; }
@@ -690,7 +703,8 @@
         warn += remuWarn(
           `<strong>${fmtEur(c.en_attente_equipe)} de pose en attente</strong> — des chantiers n'ont pas d'équipe renseignée, ` +
           `donc l'ERP ne sait pas si c'est toi qui as posé. Le total ci-dessus est trop bas de ce montant. ` +
-          `Renseigne « Équipe » dans la planification de pose des dossiers marqués <em>équipe ?</em> plus bas.`);
+          `Clique sur le badge <em>équipe&nbsp;?</em> du tableau ci-dessous : ça ouvre la fiche du devis directement sur ` +
+          `« Planification de pose », où se trouve le champ « Équipe ».`);
       }
       // ⚠️ Avertissement n°2 — la pose. Un dossier signé, où tu es dans l'équipe, mais dont rien
       // ne dit s'il a été posé : ni PV de réception, ni commande passée en « posé », ni date.
@@ -698,7 +712,8 @@
         warn += remuWarn(
           `<strong>${fmtEur(c.en_attente_pose)} de pose à confirmer</strong> — sur ces chantiers tu es dans l'équipe, ` +
           `mais rien ne dit s'ils ont été posés : pas de PV de réception, pas de commande passée en « posé », pas de date de pose. ` +
-          `Mets la date de pose (ou le PV) et le montant rentrera tout seul.`);
+          `Clique sur le badge <em>posé&nbsp;?</em> du tableau ci-dessous pour ouvrir « Planification de pose » : ` +
+          `mets la date et le montant rentrera tout seul.`);
       }
 
       el('remu').innerHTML = `
@@ -780,10 +795,16 @@
       const nom = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
       const ouvertures = r.pose_detail.reduce((s, p) => s + p.qte, 0);
       let pose;
+      /* ⚠️ Les deux badges d'alerte sont des LIENS vers la carte « Planification de pose » de la
+         fiche, dépliée et centrée (ancre #chantier, déjà en place dans vue.html). Sans ça, l'écran
+         disait « équipe ? » sans dire OÙ la remplir — et Nicolas a posé la question, ce qui est
+         la preuve que l'avertissement ne suffisait pas. Un écran qui signale sans emmener, on ne
+         le suit pas. */
+      const versChantier = `vue.html?id=${encodeURIComponent(d.id)}#chantier`;
       if (r.incomplet.includes('equipe')) {
-        pose = `<span class="badge badge-warn" title="Équipe non renseignée : l'ERP ne sait pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu.">équipe ?</span>`;
+        pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée : l'ERP ne sait pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
       } else if (r.incomplet.includes('pose')) {
-        pose = `<span class="badge badge-warn" title="Rien ne dit si ce chantier a été posé. ${fmtEur(r.pose_tarifee)} en jeu.">posé ?</span>`;
+        pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date de pose.">posé ?</a>`;
       } else if (!r.jy_etais) {
         pose = `<span class="text-muted">${r.poseurs && r.poseurs.length ? 'Yannick' : 'sous-traitée'}</span>`;
       } else if (!r.pose_faite) {
