@@ -86,8 +86,20 @@
     // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Le tarif de pose convenu');
     // ═════════════════════════════════════════════════════════════════════════════════════
-    check('tarif par défaut', R.tarifPose(null), { screen: 50, volet_roulant: 50, tente_solaire: 100 });
-    check('un tablier de volet n\'a pas de tarif (pièce, pas ouverture)', R.tarifPose(null).tablier_volet, undefined);
+    check('tarif par défaut', R.tarifPose(null),
+      { screen: 50, volet_roulant: 50, tablier_volet: 50, tente_solaire: 100, store_banne: 0, pergola: 0 });
+    /* Les deux types HISTORIQUES sont dans la table à ZÉRO, pas absents. Zéro = non tarifé, donc
+       signalé — et surtout RÉGLABLE, pour que l'avertissement « ajoute un tarif dans les
+       Réglages » désigne un champ qui existe vraiment. Une promesse d'écran doit être tenable. */
+    check("un type historique est connu, mais à zéro",
+      [R.tarifPose(null).store_banne, R.tarifPose(null).pergola], [0, 0]);
+    /* ⚠️ LE TABLIER SE PAIE. Il était EXCLU, et un test affirmait même le contraire : j'avais
+       raisonné qu'une pièce de rechange n'est pas une ouverture posée. C'est faux — remplacer un
+       tablier, c'est un déplacement et une pose. Corrigé le 04/10/2026 après que Nicolas a repéré
+       lui-même un chantier terminé qui ne lui rapportait rien. */
+    check("un tablier de volet se paie comme le reste", R.tarifPose(null).tablier_volet, 50);
+    check("les quatre types créables sont tous tarifés",
+      ['screen', 'volet_roulant', 'tablier_volet', 'tente_solaire'].filter(function (t) { return !(R.tarifPose(null)[t] > 0); }), []);
     check('le tarif est réglable', R.tarifPose({ remu: { pose: { tente_solaire: 120 } } }).tente_solaire, 120);
     check('une valeur vide garde le tarif par défaut', R.tarifPose({ remu: { pose: { screen: '' } } }).screen, 50);
     /* ⚠️ LE GARDE-FOU DES DEUX COPIES. Le tarif vit à DEUX endroits, et il faut les deux :
@@ -125,8 +137,8 @@
       items: [item('screen', 3), item('volet_roulant', 2), item('tente_solaire', 1), item('tablier_volet', 4)],
       equipe: 'nicolas', calculs: { total_ttc: 9000 },
     });
-    check('3 screens + 2 volets + 1 tente = 150 + 100 + 100', melange.pose, 350);
-    check('le tablier de volet n\'est pas compté', melange.pose_detail.map(x => x.type).sort(), ['screen', 'tente_solaire', 'volet_roulant']);
+    check('3 screens + 2 volets + 1 tente + 4 tabliers = 150+100+100+200', melange.pose, 550);
+    check('le tablier compte lui aussi', melange.pose_detail.map(x => x.type).sort(), ['screen', 'tablier_volet', 'tente_solaire', 'volet_roulant']);
     check('la quantité fait foi, pas le nombre de lignes',
       R.detailPose({ items: [item('screen', 3), item('screen', 2)] }, null).total, 250);
     check('items_min fait foi quand items est absent',
@@ -158,6 +170,27 @@
     const negatif = dossier({ items: [item('screen', -3)], equipe: 'nicolas', calculs: { total_ttc: 1000, nicolas_net: 10 } });
     check('un dossier à quantité négative ne retire plus rien du cumul',
       [negatif.pose, negatif.total, R.cumul([negatif], []).total], [0, 10, 10]);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ Un type POSÉ sans tarif se SIGNALE, il ne vaut pas zéro en silence');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    // « store_banne » et « pergola » ne sont plus créables mais vivent sur d'anciens devis.
+    const legacy = dossier({ items: [item('store_banne', 2)], equipe: 'nicolas', calculs: { total_ttc: 5000, nicolas_net: 300 } });
+    check("type sans tarif → rien payé, mais le dossier est SIGNALÉ", [legacy.pose, legacy.incomplet], [0, ['tarif']]);
+    check("le type en cause est nommé, avec sa quantité", legacy.pose_sans_tarif, [{ type: 'store_banne', qte: 2 }]);
+    check("la commission reste due malgré tout", legacy.commission.nicolas.net, 300);
+    check("le cumul nomme les types à tarifer", R.cumul([legacy], []).sans_tarif, { store_banne: 2 });
+    // Ailleurs ça ne lui coûte rien : on se tait.
+    check("posé par Yannick → rien à signaler",
+      dossier({ items: [item('store_banne', 2)], equipe: 'yannick' }).incomplet, []);
+    check("sous-traité → rien à signaler",
+      dossier({ items: [item('store_banne', 2)], equipe: 'sous_traitant' }).incomplet, []);
+    check("pas encore posé → rien à signaler",
+      dossier({ items: [item('store_banne', 2)], equipe: 'nicolas', pose_floue: true, date_pose: '2026-12-01' }).incomplet, []);
+    const legacyTarife = R.parDossier(devis({ items: [item('store_banne', 2)], equipe: 'nicolas', calculs: { total_ttc: 5000 } }),
+      [], { remu: { pose: { store_banne: 75 } } }, AUJ);
+    check("un tarif ajouté dans les réglages paie et éteint l'alerte",
+      [legacyTarife.pose, legacyTarife.incomplet], [150, []]);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Règle 2 : sur le chantier, il touche TOUTES les ouvertures');

@@ -84,7 +84,12 @@
     // le moteur appelé sans réglages. Un test de remuneration.test.html compare les deux : il
     // échouera si l'une des deux bouge seule.
     remu: {
-      pose: { screen: 50, volet_roulant: 50, tente_solaire: 100 },
+      pose: {
+        screen: 50, volet_roulant: 50, tablier_volet: 50, tente_solaire: 100,
+        // Types historiques, à zéro tant qu'ils ne se présentent pas. Zéro = non tarifé : la
+        // rémunération le SIGNALE au lieu de le compter pour rien.
+        store_banne: 0, pergola: 0,
+      },
     },
   };
 

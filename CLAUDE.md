@@ -70,8 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 88 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 88 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 98 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 98 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -557,8 +557,12 @@ la marge et doit être lisible — mais il n'y a ni « reste à toucher » ni pr
 copropriétaire qui n'existe pas, et noyer le seul chiffre qui compte ici.
 
 **30 bis. LA PAIE DE POSE SE COMPTE EN OUVERTURES, PAS EN EUROS DU DEVIS.**
-50 € nets par screen ou volet roulant posé, 100 € nets par tente solaire, **× le nombre posé,
-quoi qu'il arrive**. C'est un tarif convenu entre Nicolas et Yannick, pas une part du devis : si
+50 € nets par screen, volet roulant **ou tablier de volet** posé, 100 € nets par tente solaire,
+**× le nombre posé, quoi qu'il arrive**.
+⚠️ Le tablier en était EXCLU, à tort : j'avais raisonné qu'une PIÈCE de rechange n'est pas une
+ouverture posée. C'est faux — **remplacer un tablier, c'est un déplacement et une pose**, et
+Nicolas touche 50 € comme pour le reste. Il a dû le repérer lui-même sur un chantier terminé qui
+ne lui rapportait rien : d'où le garde-fou ci-dessous. C'est un tarif convenu entre Nicolas et Yannick, pas une part du devis : si
 un devis a été sous-chiffré, l'écart est pour la société, jamais pour Nicolas.
 ⚠️ **C'EST LE PIÈGE LE PLUS COÛTEUX DE CE MODULE, et il a été payé deux fois en deux jours.**
 `prix.tech1_gross` vaut 125 € bruts et le diviseur brut→net vaut 2,5 : 125 ÷ 2,5 = **50 € nets**,
@@ -571,6 +575,19 @@ rebrancher `calculs.tech1_total` sur la paie de Nicolas. Deux tests sont là pou
 société paie la différence de sa poche — mais ça ne change RIEN à ce qui est dû à Nicolas.)
 Corollaire : **s'il était sur le chantier, il touche TOUTES les ouvertures**, pas la moitié parce
 que Yannick était là aussi. 10 screens à deux, c'est 500 € pour Nicolas. Décidé explicitement.
+
+**30 bis-2. UN TYPE D'OUVERTURE SANS TARIF SE SIGNALE, il ne vaut jamais zéro en silence.**
+C'est exactement ce qui a laissé passer le tablier : `detailPose` ignorait les types absents du
+tarif, donc un chantier terminé ne rapportait rien **sans que rien ne le dise**. Elle renvoie
+désormais `sans_tarif`, et un dossier que Nicolas a POSÉ avec un type non tarifé est signalé
+(`incomplet: ['tarif']`, badge « tarif ? », bandeau qui NOMME le type et sa quantité).
+Ailleurs — sous-traité, posé par Yannick, pas encore posé — ça ne lui coûte rien, donc on se tait.
+⚠️ Les deux types HISTORIQUES (`store_banne`, `pergola`), plus créables mais présents sur
+d'anciens devis, sont dans la table à **zéro** plutôt qu'absents : zéro = non tarifé, donc
+signalé, **et réglable**. Sans ça, l'avertissement « ajoute un tarif dans les Réglages »
+désignerait un champ qui n'existe pas — **une promesse d'écran doit être tenable.**
+Et puisque `SSConf.fusionner` est une liste blanche, une clé absente des DEFAUTS ne pourrait de
+toute façon pas être enregistrée : les deux tables doivent bouger ensemble (un test les compare).
 
 **30 ter. QUI A POSÉ vit dans `chantier.equipe`, et nulle part ailleurs.** Quatre valeurs
 (`nicolas` / `yannick` / `nicolas_yannick` / `sous_traitant`), saisies dans la fiche devis ET dans
@@ -874,7 +891,7 @@ devis, jamais un taux écrit dans le code.
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
-   `tests/remuneration.test.html`, exiger « 88/88 » — c'est de l'argent réel. Les dates s'y
+   `tests/remuneration.test.html`, exiger « 98/98 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.
