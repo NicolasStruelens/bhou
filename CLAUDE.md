@@ -68,7 +68,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
 | `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
-| `tests/themes.test.html` | Les 23 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
+| `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
+| `tests/fetes.test.html` | Les 61 tests du calendrier des fêtes et du contrat des décors. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -472,6 +473,19 @@ bas-gauche — les deux angles que les coins « ticked » laissent libres.
 30 px à la colonne : le rail passait en défilement dès 820 px de haut, et la barre lui volait 10 px
 de largeur — « Outillage & références » se faisait tronquer. Ancrée par le bas, elle n'allonge plus
 le contenu. Mesurer `scrollHeight > clientHeight` ET `clientWidth` du rail après tout ajout.
+⚠️ **À 85 px, en mouvement et en opacité basse, il faut QUATRE FORMES FRANCHES — pas une
+illustration.** Saint-Nicolas sur son âne a été dessiné, jugé à l'écran en grand, refait avec
+l'âne en retrait, rejugé, puis ABANDONNÉ : l'âne et le cavalier fusionnaient en une seule masse,
+et aucun détail ne rattrape ça à cette taille. Le bateau à vapeur l'a remplacé — coque, cabine,
+cheminée, fumée — et se lit d'un coup d'œil. Avant de peaufiner un décor figuratif, l'agrandir à
+200 px et le regarder : ce qui ne se lit pas en grand ne se lira jamais en petit.
+⚠️ **Les périodes ne doivent JAMAIS se chevaucher.** `active` retient la PREMIÈRE qui correspond,
+donc deux fêtes qui se recouvrent se voleraient la vedette — et laquelle gagne dépendrait de
+l'ordre dans la table, ce qui ne se devine pas en la lisant. Un test balaie les 365 jours.
+L'emplacement **`tombe`** (neige, et demain les confettis du Carnaval et du Nouvel An) s'appelle
+ainsi et non « neige » parce que seul le dessin changera. Chaque élément tire sa colonne, sa
+durée, sa dérive et sa rotation de son RANG : pas de tirage au hasard, donc un rendu reproductible
+d'un chargement à l'autre, et un bug qui se reproduit.
 ⚠️ L'hôte d'un décor se choisit sur la PLACE DISPONIBLE (`260 × 130` px), pas sur une liste noire
 qui n'aurait jamais fini de grandir. Les tuiles de chiffres s'écrivent `class="kpi ticked"` et les
 modales `class="modal ticked"` : sans ça, une toile de 58 px atterrissait sur un carré de 150, et
