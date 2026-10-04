@@ -27,6 +27,12 @@
       aide: 'Sombre, bleu et or — l’identité SolariScreen.' },
     { id: 'light', nom: 'Pro', clair: true,
       aide: 'Clair et sobre, lisible en plein jour.' },
+    { id: 'cyberpunk', nom: 'Cyberpunk', clair: false,
+      aide: 'Cyan et magenta sur noir violacé. Le plus contrasté des cinq.' },
+    { id: 'ardoise', nom: 'Ardoise', clair: false,
+      aide: 'Sombre et désaturé, sans halo ni scanline — pour le soir.' },
+    { id: 'zen', nom: 'Zen', clair: true,
+      aide: 'Blanc cassé chaud et teal profond. Rien ne hausse la voix.' },
   ];
 
   const IDS = THEMES.map(function (t) { return t.id; });
