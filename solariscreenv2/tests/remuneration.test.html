@@ -33,6 +33,10 @@
   <div id="summary">Exécution…</div>
   <div id="out"></div>
 
+  <!-- planning.js AVANT : c'est lui qui porte le vocabulaire des equipes (SSPlanning.quiDeEquipe).
+       Le charger ici n'est pas un confort de test : c'est la dependance reelle du moteur, et ce
+       test echouerait si quelqu'un recopiait la table des equipes dans remuneration.js. -->
+  <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/remuneration.js"></script>
   <script>
     const R = window.SSRemu;
@@ -54,13 +58,14 @@
     function devis(o) {
       o = o || {};
       const p2 = {};
-      if (o.pose) p2.pose = o.pose;
       if (o.rates !== null) p2.rates = o.rates || { net_divisor: 2.5 };
       return {
         id: o.id || 'D1',
         statut: o.statut || 'signe',
         date_creation: o.date || '2026-06-01',
         items: o.items || [],
+        // Qui a pose vit dans chantier.equipe — la donnee qui existe deja dans l'ERP.
+        chantier: o.equipe ? { equipe: o.equipe } : {},
         pricing_v2: p2,
         calculs: Object.assign({
           total_ttc: 0,
@@ -93,7 +98,7 @@
     // Un screen, pose chiffrée aux valeurs par défaut de config.js : tech1_gross = 125 €.
     const unScreen = devis({
       items: [item('screen', 1)],
-      pose: { tech1: 'nicolas', tech2: 'externe' },
+      equipe: 'nicolas',
       calculs: { total_ttc: 1000, tech1_total: 125 },
     });
     const rScreen = R.parDossier(unScreen, [], null);
@@ -105,7 +110,7 @@
     // Une tente solaire chiffrée comme un screen : la cible est 100 €, le devis n'en paie que 50.
     const uneTente = devis({
       items: [item('tente_solaire', 1)],
-      pose: { tech1: 'nicolas' },
+      equipe: 'nicolas',
       calculs: { total_ttc: 1000, tech1_total: 125 },
     });
     const rTente = R.parDossier(uneTente, [], null);
@@ -116,35 +121,53 @@
     check('le détail nomme le type en cause', rTente.ecart.detail.map(x => x.type), ['tente_solaire']);
     // Chiffrée à 250 € brut, la tente atteint sa cible — c'est la bonne correction.
     const tenteJuste = R.parDossier(devis({
-      items: [item('tente_solaire', 1)], pose: { tech1: 'nicolas' },
+      items: [item('tente_solaire', 1)], equipe: 'nicolas',
       calculs: { total_ttc: 1000, tech1_total: 250 },
     }), [], null);
     check('chiffrée à 250 € brut, la tente atteint ses 100 € nets', tenteJuste.du.nicolas.pose_net, 100);
     check('et il n\'y a plus d\'écart', tenteJuste.ecart.manque_net, 0);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
-    titre('Qui a posé — nommément');
+    titre('Qui a posé — lu sur chantier.equipe, la donnée qui existe déjà');
     // ═════════════════════════════════════════════════════════════════════════════════════
-    check('pose non renseignée → null (et pas un objet vide)', R.poseurs(devis({})), null);
-    check('pose sous-traitée → les deux noms sont vides, mais la réponse existe',
-      R.poseurs(devis({ pose: { tech1: 'externe', tech2: 'externe' } })), { tech1: '', tech2: '' });
-    check('Nicolas en tech 1', R.poseurs(devis({ pose: { tech1: 'nicolas' } })), { tech1: 'nicolas', tech2: '' });
-    check('les deux', R.poseurs(devis({ pose: { tech1: 'nicolas', tech2: 'yannick' } })), { tech1: 'nicolas', tech2: 'yannick' });
-    check('un nom inconnu est ignoré', R.poseurs(devis({ pose: { tech1: 'jean', tech2: 'yannick' } })), { tech1: '', tech2: 'yannick' });
+    check('le vocabulaire des équipes vient bien de planning.js (règle 10)',
+      !!(window.SSPlanning && window.SSPlanning.quiDeEquipe), true);
+    check('équipe non renseignée → null, et SURTOUT pas Nicolas par défaut', R.poseurs(devis({})), null);
+    check('Nicolas seul', R.poseurs(devis({ equipe: 'nicolas' })), ['nicolas']);
+    check('Yannick seul', R.poseurs(devis({ equipe: 'yannick' })), ['yannick']);
+    check('les deux', R.poseurs(devis({ equipe: 'nicolas_yannick' })), ['nicolas', 'yannick']);
+    check('sous-traité → liste VIDE, ce qui est une réponse valide', R.poseurs(devis({ equipe: 'sous_traitant' })), []);
+    // ⚠️ Le piège de la règle 4 : SSPlanning.quiDeEquipe('') retombe sur Nicolas — bon défaut pour
+    //    un planning, désastreux pour de l'argent. Le moteur garde donc sa propre garde.
+    check('planning.js, lui, retombe sur Nicolas — le moteur ne doit pas le suivre',
+      [window.SSPlanning.quiDeEquipe(''), R.poseurs(devis({ equipe: '' }))], [['nicolas'], null]);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
-    titre('Règle 3 : chacun reçoit SA ligne, jamais une moitié');
+    titre('Règle 3 : « ça couvre ma pose et le reste va pour la société »');
     // ═════════════════════════════════════════════════════════════════════════════════════
-    // Le cas qui condamne le partage à parts égales : Tech 1 a fait 4 ouvertures, Tech 2 une seule.
-    const inegal = R.parDossier(devis({
-      items: [item('screen', 5)],
-      pose: { tech1: 'nicolas', tech2: 'yannick' },
-      calculs: { total_ttc: 10000, tech1_total: 500, tech2_total: 125 },
+    // 10 screens, pose budgétée à deux techniciens (1250 + 1250 brut).
+    const poseA2 = { total_ttc: 20000, tech1_total: 1250, tech2_total: 1250 };
+    const seul = R.parDossier(devis({ items: [item('screen', 10)], equipe: 'nicolas', calculs: poseA2 }), [], null);
+    check('seul sur le chantier : il prend UNE ligne de tech', seul.du.nicolas.pose_brut, 1250);
+    check('… soit 500 net, donc 50 € par screen — la règle de Nicolas', seul.du.nicolas.pose_net, 500);
+    check('… et le reste va pour la société', seul.du.societe.pose_net, 500);
+    check("… rien pour Yannick, qui n’y était pas", seul.du.yannick.pose_net, 0);
+
+    const aDeux = R.parDossier(devis({ items: [item('screen', 10)], equipe: 'nicolas_yannick', calculs: poseA2 }), [], null);
+    check('à deux : la paie de pose se partage en parts égales', [aDeux.du.nicolas.pose_net, aDeux.du.yannick.pose_net], [500, 500]);
+    check('… la société ne garde rien', aDeux.du.societe.pose_net, 0);
+    check("… et chacun touche les mêmes 50 € par screen que s’il était seul",
+      [seul.ecart.par_ouverture, aDeux.ecart.par_ouverture], [50, 50]);
+    check("c’est CE résultat qui valide le modèle : 50 € par ouverture dans les deux cas",
+      [seul.ecart.manque_net, aDeux.ecart.manque_net], [0, 0]);
+
+    // Un chantier dont le devis n'a budgété qu'un seul technicien.
+    const seul1 = R.parDossier(devis({
+      items: [item('screen', 10)], equipe: 'nicolas',
+      calculs: { total_ttc: 20000, tech1_total: 1250, tech2_total: 0 },
     }), [], null);
-    check('Nicolas touche SA ligne (500 brut → 200 net)', inegal.du.nicolas.pose_net, 200);
-    check('Yannick touche la sienne (125 brut → 50 net)', inegal.du.yannick.pose_net, 50);
-    check('un partage 50/50 aurait donné 125 à chacun — ce n\'est pas le cas',
-      inegal.du.nicolas.pose_net === inegal.du.yannick.pose_net, false);
+    check('un seul technicien budgété : la société ne garde rien', seul1.du.societe.pose_net, 0);
+    check('et le poseur touche quand même ses 50 € par ouverture', seul1.ecart.par_ouverture, 50);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Les ouvertures se comptent en quantité');
@@ -172,7 +195,7 @@
     // 10 screens, Nicolas vendeur principal, pose à deux. Les montants sont ceux du devis.
     const gros = devis({
       items: [item('screen', 10)],
-      pose: { tech1: 'nicolas', tech2: 'yannick' },
+      equipe: 'nicolas_yannick',
       calculs: {
         total_ttc: 20000,
         nicolas_gross: 2250, nicolas_net: 900,
@@ -211,31 +234,26 @@
     check('pose inconnue → aucune paie de pose attribuée', [inconnu.du.nicolas.pose_net, inconnu.du.yannick.pose_net], [0, 0]);
     check('la société porte le montant en attendant (net)', inconnu.du.societe.pose_net, 1000);
     check('la commission, elle, reste due', inconnu.du.nicolas.commission_net, 900);
+    // Corollaire de la regle 6 : on ne reclame pas un manque sur une pose qui n'est a personne.
+    check("aucun écart réclamé tant que l’équipe est inconnue", inconnu.ecart.manque_net, 0);
 
     const soustraite = R.parDossier(devis({
       items: [item('screen', 10)],
-      pose: { tech1: 'externe', tech2: 'externe' },
+      equipe: 'sous_traitant',
       calculs: { total_ttc: 20000, nicolas_net: 900, tech1_total: 1250, tech2_total: 1250 },
     }), [], null);
     check('pose sous-traitée → rien à signaler, c\'est une réponse', soustraite.incomplet, []);
     check('pose sous-traitée → tout va à la société', soustraite.du.societe.pose_net, 1000);
     check('pose sous-traitée → rien pour Nicolas', soustraite.du.nicolas.pose_net, 0);
+    check("pose sous-traitée → aucun écart réclamé non plus", soustraite.ecart.manque_net, 0);
 
-    const moitie = R.parDossier(devis({
-      items: [item('screen', 10)],
-      pose: { tech1: 'nicolas', tech2: 'externe' },
-      calculs: { total_ttc: 20000, tech1_total: 1250, tech2_total: 1250 },
-    }), [], null);
-    check('un seul des deux est à nous : il touche SA ligne', moitie.du.nicolas.pose_net, 500);
-    check('l\'autre ligne va à la société', moitie.du.societe.pose_net, 500);
-    check('et le dossier n\'est pas signalé pour autant', moitie.incomplet, []);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Règle 5 : un devis refusé ou annulé ne doit rien');
     // ═════════════════════════════════════════════════════════════════════════════════════
     ['refuse', 'annule'].forEach(function (st) {
       const x = R.parDossier(devis({
-        statut: st, items: [item('screen', 10)], pose: { tech1: 'nicolas' },
+        statut: st, items: [item('screen', 10)], equipe: 'nicolas',
         calculs: { total_ttc: 30000, nicolas_net: 2000, tech1_total: 1250 },
       }), [fact('D1', 30000, 30000)], null);
       check('devis ' + st + ' → rien dû, rien acquis',
@@ -266,6 +284,7 @@
       R.cumul(dossiers, [{ qui: 'nicolas', montant: 500 }, { qui: 'nicolas', montant: 300 }]).nicolas.preleve, 800);
     check('le cumul compte les dossiers incomplets', c0.dossiers_incomplets, 1);
     check('et annonce le net en attente d\'attribution', c0.en_attente, 200);
+    check("rien ne manque : tout est chiffré à 125 € brut l’ouverture", c0.manque_net, 0);
 
     // ── Rendu ──
     document.getElementById('out').innerHTML =

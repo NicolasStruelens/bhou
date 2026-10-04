@@ -8,16 +8,27 @@
    reçoit des devis, des factures et des réglages, et il renvoie des nombres. Il est protégé
    par « tests/remuneration.test.html ».
 
-   ⚠️ CE QUE J'AI CRU, ET QUI ÉTAIT FAUX — à lire avant de modifier ce fichier.
-   Première version écrite le 04/10/2026 : elle ajoutait une PRIME NETTE de 50 € par screen et
-   de 100 € par tente, par-dessus la commission. C'était un DOUBLE PAIEMENT. Les 50 € existent
-   déjà dans l'ERP depuis toujours : la ligne « Tech 1 » vaut 125 € BRUT par ouverture
-   (« config.js », prix.tech1_gross) et le diviseur brut→net vaut 2,5 —
-   soit 125 / 2,5 = **50 € net par ouverture**, exactement le chiffre que Nicolas a donné. Le
-   simulateur l'affiche même en clair (« Tech 1 : 125 € brut / 50 € net »).
-   Et 280 = 125 + 125 + 30 : la pose facturée au client EST déjà découpée en paie de Tech 1,
-   paie de Tech 2 et outillage. Le modèle n'avait rien à inventer, il fallait juste le LIRE.
-   La leçon est la même que partout ici : **comprendre ce qui existe avant d'ajouter.**
+   ⚠️ DEUX CHOSES QUE J'AI CRU DEVOIR AJOUTER, ET QUI EXISTAIENT DÉJÀ.
+   À lire avant de modifier ce fichier : les deux fois, le défaut venait d'avoir codé avant
+   d'avoir lu.
+
+   1. **LES 50 € NE SONT PAS UNE PRIME À AJOUTER.** Première version : elle versait 50 € nets
+      par screen et 100 € par tente PAR-DESSUS la commission. C'était un DOUBLE PAIEMENT. La
+      ligne « Tech 1 » vaut 125 € BRUT par ouverture (« config.js », prix.tech1_gross) et le
+      diviseur brut→net vaut 2,5 — soit 125 / 2,5 = **50 € net par ouverture**, exactement le
+      chiffre donné par Nicolas. Le simulateur l'affiche même en clair (« Tech 1 : 125 € brut /
+      50 € net »), et 280 = 125 + 125 + 30 : la pose facturée au client EST déjà découpée en
+      paie de Tech 1, paie de Tech 2 et outillage.
+
+   2. **QUI A POSÉ EST DÉJÀ ENREGISTRÉ.** Deuxième version : elle introduisait
+      « pricing_v2.pose = { tech1, tech2 } ». Or « chantier.equipe » existe depuis toujours, avec
+      exactement les quatre valeurs utiles (nicolas / yannick / nicolas_yannick /
+      sous_traitant), il est saisi dans la fiche devis ET dans le planning, et « planning.js »
+      sait déjà le traduire en personnes (« SSPlanning.quiDeEquipe »). Une deuxième copie, c'est
+      le défaut des types de produit qui ont vécu en 13 exemplaires avant de diverger.
+      Et « pricing_v2.pose » aurait été EFFACÉ en silence : la fusion serveur est peu profonde
+      (« Object.assign({}, existant, payload) »), donc le simulateur, qui reconstruit
+      « pricing_v2 » de zéro, aurait emporté la clé à chaque réenregistrement.
 
    LES SIX RÈGLES, toutes décidées avec Nicolas le 04/10/2026
 
@@ -32,25 +43,37 @@
       le jour où l'on change une marge — exactement ce que l'ERP s'interdit partout ailleurs.
       Le diviseur brut→net lui-même est relu sur le devis, jamais pris dans les réglages du jour.
 
-   3. **LA PAIE DE POSE VA À CELUI QUI A POSÉ — nommément, et sans partage.** « Tech 1 » et
-      « Tech 2 » sont deux lignes d'argent DISTINCTES (elles peuvent porter des quantités
-      différentes) : « pricing_v2.pose » dit qui est l'un et qui est l'autre, et chacun reçoit
-      SA ligne. Un partage à parts égales serait faux dès que les deux quantités diffèrent.
+   3. **LA PAIE DE POSE SUIT « chantier.equipe ».** Mot pour mot ce que Nicolas a décidé :
+      « ça couvre ma pose et le reste va pour la société ». Donc UN SEUL des nôtres sur le
+      chantier → il prend une ligne de tech, et la seconde reste à la société. LES DEUX → la
+      paie de pose se partage en deux parts égales, parce qu'« equipe » dit « tous les deux »
+      sans dire qui était « Tech 1 ».
+      Les deux cas donnent le même résultat à l'ouverture : 125 € brut, soit 50 € net — ce qui
+      est précisément la règle que Nicolas a énoncée.
 
-   4. **CE QU'ON NE SAIT PAS N'EST À PERSONNE.** Si l'on ignore qui a posé, la paie de pose
-      n'est attribuée à personne : elle va provisoirement à la société et le dossier est
-      SIGNALÉ. Un outil de rémunération qui devine se met à promettre de l'argent qui n'existe
-      pas — c'est la faute qui coûte le plus cher ici.
+   4. **CE QU'ON NE SAIT PAS N'EST À PERSONNE.** Sans équipe renseignée, la paie de pose n'est
+      attribuée à personne : elle va provisoirement à la société et le dossier est SIGNALÉ.
+      Un outil de rémunération qui devine se met à promettre de l'argent qui n'existe pas —
+      c'est la faute qui coûte le plus cher ici.
+      ⚠️ C'est pour cela qu'on ne passe PAS directement par « SSPlanning.quiDeEquipe » sans
+      garde : cette fonction retombe sur Nicolas quand l'équipe est vide (bon défaut pour un
+      planning, désastreux pour de l'argent — elle lui attribuerait silencieusement la paie de
+      tous les chantiers non renseignés).
 
    5. **UN DEVIS REFUSÉ OU ANNULÉ NE DOIT RIEN.** Sans cette règle, un devis refusé de 30 000 €
       continuerait d'afficher une commission due.
 
-   6. **L'ÉCART SE SIGNALE, IL NE SE PAIE PAS.** Nicolas veut 50 € net par screen ou volet et
-      100 € net par tente solaire. Les screens y sont déjà (125 € brut). Les tentes, NON : elles
-      sortent aussi à 125 € brut, donc 50 € net — la moitié de ce qu'il veut. La bonne réponse
-      est de CHIFFRER la prochaine tente à 250 € brut, pas d'ajouter ici 50 € qui ne sont nulle
-      part dans le devis ni dans ce que le client a payé. Le moteur calcule donc l'écart et le
-      dit (« manque_net »), sans jamais le compter comme dû.
+   6. **L'ÉCART SE SIGNALE, IL NE SE PAIE PAS.** Nicolas veut 50 € nets par screen ou volet et
+      100 € par tente solaire. Les screens y sont déjà. Les tentes, NON : elles sortent aussi à
+      125 € brut, donc 50 € nets — la moitié de ce qu'il veut. La bonne réponse est de CHIFFRER
+      la prochaine tente à 250 € brut, pas d'ajouter ici 50 € qui ne sont ni dans le devis ni
+      dans ce que le client a payé. Le moteur calcule donc l'écart et le dit (« manque_net »),
+      sans jamais le compter comme dû.
+
+   ⚠️ DÉPENDANCE : une page qui affiche de la rémunération doit charger « planning.js » AVANT
+   ce fichier — c'est lui qui porte le vocabulaire des équipes (règle 10 du guide : le
+   vocabulaire vit à un seul endroit). Sans lui, les dossiers sont signalés « équipe inconnue »
+   au lieu d'être attribués à tort.
    ═══════════════════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -89,15 +112,16 @@
 
   function net(brut, devis) { return r2(num(brut) / diviseurNet(devis)); }
 
-  /** Qui a posé ? « pricing_v2.pose = { tech1, tech2 } », chacun 'nicolas' | 'yannick' | 'externe'.
-   *  Renvoie null tant que RIEN n'est renseigné — c'est ce null qui déclenche le signalement
-   *  (règle 4). 'externe' des deux côtés est une réponse VALIDE : la pose est sous-traitée, elle
-   *  ne vous revient pas. À ne pas confondre avec « pas renseigné ». */
+  /** Qui a posé, d'après « chantier.equipe » — la donnée qui existe déjà (voir l'en-tête).
+   *  null  = pas renseigné, donc à personne et dossier signalé (règle 4) ;
+   *  []    = pose sous-traitée, ce qui est une réponse VALIDE : l'argent sort vers l'extérieur ;
+   *  liste = nos poseurs, dans l'ordre du vocabulaire de « planning.js ». */
   function poseurs(devis) {
-    const p = (devis && devis.pricing_v2 && devis.pricing_v2.pose) || null;
-    if (!p || (!p.tech1 && !p.tech2)) return null;
-    const ok = function (x) { return x === 'nicolas' || x === 'yannick' ? x : ''; };
-    return { tech1: ok(p.tech1), tech2: ok(p.tech2) };
+    const e = devis && devis.chantier && devis.chantier.equipe;
+    if (!e) return null;                       // ⚠️ la garde de la règle 4 : surtout pas de défaut
+    const P = window.SSPlanning;
+    if (!P || !P.quiDeEquipe) return null;     // planning.js absent : on signale, on ne devine pas
+    return P.quiDeEquipe(e);
   }
 
   /** Les ouvertures d'un devis, par type et par quantité. « items » sur une fiche complète,
@@ -130,36 +154,44 @@
 
   /**
    * L'ÉCART entre ce que Nicolas veut toucher par ouverture et ce que le devis a budgété.
-   * Ne se paie pas : se signale (règle 6). Le budget de pose est réparti au prorata des
-   * ouvertures, parce que le devis chiffre « Tech 1 » à l'ouverture sans distinguer les types.
+   * Ne se paie pas : se signale (règle 6).
+   * @param poseNetteParPersonne  ce qu'UN de nos poseurs touche en net sur ce dossier
+   * @param nbPoseurs             combien des nôtres ont posé (le manque est dû à chacun d'eux)
    */
-  function ecartDe(devis, posePaieNette, reglages) {
+  function ecartDe(devis, poseNetteParPersonne, nbPoseurs, reglages) {
+    const vide0 = { attendu_net: 0, budgete_net: r2(poseNetteParPersonne), manque_net: 0, par_ouverture: 0, detail: [] };
+    if (!nbPoseurs) return vide0;
+
     const cible = cibleNette(reglages);
     const par = ouverturesParType(devis);
     const types = Object.keys(par).filter(function (t) { return num(cible[t]) > 0; });
     const ouvertures = types.reduce(function (s, t) { return s + par[t]; }, 0);
-    if (!ouvertures) return { attendu_net: 0, budgete_net: r2(posePaieNette), manque_net: 0, detail: [] };
+    if (!ouvertures) return vide0;
 
-    // Ce que le devis paie réellement par ouverture, toutes ouvertures confondues.
-    const parOuverture = posePaieNette / ouvertures;
+    // Ce que le devis paie réellement à chacun, par ouverture. Le devis chiffre « Tech 1 » à
+    // l'ouverture sans distinguer les types : la moyenne est donc la seule lecture honnête.
+    const parOuverture = poseNetteParPersonne / ouvertures;
     let attendu = 0, manque = 0;
     const detail = types.map(function (t) {
       const u = num(cible[t]);
       const ecartUnitaire = Math.max(0, u - parOuverture);
-      attendu += u * par[t];
-      manque += ecartUnitaire * par[t];
+      attendu += u * par[t] * nbPoseurs;
+      manque += ecartUnitaire * par[t] * nbPoseurs;
       return {
         type: t, qte: par[t], cible_unitaire: u,
-        budgete_unitaire: r2(parOuverture), manque: r2(ecartUnitaire * par[t]),
+        budgete_unitaire: r2(parOuverture), manque: r2(ecartUnitaire * par[t] * nbPoseurs),
       };
     }).filter(function (x) { return x.manque > 0.004; });
 
-    return { attendu_net: r2(attendu), budgete_net: r2(posePaieNette), manque_net: r2(manque), detail: detail };
+    return {
+      attendu_net: r2(attendu), budgete_net: r2(poseNetteParPersonne * nbPoseurs),
+      manque_net: r2(manque), par_ouverture: r2(parOuverture), detail: detail,
+    };
   }
 
   /**
    * Le détail d'UN dossier.
-   * @param devis     le devis complet (ou une ligne de liste : items_min suffit)
+   * @param devis     le devis complet (ou une ligne de liste : items_min et chantier suffisent)
    * @param factures  toutes les factures (on filtre sur devis_id)
    * @param reglages  pour la cible nette par ouverture
    */
@@ -175,7 +207,8 @@
       societe: { pose_brut: 0, pose_net: 0, outillage_brut: 0, outillage_net: 0 },
     };
     const incomplet = [];
-    let ecart = { attendu_net: 0, budgete_net: 0, manque_net: 0, detail: [] };
+    let ecart = { attendu_net: 0, budgete_net: 0, manque_net: 0, par_ouverture: 0, detail: [] };
+    const qui = actif ? poseurs(d) : [];
 
     if (actif) {
       // ── Commissions : lues sur le devis, jamais recalculées (règle 2) ──
@@ -184,35 +217,39 @@
       du.yannick.commission_brut = r2(calc.yannick_gross);
       du.yannick.commission_net = r2(calc.yannick_net);
 
-      // ── Paie de pose : chacun reçoit SA ligne, pas une moitié (règle 3) ──
-      const lignes = [
-        { qui: null, brut: r2(calc.tech1_total) },
-        { qui: null, brut: r2(calc.tech2_total) },
-      ];
-      const qui = poseurs(d);
-      if (qui) { lignes[0].qui = qui.tech1; lignes[1].qui = qui.tech2; }
+      // ── Paie de pose, selon l'équipe (règle 3) ──
+      const tech1 = r2(calc.tech1_total);
+      const tech2 = r2(calc.tech2_total);
+      const poseBrut = r2(tech1 + tech2);
+      let parPersonneNet = 0;
 
-      let posePaieNetteAttribuee = 0;
-      lignes.forEach(function (l) {
-        const n = net(l.brut, d);
-        if (l.qui) {
-          du[l.qui].pose_brut = r2(du[l.qui].pose_brut + l.brut);
-          du[l.qui].pose_net = r2(du[l.qui].pose_net + n);
-          posePaieNetteAttribuee += n;
-        } else {
-          // Règle 4 (non renseigné) ou pose sous-traitée : la société porte le montant.
-          du.societe.pose_brut = r2(du.societe.pose_brut + l.brut);
-          du.societe.pose_net = r2(du.societe.pose_net + n);
-        }
-      });
-      // Le dossier n'est signalé que si de l'argent de pose attend vraiment une attribution.
-      if (qui === null && du.societe.pose_brut > 0) incomplet.push('pose');
+      if (!qui || qui.length === 0) {
+        // Règle 4 (non renseigné) ou pose sous-traitée : la société porte tout le montant.
+        du.societe.pose_brut = poseBrut;
+        du.societe.pose_net = net(poseBrut, d);
+        if (qui === null && poseBrut > 0) incomplet.push('pose');
+      } else if (qui.length === 1) {
+        // « Ça couvre ma pose et le reste va pour la société. »
+        du[qui[0]].pose_brut = tech1;
+        du[qui[0]].pose_net = net(tech1, d);
+        du.societe.pose_brut = tech2;
+        du.societe.pose_net = net(tech2, d);
+        parPersonneNet = du[qui[0]].pose_net;
+      } else {
+        // Les deux : parts égales. « equipe » ne dit pas qui était Tech 1.
+        const moitie = r2(poseBrut / 2);
+        qui.forEach(function (g) {
+          du[g].pose_brut = moitie;
+          du[g].pose_net = net(moitie, d);
+        });
+        parPersonneNet = net(moitie, d);
+      }
 
       du.societe.outillage_brut = r2(calc.tools_total);
       du.societe.outillage_net = net(calc.tools_total, d);
 
-      // ── Le contrôle : 50 € net par screen, 100 € par tente (règle 6) ──
-      ecart = ecartDe(d, posePaieNetteAttribuee, reglages);
+      // ── Le contrôle : 50 € nets par screen, 100 € par tente (règle 6) ──
+      ecart = ecartDe(d, parPersonneNet, (qui && qui.length) || 0, reglages);
     }
 
     GENS.forEach(function (g) {
@@ -232,6 +269,7 @@
       id: d.id, actif: actif, statut: statut,
       total_ttc: totalTtc, encaisse: encaisse, part: Math.round(part * 1000) / 1000,
       diviseur_net: diviseurNet(d),
+      equipe: (d.chantier && d.chantier.equipe) || '', poseurs: qui,
       du: du, acquis: acquis,
       ecart: ecart,
       incomplet: incomplet,
@@ -257,7 +295,7 @@
       out.manque_net = r2(out.manque_net + ((x.ecart && x.ecart.manque_net) || 0));
       if (x.incomplet && x.incomplet.length) {
         out.dossiers_incomplets++;
-        // Ce que ce dossier garde en suspens tant que la pose n'est pas renseignée.
+        // Ce que ce dossier garde en suspens tant que l'équipe n'est pas renseignée.
         out.en_attente = r2(out.en_attente + x.du.societe.pose_net);
       }
     });
