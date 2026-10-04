@@ -509,6 +509,27 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
   normal. **Mesurer les ENFANTS, et vérifier qu’un ancêtre défile vraiment** (`overflowX` en
   `auto`/`scroll`) — pas seulement `document.scrollWidth`. Poser les DEUX axes :
   `overflow-x: auto; overflow-y: hidden`, sinon la spec bascule aussi l’axe vertical sur auto.
+- **`body { overflow-x: hidden }` EMPECHE le bandeau de rester en haut.** C'est la meme regle de
+  spec que le piege du `.table-wrap` ci-dessus, avec une consequence bien plus visible : avec
+  `overflow-x: hidden` et `overflow-y: visible`, la valeur UTILISEE de `overflow-y` bascule sur
+  `auto`. Le body devient alors un conteneur de defilement, et `position: sticky` sur un enfant
+  colle a CE conteneur — qui ne defile jamais, sa hauteur suivant son contenu. Le bandeau etait
+  donc `position: sticky` depuis toujours et partait quand meme avec la page, sur telephone comme
+  au bureau, **sans que rien ne le signale**.
+  Correctif : `overflow-x: clip`, qui coupe le debordement horizontal exactement pareil mais ne
+  cree PAS de conteneur de defilement. `hidden` reste en repli sous `@supports` pour Safari < 16.
+  ⚠️ Mesurer, pas deduire : **le defilement est inerte dans le panneau d'automatisation**, donc on
+  ne peut pas verifier un sticky en faisant defiler la page. Deux voies qui marchent : monter deux
+  elements identiques a une propriete pres dans un conteneur qu'on PEUT defiler (`scrollTop` d'un
+  element fonctionne, lui), et verifier sur la vraie page qu'AUCUN ancetre du bandeau n'a un
+  `overflow` different de `visible`. C'est cette seconde condition qui decide de tout.
+- **`backdrop-filter` rend le texte FLOU sur iOS.** Il promeut l'element en couche composite, et
+  le texte de cette couche est alors lisse en NIVEAUX DE GRIS au lieu du sous-pixel. Sur le
+  bandeau, le libelle du module — 10,88 px en mono — paraissait flou sur iPhone. Ce n'etait PAS un
+  probleme de contraste : mesure a 6:1, donc largement au-dessus du seuil AA. Le verre depoli est
+  retire sous 640 px et le fond y passe a 100 % d'opacite ; il reste au-dela, ou il ne pose pas ce
+  probleme. Un fond opaque est de toute facon necessaire des lors que le bandeau COLLE et que le
+  contenu defile dessous.
 - **Fermer une modale sur `e.target === leFond` perd les saisies.** Sélectionner du texte dans un
   champ et relâcher la souris EN DEHORS de la fenêtre envoie le `click` au plus proche ancêtre
   commun du mousedown et du mouseup — c'est-à-dire le fond. La modale se fermait donc « toute

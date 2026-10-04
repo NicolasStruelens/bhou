@@ -16,6 +16,17 @@ body {
   line-height: var(--lh-base);
   font-size: var(--fs-md);
   min-height: 100vh;
+  /* `overflow-x: hidden` EMPECHAIT le bandeau de rester en haut quand on descend la page.
+     La spec est formelle : avec `overflow-x: hidden` et `overflow-y: visible`, la valeur
+     UTILISEE de `overflow-y` bascule sur `auto`. Le body devient alors un conteneur de
+     defilement, et `position: sticky` sur un enfant colle a CE conteneur -- qui, lui, ne
+     defile jamais (sa hauteur suit son contenu). Le bandeau partait donc avec la page.
+     Mesure en conditions reelles, deux montages identiques a une propriete pres :
+       overflow-x: hidden -> overflow-y calcule a « auto »,    l'element sticky part a -400 px
+       overflow-x: clip   -> overflow-y calcule a « visible », l'element sticky reste a 0
+     `clip` coupe le debordement horizontal exactement comme `hidden`, mais ne cree PAS de
+     conteneur de defilement. `hidden` reste en repli pour les navigateurs sans `clip`
+     (Safari < 16) : ils retrouvent simplement l'ancien comportement. */
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   transition: background var(--t-base), color var(--t-base);
@@ -30,6 +41,8 @@ body {
     linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
   background-size: 44px 44px;
 }
+@supports (overflow-x: clip) { body { overflow-x: clip; } }
+
 body::before {
   content: ''; position: fixed; inset: 0; z-index: 9998; pointer-events: none;
   background: repeating-linear-gradient(0deg,
@@ -147,6 +160,15 @@ a:hover { text-decoration: underline; }
      Les actions restent SUR LA MÊME LIGNE que le logo et ne se replient en 2e rangée
      courte que si elles débordent vraiment (fiche devis et ses pastilles de statut). */
   .app-header { height: auto; min-height: var(--header-h); gap: var(--sp-2); row-gap: var(--sp-1); --header-px: var(--sp-4); --header-py: var(--sp-2); padding: var(--header-py) var(--header-px); }
+  /* SUR TELEPHONE, LE BANDEAU EST OPAQUE ET SANS FLOU D'ARRIERE-PLAN.
+     `backdrop-filter` promeut l'element en couche composite : sur iOS, le texte de cette couche
+     est alors rendu en lissage NIVEAUX DE GRIS au lieu du lissage sous-pixel, et le libelle du
+     module -- 10,88 px, en mono -- paraissait flou. Ce n'etait pas un probleme de contraste,
+     mesure a 6:1. Le fond passe donc a 100 % : le texte redevient net, la couche GPU disparait
+     (le defilement d'une longue liste y gagne sur un telephone), et c'est de toute facon ce
+     qu'il faut maintenant que le bandeau COLLE et que le contenu passe dessous.
+     Le verre depoli reste au-dela de 640 px, ou il ne pose pas ce probleme. */
+  .app-header { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
   .header-mood, .app-header .wx-chip { display: none; }
   /* Sur téléphone on garde le NOM DE LA PAGE plutôt que le nom de la marque : on sait dans
      quelle appli on est, pas toujours sur quel écran. Le logo (cliquable vers le tableau de
