@@ -8,7 +8,7 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const BACKUP_KEEP = 14;
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 const BACKUP_DEDUP_MS = 20 * 60 * 60 * 1000;
 const QUICK_TOKEN_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
@@ -615,12 +615,16 @@ async function createRecipe(request, env) {
   if (!title) return json({ error: 'titre vide' }, 400);
   const id = newId();
   const now = Date.now();
+  const portions = Number.isFinite(Number(body.portions)) && Number(body.portions) > 0 ? Math.min(99, Math.round(Number(body.portions))) : null;
   await env.DB.prepare(
-    'INSERT INTO recipes (id, title, ingredients, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO recipes (id, title, ingredients, category, steps, portions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   ).bind(
     id,
     title,
     JSON.stringify(sanitizeIngredients(body.ingredients)),
+    String(body.category || '').trim().slice(0, 60),
+    String(body.steps || '').slice(0, 10000),
+    portions,
     body.created_at ? Number(body.created_at) : now,
     body.updated_at ? Number(body.updated_at) : now
   ).run();
@@ -643,6 +647,19 @@ async function updateRecipe(id, request, env) {
   if ('ingredients' in body) {
     fields.push('ingredients = ?');
     values.push(JSON.stringify(sanitizeIngredients(body.ingredients)));
+  }
+  if ('category' in body) {
+    fields.push('category = ?');
+    values.push(String(body.category || '').trim().slice(0, 60));
+  }
+  if ('steps' in body) {
+    fields.push('steps = ?');
+    values.push(String(body.steps || '').slice(0, 10000));
+  }
+  if ('portions' in body) {
+    var p = Number(body.portions);
+    fields.push('portions = ?');
+    values.push(Number.isFinite(p) && p > 0 ? Math.min(99, Math.round(p)) : null);
   }
   if (!fields.length) return json({ ok: true });
   fields.push('updated_at = ?');
@@ -838,10 +855,14 @@ async function importAll(request, env) {
     if (typeof ingredients === 'string') {
       try { ingredients = JSON.parse(ingredients); } catch (e) { ingredients = []; }
     }
+    var portions = Number(recipe && recipe.portions);
     return {
       id: validId(recipe && recipe.id) ? String(recipe.id) : newId(),
       title: String((recipe && recipe.title) || '').trim().slice(0, 200),
       ingredients: JSON.stringify(sanitizeIngredients(ingredients)),
+      category: String((recipe && recipe.category) || '').trim().slice(0, 60),
+      steps: String((recipe && recipe.steps) || '').slice(0, 10000),
+      portions: Number.isFinite(portions) && portions > 0 ? Math.min(99, Math.round(portions)) : null,
       created_at: timestampOrNull(recipe && recipe.created_at) || now,
       updated_at: timestampOrNull(recipe && recipe.updated_at) || now,
     };
@@ -900,11 +921,12 @@ async function importAll(request, env) {
   });
   cleanRecipes.forEach((recipe) => {
     statements.push(env.DB.prepare(
-      `INSERT INTO recipes (id, title, ingredients, created_at, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, NULL)
+      `INSERT INTO recipes (id, title, ingredients, category, steps, portions, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT(id) DO UPDATE SET title=excluded.title, ingredients=excluded.ingredients,
+       category=excluded.category, steps=excluded.steps, portions=excluded.portions,
        created_at=excluded.created_at, updated_at=excluded.updated_at, deleted_at=NULL`
-    ).bind(recipe.id, recipe.title, recipe.ingredients, recipe.created_at, recipe.updated_at));
+    ).bind(recipe.id, recipe.title, recipe.ingredients, recipe.category, recipe.steps, recipe.portions, recipe.created_at, recipe.updated_at));
   });
   preferenceEntries.forEach((entry) => {
     statements.push(env.DB.prepare(

@@ -78,7 +78,10 @@ CREATE INDEX IF NOT EXISTS idx_clips_share_token ON clips(share_token);
 CREATE TABLE IF NOT EXISTS recipes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
-  ingredients TEXT DEFAULT '[]',   -- JSON : [{"name":"Farine","have":false}, ...]
+  ingredients TEXT DEFAULT '[]',   -- JSON : [{"name","qty","unit","have"}, ...]
+  category TEXT DEFAULT '',         -- catégorie libre (ex. Plats, Desserts)
+  steps TEXT DEFAULT '',            -- étapes de préparation (texte libre)
+  portions INTEGER,                 -- nombre de portions (NULL = non précisé)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER               -- NULL = actif, sinon dans la corbeille
@@ -105,4 +108,5 @@ INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES
   (10, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (11, CAST(strftime('%s','now') AS INTEGER) * 1000),
   (12, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  (13, CAST(strftime('%s','now') AS INTEGER) * 1000);
+  (13, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  (14, CAST(strftime('%s','now') AS INTEGER) * 1000);
