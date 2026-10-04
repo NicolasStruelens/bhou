@@ -759,6 +759,9 @@ devis, jamais un taux écrit dans le code.
   bloc des MONTANTS est rendu APRÈS les ouvertures. Brancher en `if/else`, jamais en sortie.
 - **Le serveur de test doit envoyer `Cache-Control: no-store`** : sans lui le navigateur resservait
   un `ui.js` d'il y a dix minutes, et les vérifications portaient sur du code déjà remplacé.
+  `python -m http.server` ne l'envoie PAS. Utiliser `solariscreenv2/tests/serveur-test.py`, qui
+  l'envoie et refuse de démarrer si le port est déjà pris (voir le piège du `pkill` plus bas) :
+  `python solariscreenv2/tests/serveur-test.py` → http://127.0.0.1:8732/app/dashboard.html
 - **Un backtick dans un commentaire à l'intérieur d'un `template literal`** le termine. **Payé
   TROIS fois** : la requête SQL de `/api/devis` (déploiement Cloudflare en échec, invisible en
   local), puis deux fois dans la feuille de style injectée — `fetes.js` puis `nav.js`, où citer
@@ -790,6 +793,10 @@ devis, jamais un taux écrit dans le code.
   de script, avec `const SS = window.SS`.
 - **Un `pkill` ne tue pas toujours le serveur de test sous Windows** : les pages continuaient de
   servir d'anciennes données et le scénario testé n'existait pas. Relancer sur un NOUVEAU port.
+  La cause exacte, mesurée depuis : `HTTPServer` met `allow_reuse_address = 1`, donc `SO_REUSEADDR`
+  — et sous Windows cette option n'a pas le sens qu'elle a sous Linux. Elle autorise **deux**
+  serveurs à se lier au MÊME port : le second démarre sans broncher et c'est l'ANCIEN qui répond.
+  `tests/serveur-test.py` remet `allow_reuse_address = False`, donc il ÉCHOUE au lieu de mentir.
 - **Mesurer la mise en page quand le panneau du navigateur est masqué** donne `clientWidth: 0`, donc
   un faux « ça déborde » — et `requestAnimationFrame` ne se déclenche jamais, ce qui fait expirer le
   script. Vérifier que la largeur est non nulle avant de conclure.
