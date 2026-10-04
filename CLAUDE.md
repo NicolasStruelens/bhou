@@ -629,6 +629,25 @@ devis, jamais un taux écrit dans le code.
 
 ## Pièges déjà payés — ne pas les repayer
 
+- **UN FORMULAIRE QUI AFFICHE UN DÉFAUT NON ENREGISTRÉ MENT, et personne ne s'en aperçoit.**
+  `el('chEquipe').value = ch.equipe || 'nicolas'` : le sélecteur d'équipe affichait « Nicolas »
+  alors que `chantier.equipe` n'existait pas en base. On lisait « Nicolas » à l'écran, donc on ne
+  touchait pas au champ, donc `onchange` ne tirait jamais, donc **rien ne s'enregistrait — jamais**.
+  La fiche annonçait une donnée qu'elle n'avait pas.
+  Le défaut est resté invisible jusqu'au jour où un AUTRE écran a lu la même donnée à la SOURCE :
+  la rémunération sortait « équipe ? » sur un chantier que Nicolas voyait pourtant renseigné,
+  pose effectuée et commande au statut « posé ». C'est lui qui a demandé « c'est fait mais il dit
+  que c'est pas fait ??? » — et il avait raison des deux côtés.
+  **Un champ vide se montre VIDE** (`<option value="">— à renseigner —</option>`), et il dit ce que
+  le vide coûte, là où il se corrige. Corrigé dans `vue.html` ET `planning.html`, qui portaient le
+  même repli.
+  ⚠️ À ne pas confondre avec `SSPlanning.quiDeEquipe('')`, qui retombe délibérément sur Nicolas :
+  dans une GRILLE, mieux vaut une case occupée qu'un trou. Ce n'est pas le même besoin qu'un
+  FORMULAIRE, qui doit montrer l'état réel de la base. Les deux coexistent, et c'est voulu.
+  La règle générale : **un `|| valeurParDéfaut` au moment d'AFFICHER un champ éditable est
+  toujours suspect.** Il est légitime au moment de LIRE pour calculer, jamais au moment de peupler
+  un formulaire — sinon l'utilisateur valide de tête quelque chose qui n'existe pas.
+
 - **Le défilement par SCRIPT est inerte dans le panneau d'automatisation, mais la MOLETTE marche.**
   `window.scrollTo`, `body.scrollTop` et `documentElement.scrollTop` laissent tous `scrollY` à 0 sur
   une page pourtant défilable. **En revanche `computer` avec `action: "scroll"` défile pour de vrai**
