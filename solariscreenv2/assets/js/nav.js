@@ -75,6 +75,10 @@
           background: var(--surface, #0e1530); border-right: 1px solid var(--border, #243056);
           overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
         body { padding-left: 212px; }
+        /* Le bandeau est en position: fixed : il ignore le padding-left du body, il faut
+           donc le recaler a la main, sinon il recouvre le rail. */
+        .app-header { left: 212px; }
+        html.ss-rail-reduit .app-header { left: 60px; }
         .ssnav { display: none; }
         html.ss-rail-reduit .ssrail { width: 60px; align-items: stretch; }
         html.ss-rail-reduit body { padding-left: 60px; }
@@ -425,6 +429,25 @@
      qu'un lecteur d'ecran ne voit pas n'est pas un lien.
      Toutes les pages qui chargent nav.js vivent dans /app/, d'ou le href relatif -- le meme que
      celui que porte deja le <h1>. */
+  /* HAUTEUR REELLE DU BANDEAU. Il est en `position: fixed`, donc il ne pousse plus le contenu :
+     c'est `body { padding-top }` qui s'en charge, et il lui faut la hauteur EXACTE. Elle n'est
+     pas constante — sur telephone le bandeau passe sur deux lignes des que les boutons ne
+     tiennent plus, et elle change encore quand les polices finissent de charger. D'ou la mesure
+     plutot qu'une constante, et l'observateur qui la tient a jour.
+     Pose des l'execution du script (nav.js est charge APRES le markup du bandeau) pour que le
+     decalage soit correct des le premier rendu, sans sursaut. */
+  function hauteurBandeau() {
+    const h = document.querySelector('.app-header');
+    const px = h ? Math.round(h.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--ss-header-h', px + 'px');
+    return h;
+  }
+  (function suivreHauteurBandeau() {
+    const h = hauteurBandeau();
+    if (!h || !window.ResizeObserver) return;
+    new ResizeObserver(hauteurBandeau).observe(h);
+  })();
+
   function logoCliquable() {
     const sp = document.querySelector('span.brand-logo');
     if (!sp) return;

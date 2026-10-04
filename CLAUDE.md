@@ -477,10 +477,15 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
 
 ## Pièges déjà payés — ne pas les repayer
 
-- **Le défilement est INERTE dans le panneau d'automatisation** : `window.scrollTo`,
-  `body.scrollTop` et `documentElement.scrollTop` laissent tous `scrollY` à 0 sur une page pourtant
-  défilable (`scrollHeight` 2042 pour un `clientHeight` de 800). Un `scrollIntoView` qui « ne marche
-  pas » n'y prouve donc rien : vérifier d'abord qu'un `scrollTo` manuel bouge, sinon c'est l'outil.
+- **Le défilement par SCRIPT est inerte dans le panneau d'automatisation, mais la MOLETTE marche.**
+  `window.scrollTo`, `body.scrollTop` et `documentElement.scrollTop` laissent tous `scrollY` à 0 sur
+  une page pourtant défilable. **En revanche `computer` avec `action: "scroll"` défile pour de vrai**
+  (`scrollY: 1000` mesuré) : c'est un vrai évènement de molette, pas un appel de script.
+  ⚠️ Cette distinction a coûté cher. Faute de l'avoir essayée, un `position: sticky` a été déclaré
+  cassé sans preuve, « réparé » à l'aveugle, publié, et il a fallu revenir en arrière. **Avant de
+  conclure quoi que ce soit sur un comportement au défilement, essayer la molette.** Il faut une
+  capture d'écran préalable pour pouvoir viser des coordonnées, et la page doit avoir de quoi
+  défiler (allonger avec un bloc de remplissage si besoin).
   À ne pas confondre avec `innerHeight: 0`, qui est le même panneau simplement masqué.
 - **Un conteneur `flex` en colonne avec `max-height` ÉCRASE ses enfants au lieu de défiler.**
   `flex-shrink` vaut 1 par défaut : sur un écran court, les deux cartes du rail de la fiche devis
@@ -509,6 +514,18 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
   normal. **Mesurer les ENFANTS, et vérifier qu’un ancêtre défile vraiment** (`overflowX` en
   `auto`/`scroll`) — pas seulement `document.scrollWidth`. Poser les DEUX axes :
   `overflow-x: auto; overflow-y: hidden`, sinon la spec bascule aussi l’axe vertical sur auto.
+- **Le bandeau de l'application est en `position: FIXED`, jamais en `sticky`.** `sticky` dépend
+  d'une question — « quel est mon conteneur de défilement ? » — et les moteurs n'y répondent pas
+  pareil dès que `body` porte un `overflow`. Mesuré à la molette : Chromium fait coller le bandeau
+  sans problème avec `overflow-x: hidden`, et sur l'iPhone de Nicolas il ne tenait pas. `fixed` ne
+  pose pas la question : il se cale sur la fenêtre.
+  Contreparties, toutes les deux indispensables :
+  • Il sort du flux, donc le contenu doit être décalé. `nav.js` MESURE la hauteur réelle du bandeau
+    dans `--ss-header-h` et la tient à jour par `ResizeObserver` — elle n'est pas constante (le
+    bandeau passe sur deux lignes sur téléphone, et change encore quand les polices chargent).
+    Elle vaut 0 par défaut : cinq pages document n'ont pas de `.app-header` du tout.
+  • `fixed` IGNORE le `padding-left` que le rail pose sur le body : son `left` est recalé dans la
+    media query du rail (212 px, 60 px replié), sinon le bandeau passe par-dessus le rail.
 - **NE PAS remplacer `body { overflow-x: hidden }` par `overflow-x: clip` pour « reparer » le
   bandeau collant.** Essaye le 03/10/2026, publie, puis retire le lendemain : le bandeau tenait
   tres bien avec `hidden`, et c'est `clip` qui l'a fait lacher sur iPhone.
@@ -571,10 +588,17 @@ une autre sur une fenêtre de saisie masquée, prête à surgir.
   bloc des MONTANTS est rendu APRÈS les ouvertures. Brancher en `if/else`, jamais en sortie.
 - **Le serveur de test doit envoyer `Cache-Control: no-store`** : sans lui le navigateur resservait
   un `ui.js` d'il y a dix minutes, et les vérifications portaient sur du code déjà remplacé.
-- **Un backtick dans un commentaire à l'intérieur d'un `template literal`** le termine : citer un
-  nom de champ entre backticks au milieu de la requête SQL de `/api/devis` a cassé tout le fichier,
-  et **le déploiement Cloudflare a échoué** sans que rien ne le montre en local. Écrire « _plan »
-  avec des guillemets dans ces commentaires-là.
+- **Un backtick dans un commentaire à l'intérieur d'un `template literal`** le termine. **Payé
+  TROIS fois** : la requête SQL de `/api/devis` (déploiement Cloudflare en échec, invisible en
+  local), puis deux fois dans la feuille de style injectée — `fetes.js` puis `nav.js`, où citer
+  « position: fixed » entre backticks dans un commentaire a tué le fichier entier.
+  Le symptôme est toujours le même et il ne ressemble pas à la cause : `window.SSNav` ou
+  `window.SSFetes` vaut `undefined`, la page a l'air à moitié vivante, et la seule trace est un
+  `Uncaught SyntaxError` sur un mot au hasard.
+  **Dans ces commentaires-là, écrire les noms de propriétés entre guillemets français, jamais
+  entre backticks. Et après TOUTE modification d'un `.js`, vérifier dans la console qu'il n'y a pas
+  de `SyntaxError` ET que le `window.SSxxx` du fichier existe** — c'est deux secondes, et ça attrape
+  cette famille entière.
 - **Aucun navigateur ne charge `functions/api/[[catchall]].js`** : une faute de syntaxe y passe
   toutes les vérifications de page et ne se voit qu'au déploiement. Node n'est pas installé sur la
   machine de Nicolas, donc pas de `node --check` — le contrôle se fait dans la console du
