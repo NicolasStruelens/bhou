@@ -1,5 +1,12 @@
 # Déploiement de Racine (Cloudflare Pages)
 
+> **v60 — version simplifiée (3 axes : Idées · Recettes · Presse-papier).**
+> L'interface a été remplacée par une version épurée. Le backend (D1) est inchangé, toutes
+> les données restent en place. Les anciens fichiers JS/CSS (clairière, graphe, focus…) sont
+> conservés sur le disque mais ne sont plus chargés par `app.html` (réversible).
+> **Nouvelle migration à exécuter une fois : `migration_v14.sql`** (catégorie, étapes et
+> portions pour les recettes). Sans elle, la création/édition de recettes renverra une erreur.
+
 ## 1. Mettre le code sur GitHub
 Crée un repo (ou un sous-dossier `racine/` dans un repo existant comme `bhou`) et pousse tout le contenu de ce dossier `Racine/`.
 
@@ -45,6 +52,7 @@ Si `racine-db` existe déjà (déploiement initial fait avant une évolution du 
 10. `migration_v11.sql` — préférences synchronisées entre appareils
 11. `migration_v12.sql` — boîte de dépôt et durée estimée des pensées
 12. `migration_v13.sql` — date réelle de clôture et extinction des rappels terminés
+13. `migration_v14.sql` — recettes développées : catégorie, étapes, portions
 
 Un nouveau déploiement depuis `schema.sql` seul (première installation) inclut déjà tout ça — pas besoin de rejouer les migrations.
 
