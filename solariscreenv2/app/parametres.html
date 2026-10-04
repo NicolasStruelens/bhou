@@ -75,6 +75,11 @@
        au lieu d'un « % » orphelin flottant à droite de la boîte. */
     .reg-champ .input-unit { width: 100%; }
     .reg-champ .input { width: 100%; text-align: right; font-family: var(--font-mono); font-weight: 600; }
+    /* Explication d'un GROUPE entier, là où l'aide d'un réglage isolé ne suffit pas : la cible de
+       rémunération ne se comprend pas champ par champ, il faut d'abord dire qu'elle ne verse rien. */
+    .reg-note { font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.6; max-width: 72ch;
+      padding: var(--sp-3) 0 var(--sp-2); }
+    .reg-note strong { color: var(--text); }
     .reg-champ .select { width: 100%; }
     /* Unité longue (« vues ») : on élargit la réserve à droite du champ plutôt que de la rogner. */
     .input-unit.large .input { padding-right: 3.4rem; }
@@ -244,6 +249,30 @@
           </div>
           <div id="alerteCommissions"></div>
 
+          <div class="grp">Rémunération — ce que vous voulez toucher</div>
+          <div class="reg-note">
+            Ces trois montants ne versent rien : ils servent à <strong>mesurer</strong>. L'écran
+            Statistiques compare ce que chaque devis paie réellement au poseur (la ligne
+            « Technicien 1 » ci-dessous, divisée par le diviseur brut→net) à la cible indiquée ici,
+            et signale les dossiers chiffrés en dessous. On corrige alors le devis SUIVANT — jamais
+            un devis déjà signé, dont les montants sont figés.
+          </div>
+          <div class="reg" data-reg="remu.cible.screen">
+            <div class="reg-txt"><div class="reg-nom">Cible nette — un screen</div>
+              <div class="reg-aide">Net, par ouverture posée, pour celui qui l'a posée.</div></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="5" id="cible_screen"><span class="unit">€</span></div></div>
+          </div>
+          <div class="reg" data-reg="remu.cible.volet_roulant">
+            <div class="reg-txt"><div class="reg-nom">Cible nette — un volet roulant</div>
+              <div class="reg-aide">Net, par ouverture posée.</div></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="5" id="cible_volet"><span class="unit">€</span></div></div>
+          </div>
+          <div class="reg" data-reg="remu.cible.tente_solaire">
+            <div class="reg-txt"><div class="reg-nom">Cible nette — une tente solaire</div>
+              <div class="reg-aide">Net, par tente posée. Une tente demande plus de temps qu'un screen : c'est le seul type dont la cible dépasse ce que la ligne « Technicien 1 » paie aujourd'hui.</div></div>
+            <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="5" id="cible_tente"><span class="unit">€</span></div></div>
+          </div>
+
           <div class="grp">Installation, par ouverture</div>
           <div class="reg" data-reg="prix.install_gross">
             <div class="reg-txt"><div class="reg-nom">Pose facturée au client</div>
@@ -252,12 +281,12 @@
           </div>
           <div class="reg" data-reg="prix.tech1_gross">
             <div class="reg-txt"><div class="reg-nom">Technicien 1</div>
-              <div class="reg-aide">Par ouverture, montant brut. Le net se déduit du diviseur (réglages avancés).</div></div>
+              <div class="reg-aide">Par ouverture, montant brut. <strong>C'est votre paie de pose</strong> : à 125 € brut et un diviseur de 2,5, celui qui pose touche 50 € nets par ouverture. Pour en toucher 100 (une tente solaire), il faut chiffrer 250 € ici. <span id="tech1Net"></span></div></div>
             <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="tech1_gross"><span class="unit">€</span></div></div>
           </div>
           <div class="reg" data-reg="prix.tech2_gross">
             <div class="reg-txt"><div class="reg-nom">Technicien 2</div>
-              <div class="reg-aide">Par ouverture, montant brut.</div></div>
+              <div class="reg-aide">Par ouverture, montant brut. Quand un seul des deux est sur le chantier, cette ligne-là reste à la société. <span id="tech2Net"></span></div></div>
             <div class="reg-champ"><div class="input-unit"><input class="input input-num" type="number" min="0" step="1" id="tech2_gross"><span class="unit">€</span></div></div>
           </div>
           <div class="reg" data-reg="prix.tools_gross">
@@ -495,6 +524,10 @@
       // champs pour une seule réalité, c'était s'offrir la possibilité d'une incohérence.
       { id: 'material_margin', chemin: ['prix', 'material_margin'], pourcent: true },
       { id: 'net_divisor', chemin: ['prix', 'net_divisor'] },
+      // Cible de rémunération : elle ne CALCULE rien, elle sert à mesurer (voir remuneration.js).
+      { id: 'cible_screen', chemin: ['remu', 'cible', 'screen'] },
+      { id: 'cible_volet', chemin: ['remu', 'cible', 'volet_roulant'] },
+      { id: 'cible_tente', chemin: ['remu', 'cible', 'tente_solaire'] },
       { id: 'seuil_lead_chaud', chemin: ['usage', 'seuil_lead_chaud'] },
       { id: 'echeance_facture', chemin: ['usage', 'echeance_facture'] },
       { id: 'vue_defaut', chemin: ['usage', 'vue_defaut'], texte: true },
@@ -603,6 +636,14 @@
       // Part fournisseur : affichée comme une conséquence, jamais saisie.
       const pctFournisseur = Math.round(conf.prix.supplier_rate * 10000) / 100;
       el('supplierCalcule').textContent = String(pctFournisseur).replace('.', ',') + ' %';
+      // Le NET de chaque ligne de technicien, dit à côté du brut. C'est ce chiffre-là que l'on a
+      // en tête (« 50 € par screen »), jamais le brut — et il n'était affiché nulle part ici,
+      // ce qui a fait croire que la paie de pose n'existait pas dans l'ERP.
+      const div = conf.prix.net_divisor > 0 ? conf.prix.net_divisor : 2.5;
+      [['tech1Net', conf.prix.tech1_gross], ['tech2Net', conf.prix.tech2_gross]].forEach(function (x) {
+        const champ = el(x[0]); if (!champ) return;
+        champ.innerHTML = x[1] > 0 ? '→ <strong>' + fmtEur(x[1] / div) + ' nets</strong> par ouverture.' : '';
+      });
       const a = apercuDe(conf), ref = ENREGISTRES ? apercuDe(ENREGISTRES) : null;
       el('apercu').innerHTML =
         ligneApercu('Catalogue', a.total_catalog_ht, ref && ref.total_catalog_ht) +

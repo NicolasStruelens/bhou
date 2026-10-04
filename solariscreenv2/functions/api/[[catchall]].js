@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // SOLARISCREEN API — Cloudflare Pages Function (backend UNIQUE)
-// Routes : /api/devis, /api/clients, /api/factures, /api/stats, /api/health
+// Routes : /api/devis, /api/clients, /api/factures, /api/prelevements, /api/health
 // Same-origin (servi sous le même domaine que l'app) → pas de CORS *.
 // Protégé par Cloudflare Access (au niveau du domaine, voir DEPLOIEMENT.md).
 // Liaison D1 "DB" : Pages → Settings → Functions → D1 database bindings.
@@ -1428,6 +1428,67 @@ export async function onRequest(context) {
       return json({ ok: true });
     }
 
+    // ══════════ PRÉLÈVEMENTS (ce que Nicolas et Yannick ont réellement retiré) ══════════
+    // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle avant de déployer.
+    //
+    // POURQUOI CE REGISTRE EXISTE. Sans lui, un écran de rémunération ne sait dire qu'une chose :
+    // « voilà ce qu'on vous doit » — un nombre qui ne fait que MONTER, même après qu'on s'est payé.
+    // Il devient alors faux au premier virement, et un chiffre faux sur de l'argent ne se rattrape
+    // pas. Une ligne ici = un retrait réellement effectué, et « ce qui reste » est la soustraction.
+    //
+    // ⚠️ Ce n'est PAS de la comptabilité. La pièce officielle vit dans SysCore / Falco (voir le
+    // guide) : ce registre dit COMBIEN a été pris et quand, pour que l'ERP cesse de l'ignorer.
+    // Le champ « ref_externe » permet d'y rattacher la pièce comptable, comme sur une facture.
+    if (path === '/api/prelevements' || path.indexOf('/api/prelevements/') === 0) {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS prelevements (id TEXT PRIMARY KEY, qui TEXT NOT NULL DEFAULT '', " +
+        "date TEXT NOT NULL DEFAULT '', montant REAL NOT NULL DEFAULT 0, " +
+        "date_modification TEXT, data TEXT NOT NULL)"
+      ).run();
+    }
+    if (path === '/api/prelevements' && method === 'GET') {
+      // Du plus récent au plus ancien : c'est le dernier retrait qu'on vient vérifier.
+      const { results } = await env.DB.prepare('SELECT data FROM prelevements ORDER BY date DESC').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/prelevements' && method === 'POST') {
+      const x = await request.json().catch(() => null);
+      if (!x || typeof x !== 'object') return json({ ok: false, error: 'Requête invalide' }, 400);
+      if (!x.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      const qui = String(x.qui || '');
+      if (!['nicolas', 'yannick'].includes(qui)) return json({ ok: false, error: 'Personne inconnue' }, 400);
+      const date = String(x.date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, error: 'Date invalide' }, 400);
+      // Un montant négatif ou nul n'est pas un prélèvement : on refuse plutôt que d'enregistrer
+      // une ligne qui FERAIT MONTER « ce qui reste » sans que personne ne comprenne pourquoi.
+      const montant = Math.round((Number(x.montant) || 0) * 100) / 100;
+      if (!(montant > 0)) return json({ ok: false, error: 'Montant invalide' }, 400);
+      // Le serveur signe tout seul : jamais de liste « qui écrit ? » (l'identité vient d'Access).
+      const emailPrel = parseAccessEmail(request);
+      const acteur = (emailPrel && IDENTITIES[emailPrel.toLowerCase()]) || emailPrel || null;
+      const now = new Date().toISOString();
+      const propre = {
+        ...x, id: String(x.id).slice(0, 60), qui, date, montant,
+        motif: String(x.motif || '').slice(0, 200),
+        ref_externe: String(x.ref_externe || '').slice(0, 60),
+        acteur, date_modification: now,
+        date_creation: x.date_creation || now,
+      };
+      await env.DB.prepare(`
+        INSERT INTO prelevements (id, qui, date, montant, date_modification, data) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET qui = excluded.qui, date = excluded.date,
+          montant = excluded.montant, date_modification = excluded.date_modification, data = excluded.data
+      `).bind(propre.id, qui, date, montant, now, JSON.stringify(propre)).run();
+      return json({ ok: true, id: propre.id, data: propre });
+    }
+    let mPrel = path.match(/^\/api\/prelevements\/([^/]+)$/);
+    if (mPrel && method === 'DELETE') {
+      const id = decodeURIComponent(mPrel[1]);
+      const r = await env.DB.prepare('DELETE FROM prelevements WHERE id = ?').bind(id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Prélèvement introuvable' }, 404);
+      return json({ ok: true });
+    }
+
     // ══════════ OUTILLAGE (catalogue perso de références : visserie, fixations, outils…) ══════════
     // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle à lancer avant de déployer.
     // C'est le carnet de références personnel de Nicolas (photo + réf. + fournisseur + lien d'achat),
@@ -1490,48 +1551,20 @@ export async function onRequest(context) {
       return json({ ok: true, data: results });
     }
 
-    // ══════════ STATS ══════════
-    if (path === '/api/stats' && method === 'GET') {
-      const { results } = await env.DB.prepare('SELECT data, statut, total_ttc, date_creation FROM devis ORDER BY date_creation ASC').all();
-      const stats = {
-        total: results.length, by_status: {}, by_month: {},
-        nicolas: { gross: 0, net: 0, count: 0, ca_ttc: 0 }, yannick: { gross: 0, net: 0, count: 0, ca_ttc: 0 },
-        ca_total_ttc: 0, ca_signe_ttc: 0, total_material_ht: 0, total_install_ht: 0, total_extras_ht: 0,
-        total_supplier: 0, total_tech: 0, benefice_materiel_brut: 0,
-        signes: 0, envoyes: 0, refuses: 0, annules: 0,
-      };
-      for (const row of results) {
-        const d = safeParse(row.data); if (!d) continue;
-        const calc = d.calculs || {}, p2 = d.pricing_v2 || {};
-        const sellers = (p2.material && p2.material.sellers) || {};
-        const statut = row.statut || 'brouillon';
-        const ttc = calc.total_ttc || 0;
-        stats.by_status[statut] = (stats.by_status[statut] || 0) + 1;
-        const month = (d.date_creation || '').substring(0, 7);
-        if (month) { (stats.by_month[month] = stats.by_month[month] || { ca_ttc: 0, count: 0, signes: 0 }); stats.by_month[month].ca_ttc += ttc; stats.by_month[month].count++; if (['signe', 'termine'].includes(statut)) stats.by_month[month].signes++; }
-        stats.ca_total_ttc += ttc;
-        if (['signe', 'termine'].includes(statut)) { stats.ca_signe_ttc += ttc; stats.signes++; }
-        if (['envoye_client', 'relance_1', 'relance_2'].includes(statut)) stats.envoyes++;
-        if (statut === 'refuse') stats.refuses++;
-        if (statut === 'annule') stats.annules++;
-        stats.total_material_ht += calc.total_catalog_ht || 0;
-        stats.total_install_ht += calc.total_installation_ht || 0;
-        stats.total_extras_ht += calc.total_extras_ht || 0;
-        stats.total_supplier += calc.supplier_estimate || 0;
-        stats.total_tech += (calc.tech1_total || 0) + (calc.tech2_total || 0) + (calc.tools_total || 0);
-        stats.nicolas.gross += calc.nicolas_gross || 0; stats.nicolas.net += calc.nicolas_net || 0;
-        stats.yannick.gross += calc.yannick_gross || 0; stats.yannick.net += calc.yannick_net || 0;
-        const principal = sellers.principal || 'nicolas';
-        if (principal === 'nicolas') { stats.nicolas.count++; stats.nicolas.ca_ttc += ttc; }
-        else if (principal === 'yannick') { stats.yannick.count++; stats.yannick.ca_ttc += ttc; }
-      }
-      stats.benefice_materiel_brut = stats.total_material_ht * 0.23;
-      stats.benefice_net_estime = stats.nicolas.net + stats.yannick.net;
-      stats.marge_pct = stats.total_material_ht > 0 ? Math.round((stats.benefice_materiel_brut / stats.total_material_ht) * 100) : 0;
-      stats.taux_conversion = stats.envoyes > 0 ? Math.round((stats.signes / stats.envoyes) * 100) : 0;
-      stats.ca_moyen = stats.total > 0 ? Math.round(stats.ca_total_ttc / stats.total) : 0;
-      return json({ ok: true, data: stats });
-    }
+    // ══════════ STATS — ROUTE SUPPRIMÉE LE 04/10/2026 ══════════
+    // Il existait ici un GET /api/stats qui recalculait TOUT (par statut, par mois, par vendeur,
+    // marge, taux de conversion) à partir du blob des devis. Aucun écran ne l'appelait :
+    // app/stats.html calcule depuis les devis complets, c'était donc une SECONDE
+    // implémentation des mêmes chiffres, dormante.
+    // Deux raisons de la retirer plutôt que de la laisser dormir :
+    //  • elle écrivait la marge en DUR (total_material_ht * 0.23), ce qui viole la règle 1 du
+    //    guide — un devis porte les taux avec lesquels il a été calculé, et le jour où Harol
+    //    accorde une meilleure remise, cette ligne aurait continué à annoncer 23 % ;
+    //  • Nicolas demande des statistiques qui collent à 100 % aux données de l'ERP. Deux codes
+    //    qui répondent à la même question finissent toujours par répondre deux choses
+    //    différentes, et celui qu'on rebranche un jour est rarement le bon.
+    // SS.getStats() a été retiré d'api.js en même temps. Ne pas réintroduire : si un calcul
+    // serveur devient nécessaire, il devra lire les taux figés sur chaque devis.
 
     // ══════════ IDENTITÉ (qui est connecté via Cloudflare Access) ══════════
     if (path === '/api/whoami') {
