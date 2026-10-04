@@ -1583,11 +1583,15 @@
       const adr = [((a.rue || '') + ' ' + (a.numero || '')).trim(), ((a.code_postal || '') + ' ' + (a.ville || d.ville || '')).trim()]
         .filter(Boolean).join(', ');
       if (tel) b.push(jp('phone', 'Appeler ' + tel, `location.href='tel:${esc(tel.replace(/[^\d+]/g, ''))}'`));
-      if (mail) b.push(jp('mail', 'Écrire à ' + mail, `location.href='mailto:${esc(mail)}'`));
+      // ⚠️ Ces destinations passent par SSUI.jsAttr() et JAMAIS par des quotes simples écrites à la
+      // main : ni esc() ni encodeURIComponent() ne protègent l'apostrophe (encodeURIComponent la
+      // laisse telle quelle, et un &#39; est redécodé en ' avant que le gestionnaire soit compilé).
+      // Un client « L'Hoest » cassait donc le bouton — voir CLAUDE.md, famille jsAttr().
+      if (mail) b.push(jp('mail', 'Écrire à ' + mail, `location.href=${SSUI.jsAttr('mailto:' + mail)}`));
       if (adr) b.push(jp('route', 'Itinéraire — ' + adr, `window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(${SSUI.jsAttr(adr)}), '_blank', 'noopener')`));
       b.push(jp('filetext', 'Document devis (PDF client)', `location.href='devis.html?id=${d.id}'`));
       const ck = clientKeyOf(d.prenom, d.nom);
-      if (ck) b.push(jp('users', 'Fiche client — historique complet, notes, autres devis', `location.href='clients.html?key=${encodeURIComponent(ck)}'`));
+      if (ck) b.push(jp('users', 'Fiche client — historique complet, notes, autres devis', `location.href=${SSUI.jsAttr('clients.html?key=' + encodeURIComponent(ck))}`));
       // Espace client : on ouvre la carte du lien dans la fiche (le jeton n'est pas dans la liste).
       if (d.has_review_link) b.push(jp('link', `Espace client — ${d.review_views || 0} vue(s)`, `location.href='vue.html?id=${d.id}#lien'`));
       const fs = (typeof FACTURES !== 'undefined' ? FACTURES : []).filter(f => f.devis_id === d.id);
