@@ -1115,33 +1115,60 @@
       remuRafraichir();
     };
 
+    /**
+     * ⚠️ CHAQUE SECTION EST ISOLÉE, et c'est tout l'objet de ce bloc.
+     *
+     * Le chargeur était une seule chaîne : quinze rendus à la suite, sans filet. Un seul qui
+     * lève une erreur — un devis mal formé, une donnée que personne n'avait prévue — et TOUS
+     * les suivants sont sautés. L'écran se retrouve avec une dizaine de cadres vides, sans un
+     * mot d'explication, et rien ne dit lequel a lâché ni pourquoi.
+     * C'est arrivé en production le 04/10/2026 : Nicolas a vu « toute une partie ne s'affiche
+     * plus », et depuis sa capture il était impossible de savoir OÙ ça cassait.
+     *
+     * Désormais chaque section est rendue dans son propre `try` : celle qui échoue l'affiche
+     * À SA PLACE, avec son message d'erreur, et les quatorze autres s'affichent normalement.
+     * Un écran qui se dégrade section par section vaut infiniment mieux qu'un écran qui meurt
+     * en silence — et le message est ce qui permet de corriger sans avoir à reproduire.
+     */
+    function bloc(nom, cible, fn) {
+      try { fn(); }
+      catch (e) {
+        console.error('[stats] ' + nom + ' :', e);
+        const h = el(cible);
+        if (h) h.innerHTML = '<div class="empty-mini" style="color:var(--danger);">' +
+          'Cette section n\'a pas pu s\'afficher.<br><span style="font-size:var(--fs-2xs);opacity:.8;">' +
+          esc(String((e && e.message) || e)) + '</span></div>';
+      }
+    }
+
     (async () => {
-      const raw = await SS.listDevis();
+      // Les chargements aussi sont isolés : une route en échec ne doit pas empêcher d'afficher
+      // ce que les autres ont rapporté. `listDevis` est la seule dont tout dépend.
+      const raw = await SS.listDevis().catch(() => []);
       const summary = (raw || []).map(normDevis);
-      const devisFull = (await Promise.all(summary.map(d => SS.getDevis(d.id)))).filter(Boolean)
+      const devisFull = (await Promise.all(summary.map(d => SS.getDevis(d.id).catch(() => null)))).filter(Boolean)
         .map(d => ({ ...d, archive: !!d.archive }));
-      const factures = await SS.listFactures();
-      const connections = await SS.listConnections();
+      const factures = (await SS.listFactures().catch(() => [])) || [];
+      const connections = (await SS.listConnections().catch(() => [])) || [];
       const rdv = (SS.listRdv ? await SS.listRdv().catch(() => []) : []);
       const prelevements = await SS.listPrelevements().catch(() => []);
       const reglages = await window.SSConf.charger().catch(() => null);
 
-      renderRemu(remuCalculer(devisFull, factures, prelevements, reglages));
-      renderRemuPrel();
-      renderPodium(devisFull);
-      renderBySource(devisFull, rdv);
-      renderKPIs(devisFull);
-      renderByStatus(devisFull);
-      renderPayments(factures || []);
-      _DF = devisFull; _FA = factures || [];   // conservés pour le sélecteur de période
-      renderMonthly(_DF, _FA);
-      renderByType(devisFull);
-      renderMargeByType(devisFull);
-      renderBySeller(devisFull);
-      renderRaisonRefus(devisFull);
-      renderTopClients(devisFull);
-      renderByCity(devisFull);
-      renderConnTime(connections || []);
+      bloc('rémunération', 'remu', () => { renderRemu(remuCalculer(devisFull, factures, prelevements, reglages)); renderRemuPrel(); });
+      bloc('podium', 'podium', () => renderPodium(devisFull));
+      bloc('sources', 'bySource', () => renderBySource(devisFull, rdv));
+      bloc('chiffres du haut', 'kpis', () => renderKPIs(devisFull));
+      bloc('statuts', 'byStatus', () => renderByStatus(devisFull));
+      bloc('paiements', 'payments', () => renderPayments(factures));
+      _DF = devisFull; _FA = factures;   // conservés pour le sélecteur de période
+      bloc('graphes mensuels', 'monthlyCreated', () => renderMonthly(_DF, _FA));
+      bloc('types de produit', 'byType', () => renderByType(devisFull));
+      bloc('marge par type', 'margeByType', () => renderMargeByType(devisFull));
+      bloc('vendeurs', 'bySeller', () => renderBySeller(devisFull));
+      bloc('raisons de refus', 'byRaisonRefus', () => renderRaisonRefus(devisFull));
+      bloc('top clients', 'topClients', () => renderTopClients(devisFull));
+      bloc('villes', 'byCity', () => renderByCity(devisFull));
+      bloc('temps de connexion', 'connTime', () => renderConnTime(connections));
     })();
   </script>
 </body>
