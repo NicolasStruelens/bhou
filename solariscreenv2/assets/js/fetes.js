@@ -224,7 +224,13 @@
       const sel = CIBLE[n] || ('.ssfete-vol[data-i="' + n.slice(3) + '"]');
       regles.push(sel + ' { color: var(--ssf-' + n + '-c); opacity: var(--ssf-' + n + '-o); }');
     });
-    return ':root {' + sombre.join('') + '}\n      [data-theme="light"] {' + clair.join('') +
+    /* Les teintes « claires » ne visent plus le seul thème `light` : elles visent TOUS les
+       thèmes clairs, et la liste vient de SSTheme — la source unique. Sans ça, le premier
+       thème clair ajouté (Zen, Blueprint…) héritait des teintes du SOMBRE et les décors
+       devenaient invisibles sur fond blanc, sans que rien ne le signale. */
+    const selClairs = (window.SSTheme ? window.SSTheme.idsClairs() : ['light'])
+      .map(function (id) { return '[data-theme="' + id + '"]'; }).join(', ');
+    return ':root {' + sombre.join('') + '}\n      ' + selClairs + ' {' + clair.join('') +
       '}\n      ' + regles.join('\n      ');
   }
 
