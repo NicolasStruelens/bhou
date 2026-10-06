@@ -197,6 +197,37 @@
     return { detail: detail, total: r2(total), sans_tarif: sansTarif };
   }
 
+  /**
+   * Le détail de la commission, telle que le devis l'a figée (règle 4).
+   * ⚠️ On ne RECALCULE rien : on explique un chiffre déjà écrit. C'est toute la différence
+   * entre un détail et un second calcul — un second calcul finirait un jour par diverger du
+   * premier, et c'est le premier qui a été montré au client.
+   *
+   * Renvoie { base, pct, principal, brut, net, remise, diviseur, calculee }
+   *  • « base » : le catalogue BRUT, avant réduction commerciale, parce que c'est l'assiette du
+   *    pourcentage. La réduction, elle, se déduit de la commission du vendeur principal et NON
+   *    de l'assiette : on lit « 18 % de 12 500 €, moins 200 € de réduction », jamais
+   *    « 18 % de 12 300 € ». Confondre les deux donnerait un taux faux à l'affichage.
+   *  • « calculee » : ce devis porte-t-il un partage ? Un devis chiffré avant que le partage
+   *    existe n'a AUCUN de ces champs : sa commission vaut zéro, en silence. C'est le même
+   *    défaut que le tablier de volet — sauf qu'ici il se compte en centaines d'euros. On le
+   *    SIGNALE donc, on ne le devine pas.
+   */
+  function detailCommission(devis) {
+    const c = (devis && devis.calculs) || {};
+    const connue = c.nicolas_net !== undefined || c.nicolas_gross !== undefined || c.nicolas_pct !== undefined;
+    const base = c.total_catalog_ht_brut !== undefined ? c.total_catalog_ht_brut : c.total_catalog_ht;
+    return {
+      base: r2(base),
+      pct: (c.nicolas_pct === undefined || c.nicolas_pct === null || c.nicolas_pct === '') ? null : num(c.nicolas_pct),
+      principal: String(c.seller_principal || ''),
+      brut: r2(c.nicolas_gross), net: r2(c.nicolas_net),
+      remise: r2(c.remise_catalogue && c.remise_catalogue.amount),
+      diviseur: diviseurNet(devis),
+      calculee: connue,
+    };
+  }
+
   /** Encaissé sur un dossier : les paiements reçus sur ses factures, moins les avoirs émis.
    *  ⚠️ On ne lit PAS le total des factures — une facture émise n'est pas de l'argent reçu. */
   function encaisseDe(devisId, factures) {
@@ -252,6 +283,13 @@
       else if (jyEtais && !etat.faite && !etat.datee) incomplet.push('pose');
     }
 
+    /* ⚠️ Un devis CHIFFRÉ — il a un total client — mais qui ne porte aucun partage. Sa
+       commission vaut alors zéro sans que rien ne le dise, et c'est de l'argent de vente, pas
+       50 € de pose. Le cas vient des devis établis avant que le partage soit figé dans le devis,
+       et il ne se verrait nulle part : un dossier qui ne rapporte rien est masqué du tableau. */
+    const comDetail = detailCommission(d);
+    if (actif && !comDetail.calculee && num(calc.total_ttc) > 0) incomplet.push('commission');
+
     const totalNicolas = r2(commission.nicolas.net + posePayee);
 
     // ── L'encaissement : une INFORMATION, jamais un plafond (règle 7) ──
@@ -269,6 +307,7 @@
       pose_tarifee: tarife.total, pose_detail: tarife.detail, pose_sans_tarif: tarife.sans_tarif,
       pose: posePayee,
       commission: commission,
+      commission_detail: comDetail,
       total: totalNicolas,
       yannick_commission_net: commission.yannick.net,
       total_ttc: totalTtc, encaisse: encaisse, part: Math.round(part * 1000) / 1000,
@@ -291,7 +330,7 @@
       preleve: 0, reste: 0,
       yannick_commission: 0,
       dossiers: 0, dossiers_incomplets: 0, en_attente_equipe: 0, en_attente_pose: 0,
-      sans_tarif: {},
+      sans_tarif: {}, commission_par_taux: {}, dossiers_sans_commission: 0,
     };
 
     (dossiers || []).forEach(function (x) {
@@ -303,6 +342,28 @@
       out.couvert = r2(out.couvert + x.couvert);
       out.yannick_commission = r2(out.yannick_commission + x.yannick_commission_net);
       if (x.incomplet.length) out.dossiers_incomplets++;
+      if (x.incomplet.indexOf('commission') >= 0) out.dossiers_sans_commission++;
+
+      /* LE DÉTAIL DE LA COMMISSION, GROUPÉ PAR TAUX. C'est ce qui rend le chiffre discutable
+         en face de Yannick : « 18 % sur trois dossiers, et 11,5 % sur École du Bonheur ». Un
+         total de commission sans ses taux ne se vérifie pas, et un dossier à répartition
+         personnalisée y devient parfaitement invisible — alors que c'est justement celui dont
+         on se souvient.
+         ⚠️ INVARIANT : la somme des groupes doit retomber sur « out.commission », au centime.
+         D'où le groupe « taux inconnu » : un vieux devis qui porte un montant mais pas son
+         pourcentage doit apparaître quelque part. Un détail qui ne retombe pas sur son total
+         est pire que pas de détail — on cesse de croire les deux. */
+      const cd = x.commission_detail;
+      if (cd && (cd.net !== 0 || cd.base > 0)) {
+        const cle = cd.pct === null ? 'inconnu' : String(cd.pct);
+        const g = out.commission_par_taux[cle] ||
+          (out.commission_par_taux[cle] = { pct: cd.pct, base: 0, brut: 0, net: 0, remise: 0, dossiers: 0 });
+        g.base = r2(g.base + cd.base);
+        g.brut = r2(g.brut + cd.brut);
+        g.net = r2(g.net + cd.net);
+        g.remise = r2(g.remise + cd.remise);
+        g.dossiers++;
+      }
       // Ce que ces dossiers garderaient en suspens — chiffré pour qu'on sache ce qu'on va
       // chercher en allant compléter, et séparé pour qu'on sache QUOI compléter.
       if (x.incomplet.indexOf('equipe') >= 0) out.en_attente_equipe = r2(out.en_attente_equipe + x.pose_tarifee);
@@ -336,6 +397,7 @@
     quantiteDe: quantiteDe,
     ouverturesParType: ouverturesParType,
     detailPose: detailPose,
+    detailCommission: detailCommission,
     encaisseDe: encaisseDe,
     parDossier: parDossier,
     cumul: cumul,

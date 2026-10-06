@@ -861,6 +861,11 @@
       return `<div class="remu-line${fort ? ' fort' : ''}"${titre ? ` title="${esc(titre)}"` : ''}>` +
         `<span class="k">${k}</span><span class="v">${v}</span></div>`;
     }
+    /* Un taux se lit à voix haute dans une discussion d'argent : « onze et demi », pas
+       « onze point cinq ». Et sans arrondi, un 11.499999999999998 venu d'un vieux devis
+       s'afficherait tel quel — ce qui suffit à faire douter du reste du tableau. */
+    const fmtPct = n => (Math.round(Number(n) * 100) / 100).toLocaleString('fr-BE') + ' %';
+
     const remuWarn = t => `<div class="remu-warn">${icon('warning', 16)}<div>${t}</div></div>`;
     const remuInfo = t => `<div class="remu-info">${icon('info', 16)}<div>${t}</div></div>`;
 
@@ -886,6 +891,28 @@
           `${v.qte} × ${esc(TYPE_LABEL[t] || t)}`,
           `${fmtEur(v.unitaire)} → <strong>${fmtEur(v.total)}</strong>`,
           'Compté sur les ouvertures réellement posées, pas sur ce que le devis a chiffré.')).join('');
+
+      /* LA COMMISSION, DÉCOMPOSÉE PAR TAUX. Elle s'affichait en une seule ligne, et Nicolas a
+         posé la seule question qui compte devant un total : « il y a pas École du Bonheur ? ».
+         Il avait raison de la poser — un chiffre qu'on ne sait pas décomposer ne se défend pas
+         en face de son patron, et le dossier à répartition personnalisée est précisément celui
+         dont on se souvient et qu'on cherche des yeux.
+         Même forme que la paie de pose juste au-dessus : des lignes, puis le total qu'elles
+         additionnent. L'invariant « la somme des lignes = le total » est tenu par le moteur
+         (test K19) — y compris pour les vieux devis sans taux stocké, qui ont leur propre ligne
+         au lieu de manquer en silence. */
+      const lignesComm = Object.values(c.commission_par_taux || {})
+        .sort((a, b) => b.net - a.net)
+        .map(g => remuLigne(
+          g.pct === null
+            ? `${g.dossiers} dossier${g.dossiers > 1 ? 's' : ''} · taux non stocké`
+            : `${fmtPct(g.pct)} sur ${g.dossiers} dossier${g.dossiers > 1 ? 's' : ''}`,
+          `${fmtEur(g.base)} → <strong>${fmtEur(g.net)}</strong>`,
+          g.pct === null
+            ? 'Devis établis avant que le taux soit figé dans le devis. Le montant est lu tel quel, il n\'est jamais recalculé.'
+            : `${fmtEur(g.brut)} bruts sur ${fmtEur(g.base)} de catalogue` +
+              (g.remise > 0.004 ? `, après ${fmtEur(g.remise)} de réduction commerciale` : '') +
+              `, puis divisés pour le net.`)).join('');
 
       let warn = '';
       // ⚠️ Avertissement n°1 — l'équipe. Sans elle, la pose n'est attribuée à personne : le total
@@ -920,6 +947,19 @@
           `Ajoute-le dans <a href="parametres.html">Paramètres → Ma paie de pose</a>, et le montant rentrera tout seul.`);
       }
 
+      /* ⚠️ Avertissement n°4 — un devis chiffré SANS aucun partage. Sa commission vaut zéro
+         sans que rien ne le dise, et comme le tableau masque les dossiers qui ne rapportent
+         rien, le dossier disparaissait de l'écran entier. C'est le défaut du tablier de volet
+         transposé à l'argent de la vente, en bien plus cher. */
+      if (c.dossiers_sans_commission > 0) {
+        const n = c.dossiers_sans_commission;
+        warn += remuWarn(
+          `<strong>${n} dossier${n > 1 ? 's' : ''} sans partage de commission</strong> — ` +
+          `${n > 1 ? 'ces devis ont' : 'ce devis a'} un total client, mais ${n > 1 ? 'ils ne portent' : 'il ne porte'} ni taux ni montant de commission : ` +
+          `${n > 1 ? 'ils comptent' : 'il compte'} donc pour 0 €. Le badge <em>partage&nbsp;?</em> du tableau ci-dessous ${n > 1 ? 'les' : 'le'} désigne. ` +
+          `Rouvrir la fiche au simulateur et l'enregistrer suffit à y inscrire le partage.`);
+      }
+
       el('remu').innerHTML = `
         <div class="remu-haut">
           <div class="remu-card moi">
@@ -931,7 +971,9 @@
               ${remuLigne('Paie de pose', `<strong>${fmtEur(c.pose)}</strong>`, 'Tarif convenu avec Yannick, compté sur les ouvertures posées.', true)}
             </div>
             <div class="remu-sep">
-              ${remuLigne('Commission sur les ventes', fmtEur(c.commission), 'Lue sur chaque devis, avec la répartition qui y a été convenue (18/5, ou personnalisée).')}
+              ${lignesComm}
+              ${remuLigne('Commission sur les ventes', `<strong>${fmtEur(c.commission)}</strong>`,
+                'Lue sur chaque devis, avec la répartition qui y a été convenue (18/5, ou personnalisée). Jamais recalculée.', true)}
             </div>
             <div class="remu-sep">
               ${remuLigne('Total gagné', fmtEur(c.total), null, true)}
@@ -1040,6 +1082,24 @@
       } else {
         pose = r.pose_certaine ? 'toi' : '<span title="Déduit d\'une date de pose passée : le PV de réception n\'a pas été rempli.">toi<sup>*</sup></span>';
       }
+      /* La commission, VÉRIFIABLE ligne par ligne. Le montant seul ne dit pas d'où il sort :
+         au survol, on lit le taux, l'assiette et la division. C'est ce qu'on montre à Yannick
+         quand il demande « ça sort d'où, ce chiffre ». */
+      let comm;
+      const cd = r.commission_detail || {};
+      if (r.incomplet.includes('commission')) {
+        comm = `<a class="badge badge-warn" href="vue.html?id=${encodeURIComponent(d.id)}" title="Ce devis ne porte aucun partage : ni taux, ni montant. Il compte donc pour 0 €. Ouvre-le, repasse par le simulateur et enregistre : le partage s'y inscrira.">partage ?</a>`;
+      } else if (r.commission.nicolas.net) {
+        const bouts = [];
+        if (cd.pct !== null && cd.pct !== undefined) bouts.push(`${fmtPct(cd.pct)} de ${fmtEur(cd.base)} de catalogue`);
+        else if (cd.base > 0) bouts.push(`${fmtEur(cd.base)} de catalogue`);
+        if (cd.remise > 0.004) bouts.push(`moins ${fmtEur(cd.remise)} de réduction commerciale`);
+        if (cd.brut) bouts.push(`${fmtEur(cd.brut)} bruts ÷ ${String(cd.diviseur).replace('.', ',')}`);
+        comm = `<span title="${esc(bouts.join(' · ') || 'Montant lu sur le devis.')}">${fmtEur(r.commission.nicolas.net)}</span>`;
+      } else {
+        comm = '<span class="text-muted" title="Aucune commission sur ce dossier.">—</span>';
+      }
+
       return `<tr>
         ${/* L'archivage est un rangement d'affichage, pas un evenement commercial : un dossier
                archive garde sa paie. Mais les KPI du haut, eux, EXCLUENT les archives — sans ce
@@ -1050,7 +1110,7 @@
         <td>${pose}</td>
         <td class="num">${ouvertures || '—'}</td>
         <td class="num">${r.pose ? fmtEur(r.pose) : '<span class="text-muted">—</span>'}</td>
-        <td class="num">${r.commission.nicolas.net ? fmtEur(r.commission.nicolas.net) : '<span class="text-muted">—</span>'}</td>
+        <td class="num">${comm}</td>
         <td class="num"><strong>${fmtEur(r.total)}</strong></td>
         <td class="num" title="${fmtEur(r.encaisse)} reçus sur ${fmtEur(r.total_ttc)}">${Math.round(r.part * 100)}&nbsp;%</td>
       </tr>`;
