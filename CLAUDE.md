@@ -56,7 +56,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 
 | Fichier | Rôle |
 |---|---|
-| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 41 tests. |
+| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 54 tests. |
 | `assets/js/api.js` | Client API, cache local, file d'envoi hors-ligne (`window.SS`) |
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
@@ -64,7 +64,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 89 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 tests (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/calc.test.html` | Les 54 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
 | `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -82,6 +82,22 @@ photos et documents dans **R2**.
 calculé (`pricing_v2.rates`). À la réouverture on relit *ceux-là*, jamais les réglages du jour ; un
 devis ancien sans taux stockés retombe sur les taux historiques (0,77 / 0,23 / 2,5). Modifier une
 marge ne doit jamais changer un montant déjà annoncé à un client ni une facture émise.
+
+**1 bis. UNE LIGNE D'OUVERTURE VIDE NE FACTURE RIEN** (`SSCalc.ouverturesReelles`).
+Une ligne existe dès qu'on clique « Ajouter » ; tant qu'elle ne porte ni largeur, ni hauteur, ni
+projection, ni prix catalogue, elle ne représente aucun travail. C'est cette fonction qui décide
+`install_qty`, donc un MONTANT.
+⚠️ La règle ne vivait que dans le simulateur, écrite en dur. Le **Mode Terrain** comptait TOUTES
+les lignes : un devis fait chez le client avec une ouverture encore vide sortait à 280 €
+d'installation pour un catalogue à 0 — **296,80 € TVAC avant d'avoir chiffré quoi que ce soit**.
+Signalé par Nicolas : « on a l'impression que c'est un bug ». Il avait raison.
+Elle est dans `calc.js` et non dans `products.js` parce qu'elle détermine une entrée du moteur de
+prix : c'est le seul fichier où une règle d'argent est couverte par des tests.
+⚠️ `computeDevis` ne l'appelle PAS et ne doit pas l'appeler : il reçoit les quantités telles
+qu'on les lui donne. On doit pouvoir facturer 3 poses pour 2 ouvertures si le chantier l'exige —
+d'où aussi le drapeau « quantité saisie à la main » du simulateur, qui coupe la synchro.
+⚠️ Ce correctif ne retouche AUCUN devis existant : les `calculs` sont figés en base (règle 1).
+Un brouillon déjà créé garde son total tant qu'il n'est pas rouvert au simulateur.
 
 **2. Ne jamais reconstruire un objet métier par liste blanche.** Étaler la source et ne surcharger
 que ce qui change (`{...existant, ...nouveau}`). Une énumération de champs perd silencieusement tout
@@ -955,8 +971,8 @@ devis, jamais un taux écrit dans le code.
 
 ## Comment vérifier son travail
 
-1. **Les 41 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
-   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
+1. **Les 54 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
+   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 54/54 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
    `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».

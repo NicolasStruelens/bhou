@@ -127,6 +127,35 @@
     check('C7 taux renvoyés (diviseur)', r4.rates.net_divisor, 2.0);
     check('C7 taux renvoyés par défaut', sansTaux.rates.material_margin, 0.23);
 
+    // ═════ C8 — COMBIEN D'OUVERTURES RÉELLES ? C'est elle qui décide `install_qty`. ═════
+    /* ⚠️ Une ligne d'ouverture existe dès qu'on clique « Ajouter » : vide, elle ne représente
+       aucun travail et ne doit rien facturer. La règle ne vivait que dans le simulateur ; le Mode
+       Terrain comptait TOUTES les lignes, donc un devis terrain avec une ouverture encore vide
+       sortait à 280 € d'installation pour un catalogue à 0 — 296,80 € TVAC avant d'avoir chiffré
+       quoi que ce soit. Signalé par Nicolas le 06/10/2026. */
+    const ouv = SSCalc.ouverturesReelles;
+    check('C8 aucune ouverture', ouv([]), 0);
+    check('C8 une ligne VIDE ne compte pas', ouv([{ type: 'screen' }]), 0);
+    check('C8 une ligne vide avec une quantité ne compte toujours pas', ouv([{ type: 'screen', quantite: 3 }]), 0);
+    check('C8 une largeur suffit à la rendre réelle', ouv([{ largeur: 1200 }]), 1);
+    check('C8 une hauteur aussi', ouv([{ hauteur: 2000 }]), 1);
+    check('C8 une projection aussi (tente solaire)', ouv([{ projection: 2500 }]), 1);
+    check('C8 un prix catalogue aussi', ouv([{ prix_catalogue_ht: 450 }]), 1);
+    check('C8 la quantité d’une ouverture décrite est respectée', ouv([{ largeur: 1200, quantite: 4 }]), 4);
+    check('C8 une quantité à zéro ou absente vaut une ouverture', ouv([{ largeur: 1200, quantite: 0 }]), 1);
+    check('C8 les lignes vides sont ignorées au milieu des autres',
+      ouv([{ largeur: 1200 }, { type: 'screen' }, { prix_catalogue_ht: 300, quantite: 2 }, {}]), 3);
+    check('C8 null et undefined ne cassent rien', ouv([null, undefined, { largeur: 900 }]), 1);
+    // Le cas EXACT de Nicolas, de bout en bout : une ouverture vide ne doit plus rien facturer.
+    const vide = computeDevis({
+      items: [{ type: 'screen' }],
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30,
+        install_qty: ouv([{ type: 'screen' }]), tech1_qty: 0, tech2_qty: 0, tools_qty: 0 },
+      tva_pct: 6,
+    });
+    check('C8 bout en bout : installation à 0', vide.total_installation_ht, 0);
+    check('C8 bout en bout : total TVAC à 0', vide.total_ttc, 0);
+
     document.getElementById('out').innerHTML =
       `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
     const s = document.getElementById('summary');

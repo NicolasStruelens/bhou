@@ -211,8 +211,36 @@
     }, 0);
   }
 
+  /**
+   * COMBIEN D'OUVERTURES RÉELLES ? C'est cette fonction qui décide `install_qty`, donc un montant.
+   *
+   * Une ligne d'ouverture existe dès qu'on clique « Ajouter » : tant qu'elle est VIDE, elle ne
+   * représente aucun travail et ne doit rien facturer. Une ouverture devient réelle quand elle
+   * porte au moins une largeur, une hauteur, une projection ou un prix catalogue — autrement dit
+   * dès qu'on a commencé à la décrire.
+   *
+   * ⚠️ CETTE RÈGLE VIVAIT DANS LE SEUL SIMULATEUR, et le Mode Terrain comptait TOUTES les lignes.
+   * Un devis créé sur le terrain avec une ouverture encore vide sortait donc à 280 €
+   * d'installation pour un catalogue à 0 — 296,80 € TVAC avant d'avoir chiffré quoi que ce soit.
+   * Signalé par Nicolas le 06/10/2026 : « on a l'impression que c'est un bug ». Il avait raison.
+   * Elle est ici, et non dans products.js, parce qu'elle détermine une entrée du moteur de prix :
+   * c'est le seul fichier où une règle d'argent est couverte par des tests.
+   * ⚠️ `computeDevis` ne l'appelle PAS : il reçoit les quantités telles qu'on les lui donne, et
+   * c'est voulu — on doit pouvoir facturer 3 poses pour 2 ouvertures si le chantier l'exige.
+   */
+  function ouverturesReelles(items) {
+    return (items || []).reduce(function (n, i) {
+      if (!i) return n;
+      const decrite = !!(num(i.largeur) || num(i.hauteur) || num(i.projection) || num(i.prix_catalogue_ht));
+      if (!decrite) return n;
+      const q = num(i.quantite);
+      return n + (q > 0 ? q : 1);
+    }, 0);
+  }
+
   window.SSCalc = {
     computeDevis: computeDevis, totalSurface: totalSurface, resolveSellerPcts: resolveSellerPcts,
+    ouverturesReelles: ouverturesReelles,
     SUPPLIER_RATE: SUPPLIER_RATE, MATERIAL_MARGIN: MATERIAL_MARGIN, NET_DIVISOR: NET_DIVISOR,
   };
 })();
