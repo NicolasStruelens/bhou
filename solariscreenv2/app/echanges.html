@@ -692,6 +692,8 @@
           '<textarea class="textarea" id="et-' + escHtml(s.id) + '" style="min-height:92px" ' +
             'placeholder="Première ligne : le titre. Les suivantes : le détail.">' +
             escHtml(s.titre + (s.corps ? '\n' + s.corps : '')) + '</textarea>' +
+          '<input class="input ec-lie" id="ec-' + escHtml(s.id) + '" list="dlClients" autocomplete="off" ' +
+            'style="margin-top:0.5rem" placeholder="Lié à un client (vider pour détacher)" value="' + escHtml(s.client_nom || '') + '">' +
           '<div class="ec-fin">' +
             '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ep-' + escHtml(s.id) + '\').click()" title="Joindre une photo à ce sujet">' + icon('camera', 13) + ' Photo</button>' +
             '<input type="file" id="ep-' + escHtml(s.id) + '" accept="image/*" multiple hidden onchange="joindrePhotos(' + id + ', this)">' +
@@ -754,13 +756,12 @@
       const lignes = brut.split('\n');
       const titre = lignes[0].trim().slice(0, 200);
       const corps = lignes.slice(1).join('\n').trim();
-      const nomClient = el('pClient').value.trim();
-      const lie = CLIENTS.filter(function (c) { return c.nom.toLowerCase() === nomClient.toLowerCase(); })[0];
+      const cl = clientDepuisNom(el('pClient').value);
       const s = {
         id: 'SUJ-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
         kind: P_KIND, pour: P_POUR, statut: 'ouvert',
         titre: titre, corps: corps,
-        client_nom: nomClient, client_key: (lie && lie.key) || '', devis_id: DEVIS_LIE,
+        client_nom: cl.client_nom, client_key: cl.client_key, devis_id: DEVIS_LIE,
         echeance: el('pEcheance').value || '',
       };
       const btn = el('btnPublier'); btn.disabled = true;
@@ -788,6 +789,16 @@
       rendre();
     };
 
+    /** Un nom tapé → le client de la liste, s'il existe. Un nom inconnu reste écrit TEL QUEL
+     *  mais sans clé : le lien vers le CRM ne marchera pas, et c'est voulu — mieux vaut garder
+     *  ce que la personne a écrit que de l'effacer parce qu'on ne le reconnaît pas.
+     *  Vider le champ détache le client : c'est la seule façon de revenir en arrière. */
+    function clientDepuisNom(nom) {
+      const propre = (nom || '').trim();
+      const lie = CLIENTS.filter(function (c) { return c.nom.toLowerCase() === propre.toLowerCase(); })[0];
+      return { client_nom: propre, client_key: (lie && lie.key) || '' };
+    }
+
     window.ouvrirEdition = function (id) {
       EDITE = EDITE === id ? '' : id;
       EDITE_REP = '';
@@ -805,10 +816,11 @@
       const lignes = brut.split('\n');
       // ⚠️ On ETALE le sujet existant (règle 2 du guide) : une énumération de champs perdrait en
       // silence tout ce qu'elle ne connaît pas — l'échéance, le client lié, la décision déjà prise.
+      const champClient = el('ec-' + id);
       const res = await SS.saveSujet(Object.assign({}, s, {
         titre: lignes[0].trim().slice(0, 200),
         corps: lignes.slice(1).join('\n').trim(),
-      }));
+      }, champClient ? clientDepuisNom(champClient.value) : {}));
       if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
       EDITE = '';
       toast('Corrigé', 'ok');
