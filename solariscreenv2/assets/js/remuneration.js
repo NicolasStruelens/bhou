@@ -113,7 +113,33 @@
     if (!e) return null;                       // ⚠️ la garde de la règle 5 : surtout pas de défaut
     const P = window.SSPlanning;
     if (!P || !P.quiDeEquipe) return null;     // planning.js absent : on signale, on ne devine pas
+    /* ⚠️ Une valeur d'équipe HORS VOCABULAIRE doit être signalée, pas interprétée.
+       « quiDeEquipe » renvoie [] aussi bien pour « sous_traitant » que pour une valeur qu'elle
+       ne connaît pas — et ici [] signifie « Nicolas n'y était pas ». Une donnée abîmée, un
+       ancien libellé, une faute de frappe, et sa paie disparaissait en affichant « sous-traitée »
+       dans le tableau : une AFFIRMATION, là où l'ERP n'en savait rien. */
+    if (P.EQUIPE_QUI && !Object.prototype.hasOwnProperty.call(P.EQUIPE_QUI, String(e))) return null;
     return P.quiDeEquipe(e);
+  }
+
+  /**
+   * POURQUOI ce dossier ne paie pas de pose. Une par dossier, jamais vide.
+   * ⚠️ C'est la réponse à la question que Nicolas a posée le 06/10/2026 devant le tableau :
+   * « il y a pas École du Bonheur ? ». Un dossier à 20 000 € de catalogue qui ne lui rapporte
+   * aucune pose peut être parfaitement normal (sous-traité, pas encore posé) ou être une donnée
+   * abîmée — et rien à l'écran ne permettait de trancher. Un écran qui se tait sur de l'argent
+   * oblige à rouvrir les dossiers un par un.
+   * L'ordre des questions EST le raisonnement : y a-t-il des ouvertures ? sait-on qui a posé ?
+   * est-ce que j'y étais ? est-ce que c'est fait ? est-ce tarifé ?
+   */
+  function poseRaison(nbOuvertures, qui, jyEtais, etat, tarife) {
+    if (nbOuvertures <= 0) return 'sans_ouverture';
+    if (qui === null) return 'equipe_inconnue';
+    if (!qui.length) return 'sous_traitee';
+    if (!jyEtais) return 'sans_moi';
+    if (!etat.faite) return etat.datee ? 'a_venir' : 'pose_inconnue';
+    if (tarife.total <= 0) return 'sans_tarif';
+    return 'payee';
   }
 
   /**
@@ -271,6 +297,12 @@
 
     /* Un type sans tarif sur un chantier que Nicolas a POSÉ : il faut le dire. Ailleurs
        (sous-traité, posé par Yannick, pas encore posé) ça ne lui coûte rien, donc on se tait. */
+    /* Les ouvertures RECONNUES — tarifées ou non. Une ligne d'item sans `type` n'en est pas
+       une : elle ne compte nulle part, et c'est précisément ce qu'il faut savoir. */
+    const nbOuvertures = tarife.detail.reduce(function (s, x) { return s + x.qte; }, 0)
+      + tarife.sans_tarif.reduce(function (s, x) { return s + x.qte; }, 0);
+    const raison = actif ? poseRaison(nbOuvertures, qui, jyEtais, etat, tarife) : 'inactif';
+
     if (actif && jyEtais && etat.faite && tarife.sans_tarif.length) incomplet.push('tarif');
 
     if (actif && tarife.total > 0) {
@@ -288,7 +320,20 @@
        50 € de pose. Le cas vient des devis établis avant que le partage soit figé dans le devis,
        et il ne se verrait nulle part : un dossier qui ne rapporte rien est masqué du tableau. */
     const comDetail = detailCommission(d);
-    if (actif && !comDetail.calculee && num(calc.total_ttc) > 0) incomplet.push('commission');
+    /* ⚠️ Un dépannage est HORS de ce signalement : il se facture en main-d'oeuvre, il n'a pas de
+       catalogue, donc pas de commission à partager. Le réclamer serait du bruit — et un écran
+       qui réclame pour rien, on apprend très vite à ne plus le lire. */
+    const estDepannage = String(d.type_document || '') === 'depannage';
+    if (actif && !estDepannage && !comDetail.calculee && num(calc.total_ttc) > 0) incomplet.push('commission');
+
+    /* ⚠️ UN DEVIS QUI PORTE DU CATALOGUE MAIS AUCUNE OUVERTURE RECONNUE. Ses lignes n'ont pas
+       de `type` : elles sont facturées au client et invisibles pour la paie de pose.
+       Ce cas ne pouvait RIEN dire jusqu'ici, parce que tous les signalements de pose vivaient
+       sous « si le tarif total est positif » — or il vaut zéro, justement. Un dossier à 20 000 €
+       de catalogue sortait donc à 0 € de pose, sans un mot.
+       Le catalogue est le bon discriminant : un dépannage n'en a pas, et n'a légitimement
+       aucune ouverture. */
+    if (actif && nbOuvertures <= 0 && comDetail.base > 0) incomplet.push('ouvertures');
 
     const totalNicolas = r2(commission.nicolas.net + posePayee);
 
@@ -305,6 +350,7 @@
       // Ce que la pose RAPPORTERAIT si elle est bien de Nicolas et bien faite : sert à chiffrer
       // ce qui est en suspens sur un dossier signalé, sans jamais le compter comme dû.
       pose_tarifee: tarife.total, pose_detail: tarife.detail, pose_sans_tarif: tarife.sans_tarif,
+      pose_ouvertures: nbOuvertures, pose_raison: raison,
       pose: posePayee,
       commission: commission,
       commission_detail: comDetail,
@@ -331,6 +377,7 @@
       yannick_commission: 0,
       dossiers: 0, dossiers_incomplets: 0, en_attente_equipe: 0, en_attente_pose: 0,
       sans_tarif: {}, commission_par_taux: {}, dossiers_sans_commission: 0,
+      dossiers_sans_ouverture: 0, catalogue_sans_ouverture: 0,
     };
 
     (dossiers || []).forEach(function (x) {
@@ -343,6 +390,12 @@
       out.yannick_commission = r2(out.yannick_commission + x.yannick_commission_net);
       if (x.incomplet.length) out.dossiers_incomplets++;
       if (x.incomplet.indexOf('commission') >= 0) out.dossiers_sans_commission++;
+      if (x.incomplet.indexOf('ouvertures') >= 0) {
+        out.dossiers_sans_ouverture++;
+        // Le catalogue en jeu : c'est ce qui dit si on a affaire à une broutille ou à un
+        // chantier entier passé à la trappe.
+        out.catalogue_sans_ouverture = r2(out.catalogue_sans_ouverture + x.commission_detail.base);
+      }
 
       /* LE DÉTAIL DE LA COMMISSION, GROUPÉ PAR TAUX. C'est ce qui rend le chiffre discutable
          en face de Yannick : « 18 % sur trois dossiers, et 11,5 % sur École du Bonheur ». Un
@@ -394,6 +447,7 @@
     diviseurNet: diviseurNet,
     poseurs: poseurs,
     poseFaite: poseFaite,
+    poseRaison: poseRaison,
     quantiteDe: quantiteDe,
     ouverturesParType: ouverturesParType,
     detailPose: detailPose,

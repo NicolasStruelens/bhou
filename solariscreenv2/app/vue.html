@@ -2315,12 +2315,22 @@
       const R = window.SSRemu;
       if (!R) return '';
       const x = R.parDossier(d, [], (window.SSConf && SSConf.get()) || null, SSUI.aujourdhui());
-      if (!x.actif || (!x.total && !x.pose_tarifee)) return '';
+      /* ⚠️ Un dossier SIGNALÉ s'affiche même s'il ne rapporte rien aujourd'hui : c'est
+         justement parce qu'il ne rapporte rien qu'il faut le voir. Sans cette condition, le
+         dossier à corriger était le seul à ne pas avoir de carte. */
+      if (!x.actif || (!x.total && !x.pose_tarifee && !x.incomplet.length)) return '';
 
       // L'état de la pose, en une ligne — et SURTOUT ce qu'il faut faire quand il manque quelque
       // chose. Un écran qui dit « incomplet » sans dire quoi remplir ne sert à rien.
       let etat, alerte = '';
-      if (x.incomplet.includes('equipe')) {
+      if (x.incomplet.includes('ouvertures')) {
+        /* Du catalogue facturé, aucune ligne avec un type de produit : la paie de pose ne peut
+           rien compter dessus, et jusqu'ici elle sortait à zéro sans un mot. */
+        etat = '<span class="badge badge-warn">aucune ouverture</span>';
+        alerte = `Ce devis facture du catalogue, mais aucune de ses lignes ne porte de type de produit
+                  (screen, volet, tente…). La paie de pose ne peut donc rien compter dessus.
+                  Rouvre le devis au simulateur et vérifie ses ouvertures.`;
+      } else if (x.incomplet.includes('equipe')) {
         etat = '<span class="badge badge-warn">équipe à renseigner</span>';
         alerte = `<a href="#" onclick="openCardAndScroll('chantierCard');return false;">Renseigne « Équipe »</a>
                   dans la planification de pose : sans elle, l'ERP ne sait pas si c'est toi qui as posé,
