@@ -70,8 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 120 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 120 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -746,6 +746,24 @@ dossier disparaissait entièrement. Tout zéro d'argent produit par une donnée 
 une donnée à zéro, qui est une réponse) entre dans `incomplet` et porte un badge qui mène à
 l'endroit où on le corrige.
 
+**30 decies. Quand un dossier ne paie RIEN, l'écran doit dire POURQUOI.**
+École du Bonheur sortait avec sa commission (954,82 €) et zéro pose, sans un mot. Nicolas a
+donc demandé « il y a pas École du Bonheur ? » alors que le dossier ÉTAIT là : seule sa pose
+manquait. Un écran qui se tait sur de l'argent oblige à rouvrir les dossiers un par un.
+`SSRemu.parDossier` renvoie donc `pose_raison`, toujours remplie :
+`payee` · `sans_ouverture` · `equipe_inconnue` · `sous_traitee` · `sans_moi` · `a_venir` ·
+`pose_inconnue` · `sans_tarif` · `inactif`. L'ordre des questions EST le raisonnement, et la
+colonne « Posé par » la rend telle quelle.
+⚠️ Deux trous fermés au passage, tous deux de la même famille (règle 30 nonies) :
+• **Une équipe hors vocabulaire se lisait « sous-traitée ».** `quiDeEquipe` renvoie `[]` aussi
+  bien pour `sous_traitant` que pour une valeur inconnue — et `[]` signifie « Nicolas n'y était
+  pas ». Une donnée abîmée lui faisait perdre sa paie pendant que le tableau AFFIRMAIT une
+  sous-traitance. `SSPlanning.EQUIPE_QUI` est exporté pour que la rémunération distingue les deux.
+• **Un devis avec du catalogue mais aucune ouverture reconnue ne pouvait rien dire** : tous les
+  signalements de pose vivaient sous `if (tarife.total > 0)`, or il vaut zéro, justement. Le
+  catalogue est le bon discriminant — un dépannage n'en a pas, et n'a légitimement aucune
+  ouverture. Pour la même raison, un dépannage est hors du signalement de commission.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -1001,7 +1019,7 @@ l'endroit où on le corrige.
    `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
-   `tests/remuneration.test.html`, exiger « 120/120 » — c'est de l'argent réel. Les dates s'y
+   `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.

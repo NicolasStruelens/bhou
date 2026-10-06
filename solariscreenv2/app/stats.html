@@ -960,6 +960,20 @@
           `Rouvrir la fiche au simulateur et l'enregistrer suffit à y inscrire le partage.`);
       }
 
+      /* ⚠️ Avertissement n°5 — du catalogue facturé, aucune ouverture reconnue. Les lignes de
+         ces devis n'ont pas de type : elles sont facturées au client et invisibles pour la paie
+         de pose. C'est le cas qui ne pouvait RIEN dire, parce que tous les signalements de pose
+         vivaient sous « si le tarif total est positif » — or il vaut zéro, justement. Un
+         chantier entier pouvait donc sortir à 0 € de pose sans un mot. */
+      if (c.dossiers_sans_ouverture > 0) {
+        const n = c.dossiers_sans_ouverture;
+        warn += remuWarn(
+          `<strong>${n} dossier${n > 1 ? 's' : ''} sans aucune ouverture reconnue</strong> — ` +
+          `${fmtEur(c.catalogue_sans_ouverture)} de catalogue ${n > 1 ? 'y sont' : 'y est'} facturé${n > 1 ? 's' : ''} au client, ` +
+          `mais ${n > 1 ? 'aucune ligne ne porte' : 'aucune ligne ne porte'} de type de produit : la paie de pose ne peut rien compter dessus. ` +
+          `Le badge <em>sans ouverture</em> du tableau ci-dessous ${n > 1 ? 'les' : 'le'} désigne — ouvre la fiche et vérifie les ouvertures.`);
+      }
+
       el('remu').innerHTML = `
         <div class="remu-haut">
           <div class="remu-card moi">
@@ -1056,29 +1070,39 @@
          pendant que le bandeau annonçait « 2 × Store banne » — deux comptes pour une même chose. */
       const ouvertures = r.pose_detail.reduce((s, p) => s + p.qte, 0)
         + (r.pose_sans_tarif || []).reduce((s, p) => s + p.qte, 0);
-      let pose;
-      /* ⚠️ Les deux badges d'alerte sont des LIENS vers la carte « Planification de pose » de la
+      /* LA COLONNE « POSÉ PAR » NE PEUT PLUS SE TAIRE. Elle rend « pose_raison », calculée par
+         le moteur (19 tests) : il y a toujours une raison, et elle est toujours affichée.
+         ⚠️ Les badges d'alerte sont des LIENS vers la carte « Planification de pose » de la
          fiche, dépliée et centrée (ancre #chantier, déjà en place dans vue.html). Sans ça, l'écran
          disait « équipe ? » sans dire OÙ la remplir — et Nicolas a posé la question, ce qui est
          la preuve que l'avertissement ne suffisait pas. Un écran qui signale sans emmener, on ne
-         le suit pas. */
+         le suit pas.
+         ⚠️ Le cas « tarif ? » se teste AVANT la raison : sur un devis mixte (2 screens tarifés
+         + 1 store banne qui ne l'est pas), la raison vaut « payée » alors qu'il reste bien
+         quelque chose à régler. */
+      let pose;
       const versChantier = `vue.html?id=${encodeURIComponent(d.id)}#chantier`;
-      if (r.incomplet.includes('equipe')) {
-        pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée : l'ERP ne sait pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
-      } else if (r.incomplet.includes('tarif')) {
+      const versDevis = `vue.html?id=${encodeURIComponent(d.id)}`;
+      if (r.incomplet.includes('ouvertures')) {
+        pose = `<a class="badge badge-warn" href="${versDevis}" title="Ce devis facture du catalogue mais aucune de ses lignes ne porte de type de produit : la paie de pose ne peut rien compter dessus. Cliquer pour ouvrir la fiche.">sans ouverture</a>`;
+      } else if (r.pose_raison === 'equipe_inconnue') {
+        pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée, ou valeur que l'ERP ne reconnaît pas : il ne sait donc pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
+      } else if (r.incomplet.includes('tarif') || r.pose_raison === 'sans_tarif') {
         pose = `<a class="badge badge-warn" href="parametres.html" title="${esc(r.pose_sans_tarif.map(x => x.qte + ' × ' + (TYPE_LABEL[x.type] || x.type)).join(', '))} — aucun tarif fixé pour ce type. Cliquer pour l'ajouter.">tarif ?</a>`;
-      } else if (r.incomplet.includes('pose')) {
-        pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date de pose.">posé ?</a>`;
-      } else if (r.poseurs === null) {
-        /* Équipe non renseignée MAIS rien à payer dessus (un dépannage n'a aucune ouverture).
-           Afficher « sous-traitée » ici était un MENSONGE : rien ne dit que ça l'a été, c'est
-           simplement sans objet. Un écran qui invente une réponse plutôt que d'admettre qu'il
-           n'en a pas est pire qu'un écran vide. */
-        pose = '<span class="text-muted" title="Aucune équipe renseignée — et rien à payer sur ce dossier.">—</span>';
-      } else if (!r.jy_etais) {
-        pose = `<span class="text-muted">${r.poseurs.length ? 'Yannick' : 'sous-traitée'}</span>`;
-      } else if (!r.pose_faite) {
-        pose = '<span class="text-muted" title="Chantier planifié, pas encore posé.">à venir</span>';
+      } else if (r.pose_raison === 'pose_inconnue') {
+        pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé : ni PV de réception, ni commande passée en « posé », ni date de pose. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date.">posé ?</a>`;
+      } else if (r.pose_raison === 'sous_traitee') {
+        pose = '<span class="text-muted" title="Pose confiée à un sous-traitant : elle ne te revient pas.">sous-traitée</span>';
+      } else if (r.pose_raison === 'sans_moi') {
+        pose = '<span class="text-muted" title="Tu n\'es pas dans l\'équipe de ce chantier.">Yannick</span>';
+      } else if (r.pose_raison === 'a_venir') {
+        pose = '<span class="text-muted" title="Chantier planifié, pas encore posé. Le montant rentrera à la date prévue.">à venir</span>';
+      } else if (r.pose_raison === 'sans_ouverture') {
+        /* Aucune ouverture ET aucun catalogue : un dépannage. Afficher « sous-traitée » ici
+           était un MENSONGE — rien ne dit que ça l'a été, c'est simplement sans objet. Un écran
+           qui invente une réponse plutôt que d'admettre qu'il n'en a pas est pire qu'un écran
+           vide. */
+        pose = '<span class="text-muted" title="Aucune ouverture sur ce dossier — il n\'y a pas de pose à payer.">—</span>';
       } else {
         pose = r.pose_certaine ? 'toi' : '<span title="Déduit d\'une date de pose passée : le PV de réception n\'a pas été rempli.">toi<sup>*</sup></span>';
       }

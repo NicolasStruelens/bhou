@@ -276,6 +276,63 @@
     check('total du dossier École du Bonheur', moitieMoitie.total, 2225);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Pourquoi ce dossier ne me paie pas de pose — aucun dossier muet');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Nicolas, le 06/10/2026 : « il y a pas École du Bonheur ? ». Le dossier est bien compté
+       — sa commission est là — mais sa POSE ne lui rapportait rien, et rien à l'écran ne disait
+       pourquoi. Un dossier à 20 000 € de catalogue qui ne paie aucune pose peut être
+       parfaitement normal (sous-traité, pas encore posé) ou être une donnée abîmée. Sans la
+       raison affichée, il faut rouvrir les dossiers un par un pour trancher. */
+    const raisonDe = o => R.parDossier(devis(o), [], null, AUJ).pose_raison;
+
+    check('L1 posé par moi, pose faite, tarifé → payée', raisonDe({ items: [item('screen', 2)], equipe: 'nicolas' }), 'payee');
+    check('L2 aucune ouverture reconnue', raisonDe({ items: [], equipe: 'nicolas' }), 'sans_ouverture');
+    check('L3 équipe pas renseignée', raisonDe({ items: [item('screen', 2)] }), 'equipe_inconnue');
+    check('L4 sous-traitée : une réponse, pas un trou',
+      raisonDe({ items: [item('screen', 2)], equipe: 'sous_traitant' }), 'sous_traitee');
+    check('L5 posée par Yannick seul', raisonDe({ items: [item('screen', 2)], equipe: 'yannick' }), 'sans_moi');
+    check('L6 planifiée, pas encore faite',
+      raisonDe({ items: [item('screen', 2)], equipe: 'nicolas', pose_floue: true, date_pose: '2026-12-01' }), 'a_venir');
+    check('L7 rien ne dit si c\'est posé',
+      raisonDe({ items: [item('screen', 2)], equipe: 'nicolas', pose_floue: true }), 'pose_inconnue');
+    check('L8 posée, mais aucun tarif pour ce type',
+      raisonDe({ items: [item('store_banne', 2)], equipe: 'nicolas' }), 'sans_tarif');
+    check('L9 un devis refusé n\'a pas de raison à donner : il ne doit rien',
+      raisonDe({ statut: 'refuse', items: [item('screen', 2)], equipe: 'nicolas' }), 'inactif');
+
+    /* ⚠️ UNE ÉQUIPE HORS VOCABULAIRE. « quiDeEquipe » renvoie [] aussi bien pour
+       « sous_traitant » que pour une valeur qu'elle ne connaît pas — et [] veut dire « Nicolas
+       n'y était pas ». Une donnée abîmée, un ancien libellé, et sa paie disparaissait pendant
+       que le tableau AFFIRMAIT « sous-traitée ». Une affirmation fausse est pire qu'un trou. */
+    const equipeBizarre = R.parDossier(devis({ items: [item('screen', 4)], equipe: 'equipe_b' }), [], null, AUJ);
+    check('L10 une équipe inconnue est SIGNALÉE, pas lue comme une sous-traitance',
+      [equipeBizarre.pose_raison, equipeBizarre.poseurs], ['equipe_inconnue', null]);
+    check('L11 et les 200 € en jeu sont chiffrés', equipeBizarre.pose_tarifee, 200);
+    check('L12 « sous_traitant », lui, reste une réponse valide',
+      R.parDossier(devis({ items: [item('screen', 4)], equipe: 'sous_traitant' }), [], null, AUJ).poseurs, []);
+
+    /* ⚠️ LE DOSSIER SANS AUCUNE OUVERTURE RECONNUE. Des lignes facturées au client, mais sans
+       `type` : invisibles pour la paie de pose. Et ce cas ne pouvait RIEN dire, parce que tous
+       les signalements vivaient sous « si le tarif total est positif » — or il vaut zéro. */
+    const muet = R.parDossier(devis({
+      items: [{ quantite: 33, prix_catalogue_ht: 629 }], equipe: 'nicolas',
+      calculs: { total_ttc: 25000, total_catalog_ht_brut: 20757, nicolas_pct: 11.5, nicolas_gross: 2387.05, nicolas_net: 954.82 },
+    }), [], null, AUJ);
+    check('L13 des lignes sans type ne sont pas des ouvertures', muet.pose_ouvertures, 0);
+    check('L14 le dossier est SIGNALÉ au lieu de sortir à zéro en silence', muet.incomplet, ['ouvertures']);
+    check('L15 sa commission, elle, reste due : les deux sujets sont indépendants', muet.commission.nicolas.net, 954.82);
+    /* Un dépannage n'a ni catalogue ni ouverture : c'est normal, et le réclamer serait du bruit.
+       Le catalogue est le discriminant — il n'y a de pose attendue que là où il y a du matériel. */
+    check('L16 un dépannage sans catalogue ne réclame rien',
+      R.parDossier(devis({ items: [], equipe: 'nicolas', calculs: { total_ttc: 450 } }), [], null, AUJ).incomplet, []);
+    check('L17 les ouvertures non tarifées comptent quand même comme des ouvertures',
+      R.parDossier(devis({ items: [item('store_banne', 2)], equipe: 'nicolas' }), [], null, AUJ).pose_ouvertures, 2);
+
+    const cMuet = R.cumul([muet], []);
+    check('L18 le cumul les compte', cMuet.dossiers_sans_ouverture, 1);
+    check('L19 et chiffre le catalogue passé à la trappe', cMuet.catalogue_sans_ouverture, 20757);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Le détail de la commission — un total sans son taux ne se vérifie pas');
     // ═════════════════════════════════════════════════════════════════════════════════════
     /* Nicolas, le 06/10/2026, devant « Commission sur les ventes : 1 333,84 € » : « il y a pas
@@ -320,6 +377,9 @@
       R.parDossier({ id: 'Z', statut: 'signe', items: [], chantier: {}, commande: {}, calculs: {} }, [], null, AUJ).incomplet, []);
     check('K13 un devis refusé non plus : il ne doit rien, donc il ne manque rien',
       R.parDossier({ id: 'Z2', statut: 'refuse', items: [], chantier: {}, commande: {}, calculs: { total_ttc: 18000 } }, [], null, AUJ).incomplet, []);
+    check('K13 bis un dépannage non plus : il se facture en main-d’oeuvre, sans catalogue à partager',
+      R.parDossier({ id: 'DEP', statut: 'signe', type_document: 'depannage', items: [], chantier: {}, commande: {},
+        calculs: { total_ttc: 450 } }, [], null, AUJ).incomplet, []);
     check('K14 un partage à 0 % volontaire n’est PAS un partage manquant',
       R.parDossier({ id: 'Z3', statut: 'signe', items: [], chantier: {}, commande: {},
         calculs: { total_ttc: 18000, nicolas_pct: 0, nicolas_net: 0 } }, [], null, AUJ).incomplet, []);

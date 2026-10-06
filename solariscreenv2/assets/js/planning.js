@@ -544,6 +544,12 @@
     ecartJours: ecartJours, jours: jours,
     hhmmMin: hhmmMin, minHhmm: minHhmm, fmtDuree: fmtDuree,
     conf: conf, trameDe: trameDe,
+    /* ⚠️ Exporté pour que la rémunération puisse distinguer « sous-traitant » (une réponse)
+       d'une valeur d'équipe qu'on ne connaît pas (une donnée à corriger). « quiDeEquipe »
+       renvoie [] dans les deux cas — ici, [] veut dire « Nicolas n'y était pas », donc une
+       valeur inconnue lui ferait perdre sa paie en silence. Le vocabulaire reste ICI, à un
+       seul endroit (règle 10) : la rémunération le LIT, elle n'en garde pas de copie. */
+    EQUIPE_QUI: EQUIPE_QUI,
     quiDeEquipe: quiDeEquipe, quiDeTechniciens: quiDeTechniciens,
     aPlanifierDe: aPlanifierDe, aCommanderDe: aCommanderDe,
     construire: construire, trier: trier, occupation: occupation,
