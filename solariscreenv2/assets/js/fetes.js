@@ -790,9 +790,10 @@
       const d = document.createElement('div');
       d.className = 'ssfete ssfete-railpied';
       d.setAttribute('aria-hidden', 'true');
-      d.style.width = f.rail.pied.taille + 'px';
       d.title = f.nom;
-      d.innerHTML = dessin(f.rail.pied);
+      // La taille va sur un element INTERIEUR : le conteneur occupe toute la largeur du rail
+      // pour centrer le dessin sans avoir a connaitre sa taille dans la feuille de style.
+      d.innerHTML = '<span class="ssfete-railpied-img" style="width:' + f.rail.pied.taille + 'px">' + dessin(f.rail.pied) + '</span>';
       rail.appendChild(d);
     }
   }
@@ -859,7 +860,16 @@
          elle ajoutait 30 px a la colonne, le rail passait en defilement des 820 px de haut, et
          la barre lui volait 10 px de largeur -- << Outillage & references >> se faisait tronquer.
          Ancree par le bas, elle n'allonge plus le contenu, donc elle ne peut plus declencher ca. */
-      .ssfete-railpied { position: absolute; bottom: 10px; left: 0; right: 0; margin: 0 auto; }
+      /* ⚠️ FIXED, et surtout pas ABSOLUTE. Le rail defile des que la liste depasse la hauteur
+         de l'ecran, et un element en « absolute » dans un conteneur qui defile REMONTE AVEC LE
+         CONTENU : la citrouille se retrouvait au milieu du menu, a cote de << Facturation >>.
+         En « fixed » elle se cale sur la fenetre -- donc sur le bas du rail, qui est lui-meme fixe
+         de haut en bas -- et ne bouge plus quand on fait defiler. Elle reste hors du flux, donc
+         le defaut d'origine (30 px ajoutes a la colonne) ne revient pas. */
+      .ssfete-railpied { position: fixed; bottom: 10px; left: 0; width: 212px;
+        display: flex; justify-content: center; }
+      html.ss-rail-reduit .ssfete-railpied { width: 60px; }
+      .ssfete-railpied-img { display: block; }
 
       /* Ce qui pend dans la toile : un fil, puis la bête. L'ensemble se balance depuis le
          POINT D'ACCROCHE (transform-origin en haut), sinon il pivote sur son ventre. */

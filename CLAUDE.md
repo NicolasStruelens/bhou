@@ -492,6 +492,13 @@ accrochée dans l'angle. À 35 % d'opacité et 58 px, c'était invisible : il a 
 rouge pour le voir. Le miroir porte sur la TOILE SEULE et jamais sur le conteneur, sinon
 l'araignée pendrait vers le haut dans le coin bas-gauche. Les coins alternent haut-droite /
 bas-gauche — les deux angles que les coins « ticked » laissent libres.
+⚠️ **Un décor posé DANS le rail se cale en `position: fixed`, jamais en `absolute`.** Le rail
+DÉFILE dès que la liste dépasse la hauteur de l'écran, et un élément en `absolute` dans un
+conteneur qui défile REMONTE AVEC LE CONTENU : la citrouille se retrouvait au milieu du menu, à
+côté de « Facturation ». En `fixed` elle se cale sur la fenêtre — donc sur le bas du rail, qui
+est lui-même fixe de haut en bas. Sa largeur suit celle du rail (212 px, 60 px replié) et le
+dessin se centre dedans, la taille étant posée sur un élément INTÉRIEUR : sans ça on ne peut pas
+centrer sans connaître la taille dans la feuille de style.
 ⚠️ **Un décor posé DANS le rail doit être hors du flux.** La citrouille de pied, en flux, ajoutait
 30 px à la colonne : le rail passait en défilement dès 820 px de haut, et la barre lui volait 10 px
 de largeur — « Outillage & références » se faisait tronquer. Ancrée par le bas, elle n'allonge plus
@@ -818,6 +825,13 @@ devis, jamais un taux écrit dans le code.
   TROIS fois** : la requête SQL de `/api/devis` (déploiement Cloudflare en échec, invisible en
   local), puis deux fois dans la feuille de style injectée — `fetes.js` puis `nav.js`, où citer
   « position: fixed » entre backticks dans un commentaire a tué le fichier entier.
+  **PAYÉ UNE CINQUIÈME FOIS le 06/10/2026**, encore dans `fetes.js`, encore en citant un nom de
+  propriété entre backticks dans un commentaire CSS : `window.SSFetes` à `undefined`, plus un seul
+  décor sur aucune page.
+  ⚠️ **Compter les backticks du fichier NE SUFFIT PAS** : on en ajoute presque toujours une PAIRE,
+  donc le total reste pair et le contrôle passe au vert alors que le template est coupé. Le seul
+  contrôle qui vaille est de REPARSER le fichier :
+  `new Function(await (await fetch('/assets/js/fetes.js?v=' + Date.now())).text())`.
   Le symptôme est toujours le même et il ne ressemble pas à la cause : `window.SSNav` ou
   `window.SSFetes` vaut `undefined`, la page a l'air à moitié vivante, et la seule trace est un
   `Uncaught SyntaxError` sur un mot au hasard.
@@ -931,13 +945,21 @@ devis, jamais un taux écrit dans le code.
 3. **Mobile** — recharger chaque page modifiée à 390 px de large, vérifier qu'aucun élément ne
    déborde de sa boîte.
 4. **Non-régression bureau** — comparer l'avant/après à 1500 px sur les pages non concernées.
-5. **Rejouer un écran sur des données DÉGRADÉES**, pas seulement sur des données propres : un
+5. **Rejouer un écran sur des données RÉELLES, pas seulement vides.** Un écran qui s'affiche
+   sans données n'est pas un écran vérifié : les boucles ne s'exécutent pas, donc la moitié du
+   code n'est jamais atteinte. `signeDateOf` a été supprimée par accident et la page passait au
+   vert en local — avec zéro devis, la boucle du podium ne l'appelait jamais. C'est la production
+   qui l'a trouvée. Charger quelques devis d'essai AVANT de conclure.
+   ⚠️ Corollaire : **remplacer un BLOC entier par position** (du marqueur A au marqueur B), c'est
+   emporter ce qu'on n'avait pas lu. Lister ce que le bloc contenait avant de le remplacer, et
+   vérifier après coup que chaque nom qu'il définissait existe encore.
+6. **Rejouer un écran sur des données DÉGRADÉES**, pas seulement sur des données propres : un
    devis sans `calculs`, sans `client`, sans `items`, un item sans type, une quantité à zéro ou
    négative, un dossier archivé, un dépannage sans ouverture. C'est comme ça qu'ont été trouvés,
    d'un coup, le « −150 € invisible » de la quantité négative, un dépannage annoncé
    « sous-traitée » alors que rien ne le disait, et des euros dans une colonne de pourcentages.
    Aucun des trois ne se voyait en relisant le code, ni en ouvrant la page avec de vraies données.
-6. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
+7. **Toujours mesurer, jamais supposer** — et regarder l'écran. Plusieurs défauts réels ont été
    trouvés sur une capture d'écran alors que les mesures disaient « tout va bien ».
 
 ## La facturation en plusieurs fois — vérifié, ne pas « corriger »
