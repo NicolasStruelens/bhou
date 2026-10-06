@@ -739,6 +739,7 @@
               </select>
             </div>
           </div>
+          <div class="cc-eta" id="chantierLivraisonHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierEquipeHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierInfo"></div>
           <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
@@ -1660,6 +1661,28 @@
          (Le défaut à Nicolas de SSPlanning.quiDeEquipe est, lui, délibéré : mieux vaut une case
          occupée qu'un trou dans un planning. Ce n'est pas le même besoin.) */
       el('chEquipe').value = ch.equipe || '';
+      /* LE GARDE-FOU LIVRAISON / POSE. On ne BLOQUE pas la saisie — un conflit s'avertit, il ne
+         se bloque pas (règle 13 du guide), et il arrive qu'on cale une pose en sachant que la
+         marchandise arrivera avant. Mais on le DIT, parce que l'erreur est invisible autrement :
+         la date de pose vit dans une carte, la livraison estimée dans une autre, et personne ne
+         compare deux cartes de tête.
+         ⚠️ C'est la contrepartie du resserrement de la liste « à planifier », qui attend désormais
+         la réception : ce cas ne remonte plus dans les alertes, il faut donc qu'il se voie ICI,
+         là où il se crée. */
+      const liv = window.SSUI.livraisonEstimee(DEVIS);
+      const recuDeja = window.SSUI.materielRecu(DEVIS);
+      let livTxt = '', livAlerte = false;
+      if (ch.date_pose && !recuDeja) {
+        livAlerte = !!(liv && ch.date_pose < liv);
+        livTxt = livAlerte
+          ? 'Pose prévue le ' + fmtDate(ch.date_pose) + ', mais la livraison est estimée au '
+            + fmtDate(liv) + ' — la marchandise ne sera pas là.'
+          : 'Matériel pas encore reçu' + (liv ? ' (livraison estimée le ' + fmtDate(liv) + ')' : '')
+            + ' : la date de pose reste à confirmer.';
+      }
+      el('chantierLivraisonHint').textContent = livTxt;
+      el('chantierLivraisonHint').style.color = livAlerte ? 'var(--danger)' : '';
+
       // Et on DIT ce que coute le vide, là où il se corrige.
       el('chantierEquipeHint').innerHTML = ch.equipe ? '' :
         'Équipe non renseignée : la pose de ce chantier n’est attribuée à personne dans ' +

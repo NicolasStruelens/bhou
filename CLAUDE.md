@@ -61,12 +61,12 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
-| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 74 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 70 tests (`window.SSAttente`) |
+| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 89 tests (`window.SSPlanning`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 tests (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 41 tests du moteur de prix. À ouvrir dans un navigateur. |
-| `tests/planning.test.html` | Les 74 tests du planning. Même principe. |
-| `tests/attente.test.html` | Les 70 tests du « qui doit agir ». Même principe. |
+| `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
+| `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
@@ -225,10 +225,44 @@ réécriture.
 réenregistrement du sujet — qui effacerait ce que l'autre vient d'ajouter. Et l'enregistrement du
 sujet ÉTALE l'existant (règle 2) : une énumération de champs perdrait l'échéance, le client lié
 et la décision déjà prise.
+La boîte de correction porte aussi le CLIENT, le DESTINATAIRE et l'ÉCHÉANCE. Ils ne se posaient
+qu'à la publication : un sujet créé « pour nous deux » ne pouvait plus être confié à quelqu'un, et
+un sujet écrit dans l'urgence restait orphelin de client pour toujours — or c'est justement celui
+qu'on ne retrouve pas trois semaines plus tard. Vider le champ client le DÉTACHE ; un nom inconnu
+est gardé tel quel mais sans clé CRM (mieux vaut conserver ce qui a été écrit que l'effacer).
+⚠️ Le destinataire ne peut pas vivre dans le DOM comme les autres champs : c'est un groupe de
+boutons, pas un `input`, donc il n'a pas de `value` à relire. Il vit dans `EDITE_POUR`, remis à
+`null` à chaque ouverture — sinon le choix fait sur un sujet suivrait sur le suivant — et
+`null` signifie « non touché », donc la valeur enregistrée survit.
 Une PHOTO peut désormais être jointe à un sujet DÉJÀ publié (bouton dans la boîte de correction).
 Pas de file d'attente dans ce cas, contrairement à la publication : l'identifiant existe, l'envoi
 part tout de suite. Les photos restent au niveau du SUJET — un second modèle de photos sur les
 réponses, c'en serait un de trop (règle 25).
+
+**15 ter. ON NE RÉCLAME UNE DATE DE POSE QU'UNE FOIS LE MATÉRIEL REÇU.**
+`SSPlanning.aPlanifierDe` exige désormais `SSUI.materielRecu(d)`. Réclamer une date sur un
+chantier encore en fabrication chez le fournisseur, c'est réclamer une décision que personne ne
+peut prendre — et **un écran qui réclame pour rien, on apprend très vite à ne plus le lire**.
+Signalé par Nicolas : un dossier en « Fabrication » remontait en « chantier signé sans date de
+pose » alors qu'il n'y avait rien à planifier.
+⚠️ **CONTREPARTIE OBLIGATOIRE : `aCommanderDe`.** Sans elle, resserrer la première liste créait
+un ANGLE MORT — un devis signé jamais commandé n'aurait plus été réclamé par personne, ni pour
+la commande (aucune alerte n'existait) ni pour la pose. **Les deux listes sont complémentaires et
+doivent le rester : si l'une se resserre, l'autre doit s'élargir.** Un test vérifie qu'aucun
+dossier ne peut être dans les deux, et qu'ensemble elles couvrent tout chantier vivant sauf ceux
+dont la balle est chez le fournisseur (« commandé », « fabrication ») — où il n'y a justement
+rien à décider de notre côté.
+C'est aussi la BONNE action à montrer : sur un dossier qui n'est pas parti chez Harol, ce qu'il
+faut faire n'est pas de planifier, c'est de commander — d'où le lien vers `vue.html?id=…#commande`.
+L'état de la commande vit dans **`SSUI.etatCommande`** (source unique) : cinq étapes, et l'absence
+de statut vaut « à commander ». Il comprend les DEUX formes, l'objet `commande.statut` de la
+fiche et le `commande_statut` à plat de la liste — sans quoi le planning et le tableau de bord
+répondraient différemment sur le même dossier.
+⚠️ On **n'EMPÊCHE PAS** de saisir une date de pose avant la livraison : un conflit s'avertit, il ne
+se bloque pas (règle 13), et il arrive qu'on cale une pose en sachant que la marchandise arrivera.
+La fiche devis le DIT, en rouge quand la pose précède la livraison estimée — l'erreur est invisible
+autrement, puisque la date de pose vit dans une carte et la livraison dans une autre, et que
+personne ne compare deux cartes de tête.
 
 **16. Une question qu'on classe doit laisser une DÉCISION ÉCRITE.** C'est ce qui sépare une
 messagerie d'une mémoire commune : « on avait dit quoi pour les coulisses de Depaepe ? » doit avoir
@@ -923,7 +957,8 @@ devis, jamais un taux écrit dans le code.
 
 1. **Les 41 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 41/41 ».
-   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 74/74 ».
+   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
+   `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 98/98 » — c'est de l'argent réel. Les dates s'y

@@ -482,6 +482,39 @@
     };
   }
 
+  /* ── CE QUI DEMANDE UNE DÉCISION, et dans quel ORDRE ────────────────────────────────
+     Deux listes COMPLÉMENTAIRES, et elles doivent le rester : ensemble elles couvrent tout
+     chantier signé qui n'est pas encore posé. Si l'une se resserre, l'autre doit s'élargir,
+     sinon un dossier tombe dans le trou entre les deux et plus personne ne le réclame.
+     Fonctions PURES, pour être testables : elles vivaient dans `charger()`, qui ne l'est pas. */
+  const estChantierVivant = function (d) {
+    return !!d && !d.archive && ['signe', 'termine'].indexOf(d.statut) >= 0
+      && String(d.type_document || '') !== 'depannage'
+      && !(SSUI.isPoseDone && SSUI.isPoseDone(d));
+  };
+
+  /** Matériel reçu, mais aucune date de pose : c'est maintenant qu'il faut décider.
+   *  ⚠️ Conditionné à la RÉCEPTION. Réclamer une date sur un chantier encore en fabrication chez
+   *  le fournisseur, c'est réclamer une décision que personne ne peut prendre — et un écran qui
+   *  réclame pour rien, on apprend très vite à ne plus le lire. */
+  function aPlanifierDe(devis) {
+    return (devis || []).filter(function (d) {
+      return estChantierVivant(d)
+        && !(d.chantier && d.chantier.date_pose)
+        && SSUI.materielRecu && SSUI.materielRecu(d);
+    });
+  }
+
+  /** Signé mais rien de commandé. C'est la BONNE action à montrer sur ces dossiers-là : ce qu'il
+   *  faut faire n'est pas de planifier, c'est de commander.
+   *  ⚠️ On ne réclame RIEN sur « commandé » ni « fabrication » : la balle est chez le fournisseur,
+   *  il n'y a aucune décision à prendre de notre côté. */
+  function aCommanderDe(devis) {
+    return (devis || []).filter(function (d) {
+      return estChantierVivant(d) && SSUI.etatCommande && SSUI.etatCommande(d) === 'a_commander';
+    });
+  }
+
   // ── Chargement des données (seule fonction non pure) ──────────────────────────────────────────
   /** Va chercher devis, demandes de RDV et exceptions, et renvoie les événements construits.
    *  Chaque source tombe silencieusement à vide si elle échoue : un planning amputé reste plus
@@ -499,14 +532,8 @@
       sources: sources,
       reglages: reglages,
       evenements: construire(sources, bornes, reglages),
-      // Le planning ne montre que ce qui a une date : les chantiers signés SANS date de pose
-      // n'apparaîtraient nulle part. Ce sont pourtant eux qui demandent une décision.
-      aPlanifier: (devis || []).filter(function (d) {
-        return d && !d.archive && ['signe', 'termine'].indexOf(d.statut) >= 0
-          && String(d.type_document || '') !== 'depannage'
-          && !(d.chantier && d.chantier.date_pose)
-          && !(SSUI.isPoseDone && SSUI.isPoseDone(d));
-      }),
+      aPlanifier: aPlanifierDe(devis),
+      aCommander: aCommanderDe(devis),
     };
   }
 
@@ -518,6 +545,7 @@
     hhmmMin: hhmmMin, minHhmm: minHhmm, fmtDuree: fmtDuree,
     conf: conf, trameDe: trameDe,
     quiDeEquipe: quiDeEquipe, quiDeTechniciens: quiDeTechniciens,
+    aPlanifierDe: aPlanifierDe, aCommanderDe: aCommanderDe,
     construire: construire, trier: trier, occupation: occupation,
     blocsTheoriques: blocsTheoriques, fusionnerBlocs: fusionnerBlocs, soustraire: soustraire,
     libres: libres, prochainsCreneaux: prochainsCreneaux,

@@ -694,6 +694,20 @@
             escHtml(s.titre + (s.corps ? '\n' + s.corps : '')) + '</textarea>' +
           '<input class="input ec-lie" id="ec-' + escHtml(s.id) + '" list="dlClients" autocomplete="off" ' +
             'style="margin-top:0.5rem" placeholder="Lié à un client (vider pour détacher)" value="' + escHtml(s.client_nom || '') + '">' +
+          /* Destinataire et échéance. Ils ne se posaient qu'à la publication : un sujet créé
+             « pour nous deux » ne pouvait plus être confié à quelqu'un, et une échéance oubliée
+             restait oubliée. Or c'est exactement ce qui fait avancer les choses — une chose sans
+             NOM dessus n'avance pas, une chose sans DATE n'est jamais urgente (règle 15). */
+          '<div class="ec-fin" style="margin-top:0.5rem">' +
+            ['nicolas', 'yannick', ''].map(function (v) {
+              const courant = (EDITE === s.id && EDITE_POUR !== null) ? EDITE_POUR : (s.pour || '');
+              return '<button type="button" class="chip ' + (courant === v ? 'active' : '') + '" ' +
+                'onclick="choisirPourEdition(' + id + ', ' + window.SSUI.jsAttr(v) + ')">' +
+                (v ? 'Pour ' + nomDe(v) : 'Pour nous deux') + '</button>';
+            }).join('') +
+            '<input class="input" type="date" id="ee-' + escHtml(s.id) + '" style="margin-left:auto;max-width:190px" ' +
+              'title="Échéance (vider pour l’enlever)" value="' + escHtml(s.echeance || '') + '">' +
+          '</div>' +
           '<div class="ec-fin">' +
             '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ep-' + escHtml(s.id) + '\').click()" title="Joindre une photo à ce sujet">' + icon('camera', 13) + ' Photo</button>' +
             '<input type="file" id="ep-' + escHtml(s.id) + '" accept="image/*" multiple hidden onchange="joindrePhotos(' + id + ', this)">' +
@@ -799,7 +813,14 @@
       return { client_nom: propre, client_key: (lie && lie.key) || '' };
     }
 
+    /* Le destinataire en cours de correction. Il ne peut pas vivre dans le DOM comme les autres
+       champs : c'est un groupe de boutons, pas un input, donc il n'a pas de `value` à relire.
+       Remis à null à chaque ouverture — sinon le choix fait sur un sujet suivrait sur le suivant. */
+    let EDITE_POUR = null;
+    window.choisirPourEdition = function (id, v) { EDITE_POUR = v; rendre(); };
+
     window.ouvrirEdition = function (id) {
+      EDITE_POUR = null;
       EDITE = EDITE === id ? '' : id;
       EDITE_REP = '';
       rendre();
@@ -817,12 +838,15 @@
       // ⚠️ On ETALE le sujet existant (règle 2 du guide) : une énumération de champs perdrait en
       // silence tout ce qu'elle ne connaît pas — l'échéance, le client lié, la décision déjà prise.
       const champClient = el('ec-' + id);
+      const champEcheance = el('ee-' + id);
       const res = await SS.saveSujet(Object.assign({}, s, {
         titre: lignes[0].trim().slice(0, 200),
         corps: lignes.slice(1).join('\n').trim(),
-      }, champClient ? clientDepuisNom(champClient.value) : {}));
+      }, champClient ? clientDepuisNom(champClient.value) : {},
+         champEcheance ? { echeance: champEcheance.value || '' } : {},
+         EDITE_POUR === null ? {} : { pour: EDITE_POUR }));
       if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
-      EDITE = '';
+      EDITE = ''; EDITE_POUR = null;
       toast('Corrigé', 'ok');
       SUJETS = (await SS.listSujets()) || [];
       rendre();

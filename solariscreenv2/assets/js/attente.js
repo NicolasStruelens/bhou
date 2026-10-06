@@ -261,7 +261,7 @@
   /** @param options.inclureVisites  L'écran commun les EXCLUT (les demandes de RDV les signalent
    *   déjà, et une liste qui se répète perd la confiance qu'on lui accorde) ; le planning, lui,
    *   les inclut : c'est son écran, une visite orpheline doit y rester visible. */
-  function depuisPlanning(evenements, devisAPlanifier, reglages, options) {
+  function depuisPlanning(evenements, devisAPlanifier, reglages, options, devisACommander) {
     const P = window.SSPlanning;
     if (!P) return [];                     // planning.js absent : on saute, on ne devine pas
     const avecVisites = !!(options && options.inclureVisites);
@@ -302,9 +302,22 @@
     (devisAPlanifier || []).forEach(function (d) {
       out.push(item({
         id: 'plan:' + d.id + ':aplanifier', source: 'planning', ref: d.id, devis_id: d.id,
-        qui: '', titre: nomClient(d.client), quoi: 'Chantier signé sans date de pose',
+        qui: '', titre: nomClient(d.client), quoi: 'Matériel reçu, pose à planifier',
         detail: (SSUI.resumeDevis && SSUI.resumeDevis(d)) || '',
         depuis: d.date_modification, href: 'planning.html', urgence: URGENCE.HAUTE,
+      }));
+    });
+    /* La contrepartie : un chantier signé dont le matériel n'est pas commandé. Sans cette ligne,
+       conditionner la pose à la réception créerait un angle mort — un devis signé et oublié ne
+       serait plus réclamé par personne. Et c'est la bonne action à montrer : sur un dossier qui
+       n'est pas parti chez le fournisseur, ce qu'il faut faire, c'est commander. */
+    (devisACommander || []).forEach(function (d) {
+      out.push(item({
+        id: 'plan:' + d.id + ':acommander', source: 'planning', ref: d.id, devis_id: d.id,
+        qui: '', titre: nomClient(d.client), quoi: 'Chantier signé, matériel pas commandé',
+        detail: (SSUI.resumeDevis && SSUI.resumeDevis(d)) || '',
+        depuis: d.date_modification, href: 'vue.html?id=' + encodeURIComponent(d.id) + '#commande',
+        urgence: URGENCE.HAUTE,
       }));
     });
     return out;
@@ -352,7 +365,7 @@
     return trier([]
       .concat(depuisRdv(s.rdvs, s.devis))
       .concat(depuisSav(s.devis))
-      .concat(depuisPlanning(s.evenements, s.aPlanifier, s.reglages))
+      .concat(depuisPlanning(s.evenements, s.aPlanifier, s.reglages, null, s.aCommander))
       .concat(depuisSujets(s.sujets)));
   }
 
@@ -405,6 +418,7 @@
       rdvs: rdvs || [], sujets: sujets || [], devis: devis || [],
       evenements: (plan && plan.evenements) || [],
       aPlanifier: (plan && plan.aPlanifier) || [],
+      aCommander: (plan && plan.aCommander) || [],
       reglages: (plan && plan.reglages) || null,
     };
     return { sources: sources, items: construire(sources) };
