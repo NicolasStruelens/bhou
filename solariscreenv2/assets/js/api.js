@@ -838,6 +838,17 @@
     // (SSUI.compressAndUploadPhoto) ; on n'envoie ici que son adresse.
     // Pas de file d'attente hors-ligne : une photo qui n'existe que sur le telephone qui l'a prise
     // est pire qu'une photo absente -- l'autre croirait l'avoir vue.
+    /** Corriger une réponse déjà publiée. Écriture ciblée, comme la réponse elle-même.
+     *  Le serveur refuse (403) la correction d'une réponse qui n'est pas la sienne — l'identité
+     *  vient d'Access, donc la garde ne peut pas être contournée depuis le navigateur. */
+    async modifierReponse(id, rid, texte) {
+      try { return await req('/sujets/' + encodeURIComponent(id) + '/reponse/' + encodeURIComponent(rid), { method: 'POST', body: JSON.stringify({ texte: texte }) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : la correction partira une fois la connexion revenue.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
     async addSujetPhoto(id, payload) {
       try { return await req('/sujets/' + encodeURIComponent(id) + '/photo', { method: 'POST', body: JSON.stringify(payload) }); }
       catch (e) {

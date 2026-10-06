@@ -1222,6 +1222,15 @@ export async function onRequest(context) {
       // elles ont leur route ciblée. Sans cette ligne, renommer un titre effacerait la photo que
       // l'autre vient d'ajouter — c'est exactement ce qui est arrivé aux notes avant la règle 3.
       const photos = (ancien && ancien.photos) || [];
+      /* Une correction se SIGNE, exactement comme une décision. Deux personnes partagent ce fil :
+         pouvoir réécrire le message de l'autre en silence transformerait une mémoire commune en
+         terrain mouvant. On note donc qui a corrigé et quand — et seulement quand le TEXTE a
+         réellement changé : renvoyer le sujet pour une autre raison (statut, destinataire,
+         échéance) ne doit pas faire croire à une réécriture. Même discipline que la décision. */
+      const texteChange = !!ancien && (
+        String(ancien.titre || '') !== titre.slice(0, 200) ||
+        String(ancien.corps || '') !== String(s.corps || '').slice(0, 5000));
+
       const decisionNeuve = String(s.decision || '').trim();
       const decisionAncienne = String((ancien && ancien.decision) || '');
       const decisionChange = !!decisionNeuve && decisionNeuve !== decisionAncienne;
@@ -1262,6 +1271,8 @@ export async function onRequest(context) {
         awaiting: statut === 'fait' ? '' : pour,
         date_creation: (ancien && ancien.date_creation) || now,
         date_modification: now,
+        modifie_par: texteChange ? acteur : ((ancien && ancien.modifie_par) || ''),
+        modifie_le: texteChange ? now : ((ancien && ancien.modifie_le) || ''),
       };
       await env.DB.prepare(`
         INSERT INTO sujets (id, kind, statut, auteur, pour, awaiting, client_key, devis_id, echeance, date_creation, date_modification, data)
@@ -1361,6 +1372,44 @@ export async function onRequest(context) {
       await env.DB.prepare("UPDATE sujets SET awaiting = COALESCE(json_extract(data, '$.awaiting'), '') WHERE id = ?").bind(id).run();
       return json({ ok: true, reponse });
     }
+    /* CORRIGER UNE RÉPONSE. Écriture CIBLÉE sur la seule clé `$.reponses` (règle 3) : on relit la
+       valeur ACTUELLE de la ligne, on remplace le texte d'UNE réponse, on réécrit ce tableau-là.
+       Réenregistrer le sujet entier effacerait ce que l'autre vient d'ajouter.
+       ⚠️ ON NE CORRIGE QUE SES PROPRES RÉPONSES, et c'est le SERVEUR qui le vérifie — l'identité
+       vient d'Access, donc elle n'est pas falsifiable depuis le navigateur. Corriger une faute de
+       frappe chez soi est normal ; réécrire ce que l'autre a dit ne l'est pas, et un fil où c'est
+       possible cesse de valoir comme mémoire commune. Le sujet, lui, reste modifiable par les deux :
+       c'est un travail à faire ensemble, et la correction y est signée et affichée. */
+    let mSujRepEdit = path.match(/^\/api\/sujets\/([^/]+)\/reponse\/([^/]+)$/);
+    if (mSujRepEdit && method === 'POST') {
+      const id = decodeURIComponent(mSujRepEdit[1]);
+      const rid = decodeURIComponent(mSujRepEdit[2]);
+      const body = await request.json().catch(() => ({}));
+      const texte = String(body.texte || '').trim();
+      if (!texte) return json({ ok: false, error: 'Une réponse vide ne corrige rien' }, 400);
+      const emailEd = parseAccessEmail(request);
+      const acteurEd = (emailEd && IDENTITIES[emailEd.toLowerCase()]) || emailEd || null;
+      const rowEd = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(id).first();
+      if (!rowEd) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      const sujEd = safeParse(rowEd.data) || {};
+      const liste = Array.isArray(sujEd.reponses) ? sujEd.reponses : [];
+      const i = liste.findIndex(function (r) { return r && String(r.id) === rid; });
+      if (i < 0) return json({ ok: false, error: 'Réponse introuvable' }, 404);
+      if (liste[i].auteur && acteurEd && liste[i].auteur !== acteurEd) {
+        return json({ ok: false, error: 'On ne corrige que ses propres réponses' }, 403);
+      }
+      const nowEd = new Date().toISOString();
+      const change = String(liste[i].texte || '') !== texte.slice(0, 5000);
+      liste[i] = Object.assign({}, liste[i], {
+        texte: texte.slice(0, 5000),
+        modifie_le: change ? nowEd : (liste[i].modifie_le || ''),
+      });
+      await env.DB.prepare(
+        "UPDATE sujets SET data = json_set(data, '$.reponses', json(?1), '$.date_modification', ?2), date_modification = ?2 WHERE id = ?3"
+      ).bind(JSON.stringify(liste), nowEd, id).run();
+      return json({ ok: true, reponse: liste[i] });
+    }
+
     let mSuj = path.match(/^\/api\/sujets\/([^/]+)$/);
     if (mSuj && method === 'DELETE') {
       const id = decodeURIComponent(mSuj[1]);
