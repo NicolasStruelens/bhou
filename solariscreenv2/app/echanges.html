@@ -86,6 +86,21 @@
     /* Repère bref après un saut depuis la recherche : sans lui, on atterrit au milieu d'une liste
        sans savoir laquelle des cartes on était venu lire. */
     .ec-suj.vise { box-shadow: 0 0 0 2px var(--accent); }
+    /* Un lien d'action dans une ligne de metadonnees : il doit se lire comme du texte, pas comme
+       un bouton — sinon la ligne « Nicolas · il y a 2 h » se met a ressembler a une barre d'outils. */
+    .ec-lien-bouton { background: none; border: none; padding: 0; font: inherit; color: var(--accent);
+      cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .ec-lien-bouton:hover { color: var(--accent-2); }
+    /* ⚠️ Au doigt, ce lien fait 15 px de haut : intouchable. On élargit la CIBLE à 44 px par un
+       pseudo-élément plutôt que par du padding — le padding décalerait la ligne de métadonnées.
+       Le pseudo n'étend que la HAUTEUR (left/right à 0) : une extension horizontale compterait
+       dans le scrollWidth des ancêtres, piège déjà payé sur la pastille de probabilité. */
+    @media (pointer: coarse) {
+      .ec-lien-bouton { position: relative; }
+      .ec-lien-bouton::after { content: ''; position: absolute; left: 0; right: 0; top: 50%;
+        height: 44px; transform: translateY(-50%); }
+    }
+
     /* Vignettes : assez grandes pour reconnaitre la photo sans l'ouvrir, assez petites pour qu'une
        serie n'ecrase pas le texte du sujet. */
     .ec-vign { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
@@ -612,6 +627,9 @@
         relTime(s.date_creation),
         s.pour ? 'pour ' + nomDe(s.pour) : 'pour nous deux',
         s.echeance ? (enRetard ? '⚠ ' : '') + 'pour le ' + fmtDate(s.echeance) : '',
+        // Une correction se VOIT. Deux personnes partagent ce fil : pouvoir reecrire un message
+        // sans que rien ne le dise transformerait une memoire commune en terrain mouvant.
+        s.modifie_le ? 'modifié ' + relTime(s.modifie_le) + (s.modifie_par && s.modifie_par !== s.auteur ? ' par ' + nomDe(s.modifie_par) : '') : '',
       ].filter(Boolean).join(' · ');
       const lienClient = s.client_nom
         ? ' · <a class="ec-lien" href="clients.html?q=' + encodeURIComponent(s.client_nom) + '">' + escHtml(s.client_nom) + '</a>'
@@ -640,16 +658,46 @@
           '<div><b>Décidé :</b> ' + escHtml(s.decision) +
           '<div class="qd">' + escHtml(nomDe(s.decision_par) + (s.decision_le ? ' · ' + relTime(s.decision_le) : '')) + '</div></div></div>' : '') +
         ((s.reponses || []).length ? '<div class="ec-fil">' + s.reponses.map(function (r) {
+          const rid = window.SSUI.jsAttr(r.id);
+          // ⚠️ Le bouton n'apparait QUE sur ses propres reponses — et le serveur le verifie de son
+          // cote (403), parce qu'une garde qui ne vit que dans l'ecran n'est pas une garde.
+          // Corriger sa faute de frappe est normal ; reecrire ce que l'autre a dit ne l'est pas.
+          const sien = r.auteur === MOI.key && r.id;
+          if (EDITE_REP === r.id) {
+            return '<div class="ec-rep">' + avatar(r.auteur) + '<div style="flex:1;min-width:0">' +
+              '<textarea class="textarea" id="re-' + escHtml(r.id) + '" style="min-height:58px">' + escHtml(r.texte) + '</textarea>' +
+              '<div class="ec-fin" style="margin-top:0.4rem">' +
+                '<button class="btn btn-ghost btn-sm" onclick="annulerEditionReponse()">Annuler</button>' +
+                '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="enregistrerReponse(' + id + ', ' + rid + ')">Enregistrer</button>' +
+              '</div></div></div>';
+          }
           return '<div class="ec-rep">' + avatar(r.auteur) + '<div><div class="txt">' + escHtml(r.texte) + '</div>' +
-            '<div class="qd">' + escHtml(nomDe(r.auteur) + ' · ' + relTime(r.date)) + '</div></div></div>';
+            '<div class="qd">' + escHtml(nomDe(r.auteur) + ' · ' + relTime(r.date) + (r.modifie_le ? ' · modifié ' + relTime(r.modifie_le) : '')) +
+            (sien ? ' · <button type="button" class="ec-lien-bouton" onclick="editerReponse(' + rid + ')">Modifier</button>' : '') +
+            '</div></div></div>';
         }).join('') + '</div>' : '') +
         '<div class="ec-actions">' +
           (s.statut === 'fait'
             ? '<button class="btn btn-ghost btn-sm" onclick="rouvrir(' + id + ')">' + icon('reply', 13) + ' Rouvrir</button>'
             : '<button class="btn btn-ghost btn-sm" onclick="ouvrirReponse(' + id + ')">' + icon('message', 13) + ' Répondre</button>' +
               '<button class="btn btn-ghost btn-sm" onclick="marquerFait(' + id + ')">' + icon('check', 13) + ' C’est fait</button>') +
+          '<button class="btn btn-ghost btn-sm" onclick="ouvrirEdition(' + id + ')">' + icon('edit', 13) + ' Modifier</button>' +
           (s.devis_id ? '<button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(s.devis_id) + '\'">' + icon('window', 13) + ' Le dossier</button>' : '') +
           '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(' + id + ')">Supprimer</button>' +
+        '</div>' +
+        /* La boite de correction. Meme convention que la publication : PREMIERE LIGNE = le titre,
+           le reste = le corps. Personne n'a envie de jongler entre deux champs pour corriger une
+           faute, et deux conventions differentes pour la meme chose, c'est une de trop. */
+        '<div class="ec-repbox ' + (EDITE === s.id ? 'on' : '') + '" id="ed-' + escHtml(s.id) + '">' +
+          '<textarea class="textarea" id="et-' + escHtml(s.id) + '" style="min-height:92px" ' +
+            'placeholder="Première ligne : le titre. Les suivantes : le détail.">' +
+            escHtml(s.titre + (s.corps ? '\n' + s.corps : '')) + '</textarea>' +
+          '<div class="ec-fin">' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ep-' + escHtml(s.id) + '\').click()" title="Joindre une photo à ce sujet">' + icon('camera', 13) + ' Photo</button>' +
+            '<input type="file" id="ep-' + escHtml(s.id) + '" accept="image/*" multiple hidden onchange="joindrePhotos(' + id + ', this)">' +
+            '<button class="btn btn-ghost btn-sm" onclick="ouvrirEdition(' + id + ')">Annuler</button>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="enregistrerEdition(' + id + ')">Enregistrer</button>' +
+          '</div>' +
         '</div>' +
         '<div class="ec-repbox ' + (DECIDE === s.id ? 'on' : '') + '" id="dec-' + escHtml(s.id) + '">' +
           '<textarea class="textarea" id="dt-' + escHtml(s.id) + '" style="min-height:58px" placeholder="' +
@@ -673,6 +721,10 @@
     window.setKind = function (k) { P_KIND = k; rendrePuces(); };
     window.setPour = function (p) { P_POUR = p; rendrePuces(); };
     window.setFiltre = function (k) { F_KIND = k; rendre(); };
+
+    // Sujet et reponse en cours de correction. Un seul a la fois, comme REPOND et DECIDE :
+    // deux boites ouvertes en meme temps, on ne sait plus laquelle on est en train de remplir.
+    let EDITE = '', EDITE_REP = '';
 
     // Photos CHOISIES mais pas encore envoyees : elles attendent l'identifiant du sujet.
     let PHOTOS_EN_ATTENTE = [];
@@ -736,8 +788,72 @@
       rendre();
     };
 
+    window.ouvrirEdition = function (id) {
+      EDITE = EDITE === id ? '' : id;
+      EDITE_REP = '';
+      rendre();
+      const t = el('et-' + id);
+      if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+    };
+
+    window.enregistrerEdition = async function (id) {
+      const champ = el('et-' + id);
+      const brut = (champ && champ.value.trim()) || '';
+      if (!brut) { toast('Il faut au moins une phrase.', 'warn'); return; }
+      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!s) return;
+      const lignes = brut.split('\n');
+      // ⚠️ On ETALE le sujet existant (règle 2 du guide) : une énumération de champs perdrait en
+      // silence tout ce qu'elle ne connaît pas — l'échéance, le client lié, la décision déjà prise.
+      const res = await SS.saveSujet(Object.assign({}, s, {
+        titre: lignes[0].trim().slice(0, 200),
+        corps: lignes.slice(1).join('\n').trim(),
+      }));
+      if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
+      EDITE = '';
+      toast('Corrigé', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
+    /** Joindre des photos à un sujet DÉJÀ publié. Pas de file d'attente ici, contrairement à la
+     *  publication : l'identifiant existe, donc l'envoi part tout de suite. */
+    window.joindrePhotos = async function (id, input) {
+      const fichiers = [...(input.files || [])];
+      input.value = '';
+      if (!fichiers.length) return;
+      toast('Envoi de ' + fichiers.length + ' photo(s)…', 'ok', 2500);
+      for (const f of fichiers) {
+        if (!/^image\//.test(f.type)) { toast('« ' + f.name + ' » n’est pas une image.', 'warn'); continue; }
+        const url = await window.SSUI.compressAndUploadPhoto(f, id, 1600, 0.82).catch(function () { return null; });
+        // Chaque échec est DIT : une photo qu'on croit jointe et qui ne l'est pas vaut moins que
+        // pas de photo du tout.
+        if (!url) { toast('Une photo n’a pas pu être envoyée.', 'error', 6000); continue; }
+        const r = await SS.addSujetPhoto(id, { url: url });
+        if (r.ok === false) toast(r.error || 'Photo non jointe.', 'error', 6000);
+      }
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
+    window.editerReponse = function (rid) { EDITE_REP = rid; EDITE = ''; rendre(); const t = el('re-' + rid); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } };
+    window.annulerEditionReponse = function () { EDITE_REP = ''; rendre(); };
+
+    window.enregistrerReponse = async function (id, rid) {
+      const champ = el('re-' + rid);
+      const texte = (champ && champ.value.trim()) || '';
+      if (!texte) { toast('Une réponse vide ne corrige rien.', 'warn'); return; }
+      const res = await SS.modifierReponse(id, rid, texte);
+      if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
+      EDITE_REP = '';
+      toast('Corrigé', 'ok');
+      SUJETS = (await SS.listSujets()) || [];
+      rendre();
+    };
+
     window.ouvrirReponse = function (id) {
       REPOND = REPOND === id ? '' : id;
+      EDITE = ''; EDITE_REP = '';
       rendre();
       const t = el('rt-' + id);
       if (t) t.focus();

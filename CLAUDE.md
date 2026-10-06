@@ -209,6 +209,27 @@ COMPLÉMENTAIRES — ne pas les « dédoublonner » en croyant bien faire, on pe
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
 
+**15 bis. ON PEUT CORRIGER CE QU'ON A ÉCRIT, et la correction SE VOIT.**
+Un fil où l'on ne peut pas se relire se remplit de « (pardon, je voulais dire…) », et une faute
+de frappe dans un titre reste là pour toujours. Le SUJET (titre + corps, même convention qu'à la
+publication : première ligne = titre) se corrige par les deux — c'est un travail à faire ensemble
+— et le serveur signe `modifie_par` / `modifie_le`, affichés dans la ligne de méta.
+⚠️ **Une RÉPONSE ne se corrige que par SON auteur**, et c'est le SERVEUR qui le vérifie (403) :
+l'identité vient d'Access, donc la garde ne se contourne pas depuis le navigateur. Corriger sa
+faute de frappe est normal ; réécrire ce que l'autre a dit ne l'est pas, et un fil où c'est
+possible cesse de valoir comme mémoire commune. Une réponse corrigée porte « modifié … ».
+La signature n'est posée que si le TEXTE a changé — même discipline que la décision : renvoyer le
+sujet pour une autre raison (statut, destinataire, échéance) ne doit pas faire croire à une
+réécriture.
+⚠️ La correction d'une réponse est une écriture CIBLÉE sur `$.reponses` (règle 3), jamais un
+réenregistrement du sujet — qui effacerait ce que l'autre vient d'ajouter. Et l'enregistrement du
+sujet ÉTALE l'existant (règle 2) : une énumération de champs perdrait l'échéance, le client lié
+et la décision déjà prise.
+Une PHOTO peut désormais être jointe à un sujet DÉJÀ publié (bouton dans la boîte de correction).
+Pas de file d'attente dans ce cas, contrairement à la publication : l'identifiant existe, l'envoi
+part tout de suite. Les photos restent au niveau du SUJET — un second modèle de photos sur les
+réponses, c'en serait un de trop (règle 25).
+
 **16. Une question qu'on classe doit laisser une DÉCISION ÉCRITE.** C'est ce qui sépare une
 messagerie d'une mémoire commune : « on avait dit quoi pour les coulisses de Depaepe ? » doit avoir
 une réponse dans l'ERP, pas dans un SMS perdu. La décision est demandée AU MOMENT de classer (après,
