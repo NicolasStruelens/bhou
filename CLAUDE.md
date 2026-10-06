@@ -70,8 +70,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 98 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 98 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 120 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 120 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -722,6 +722,30 @@ devis complets. C'était une seconde implémentation dormante des mêmes chiffre
 réintroduire : si un calcul serveur redevient nécessaire, il devra lire les taux FIGÉS sur chaque
 devis, jamais un taux écrit dans le code.
 
+**30 octies. Un total d'argent s'affiche avec sa DÉCOMPOSITION, et la décomposition doit
+retomber sur le total au centime.** « Commission sur les ventes : 1 333,84 € » tenait sur une
+ligne, et la première question de Nicolas devant l'écran a été : « il y a pas École du
+Bonheur ? ». Un chiffre qu'on ne sait pas décomposer ne se défend pas en face de son patron —
+et le dossier à répartition personnalisée est précisément celui qu'on cherche des yeux.
+D'où `commission_par_taux` dans `SSRemu.cumul` : un groupe par pourcentage, l'assiette, le brut
+et le net. ⚠️ **L'invariant est que la somme des groupes égale le total** (test K19). Un vieux
+devis qui porte un montant sans son taux a donc son propre groupe « taux non stocké » plutôt que
+de manquer en silence : un détail qui ne retombe pas sur son total est PIRE que pas de détail,
+on cesse de croire les deux.
+⚠️ L'assiette affichée est le catalogue **brut** (`total_catalog_ht_brut`), pas le net : la
+réduction commerciale se déduit de la commission du vendeur, jamais de l'assiette. Afficher
+« 18 % de 12 300 » au lieu de « 18 % de 12 500, moins 200 de réduction » donne un taux faux — et
+un taux faux se discute.
+
+**30 nonies. Un zéro d'argent est toujours SIGNALÉ, jamais silencieux.** Trois fois le même
+défaut, trois fois corrigé après que Nicolas l'a vu lui-même : le tablier de volet sans tarif
+(50 € perdus par pose), un type historique sans tarif, et un devis chiffré qui ne porte **aucun
+partage de commission** — ni taux, ni montant — donc une commission à 0 € dont rien ne disait
+qu'elle manquait. Pire encore : l'écran masque les dossiers qui ne rapportent rien, donc le
+dossier disparaissait entièrement. Tout zéro d'argent produit par une donnée ABSENTE (et non par
+une donnée à zéro, qui est une réponse) entre dans `incomplet` et porte un badge qui mène à
+l'endroit où on le corrige.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -977,7 +1001,7 @@ devis, jamais un taux écrit dans le code.
    `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
-   `tests/remuneration.test.html`, exiger « 98/98 » — c'est de l'argent réel. Les dates s'y
+   `tests/remuneration.test.html`, exiger « 120/120 » — c'est de l'argent réel. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.

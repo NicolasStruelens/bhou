@@ -276,6 +276,86 @@
     check('total du dossier École du Bonheur', moitieMoitie.total, 2225);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Le détail de la commission — un total sans son taux ne se vérifie pas');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Nicolas, le 06/10/2026, devant « Commission sur les ventes : 1 333,84 € » : « il y a pas
+       école du bonheur ? il faudrait détailler la commission aussi ». Un chiffre qu'on ne sait
+       pas décomposer, on ne peut pas le défendre en face de son patron. */
+    const dc = R.detailCommission({
+      pricing_v2: { rates: { net_divisor: 2.5 } },
+      calculs: {
+        total_catalog_ht_brut: 12500, total_catalog_ht: 12300, nicolas_pct: 18,
+        nicolas_gross: 2050, nicolas_net: 820, seller_principal: 'nicolas',
+        remise_catalogue: { amount: 200 },
+      },
+    });
+    check('K1 l’assiette est le catalogue BRUT, avant réduction', dc.base, 12500);
+    check('K2 le taux est lu sur le devis', dc.pct, 18);
+    check('K3 le brut et le net sont lus tels quels', [dc.brut, dc.net], [2050, 820]);
+    /* La réduction commerciale se déduit de la commission du vendeur, PAS de l'assiette :
+       18 % de 12 500 font 2 250, moins 200 de réduction font les 2 050 du devis. L'afficher
+       comme « 18 % de 12 300 » donnerait un taux faux — et un taux faux se discute. */
+    check('K4 la réduction est dite à part, pas fondue dans l’assiette', dc.remise, 200);
+    check('K5 18 % de l’assiette moins la réduction = le brut du devis', 12500 * 0.18 - dc.remise, dc.brut);
+    check('K6 le diviseur brut→net est celui du devis', dc.diviseur, 2.5);
+    check('K7 le vendeur principal est rendu', dc.principal, 'nicolas');
+
+    // Un devis d'avant le stockage de l'assiette : on retombe sur le catalogue net.
+    check('K8 sans catalogue brut stocké, on prend le catalogue net',
+      R.detailCommission({ calculs: { total_catalog_ht: 9000, nicolas_net: 100 } }).base, 9000);
+    check('K9 un taux absent n’est pas deviné : il vaut null, jamais 18',
+      R.detailCommission({ calculs: { nicolas_net: 100 } }).pct, null);
+
+    /* ⚠️ LE SIGNALEMENT. Un devis chiffré — il a un total client — mais sans aucun partage.
+       Sa commission vaut zéro sans que rien ne le dise, et comme un dossier qui ne rapporte
+       rien est masqué du tableau, il disparaît de l'écran entier. C'est le défaut du tablier
+       de volet transposé à l'argent de la vente, en bien plus cher. */
+    const sansPartage = R.parDossier({
+      id: 'SP', statut: 'signe', items: [], chantier: {}, commande: {},
+      calculs: { total_ttc: 18000 },
+    }, [], null, AUJ);
+    check('K10 un devis chiffré sans aucun partage est SIGNALÉ', sansPartage.incomplet, ['commission']);
+    check('K11 et sa commission reste à zéro : on signale, on n’invente pas', sansPartage.commission.nicolas.net, 0);
+    check('K12 un devis à zéro euro ne réclame rien (il n’a jamais été chiffré)',
+      R.parDossier({ id: 'Z', statut: 'signe', items: [], chantier: {}, commande: {}, calculs: {} }, [], null, AUJ).incomplet, []);
+    check('K13 un devis refusé non plus : il ne doit rien, donc il ne manque rien',
+      R.parDossier({ id: 'Z2', statut: 'refuse', items: [], chantier: {}, commande: {}, calculs: { total_ttc: 18000 } }, [], null, AUJ).incomplet, []);
+    check('K14 un partage à 0 % volontaire n’est PAS un partage manquant',
+      R.parDossier({ id: 'Z3', statut: 'signe', items: [], chantier: {}, commande: {},
+        calculs: { total_ttc: 18000, nicolas_pct: 0, nicolas_net: 0 } }, [], null, AUJ).incomplet, []);
+
+    // ── Le groupage par taux, dans le cumul ──
+    const lotC = [
+      R.parDossier(devis({ id: 'C1', calculs: { total_ttc: 20000, total_catalog_ht_brut: 12500, nicolas_pct: 18, nicolas_gross: 2250, nicolas_net: 900 } }), [], null, AUJ),
+      R.parDossier(devis({ id: 'C2', calculs: { total_ttc: 10000, total_catalog_ht_brut: 6000, nicolas_pct: 18, nicolas_gross: 1080, nicolas_net: 432 } }), [], null, AUJ),
+      // École du Bonheur : moitié-moitié, 11,5 % chacun. LE dossier qu'on ne doit pas perdre.
+      R.parDossier(devis({ id: 'C3', calculs: { total_ttc: 29229.29, total_catalog_ht_brut: 12500, nicolas_pct: 11.5, nicolas_gross: 1437.5, nicolas_net: 575 } }), [], null, AUJ),
+      // Un vieux devis : le montant est là, le taux n'a jamais été stocké.
+      R.parDossier(devis({ id: 'C4', calculs: { total_ttc: 8000, total_catalog_ht: 4000, nicolas_net: 288 } }), [], null, AUJ),
+    ];
+    const cc = R.cumul(lotC, []);
+    check('K15 les deux dossiers à 18 % sont groupés ensemble',
+      [cc.commission_par_taux['18'].dossiers, cc.commission_par_taux['18'].net], [2, 1332]);
+    check('K16 École du Bonheur a SA ligne, à 11,5 %',
+      [cc.commission_par_taux['11.5'].dossiers, cc.commission_par_taux['11.5'].net], [1, 575]);
+    check('K17 l’assiette est cumulée avec le taux', cc.commission_par_taux['18'].base, 18500);
+    check('K18 un vieux devis sans taux a son propre groupe, il ne disparaît pas',
+      [cc.commission_par_taux.inconnu.dossiers, cc.commission_par_taux.inconnu.net], [1, 288]);
+    /* ⚠️ L'INVARIANT DU DÉTAIL. La somme des groupes retombe sur le total, au centime. Un
+       détail qui ne retombe pas sur son total est PIRE que pas de détail : on cesse de croire
+       les deux, et c'est le chiffre qu'on emmenait à la discussion. */
+    check('K19 ⚠️ la somme des groupes = la commission totale, au centime',
+      Object.keys(cc.commission_par_taux).reduce(function (t, k) { return t + cc.commission_par_taux[k].net; }, 0),
+      cc.commission);
+    check('K20 aucun dossier n’est compté dans deux groupes',
+      Object.keys(cc.commission_par_taux).reduce(function (n, k) { return n + cc.commission_par_taux[k].dossiers; }, 0),
+      cc.dossiers);
+    check('K21 un dossier sans partage est compté à part',
+      R.cumul([sansPartage], []).dossiers_sans_commission, 1);
+    check('K22 et il ne crée pas de groupe fantôme à zéro',
+      Object.keys(R.cumul([sansPartage], []).commission_par_taux), []);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Règle 6 : un devis refusé ou annulé ne doit rien');
     // ═════════════════════════════════════════════════════════════════════════════════════
     ['refuse', 'annule'].forEach(function (st) {
