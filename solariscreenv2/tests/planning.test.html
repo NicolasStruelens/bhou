@@ -224,6 +224,66 @@
     check('P6 taux de remplissage', CH.pct, 75);
     check('P7 un jour sans trame n’a pas de capacité', P.charge('yannick', MER, MER, EVS, [], REG).capacite, 0);
 
+    // ══════════ Ce qui demande une décision : à commander / à planifier ══════════
+    /* ⚠️ CES DEUX LISTES SONT COMPLÉMENTAIRES, et c'est l'invariant à tenir : ensemble elles
+       couvrent TOUT chantier signé pas encore posé. Si l'une se resserre, l'autre doit
+       s'élargir, sinon un dossier tombe dans le trou entre les deux et plus personne ne le
+       réclame. Le dernier test de cette section vérifie exactement ça.
+       Signalé par Nicolas le 06/10/2026 : un dossier en « Fabrication » remontait en
+       « chantier signé sans date de pose » alors qu'il n'y avait rien à planifier. */
+    const dv = function (o) {
+      return Object.assign({ id: 'X', statut: 'signe', client: { nom: 'C' }, chantier: {}, commande: {} }, o);
+    };
+    const ids = function (l) { return l.map(function (d) { return d.id; }); };
+
+    const LOT = [
+      dv({ id: 'a_commander', commande: {} }),                                  // rien de commandé
+      dv({ id: 'sans_commande_du_tout' }),                                      // objet absent
+      dv({ id: 'commande', commande: { statut: 'commande' } }),                 // parti chez Harol
+      dv({ id: 'fabrication', commande: { statut: 'fabrication' } }),           // LE CAS DE NICOLAS
+      dv({ id: 'recu', commande: { statut: 'recu' } }),                         // à planifier
+      dv({ id: 'recu_deja_date', commande: { statut: 'recu' }, chantier: { date_pose: '2026-11-02' } }),
+      dv({ id: 'pose', commande: { statut: 'pose' } }),                         // terminé
+      dv({ id: 'brouillon', statut: 'brouillon', commande: {} }),               // pas signé
+      dv({ id: 'archive', archive: true, commande: {} }),
+      dv({ id: 'depannage', type_document: 'depannage', commande: {} }),
+    ];
+
+    check('C1 à planifier : seulement le matériel REÇU sans date', ids(P.aPlanifierDe(LOT)), ['recu']);
+    check('C2 un dossier en fabrication ne réclame PLUS de date de pose',
+      P.aPlanifierDe(LOT).some(function (d) { return d.id === 'fabrication'; }), false);
+    check('C3 à commander : rien de commandé, objet présent ou absent',
+      ids(P.aCommanderDe(LOT)).sort(), ['a_commander', 'sans_commande_du_tout']);
+    check('C4 on ne réclame rien pendant que la balle est chez le fournisseur',
+      ids(P.aCommanderDe(LOT)).filter(function (i) { return i === 'commande' || i === 'fabrication'; }), []);
+    check('C5 un brouillon, une archive et un dépannage ne sont dans AUCUNE des deux',
+      ids(P.aPlanifierDe(LOT)).concat(ids(P.aCommanderDe(LOT)))
+        .filter(function (i) { return ['brouillon', 'archive', 'depannage'].indexOf(i) >= 0; }), []);
+    check('C6 un chantier déjà posé ne réclame rien',
+      ids(P.aPlanifierDe(LOT)).concat(ids(P.aCommanderDe(LOT))).indexOf('pose'), -1);
+    check('C7 une date de pose déjà posée sort de la liste', ids(P.aPlanifierDe(LOT)).indexOf('recu_deja_date'), -1);
+    /* L'INVARIANT. Tout chantier vivant est soit à commander, soit chez le fournisseur, soit
+       à planifier, soit déjà daté — et jamais dans deux listes à la fois. */
+    check('C8 aucun dossier ne peut être dans les DEUX listes',
+      ids(P.aPlanifierDe(LOT)).filter(function (i) { return ids(P.aCommanderDe(LOT)).indexOf(i) >= 0; }), []);
+    const couverts = ids(P.aPlanifierDe(LOT)).concat(ids(P.aCommanderDe(LOT)));
+    const attendus = ['a_commander', 'sans_commande_du_tout', 'commande', 'fabrication', 'recu'];
+    check('C9 les seuls vivants non couverts sont ceux dont la balle est chez le fournisseur',
+      attendus.filter(function (i) { return couverts.indexOf(i) < 0; }), ['commande', 'fabrication']);
+
+    // ═════ L'état de la commande, source unique (ui.js) ═════
+    check('C10 pas de statut = « à commander »', SSUI.etatCommande({}), 'a_commander');
+    check('C11 un statut inconnu retombe sur « à commander »', SSUI.etatCommande({ commande: { statut: 'zzz' } }), 'a_commander');
+    // La LISTE des devis renvoie le statut à PLAT, la fiche dans un objet : les deux doivent
+    // répondre pareil, sinon le planning et le tableau de bord divergent.
+    check('C12 la forme à plat de la liste est comprise aussi', SSUI.etatCommande({ commande_statut: 'fabrication' }), 'fabrication');
+    check('C13 matériel reçu : reçu ou posé, rien d’autre',
+      ['a_commander', 'commande', 'fabrication', 'recu', 'pose'].map(function (e) { return SSUI.materielRecu({ commande: { statut: e } }); }),
+      [false, false, false, true, true]);
+    check('C14 livraison estimée = commande + délai',
+      SSUI.livraisonEstimee({ commande: { date_commande: '2026-08-26', delai_semaines: 6 } }), '2026-10-07');
+    check('C15 sans date de commande, on ne devine pas', SSUI.livraisonEstimee({ commande: { delai_semaines: 6 } }), null);
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';

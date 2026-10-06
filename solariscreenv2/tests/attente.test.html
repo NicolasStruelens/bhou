@@ -234,9 +234,26 @@
     check('P6 rendez-vous passé sans suite', A.depuisPlanning([
       { id: 'pose:D9', source: 'pose', date: jour(-4), heure: '', duree_h: 4, qui: ['yannick'], titre: 'Z', ref: 'D9', href: '' },
     ], [], REG).filter(i => i.quoi.indexOf('passé') >= 0).length, 1);
-    check('P7 chantier signé sans date', A.depuisPlanning([], [
+    /* ⚠️ Le libellé a changé le 06/10/2026 : « Chantier signé sans date de pose » →
+       « Matériel reçu, pose à planifier ». La liste ne contient plus que des chantiers dont le
+       matériel est ARRIVÉ (voir SSPlanning.aPlanifierDe) : réclamer une date sur un dossier encore
+       en fabrication, c'est réclamer une décision que personne ne peut prendre. */
+    check('P7 matériel reçu, pose à planifier', A.depuisPlanning([], [
       { id: 'D5', client: cli('Sans date'), date_modification: ilYaH(48) },
-    ], REG).filter(i => i.quoi.indexOf('sans date') >= 0).length, 1);
+    ], REG).filter(i => i.quoi.indexOf('pose à planifier') >= 0).length, 1);
+    /* Et sa CONTREPARTIE. Les deux listes doivent rester complémentaires : sans celle-ci, un devis
+       signé jamais commandé ne serait réclamé par personne — ni pour la commande, ni pour la pose
+       qu'on vient de conditionner à la réception. */
+    const ACOM = A.depuisPlanning([], [], REG, null, [
+      { id: 'D6', client: cli('Pas commandé'), date_modification: ilYaH(72) },
+    ]);
+    check('P7 bis chantier signé, matériel pas commandé',
+      ACOM.filter(i => i.quoi.indexOf('pas commandé') >= 0).length, 1);
+    check('P7 ter il renvoie vers la commande du dossier, pas vers le planning',
+      (ACOM[0] || {}).href, 'vue.html?id=D6#commande');
+    check('P7 quater les deux listes produisent deux lignes distinctes',
+      A.depuisPlanning([], [{ id: 'D5', client: cli('A'), date_modification: ilYaH(1) }], REG, null,
+        [{ id: 'D6', client: cli('B'), date_modification: ilYaH(1) }]).length, 2);
 
     // ══════════ 5. Tri et regroupements ══════════
     // L'ordre EST la règle métier : ce que personne n'a pris passe avant tout, même moins urgent.

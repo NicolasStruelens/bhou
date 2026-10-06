@@ -515,6 +515,35 @@
   // (un devis peut être marqué terminé alors que la pose n'est pas faite — ex. données importées).
   // Marche sur le blob complet (reception.image / commande.statut) ET sur le résumé de liste dénormalisé
   // (reception_date / commande_statut).
+  /* ÉTAT DE LA COMMANDE FOURNISSEUR, source unique.
+     Cinq étapes : a_commander → commande → fabrication → recu → pose.
+     ⚠️ L'absence de statut vaut « à commander » — c'est ce qu'affiche la fiche devis depuis
+     toujours (`cc.statut || 'a_commander'`), et un devis fraîchement signé n'a effectivement rien
+     de commandé. Mettre ce repli ici évite que chaque écran le réinvente, et surtout qu'un écran
+     l'oublie : la liste des devis renvoie le statut à PLAT (`commande_statut`), la fiche dans un
+     objet (`commande.statut`), et les deux doivent répondre pareil. */
+  const COMMANDE_ETAPES = ['a_commander', 'commande', 'fabrication', 'recu', 'pose'];
+  function etatCommande(d) {
+    const v = String((d && d.commande && d.commande.statut) || (d && d.commande_statut) || '');
+    return COMMANDE_ETAPES.indexOf(v) >= 0 ? v : 'a_commander';
+  }
+  /** Le matériel est-il là ? Seul état où une pose peut réellement se caler. */
+  function materielRecu(d) {
+    const e = etatCommande(d);
+    return e === 'recu' || e === 'pose' || isPoseDone(d);
+  }
+  /** Livraison estimée : date de commande + délai annoncé. Null si on ne sait pas.
+   *  Sert à prévenir quand une pose est calée AVANT l'arrivée du matériel. */
+  function livraisonEstimee(d) {
+    const cc = (d && d.commande) || {};
+    const dep = String(cc.date_commande || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dep)) return null;
+    const semaines = parseFloat(cc.delai_semaines);
+    const t = new Date(dep + 'T12:00:00');
+    t.setDate(t.getDate() + Math.round((isFinite(semaines) ? semaines : 0) * 7));
+    return isNaN(t) ? null : isoDate(t);
+  }
+
   function isPoseDone(d) {
     if (!d) return false;
     const recDone = !!(d.reception && d.reception.image) || !!d.reception_date;
@@ -1709,6 +1738,8 @@
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
+    COMMANDE_ETAPES: COMMANDE_ETAPES, etatCommande: etatCommande,
+    materielRecu: materielRecu, livraisonEstimee: livraisonEstimee,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
