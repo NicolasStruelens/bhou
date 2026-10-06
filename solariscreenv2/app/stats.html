@@ -738,6 +738,22 @@
         </div>`;
     }
 
+    /* Date de passage en « signé » : dernière transition vers 'signe' dans l'historique, et à
+       défaut la date de modification. Le podium compte les devis signés CE MOIS — la date de
+       création ne dirait rien (un devis de mars signé en octobre compte pour octobre).
+       ⚠️ SUPPRIMÉE PAR ACCIDENT le 04/10/2026 : elle vivait dans le bloc que la refonte de
+       « Temps de connexion » a remplacé d'un seul tenant. L'erreur n'est PAS apparue en local
+       parce qu'avec zéro devis la boucle du podium ne l'atteint jamais — c'est la donnée réelle
+       qui l'a révélée, en production. Leçon : remplacer un BLOC entier par position, c'est
+       emporter ce qu'on n'avait pas lu ; et un écran qui s'affiche sur des données vides n'est
+       pas un écran vérifié. */
+    function signeDateOf(d) {
+      const hist = d.statut_history || [];
+      for (let i = hist.length - 1; i >= 0; i--) if (hist[i].statut === 'signe') return hist[i].date;
+      return ['signe', 'termine'].includes(d.statut) ? d.date_modification : null;
+    }
+
+    // Podium du mois : Nicolas vs Yannick, devis SIGNÉS ce mois-ci (par date de signature) + CA.
     function renderPodium(devisFull) {
       const nowKey = monthKey(new Date().toISOString());
       const tally = { nicolas: { count: 0, ca: 0 }, yannick: { count: 0, ca: 0 } };
