@@ -84,6 +84,9 @@
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/calc.js"></script>
+  <!-- Le configurateur VR150 : le document rend son résumé CLIENT (products.js d'abord). -->
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/volet.js"></script>
   <script src="../assets/js/api.js"></script>
   <script>
     const SS = window.SS;
@@ -201,6 +204,28 @@
       const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
       const draft = !['signe', 'termine', 'envoye_client'].includes(d.statut);
 
+      /* L'ENCADRÉ DE CONFIGURATION, sous la ligne du produit.
+         Un volet VR150 se commande sur une trentaine d'options, et la ligne de devis n'en
+         montrait que quelques-unes, collées en une phrase derrière le nom du produit. Le client
+         signait donc sans pouvoir vérifier ce qu'il allait recevoir — « je ne sais pas si c'est
+         exactement le même modèle » — et la discussion arrivait à la livraison.
+         ⚠️ Niveau CLIENT uniquement : le cadre porte la lame, les couleurs, le montage et la
+         motorisation, jamais les références de commande Harol (perçage A168, rivets, embouts).
+         Le choix est dans la spec (`client: true`), pas ici : un second arbitrage à cet endroit
+         finirait par contredire le premier. */
+      const specBoxHtml = (it) => {
+        const V = window.SSVolet;
+        if (!V) return '';
+        const l = V.resume(it, 'client');
+        if (!l.length) return '';
+        return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
+          <div class="spec-box">
+            <div class="spec-box-t">Configuration retenue</div>
+            <div class="spec-box-l">${l.map(x =>
+              `<span class="spec-box-i"><b>${esc(x.l)}</b>${esc(x.v)}</span>`).join('')}</div>
+          </div></td></tr>`;
+      };
+
       // Lignes fournitures
       let rows = '';
       (d.items || []).forEach((it, i) => {
@@ -225,7 +250,15 @@
         })();
         // La COLLECTION (liste fabricant) prime sur l'ancien texte libre `toile` : sur les devis
         // saisis quand les deux champs coexistaient, c'est la collection qui fait foi.
-        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        /* ⚠️ Sur un volet, l'encadré juste en dessous porte déjà la combinaison, le moteur et
+           les couleurs : les répéter ici donnait deux fois la même phrase, l'une tassée et
+           l'autre lisible. Il ne reste donc que ce que l'encadré NE dit pas — où se trouve
+           l'ouverture, ce qu'aucune option ne remplace quand on en a huit sur un chantier. */
+        const estVoletLigne = !!(window.SSVolet && window.SSVolet.estVolet(it));
+        const meta = (estVoletLigne
+          ? [it.emplacement, it.etage]
+          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, it.emplacement, it.etage]
+        ).filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
@@ -234,6 +267,7 @@
           <td class="num">${fmtEur(pu)}</td>
           <td class="num">${fmtEur(pu * qty)}</td>
         </tr>`;
+        rows += specBoxHtml(it);
       });
       const remiseCat = c.remise_catalogue || {};
       if (remiseCat.amount > 0) {

@@ -174,6 +174,10 @@
 
   <script src="assets/js/company.js"></script>
   <script src="assets/js/ui.js"></script>
+  <!-- Le configurateur VR150 : cette page rend son résumé CLIENT, le même que le PDF.
+       Catalogue de produits uniquement — aucune donnée de marge ni de commission. -->
+  <script src="assets/js/products.js"></script>
+  <script src="assets/js/volet.js"></script>
   <script>
     const { icon, fmtEur, fmtDate, toast } = window.SSUI;
     const COMPANY = window.SS_COMPANY;
@@ -452,6 +456,20 @@
       let cptPoste = 0;
       const cellNum = () => dep ? `<td class="num">${++cptPoste}</td>` : '<td class="num">—</td>';
       let rows = '';
+      /* L'encadré de configuration, identique à celui du PDF (voir `app/devis.html`).
+         Il ne porte QUE le niveau client : jamais les références de commande Harol. */
+      const specBoxHtml = (it) => {
+        const V = window.SSVolet;
+        if (!V) return '';
+        const l = V.resume(it, 'client');
+        if (!l.length) return '';
+        return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
+          <div class="spec-box">
+            <div class="spec-box-t">Configuration retenue</div>
+            <div class="spec-box-l">${l.map(x =>
+              `<span class="spec-box-i"><b>${esc(x.l)}</b>${esc(x.v)}</span>`).join('')}</div>
+          </div></td></tr>`;
+      };
       (doc.items || []).forEach((it, i) => {
         const dims = window.SSUI.dimsOf(it) || '—';
         const pu = it.prix_catalogue_ht || 0, qty = it.quantite || 1;
@@ -467,7 +485,14 @@
           if (lame) parts.push('lame ' + lame);
           return parts.join(', ');
         })();
-        const meta = [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur, coloris, it.toile, it.emplacement, it.etage].filter(Boolean).join(' · ');
+        /* Même règle que `app/devis.html` : sur un volet, l'encadré porte déjà la
+           combinaison, le moteur et les couleurs. C'est le MÊME client qui lit les deux
+           documents (règle 7) — ils doivent dire la même chose, au mot près. */
+        const estVoletLigne = !!(window.SSVolet && window.SSVolet.estVolet(it));
+        const meta = (estVoletLigne
+          ? [it.emplacement, it.etage]
+          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur, coloris, it.toile, it.emplacement, it.etage]
+        ).filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
           <td class="desc"><strong>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</strong>${meta ? '<small>' + esc(meta) + '</small>' : ''}</td>
@@ -476,6 +501,7 @@
           <td class="num">${esc(fmtEur(pu))}</td>
           <td class="num">${esc(fmtEur(pu * qty))}</td>
         </tr>`;
+        rows += specBoxHtml(it);
       });
       if (c.remise_catalogue > 0) {
         rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
