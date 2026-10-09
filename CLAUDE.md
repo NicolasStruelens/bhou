@@ -72,6 +72,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 66 tests (`window.SSVolet`) |
+| `tests/volet.test.html` | Les 66 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -764,6 +766,56 @@ colonne « Posé par » la rend telle quelle.
   catalogue est le bon discriminant — un dépannage n'en a pas, et n'a légitimement aucune
   ouverture. Pour la même raison, un dépannage est hors du signalement de commission.
 
+**31. LE CONFIGURATEUR VR150 EST DÉCRIT UNE FOIS (`SSProducts.VR_CHAMPS`) ET RENDU TROIS FOIS.**
+Le bloc vivait en DEUX copies, dans `app/simulateur.html` et `app/terrain.html`, et à quatre
+champs elles avaient déjà divergé (grid-4 contre grid-2, classes de case différentes). Le
+portail de commande Harol en demande une **trentaine** : à ce volume, deux copies, c'est la
+certitude qu'un champ existera d'un côté et pas de l'autre — et qu'on le découvrira **en passant
+la commande**, quand il est trop tard pour redemander au client.
+La table décrit chaque champ (`g` groupe, `k` clé, `l` libellé, `t` type, `vals`, `si`, `aide`,
+`client`, `pilote`, `horsFormulaire`) ; `SSVolet` la rend : à l'écran (simulateur, Mode Terrain),
+en résumé **client** (devis PDF et lien de consultation) et en résumé **complet** (picking).
+Ajouter une option = **une ligne dans la table**, et elle apparaît partout.
+⚠️ **`client: true` est le seul arbitrage, et il est volontaire.** Le client lit ce qu'il a
+acheté — lame, couleurs, ajourage, montage, motorisation — jamais les références de commande
+Harol (perçage A168, rivets, embouts A66, bouchons, suppléments, sortie de câble). Lui montrer
+tout, c'est noyer ce qu'il doit vérifier et exposer le détail fournisseur sur un document qui
+circule. Ne pas « compléter » l'encadré du devis en croyant bien faire.
+⚠️ **`pilote: true`** marque les champs qui en COMMANDENT d'autres (alimentation, combinaison,
+moustiquaire, bouchons, « coulisses différentes », caisson, montage). Eux seuls re-rendent le
+bloc : le faire à chaque menu ferait sauter la page sous les doigts, et à chaque frappe ferait
+perdre le focus. On re-rend le **bloc seul** (`data-volet-block`), jamais la carte — la
+reconstruire rechargerait les photos et remonterait la page au-dessus du champ qu'on touche.
+⚠️ **`horsFormulaire: true`** = résumé mais pas saisi ici. La couleur du caisson se saisit dans
+le sélecteur RAL commun à tous les types, en haut de la carte ; la remettre dans le bloc ferait
+deux champs pour une même donnée, et c'est toujours celui qu'on ne regarde pas qui finit chez le
+fournisseur. Elle doit pourtant figurer sur le devis : c'est la première chose qu'un client vérifie.
+
+**31 bis. UNE VALEUR ENREGISTRÉE NE DISPARAÎT JAMAIS D'UN MENU** (`SSProducts.vrOptions`).
+Un `<select>` dont la valeur courante ne figure dans aucune option affiche « — » **sans rien
+signaler**, et le premier enregistrement l'écrase par du vide. Silencieux, et irréversible.
+La mise à jour du 09/10/2026 a créé ce cas **deux fois** : les caissons 137 et 150, que le
+portail Harol ne propose plus, et les 25 libellés de couleur de lame réécrits d'après le portail
+(« 90 — 9005 Noir » et non plus « Noir profond »). `vrOptions` réinjecte donc toujours la
+valeur enregistrée, en tête, marquée « valeur enregistrée » avec un avertissement à l'écran.
+**Ne jamais construire un `<option>` de ce bloc sans passer par elle.**
+C'est aussi pourquoi `VR_CAISSONS` porte `courant: false` sur 137 et 150 plutôt que de les
+supprimer : plus proposables, toujours lisibles, et leur hauteur max reste connue.
+Corollaire, même famille : `vrMoteursFor('')` renvoie **tous** les moteurs plutôt qu'aucun — un
+ancien devis porte déjà un moteur, et un menu vide le ferait disparaître.
+
+**31 ter. LE LIEN DE CONSULTATION CLIENT FILTRE LES OUVERTURES PAR LISTE BLANCHE.**
+`/api/devis-review` ne renvoie **que** les champs qu'il énumère. Conséquence à connaître avant
+de chercher : la ligne de méta de `devis-review.html` lisait `it.variante`, `it.moteur`,
+`it.couleur`… qui n'étaient **jamais envoyés** — elle était vide depuis toujours, sans erreur.
+Le PDF portait donc une description que la page ouverte par le client ne portait pas : deux
+documents qui se contredisent, pour le même client (règle 7).
+Les 18 clés de niveau client sont désormais renvoyées, et **elles seules**. La liste est donc
+écrite à DEUX endroits — `VR_CLES_CLIENT` dans le serveur et `SSProducts.vrClesClient()` — ce
+qui finit toujours par diverger : **`tests/volet.test.html` lit le fichier du serveur et compare
+les deux** (cas H2). Ajouter un champ `client: true` sans le porter côté serveur fait échouer ce
+test, et c'est exactement son rôle.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -1019,7 +1071,11 @@ colonne « Posé par » la rend telle quelle.
    `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
-   `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel. Les dates s'y
+   `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
+   Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
+   `tests/volet.test.html`, exiger « 66/66 » — ça remplit un bon de commande fournisseur.
+   ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
+   lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.

@@ -211,6 +211,9 @@
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
+  <!-- Le configurateur VR150, partagé avec le Mode Terrain et les documents.
+       Il LIT la spec de products.js, qui doit donc être chargé avant lui. -->
+  <script src="../assets/js/volet.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/postal-be.js"></script>
@@ -464,27 +467,23 @@
       renderItemsStep();
     };
 
-    // Bloc de configuration détaillé VR150 Pure (fiche prix Harol 06/2026)
+    /* Même configurateur que le simulateur (`assets/js/volet.js`), en deux colonnes : on est sur
+       un téléphone, chez le client. Les cases à cocher y prennent 44 px de haut (le module porte
+       sa propre feuille de style, qui respecte la cible tactile du reste de l'application). */
+    const VOLET_OPTS = { cols: 2, onchange: 'onVoletChange', icon: icon };
     function voletBlockHtml(item) {
-      if (item.type !== 'volet_roulant') return '';
-      const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
-      const caissonOpts = VR_CAISSONS.map(c => `<option value="${c.taille}" ${item.caisson_mesure === c.taille ? 'selected' : ''}>${c.taille} mm (max. ${c.hauteur_max} mm)</option>`).join('');
-      const hmax = vrHauteurMaxFor(item.caisson_mesure);
-      return `
-      <div class="cs8-block mt-4">
-        <div class="cs8-head">${icon('sliders', 14)} Configuration VR150 Pure</div>
-        <div class="grid grid-2 mt-3">
-          <div class="field"><label class="label">Type de lame</label><select class="select" data-f="lame_type"><option value="">—</option>${opt(VR_LAMES, item.lame_type)}</select></div>
-          <div class="field"><label class="label">Caisson (mm)</label><select class="select" data-f="caisson_mesure"><option value="">—</option>${caissonOpts}</select></div>
-          <div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur"><option value="">—</option>${opt(VR_MOTEURS, item.moteur)}</select></div>
-          <div class="field col-full"><label class="label">Couleur lames (RAL)</label><select class="select" data-f="couleur_lame"><option value="">—</option>${opt(VR_COULEURS_LAMES, item.couleur_lame)}</select></div>
-        </div>
-        <div class="stack" style="gap:0;margin-top:var(--sp-2);">
-          <label class="field-check-mobile"><input type="checkbox" data-f="borstels" ${item.borstels ? 'checked' : ''}> Brosses (au lieu de joints)</label>
-        </div>
-        ${hmax ? `<p class="text-muted mt-2" style="font-size:var(--fs-2xs);">Hauteur max. (axe Ø60 mm) : ${hmax} mm — largeur max. 4000 mm.</p>` : ''}
-      </div>`;
+      return window.SSVolet ? window.SSVolet.html(item, VOLET_OPTS) : '';
     }
+
+    // Un champ pilote a changé : on re-rend le bloc seul (voir le commentaire du simulateur).
+    window.onVoletChange = function (id) {
+      const card = document.querySelector(`[data-id="${id}"]`);
+      const it = state.items.find(x => x._id === id);
+      if (!card || !it) return;
+      collectItem(it, card);
+      window.SSVolet.rafraichir(card, it, VOLET_OPTS);
+      recalcRecap();
+    };
 
     window.onCS8VarianteChange = function (id) {
       const sel = el('cms-' + id); if (!sel) return;

@@ -792,26 +792,248 @@
   // Type de lame : plusieurs profils possibles (vu sur le vrai portail de commande Harol de
   // Nicolas, pas seulement ALU242 comme supposé initialement) — liste exacte de son portail.
   const VR_LAMES = ['PVC37', 'Midi', 'alu35', 'alu237', 'alu242', 'alu242s'];
+
+  /* ⚠️ `courant: false` = taille que le portail Harol ne propose PLUS pour le VR150 (son menu
+     n'offre que 165, 180 et 205). On ne les supprime pas : de vrais devis les portent, et un
+     devis dont la valeur disparaît du menu perdrait silencieusement sa donnée. Elles ne sont
+     donc plus PROPOSABLES, mais restent LISIBLES — le rendu rajoute toujours la valeur déjà
+     enregistrée en tête de liste (voir `vrOptions`). */
   const VR_CAISSONS = [
-    { taille: '137', hauteur_max: 1110 },
-    { taille: '150', hauteur_max: 1370 },
-    { taille: '165', hauteur_max: 1870 },
-    { taille: '180', hauteur_max: 2140 },
-    { taille: '205', hauteur_max: 3000 },
+    { taille: '137', hauteur_max: 1110, courant: false },
+    { taille: '150', hauteur_max: 1370, courant: false },
+    { taille: '165', hauteur_max: 1870, courant: true },
+    { taille: '180', hauteur_max: 2140, courant: true },
+    { taille: '205', hauteur_max: 3000, courant: true },
   ]; // hauteur max donnée pour l'axe d'enroulement Ø60mm (le plus courant)
-  const VR_MOTEURS = ['Secure (RF, standard)', 'Primo (filaire, sans télécommande)', 'Solar Pure (solaire)'];
-  // 9 coloris standard de lame ALU242 (RAL ± indicatif, code Harol officiel)
+
+  /* L'ALIMENTATION d'abord, le moteur ensuite. Nicolas, le 09/10/2026 : « je dois avoir le
+     choix pour les volets de choisir Solar ou Électrique ». C'est elle qui commande le reste :
+     une batterie et un panneau solaire n'ont aucun sens sur un moteur filaire, et les afficher
+     quand même, c'est inviter à les remplir pour rien. */
+  const VR_ALIMENTATIONS = ['Solaire', 'Électrique (filaire)'];
+  const VR_MOTEURS_PAR_ALIM = {
+    'Solaire': ['Solar Pure (solaire)', 'A4118 : RS100 Solar io 6/15'],
+    'Électrique (filaire)': ['Secure (RF, standard)', 'Primo (filaire, sans télécommande)'],
+  };
+  const VR_MOTEURS = ['Secure (RF, standard)', 'Primo (filaire, sans télécommande)', 'Solar Pure (solaire)',
+    'A4118 : RS100 Solar io 6/15'];
+  /** Les moteurs possibles pour cette alimentation. Sans alimentation choisie : tous, pour ne
+   *  jamais bloquer une saisie déjà commencée (et pour que les anciens devis restent lisibles). */
+  function vrMoteursFor(alimentation) {
+    return VR_MOTEURS_PAR_ALIM[alimentation] || VR_MOTEURS;
+  }
+  // Une seule valeur vue sur le portail. S'il y en a d'autres (batterie déportée…), elles
+  // s'ajoutent ICI et nulle part ailleurs.
+  const VR_BATTERIES = ['Batterie standard, montée dans le caisson'];
+  const VR_COTES_MANOEUVRE = ['Gauche', 'Droite'];
+
+  /* Les 25 coloris de lame du portail Harol (menu « Couleur lame »), code officiel + RAL quand
+     la fiche en donne un. L'ancienne liste n'en avait que 9 — les 16 autres étaient
+     inatteignables, donc impossibles à commander depuis l'ERP.
+     ⚠️ Les libellés ont changé (« 90 — 9005 Noir » et non plus « Noir profond ») : c'est
+     exactement pour ça que `vrOptions` réinjecte la valeur enregistrée d'un ancien devis. */
   const VR_COULEURS_LAMES = [
-    '01 — 9016 Blanc trafic', '03 — 8028 Brun acajou', '07 — 9006 Alu-métallic',
-    '23 — 7038 Gris clair', '27 — 9001 Blanc crème', '38 — 7016 Gris anthracite',
-    '43 — 7039 Gris quartz', '85 — 9007 Gris aluminium', '90 — 9005 Noir profond',
+    '01 — 9016 Blanc', '02 — 7035 Gris faible', '03 — 8028 Brun', '04 — 1013 Beige clair',
+    '05 — Beige foncé', '07 — 9006 Alu métallisé', '09 — Bronze', '11 — Chêne', '12 — Teak',
+    '13 — 6005 Vert mousse', '14 — 3004 Pourpre', '18 — Anthracite métallisé brillant',
+    '22 — Golden oak', '23 — 7038 Gris clair', '27 — 9001 Blanc crème', '37 — Samtgrau',
+    '38 — 7016 Gris anthracite', '43 — 7039 Gris quartz', '44 — 7012 Gris basalte',
+    '45 — Gris béton', '46 — 7021 Gris noir', '62 — Gris santiago', '84 — 1015 Crème',
+    '85 — 9007 Gris aluminium', '90 — 9005 Noir',
   ];
+
+  const VR_COMBINAISONS = [
+    'Simple',
+    'DVC2 : porte fenêtre 2 parties - 1 caisson',
+    'DVC3 : porte fenêtre 3 parties - 1 caisson',
+  ];
+  const VR_AJOURAGES = ['0 : sans ajourage', '1 : 1/3 ajourage', '2 : 1/2 ajourage',
+    '3 : 2/3 ajourage', '4 : 3/3 ajourage'];
+
+  /* Le TYPE DE MONTAGE décide du sens d'enroulement, de la position du tablier, de la sortie de
+     sangle ET des coulisses compatibles. Le détail vient de la planche Harol : il est porté
+     ici parce qu'un poseur qui lit « type 5 » sans la phrase ne sait pas ce qu'il commande. */
+  const VR_MONTAGES = [
+    { v: '1 : type 1 (dans le jour)', aide: 'Enroulement droit, tablier avant, sortie de sangle supérieure, coulisse 117 ou 118.' },
+    { v: '2 : type 2 (dans le jour)', aide: 'Enroulement gauche, tablier arrière, sortie de sangle inférieure, coulisses 117 ou 118 selon les possibilités de montage.' },
+    { v: '3 : type 3 (sur le jour)', aide: 'Enroulement gauche, tablier arrière, sortie de sangle inférieure, coulisse 117, coulisses entre les murs, caisson sur le mur.' },
+    { v: '5 : type 5 (sur le jour)', aide: 'Enroulement gauche, tablier arrière, sortie de sangle inférieure, coulisses 118, coulisses et caisson sur le mur.' },
+  ];
+  function vrMontageAide(v) {
+    const m = VR_MONTAGES.find(x => x.v === v);
+    return m ? m.aide : '';
+  }
+
+  const VR_CAISSON_FORMES = ['S biseauté', 'P arrondie', 'C carré', 'G extrudé biseautée'];
+  const VR_RIVETS = ['9016 — Blanc', '1015 — Ivoire', '7038 — Gris', '8019 — Brun', '9005 — Noir'];
+
+  const VR_COULISSES = ['117', '118', '119', '127', '128', '129', '117S', '118S',
+    '135 — glissière de sécurité'];
+  const VR_PERCAGES = ['Pas', 'A168 : forer latérale (droit/gauche)', 'A167 : forer à l’arrière'];
+
   function vrHauteurMaxFor(taille) {
     const c = VR_CAISSONS.find(x => x.taille === taille);
     return c ? c.hauteur_max : null;
   }
 
-  // ── Catalogue d'accessoires (Suppléments) ─────────────────────────────────
+  /**
+   * Les options d'un menu, AVEC la valeur déjà enregistrée même si elle n'y est plus.
+   * ⚠️ C'est la garde qui évite une perte de donnée silencieuse. Un `<select>` dont la valeur
+   * courante ne figure dans aucune option affiche « — » : l'utilisateur ne voit rien d'anormal,
+   * et le premier enregistrement écrase la valeur par du vide. Ça concerne ici DEUX cas réels,
+   * créés par cette mise à jour même : les caissons 137 et 150, retirés du portail, et les
+   * libellés de couleur de lame, réécrits d'après le portail.
+   * @param liste    les valeurs proposables
+   * @param courante la valeur de l'ouverture
+   * @returns [{ v, l, perime }] — `perime` marque la valeur rescapée, pour la signaler à l'écran.
+   */
+  function vrOptions(liste, courante) {
+    const out = (liste || []).map(x => (typeof x === 'string' ? { v: x, l: x } : { v: x.v, l: x.l || x.v }));
+    const cur = String(courante == null ? '' : courante);
+    if (cur && !out.some(o => o.v === cur)) out.unshift({ v: cur, l: cur + ' (valeur enregistrée)', perime: true });
+    return out;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     LA SPEC VR150 — UNE SEULE DESCRIPTION, QUATRE ÉCRANS.
+
+     Le configurateur VR150 vivait en DEUX copies, une dans le simulateur et une dans le Mode
+     Terrain, et elles avaient déjà divergé (grid-4 contre grid-2, pas les mêmes classes). À
+     quatre champs c'était tenable ; à trente, c'est la garantie qu'un champ existera d'un côté
+     et pas de l'autre — et qu'on le découvrira en passant la commande.
+     Cette table décrit donc les champs UNE fois. `SSVolet` la rend à l'écran (simulateur,
+     Mode Terrain), en résumé client (devis) et en résumé complet (picking, bon de commande).
+
+     Chaque champ :
+       g      le groupe, qui devient un titre de section
+       k      la clé stockée sur l'ouverture
+       l      le libellé
+       t      'select' | 'check' | 'texte'
+       vals   les valeurs proposables — tableau, ou fonction(item) quand elles en dépendent
+       si     fonction(item) → ce champ a-t-il un sens sur cette ouverture ?
+       aide   la phrase sous le champ — texte, ou fonction(item)
+       client true = cette ligne paraît dans l'encadré du devis CLIENT
+       large  le champ prend toute la largeur
+       unite  le suffixe affiché dans le champ (mm…)
+
+     ⚠️ `client` est le seul arbitrage de ce fichier, et il est volontaire : le client lit ce
+     qu'il a acheté (lame, couleurs, montage, motorisation), pas les références de commande de
+     Harol (perçage A168, rivets, embouts, bouchons). Lui montrer tout, c'est noyer ce qu'il
+     doit vérifier — et exposer le détail fournisseur sur un document qui circule.
+     ══════════════════════════════════════════════════════════════════════════════════════ */
+  const VR_CHAMPS = [
+    // ── Ouverture ──
+    { g: 'Ouverture', k: 'combinaison', l: 'Combinaison', t: 'select', vals: VR_COMBINAISONS, client: true, large: true, pilote: true },
+    // Sur le portail la case est grisée tant que la combinaison est « Simple » : un espace
+    // intermédiaire n'existe qu'entre deux parties. On la cache plutôt que de la griser.
+    { g: 'Ouverture', k: 'espace_intermediaire', l: 'Avec espace intermédiaire', t: 'check',
+      si: it => !!it.combinaison && it.combinaison !== 'Simple', client: true },
+
+    // ── Options ──
+    { g: 'Options', k: 'moustiquaire', l: 'Avec moustiquaire', t: 'check', client: true, pilote: true },
+    { g: 'Options', k: 'moustiquaire_faux', l: 'Moustiquaire faux', t: 'check', si: it => !!it.moustiquaire },
+    { g: 'Options', k: 'occultation', l: 'Avec occultation', t: 'check', client: true },
+
+    // ── Tablier ──
+    { g: 'Tablier', k: 'lame_type', l: 'Type de lame', t: 'select', vals: VR_LAMES, client: true },
+    { g: 'Tablier', k: 'couleur_lame', l: 'Couleur des lames', t: 'select', vals: VR_COULEURS_LAMES, client: true },
+    { g: 'Tablier', k: 'ajourage', l: 'Ajourage', t: 'select', vals: VR_AJOURAGES, client: true },
+    { g: 'Tablier', k: 'lame_finale_couleur', l: 'Couleur lame finale', t: 'select', vals: COULEURS_RAL, client: true },
+
+    // ── Montage ──
+    { g: 'Montage', k: 'montage_type', l: 'Type de montage', t: 'select', vals: VR_MONTAGES.map(m => m.v),
+      aide: it => vrMontageAide(it.montage_type), client: true, large: true, pilote: true },
+
+    // ── Manœuvre ──
+    { g: 'Manœuvre', k: 'alimentation', l: 'Alimentation', t: 'select', vals: VR_ALIMENTATIONS, client: true, pilote: true },
+    { g: 'Manœuvre', k: 'moteur', l: 'Moteur', t: 'select', vals: it => vrMoteursFor(it.alimentation), client: true },
+    { g: 'Manœuvre', k: 'cote_manoeuvre', l: 'Côté de manœuvre', t: 'select', vals: VR_COTES_MANOEUVRE,
+      aide: 'Vu de l’intérieur.', client: true },
+    { g: 'Manœuvre', k: 'emetteur', l: 'Émetteur inclus', t: 'check', client: true },
+    // Batterie et panneau solaire n'existent QUE sur une motorisation solaire : les afficher
+    // sur un moteur filaire, c'est inviter à les remplir pour rien.
+    { g: 'Manœuvre', k: 'batterie', l: 'Batterie', t: 'select', vals: VR_BATTERIES,
+      si: it => it.alimentation === 'Solaire', large: true },
+    { g: 'Manœuvre', k: 'panneau_solaire_separe', l: 'A4117 : panneau solaire fourni séparément', t: 'check',
+      si: it => it.alimentation === 'Solaire' },
+
+    // ── Caisson ──
+    { g: 'Caisson', k: 'caisson_mesure', l: 'Caisson (mm)', t: 'select',
+      vals: VR_CAISSONS.filter(c => c.courant).map(c => ({ v: c.taille, l: c.taille + ' mm (max. ' + c.hauteur_max + ' mm)' })),
+      aide: it => { const h = vrHauteurMaxFor(it.caisson_mesure);
+        return h ? 'Hauteur max. pour ce caisson (axe Ø60 mm) : ' + h + ' mm — largeur max. 4000 mm.' : ''; }, pilote: true },
+    { g: 'Caisson', k: 'caisson_forme', l: 'Modèle de caisson', t: 'select', vals: VR_CAISSON_FORMES, client: true },
+    /* ⚠️ `horsFormulaire` : ce champ est RÉSUMÉ mais pas SAISI ici. La couleur du caisson se
+       saisit en haut de la carte, dans le sélecteur RAL commun à tous les types de produit —
+       la remettre dans ce bloc ferait deux champs pour une même donnée, et c'est toujours
+       celui qu'on ne regarde pas qui finit chez le fournisseur. Mais elle doit figurer dans
+       l'encadré du devis : c'est la première chose qu'un client vérifie. */
+    { g: 'Caisson', k: 'couleur', l: 'Couleur du caisson', t: 'select', vals: COULEURS_RAL,
+      client: true, horsFormulaire: true },
+    { g: 'Caisson', k: 'caisson_rivets', l: 'Couleur des rivets', t: 'select', vals: VR_RIVETS },
+    { g: 'Caisson', k: 'allongement_caisson', l: 'Avec allongement de caisson', t: 'check' },
+    // Texte libre, et c'est un choix de Nicolas (09/10/2026) : la planche Harol montre huit
+    // repères sur le croquis, mais on ne sait pas encore lesquels le portail accepte. Un menu
+    // inventé serait pire qu'une phrase écrite à la main.
+    { g: 'Caisson', k: 'cable_sortie', l: 'Sortie de câble', t: 'texte', large: true,
+      aide: 'À remplir seulement si un câble doit sortir du caisson — indique la position d’après le croquis Harol.' },
+
+    // ── Coulisses ──
+    { g: 'Coulisses', k: 'coulisse_type', l: 'Type de coulisses', t: 'select', vals: VR_COULISSES, client: true },
+    { g: 'Coulisses', k: 'coulisse_percage', l: 'Perçage', t: 'select', vals: VR_PERCAGES },
+    { g: 'Coulisses', k: 'couleur_coulisses', l: 'Couleur des coulisses', t: 'select', vals: COULEURS_RAL, client: true },
+    { g: 'Coulisses', k: 'coulisse_surplus', l: 'A72 : longueur surplus', t: 'texte', unite: 'mm' },
+    { g: 'Coulisses', k: 'coulisse_embout', l: 'A66 : embout de clôture', t: 'check' },
+    { g: 'Coulisses', k: 'coulisse_bouchons', l: 'Avec bouchons en PVC', t: 'check', pilote: true },
+    { g: 'Coulisses', k: 'coulisse_bouchon_couleur', l: 'Couleur des bouchons PVC', t: 'select', vals: COULEURS_RAL,
+      si: it => !!it.coulisse_bouchons },
+    /* `borstels` existe depuis toujours et veut dire « brosses au lieu de joints » — c'est le
+       champ « afdichting » du portail. On le GARDE tel quel au lieu d'ouvrir un second champ
+       « étanchéité » : deux champs pour une même chose, et les anciens devis répondent à l'un
+       pendant que les écrans lisent l'autre. */
+    { g: 'Coulisses', k: 'borstels', l: 'Étanchéité par brosses (au lieu de joints)', t: 'check', client: true },
+    { g: 'Coulisses', k: 'coulisses_differentes', l: 'Les deux coulisses sont différentes', t: 'check', pilote: true,
+      aide: 'À cocher seulement si la coulisse de gauche et celle de droite ne sont pas identiques.' },
+
+    // ── Coulisse 2 ── (dépliée seulement quand les deux diffèrent)
+    { g: 'Coulisse 2', k: 'coulisse2_type', l: 'Type de coulisses', t: 'select', vals: VR_COULISSES, si: it => !!it.coulisses_differentes },
+    { g: 'Coulisse 2', k: 'coulisse2_percage', l: 'Perçage', t: 'select', vals: VR_PERCAGES, si: it => !!it.coulisses_differentes },
+    { g: 'Coulisse 2', k: 'couleur_coulisses2', l: 'Couleur', t: 'select', vals: COULEURS_RAL, si: it => !!it.coulisses_differentes },
+    { g: 'Coulisse 2', k: 'coulisse2_surplus', l: 'A72 : longueur surplus', t: 'texte', unite: 'mm', si: it => !!it.coulisses_differentes },
+    { g: 'Coulisse 2', k: 'coulisse2_embout', l: 'A66 : embout de clôture', t: 'check', si: it => !!it.coulisses_differentes },
+    { g: 'Coulisse 2', k: 'coulisse2_bouchons', l: 'Avec bouchons en PVC', t: 'check', si: it => !!it.coulisses_differentes, pilote: true },
+    { g: 'Coulisse 2', k: 'coulisse2_bouchon_couleur', l: 'Couleur des bouchons PVC', t: 'select', vals: COULEURS_RAL,
+      si: it => !!it.coulisses_differentes && !!it.coulisse2_bouchons },
+
+    // ── Suppléments ──
+    { g: 'Suppléments', k: 'supp_bouchons_arret', l: 'Bouchons d’arrêt', t: 'check' },
+    { g: 'Suppléments', k: 'supp_serrure', l: 'Serrure', t: 'check' },
+    { g: 'Suppléments', k: 'supp_profils', l: 'Profils', t: 'check' },
+    { g: 'Suppléments', k: 'supp_divers', l: 'Divers', t: 'check' },
+  ];
+
+  /** Les champs qui ont un sens sur CETTE ouverture (les conditions `si` appliquées). */
+  function vrChamps(item) {
+    const it = item || {};
+    return VR_CHAMPS.filter(c => !c.si || c.si(it));
+  }
+
+  /* Les clés que le CLIENT a le droit de lire. Le lien de consultation en ligne
+     (`/api/devis-review`) filtre les ouvertures par liste blanche — il ne renvoie que ce qu'il
+     énumère — donc ces clés doivent y être répétées. ⚠️ Une liste à deux endroits finit par
+     diverger : `tests/volet.test.html` compare celle du serveur à celle-ci et échoue si on
+     ajoute un champ client sans l'y porter. */
+  function vrClesClient() {
+    return VR_CHAMPS.filter(c => c.client).map(c => c.k);
+  }
+
+  /** Les valeurs proposables d'un champ pour cette ouverture (une liste, ou une fonction). */
+  function vrValeurs(champ, item) {
+    const v = champ && champ.vals;
+    return (typeof v === 'function' ? v(item || {}) : v) || [];
+  }
+
+  // ── Catalogue d'accessoires (Suppléments) ──────────────────────────────────────────
   // 149 références extraites du tarif Harol « Protection Solaire » 03/2026, section
   // DOMOTIQUE (pages 174-192) + les consoles de tente solaire. Ce sont les accessoires
   // SOMFY tels que Nicolas les commande RÉELLEMENT — c'est-à-dire via Harol : d'où le
@@ -1035,6 +1257,10 @@
     TS_SPECS, TS_MOTEURS, TS_ECLAIRAGE_BX270, TS_ECLAIRAGE_LUX, tsMoteursFor, tsEclairageFor,
     TS_MANOEUVRES, TS_MOTEUR_SORTES, TS_CABLE_LONGUEURS, TS_CABLE_COULEURS, TS_COLLECTIONS,
     VR_CAISSONS, VR_MOTEURS, VR_COULEURS_LAMES, VR_LAMES, vrHauteurMaxFor,
+    VR_ALIMENTATIONS, VR_MOTEURS_PAR_ALIM, vrMoteursFor, VR_BATTERIES, VR_COTES_MANOEUVRE,
+    VR_COMBINAISONS, VR_AJOURAGES, VR_MONTAGES, vrMontageAide,
+    VR_CAISSON_FORMES, VR_RIVETS, VR_COULISSES, VR_PERCAGES,
+    VR_CHAMPS, vrChamps, vrValeurs, vrOptions, vrClesClient,
     CATALOG_OPTIONS, CATALOG_CATS, chercheAccessoires,
     CHAMPS_REQUIS, champsManquants,
     RAL_TABLE, RAL_FREQUENTS, ralCode, ralNom, ralHex, ralHarol, ralLabel, ralListeHarol,

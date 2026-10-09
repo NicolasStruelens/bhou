@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — volet VR150</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests volet VR150</h1>
+  <p class="note">
+    Le configurateur VR150 remplit un BON DE COMMANDE chez Harol. Un champ qui disparaît, une
+    valeur qui ne se réaffiche pas, une option proposée qui n'existe plus au catalogue : on s'en
+    aperçoit au moment de commander, quand il est trop tard pour redemander au client.
+    <br><br>
+    <strong>⚠️ La section « la valeur enregistrée ne disparaît jamais » est la plus importante de
+    ce fichier.</strong> Un menu déroulant dont la valeur courante ne figure dans aucune option
+    affiche « — » sans rien signaler, et le premier enregistrement l'écrase par du vide. Cette
+    mise à jour crée exactement ce cas deux fois : les caissons 137 et 150 que Harol ne propose
+    plus, et les libellés de couleur de lame réécrits d'après le portail. Ne pas supprimer ces tests.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/volet.js"></script>
+  <script>
+    const P = window.SSProducts;
+    const V = window.SSVolet;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+
+    const vr = (o) => Object.assign({ _id: 'I1', type: 'volet_roulant' }, o || {});
+    const cles = (item) => P.vrChamps(item).map(c => c.k);
+    const a = (item, k) => cles(item).indexOf(k) >= 0;
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Le vocabulaire vient du portail Harol, pas d’une approximation');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('A1 les 6 types de lame du portail', P.VR_LAMES.length, 6);
+    check('A2 les 25 couleurs de lame (il n’y en avait que 9)', P.VR_COULEURS_LAMES.length, 25);
+    /* Les 9 anciennes couleurs sont TOUTES dans les 25 : la liste s'élargit, elle ne remplace
+       pas. Si un code disparaissait, un devis existant perdrait sa couleur. */
+    check('A3 les 9 anciens codes existent toujours',
+      ['01', '03', '07', '23', '27', '38', '43', '85', '90']
+        .filter(c => !P.VR_COULEURS_LAMES.some(x => x.indexOf(c + ' —') === 0)), []);
+    check('A4 les 9 types de coulisse', P.VR_COULISSES.length, 9);
+    check('A5 dont la glissière de sécurité 135',
+      P.VR_COULISSES.some(c => c.indexOf('135') === 0), true);
+    check('A6 les 3 perçages', P.VR_PERCAGES.length, 3);
+    check('A7 les 4 modèles de caisson', P.VR_CAISSON_FORMES.length, 4);
+    check('A8 les 5 couleurs de rivet', P.VR_RIVETS.length, 5);
+    check('A9 les 5 ajourages, de « sans » à 3/3', P.VR_AJOURAGES.length, 5);
+    check('A10 les 4 types de montage', P.VR_MONTAGES.length, 4);
+    /* Un poseur qui lit « type 5 » sans la phrase ne sait pas ce qu'il commande : sens
+       d'enroulement, position du tablier, sortie de sangle et coulisses compatibles en dépendent. */
+    check('A11 chaque montage porte son explication',
+      P.VR_MONTAGES.filter(m => !m.aide || m.aide.length < 30).length, 0);
+    check('A12 l’explication se retrouve depuis la valeur',
+      P.vrMontageAide('5 : type 5 (sur le jour)').indexOf('coulisses 118') >= 0, true);
+    check('A13 une valeur inconnue ne fabrique pas d’explication', P.vrMontageAide('zzz'), '');
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ La valeur enregistrée ne disparaît JAMAIS d’un menu');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* LE test de ce fichier. Sans `vrOptions`, un <select> dont la valeur n'est dans aucune
+       option affiche « — » : rien d'anormal à l'écran, et le premier enregistrement écrit du
+       vide par-dessus. Silencieux, et irréversible. */
+    check('B1 une valeur au catalogue sort telle quelle',
+      P.vrOptions(['A', 'B'], 'B').map(o => o.v), ['A', 'B']);
+    check('B2 une valeur HORS catalogue est réinjectée, en tête',
+      P.vrOptions(['A', 'B'], 'Z').map(o => o.v), ['Z', 'A', 'B']);
+    check('B3 … et elle est marquée, pour qu’on la vérifie avant de commander',
+      P.vrOptions(['A', 'B'], 'Z')[0].perime, true);
+    check('B4 … avec un libellé qui le dit',
+      P.vrOptions(['A', 'B'], 'Z')[0].l.indexOf('valeur enregistrée') > 0, true);
+    check('B5 une valeur vide n’ajoute rien', P.vrOptions(['A'], '').length, 1);
+    check('B6 null et undefined non plus',
+      [P.vrOptions(['A'], null).length, P.vrOptions(['A'], undefined).length], [1, 1]);
+    check('B7 le format { v, l } est accepté aussi',
+      P.vrOptions([{ v: '165', l: '165 mm' }], '165').map(o => o.l), ['165 mm']);
+    check('B8 une liste absente ne casse pas', P.vrOptions(null, 'Z').map(o => o.v), ['Z']);
+
+    /* LES DEUX CAS RÉELS créés par cette mise à jour. */
+    const caissonsProposes = P.VR_CAISSONS.filter(c => c.courant).map(c => c.taille);
+    check('B9 le portail ne propose plus que 165, 180 et 205', caissonsProposes, ['165', '180', '205']);
+    check('B10 un devis en caisson 137 garde son 137',
+      P.vrOptions(P.VR_CAISSONS.filter(c => c.courant).map(c => ({ v: c.taille, l: c.taille })), '137')[0].v, '137');
+    check('B11 … et la hauteur max du 137 reste connue', P.vrHauteurMaxFor('137'), 1110);
+    check('B12 un ancien libellé de couleur de lame survit',
+      P.vrOptions(P.VR_COULEURS_LAMES, '90 — 9005 Noir profond')[0].perime, true);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Un champ ne s’affiche que s’il a un sens');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    // Batterie et panneau solaire sur un moteur filaire : des champs à remplir pour rien.
+    check('C1 solaire → batterie et panneau solaire',
+      [a(vr({ alimentation: 'Solaire' }), 'batterie'), a(vr({ alimentation: 'Solaire' }), 'panneau_solaire_separe')],
+      [true, true]);
+    check('C2 filaire → ni l’un ni l’autre',
+      [a(vr({ alimentation: 'Électrique (filaire)' }), 'batterie'),
+       a(vr({ alimentation: 'Électrique (filaire)' }), 'panneau_solaire_separe')], [false, false]);
+    check('C3 alimentation pas encore choisie → on ne montre pas non plus',
+      a(vr({}), 'batterie'), false);
+    check('C4 le moteur suit l’alimentation',
+      P.vrMoteursFor('Solaire').every(m => m.toLowerCase().indexOf('solar') >= 0), true);
+    check('C5 … et le filaire ne propose aucun solaire',
+      P.vrMoteursFor('Électrique (filaire)').some(m => m.toLowerCase().indexOf('solar') >= 0), false);
+    /* Sans alimentation, on propose TOUT plutôt que rien : un ancien devis porte déjà un moteur,
+       et un menu vide le ferait disparaître (même famille que `vrOptions`). */
+    check('C6 sans alimentation, tous les moteurs restent atteignables',
+      P.vrMoteursFor('').length, P.VR_MOTEURS.length);
+
+    check('C7 l’espace intermédiaire n’existe qu’en combinaison',
+      [a(vr({ combinaison: 'Simple' }), 'espace_intermediaire'),
+       a(vr({ combinaison: 'DVC2 : porte fenêtre 2 parties - 1 caisson' }), 'espace_intermediaire')], [false, true]);
+    check('C8 « moustiquaire faux » n’existe qu’avec une moustiquaire',
+      [a(vr({}), 'moustiquaire_faux'), a(vr({ moustiquaire: true }), 'moustiquaire_faux')], [false, true]);
+    check('C9 la couleur des bouchons n’existe qu’avec des bouchons',
+      [a(vr({}), 'coulisse_bouchon_couleur'), a(vr({ coulisse_bouchons: true }), 'coulisse_bouchon_couleur')], [false, true]);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Les deux coulisses : une seule config, dépliable');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Choix de Nicolas (09/10/2026) : sur ses chantiers les deux coulisses sont identiques.
+       Afficher les deux blocs en permanence doublerait la hauteur du formulaire pour rien —
+       mais le cas différent existe, donc il doit rester possible. */
+    const sansDeux = vr({});
+    const avecDeux = vr({ coulisses_differentes: true });
+    check('D1 par défaut, aucun champ de seconde coulisse',
+      cles(sansDeux).filter(k => k.indexOf('coulisse2') === 0 || k === 'couleur_coulisses2'), []);
+    check('D2 dépliée, la seconde coulisse a les mêmes champs que la première',
+      cles(avecDeux).filter(k => k.indexOf('coulisse2') === 0).length, 5);
+    check('D3 … et sa propre couleur', a(avecDeux, 'couleur_coulisses2'), true);
+    check('D4 sa couleur de bouchons suit SA case à elle, pas celle de la première',
+      [a(vr({ coulisses_differentes: true, coulisse_bouchons: true }), 'coulisse2_bouchon_couleur'),
+       a(vr({ coulisses_differentes: true, coulisse2_bouchons: true }), 'coulisse2_bouchon_couleur')], [false, true]);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Le résumé : lisible au client, complet en interne');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    const complet = vr({
+      combinaison: 'DVC2 : porte fenêtre 2 parties - 1 caisson', espace_intermediaire: true,
+      moustiquaire: true, occultation: true,
+      lame_type: 'alu237', couleur_lame: '38 — 7016 Gris anthracite', ajourage: '4 : 3/3 ajourage',
+      montage_type: '5 : type 5 (sur le jour)',
+      alimentation: 'Solaire', moteur: 'A4118 : RS100 Solar io 6/15', cote_manoeuvre: 'Gauche',
+      emetteur: true, batterie: 'Batterie standard, montée dans le caisson',
+      caisson_mesure: '165', caisson_forme: 'P arrondie', caisson_rivets: '9005 — Noir',
+      coulisse_type: '118', coulisse_percage: 'A168 : forer latérale (droit/gauche)',
+      coulisse_surplus: '0', coulisse_embout: true, borstels: false,
+      supp_serrure: true, cable_sortie: 'Sortie en bas à gauche',
+    });
+    const cl = V.resume(complet, 'client').map(x => x.l);
+    const co = V.resume(complet, 'complet').map(x => x.l);
+
+    check('E1 le client lit ce qu’il a acheté : la lame',
+      cl.indexOf('Type de lame') >= 0 && cl.indexOf('Couleur des lames') >= 0, true);
+    check('E2 … le montage et la motorisation',
+      cl.indexOf('Type de montage') >= 0 && cl.indexOf('Alimentation') >= 0, true);
+    /* Ce que le client n'a RIEN à faire de lire — et qui expose le détail fournisseur sur un
+       document qui circule. C'est le seul arbitrage du fichier, il est volontaire. */
+    check('E3 le client ne voit PAS les références de commande Harol',
+      ['Perçage', 'Couleur des rivets', 'A66 : embout de clôture', 'A72 : longueur surplus',
+       'Avec bouchons en PVC', 'Sortie de câble', 'Serrure'].filter(l => cl.indexOf(l) >= 0), []);
+    check('E4 … mais l’interne les voit toutes',
+      ['Perçage', 'Couleur des rivets', 'A66 : embout de clôture', 'Sortie de câble', 'Serrure']
+        .filter(l => co.indexOf(l) < 0), []);
+    check('E5 l’interne contient tout le client, jamais moins',
+      cl.filter(l => co.indexOf(l) < 0), []);
+
+    check('E6 une case décochée ne dit rien — sinon le résumé serait une liste de « Non »',
+      V.resume(complet, 'complet').some(x => x.l.indexOf('brosses') >= 0), false);
+    check('E7 une case cochée dit Oui',
+      V.resume(complet, 'complet').filter(x => x.l === 'Avec moustiquaire')[0].v, 'Oui');
+    check('E8 un champ vide ne produit pas de ligne',
+      V.resume(vr({ lame_type: 'alu237' }), 'complet').length, 1);
+    check('E9 l’unité suit la valeur',
+      V.resume(complet, 'complet').filter(x => x.l.indexOf('A72') === 0)[0].v, '0 mm');
+    check('E10 un champ caché ne se résume pas, même s’il porte une valeur',
+      V.resume(vr({ alimentation: 'Électrique (filaire)', batterie: 'Batterie standard, montée dans le caisson' }), 'complet')
+        .some(x => x.l === 'Batterie'), false);
+    check('E11 l’ordre est celui de la spec, pas l’ordre alphabétique',
+      co.indexOf('Type de lame') < co.indexOf('Type de coulisses'), true);
+    check('E12 le résumé à plat se lit d’une traite',
+      V.resumeTexte(vr({ lame_type: 'alu237', ajourage: '0 : sans ajourage' }), 'client'),
+      'Type de lame : alu237 · Ajourage : 0 : sans ajourage');
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Ce qui n’est pas un volet n’est pas concerné');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('F1 un screen ne reçoit pas le bloc', V.html({ type: 'screen' }, {}), '');
+    check('F2 … ni de résumé', V.resume({ type: 'screen', lame_type: 'alu237' }, 'complet'), []);
+    /* `volet` est l'ANCIEN nom du type et il reste sur de vrais devis. Un configurateur qui ne
+       s'affiche pas sur un ancien dossier donne l'impression que la donnée a disparu. */
+    check('F3 l’ancien type « volet » est reconnu', V.estVolet({ type: 'volet' }), true);
+    check('F4 un item vide ne casse rien', [V.estVolet(null), V.resume(null, 'client')], [false, []]);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Le rendu : ce qui part dans la page');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    const h = V.html(complet, { cols: 4, onchange: 'onVoletChange' });
+    check('G1 chaque champ SAISISSABLE a son data-f',
+      P.vrChamps(complet).filter(c => !c.horsFormulaire).map(c => c.k)
+        .filter(k => h.indexOf('data-f="' + k + '"') < 0), []);
+    /* La couleur du caisson se saisit dans le sélecteur RAL commun, en haut de la carte : la
+       remettre ici ferait deux champs pour une même donnée, et c'est toujours celui qu'on ne
+       regarde pas qui finit chez le fournisseur. Elle doit pourtant figurer sur le devis. */
+    check('G1 bis la couleur du caisson n’est PAS saisie dans le bloc',
+      h.indexOf('data-f="couleur"'), -1);
+    check('G1 ter … mais elle EST dans le résumé client',
+      V.resume(vr({ couleur: '7016 — Gris anthracite' }), 'client').map(x => x.l), ['Couleur du caisson']);
+    check('G2 un champ caché n’est pas dans la page',
+      h.indexOf('data-f="coulisse2_type"'), -1);
+    /* Seuls les champs PILOTES rappellent la page : re-rendre le bloc à chaque menu ferait
+       sauter la mise en page sous les doigts, et à chaque frappe ferait perdre le focus. */
+    check('G3 les champs pilotes rappellent la page',
+      h.split('onVoletChange').length - 1, P.vrChamps(complet).filter(c => c.pilote).length);
+    check('G4 aucun champ texte ne rappelle la page',
+      /type="text"[^>]*onchange/.test(h), false);
+    check('G5 le bloc est repérable pour être re-rendu seul', h.indexOf('data-volet-block') > 0, true);
+    check('G6 la valeur courante est bien sélectionnée',
+      h.indexOf('<option value="alu237" selected>') > 0, true);
+    /* Une apostrophe dans une valeur casserait l'attribut, donc le menu entier (piège déjà payé
+       plusieurs fois sur les gestionnaires générés). */
+    check('G7 une apostrophe dans une valeur enregistrée est échappée',
+      V.html(vr({ lame_type: "alu's" }), {}).indexOf("value=\"alu&#39;s\"") > 0, true);
+    check('G8 … et le HTML reste bien formé (autant de <select> que de </select>)',
+      V.html(vr({ lame_type: "<script>alert(1)</scr" + "ipt>" }), {}).indexOf('<script') , -1);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ La liste blanche du serveur ne doit pas diverger de la spec');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* `/api/devis-review` filtre les ouvertures par liste blanche : il ne renvoie QUE ce qu'il
+       énumère. Les clés client sont donc écrites à deux endroits — ici et dans le serveur — et
+       une liste à deux endroits finit toujours par diverger. Le jour où on ajoutera un champ
+       `client: true` sans le porter côté serveur, le PDF le montrera et la page que le client
+       ouvre ne le montrera pas : deux documents qui se contredisent, pour le même client.
+       Ce test lit le fichier du serveur et compare. Il ne peut pas tourner en file:// — il est
+       alors ANNONCÉ comme non exécuté plutôt que compté comme réussi : un test qu'on croit
+       vert alors qu'il n'a pas tourné est pire que pas de test. */
+    function resultat() {
+      document.getElementById('out').innerHTML =
+        '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+      const total = pass + fail;
+      document.getElementById('summary').innerHTML = fail === 0
+        ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+        : '<span class="fail">' + fail + ' ÉCHEC(S) sur ' + total + '.</span>';
+      document.title = (fail === 0 ? 'OK ' : 'ECHEC ') + pass + '/' + total + ' — Tests volet VR150';
+    }
+
+    fetch('../functions/api/%5B%5Bcatchall%5D%5D.js?v=' + Date.now())
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(src => {
+        const m = src.match(/const VR_CLES_CLIENT = \[([\s\S]*?)\]/);
+        const serveur = m ? (m[1].match(/'[a-z0-9_]+'/g) || []).map(x => x.slice(1, -1)) : [];
+        check('H1 le serveur déclare bien sa liste', serveur.length > 0, true);
+        check('H2 ⚠️ serveur et spec portent exactement les mêmes clés client',
+          serveur.slice().sort(), P.vrClesClient().slice().sort());
+      })
+      .catch(() => {
+        rows.push('<tr><td>H1–H2 liste blanche du serveur</td><td colspan="2">non exécuté ' +
+          '(ouvrir via le serveur de test, pas en file://)</td><td class="fail">À REJOUER</td></tr>');
+      })
+      .then(resultat);
+
+    // ══════════ Résultat (sans le contrôle serveur, si le fetch échoue avant) ══════════
+    // Premier rendu immédiat : si le contrôle serveur tarde, la page n'est pas vide.
+    resultat();
+  </script>
+</body>
+</html>

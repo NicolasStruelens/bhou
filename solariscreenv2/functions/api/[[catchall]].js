@@ -166,6 +166,10 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE devis SET data = json_set(data, '$.review_views', json(?1)) WHERE json_extract(data, '$.review_token') = ?2")
           .bind(JSON.stringify(d.review_views), token).run();
       }
+      const VR_CLES_CLIENT = ['combinaison', 'espace_intermediaire', 'moustiquaire', 'occultation',
+        'lame_type', 'couleur_lame', 'ajourage', 'lame_finale_couleur', 'montage_type',
+        'alimentation', 'moteur', 'cote_manoeuvre', 'emetteur', 'caisson_forme', 'couleur',
+        'coulisse_type', 'couleur_coulisses', 'borstels'];
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
         // projection : dimension PRINCIPALE d'une tente solaire (avec la largeur) — sans elle,
@@ -176,6 +180,18 @@ export async function onRequest(context) {
         // (tickets internes), qui vivent dans un tableau séparé (d.sav_tickets) jamais lu ici.
         // URLs réécrites en accès public par jeton (voir publicPhoto) pour être visibles sans login.
         photos: (it.photos || []).map(publicPhoto),
+        // La CONFIGURATION que le client doit pouvoir verifier avant de signer. Un volet VR150
+        // se commande sur une trentaine d'options ; sans elles, la page de consultation
+        // affichait le produit nu pendant que le PDF, lui, portait l'encadre — deux documents
+        // qui ne disent pas la meme chose au MEME client (regle 7).
+        // ⚠️ Liste blanche volontaire : uniquement le niveau CLIENT (`client: true` dans
+        // SSProducts.VR_CHAMPS). Jamais les references de commande Harol — percage, rivets,
+        // embouts, bouchons, supplements, sortie de cable — qui n'apprennent rien au client et
+        // exposeraient le detail fournisseur sur une page servie par simple jeton.
+        // ⚠️ Cette liste est le DOUBLE de `SSProducts.vrClesClient()`. Une liste a deux
+        // endroits finit par diverger : `tests/volet.test.html` compare les deux et echoue si
+        // on ajoute un champ client sans le porter ici.
+        ...Object.fromEntries(VR_CLES_CLIENT.map(k => [k, it[k] === undefined ? null : it[k]])),
       }));
       // Fil de discussion visible côté client : ses propres questions, + les réponses de
       // Nicolas/Yannick explicitement marquées `visible_client` (opt-in, jamais par défaut —
