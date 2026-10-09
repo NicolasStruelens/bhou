@@ -913,6 +913,16 @@
        si     fonction(item) → ce champ a-t-il un sens sur cette ouverture ?
        aide   la phrase sous le champ — texte, ou fonction(item)
        client true = cette ligne paraît dans l'encadré du devis CLIENT
+       muets  les valeurs qui n'apprennent RIEN et qu'on tait dans les résumés — « Combinaison :
+              Simple » est la valeur par défaut, elle ne dit rien au client ni au poseur, et
+              répétée sur huit ouvertures elle noie ce qui compte. Elle reste SAISIE, bien sûr :
+              c'est l'affichage qu'on tait, pas la donnée. (Cette règle existait déjà dans
+              `picking.html` sous le nom `VALEURS_MUETTES` ; elle vit ici maintenant.)
+       lCourt le libellé COURT de cet encadré — « Lame » plutôt que « Type de lame ». Le
+              document du client est serré (il doit tenir sur une page A4) et il n'a pas
+              besoin du mot « Type » : il lit une fiche produit, pas un formulaire. Le
+              résumé COMPLET, lui, garde le libellé long, parce qu'une feuille d'atelier
+              se lit vite et de travers.
        large  le champ prend toute la largeur
        unite  le suffixe affiché dans le champ (mm…)
 
@@ -923,33 +933,34 @@
      ══════════════════════════════════════════════════════════════════════════════════════ */
   const VR_CHAMPS = [
     // ── Ouverture ──
-    { g: 'Ouverture', k: 'combinaison', l: 'Combinaison', t: 'select', vals: VR_COMBINAISONS, client: true, large: true, pilote: true },
+    { g: 'Ouverture', k: 'combinaison', l: 'Combinaison', lCourt: 'Combinaison', t: 'select', vals: VR_COMBINAISONS,
+      muets: ['Simple'], client: true, large: true, pilote: true },
     // Sur le portail la case est grisée tant que la combinaison est « Simple » : un espace
     // intermédiaire n'existe qu'entre deux parties. On la cache plutôt que de la griser.
-    { g: 'Ouverture', k: 'espace_intermediaire', l: 'Avec espace intermédiaire', t: 'check',
+    { g: 'Ouverture', k: 'espace_intermediaire', l: 'Avec espace intermédiaire', lCourt: 'Espace intermédiaire', t: 'check',
       si: it => !!it.combinaison && it.combinaison !== 'Simple', client: true },
 
     // ── Options ──
-    { g: 'Options', k: 'moustiquaire', l: 'Avec moustiquaire', t: 'check', client: true, pilote: true },
+    { g: 'Options', k: 'moustiquaire', l: 'Avec moustiquaire', lCourt: 'Moustiquaire', t: 'check', client: true, pilote: true },
     { g: 'Options', k: 'moustiquaire_faux', l: 'Moustiquaire faux', t: 'check', si: it => !!it.moustiquaire },
-    { g: 'Options', k: 'occultation', l: 'Avec occultation', t: 'check', client: true },
+    { g: 'Options', k: 'occultation', l: 'Avec occultation', lCourt: 'Occultation', t: 'check', client: true },
 
     // ── Tablier ──
-    { g: 'Tablier', k: 'lame_type', l: 'Type de lame', t: 'select', vals: VR_LAMES, client: true },
-    { g: 'Tablier', k: 'couleur_lame', l: 'Couleur des lames', t: 'select', vals: VR_COULEURS_LAMES, client: true },
+    { g: 'Tablier', k: 'lame_type', l: 'Type de lame', lCourt: 'Lame', t: 'select', vals: VR_LAMES, client: true },
+    { g: 'Tablier', k: 'couleur_lame', l: 'Couleur des lames', lCourt: 'Coloris lames', t: 'select', vals: VR_COULEURS_LAMES, client: true },
     { g: 'Tablier', k: 'ajourage', l: 'Ajourage', t: 'select', vals: VR_AJOURAGES, client: true },
-    { g: 'Tablier', k: 'lame_finale_couleur', l: 'Couleur lame finale', t: 'select', vals: COULEURS_RAL, client: true },
+    { g: 'Tablier', k: 'lame_finale_couleur', l: 'Couleur lame finale', lCourt: 'Lame finale', t: 'select', vals: COULEURS_RAL, client: true },
 
     // ── Montage ──
-    { g: 'Montage', k: 'montage_type', l: 'Type de montage', t: 'select', vals: VR_MONTAGES.map(m => m.v),
+    { g: 'Montage', k: 'montage_type', l: 'Type de montage', lCourt: 'Montage', t: 'select', vals: VR_MONTAGES.map(m => m.v),
       aide: it => vrMontageAide(it.montage_type), client: true, large: true, pilote: true },
 
     // ── Manœuvre ──
     { g: 'Manœuvre', k: 'alimentation', l: 'Alimentation', t: 'select', vals: VR_ALIMENTATIONS, client: true, pilote: true },
     { g: 'Manœuvre', k: 'moteur', l: 'Moteur', t: 'select', vals: it => vrMoteursFor(it.alimentation), client: true },
-    { g: 'Manœuvre', k: 'cote_manoeuvre', l: 'Côté de manœuvre', t: 'select', vals: VR_COTES_MANOEUVRE,
+    { g: 'Manœuvre', k: 'cote_manoeuvre', l: 'Côté de manœuvre', lCourt: 'Côté', t: 'select', vals: VR_COTES_MANOEUVRE,
       aide: 'Vu de l’intérieur.', client: true },
-    { g: 'Manœuvre', k: 'emetteur', l: 'Émetteur inclus', t: 'check', client: true },
+    { g: 'Manœuvre', k: 'emetteur', l: 'Émetteur inclus', lCourt: 'Émetteur', t: 'check', client: true },
     // Batterie et panneau solaire n'existent QUE sur une motorisation solaire : les afficher
     // sur un moteur filaire, c'est inviter à les remplir pour rien.
     { g: 'Manœuvre', k: 'batterie', l: 'Batterie', t: 'select', vals: VR_BATTERIES,
@@ -962,7 +973,7 @@
       vals: VR_CAISSONS.filter(c => c.courant).map(c => ({ v: c.taille, l: c.taille + ' mm (max. ' + c.hauteur_max + ' mm)' })),
       aide: it => { const h = vrHauteurMaxFor(it.caisson_mesure);
         return h ? 'Hauteur max. pour ce caisson (axe Ø60 mm) : ' + h + ' mm — largeur max. 4000 mm.' : ''; }, pilote: true },
-    { g: 'Caisson', k: 'caisson_forme', l: 'Modèle de caisson', t: 'select', vals: VR_CAISSON_FORMES, client: true },
+    { g: 'Caisson', k: 'caisson_forme', l: 'Modèle de caisson', lCourt: 'Caisson', t: 'select', vals: VR_CAISSON_FORMES, client: true },
     /* ⚠️ `horsFormulaire` : ce champ est RÉSUMÉ mais pas SAISI ici. La couleur du caisson se
        saisit en haut de la carte, dans le sélecteur RAL commun à tous les types de produit —
        la remettre dans ce bloc ferait deux champs pour une même donnée, et c'est toujours
@@ -973,7 +984,7 @@
        à côté de « Couleur lame finale : 7016 — Gris anthracite » donne l'impression de deux
        teintes différentes. Le résumé le normalise donc à l'affichage — sans jamais réécrire ce
        que la personne a tapé : ce champ sert aussi aux screens et aux tentes. */
-    { g: 'Caisson', k: 'couleur', l: 'Couleur du caisson', t: 'select', vals: COULEURS_RAL,
+    { g: 'Caisson', k: 'couleur', l: 'Couleur du caisson', lCourt: 'Coloris caisson', t: 'select', vals: COULEURS_RAL,
       client: true, horsFormulaire: true, ral: true },
     { g: 'Caisson', k: 'caisson_rivets', l: 'Couleur des rivets', t: 'select', vals: VR_RIVETS },
     { g: 'Caisson', k: 'allongement_caisson', l: 'Avec allongement de caisson', t: 'check' },
@@ -984,9 +995,9 @@
       aide: 'À remplir seulement si un câble doit sortir du caisson — indique la position d’après le croquis Harol.' },
 
     // ── Coulisses ──
-    { g: 'Coulisses', k: 'coulisse_type', l: 'Type de coulisses', t: 'select', vals: VR_COULISSES, client: true },
+    { g: 'Coulisses', k: 'coulisse_type', l: 'Type de coulisses', lCourt: 'Coulisses', t: 'select', vals: VR_COULISSES, client: true },
     { g: 'Coulisses', k: 'coulisse_percage', l: 'Perçage', t: 'select', vals: VR_PERCAGES },
-    { g: 'Coulisses', k: 'couleur_coulisses', l: 'Couleur des coulisses', t: 'select', vals: COULEURS_RAL, client: true },
+    { g: 'Coulisses', k: 'couleur_coulisses', l: 'Couleur des coulisses', lCourt: 'Coloris coulisses', t: 'select', vals: COULEURS_RAL, client: true },
     { g: 'Coulisses', k: 'coulisse_surplus', l: 'A72 : longueur surplus', t: 'texte', unite: 'mm' },
     { g: 'Coulisses', k: 'coulisse_embout', l: 'A66 : embout de clôture', t: 'check' },
     { g: 'Coulisses', k: 'coulisse_bouchons', l: 'Avec bouchons en PVC', t: 'check', pilote: true },
@@ -996,7 +1007,7 @@
        champ « afdichting » du portail. On le GARDE tel quel au lieu d'ouvrir un second champ
        « étanchéité » : deux champs pour une même chose, et les anciens devis répondent à l'un
        pendant que les écrans lisent l'autre. */
-    { g: 'Coulisses', k: 'borstels', l: 'Étanchéité par brosses (au lieu de joints)', t: 'check', client: true },
+    { g: 'Coulisses', k: 'borstels', l: 'Étanchéité par brosses (au lieu de joints)', lCourt: 'Brosses (au lieu de joints)', t: 'check', client: true },
     { g: 'Coulisses', k: 'coulisses_differentes', l: 'Les deux coulisses sont différentes', t: 'check', pilote: true,
       aide: 'À cocher seulement si la coulisse de gauche et celle de droite ne sont pas identiques.' },
 
