@@ -43,11 +43,64 @@
     return t === 'volet_roulant' || t === 'volet';
   }
 
+  /* ── LA COULEUR SE PROPAGE DEPUIS LE CAISSON ──────────────────────────────────────────
+     Nicolas, 09/10/2026 : « quand je prends un RAL il se répercute sur la lame finale et sur
+     les deux coulisses, c'est logique, c'est rarement le contraire ». Il avait raison : sur un
+     volet, les quatre pièces sortent presque toujours du même bain de laquage, et recopier la
+     même teinte quatre fois est le genre de saisie qu'on finit par bâcler — donc une coulisse
+     qui part au mauvais RAL chez le fournisseur.
+     ⚠️ MAIS ON N'ÉCRASE JAMAIS UN CHOIX. Une valeur qui DIFFÈRE de l'ancienne couleur de
+     caisson a été posée exprès : la remplacer détruirait en silence une décision, et c'est
+     précisément le genre d'erreur qu'on ne voit qu'à la livraison. Trois cas, et trois seulement :
+       • le champ est VIDE               → on le remplit ;
+       • il valait l'ANCIENNE couleur     → il suivait, il suit encore ;
+       • il vaut autre chose              → on n'y touche pas.
+     C'est la même discipline que le drapeau « quantité saisie à la main » du simulateur, qui
+     coupe la synchro dès que quelqu'un a décidé. */
+  const LIES_AU_RAL = ['lame_finale_couleur', 'couleur_coulisses', 'couleur_coulisses2'];
+
+  /** La forme canonique d'un RAL : « 7016 » et « 7016 — Gris anthracite » sont la même teinte.
+   *  Sans ça, taper le code seul poserait dans les menus une valeur qui ne correspond à aucune
+   *  option — elle s'afficherait « valeur enregistrée », comme une donnée périmée. */
+  function normaliserRal(v) {
+    const p = P();
+    const s = String(v == null ? '' : v).trim();
+    if (!s || !p) return s;
+    const code = p.ralCode(s);
+    return code ? p.ralLabel(code) : s;
+  }
+
+  /**
+   * Répercute la couleur du caisson sur les pièces liées. MODIFIE l'ouverture.
+   * @param ancienne la couleur de caisson AVANT la saisie — c'est elle qui dit si un champ
+   *                 suivait ou avait été décidé à part.
+   * @returns les clés réellement changées (vide = rien à faire, donc rien à re-rendre).
+   */
+  function appliquerRal(item, ancienne) {
+    if (!estVolet(item)) return [];
+    const neuve = normaliserRal(item.couleur);
+    const avant = normaliserRal(ancienne);
+    // Caisson vidé : on ne vide pas le reste pour autant. Et une couleur inchangée n'a rien
+    // à propager — sans cette garde, chaque frappe dans un AUTRE champ relancerait la copie.
+    if (!neuve || neuve === avant) return [];
+    const changees = [];
+    LIES_AU_RAL.forEach(function (k) {
+      const v = normaliserRal(item[k]);
+      if (v && !(avant && v === avant)) return;   // posé exprès : on laisse
+      if (item[k] === neuve) return;
+      item[k] = neuve;
+      changees.push(k);
+    });
+    return changees;
+  }
+
   /** La valeur affichable d'un champ, ou '' s'il n'y a rien à dire. */
   function valeurAffichable(champ, item) {
     const v = item ? item[champ.k] : undefined;
     if (champ.t === 'check') return v ? 'Oui' : '';
     if (v === undefined || v === null || v === '') return '';
+    // Un RAL tapé au code seul se lit en entier sur le devis (voir `ral: true` dans la spec).
+    if (champ.ral) return normaliserRal(v);
     return String(v) + (champ.unite ? ' ' + champ.unite : '');
   }
 
@@ -139,8 +192,10 @@
     const a = typeof champ.aide === 'function' ? champ.aide(item) : champ.aide;
     const bouts = [];
     if (perime) {
-      bouts.push('<span class="vr-perime">Cette valeur ne figure plus au catalogue Harol — ' +
-        'elle est conservée telle quelle, à vérifier avant de commander.</span>');
+      /* « ne figure PAS », et non « ne figure plus » : le cas couvre aussi bien une valeur
+         retirée du catalogue qu'un RAL hors de la palette Harol propagé depuis le caisson. */
+      bouts.push('<span class="vr-perime">Cette valeur ne figure pas dans la liste du ' +
+        'catalogue Harol — elle est conservée telle quelle, à vérifier avant de commander.</span>');
     }
     if (a) bouts.push(esc(a));
     return bouts.length ? '<div class="vr-aide">' + bouts.join('<br>') + '</div>' : '';
@@ -216,6 +271,9 @@
     rafraichir: rafraichir,
     resume: resume,
     resumeTexte: resumeTexte,
+    LIES_AU_RAL: LIES_AU_RAL,
+    normaliserRal: normaliserRal,
+    appliquerRal: appliquerRal,
     valeurAffichable: valeurAffichable,
   };
 })();

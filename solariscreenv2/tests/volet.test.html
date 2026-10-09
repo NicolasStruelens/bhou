@@ -204,6 +204,62 @@
       'Type de lame : alu237 · Ajourage : 0 : sans ajourage');
 
     // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ Le RAL du caisson se répercute — mais n’écrase jamais un choix');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Nicolas, 09/10/2026 : « quand je prends un RAL il se répercute sur la lame finale et sur
+       les deux coulisses, c'est logique, c'est rarement le contraire ». Les quatre pièces
+       sortent presque toujours du même bain de laquage, et recopier la teinte quatre fois est
+       le genre de saisie qu'on bâcle — donc une coulisse au mauvais RAL chez le fournisseur.
+       ⚠️ Mais « rarement le contraire » n'est pas « jamais » : une teinte posée exprès est une
+       DÉCISION, et l'écraser en silence est le genre d'erreur qu'on ne voit qu'à la livraison. */
+    const GRIS = '7016 — Gris anthracite';
+    const NOIR = '9005 — Noir foncé';
+    const propage = (avant, dep) => {
+      const it = vr(Object.assign({ couleur: GRIS }, dep || {}));
+      const k = V.appliquerRal(it, avant);
+      return { k: k.slice().sort(), it: it };
+    };
+
+    check('R1 les trois champs vides suivent le caisson', propage('').k,
+      ['couleur_coulisses', 'couleur_coulisses2', 'lame_finale_couleur']);
+    check('R2 … et ils portent bien la teinte', propage('').it.couleur_coulisses, GRIS);
+    check('R3 une teinte posée EXPRÈS n’est pas écrasée',
+      propage('', { couleur_coulisses: NOIR }).it.couleur_coulisses, NOIR);
+    check('R4 … et elle n’est pas comptée comme changée',
+      propage('', { couleur_coulisses: NOIR }).k.indexOf('couleur_coulisses'), -1);
+    /* Celui qui SUIVAIT doit continuer à suivre : sinon, changer deux fois le RAL du caisson
+       laisserait les coulisses sur l'avant-dernière teinte, sans que rien ne le dise. */
+    check('R5 un champ qui valait l’ANCIENNE couleur suit le changement',
+      propage(NOIR, { couleur_coulisses: NOIR }).it.couleur_coulisses, GRIS);
+    check('R6 une couleur inchangée ne propage rien', propage(GRIS).k, []);
+    check('R7 un caisson vidé ne vide pas le reste',
+      V.appliquerRal(vr({ couleur: '', couleur_coulisses: NOIR }), GRIS), []);
+    /* Taper « 7016 » et choisir « 7016 — Gris anthracite » au nuancier, c'est la même teinte.
+       Sans normalisation, le code seul poserait dans les menus une valeur hors liste, affichée
+       comme une donnée périmée — pour une couleur parfaitement valide. */
+    check('R8 le code seul est normalisé en libellé complet', V.normaliserRal('7016'), GRIS);
+    check('R9 … donc « 7016 » tapé équivaut au libellé du nuancier',
+      V.appliquerRal(vr({ couleur: '7016' }), GRIS), []);
+    check('R10 la valeur propagée est une VRAIE option du menu, pas une valeur rescapée',
+      P.vrOptions(P.COULEURS_RAL, propage('').it.couleur_coulisses)[0].perime, undefined);
+    check('R11 un RAL inconnu passe quand même : mieux vaut la teinte que rien',
+      V.appliquerRal(vr({ couleur: 'Bleu atelier' }), '').length, 3);
+    check('R12 un screen n’est pas concerné',
+      V.appliquerRal({ type: 'screen', couleur: GRIS }, ''), []);
+    /* La couleur des BOUCHONS PVC n'est volontairement pas dans la liste : Nicolas a nommé la
+       lame finale et les deux coulisses. Un bouchon est souvent contrasté, et propager sans
+       qu'on l'ait demandé reviendrait à décider à sa place. */
+    /* Le champ RAL du caisson est en texte libre. « Couleur du caisson : 7016 » à côté de
+       « Couleur lame finale : 7016 — Gris anthracite » sur le même devis donnerait l'impression
+       de deux teintes différentes — au client, et à celui qui commande. */
+    check('R13 bis le résumé lit un code seul en libellé complet',
+      V.resume(vr({ couleur: '7016' }), 'client')[0].v, GRIS);
+    check('R13 ter … mais la donnée saisie n’est PAS réécrite (champ partagé avec les screens)',
+      (function () { const it = vr({ couleur: '7016' }); V.resume(it, 'client'); return it.couleur; })(), '7016');
+    check('R14 les bouchons PVC ne suivent PAS (non demandé)',
+      V.LIES_AU_RAL.indexOf('coulisse_bouchon_couleur'), -1);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Ce qui n’est pas un volet n’est pas concerné');
     // ═════════════════════════════════════════════════════════════════════════════════════
     check('F1 un screen ne reçoit pas le bloc', V.html({ type: 'screen' }, {}), '');

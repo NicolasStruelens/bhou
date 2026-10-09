@@ -787,7 +787,19 @@
         card.querySelectorAll('[data-f]').forEach(input => {
           if (input.dataset.f === 'type' || input.dataset.f === 'moteur') input.value = it[input.dataset.f] || (input.dataset.f === 'type' ? 'screen' : '');
           input.addEventListener('input', () => { collectItem(it, card); ui_recalc(); });
-          input.addEventListener('change', () => { collectItem(it, card); ui_recalc(); });
+          /* La couleur du caisson se lit AVANT la collecte : c'est elle qui dit si la lame
+             finale et les coulisses suivaient ou avaient été décidées à part (voir
+             SSVolet.appliquerRal). Posé ici et pas sur le champ RAL lui-même parce que le
+             nuancier écrit la valeur puis déclenche « change » : un seul point d'entrée
+             couvre donc la frappe ET la palette. */
+          input.addEventListener('change', () => {
+            const ralAvant = it.couleur;
+            collectItem(it, card);
+            if (window.SSVolet && window.SSVolet.appliquerRal(it, ralAvant).length) {
+              window.SSVolet.rafraichir(card, it, VOLET_OPTS);
+            }
+            ui_recalc();
+          });
         });
       });
     }

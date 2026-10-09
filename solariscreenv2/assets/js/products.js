@@ -968,8 +968,13 @@
        la remettre dans ce bloc ferait deux champs pour une même donnée, et c'est toujours
        celui qu'on ne regarde pas qui finit chez le fournisseur. Mais elle doit figurer dans
        l'encadré du devis : c'est la première chose qu'un client vérifie. */
+    /* `ral: true` : ce champ est saisi en TEXTE LIBRE (le sélecteur RAL commun accepte « 7016 »
+       aussi bien que le libellé complet). Sur le devis du client, « Couleur du caisson : 7016 »
+       à côté de « Couleur lame finale : 7016 — Gris anthracite » donne l'impression de deux
+       teintes différentes. Le résumé le normalise donc à l'affichage — sans jamais réécrire ce
+       que la personne a tapé : ce champ sert aussi aux screens et aux tentes. */
     { g: 'Caisson', k: 'couleur', l: 'Couleur du caisson', t: 'select', vals: COULEURS_RAL,
-      client: true, horsFormulaire: true },
+      client: true, horsFormulaire: true, ral: true },
     { g: 'Caisson', k: 'caisson_rivets', l: 'Couleur des rivets', t: 'select', vals: VR_RIVETS },
     { g: 'Caisson', k: 'allongement_caisson', l: 'Avec allongement de caisson', t: 'check' },
     // Texte libre, et c'est un choix de Nicolas (09/10/2026) : la planche Harol montre huit

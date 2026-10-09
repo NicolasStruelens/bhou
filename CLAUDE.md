@@ -72,8 +72,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
-| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 66 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 66 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 81 tests (`window.SSVolet`) |
+| `tests/volet.test.html` | Les 81 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -804,6 +804,27 @@ supprimer : plus proposables, toujours lisibles, et leur hauteur max reste connu
 Corollaire, même famille : `vrMoteursFor('')` renvoie **tous** les moteurs plutôt qu'aucun — un
 ancien devis porte déjà un moteur, et un menu vide le ferait disparaître.
 
+**31 quater. LE RAL DU CAISSON SE RÉPERCUTE — MAIS N'ÉCRASE JAMAIS UN CHOIX**
+(`SSVolet.appliquerRal`). Demandé par Nicolas le 09/10/2026 : « quand je prends un RAL il se
+répercute sur la lame finale et sur les deux coulisses, c'est logique, c'est rarement le
+contraire ». Les quatre pièces sortent presque toujours du même bain de laquage, et recopier la
+teinte quatre fois est le genre de saisie qu'on bâcle — donc une coulisse au mauvais RAL chez le
+fournisseur.
+⚠️ « Rarement le contraire » n'est pas « jamais ». Une teinte qui DIFFÈRE de l'ancienne couleur
+de caisson a été posée exprès : l'écraser détruirait une décision en silence, et ça ne se verrait
+qu'à la livraison. Trois cas, et trois seulement : champ VIDE → on remplit ; champ égal à
+l'ANCIENNE couleur → il suivait, il suit encore ; champ différent → on n'y touche pas. C'est la
+même discipline que le drapeau « quantité saisie à la main » du simulateur.
+⚠️ La couleur ancienne se lit AVANT `collectItem`, qui l'écrase. Le branchement est donc dans le
+listener `change` des deux pages, pas sur le champ RAL : le nuancier écrit la valeur puis
+déclenche `change`, donc un seul point d'entrée couvre la frappe ET la palette.
+⚠️ « 7016 » et « 7016 — Gris anthracite » sont la MÊME teinte : sans `normaliserRal`, le code
+seul poserait dans les menus une valeur hors liste, affichée comme une donnée périmée. Le résumé
+normalise aussi à l'affichage (`ral: true`), mais **ne réécrit jamais la donnée saisie** : le champ
+RAL est partagé avec les screens, les tentes et les tabliers.
+Les bouchons PVC ne suivent PAS : Nicolas a nommé la lame finale et les deux coulisses, un bouchon
+est souvent contrasté, et propager sans qu'on l'ait demandé reviendrait à décider à sa place.
+
 **31 ter. LE LIEN DE CONSULTATION CLIENT FILTRE LES OUVERTURES PAR LISTE BLANCHE.**
 `/api/devis-review` ne renvoie **que** les champs qu'il énumère. Conséquence à connaître avant
 de chercher : la ligne de méta de `devis-review.html` lisait `it.variante`, `it.moteur`,
@@ -1073,7 +1094,7 @@ test, et c'est exactement son rôle.
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
-   `tests/volet.test.html`, exiger « 66/66 » — ça remplit un bon de commande fournisseur.
+   `tests/volet.test.html`, exiger « 81/81 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
