@@ -171,10 +171,12 @@
     const cl = V.resume(complet, 'client').map(x => x.l);
     const co = V.resume(complet, 'complet').map(x => x.l);
 
+    const clK = V.resume(complet, 'client').map(x => x.k);
+    const coK = V.resume(complet, 'complet').map(x => x.k);
     check('E1 le client lit ce qu’il a acheté : la lame',
-      cl.indexOf('Type de lame') >= 0 && cl.indexOf('Couleur des lames') >= 0, true);
+      cl.indexOf('Lame') >= 0 && cl.indexOf('Coloris lames') >= 0, true);
     check('E2 … le montage et la motorisation',
-      cl.indexOf('Type de montage') >= 0 && cl.indexOf('Alimentation') >= 0, true);
+      cl.indexOf('Montage') >= 0 && cl.indexOf('Alimentation') >= 0, true);
     /* Ce que le client n'a RIEN à faire de lire — et qui expose le détail fournisseur sur un
        document qui circule. C'est le seul arbitrage du fichier, il est volontaire. */
     check('E3 le client ne voit PAS les références de commande Harol',
@@ -183,9 +185,51 @@
     check('E4 … mais l’interne les voit toutes',
       ['Perçage', 'Couleur des rivets', 'A66 : embout de clôture', 'Sortie de câble', 'Serrure']
         .filter(l => co.indexOf(l) < 0), []);
+    /* ⚠️ On compare les CLÉS, pas les libellés : le devis du client dit « Lame » là où
+       l'atelier dit « Type de lame », et c'est voulu. Comparer les libellés ferait échouer ce
+       test pour une raison qui n'est pas celle qu'il surveille. */
     check('E5 l’interne contient tout le client, jamais moins',
-      cl.filter(l => co.indexOf(l) < 0), []);
+      clK.filter(k => coK.indexOf(k) < 0), []);
 
+    /* L'encadré du devis est serré — il doit tenir sur une page A4 — et le client lit une
+       fiche produit, pas un formulaire : « Lame » suffit là où la feuille d'atelier dit
+       « Type de lame ». */
+    check('E5 bis le client lit le libellé COURT',
+      V.resume(vr({ lame_type: 'alu237' }), 'client')[0].l, 'Lame');
+    check('E5 ter … l’atelier garde le libellé long',
+      V.resume(vr({ lame_type: 'alu237' }), 'complet')[0].l, 'Type de lame');
+    /* Le code de menu Harol devant une valeur n'apprend rien au client : c'est l'index du
+       menu du portail, pas une caractéristique du produit. */
+    check('E5 quater un index de menu est retiré pour le client',
+      V.sansCodeMenu('1 : type 1 (dans le jour)'), 'Type 1 (dans le jour)');
+    check('E5 quinquies une référence d’article aussi',
+      V.sansCodeMenu('A4118 : RS100 Solar io 6/15'), 'RS100 Solar io 6/15');
+    check('E5 sexies … et le préfixe de combinaison',
+      V.sansCodeMenu('DVC2 : porte fenêtre 2 parties - 1 caisson'), 'Porte fenêtre 2 parties - 1 caisson');
+    /* ⚠️ CE QU'ON NE RETIRE JAMAIS. Un RAL (4 chiffres) et une référence de coulisse (3
+       chiffres) DÉSIGNENT le produit : les retirer rendrait le devis invérifiable. */
+    check('E5 septies un RAL n’est PAS un code de menu', V.sansCodeMenu('7016 — Gris anthracite'), '7016 — Gris anthracite');
+    check('E5 octies une coulisse 135 non plus', V.sansCodeMenu('135 — glissière de sécurité'), '135 — glissière de sécurité');
+    check('E5 nonies une référence produit garde sa casse', V.sansCodeMenu('alu237'), 'alu237');
+    check('E5 decies l’atelier, lui, garde les codes entiers',
+      V.resume(vr({ moteur: 'A4118 : RS100 Solar io 6/15' }), 'complet')[0].v, 'A4118 : RS100 Solar io 6/15');
+    /* Une case cochée se MENTIONNE sur le devis : « Moustiquaire : Oui » ajoute un mot et une
+       ponctuation par option, et avec trois options de suite l'encadré se met à bégayer. */
+    check('E5 undecies une case cochée se mentionne sans « Oui » côté client',
+      V.resume(vr({ moustiquaire: true }), 'client')[0], { k: 'moustiquaire', g: 'Options', l: 'Moustiquaire', v: '', coche: true });
+    check('E5 duodecies … et le texte à plat ne dit pas « Oui » non plus',
+      V.resumeTexte(vr({ moustiquaire: true }), 'client'), 'Moustiquaire');
+    /* « Combinaison : Simple » est la valeur par défaut : elle n'apprend rien, et répétée sur
+       huit ouvertures elle noie ce qui compte. La règle existait déjà dans `picking.html`
+       (`VALEURS_MUETTES`) — en faisant passer les volets par la spec, il fallait la reprendre
+       ici, sinon elle disparaissait de la feuille d'atelier sans que personne ne le voie. */
+    check('E5 terdecies une valeur muette ne se montre à personne',
+      [V.resume(vr({ combinaison: 'Simple' }), 'client').length,
+       V.resume(vr({ combinaison: 'Simple' }), 'complet').length], [0, 0]);
+    check('E5 quaterdecies … mais une VRAIE combinaison se montre',
+      V.resume(vr({ combinaison: 'DVC3 : porte fenêtre 3 parties - 1 caisson' }), 'complet').length, 1);
+    check('E5 quindecies … et elle reste SAISISSABLE (c’est l’affichage qu’on tait)',
+      V.html(vr({ combinaison: 'Simple' }), {}).indexOf('<option value="Simple" selected>') > 0, true);
     check('E6 une case décochée ne dit rien — sinon le résumé serait une liste de « Non »',
       V.resume(complet, 'complet').some(x => x.l.indexOf('brosses') >= 0), false);
     check('E7 une case cochée dit Oui',
@@ -199,8 +243,11 @@
         .some(x => x.l === 'Batterie'), false);
     check('E11 l’ordre est celui de la spec, pas l’ordre alphabétique',
       co.indexOf('Type de lame') < co.indexOf('Type de coulisses'), true);
-    check('E12 le résumé à plat se lit d’une traite',
+    check('E12 le résumé à plat se lit d’une traite, sans code de menu',
       V.resumeTexte(vr({ lame_type: 'alu237', ajourage: '0 : sans ajourage' }), 'client'),
+      'Lame : alu237 · Ajourage : Sans ajourage');
+    check('E12 bis … et l’atelier garde tout',
+      V.resumeTexte(vr({ lame_type: 'alu237', ajourage: '0 : sans ajourage' }), 'complet'),
       'Type de lame : alu237 · Ajourage : 0 : sans ajourage');
 
     // ═════════════════════════════════════════════════════════════════════════════════════
@@ -260,6 +307,55 @@
       V.LIES_AU_RAL.indexOf('coulisse_bouchon_couleur'), -1);
 
     // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ Le bloc re-rendu doit être REBRANCHÉ — sinon on perd des données');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Le bug du 09/10/2026, et c'est le plus cher de ce fichier. `rafraichir` remplace le bloc
+       par `outerHTML` : les anciens éléments sont DÉTRUITS, et les écouteurs que la page avait
+       posés dessus partent avec eux. Sans rebranchement, TOUS les champs du bloc cessaient
+       d'être collectés dès le premier changement d'alimentation ou de combinaison : on les
+       remplissait, ils s'affichaient correctement à l'écran, et ils n'arrivaient jamais dans
+       le devis. Mesuré en rejouant le geste : « alu242 » restait dans le DOM et l'ouverture
+       gardait `lame_type` à vide. */
+    const carteFactice = (it) => {
+      const d = document.createElement('div');
+      d.innerHTML = V.html(it, { cols: 2 });
+      return d;
+    };
+    const itRaf = vr({ lame_type: 'alu237' });
+    const carte = carteFactice(itRaf);
+    let recu = null, appels = 0;
+    const ok = V.rafraichir(carte, itRaf, { cols: 2, bind: (n) => { appels++; recu = n; } });
+    check('S1 le bloc est bien remplacé', ok, true);
+    check('S2 ⚠️ `bind` est appelé, une fois', appels, 1);
+    check('S3 … avec le NOUVEAU bloc, celui qui est dans la page',
+      recu === carte.querySelector('[data-volet-block]'), true);
+    check('S4 … et il porte bien les champs à rebrancher',
+      recu.querySelectorAll('[data-f]').length > 10, true);
+    check('S5 sans bloc à remplacer, on ne fait rien et on le dit',
+      V.rafraichir(document.createElement('div'), itRaf, { bind: () => {} }), false);
+    check('S6 sans bind, ça ne casse pas — mais c’est l’appelant qui perd ses écouteurs',
+      V.rafraichir(carteFactice(itRaf), itRaf, { cols: 2 }), true);
+
+    // ── L'autre moitié du même bug : « input » part toujours avant « change » ──
+    /* On lisait la couleur précédente sur l'ouverture au moment du `change`. Sauf que `input`
+       part AVANT (le nuancier émet les deux, la frappe émet `input` à chaque caractère) et a
+       déjà collecté : « ancienne » valait donc « nouvelle », et rien ne se propageait jamais.
+       Ce test fige le SYMPTÔME côté moteur ; les pages gardent la couleur précédente hors de
+       l'ouverture (une Map dans le simulateur, une variable dans le Mode Terrain). */
+    check('S7 si l’on passe la NOUVELLE couleur comme ancienne, rien ne bouge — c’était le bug',
+      V.appliquerRal(vr({ couleur: GRIS }), GRIS), []);
+    check('S8 … alors qu’avec la vraie ancienne, tout suit',
+      V.appliquerRal(vr({ couleur: GRIS }), '').length, 3);
+    /* Le nuancier écrit le CODE DE COMMANDE Harol, pas un simple RAL :
+       « 7016 — Gris anthracite · réf. 7m16st (laque texturée) ». Il doit se ramener au RAL. */
+    check('S9 un code de commande Harol se ramène à son RAL',
+      V.normaliserRal('7016 — Gris anthracite · réf. 7m16st (laque texturée)'), GRIS);
+    check('S10 … et il propage la teinte, pas la référence',
+      V.appliquerRal(vr({ couleur: '9005 — Noir foncé · réf. 9T05 (laque texturée)' }), '')
+        .length && vr({}) && V.normaliserRal('9005 — Noir foncé · réf. 9T05 (laque texturée)'),
+      '9005 — Noir foncé');
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
     titre('Ce qui n’est pas un volet n’est pas concerné');
     // ═════════════════════════════════════════════════════════════════════════════════════
     check('F1 un screen ne reçoit pas le bloc', V.html({ type: 'screen' }, {}), '');
@@ -282,7 +378,7 @@
     check('G1 bis la couleur du caisson n’est PAS saisie dans le bloc',
       h.indexOf('data-f="couleur"'), -1);
     check('G1 ter … mais elle EST dans le résumé client',
-      V.resume(vr({ couleur: '7016 — Gris anthracite' }), 'client').map(x => x.l), ['Couleur du caisson']);
+      V.resume(vr({ couleur: '7016 — Gris anthracite' }), 'client').map(x => x.l), ['Coloris caisson']);
     check('G2 un champ caché n’est pas dans la page',
       h.indexOf('data-f="coulisse2_type"'), -1);
     /* Seuls les champs PILOTES rappellent la page : re-rendre le bloc à chaque menu ferait

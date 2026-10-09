@@ -104,6 +104,21 @@
     return String(v) + (champ.unite ? ' ' + champ.unite : '');
   }
 
+  /** Le code de menu Harol devant une valeur n'apprend RIEN au client : « 1 : type 1 (dans
+   *  le jour) » se lit « Type 1 (dans le jour) », « A4118 : RS100 Solar io 6/15 » se lit
+   *  « RS100 Solar io 6/15 ». C'est l'index du menu du portail, pas une caractéristique.
+   *  ⚠️ On ne retire QUE ce qui est un index (1 ou 2 chiffres) ou une référence d'article
+   *  (A4118). Jamais 3 ou 4 chiffres : « 7016 — Gris anthracite » est un RAL et
+   *  « 135 — glissière de sécurité » une référence de coulisse — elles DÉSIGNENT le produit,
+   *  les retirer rendrait le devis invérifiable.
+   *  La majuscule n'est remise que si on a retiré quelque chose : sinon « alu237 »
+   *  deviendrait « Alu237 », et c'est une référence produit. */
+  function sansCodeMenu(v) {
+    const s = String(v == null ? '' : v);
+    const net = s.replace(/^(?:\d{1,2}|A\d{3,5}|[A-Z]{2,4}\d{0,2})\s*[:\u2014\u2013-]\s*/, '');
+    return net === s ? s : net.charAt(0).toUpperCase() + net.slice(1);
+  }
+
   /**
    * Le résumé de la configuration.
    * @param niveau 'client'  → ce que le client doit pouvoir vérifier : lame, couleurs, montage,
@@ -119,13 +134,30 @@
     const client = niveau === 'client';
     return p.vrChamps(item)
       .filter(function (c) { return !client || c.client; })
-      .map(function (c) { return { g: c.g, l: c.l, v: valeurAffichable(c, item) }; })
-      .filter(function (x) { return x.v !== ''; });
+      // Une valeur muette ne se montre à personne : ni au client, ni au poseur.
+      .filter(function (c) {
+        return !(c.muets && c.muets.indexOf(item[c.k]) >= 0);
+      })
+      .map(function (c) {
+        const v = valeurAffichable(c, item);
+        /* ⚠️ Sur le document du client, une case cochée se MENTIONNE, elle ne s'affirme pas :
+           « Moustiquaire » dit tout, « Moustiquaire : Oui » ajoute un mot et une ponctuation
+           par option — et avec trois options de suite, l'encadré se met à bégayer. Le résumé
+           COMPLET garde le « Oui » : une feuille d'atelier se lit de travers, et une mention
+           seule au milieu d'une ligne de valeurs s'y confondrait avec un intitulé. */
+        if (client && c.t === 'check') return { k: c.k, g: c.g, l: c.lCourt || c.l, v: '', coche: !!v };
+        return client
+          ? { k: c.k, g: c.g, l: c.lCourt || c.l, v: sansCodeMenu(v), coche: false }
+          : { k: c.k, g: c.g, l: c.l, v: v, coche: false };
+      })
+      .filter(function (x) { return x.v !== '' || x.coche; });
   }
 
   /** Le même résumé, à plat — pour une ligne de feuille de pose ou une infobulle. */
   function resumeTexte(item, niveau) {
-    return resume(item, niveau).map(function (x) { return x.l + ' : ' + x.v; }).join(' · ');
+    return resume(item, niveau)
+      .map(function (x) { return x.coche ? x.l : x.l + ' : ' + x.v; })
+      .join(' · ');
   }
 
   // ── Le rendu de saisie ────────────────────────────────────────────────────────────────────
@@ -257,12 +289,23 @@
    * Remplace le bloc à l'intérieur d'une carte d'ouverture, après qu'un champ pilote a changé.
    * ⚠️ On remplace le bloc SEUL et pas la carte entière : re-rendre la carte reconstruirait les
    * photos et ferait remonter la page au-dessus du champ qu'on vient de toucher.
+   *
+   * ⚠️⚠️ `opts.bind` N'EST PAS FACULTATIF, et l'oublier coûte des DONNÉES.
+   * `outerHTML` détruit les anciens éléments : les écouteurs que la page avait posés dessus
+   * partent avec eux. Sans rebranchement, TOUS les champs du bloc cessaient d'être collectés
+   * dès le premier changement d'alimentation ou de combinaison — on les remplissait, ils
+   * s'affichaient correctement à l'écran, et ils n'arrivaient jamais dans le devis.
+   * Signalé indirectement par Nicolas le 09/10/2026 (« ça ne se répercute pas »), trouvé en
+   * rejouant le geste réel plutôt qu'en relisant le code : le symptôme ne ressemblait pas
+   * à la cause. Ne jamais appeler `rafraichir` sans `bind`.
    */
   function rafraichir(carte, item, opts) {
     const bloc = carte && carte.querySelector('[data-volet-block]');
     if (!bloc) return false;
     bloc.outerHTML = html(item, opts);
-    return true;
+    const neuf = carte.querySelector('[data-volet-block]');
+    if (neuf && opts && typeof opts.bind === 'function') opts.bind(neuf);
+    return !!neuf;
   }
 
   window.SSVolet = {
@@ -275,5 +318,6 @@
     normaliserRal: normaliserRal,
     appliquerRal: appliquerRal,
     valeurAffichable: valeurAffichable,
+    sansCodeMenu: sansCodeMenu,
   };
 })();

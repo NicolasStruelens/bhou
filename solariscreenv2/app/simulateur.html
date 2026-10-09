@@ -692,7 +692,8 @@
       const it = state.items.find(x => x._id === id);
       if (!card || !it) return;
       collectItem(it, card);
-      window.SSVolet.rafraichir(card, it, VOLET_OPTS);
+      window.SSVolet.rafraichir(card, it,
+        Object.assign({}, VOLET_OPTS, { bind: (n) => brancherCarte(it, card, n) }));
       ui_recalc();
     };
 
@@ -778,29 +779,45 @@
       });
     };
 
+    /* ⚠️ LA COULEUR DE CAISSON PRÉCÉDENTE, PAR OUVERTURE — et c'est tout le correctif du
+       09/10/2026. On la lisait sur l'ouverture juste avant `collectItem`, sauf que l'évènement
+       `input` part TOUJOURS avant `change` : le nuancier émet les deux, et la frappe émet
+       `input` à chaque caractère. Au moment du `change`, l'ouverture portait donc déjà la
+       NOUVELLE couleur — « ancienne » et « nouvelle » étaient égales, et la propagation ne se
+       déclenchait jamais. Elle marchait pourtant dans mes essais, parce que j'y émettais
+       `change` tout seul : une séquence qui n'existe dans aucun navigateur.
+       ⚠️ Une Map, et non une clé sur l'ouverture : tout ce qu'on pose sur l'ouverture part en
+       base avec le devis, et ceci est de l'état de formulaire, pas une donnée produit. */
+    const RAL_PRECEDENT = new Map();
+
+    /** Branche les champs d'une racine (la carte entière, ou le seul bloc volet re-rendu).
+     *  ⚠️ `opts.bind` doit toujours accompagner un re-rendu : `outerHTML` détruit les anciens
+     *  éléments avec leurs écouteurs, et sans rebranchement les champs du bloc cessent
+     *  silencieusement d'être collectés. */
+    function brancherCarte(it, card, racine) {
+      const r = racine || card;
+      const opts = Object.assign({}, VOLET_OPTS, { bind: (n) => brancherCarte(it, card, n) });
+      r.querySelectorAll('[data-f]').forEach(input => {
+        if (input.dataset.f === 'type' || input.dataset.f === 'moteur') input.value = it[input.dataset.f] || (input.dataset.f === 'type' ? 'screen' : '');
+        input.addEventListener('input', () => { collectItem(it, card); ui_recalc(); });
+        input.addEventListener('change', () => {
+          collectItem(it, card);
+          if (window.SSVolet && window.SSVolet.appliquerRal(it, RAL_PRECEDENT.get(it._id) || '').length) {
+            window.SSVolet.rafraichir(card, it, opts);
+          }
+          RAL_PRECEDENT.set(it._id, it.couleur || '');
+          ui_recalc();
+        });
+      });
+    }
+
     function renderItems() {
       const c = el('itemsContainer');
       c.innerHTML = state.items.map((it, i) => itemTemplate(it, i)).join('');
       // brancher les champs
       state.items.forEach(it => {
-        const card = c.querySelector(`[data-id="${it._id}"]`);
-        card.querySelectorAll('[data-f]').forEach(input => {
-          if (input.dataset.f === 'type' || input.dataset.f === 'moteur') input.value = it[input.dataset.f] || (input.dataset.f === 'type' ? 'screen' : '');
-          input.addEventListener('input', () => { collectItem(it, card); ui_recalc(); });
-          /* La couleur du caisson se lit AVANT la collecte : c'est elle qui dit si la lame
-             finale et les coulisses suivaient ou avaient été décidées à part (voir
-             SSVolet.appliquerRal). Posé ici et pas sur le champ RAL lui-même parce que le
-             nuancier écrit la valeur puis déclenche « change » : un seul point d'entrée
-             couvre donc la frappe ET la palette. */
-          input.addEventListener('change', () => {
-            const ralAvant = it.couleur;
-            collectItem(it, card);
-            if (window.SSVolet && window.SSVolet.appliquerRal(it, ralAvant).length) {
-              window.SSVolet.rafraichir(card, it, VOLET_OPTS);
-            }
-            ui_recalc();
-          });
-        });
+        RAL_PRECEDENT.set(it._id, it.couleur || '');
+        brancherCarte(it, c.querySelector(`[data-id="${it._id}"]`));
       });
     }
 

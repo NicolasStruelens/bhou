@@ -72,8 +72,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
-| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 81 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 81 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
+| `tests/volet.test.html` | Les 106 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -837,6 +837,51 @@ qui finit toujours par diverger : **`tests/volet.test.html` lit le fichier du se
 les deux** (cas H2). Ajouter un champ `client: true` sans le porter côté serveur fait échouer ce
 test, et c'est exactement son rôle.
 
+**31 quinquies. UN BLOC RE-RENDU DOIT ÊTRE REBRANCHÉ, sinon on perd des DONNÉES.**
+`SSVolet.rafraichir` remplace le bloc par `outerHTML` : les anciens éléments sont détruits et
+les écouteurs que la page avait posés dessus partent avec eux. Sans `opts.bind`, **tous** les
+champs du bloc cessaient d'être collectés dès le premier changement d'alimentation ou de
+combinaison : on les remplissait, ils s'affichaient correctement à l'écran, et ils n'arrivaient
+jamais dans le devis. Le symptôme ne ressemblait pas à la cause — trouvé en rejouant le geste
+réel, pas en relisant le code. `bind` n'est pas facultatif.
+
+**31 sexies. `input` PART TOUJOURS AVANT `change` — ne jamais lire « l'ancienne valeur » sur
+l'objet au moment du `change`.** La propagation du RAL ne se déclenchait jamais chez Nicolas :
+on lisait `it.couleur` juste avant `collectItem` dans le gestionnaire `change`, en croyant tenir
+l'ancienne couleur. Mais `input` est parti avant et a déjà collecté — le nuancier émet les
+DEUX évènements (`ui.js`, `remplir()`), et la frappe émet `input` à chaque caractère. « Ancienne »
+valait donc « nouvelle », et la comparaison sortait toujours égale.
+La valeur précédente vit maintenant HORS de l'ouverture : une `Map` par ouverture dans le
+simulateur, une variable dans le Mode Terrain. ⚠️ Pas une clé sur l'ouverture : tout ce qu'on y
+pose part en base avec le devis, et ceci est de l'état de formulaire.
+⚠️ **La leçon porte sur la MÉTHODE.** Mes essais passaient au vert parce que j'y émettais
+`change` tout seul — une séquence qui n'existe dans aucun navigateur. **Rejouer le GESTE
+(cliquer, taper, ouvrir le nuancier), jamais l'API.** Et le nuancier écrit le CODE DE COMMANDE
+Harol (« 7016 — Gris anthracite · réf. 7m16st (laque texturée) »), pas un RAL nu : toute
+comparaison de couleur passe par `SSVolet.normaliserRal`.
+
+**31 septies. L'ENCADRÉ DU DEVIS EST UN FLUX, PAS UNE GRILLE — et c'est ce qui le fait tenir
+sur une page.** En grille 2 colonnes, 18 options font 9 rangées : mesuré, la feuille passait à
+1 112 px pour **1 032 px utiles** en A4 (210 × 297 moins 12 mm de marge, à 96 dpi), et le PDF
+sortait avec une page de plus **ne contenant que le pied de page**. Signalé par Nicolas sur un
+vrai devis. En flux, les mêmes 18 options tiennent en 4 lignes : 1 020 px.
+Essayé avant de trancher : **3 colonnes AGGRAVE** (185 px contre 173), parce que 8 valeurs sur
+14 passent alors sur deux lignes. Resserrer interlignes et paddings ne rendait que 40 px.
+⚠️ Le flux vaut à l'ÉCRAN AUSSI, volontairement : **l'aperçu doit être le PDF**. Une mise en
+page différente entre les deux, et on valide un aperçu pour obtenir autre chose.
+⚠️ Et puisqu'un devis à plusieurs ouvertures débordera toujours légitimement : `.doc-foot` porte
+`break-before: avoid` et `.signatures` `break-after: avoid`. Si le pied ne rentre pas, il emmène
+le bloc de signature avec lui — la page suivante porte alors ce qu'on signe, jamais une ligne
+seule. **Mesurer la hauteur rendue en forçant les règles d'impression** (parcourir
+`document.styleSheets` et passer les media `print` à `all`) : c'est le seul moyen de vérifier
+une pagination sans générer le PDF.
+Le document retire aussi les **codes de menu Harol** des valeurs (`SSVolet.sansCodeMenu`) : « 1 :
+type 1 (dans le jour) » se lit « Type 1 (dans le jour) ». ⚠️ On ne retire QUE un index (1-2
+chiffres) ou une référence d'article (A4118) — jamais 3 ou 4 chiffres, parce que « 7016 — Gris
+anthracite » est un RAL et « 135 — glissière de sécurité » une référence : elles DÉSIGNENT le
+produit. Et `muets: ['Simple']` tait « Combinaison : Simple », qui n'apprend rien — la règle
+existait déjà dans `picking.html` (`VALEURS_MUETTES`) et devait suivre les volets dans la spec.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -1094,7 +1139,7 @@ test, et c'est exactement son rôle.
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
-   `tests/volet.test.html`, exiger « 81/81 » — ça remplit un bon de commande fournisseur.
+   `tests/volet.test.html`, exiger « 106/106 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
