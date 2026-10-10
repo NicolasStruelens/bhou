@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Tests — signal</title>
+  <style>
+    body { font: 13px/1.5 ui-monospace, monospace; background: #0b0f17; color: #cfe3ff; padding: 16px; }
+    h1 { font-size: 15px; letter-spacing: .12em; text-transform: uppercase; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    td, th { border: 1px solid #1d2a3d; padding: 4px 8px; text-align: left; vertical-align: top; }
+    th { background: #101722; }
+    .pass { color: #5ddba0; }
+    .fail { color: #ff6b7f; font-weight: 700; }
+    #summary { margin-top: 14px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests signal</h1>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <!-- signal.js lit SSTheme pour les thèmes clairs et SSProducts pour les champs bloquants. -->
+  <script src="../assets/js/theme.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/signal.js"></script>
+  <script>
+    const S = window.SSSignal, P = window.SSProducts;
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' +
+        (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+
+    // Un volet entièrement rempli, dont on retirera des champs à la demande.
+    const COMPLET = {
+      type: 'volet_roulant', largeur: 1200, hauteur: 2100,
+      lame_type: 'alu237', caisson_mesure: '180', moteur: 'Solar Pure (solaire)',
+      couleur_lame: '03 — 8028 Brun',
+    };
+    const sans = function () {
+      const o = Object.assign({}, COMPLET);
+      [].slice.call(arguments).forEach(function (k) { delete o[k]; });
+      return o;
+    };
+
+    // ══════════════ A. QUAND LE SIGNAL S'ALLUME ══════════════
+    titre('A. Une ouverture vierge ne s’allume jamais');
+
+    /* ⚠️ C'EST LA RÈGLE QUI EMPÊCHE LE MODULE DE DEVENIR DU PAPIER PEINT.
+       Une ouverture neuve est vide par définition : l'allumer en entier, c'est accueillir chaque
+       nouvelle ouverture par six champs en néon, et apprendre à ne plus les voir dès le deuxième
+       devis. Choix de Nicolas le 10/10/2026 : « une fois l'ouverture commencée ». */
+    check('vierge : non commencée', S.commencee({ type: 'volet_roulant' }), false);
+    check('vierge : rien à signaler', S.champsASignaler({ type: 'volet_roulant' }), []);
+    check('un seul champ rempli : commencée',
+      S.commencee({ type: 'volet_roulant', largeur: 1200 }), true);
+    check('un seul champ rempli : les cinq autres s’allument',
+      S.champsASignaler({ type: 'volet_roulant', largeur: 1200 }).length, 5);
+
+    /* ⚠️ UNE COPIE N'EST PAS UN OUBLI. Une ouverture dupliquée arrive entièrement remplie :
+       rien ne doit s'allumer. C'est la lecture à l'envers de la même règle, et c'est elle qui
+       fait que le signal ne crie pas après un travail déjà fait. */
+    check('complète : rien ne s’allume', S.champsASignaler(COMPLET), []);
+    check('complète : commencée quand même', S.commencee(COMPLET), true);
+
+    // Un type sans liste de champs bloquants ne peut rien signaler — et ne doit pas planter.
+    check('type inconnu : non commencée', S.commencee({ type: 'nimporte_quoi' }), false);
+    check('type inconnu : rien à signaler', S.champsASignaler({ type: 'nimporte_quoi' }), []);
+    check('item nul : rien à signaler', S.champsASignaler(null), []);
+
+    // ══════════════ B. CE QUI S'ALLUME ══════════════
+    titre('B. Seulement ce qui bloque la commande');
+
+    /* La source est `SSProducts.champsManquants` — celle qui alimente déjà les pastilles
+       « incomplet » du Mode Terrain. Une seconde liste aurait divergé (règle 10) : le test
+       compare donc les deux au lieu de réécrire les clés attendues à la main. */
+    const incomplet = sans('moteur', 'caisson_mesure');
+    check('les clés viennent de champsManquants',
+      S.champsASignaler(incomplet),
+      P.champsManquants(incomplet).map(function (c) { return c.k; }));
+    check('deux champs retirés, deux allumés', S.champsASignaler(incomplet).length, 2);
+
+    /* ⚠️ LE PRIX N'EST PAS UN CHAMP BLOQUANT, et il ne doit pas s'allumer : il se remplit au
+       bureau, pas sur le terrain. S'il entrait dans le signal, toute ouverture relevée chez le
+       client s'allumerait jusqu'au retour — donc tout le temps, donc pour rien. */
+    const sansPrix = Object.assign({}, COMPLET, { prix_catalogue_ht: 0 });
+    check('prix à zéro : rien ne s’allume', S.champsASignaler(sansPrix), []);
+
+    // ══════════════ C. LES RÉGLAGES ══════════════
+    titre('C. Effet et couleur');
+
+    check('effet par défaut', S.effet(), 'halo');
+    check('couleur par défaut', S.couleur(), 'theme');
+
+    /* ⚠️ « AUCUN » DOIT VRAIMENT TOUT ÉTEINDRE, y compris le calcul : laisser `champsASignaler`
+       répondre pendant que la feuille de style se tait ferait poser des classes invisibles — et
+       le jour où quelqu'un stylerait `.ss-signal` ailleurs, le réglage ne servirait plus à rien. */
+    S.regler('aucun', null);
+    check('effet « aucun » : enregistré', S.effet(), 'aucun');
+    check('effet « aucun » : plus rien à signaler', S.champsASignaler(incomplet), []);
+    check('effet « aucun » : posé sur <html>', document.documentElement.getAttribute('data-signal'), 'aucun');
+
+    S.regler('pouls', 'cyan');
+    check('effet changé', S.effet(), 'pouls');
+    check('couleur changée', S.couleur(), 'cyan');
+    check('le signal revient', S.champsASignaler(incomplet).length, 2);
+
+    // Une valeur inconnue ne s'enregistre pas : elle laisserait un réglage sans feuille de style.
+    S.regler('effet_qui_nexiste_pas', 'couleur_inventee');
+    check('effet inconnu : ignoré', S.effet(), 'pouls');
+    check('couleur inconnue : ignorée', S.couleur(), 'cyan');
+
+    // ══════════════ D. LE CONTRAT DE LA PALETTE ══════════════
+    titre('D. La palette ne ment pas sur le sens des couleurs');
+
+    /* ⚠️ ICI LA COULEUR PORTE DU SENS (règles 21 bis et 22). Un « à compléter » en vert se lirait
+       « c'est bon », en rouge « erreur ». Le test mesure la TEINTE de chaque couleur proposée et
+       exige qu'aucune ne tombe dans le vert ni dans le rouge — on ne se fie pas à son nom. */
+    function teinteDe(hex) {
+      const m = /^#([0-9a-f]{6})$/i.exec(hex);
+      if (!m) return null;                       // « var(--warn) » suit le thème : rien à mesurer
+      const n = parseInt(m[1], 16);
+      const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+      if (!d) return 0;
+      let h;
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h = Math.round(h * 60);
+      return h < 0 ? h + 360 : h;
+    }
+    const interdites = [];
+    S.COULEURS.forEach(function (c) {
+      ['sombre', 'clair'].forEach(function (t) {
+        const h = teinteDe(c.ton[t]);
+        if (h === null) return;
+        // Vert : 80–160. Rouge : au-delà de 340 ou en deçà de 15.
+        if ((h >= 80 && h <= 160) || h >= 340 || h <= 15) interdites.push(c.id + '/' + t + ' = ' + h + '°');
+      });
+    });
+    check('aucune teinte dans le vert ni le rouge', interdites, []);
+    check('chaque couleur a ses deux tons',
+      S.COULEURS.every(function (c) { return !!(c.ton && c.ton.sombre && c.ton.clair); }), true);
+    check('chaque effet a un nom et une aide',
+      S.EFFETS.every(function (e) { return !!(e.id && e.nom && e.aide); }), true);
+    check('« aucun » fait partie des effets',
+      S.EFFETS.some(function (e) { return e.id === 'aucun'; }), true);
+
+    // ══════════════ E. POSER ET RETIRER SUR UN VRAI DOM ══════════════
+    titre('E. Poser, et surtout RETIRER');
+
+    S.regler('halo', 'theme');
+    const carte = document.createElement('div');
+    carte.innerHTML =
+      '<div class="field"><label class="label">Largeur</label><input class="input" data-f="largeur"></div>' +
+      '<div class="field"><label class="label">Hauteur</label><input class="input" data-f="hauteur"></div>' +
+      '<div class="field"><label class="label">Moteur</label><select class="select" data-f="moteur"></select></div>' +
+      '<div class="field"><label class="label">Prix</label><input class="input" data-f="prix_catalogue_ht"></div>';
+    document.body.appendChild(carte);
+
+    const partiel = sans('hauteur', 'moteur');
+    S.appliquer(carte, partiel);
+    const allumes = function () {
+      return [].slice.call(carte.querySelectorAll('.ss-signal'))
+        .map(function (f) { return f.querySelector('[data-f]').dataset.f; }).sort();
+    };
+    check('deux champs allumés', allumes(), ['hauteur', 'moteur']);
+    check('le prix n’est pas allumé', carte.querySelector('[data-f="prix_catalogue_ht"]').closest('.field').className, 'field');
+
+    /* ⚠️ LE RETRAIT EST LA MOITIÉ DU TRAVAIL, et c'est celle qu'on oublie. Sans nettoyage, un
+       champ allumé puis rempli gardait son halo jusqu'au prochain rendu complet de la carte :
+       du néon sur un champ plein, et le signal perd tout son crédit en deux minutes. */
+    S.appliquer(carte, COMPLET);
+    check('tout rempli : plus rien d’allumé', allumes(), []);
+    check('tout rempli : plus aucune aide', carte.querySelectorAll('[data-signal-aide]').length, 0);
+
+    S.appliquer(carte, sans('largeur'));
+    check('un seul champ redevenu vide', allumes(), ['largeur']);
+    S.appliquer(carte, { type: 'volet_roulant' });
+    check('ouverture remise à vierge : rien d’allumé', allumes(), []);
+
+    carte.remove();
+
+    // ══════════════ F. RIEN NE FUIT SUR UN DOCUMENT CLIENT ══════════════
+    titre('F. La feuille de style se tait à l’impression');
+
+    const feuille = document.getElementById('ss-signal-style');
+    check('la feuille existe', !!feuille, true);
+    /* Un halo fluo sur du papier n'est plus un signal, c'est une tache — et ces pages ne
+       devraient de toute façon jamais être imprimées. Ceinture et bretelles. */
+    check('elle porte une règle @media print', feuille.textContent.indexOf('@media print') !== -1, true);
+    check('elle respecte « moins de mouvement »',
+      feuille.textContent.indexOf('prefers-reduced-motion') !== -1, true);
+    /* ⚠️ Le piège payé CINQ fois dans ce dépôt : un accent grave dans un commentaire d'un
+       littéral de gabarit le referme et tue le fichier entier. On vérifie ici que le module
+       s'est bien chargé en entier — si le gabarit avait été coupé, `SSSignal` n'existerait pas. */
+    check('le module s’est chargé en entier', typeof S.monterSelecteurs, 'function');
+
+    // On rend les réglages à leur valeur de départ : un test ne laisse pas de trace.
+    try { localStorage.removeItem('ss_signal_effet'); localStorage.removeItem('ss_signal_couleur'); } catch (e) {}
+    S.monter();
+
+    document.getElementById('out').innerHTML =
+      '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>—</th></tr>' + rows.join('') + '</table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S)</span> sur ' + total;
+    document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests signal';
+  </script>
+</body>
+</html>

@@ -494,6 +494,7 @@
   <!-- Le configurateur VR150, partagé avec le Mode Terrain et les documents.
        Il LIT la spec de products.js, qui doit donc être chargé avant lui. -->
   <script src="../assets/js/volet.js"></script>
+  <script src="../assets/js/signal.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/postal-be.js"></script>
@@ -835,6 +836,10 @@
           collectItem(it, card);
           if (window.SSVolet && window.SSVolet.appliquerRal(it, RAL_PRECEDENT.get(it._id) || '').length) {
             window.SSVolet.rafraichir(card, it, opts);
+            // Le bloc volet vient d'être remplacé (règle 31 quinquies) : ses champs sont des
+            // ÉLÉMENTS NEUFS, donc sans signal. Même famille que `bind` — ce qui est re-rendu
+            // doit être re-décoré, sinon le halo disparaît au premier changement d'alimentation.
+            if (window.SSSignal) window.SSSignal.appliquer(card, it);
           }
           RAL_PRECEDENT.set(it._id, it.couleur || '');
           ui_recalc();
@@ -848,7 +853,11 @@
       // brancher les champs
       state.items.forEach(it => {
         RAL_PRECEDENT.set(it._id, it.couleur || '');
-        brancherCarte(it, c.querySelector(`[data-id="${it._id}"]`));
+        const carte = c.querySelector(`[data-id="${it._id}"]`);
+        brancherCarte(it, carte);
+        // Une carte fraîchement dessinée (devis rouvert, ouverture dupliquée) n'a encore
+        // déclenché aucune collecte : sans ceci, rien ne s'allumerait avant la première frappe.
+        if (window.SSSignal) window.SSSignal.appliquer(carte, it);
       });
     }
 
@@ -864,6 +873,11 @@
       const surf = it.largeur > 0 && dim2 > 0 ? ((it.largeur/1000)*(dim2/1000)).toFixed(2) + ' m²' : '—';
       const sub = card.querySelector('[data-sub]');
       if (sub) sub.textContent = `${ITEM_TYPES[it.type] || it.type} · ${surf} · ${fmtEur((it.prix_catalogue_ht||0)*(it.quantite||1))}`;
+      /* ⚠️ LE SIGNAL SE REPOSE À CHAQUE COLLECTE, pas seulement au rendu de la carte.
+         Posé au seul rendu, un champ qu'on vient de remplir gardait son halo jusqu'au prochain
+         rendu complet : du néon sur un champ plein, et le signal perd tout son crédit en deux
+         minutes. `collectItem` est le seul endroit qui sache ce qui vient d'être saisi. */
+      if (window.SSSignal) window.SSSignal.appliquer(card, it);
     }
 
     // ── EXTRAS ──

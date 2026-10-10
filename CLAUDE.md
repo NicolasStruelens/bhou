@@ -74,6 +74,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 120 tests du VR150 **et des règles d'ouverture partagées** (duplication). **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé ». 36 tests (`window.SSSignal`) |
+| `tests/signal.test.html` | Les 36 tests du signal. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 
@@ -1128,6 +1130,65 @@ faut rejouer le GESTE, pas l'API.
 échoue **en silence** (`e.value` reste vide). Un essai écrit comme ça « passe » en ne prouvant
 rien — toujours comparer `e.value` à ce qu'on a voulu poser après l'avoir posé.
 
+**36. CE QUI RESTE À REMPLIR SE VOIT SUR LE CHAMP, pas dans un message qui en parle.**
+Demande de Nicolas (10/10/2026) : « des effets néon sur les boîtes de dialogue, dont on pourra
+changer la couleur dans les paramètres… pour attirer l'attention sur les choses pas remplies ».
+Le problème réel : un VR150 porte 38 champs, 6 bloquent la commande, et ils n'étaient signalés
+que par du TEXTE. **Un texte qui parle d'un champ oblige à lire, puis à CHERCHER le champ — et
+entre les deux, on abandonne.** `assets/js/signal.js` (`window.SSSignal`) pose le signal sur le
+champ lui-même ; les réglages (effet, couleur) sont dans Paramètres, **par appareil**.
+⚠️ **TROIS DISCIPLINES, SANS LESQUELLES CE MODULE DEVIENT DU PAPIER PEINT.**
+• **On n'allume QUE ce qui bloque la commande** (`SSProducts.CHAMPS_REQUIS`), ~6 champs sur 38.
+  Choix explicite de Nicolas. Un signal qui montre tout ne montre rien. La source est celle qui
+  alimente déjà les pastilles « incomplet » du Mode Terrain (règle 10) : pas de seconde liste.
+  Le PRIX n'y est pas, et ne doit pas y entrer : il se remplit au bureau, donc toute ouverture
+  relevée chez le client s'allumerait jusqu'au retour — donc tout le temps, donc pour rien.
+• **On n'allume qu'une ouverture COMMENCÉE**, c'est-à-dire dès qu'UN champ bloquant est rempli.
+  Une ouverture neuve est vide par définition : l'allumer en entier, c'est accueillir chaque
+  nouvelle ouverture par six champs en néon et apprendre à ne plus les voir dès le deuxième devis.
+  La règle se lit aussi à l'envers, et c'est là qu'elle est bonne : **une ouverture DUPLIQUÉE
+  arrive pleine, donc rien ne s'allume** — le signal ne crie pas après un travail déjà fait.
+• **Le mouvement marque un ÉVÉNEMENT, pas un ÉTAT.** Un halo fixe se parcourt du regard ; une
+  animation permanente se subit. Les effets animés existent parce que Nicolas les a demandés,
+  mais `viser()` — la pulsation d'arrivée quand on saute sur un champ — dure une seconde et
+  s'éteint seule. C'est la seule animation qui soit toujours juste.
+⚠️ **RETIRER EST LA MOITIÉ DU TRAVAIL, et c'est celle qu'on oublie.** `appliquer()` nettoie TOUS
+les champs de la racine avant de poser. Sans ça, un champ allumé puis rempli gardait son halo
+jusqu'au prochain rendu complet de la carte : **du néon sur un champ plein, et le signal perd
+tout son crédit en deux minutes.** Il se repose donc à chaque COLLECTE (simulateur) et à chaque
+frappe (`majManque` en Mode Terrain), jamais au seul rendu.
+⚠️ **Un bloc re-rendu doit être re-DÉCORÉ, exactement comme il doit être re-branché**
+(règle 31 quinquies). Le bloc volet remplacé par `outerHTML` rend des éléments NEUFS : sans
+rappel d'`appliquer`, le halo disparaissait au premier changement d'alimentation.
+⚠️ **LA PALETTE ÉVITE LE VERT ET LE ROUGE**, et ce n'est pas une question de goût : ici la couleur
+porte du sens (règles 21 bis et 22). Un « à compléter » en vert se lirait « c'est bon », en rouge
+« erreur ». Un test MESURE la teinte de chaque couleur proposée et refuse les plages interdites —
+on ne se fie pas à son nom. Chaque teinte a ses deux tons `{ sombre, clair }`, même discipline
+que les décors, et les tons clairs visent TOUS les thèmes clairs via `SSTheme.idsClairs()`.
+⚠️ **LES PASTILLES DE « CE QUI MANQUE » SONT DES BOUTONS**, en Mode Terrain. Elles NOMMAIENT ce
+qui manquait et laissaient chercher : dans 38 champs répartis en six groupes, retrouver
+« Caisson » au doigt coûte plus cher que l'information ne rapporte, donc on ne le faisait pas.
+Elles sautent maintenant sur le champ. ⚠️ Un champ peut être MASQUÉ (pas d'alimentation choisie
+→ pas de menu moteur) : on le DIT, plutôt que de défiler vers un élément invisible, ce qui
+passerait pour un bouton cassé.
+⚠️ **`@media (pointer: coarse)` NE SE VÉRIFIE PAS DANS UN NAVIGATEUR DE BUREAU**, même rétréci à
+366 px : la pastille mesurait 18 px de haut et la règle avait l'air de ne rien faire. Il faut
+ÉMULER UN APPAREIL TACTILE (préréglage « mobile » du panneau) — là, `matchMedia('(pointer:
+coarse)')` répond vrai et la pastille passe à 32 px. Et un composant maison doit s'inscrire
+lui-même dans ce bloc : la règle de `base.css` ne couvre que `.btn` et consorts.
+⚠️ **UNE LIGNE DE RÉGLAGE FAIT 168 px à DROITE** : un aperçu de 280 px plus son explication n'y
+tiennent pas, et les deux se CHEVAUCHAIENT. Rien ne débordait de la page — donc aucune mesure ne
+le disait — et ça se voyait au premier coup d'œil. D'où `.reg--pleine`, pour ce qui est une
+DÉMONSTRATION et non un champ.
+⚠️ **L'aperçu est un VRAI champ**, avec les mêmes classes que le simulateur, pas une vignette
+dessinée pour l'occasion : une vignette serait une seconde vérité, et elle finirait par montrer
+autre chose que ce qu'on obtient.
+⚠️ **Les cases à cocher ne sont PAS signalées dans cette version**, et c'est en attente, pas un
+oubli : aucune n'est dans `CHAMPS_REQUIS`, et Nicolas a préféré voir le résultat avant de
+trancher (« je verrai le résultat et je te dirigerai »). La vraie question, quand on y
+reviendra : **une case décochée veut-elle dire « non » ou « pas encore regardé » ?** Les deux
+ont exactement la même tête à l'écran, et c'est tout le problème.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -1388,6 +1449,7 @@ rien — toujours comparer `e.value` à ce qu'on a voulu poser après l'avoir po
    `tests/volet.test.html`, exiger « 106/106 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
+   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 36/36 ».
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
