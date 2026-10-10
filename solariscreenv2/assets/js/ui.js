@@ -1212,6 +1212,28 @@
     const del = (opts.onDelete && id)
       ? `<button type="button" class="ss-mail-del" title="Supprimer cet échange" aria-label="Supprimer cet échange"
            onclick="event.stopPropagation();${opts.onDelete}('${id}')">${icon('trash', 13)}</button>` : '';
+    /* ⚠️ LE BOUTON « MODIFIER » EST À CÔTÉ DE « SUPPRIMER », ET C EST TOUT L INTÉRÊT.
+       Sans lui, corriger un expéditeur mal deviné par l analyse imposait de SUPPRIMER puis de
+       recoller — en perdant la date d archivage, le rattachement au devis et les pièces.
+       Entre perdre ça et laisser une erreur, on laissait l erreur. */
+    const edit = (opts.onEdit && id)
+      ? `<button type="button" class="ss-mail-edit" title="Corriger cet échange" aria-label="Corriger cet échange"
+           onclick="event.stopPropagation();${opts.onEdit}('${id}')">${icon('edit', 13)}</button>` : '';
+    /* Les pièces jointes. Le lien pointe vers la route serveur, qui sert les octets depuis R2 :
+       jamais une dataURL dans la page, c est ce qui avait fait gonfler un devis à 1,69 Mo. */
+    const pieces = (m.pieces || []).length && opts.clientKey
+      ? `<div class="ss-mail-pj">` + (m.pieces || []).map(function (pj) {
+          const href = '/api/clients/' + encodeURIComponent(opts.clientKey) + '/mail/'
+            + encodeURIComponent(m.id) + '/piece/' + encodeURIComponent(pj.id);
+          const estPdf = String(pj.mime || '').indexOf('pdf') >= 0;
+          const sup = opts.onDeletePiece
+            ? `<button type="button" class="ss-pj-x" title="Retirer cette pièce" aria-label="Retirer cette pièce"
+                 onclick="event.stopPropagation();event.preventDefault();${opts.onDeletePiece}('${id}','${escHtml(pj.id)}')">\u00d7</button>` : '';
+          return `<a class="ss-pj" href="${escHtml(href)}" target="_blank" rel="noopener"
+                     title="${escHtml(pj.filename || '')}">${icon(estPdf ? 'filetext' : 'image', 11)}<span>${
+                     escHtml(pj.filename || 'pièce')}</span></a>` + sup;
+        }).join('') + `</div>`
+      : '';
     const devis = (m.devis_id && opts.onOpenDevis)
       ? `<button type="button" class="ss-mail-devis" title="Ouvrir le devis rattaché"
            onclick="event.stopPropagation();${opts.onOpenDevis}('${escHtml(m.devis_id)}')">${icon('filetext', 10)} devis #${escHtml(m.devis_id)}</button>`
@@ -1221,9 +1243,14 @@
         <span class="ss-mail-sens">${icon(s.ic, 11)} ${s.court}</span>
         <span class="ss-mail-objet" title="${escHtml(m.objet || '(sans objet)')}">${escHtml(m.objet || '(sans objet)')}</span>
         <time class="ss-mail-date" title="Archivé le ${escHtml(fmtDateTime(m.date))}">${quand}</time>
-        ${del}
+        ${edit}${del}
       </header>
-      <div class="ss-mail-meta">${m.de ? escHtml(m.de) : 'expéditeur inconnu'} · archivé par ${escHtml(commentAuthor(m.par).label)}${devis ? ' · ' + devis : ''}</div>
+      ${/* ⚠️ « modifié » n apparaît que si le TEXTE a changé — le serveur ne signe que dans ce
+           cas. Corriger un objet mal lu ou rattacher un devis n est pas une réécriture du
+           message, et l afficher ferait douter du contenu (même discipline que la règle 15 bis). */ ''}
+      <div class="ss-mail-meta">${m.de ? escHtml(m.de) : 'expéditeur inconnu'} · archivé par ${escHtml(commentAuthor(m.par).label)}${
+        m.modifie_le ? ' · modifié ' + escHtml(relTime(m.modifie_le)) + ' par ' + escHtml(commentAuthor(m.modifie_par).label) : ''}${devis ? ' · ' + devis : ''}</div>
+      ${pieces}
       <div class="ss-mail-corps">${escHtml(m.texte)}</div>
       <button type="button" class="ss-mail-plus" onclick="this.previousElementSibling.classList.toggle('ouvert');this.textContent=this.previousElementSibling.classList.contains('ouvert')?'Replier':'Tout afficher';">Tout afficher</button>
     </article>`;
