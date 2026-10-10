@@ -63,11 +63,21 @@
     // (navigateur, CDN, ou service worker fantôme d'une ancienne PWA qui matcherait par URL)
     // ne peut resservir une réponse API périmée. Le backend ignore la query string.
     const bust = (path.indexOf('?') !== -1 ? '&' : '?') + '_=' + Date.now();
+    /* ⚠️ UN CORPS `FormData` NE DOIT PAS PORTER DE `Content-Type` ÉCRIT À LA MAIN.
+       Le navigateur pose lui-même `multipart/form-data; boundary=…`, et la FRONTIÈRE est
+       calculée à l envoi : en écrivant l en-tête soi-même, on la perd, le serveur reçoit un
+       corps multipart annoncé comme du JSON et `request.formData()` refuse de l analyser —
+       « Unrecognized Content-Type header value ». Trouvé par Nicolas en production en joignant
+       un PDF à un échange : l en-tête JSON de cette fonction s appliquait à TOUS les appels,
+       et `Object.assign` ne le remplace pas puisque l appelant ne passe pas de `headers`.
+       On ne pose donc l en-tête JSON que lorsque le corps n est PAS un FormData. */
+    const o = options || {};
+    const envoieUnFichier = typeof FormData !== 'undefined' && o.body instanceof FormData;
     const r = await fetch(BASE + path + bust, Object.assign({
-      headers: { 'Content-Type': 'application/json' },
+      headers: envoieUnFichier ? undefined : { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       cache: 'no-store',
-    }, options || {}));
+    }, o));
     let data;
     try { data = await r.json(); }
     catch (e) { const err = new Error('HTTP ' + r.status + ' — réponse non-JSON'); err.status = r.status; err.serverRejected = true; throw err; }
