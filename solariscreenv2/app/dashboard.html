@@ -730,6 +730,9 @@
        (SSProducts.CHAMPS_REQUIS) pour l'afficher sur la ligne. -->
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/mantras.js"></script>
+  <!-- SS_VENDEURS : la zone de chacun (code postal geocode une fois). Sert a la meteo de la
+       barre d'actions, qui ne demande donc JAMAIS la position du telephone. -->
+  <script src="../assets/js/company.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
@@ -794,24 +797,36 @@
     window.addEventListener('resize', fitMantra);
     try { document.fonts.ready.then(fitMantra); } catch (e) {}
 
-    // ── Météo actuelle à la position de l'utilisateur (chip dans la barre d'actions) ──
-    // Géolocalisation navigateur (demande une autorisation une seule fois) → Open-Meteo
-    // + géocodage inverse pour le nom de la ville. Silencieux si refusé/indisponible.
+    /* ── Météo actuelle (pastille de la barre d'actions) ─────────────────────────────────
+       ⚠️ ELLE NE DEMANDE PLUS LA POSITION, et c'est le correctif du 10/10/2026.
+       Elle appelait `navigator.geolocation.getCurrentPosition` au CHARGEMENT. Signalé par
+       Nicolas : sur son iPhone, l'application posée sur l'écran d'accueil redemandait
+       l'autorisation « presque à chaque ouverture ». C'est le comportement d'iOS et on n'y peut
+       RIEN depuis le code : une page web ne peut pas s'auto-autoriser, et un raccourci d'écran
+       d'accueil tourne dans son propre bac à sable, où l'accord donné dans Safari ne suit pas
+       toujours. **La seule façon de ne plus voir la question, c'est de ne plus la poser.**
+       La base du vendeur connecté est déjà connue (`SS_VENDEURS`, code postal géocodé une fois) :
+       Braine-le-Château pour Nicolas, Grez-Doiceau pour Yannick. C'est à 20 km près la même
+       météo que sa position réelle, pour une information… décorative. Zéro autorisation.
+       ⚠️ Ne pas « améliorer » en rebranchant la géolocalisation au chargement. Si la position
+       exacte devient utile un jour, elle se demandera sur un GESTE (un appui sur la pastille),
+       jamais à l'ouverture — c'est la différence entre un outil qui demande et un outil qui
+       harcèle. */
     (function initCurrentWeather() {
-      if (!AFFICHAGE.meteo) return;   // masquée : on ne demande pas la position pour rien
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const [w, city] = await Promise.all([
-          window.SSUI.fetchCurrentWeatherByCoords(latitude, longitude),
-          window.SSUI.reverseGeocodeCity(latitude, longitude),
-        ]);
+      if (!AFFICHAGE.meteo) return;
+      const chip = el('wxChip');
+      if (!chip) return;
+      (async () => {
+        const moi = await window.SSNav.getIdentity().catch(() => null);
+        const base = (window.SS_VENDEURS || {})[(moi && moi.key) || 'nicolas']
+          || (window.SS_VENDEURS || {}).nicolas;
+        if (!base) return;
+        const w = await window.SSUI.fetchCurrentWeather(base.ville, base.cp);
         if (!w) return;
-        const chip = el('wxChip');
-        chip.innerHTML = `${icon(window.SSUI.weatherIconName(w.code), 14)} ${Math.round(w.temp)}°${city ? ` <span class="wx-city">${esc(city)}</span>` : ''}`;
-        chip.title = `${w.label}${city ? ' à ' + city : ''} · météo actuelle à votre position`;
+        chip.innerHTML = `${icon(window.SSUI.weatherIconName(w.code), 14)} ${Math.round(w.temp)}° <span class="wx-city">${esc(base.ville)}</span>`;
+        chip.title = `${w.label} à ${base.ville} · ta zone (Paramètres → Affichage pour masquer)`;
         chip.classList.remove('hidden');
-      }, () => {}, { timeout: 8000, maximumAge: 900000 });
+      })();
     })();
 
     // Libelle ET couleur viennent de ui.js : la couleur raconte la progression, et deux
