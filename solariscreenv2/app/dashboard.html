@@ -308,7 +308,11 @@
     @keyframes mHot { 0%,100% { box-shadow: 0 0 18px -4px color-mix(in srgb, var(--accent-2) 42%, transparent); } 50% { box-shadow: 0 0 0 0 transparent; } }
     @media (prefers-reduced-motion: no-preference) { .mrow.is-hot { animation: mHot 3s ease-in-out infinite 1s; } }
     .m-main { min-width: 0; }
-    /* ⚠️ LA RANGÉE DE RACCOURCIS A ÉTÉ RETIRÉE LE 10/10/2026, et son style avec elle.
+    /* Les deux gestes du TERRAIN : invisibles au bureau, où le menu ⋯ est à un clic et où la
+       ligne doit rester lisible. Ils n'apparaissent que sur téléphone — voir le bloc 560 px. */
+    .m-terrain { display: none; }
+
+    /* ⚠️ LA RANGÉE COMPLÈTE DE RACCOURCIS A ÉTÉ RETIRÉE LE 10/10/2026, et son style avec elle.
        Appeler, Écrire et Y aller vivent dans le menu ⋯ (groupe « Contacter »), avec le reste.
        Deux tentatives avant ça : en pictogrammes muets (« je ne vois pas ce que c'est »), puis
        avec leur libellé (« ça ne me sert à rien, et c'est mal intégré »). Posée sous la ligne
@@ -480,6 +484,16 @@
       #kpiToggle { min-width: 34px; }   /* carre : 27 px de large, on le manquait du pouce */
       .m-sub { gap: 8px; margin-top: 0; }
       .m-sub .id { display: none; }                                  /* n° de devis : illisible et inutile au doigt */
+      /* ── LES DEUX GESTES DU TERRAIN ── Ici, et seulement ici : on est dans la camionnette,
+         appeler ou lancer l'itinéraire doit coûter UN appui. Cible tactile en HAUTEUR (38 px),
+         largeur LIBRE — un carré fixe écraserait le libellé (piège payé le matin même). */
+      .m-terrain { display: inline-flex; gap: 6px; flex-basis: 100%; margin-top: 3px; }
+      .m-tp { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+        min-height: 38px; padding: 0 0.7rem; border: 1px solid var(--border-strong);
+        border-radius: var(--r-sm); background: var(--surface); color: var(--text);
+        font: inherit; font-size: var(--fs-xs); white-space: nowrap; cursor: pointer; }
+      .m-tp svg { flex: none; color: var(--accent); }
+      .m-tp:active { background: var(--surface-2); }
       .media-icons .mi-slot:not(.active):not(.cmt-slot) { display: none; }  /* « 0 photo » = du bruit */
       /* ⚠️ PAS de largeur FIXE : depuis que la pastille porte son libellé, un carré de 32 px
          écrasait le texte à 30 px de contenu (mesuré : 66 voulus, 30 donnés). On garde la cible
@@ -1605,6 +1619,7 @@
                 ${d.note ? `<span class="note-flag" title="${esc(d.note)}">${icon('info', 14)}</span>` : ''}
               </div>
               <span class="m-date" title="Dernière modification : ${esc(safeDate(d.date_modification))}">${esc(relTime(d.date_modification) || safeDate(d.date_modification))}</span>
+              ${raccourcisTerrain(d)}
             </div>
             ${engagementLine(d)}
           </div>
@@ -1681,6 +1696,38 @@
           icon('calendar', 11)}Pose le ${esc(court)}</span>`);
       }
       return out.join('');
+    }
+
+    /**
+     * LES DEUX GESTES DU TERRAIN : appeler, et y aller. SUR TÉLÉPHONE UNIQUEMENT.
+     *
+     * ⚠️ C'est la troisième version de cette rangée, et la distinction qui manquait aux deux
+     * premières est celle-ci : **ça dépend d'où on est, pas de ce que le bouton affiche.**
+     * Au bureau, le menu ⋯ est à un clic et la ligne doit rester lisible — les raccourcis n'y
+     * servaient à rien et encombraient (« ça me sert à rien, et c'est mal intégré »). Sur la
+     * route, c'est l'inverse : appeler le client ou lancer l'itinéraire doit coûter UN appui,
+     * et ouvrir un menu avec le pouce dans une camionnette n'en est pas un. Nicolas, le
+     * 10/10/2026 : « dans la version mobile, garder Appeler et Y aller, c'est top sur le terrain ».
+     * ⚠️ « Écrire » n'y est PAS, et ce n'est pas un oubli : il n'a nommé que ces deux-là. On
+     * n'écrit pas un mail depuis un chantier, on appelle. Le mail reste dans le menu ⋯.
+     *
+     * Rendu TOUJOURS, masqué par la feuille de style au-delà de 560 px : aucune branche
+     * JavaScript sur la largeur (règle 24), donc rien ne peut se désynchroniser quand on
+     * tourne le téléphone ou qu'on redimensionne.
+     */
+    function raccourcisTerrain(d) {
+      const b = [];
+      const tp = (ic, mot, titre, act) => `<button type="button" class="m-tp" title="${esc(titre)}" aria-label="${esc(titre)}"
+        onclick="event.stopPropagation();${act}">${icon(ic, 14)}<span>${esc(mot)}</span></button>`;
+      const tel = String(d.telephone || '').split(',')[0].trim();
+      const a = d.adresse || {};
+      const adr = [((a.rue || '') + ' ' + (a.numero || '')).trim(), ((a.code_postal || '') + ' ' + (a.ville || d.ville || '')).trim()]
+        .filter(Boolean).join(', ');
+      if (tel) b.push(tp('phone', 'Appeler', 'Appeler ' + tel, `location.href='tel:${esc(tel.replace(/[^\d+]/g, ''))}'`));
+      // ⚠️ `jsAttr` et jamais des quotes écrites à la main : ni esc() ni encodeURIComponent() ne
+      // protègent l'apostrophe d'une « Rue de l'Église » dans un attribut on* (voir CLAUDE.md).
+      if (adr) b.push(tp('route', 'Y aller', 'Itinéraire — ' + adr, `window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(${SSUI.jsAttr(adr)}), '_blank', 'noopener')`));
+      return b.length ? `<div class="m-terrain">${b.join('')}</div>` : '';
     }
 
     /**

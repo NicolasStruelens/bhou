@@ -937,7 +937,28 @@ Le compteur du menu (`badge: 'depenses'`) ne compte que MES tickets non rembours
 l'autre ne me concernent pas, et un compteur qui parle d'autre chose, on cesse de le regarder.
 Il ne passe PAS par `attente.js` — cet outil est à part, le menu COMPTE, il n'intègre pas.
 
-**33. UN RACCOURCI QU'ON N'UTILISE PAS NE DEVIENT PAS UTILE PARCE QU'IL EST LISIBLE.**
+**33. UN RACCOURCI SE JUGE SUR OÙ L'ON EST, PAS SUR CE QU'IL AFFICHE.**
+⚠️ **Trois versions de la même rangée en une journée** (10/10/2026), et c'est la troisième qui
+porte la bonne distinction — les deux premières cherchaient au mauvais endroit.
+1. Huit pictogrammes muets : « je ne vois pas trop ce que c'est, je ne l'utilise pas ».
+2. Trois pastilles AVEC leur libellé : « ça me sert à rien, et c'est mal intégré ». Rendre
+   lisible ne suffisait donc pas — **un raccourci qu'on n'utilise pas ne devient pas utile
+   parce qu'il est lisible.** Retirées, tout dans le menu ⋯.
+3. Et Nicolas : « dans la version mobile, garder Appeler et Y aller, c'est top sur le terrain ».
+**C'est le LIEU qui tranche, pas le bouton.** Au bureau, le menu ⋯ est à un clic et la ligne
+doit rester lisible. Dans la camionnette, appeler ou lancer l'itinéraire doit coûter UN appui,
+et ouvrir un menu avec le pouce n'en est pas un.
+`raccourcisTerrain(d)` rend donc **deux** boutons — Appeler, Y aller — affichés uniquement
+sous 560 px, cible tactile 38 px. ⚠️ « Écrire » n'y est pas, et ce n'est pas un oubli : on
+n'écrit pas un mail depuis un chantier, on appelle. Le mail reste dans le ⋯.
+⚠️ Ils sont rendus TOUJOURS et masqués par la feuille de style : **aucune branche JavaScript
+sur la largeur** (règle 24), donc rien ne se désynchronise quand on tourne le téléphone.
+⚠️ Largeur LIBRE, cible tactile en HAUTEUR : un carré fixe écraserait le libellé — piège
+mesuré le matin même (66 px voulus, 30 donnés).
+Le menu ⋯ garde tout, en deux groupes écrits : **Contacter** (avec le vrai numéro et la vraie
+adresse dans le libellé) et **Aller à**.
+
+**33 zero bis. L'HISTORIQUE DE CE QU'ON A ESSAYÉ, parce qu'il explique pourquoi on n'y revient pas.**
 ⚠️ **La rangée de raccourcis de la ligne de devis a été RETIRÉE le 10/10/2026**, après DEUX
 tentatives. D'abord huit pictogrammes muets — « je ne vois pas trop ce que c'est, je ne
 l'utilise pas ». Puis trois pastilles avec leur libellé, et Nicolas a tranché : « Appeler,
@@ -951,7 +972,7 @@ Ne pas remettre ces raccourcis sur la ligne sans que Nicolas le demande.
 Le texte qui suit garde l'historique de l'étape intermédiaire, parce qu'elle explique pourquoi
 on n'y revient pas.
 
-**33 zero. UN RACCOURCI SANS SON MOT N'EST PAS UN RACCOURCI.**
+Et la leçon de l'étape 1, qui reste vraie : **un raccourci sans son mot n'est pas un raccourci.**
 Le bandeau d'un devis portait huit pictogrammes de 13 px, gris à 62 % d'opacité, expliqués par
 un seul `title` au survol. Nicolas ne s'en servait pas, et il l'a dit exactement : « c'est petit,
 beau, mais on n'a pas envie de cliquer, je ne vois pas trop ce que c'est ». Et **sur téléphone il
