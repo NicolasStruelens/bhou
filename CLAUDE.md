@@ -897,6 +897,45 @@ anthracite » est un RAL et « 135 — glissière de sécurité » une référen
 produit. Et `muets: ['Simple']` tait « Combinaison : Simple », qui n'apprend rien — la règle
 existait déjà dans `picking.html` (`VALEURS_MUETTES`) et devait suivre les volets dans la spec.
 
+**33. UN RACCOURCI SANS SON MOT N'EST PAS UN RACCOURCI.**
+Le bandeau d'un devis portait huit pictogrammes de 13 px, gris à 62 % d'opacité, expliqués par
+un seul `title` au survol. Nicolas ne s'en servait pas, et il l'a dit exactement : « c'est petit,
+beau, mais on n'a pas envie de cliquer, je ne vois pas trop ce que c'est ». Et **sur téléphone il
+n'y a pas de survol** : ils étaient muets par construction, là où ils servent le plus.
+Il en reste TROIS, et ils portent leur nom : Appeler · Écrire · Y aller — les gestes du terrain.
+Les six autres (document, fiche client, espace client, facture, planning, SAV) sont passés dans le
+menu ⋯, sous un intertitre « Aller à ».
+⚠️ Ils n'ont PAS été supprimés, et il ne faut pas le faire : ce sont de vrais raccourcis, et le
+menu ⋯ ne portait que « agir sur le devis ». Les deux listes sont COMPLÉMENTAIRES — une seule
+entrée était en double (« Devis / PDF »), et c'est la seule qui a disparu.
+⚠️ `.m-jp` ne porte plus de largeur FIXE : le carré de 32 px du bloc téléphone écrasait la
+pastille à libellé à 30 px de contenu pour 66 voulus. La cible tactile se tient en HAUTEUR
+(36 px), la largeur suit le mot. Et `flex: 0 0 auto`, sinon la rangée de méta la comprime.
+
+**33 bis. UNE COLONNE QUI PEUT GRANDIR DÉCALE TOUT CE QUI EST À CÔTÉ.**
+« C'est pas aligné » (Nicolas, capture à l'appui). La ligne centre ses trois colonnes
+verticalement, mais celle de droite était une PILE : le montant au-dessus, l'état de paiement en
+dessous. Dès qu'un badge existait, le bloc grandissait et le montant REMONTAIT par rapport à la
+pastille d'action — trois hauteurs sur la même ligne, et des lignes qui ne s'alignaient plus
+entre elles selon qu'elles portaient un badge ou non.
+L'état de paiement a rejoint la pastille d'action : ils disent la même chose (où en est ce
+dossier). La colonne de droite ne porte plus qu'UNE ligne — `⋯` + montant — donc sa hauteur est
+la même pour toutes les lignes (mesuré : 30 px partout, montants alignés au pixel).
+**La règle générale** : dans une rangée centrée verticalement, une colonne à hauteur variable
+désaligne ses voisines. Soit on fige sa hauteur, soit on l'aplatit sur une ligne.
+
+**33 ter. `flex-basis: auto` FAIT SAUTER UN ÉLÉMENT À LA LIGNE SUIVANTE AVANT DE LE RÉTRÉCIR.**
+Sur téléphone, le nom du client tombait à **60 px** — « Ecole… » — écrasé entre les badges et le
+montant. L'addition ne tombe pas : nom (~130) + badge (~46) + montant (~95) + ⋯ (38) dépassent les
+~310 px de la ligne, quoi qu'on rogne. Il faut donc que quelque chose descende, et **ce n'est pas
+le nom** : c'est lui qui identifie le dossier.
+`flex-wrap: wrap` sur la rangée du nom fait descendre le BADGE quand la place manque, et seulement
+alors. Mais avec `flex: 1 1 auto`, la base du nom vaut la largeur de son TEXTE (206 px) : en mode
+wrap, un élément dont la base dépasse la place restante part à la ligne suivante **avant** de se
+rétrécir — la pastille d'initiales restait donc seule sur sa ligne, le nom dessous. Vu à l'écran,
+invisible dans les mesures. `flex: 1 1 0` règle ça : base nulle, le nom reste à côté et s'ellipse.
+Résultat mesuré : 147–156 px pour le nom au lieu de 60.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
