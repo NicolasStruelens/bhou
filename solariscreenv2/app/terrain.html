@@ -540,7 +540,11 @@
             <input type="file" accept="image/*" capture="environment" multiple hidden onchange="addPhotos('${item._id}', this)">
           </label>
         </div>
-        <button class="btn btn-danger mt-4" style="width:100%;" onclick="removeCurrentItem()">${icon('trash', 14)} Retirer cette ouverture</button>
+        ${/* Dupliquer est AU-DESSUS de Retirer, et séparé de lui : ce sont les deux boutons
+             pleine largeur du bas de carte, et sur un téléphone tenu d'une main le pouce se
+             trompe de 8 px. Le destructeur reste le dernier, donc le plus bas. */ ''}
+        <button class="btn btn-ghost mt-4" style="width:100%;" onclick="dupliquerItemEtGo()">${icon('copy', 14)} Dupliquer cette ouverture</button>
+        <button class="btn btn-danger mt-3" style="width:100%;" onclick="removeCurrentItem()">${icon('trash', 14)} Retirer cette ouverture</button>
       </div>`;
     }
 
@@ -558,6 +562,32 @@
     };
     window.goToItem = function (i) { if (i < 0 || i >= state.items.length) return; currentItemIdx = i; renderItemsStep(); };
     window.addItemAndGo = function () { markDirty(); addItemSilent(); currentItemIdx = state.items.length - 1; renderItemsStep(); };
+
+    /**
+     * DUPLIQUER L'OUVERTURE AFFICHÉE, et se placer dessus.
+     * C'est ici que ça sert le plus : sur un chantier on mesure six fenêtres qui ne diffèrent
+     * que par deux chiffres, et retaper le configurateur VR150 au doigt, debout, est
+     * exactement le moment où l'on se trompe.
+     * Ce qu'une copie emporte est décidé dans `SSProducts.dupliquerOuverture` (règle 10) —
+     * la même règle que le simulateur, un seul endroit.
+     * ⚠️ La copie se range JUSTE APRÈS son original (et non en fin de liste) : les vignettes
+     * suivent l'ordre des ouvertures, et une variante doit rester côte à côte avec sa source.
+     * ⚠️ La largeur part sélectionnée : les mesures SONT copiées, donc rien ne signale à
+     * l'œil qu'il faut les revoir. Le premier chiffre à changer est sous le pouce.
+     */
+    window.dupliquerItemEtGo = function () {
+      const src = state.items[currentItemIdx];
+      if (!src) return;
+      const copie = SSProducts.dupliquerOuverture(src);
+      copie._id = 'it' + (++_uid);      // l'identité appartient à cette page, pas au module
+      markDirty();
+      state.items.splice(currentItemIdx + 1, 0, copie);
+      currentItemIdx = currentItemIdx + 1;
+      renderItemsStep();
+      const l = document.querySelector('.item-card [data-f="largeur"]');
+      if (l) { l.focus(); l.select(); }
+      toast('Ouverture dupliquée — vérifie les mesures.', 'ok');
+    };
     window.removeCurrentItem = function () {
       if (state.items.length <= 1) { toast('Il faut au moins une ouverture.', 'warn'); return; }
       markDirty();

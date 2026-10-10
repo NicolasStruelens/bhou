@@ -73,7 +73,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 106 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `tests/volet.test.html` | Les 120 tests du VR150 **et des règles d'ouverture partagées** (duplication). **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 
@@ -1098,6 +1098,35 @@ for f in app/*.html; do q=$(grep -c 'id="quickNav"' "$f"); m=$(grep -c 'SSNav.mo
 Une nouvelle page doit aussi : porter le `viewport`, le `manifest` et l'`apple-touch-icon` (sinon
 pas d'icône à l'ajout sur l'écran d'accueil), charger `ui.js` puis `nav.js`, et être déclarée
 dans `NAV_GROUPS` de `nav.js` — sans quoi on ne peut y arriver que par l'URL.
+
+**35. DUPLIQUER UNE OUVERTURE : ce qu'une copie emporte est une décision MÉTIER, pas un détail
+d'écran.** Sur une façade, les ouvertures ne diffèrent souvent que par deux chiffres — même RAL,
+même lame, même caisson, même moteur. Les ressaisir, c'est une quarantaine de champs pour deux
+mesures, et une occasion de se tromper à chaque champ. La règle vit dans
+`SSProducts.dupliquerOuverture` (règle 10) parce que **le simulateur ET le Mode Terrain
+dupliquent** : en deux exemplaires elle aurait divergé au premier champ ajouté au configurateur.
+⚠️ **La fonction ne POSE AUCUN `_id`, et c'est structurel.** Une copie qui garderait
+l'identifiant de son original se confondrait avec lui au premier `find`, et les deux ouvertures
+se modifieraient ensemble. En ne le produisant pas, l'oubli devient *impossible* au lieu d'être
+seulement déconseillé — c'est l'appelant qui doit en poser un pour que sa copie existe.
+⚠️ **Les photos ne suivent jamais.** Une photo documente UNE fenêtre précise ; recopiée, elle
+part sur le document client et sur la feuille de pose en désignant la mauvaise ouverture — pire
+qu'absente.
+⚠️ **Les mesures et le prix, EUX, se copient.** Deux fenêtres identiques sont le cas fréquent :
+les vider obligerait à retaper ce qu'on vient de dupliquer. Et un prix vidé seul laisserait des
+mesures sans prix, donc un devis faux en silence. **C'est à l'interface de mettre la largeur sous
+le curseur, pas à la donnée de disparaître** : la copie se range juste APRÈS son original et son
+champ largeur part sélectionné, pour que corriger soit le geste par défaut.
+⚠️ **La copie est PROFONDE.** Un tableau partagé entre l'original et sa copie se modifierait des
+deux côtés à la fois, et personne ne le verrait avant de relire le devis enregistré —
+c'est-à-dire chez le client.
+⚠️ **`selectionStart` vaut `null` sur un `input[type=number]`** : une assertion écrite dessus
+répond toujours « non sélectionné », même quand ça marche. La sélection se vérifie en TAPANT
+vraiment au clavier et en regardant si la valeur est remplacée ou allongée. Encore un cas où il
+faut rejouer le GESTE, pas l'API.
+⚠️ Et un piège de méthode : remplir un `<select>` avec une valeur qui n'est pas dans ses options
+échoue **en silence** (`e.value` reste vide). Un essai écrit comme ça « passe » en ne prouvant
+rien — toujours comparer `e.value` à ce qu'on a voulu poser après l'avoir posé.
 
 ## Pièges déjà payés — ne pas les repayer
 

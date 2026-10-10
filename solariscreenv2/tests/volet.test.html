@@ -433,6 +433,59 @@
       })
       .then(resultat);
 
+    // ══════════ J. DUPLIQUER UNE OUVERTURE (tous types, pas seulement le VR150) ══════════
+    titre('J. Dupliquer une ouverture');
+
+    const source = {
+      _id: 'it7', type: 'volet_roulant', quantite: 2,
+      largeur: 1200, hauteur: 2100, prix_catalogue_ht: 845.5,
+      couleur: 'RAL 7016', lame_finale_couleur: 'RAL 7016', couleur_coulisses: 'RAL 7016',
+      lame_type: 'AEP55', caisson_mesure: 137, moteur: 'Solar', emplacement: 'Salon',
+      notes: 'Pose en applique', photos: ['https://ex/1.jpg', 'https://ex/2.jpg'],
+    };
+    const copie = P.dupliquerOuverture(source);
+
+    /* ⚠️ L'IDENTIFIANT N'EST PAS « VIDÉ », IL EST ABSENT. Une copie qui porterait encore `_id`
+       (même à vide) se confondrait avec son original au premier `find`, et les deux ouvertures
+       se modifieraient ensemble. On vérifie donc l'ABSENCE de la clé, pas sa valeur : c'est ce
+       qui oblige l'appelant à en poser un. */
+    check('copie : aucun identifiant', 'copie a _id = ' + ('_id' in copie), 'copie a _id = false');
+    check('copie : aucune photo', copie.photos, []);
+    check('original : ses photos intactes', source.photos.length, 2);
+
+    // Tout le reste suit, specs ET mesures ET prix : c'est tout l'intérêt.
+    check('copie : le RAL suit', copie.couleur, 'RAL 7016');
+    check('copie : les champs VR150 suivent',
+      [copie.lame_type, copie.caisson_mesure, copie.moteur], ['AEP55', 137, 'Solar']);
+    check('copie : les mesures suivent', [copie.largeur, copie.hauteur], [1200, 2100]);
+    check('copie : le prix catalogue suit', copie.prix_catalogue_ht, 845.5);
+    check('copie : la quantité suit', copie.quantite, 2);
+    check('copie : les notes suivent', copie.notes, 'Pose en applique');
+
+    /* ⚠️ LA COPIE DOIT ÊTRE PROFONDE. Un tableau partagé entre l'original et sa copie se
+       modifierait des DEUX côtés à la fois — et ça ne se verrait qu'en relisant le devis
+       enregistré, c'est-à-dire chez le client. Le test pousse sur la copie et vérifie que
+       l'original n'a pas bronché. */
+    const avecTableau = P.dupliquerOuverture({ type: 'screen', accessoires: [{ ref: 'A1' }] });
+    avecTableau.accessoires.push({ ref: 'A2' });
+    const original2 = { type: 'screen', accessoires: [{ ref: 'A1' }] };
+    const copie2 = P.dupliquerOuverture(original2);
+    copie2.accessoires[0].ref = 'MODIFIE';
+    check('copie profonde : l’original ne bouge pas', original2.accessoires[0].ref, 'A1');
+
+    // Une copie reste une ouverture valide : les mêmes champs manquent des deux côtés.
+    check('copie : mêmes champs bloquants que l’original',
+      P.champsManquants(copie).map(x => x.k), P.champsManquants(source).map(x => x.k));
+
+    // Aucun appelant ne doit avoir à se protéger : une ouverture absente donne un objet vide,
+    // pas une exception au milieu d'un rendu de liste.
+    check('copie d’un item vide : objet utilisable', P.dupliquerOuverture(null), { photos: [] });
+    check('copie : photos TOUJOURS un tableau',
+      Array.isArray(P.dupliquerOuverture({ type: 'screen' }).photos), true);
+
+    // Le contrat lui-même, pour que l'ajout d'une exclusion soit un choix conscient.
+    check('contrat : la liste des exclusions', P.COPIE_JAMAIS.slice().sort(), ['_id', 'photos']);
+
     // ══════════ Résultat (sans le contrôle serveur, si le fetch échoue avant) ══════════
     // Premier rendu immédiat : si le contrôle serveur tarde, la page n'est pas vide.
     resultat();
