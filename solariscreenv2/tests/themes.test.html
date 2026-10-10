@@ -193,16 +193,219 @@
     document.documentElement.setAttribute('data-theme', themeAvant);
     sonde.remove();
 
-    document.getElementById('out').innerHTML =
-      '<h2>Relevé par thème</h2><table><tr><th>Thème</th><th>texte / fond</th><th>texte / carte</th>' +
-      '<th>secondaire</th><th>labels</th><th>marque</th><th>ΔE familles</th><th>ΔE statuts</th></tr>' +
-      mesures.join('') + '</table>' +
-      '<h2>Détail</h2><table><tr><th>Cas</th><th>Mesure</th><th>—</th></tr>' + rows.join('') + '</table>';
-    const total = pass + fail;
-    document.getElementById('summary').innerHTML = fail === 0
-      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
-      : '<span class="fail">' + fail + ' ÉCHEC(S)</span> sur ' + total;
-    document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests thèmes';
+    /* ══════════ 4. LE DÉFAUT DE LA SOCIÉTÉ — appareil → société → système ══════════
+       Ce que ces cas gardent (branché le 10/10/2026, PR « theme_defaut ») :
+       `affichage.theme_defaut` était déclaré dans `config.js`, affiché et enregistrable dans
+       Paramètres… et AUCUN code ne le lisait. Le choix était sans effet, en silence.
+       ⚠️ ET LA CAUSE PROFONDE ÉTAIT AILLEURS : `applyTheme` enregistrait `ss_theme` même quand
+       c'est le code qui applique le thème, pas l'utilisateur. AFFICHER UNE PAGE VALAIT DONC
+       CHOIX, et masquait tout défaut de société dès la page suivante. Le cas
+       « une application automatique n'enregistre rien » ci-dessous est celui qui tient ça.
+
+       ⚠️ CETTE SUITE PARTAGE LE `localStorage` DE L'ERP (même origine). Elle écrit donc des
+       réglages et des thèmes pour mesurer, et DOIT tout remettre : d'où `AVANT` / `rendre()`.
+       Sans ça, ouvrir les tests changerait le thème de l'ERP — et on chercherait pourquoi. */
+    const CLES_TOUCHEES = ['ss_theme', 'ss_theme_clair', 'ss_theme_sombre', 'ss_reglages'];
+    const AVANT = {};
+    CLES_TOUCHEES.forEach(function (k) { AVANT[k] = localStorage.getItem(k); });
+    function rendre() {
+      CLES_TOUCHEES.forEach(function (k) {
+        if (AVANT[k] === null) localStorage.removeItem(k); else localStorage.setItem(k, AVANT[k]);
+      });
+      document.documentElement.setAttribute('data-theme', themeAvant);
+    }
+
+    // Les attendus se DÉDUISENT de la table, jamais recopiés : ajouter un thème en tête de
+    // famille doit faire bouger ces cas, pas les faire mentir (règle 29).
+    const PREMIER_CLAIR = T.THEMES.filter(t => t.clair)[0].id;
+    const PREMIER_SOMBRE = T.THEMES.filter(t => !t.clair)[0].id;
+    const SYS_CLAIR = matchMedia('(prefers-color-scheme: light)').matches;
+    const THEME_SYSTEME = SYS_CLAIR ? PREMIER_CLAIR : PREMIER_SOMBRE;
+    /* ⚠️ ON MESURE AVEC LA FAMILLE OPPOSÉE À CELLE DU SYSTÈME, toujours. Un réglage « clair »
+       sur une machine qui préfère déjà le clair donnerait le bon thème même si le réglage
+       n'était pas lu du tout : le cas passerait au vert sans rien prouver. C'est précisément
+       l'erreur qui a laissé croire pendant des semaines que ce réglage fonctionnait. */
+    const FAMILLE_OPPOSEE = SYS_CLAIR ? 'sombre' : 'clair';
+    const THEME_OPPOSE = SYS_CLAIR ? PREMIER_SOMBRE : PREMIER_CLAIR;
+
+    const poser = (v) => localStorage.setItem('ss_reglages',
+      v === undefined ? '{}' : JSON.stringify({ affichage: { theme_defaut: v } }));
+    const oublier = () => localStorage.removeItem('ss_theme');
+
+    try {
+      // ── La valeur serveur se lit, et une valeur abîmée ne casse rien ──────────────────────
+      oublier(); poser('clair');
+      check('le défaut de la société se LIT (clair)', T.familleSociete() === 'clair', T.familleSociete());
+      poser('sombre');
+      check('le défaut de la société se LIT (sombre)', T.familleSociete() === 'sombre', T.familleSociete());
+      poser('bleu');
+      check('une valeur serveur inconnue retombe sur « système »', T.familleSociete() === 'systeme', T.familleSociete());
+      localStorage.setItem('ss_reglages', '{ ceci n’est pas du JSON');
+      check('un cache de réglages abîmé retombe sur « système »', T.familleSociete() === 'systeme', T.familleSociete());
+      localStorage.removeItem('ss_reglages');
+      check('pas de réglages du tout : « système »', T.familleSociete() === 'systeme', T.familleSociete());
+
+      // ── Une FAMILLE se résout en thème PAR LA TABLE, pas par une liste recopiée ───────────
+      poser('clair');
+      check('« clair » donne le premier thème CLAIR de la table', T.themeSociete() === PREMIER_CLAIR,
+        T.themeSociete() + ' (attendu ' + PREMIER_CLAIR + ')');
+      poser('sombre');
+      check('« sombre » donne le premier thème SOMBRE de la table', T.themeSociete() === PREMIER_SOMBRE,
+        T.themeSociete() + ' (attendu ' + PREMIER_SOMBRE + ')');
+      poser('systeme');
+      check('« système » suit prefers-color-scheme', T.themeSociete() === THEME_SYSTEME,
+        T.themeSociete() + ' — le système préfère le ' + (SYS_CLAIR ? 'clair' : 'sombre'));
+
+      // ── Appareil sans choix : il suit. Appareil qui a choisi : il garde ───────────────────
+      poser(FAMILLE_OPPOSEE); oublier();
+      check('un appareil qui n’a jamais choisi SUIT la société', T.suitLaSociete() && T.getTheme() === THEME_OPPOSE,
+        T.getTheme() + ' (société ' + FAMILLE_OPPOSEE + ')');
+      const GARDE = SYS_CLAIR ? PREMIER_CLAIR : PREMIER_SOMBRE;   // l'inverse du défaut posé
+      localStorage.setItem('ss_theme', GARDE);
+      check('un appareil qui a choisi GARDE son choix', !T.suitLaSociete() && T.getTheme() === GARDE,
+        T.getTheme() + ' malgré un défaut de société à ' + FAMILLE_OPPOSEE);
+      check('… et on ne le réaligne pas de force', T.suivreLaSociete() === null, 'suivreLaSociete() → null');
+
+      /* ── LE CŒUR DU CORRECTIF ──────────────────────────────────────────────────────────────
+         Une application AUTOMATIQUE n'enregistre rien. Si ce cas tombe, le défaut de la société
+         redevient mort : la première page vue écrirait un choix, et plus rien ne pourrait
+         l'écraser — pas même un appareil tout neuf. */
+      oublier(); poser(FAMILLE_OPPOSEE);
+      T.applyTheme(THEME_OPPOSE, false);
+      check('une application AUTOMATIQUE n’enregistre pas de choix',
+        localStorage.getItem('ss_theme') === null && T.suitLaSociete(),
+        'ss_theme = ' + JSON.stringify(localStorage.getItem('ss_theme')));
+      check('… mais elle pose bien le thème sur la page',
+        document.documentElement.getAttribute('data-theme') === THEME_OPPOSE, THEME_OPPOSE);
+      T.applyTheme(GARDE);
+      check('un choix EXPLICITE, lui, s’enregistre',
+        localStorage.getItem('ss_theme') === GARDE && !T.suitLaSociete(), 'ss_theme = ' + GARDE);
+
+      // ── LE CHEMIN DU RETOUR ──────────────────────────────────────────────────────────────
+      check('« Comme la société » n’est NI un thème NI une famille',
+        !T.THEMES.some(t => t.id === T.SUIVRE) && !T.FAMILLES.some(f => f.id === T.SUIVRE), T.SUIVRE);
+      T.regler(T.SUIVRE);
+      check('« Comme la société » EFFACE la préférence de l’appareil',
+        localStorage.getItem('ss_theme') === null && T.suitLaSociete() && T.getTheme() === THEME_OPPOSE,
+        T.getTheme());
+      T.regler(GARDE);
+      check('choisir un thème au sélecteur l’enregistre', localStorage.getItem('ss_theme') === GARDE, GARDE);
+
+      // ── PAS DE CLIGNOTEMENT INUTILE ───────────────────────────────────────────────────────
+      oublier(); poser(FAMILLE_OPPOSEE);
+      document.documentElement.setAttribute('data-theme', THEME_OPPOSE);
+      check('déjà juste : on ne repose RIEN (pas de clignotement)', T.suivreLaSociete() === null,
+        'suivreLaSociete() → null sur ' + THEME_OPPOSE);
+      document.documentElement.setAttribute('data-theme', GARDE);
+      check('valeur devenue autre : on repose', T.suivreLaSociete() === THEME_OPPOSE,
+        GARDE + ' → ' + THEME_OPPOSE);
+    } finally {
+      rendre();
+    }
+
+    /* ══════════ 5. LE PREMIER RENDU, MESURÉ SUR UN VRAI CHARGEMENT ══════════
+       ⚠️ CECI NE PEUT PAS SE MESURER DEPUIS CETTE PAGE : `theme.js` y a tourné au chargement,
+       avec le localStorage de ce moment-là. On charge donc `amorce-theme.html` dans une
+       <iframe>, localStorage préparé, et on lit les trois relevés qu'elle prend : le `<head>`
+       (ce que l'œil voit en premier), la fin du document, et l'après-réglages.
+       `tot === domReady === apresReglages` ⇒ l'écran n'a pas clignoté. Trois valeurs comparées,
+       pas une impression. */
+    function amorcer(cles, serveur) {
+      CLES_TOUCHEES.forEach(function (k) { localStorage.removeItem(k); });
+      Object.keys(cles).forEach(function (k) { localStorage.setItem(k, cles[k]); });
+      return new Promise(function (ok) {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:fixed;left:-9999px;width:300px;height:200px';
+        let fini = false;
+        const rendreCompte = function (m) { if (fini) return; fini = true; f.remove(); ok(m || null); };
+        f.onload = function () {
+          const w = f.contentWindow;
+          const p = w && w.__pret;
+          if (!p) return rendreCompte(null);
+          p.then(function () { rendreCompte(Object.assign({}, w.__mesures)); }, function () { rendreCompte(null); });
+        };
+        setTimeout(function () { rendreCompte(null); }, 5000);   // une amorce muette doit ÉCHOUER, pas pendre
+        f.src = 'amorce-theme.html' + (serveur === undefined ? '' : '?serveur=' + encodeURIComponent(JSON.stringify(serveur)));
+        document.body.appendChild(f);
+      });
+    }
+
+    const releves = [];
+    function relever(nom, m) {
+      releves.push('<tr><td>' + nom + '</td><td>' + (m ? m.tot : '—') + '</td><td>' + (m ? m.domReady : '—') +
+        '</td><td>' + (m ? m.apresReglages : '—') + '</td><td><small>' +
+        (m && m.ecritures.length ? m.ecritures.join('<br>') : 'aucune') + '</small></td></tr>');
+    }
+
+    (async function () {
+      try {
+        const DEF = { affichage: { theme_defaut: FAMILLE_OPPOSEE } };
+
+        // A. Appareil jamais configuré, cache déjà en place (le cas de tous les jours).
+        const a = await amorcer({ ss_reglages: JSON.stringify(DEF) }, DEF);
+        relever('A — suit la société (' + FAMILLE_OPPOSEE + ')', a);
+        check('A : le défaut de la société est là DÈS LE PREMIER RENDU', !!a && a.tot === THEME_OPPOSE,
+          a ? a.tot + ' (attendu ' + THEME_OPPOSE + ')' : 'amorce muette');
+        check('A : et il ne change plus — AUCUN clignotement',
+          !!a && a.tot === a.domReady && a.domReady === a.apresReglages,
+          a ? [a.tot, a.domReady, a.apresReglages].join(' → ') : 'amorce muette');
+        check('A : afficher une page n’écrit AUCUN choix de thème',
+          !!a && !a.ecritures.some(e => e.indexOf('set ss_theme') === 0),
+          a ? (a.ecritures.join(' · ') || 'aucune écriture') : 'amorce muette');
+
+        // B. Appareil qui a choisi l'inverse du défaut : son choix doit tenir du premier pixel.
+        const garde = SYS_CLAIR ? PREMIER_CLAIR : PREMIER_SOMBRE;
+        const b = await amorcer({ ss_reglages: JSON.stringify(DEF), ss_theme: garde }, DEF);
+        relever('B — a choisi ' + garde, b);
+        check('B : le choix de l’appareil tient au premier rendu', !!b && b.tot === garde,
+          b ? b.tot + ' (attendu ' + garde + ')' : 'amorce muette');
+        check('B : et la société ne vient pas l’écraser ensuite',
+          !!b && b.tot === b.domReady && b.domReady === b.apresReglages,
+          b ? [b.tot, b.domReady, b.apresReglages].join(' → ') : 'amorce muette');
+
+        /* C. TOUT PREMIER DÉMARRAGE : aucun cache, la valeur n'existe qu'au serveur.
+           ⚠️ C'EST LE SEUL CAS QUI CLIGNOTE, et c'est irréductible : on ne peut pas connaître
+           une valeur qui vit au serveur avant que le réseau ait répondu. Il n'arrive qu'une
+           fois par navigateur. Ce qu'on mesure ici, c'est que le rattrapage A BIEN LIEU —
+           sans lui, il faudrait recharger la page pour voir le style de la maison. */
+        const c = await amorcer({}, DEF);
+        relever('C — tout premier démarrage', c);
+        check('C : premier démarrage — rattrapage une fois les réglages arrivés',
+          !!c && c.apresReglages === THEME_OPPOSE,
+          c ? c.tot + ' → ' + c.apresReglages + ' (attendu ' + THEME_OPPOSE + ')' : 'amorce muette');
+        check('C : et le premier rendu part du système, pas de rien',
+          !!c && c.tot === THEME_SYSTEME, c ? c.tot : 'amorce muette');
+
+        // D. Réglage serveur abîmé : on retombe sur le système, sans clignoter.
+        const d = await amorcer({ ss_reglages: JSON.stringify({ affichage: { theme_defaut: 'turquoise' } }) });
+        relever('D — réglage serveur abîmé', d);
+        check('D : un réglage abîmé donne le système, sans clignotement',
+          !!d && d.tot === THEME_SYSTEME && d.tot === d.apresReglages,
+          d ? [d.tot, d.domReady, d.apresReglages].join(' → ') : 'amorce muette');
+      } finally {
+        rendre();
+      }
+      terminer();
+    })();
+
+    function terminer() {
+      document.getElementById('out').innerHTML =
+        '<h2>Relevé par thème</h2><table><tr><th>Thème</th><th>texte / fond</th><th>texte / carte</th>' +
+        '<th>secondaire</th><th>labels</th><th>marque</th><th>ΔE familles</th><th>ΔE statuts</th></tr>' +
+        mesures.join('') + '</table>' +
+        '<h2>Premier rendu, mesuré sur un vrai chargement</h2>' +
+        '<p class="note">« au plus tôt » est lu dans le <code>&lt;head&gt;</code>, juste après ' +
+        '<code>theme.js</code> : c\'est ce que l\'œil voit en premier. Trois colonnes identiques ' +
+        '⇒ pas de clignotement.</p>' +
+        '<table><tr><th>Cas</th><th>au plus tôt</th><th>fin du document</th><th>après réglages</th>' +
+        '<th>écritures dans localStorage</th></tr>' + releves.join('') + '</table>' +
+        '<h2>Détail</h2><table><tr><th>Cas</th><th>Mesure</th><th>—</th></tr>' + rows.join('') + '</table>';
+      const total = pass + fail;
+      document.getElementById('summary').innerHTML = fail === 0
+        ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+        : '<span class="fail">' + fail + ' ÉCHEC(S)</span> sur ' + total;
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests thèmes';
+    }
   </script>
 </body>
 </html>

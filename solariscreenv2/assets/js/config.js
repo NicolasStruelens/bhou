@@ -50,7 +50,11 @@
       kpi_replies: false,               // chiffres du haut repliés par défaut
     },
     affichage: {
-      theme_defaut: 'systeme',   // 'clair' | 'sombre' | 'systeme'
+      /* LE STYLE DE LA MAISON pour le THÈME. Trois valeurs, et ce sont des FAMILLES, pas des
+         identifiants de thème : 'clair' → le premier thème clair de `SSTheme.THEMES`, 'sombre'
+         → le premier sombre, 'systeme' → `prefers-color-scheme`. La liste fait foi dans
+         `SSTheme.FAMILLES` ; Paramètres construit son menu à partir d'elle. */
+      theme_defaut: 'systeme',   // 'clair' | 'sombre' | 'systeme' — voir SSTheme.FAMILLES
       /* LE STYLE DE LA MAISON pour la mise en lumière des champs à remplir (`signal.js`).
          ⚠️ C'est un DÉFAUT, pas une consigne : il s'applique à tout appareil qui n'a jamais
          choisi, et un appareil qui choisit garde son choix. Demandé par Nicolas le 10/10/2026
@@ -102,6 +106,12 @@
     },
   };
 
+  /* ⚠️ NE PAS RENOMMER CETTE CLÉ SEULE. `theme.js` la lit DIRECTEMENT, sans passer par
+     `SSConf` : il est chargé dans le `<head>`, donc avant ce fichier, et il a besoin du défaut
+     de thème de la société au tout premier rendu pour ne pas clignoter. Elle est donc écrite en
+     double, ici et dans `CLE_REGLAGES` de `theme.js`, et les deux doivent rester identiques.
+     Les renommer d'un seul côté ne casse rien de visible : le thème retomberait simplement sur
+     `prefers-color-scheme`, en silence. C'est exactement le défaut corrigé le 10/10/2026. */
   const CLE_CACHE = 'ss_reglages';
   let charge = null;   // promesse de chargement, une seule par page
 
@@ -131,6 +141,19 @@
   }
   function ecrireCache(o) {
     try { localStorage.setItem(CLE_CACHE, JSON.stringify(o)); } catch (e) {}
+    /* ⚠️ LE THÈME SE LIT AVANT QUE CE FICHIER N'EXISTE, donc c'est à nous de le prévenir.
+       `theme.js` est chargé dans le `<head>` — avant `config.js`, qui vit en fin de page — pour
+       éviter le clignotement de thème au chargement. Il lit donc `ss_reglages` directement, et
+       il ne peut pas savoir tout seul que le cache vient de changer.
+       Sans cet appel, deux écrans faux : l'appareil qui vient d'ENREGISTRER un nouveau défaut de
+       société ne le verrait pas (il croirait que son enregistrement n'a rien fait), et un
+       appareil qui ouvre l'ERP pour la PREMIÈRE fois garderait le thème du système jusqu'au
+       prochain rechargement complet.
+       `suivreLaSociete()` ne touche rien si l'appareil a choisi son thème, ni si la valeur
+       effective ne change pas : c'est ce qui évite un clignotement à chaque page. */
+    if (window.SSTheme && window.SSTheme.suivreLaSociete) {
+      try { window.SSTheme.suivreLaSociete(); } catch (e) {}
+    }
   }
 
   /** Réglages utilisables TOUT DE SUITE, sans attendre le réseau (cache local, sinon défauts).
