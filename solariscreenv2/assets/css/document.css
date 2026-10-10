@@ -72,6 +72,40 @@ body { background: var(--bg); }
 .totals .t-ttc .k { font-family: var(--font-display); text-transform: uppercase; font-size: var(--fs-sm); letter-spacing: 0.05em; }
 .totals .t-ttc .v { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; }
 
+/* ═══ LE BLOC D'ARGENT : LES TOTAUX À DROITE, LE PAIEMENT À CÔTÉ ═══
+   Les totaux occupent 320 px à droite et le rappel d'acompte s'écrivait DESSOUS, sur toute la
+   largeur : il restait donc un quart de page vide à gauche des totaux, juste avant la zone la
+   plus regardée du document. Retour de Nicolas, 10/10/2026 : « il faut vraiment que le devis
+   soit plus joli, c'est trop important ». Mis côte à côte, le vide disparaît ET le document
+   gagne ~70 px — ce qui compte sur un gros devis, où chaque bloc rapproche la page suivante.
+
+   ⚠️ UN FLOTTANT, ET PAS UNE GRILLE, parce qu'il ne faut toucher AUCUN des deux gabarits.
+   Le document existe en deux exemplaires (`app/devis.html` et `devis-review.html`, règle 7) et
+   le rappel de paiement y vit à l'intérieur d'un ternaire à trois branches (devis, dépannage
+   réalisé, dépannage proposé). Les envelopper demanderait six modifications de gabarit pour un
+   résultat que trois lignes de style obtiennent — et six occasions de faire diverger les deux
+   documents que le MÊME client lit.
+   ⚠️ `overflow: hidden` sur le voisin n'est pas un rognage : c'est ce qui en fait un contexte
+   de formatage à part, donc un bloc qui occupe la place RESTANTE au lieu de passer sous le
+   flottant. Sans lui, le texte s'enroulerait autour des totaux — illisible.
+   ⚠️ `clear: both` sur ce qui suit est OBLIGATOIRE : sans lui, la ligne de validité et les
+   partenaires remonteraient à côté des totaux, et le pied de page passerait dessous.
+   ⚠️ Et quand il n'y a PAS de rappel de paiement (estimation non contractuelle), rien ne
+   change : le flottant reste à droite et le `clear` fait descendre la suite normalement. */
+.totals { float: right; width: 320px; max-width: 100%; margin-left: var(--sp-5); }
+.totals .box { width: 100%; }
+.totals + .pay-note { overflow: hidden; margin-top: var(--sp-5); }
+.doc-ref, .terms, .partners, .signatures, .doc-foot { clear: both; }
+
+/* Sous 560 px il n'y a pas la place pour deux colonnes : le rappel tomberait à ~90 px de large.
+   On rend la pile, qui est la bonne mise en page à cette largeur. À l'impression on est
+   toujours en A4, donc cette règle ne s'applique jamais sur le PDF. */
+@media screen and (max-width: 560px) {
+  .totals { float: none; width: auto; margin-left: 0; }
+  .totals .box { margin-left: auto; }
+  .totals + .pay-note { overflow: visible; }
+}
+
 /* ═══ RAPPORT D'INTERVENTION (dépannage) ═══
    Ce qui distingue un bon d'intervention d'une simple facture : quand, qui, ce que le client
    signalait, ce qu'on a trouvé. Placé AVANT le tableau — on raconte, puis on chiffre.
@@ -138,7 +172,11 @@ body { background: var(--bg); }
 .cgv-body { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.55; margin-top: var(--sp-5); }
 .cgv-body h5 { font-family: var(--font-display); font-size: var(--fs-sm); color: var(--text); margin: var(--sp-3) 0 0.25rem; }
 .cgv-body h5:first-child { margin-top: 0; }
-.doc-ref { text-align: center; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-4); }
+/* ⚠️ `text-wrap: balance` équilibre les lignes au lieu de remplir la première à ras bord :
+   sans lui, cette ligne centrée laissait le seul mot « annexe » sur une deuxième ligne,
+   juste sous le total — l'endroit le plus regardé du document. Un mot orphelin au centre
+   d'une page, ça se voit avant le texte qu'il termine. */
+.doc-ref { text-align: center; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-4); text-wrap: balance; }
 .photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-4); }
 .photo-item { border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
 .photo-item img { width: 100%; height: 220px; object-fit: cover; display: block; }
@@ -181,6 +219,15 @@ body { background: var(--bg); }
   /* Un intitulé de catégorie (« FOURNITURES », « PRESTATIONS ») ne doit pas rester seul en bas
      d'une page, sa première ligne renvoyée à la suivante. */
   .doc-table tbody tr.cat-row { page-break-after: avoid; break-after: avoid; }
+  /* ⚠️ L'ENCADRÉ DE CONFIGURATION NE QUITTE PAS SA LIGNE. Mesuré sur un devis de huit
+     ouvertures : la ligne 7 tombait en bas de page et son encadré ouvrait la page suivante,
+     seul, sans le produit qu'il décrit. C'est pire depuis qu'un encadré peut couvrir PLUSIEURS
+     ouvertures (« ouvertures 4 à 6 ») : détaché, il décrit des lignes qu'on ne voit plus.
+     ⚠️ Limite connue et assumée : ça le colle à sa DERNIÈRE ligne, pas au groupe entier. Les
+     premières lignes d'un groupe peuvent donc rester sur la page précédente — l'encadré les
+     nomme (« ouvertures 4 à 6 »), donc on sait de quoi il parle. Garder un groupe entier
+     demanderait un `tbody` par groupe, ce qui casserait le zebrage et la numérotation. */
+  .doc-table tbody tr.spec-row { page-break-before: avoid; break-before: avoid; }
   .annex { page-break-before: always; margin-top: 0; }
   .annex .paper { margin: 0; }
   .annex .paper + .paper { page-break-before: always; margin-top: 0; }

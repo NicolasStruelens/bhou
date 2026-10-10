@@ -486,6 +486,71 @@
     // Le contrat lui-même, pour que l'ajout d'une exclusion soit un choix conscient.
     check('contrat : la liste des exclusions', P.COPIE_JAMAIS.slice().sort(), ['_id', 'photos']);
 
+    // ══════════ K. UN SEUL ENCADRÉ POUR DES OUVERTURES IDENTIQUES ══════════
+    titre('K. Regroupement des configurations identiques');
+
+    /* Demande de Nicolas, 10/10/2026 : sur un vrai devis, deux VR150 d'une même façade
+       produisaient deux encadrés identiques MOT POUR MOT, 92 pt chacun. */
+    const BASE = {
+      type: 'volet_roulant', largeur: 1095, hauteur: 2275,
+      lame_type: 'alu237', couleur_lame: '03 — 8028 Brun', caisson_mesure: '180',
+      alimentation: 'Solaire', moteur: 'Solar Pure (solaire)', couleur: 'RAL 7016',
+    };
+    const vr150 = (o) => Object.assign({}, BASE, o || {});
+    const grp = (items) => window.SSVolet.groupesConfig(items);
+    const SV = window.SSVolet;
+
+    const deuxPareils = [vr150(), vr150()];
+    check('deux identiques : un seul encadré', grp(deuxPareils).length, 1);
+    check('… et il couvre les deux lignes', grp(deuxPareils)[0].indices, [0, 1]);
+    check('… et il le dit', SV.titreGroupe([0, 1]), 'ouvertures 1 et 2');
+
+    /* ⚠️ LE PRIX ET LES DIMENSIONS NE COMPTENT PAS : ils vivent sur la ligne de produit, pas
+       dans l'encadré. Deux fenêtres de tailles différentes peuvent partager une configuration
+       — c'était déjà le cas sur le devis Kerremans (mêmes options, prix différents). */
+    const taillesDifferentes = [vr150({ largeur: 900, prix_catalogue_ht: 1123.1 }),
+                                vr150({ largeur: 1400, prix_catalogue_ht: 1104.1 })];
+    check('tailles et prix différents : regroupés quand même', grp(taillesDifferentes).length, 1);
+
+    /* ⚠️ … MAIS UNE SEULE OPTION QUI DIFFÈRE SÉPARE. C'est le sens même de l'encadré : il dit
+       ce que le client va recevoir. Fusionner deux configurations qui ne sont pas identiques
+       ferait signer pour un produit qu'on ne livrera pas. */
+    const uneOptionDiffere = [vr150(), vr150({ couleur_lame: '90 — 9005 Noir' })];
+    check('une option diffère : deux encadrés', grp(uneOptionDiffere).length, 2);
+    check('… et chacun ne couvre que sa ligne',
+      grp(uneOptionDiffere).map(g => g.indices), [[0], [1]]);
+    check('un encadré seul n’est pas intitulé', SV.titreGroupe([0]), '');
+
+    /* ⚠️ CONSÉCUTIVES SEULEMENT. Un encadré posé sous la ligne 3 mais couvrant aussi la 1
+       obligerait à remonter PAR-DESSUS l'encadré de la ligne 2 : on gagnerait du papier en
+       perdant la lecture. En pratique ça ne coûte rien — une ouverture dupliquée se range
+       juste après son original (règle 35), donc les identiques sont déjà voisines. */
+    const separees = [vr150(), vr150({ moteur: 'Primo (filaire, sans télécommande)' }), vr150()];
+    check('identiques mais séparées : pas de fusion', grp(separees).map(g => g.indices), [[0], [1], [2]]);
+
+    /* En revanche, une ouverture SANS encadré (un screen, un tablier) n'insère rien entre les
+       deux volets : la lecture reste continue, donc elle ne doit pas casser le groupe. */
+    const avecUnScreen = [vr150(), { type: 'screen', largeur: 1000, hauteur: 1000 }, vr150()];
+    check('un screen au milieu : les volets restent groupés', grp(avecUnScreen).map(g => g.indices), [[0, 2]]);
+    check('… et l’intitulé nomme les deux vraies lignes', SV.titreGroupe([0, 2]), 'ouvertures 1 et 3');
+
+    // Trois et plus : on écrit une plage, pas une énumération.
+    check('trois identiques : un encadré', grp([vr150(), vr150(), vr150()])[0].indices, [0, 1, 2]);
+    check('… intitulé en plage', SV.titreGroupe([0, 1, 2]), 'ouvertures 1 à 3');
+
+    // Rien à décrire = aucun groupe, donc aucun encadré vide sur le document.
+    check('aucune ouverture : aucun groupe', grp([]).length, 0);
+    check('que des screens : aucun groupe',
+      grp([{ type: 'screen', largeur: 1 }, { type: 'screen', largeur: 2 }]).length, 0);
+
+    /* ⚠️ LA COMPARAISON PORTE SUR L'ENCADRÉ AFFICHÉ, PAS SUR L'OBJET. Deux ouvertures peuvent
+       différer par des champs que le client ne voit pas (`client: false` — perçage, rivets) et
+       présenter le même encadré. C'est l'encadré qu'on dédoublonne, donc c'est lui qu'on
+       compare : sinon deux cadres identiques resteraient côte à côte sans raison visible. */
+    const memeCadreAutreInterne = [vr150(), vr150({ coulisse_percage: 'A168' })];
+    check('un champ interne diffère : même encadré, donc regroupés',
+      grp(memeCadreAutreInterne).length, 1);
+
     // ══════════ Résultat (sans le contrôle serveur, si le fetch échoue avant) ══════════
     // Premier rendu immédiat : si le contrôle serveur tarde, la page n'est pas vide.
     resultat();

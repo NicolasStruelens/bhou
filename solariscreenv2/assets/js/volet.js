@@ -308,12 +308,79 @@
     return !!neuf;
   }
 
+  /* ── REGROUPER LES OUVERTURES QUI PARTAGENT LA MÊME CONFIGURATION ───────────────────
+     Demande de Nicolas, 10/10/2026 : « quand c'est la même config exacte, que l'encadré soit
+     un seul en dessous des deux, ça permet de gagner de la place ».
+     Sur un vrai devis (Kerremans, deux VR150 d'une même façade), les deux encadrés étaient
+     identiques MOT POUR MOT et pesaient 92 pt chacun : 184 pt de papier pour une information
+     écrite deux fois. Et un client qui lit deux fois la même chose cesse de la lire.
+
+     ⚠️ ON NE REGROUPE QUE DES OUVERTURES CONSÉCUTIVES, et c'est un choix, pas une limite
+     technique. Un encadré posé sous la ligne 3 mais qui couvrirait aussi la ligne 1 obligerait
+     à remonter par-dessus l'encadré de la ligne 2 pour comprendre — on gagnerait du papier en
+     perdant la lecture. Et ça ne coûte rien en pratique : on saisit les ouvertures façade par
+     façade, et surtout **une ouverture DUPLIQUÉE se range juste après son original** (règle 35),
+     donc les identiques sont déjà voisines par construction.
+
+     ⚠️ LA COMPARAISON PORTE SUR LE RÉSUMÉ AFFICHÉ, pas sur l'objet. Deux ouvertures peuvent
+     différer par des champs que le client ne voit pas (perçage, rivets, embouts : `client:
+     false`) et présenter exactement le même encadré. C'est bien l'ENCADRÉ qu'on dédoublonne,
+     donc c'est lui qu'on compare — comparer les objets laisserait deux cadres identiques côte
+     à côte sans que personne ne comprenne pourquoi.
+     ⚠️ Et jamais les DIMENSIONS ni le PRIX : ils vivent sur la ligne de produit, pas dans
+     l'encadré. Deux fenêtres de tailles différentes peuvent partager une configuration. */
+
+  function signatureResume(lignes) {
+    return JSON.stringify((lignes || []).map(function (x) {
+      return x.coche ? ['c', x.l] : ['v', x.l, x.v];
+    }));
+  }
+
+  /**
+   * @returns {Array} un groupe par encadré à rendre :
+   *   `{ indices: [0, 1], resume: […] }` — `indices` est 0-basé sur `items`.
+   * Une ouverture sans rien à décrire n'apparaît dans AUCUN groupe : elle n'a pas d'encadré,
+   * et elle ne doit pas non plus couper un groupe en deux (un screen posé entre deux volets
+   * identiques ne doit pas empêcher leur regroupement — il n'insère aucun encadré entre eux,
+   * donc la lecture reste continue).
+   */
+  function groupesConfig(items, niveau) {
+    const out = [];
+    let dernierDecrit = -2;     // index de la dernière ouverture AYANT un encadré
+    (items || []).forEach(function (it, i) {
+      const l = resume(it, niveau || 'client');
+      if (!l.length) return;
+      const sig = signatureResume(l);
+      const prec = out[out.length - 1];
+      if (prec && prec.signature === sig && dernierDecrit === prec.indices[prec.indices.length - 1]) {
+        prec.indices.push(i);
+      } else {
+        out.push({ signature: sig, indices: [i], resume: l });
+      }
+      dernierDecrit = i;
+    });
+    return out;
+  }
+
+  /**
+   * Comment l'encadré d'un groupe se nomme. Vide pour une seule ouverture : écrire
+   * « ouverture 1 » sous la ligne 1 n'apprend rien et alourdit la seule chose qu'on lit.
+   */
+  function titreGroupe(indices) {
+    const n = (indices || []).length;
+    if (n < 2) return '';
+    const a = indices[0] + 1, b = indices[n - 1] + 1;
+    return n === 2 ? 'ouvertures ' + a + ' et ' + b : 'ouvertures ' + a + ' à ' + b;
+  }
+
   window.SSVolet = {
     estVolet: estVolet,
     html: html,
     rafraichir: rafraichir,
     resume: resume,
     resumeTexte: resumeTexte,
+    groupesConfig: groupesConfig,
+    titreGroupe: titreGroupe,
     LIES_AU_RAL: LIES_AU_RAL,
     normaliserRal: normaliserRal,
     appliquerRal: appliquerRal,
