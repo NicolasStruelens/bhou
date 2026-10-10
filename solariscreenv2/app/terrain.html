@@ -214,6 +214,7 @@
   <!-- Le configurateur VR150, partagé avec le Mode Terrain et les documents.
        Il LIT la spec de products.js, qui doit donc être chargé avant lui. -->
   <script src="../assets/js/volet.js"></script>
+  <script src="../assets/js/signal.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/postal-be.js"></script>
@@ -637,7 +638,14 @@
     }
     // Sans `bind`, les champs du bloc re-rendu n'auraient plus d'écouteur et cesseraient
     // d'être collectés (voir SSVolet.rafraichir).
-    VOLET_OPTS.bind = (racine) => bindItemCard(state.items[currentItemIdx], racine);
+    /* ⚠️ Le bloc volet re-rendu perd ses écouteurs (règle 31 quinquies) ET son signal :
+       ce sont des éléments NEUFS. Les deux se reposent au même endroit, sinon le halo
+       disparaît au premier changement d'alimentation sans que rien ne l'explique. */
+    VOLET_OPTS.bind = (racine) => {
+      const it = state.items[currentItemIdx];
+      bindItemCard(it, racine);
+      if (window.SSSignal) window.SSSignal.appliquer(racine, it);
+    };
     /** Le sous-titre du bandeau reflète l'emplacement dès qu'on le saisit. */
     function majSousTitre() {
       const s = el('itemsBody').querySelector('.ouv-pager-id .s');
@@ -680,6 +688,9 @@
         ${manqueBlocHtml(item)}
         ${itemCardHtml(item)}`;
       bindItemCard(item, c);
+      // Une carte fraîchement dessinée n'a déclenché aucune frappe : sans ceci, rien ne
+      // s'allumerait avant qu'on touche un champ.
+      if (window.SSSignal) window.SSSignal.appliquer(c, item);
       // La vignette active peut être hors écran quand il y a beaucoup d'ouvertures.
       const active = c.querySelector('.ouv-tile.active');
       if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -688,11 +699,35 @@
     function manqueBlocHtml(it) {
       const m = SSProducts.champsManquants(it);
       if (!m.length) return '';
+      /* ⚠️ LES PASTILLES SONT DES BOUTONS, et c'est tout l'intérêt du bandeau.
+         Avant, elles NOMMAIENT ce qui manquait et laissaient chercher : dans un configurateur
+         VR150 de 38 champs répartis en six groupes, lire « Caisson » puis le retrouver au doigt
+         coûte plus cher que l'information ne rapporte — donc on ne le fait pas, donc le bandeau
+         ne servait à rien. Elles sautent maintenant sur le champ, qui s'allume une seconde. */
       return `<div class="manque-bloc mb-4">
         <div class="manque-tete">${icon('warning', 12)} ${m.length} info(s) à compléter</div>
-        <div class="manque-ouv">${m.map(x => `<span class="ch">${esc(x.l)}</span>`).join('')}</div>
+        <div class="manque-ouv">${m.map(x => `<button type="button" class="ch" onclick="viserChamp(${SSUI.jsAttr(x.k)})" title="Aller à « ${esc(x.l)} »">${esc(x.l)}</button>`).join('')}</div>
       </div>`;
     }
+    /**
+     * SAUTER SUR UN CHAMP depuis le bandeau de ce qui manque.
+     * ⚠️ L'animation d'arrivée dure une seconde et s'éteint seule : elle marque un ÉVÉNEMENT
+     * (« te voilà arrivé »), pas un état. Un état, c'est le halo fixe du champ — les deux ne
+     * disent pas la même chose et ne doivent pas se ressembler.
+     * ⚠️ Le champ peut être MASQUÉ : la moitié du configurateur VR150 dépend d'un champ pilote
+     * (pas d'alimentation choisie → pas de menu moteur). On le dit plutôt que de faire défiler
+     * vers un élément invisible, ce qui passerait pour un bouton cassé.
+     */
+    window.viserChamp = function (cle) {
+      const champ = document.querySelector('.item-card [data-f="' + cle + '"]');
+      if (!champ || !champ.getClientRects().length) {
+        toast('Ce champ apparaîtra une fois les choix précédents faits.', 'warn');
+        return;
+      }
+      if (window.SSSignal) window.SSSignal.viser(champ);
+      else champ.focus();
+    };
+
     // Le bandeau doit suivre la saisie : dès qu'un champ manquant est rempli, il disparaît.
     // On ne re-rend PAS toute la carte (on perdrait le focus et le clavier) — seulement lui.
     function majManque() {
@@ -706,6 +741,9 @@
       else if (pager) pager.insertAdjacentHTML('afterend', neuf);
       const tuile = host.querySelectorAll('.ouv-tile')[currentItemIdx];
       if (tuile) tuile.classList.toggle('incomplet', !!SSProducts.champsManquants(it).length);
+      /* Le signal suit la même cadence que le bandeau : c'est la même information, elle ne
+         peut pas se mettre à jour à deux rythmes différents sans se contredire à l'écran. */
+      if (window.SSSignal) window.SSSignal.appliquer(host, it);
     }
 
     // ── RÉCAP ──
