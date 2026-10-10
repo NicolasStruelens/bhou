@@ -937,7 +937,21 @@ Le compteur du menu (`badge: 'depenses'`) ne compte que MES tickets non rembours
 l'autre ne me concernent pas, et un compteur qui parle d'autre chose, on cesse de le regarder.
 Il ne passe PAS par `attente.js` — cet outil est à part, le menu COMPTE, il n'intègre pas.
 
-**33. UN RACCOURCI SANS SON MOT N'EST PAS UN RACCOURCI.**
+**33. UN RACCOURCI QU'ON N'UTILISE PAS NE DEVIENT PAS UTILE PARCE QU'IL EST LISIBLE.**
+⚠️ **La rangée de raccourcis de la ligne de devis a été RETIRÉE le 10/10/2026**, après DEUX
+tentatives. D'abord huit pictogrammes muets — « je ne vois pas trop ce que c'est, je ne
+l'utilise pas ». Puis trois pastilles avec leur libellé, et Nicolas a tranché : « Appeler,
+Écrire et Y aller ne me servent à rien, et je ne trouve pas ça bien intégré ». Il avait raison
+sur les deux points : posée sous la ligne de méta, la rangée flottait sans appartenir à rien.
+Tout vit désormais dans le menu ⋯, en deux groupes écrits en toutes lettres : **Contacter**
+(appeler, écrire, itinéraire — avec le vrai numéro et la vraie adresse dans le libellé) et
+**Aller à** (fiche client, facture, espace client, planning, SAV).
+**La place sur une ligne de liste se mérite ; le menu, lui, ne coûte rien à personne.**
+Ne pas remettre ces raccourcis sur la ligne sans que Nicolas le demande.
+Le texte qui suit garde l'historique de l'étape intermédiaire, parce qu'elle explique pourquoi
+on n'y revient pas.
+
+**33 zero. UN RACCOURCI SANS SON MOT N'EST PAS UN RACCOURCI.**
 Le bandeau d'un devis portait huit pictogrammes de 13 px, gris à 62 % d'opacité, expliqués par
 un seul `title` au survol. Nicolas ne s'en servait pas, et il l'a dit exactement : « c'est petit,
 beau, mais on n'a pas envie de cliquer, je ne vois pas trop ce que c'est ». Et **sur téléphone il
@@ -975,6 +989,35 @@ wrap, un élément dont la base dépasse la place restante part à la ligne suiv
 rétrécir — la pastille d'initiales restait donc seule sur sa ligne, le nom dessous. Vu à l'écran,
 invisible dans les mesures. `flex: 1 1 0` règle ça : base nulle, le nom reste à côté et s'ellipse.
 Résultat mesuré : 147–156 px pour le nom au lieu de 60.
+
+**33 quater. UNE LIGNE DE DEVIS SIGNÉ DOIT DIRE OÙ EN EST LE CHANTIER.**
+Elle affichait le statut, le montant et l'action — mais ni l'état de la commande chez Harol, ni
+la date de pose. Les deux existaient dans l'ERP ; il fallait ouvrir la fiche. **C'est exactement
+le genre de détour qu'on ne fait pas, donc l'information n'existait pas.**
+`suiviChantier(d)` pose deux pastilles discrètes dans la ligne de méta : l'étape de commande et
+« Pose le 12/11 ». ⚠️ **Uniquement sur un devis signé ou terminé** — sur un brouillon ces deux
+notions n'existent pas, et une pastille « À commander » sur un devis pas encore envoyé serait un
+faux signal. « Posé » n'est pas affiché : le statut du devis le dit déjà.
+Seul **« À commander » est coloré** (ambre) : c'est le seul état où la balle est dans NOTRE camp.
+« Commandé » et « Fabrication » attendent le fournisseur — rien à faire, donc gris.
+⚠️ Les libellés des étapes sont remontés dans `SSUI.COMMANDE_LABEL` (règle 10) : ils vivaient en
+DEUX copies, `vue.html` et **`track.html` — la page que le CLIENT ouvre**. Une divergence s'y
+serait vue de l'extérieur.
+
+**33 quinquies. LE MONTANT D'UNE LIGNE N'EST PAS L'ARGENT QUI MANQUE.**
+La ligne montrait 31 796,82 € sur un chantier dont 9 539 € étaient déjà rentrés. Le total dit la
+valeur du dossier ; ce qu'on cherche, c'est **ce qui reste à encaisser** — 22 257,82 €. Il
+s'écrit désormais sous le montant, et seulement s'il APPREND quelque chose (rien facturé, rien
+payé, ou soldé : la ligne se tait).
+⚠️ **Il est en `position: absolute`, et c'est la condition pour qu'il existe.** L'écrire dans le
+flux rendrait la colonne de droite variable en hauteur et recréerait l'escalier de la règle
+33 bis — corrigé le matin même. En absolu il se pose sous le montant sans rien décaler : vérifié,
+montants alignés au pixel et hauteur de ligne inchangée, y compris en mode Compact (12 px de
+marge sous le texte). Il y a la place parce que **c'est la colonne de GAUCHE qui fixe la hauteur
+de la rangée**.
+⚠️ Ne pas remplacer ce calcul par `SSUI.duFacture` : celui-ci répond « combien dû sur les
+factures ÉMISES », alors qu'on veut « combien reste sur le DEVIS » — ce qui n'est pas encore
+facturé compte aussi. Deux questions voisines, deux réponses différentes.
 
 ## Pièges déjà payés — ne pas les repayer
 
