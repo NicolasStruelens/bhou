@@ -74,6 +74,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 106 tests du VR150. **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
+| `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -897,6 +899,44 @@ anthracite » est un RAL et « 135 — glissière de sécurité » une référen
 produit. Et `muets: ['Simple']` tait « Combinaison : Simple », qui n'apprend rien — la règle
 existait déjà dans `picking.html` (`VALEURS_MUETTES`) et devait suivre les volets dans la spec.
 
+**32. LES NOTES DE FRAIS SONT UN OUTIL À PART, et c'est une décision de Nicolas.**
+Table `depenses` (`/api/depenses`), écran `app/depenses.html`, logique dans `assets/js/depenses.js`.
+Il achète du matériel de chantier avec son argent, SolariScreen doit le rembourser, et le ticket
+finit dans une poche. Ses mots, le 10/10/2026 : « c'est une sécurité pour moi de pouvoir être
+remboursé et ne pas tomber dans l'oubli ».
+⚠️ **AUCUN LIEN avec les statistiques, la rémunération ou le paiement**, demandé explicitement :
+« il ne doit pas être lié aux stats ni au paiement ». Un remboursement de matériel et une paie de
+pose ne sont pas la même nature d'argent — les additionner donnerait un chiffre que personne ne
+pourrait défendre en face de Yannick. **Ne pas « intégrer » ce module à `remuneration.js`.**
+⚠️ Pas de TVA, pas de catégorie, pas de moyen de paiement, pas de référence comptable : « c'est
+juste du remboursement matériel acheté dans des magasins de bricolage ou des magasins pro pour
+les chantiers ». Chaque champ en plus est un champ qu'on ne remplit pas, donc un registre qu'on
+abandonne. La pièce officielle reste chez SysCore / Falco.
+**Trois états, et c'est tout le modèle** : à remettre · au bureau · remboursé. Les deux dates sont
+posées par celui qui SAIT (Nicolas coche « remis » en déposant, « remboursé » en voyant l'argent),
+sans aucune validation qui bloque — une file d'attente qui dépend de quelqu'un d'autre, c'est
+exactement ce qui fait tomber les choses dans l'oubli. Registre PARTAGÉ : Yannick voit et corrige.
+⚠️ **« Remboursé » l'emporte sur « remis »** : on est parfois remboursé de la main à la main,
+sans passer par le bureau. Exiger l'un avant l'autre laisserait ces tickets dans un état faux —
+une ligne d'argent qu'on croirait encore due.
+⚠️ **L'ANCIENNETÉ EST LE CŒUR DE L'OUTIL**, pas le montant : c'est « 23 j » à côté d'une somme
+qui fait qu'on se décide à aller au bureau. Elle se compte depuis le DERNIER geste — la date
+d'achat tant que le ticket est dans la poche, la date de remise une fois qu'il est au bureau.
+Compter depuis l'achat dans les deux cas ferait passer pour urgent un ticket déposé hier, et un
+écran qui crie pour rien, on apprend très vite à ne plus le lire. Deux seuils différents, et c'est
+voulu : 14 jours dans la poche, 30 jours au bureau (un bureau met légitimement un mois à payer).
+Le tri suit la même logique : ce qui attend depuis le plus longtemps passe devant, le remboursé
+ferme la marche. Un registre trié par date d'achat enterre le vieux ticket au fond.
+⚠️ **Aucune écriture hors-ligne**, même raison que les prélèvements : un ticket qui n'existerait
+que sur le téléphone qui l'a saisi serait resaisi le lendemain, et on réclamerait deux fois.
+⚠️ Les PHOTOS passent par une route ciblée (`/api/depenses/:id/photo`, règle 3) et sont
+RÉINJECTÉES à l'enregistrement complet : sans ça, corriger un montant effacerait la photo que
+l'autre vient d'ajouter. Celles choisies AVANT le premier enregistrement attendent en mémoire —
+la route ciblée a besoin d'un identifiant qui n'existe pas encore (même mécanique que la règle 25).
+Le compteur du menu (`badge: 'depenses'`) ne compte que MES tickets non remboursés : ceux de
+l'autre ne me concernent pas, et un compteur qui parle d'autre chose, on cesse de le regarder.
+Il ne passe PAS par `attente.js` — cet outil est à part, le menu COMPTE, il n'intègre pas.
+
 **33. UN RACCOURCI SANS SON MOT N'EST PAS UN RACCOURCI.**
 Le bandeau d'un devis portait huit pictogrammes de 13 px, gris à 62 % d'opacité, expliqués par
 un seul `title` au survol. Nicolas ne s'en servait pas, et il l'a dit exactement : « c'est petit,
@@ -1195,7 +1235,8 @@ Résultat mesuré : 147–156 px pour le nom au lieu de 60.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
    `tests/volet.test.html`, exiger « 106/106 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
-   lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec. Les dates s'y
+   lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
+   Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — notes de frais</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests notes de frais</h1>
+  <p class="note">
+    Nicolas achète du matériel de chantier avec son argent et SolariScreen doit le lui rembourser.
+    Ses mots, le 10/10/2026 : « c'est une sécurité pour moi de pouvoir être remboursé et ne pas
+    tomber dans l'oubli ». Un registre d'argent dont on se méfie ne sert plus à rien — d'où ces tests.
+    <br><br>
+    <strong>⚠️ L'ANCIENNETÉ est le cœur de l'outil</strong>, pas le montant. Elle se compte depuis
+    le DERNIER geste : la date d'achat tant que le ticket est dans la poche, la date de remise une
+    fois qu'il est au bureau. Compter depuis l'achat dans les deux cas ferait passer pour urgent un
+    ticket déposé hier — et un écran qui crie pour rien, on apprend très vite à ne plus le lire.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/depenses.js"></script>
+  <script>
+    const D = window.SSDepenses;
+
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+
+    const AUJ = '2026-10-10';
+    const dep = (o) => Object.assign({ id: 'T1', qui: 'nicolas', date: '2026-10-01', montant: 42.5 }, o || {});
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Les trois états — et un seul modèle');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('A1 un ticket neuf est à remettre', D.etatDe(dep({})), 'a_remettre');
+    check('A2 remis au bureau', D.etatDe(dep({ remis_le: '2026-10-05' })), 'au_bureau');
+    check('A3 remboursé', D.etatDe(dep({ remis_le: '2026-10-05', rembourse_le: '2026-10-08' })), 'rembourse');
+    /* ⚠️ Il arrive d'être remboursé de la main à la main, sans jamais passer par le bureau.
+       Exiger « remis » avant « remboursé » laisserait ces tickets dans un état faux — et c'est
+       une ligne d'argent qu'on croirait encore due. */
+    check('A4 remboursé SANS être passé par le bureau reste remboursé',
+      D.etatDe(dep({ rembourse_le: '2026-10-08' })), 'rembourse');
+    check('A5 tant que ce n’est pas remboursé, la société me doit cet argent',
+      [D.estDu(dep({})), D.estDu(dep({ remis_le: '2026-10-05' })), D.estDu(dep({ rembourse_le: '2026-10-08' }))],
+      [true, true, false]);
+    check('A6 une dépense absente ne casse rien', D.etatDe(null), 'a_remettre');
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ L’ancienneté se compte depuis le DERNIER geste');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('B1 dans ma poche : depuis l’achat', D.ageJours(dep({ date: '2026-10-01' }), AUJ), 9);
+    /* Le test qui porte la règle : le ticket a été acheté il y a 9 jours mais déposé HIER.
+       Compté depuis l'achat il crierait « 9 jours » ; c'est le bureau qui l'a depuis un jour. */
+    check('B2 au bureau : depuis la REMISE, pas depuis l’achat',
+      D.ageJours(dep({ date: '2026-10-01', remis_le: '2026-10-09' }), AUJ), 1);
+    check('B3 un ticket remboursé n’a plus d’âge', D.ageJours(dep({ rembourse_le: '2026-10-02' }), AUJ), 0);
+    check('B4 le jour même vaut zéro', D.ageJours(dep({ date: AUJ }), AUJ), 0);
+    check('B5 une date absente ne fabrique pas un âge', D.ageJours(dep({ date: '' }), AUJ), 0);
+    // Dates en chaînes, comparées telles quelles : aucun fuseau ne s'en mêle (règle 18).
+    check('B6 l’âge traverse un changement de mois', D.ageJours(dep({ date: '2026-09-28' }), AUJ), 12);
+    check('B7 … et un changement d’année', D.ageJours(dep({ date: '2025-10-10' }), AUJ), 365);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Ce qui traîne se signale — et seulement ce qui traîne');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('C1 un ticket de 9 jours dans la poche ne crie pas encore', D.retard(dep({ date: '2026-10-01' }), AUJ), null);
+    check('C2 … à 20 jours, si', D.retard(dep({ date: '2026-09-20' }), AUJ).jours, 20);
+    check('C3 et il dit dans quel état il traîne', D.retard(dep({ date: '2026-09-20' }), AUJ).etat, 'a_remettre');
+    /* Les deux seuils ne sont PAS les mêmes, et c'est voulu : garder un ticket dans sa poche
+       deux semaines est déjà beaucoup, alors qu'un bureau met légitimement un mois à payer. */
+    check('C4 au bureau, le seuil est plus large',
+      [D.retard(dep({ remis_le: '2026-09-20' }), AUJ), D.retard(dep({ remis_le: '2026-09-01' }), AUJ) !== null],
+      [null, true]);
+    check('C5 un ticket remboursé ne traîne jamais',
+      D.retard(dep({ date: '2020-01-01', rembourse_le: '2020-02-01' }), AUJ), null);
+    check('C6 les seuils sont réglables', D.retard(dep({ date: '2026-10-05' }), AUJ, { remettre: 2 }).jours, 5);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('⚠️ On refuse une ligne molle plutôt que de l’enregistrer');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* Un registre d'argent qui contient des montants à zéro ou des dates vides, on cesse de s'y
+       fier — et un registre dont on se méfie ne sert plus à rien. */
+    const cles = (d) => D.problemes(d).map(p => p.k);
+    check('D1 un ticket complet passe', cles(dep({})), []);
+    check('D2 sans montant, non', cles(dep({ montant: 0 })), ['montant']);
+    check('D3 un montant négatif non plus', cles(dep({ montant: -10 })), ['montant']);
+    check('D4 sans date, non', cles(dep({ date: '' })), ['date']);
+    check('D5 une date mal formée non plus', cles(dep({ date: '10/10/2026' })), ['date']);
+    check('D6 une personne inconnue est refusée', cles(dep({ qui: 'jean' })), ['qui']);
+    check('D7 … et une personne absente aussi', cles(dep({ qui: '' })), ['qui']);
+    /* Une incohérence de dates est presque toujours une faute de frappe sur l'ANNÉE — et elle
+       fausse l'ancienneté, donc le tri, donc ce qu'on va réclamer en premier. */
+    check('D8 remis AVANT l’achat est signalé', cles(dep({ remis_le: '2026-09-01' })), ['remis_le']);
+    check('D9 remboursé avant l’achat aussi', cles(dep({ rembourse_le: '2026-09-01' })), ['rembourse_le']);
+    check('D10 plusieurs problèmes sont tous dits', cles(dep({ qui: '', montant: 0 })), ['qui', 'montant']);
+    check('D11 un objet vide ne fait pas planter', D.problemes(null).length, 3);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Les totaux — et l’invariant qui les tient');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    const LOT = [
+      dep({ id: 'A', qui: 'nicolas', montant: 100, date: '2026-10-01' }),
+      dep({ id: 'B', qui: 'nicolas', montant: 50, date: '2026-09-15', remis_le: '2026-09-20' }),
+      dep({ id: 'C', qui: 'nicolas', montant: 25, date: '2026-08-01', remis_le: '2026-08-05', rembourse_le: '2026-08-20' }),
+      dep({ id: 'E', qui: 'yannick', montant: 200, date: '2026-10-02' }),
+    ];
+    const t = D.totaux(LOT, '');
+    check('E1 à remettre', t.a_remettre, 300);
+    check('E2 chez le bureau', t.au_bureau, 50);
+    check('E3 remboursé', t.rembourse, 25);
+    check('E4 ⚠️ les trois états se recomposent exactement', t.a_remettre + t.au_bureau + t.rembourse, t.tout);
+    check('E5 le dû = tout sauf le remboursé', t.du, t.tout - t.rembourse);
+    check('E6 et il compte ses tickets', t.nb_du, 3);
+    check('E7 restreint à une personne', D.totaux(LOT, 'nicolas').tout, 175);
+    check('E8 … l’autre n’y est pas', D.totaux(LOT, 'yannick').tout, 200);
+    check('E9 une liste vide donne des zéros, pas des NaN', D.totaux([], '').tout, 0);
+    check('E10 une ligne abîmée n’empoisonne pas le total',
+      D.totaux([dep({ montant: 'abc' }), dep({ id: 'z', montant: 10 })], '').tout, 10);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('L’ordre de lecture = l’ordre dans lequel on règle les choses');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* ⚠️ Pas l'ordre chronologique : trié par date d'achat, le vieux ticket part au fond de la
+       liste, et c'est exactement celui qu'on oublie. Ce qui attend depuis le plus longtemps
+       passe devant, et ce qui est remboursé ferme la marche. */
+    /* A (acheté le 01/10, 9 jours) passe devant E (le 02/10, 8 jours) : à état égal c'est
+       l'ancienneté qui tranche, pas la personne ni le montant. */
+    check('F1 à remettre d’abord, remboursé en dernier',
+      D.trier(LOT, AUJ).map(x => x.id), ['A', 'E', 'B', 'C']);
+    check('F2 à état égal, le plus vieux passe devant',
+      D.trier([dep({ id: 'jeune', date: '2026-10-09' }), dep({ id: 'vieux', date: '2026-09-01' })], AUJ).map(x => x.id),
+      ['vieux', 'jeune']);
+    check('F3 le tri ne modifie pas la liste d’origine',
+      (function () { const l = LOT.slice(); D.trier(l, AUJ); return l.map(x => x.id); })(), ['A', 'B', 'C', 'E']);
+    check('F4 les lignes vides sont écartées', D.trier([null, undefined, dep({})], AUJ).length, 1);
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Les filtres et le récapitulatif');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    check('G1 par personne', D.filtrer(LOT, { qui: 'yannick' }).map(x => x.id), ['E']);
+    check('G2 par état', D.filtrer(LOT, { etat: 'rembourse' }).map(x => x.id), ['C']);
+    check('G3 par année', D.filtrer(LOT, { annee: '2026' }).length, 4);
+    check('G4 un filtre vide ne filtre pas', D.filtrer(LOT, {}).length, 4);
+    check('G5 les filtres se combinent',
+      D.filtrer(LOT, { qui: 'nicolas', etat: 'a_remettre' }).map(x => x.id), ['A']);
+    check('G6 la recherche porte sur le détail',
+      D.filtrer([dep({ id: 'x', detail: 'Visserie Brico' }), dep({ id: 'y', detail: 'Silicone' })], { recherche: 'brico' }).map(x => x.id), ['x']);
+    check('G7 … et sur le client',
+      D.filtrer([dep({ id: 'x', client_nom: 'École du Bonheur' })], { recherche: 'bonheur' }).length, 1);
+    check('G8 les années, la plus récente d’abord',
+      D.annees([dep({ date: '2025-01-01' }), dep({ date: '2026-05-05' }), dep({ date: '2026-01-01' })]), ['2026', '2025']);
+    check('G9 le bilan d’une année ne compte que cette année',
+      D.bilanAnnee(LOT.concat([dep({ id: 'vieux', montant: 999, date: '2024-03-03' })]), '', '2026').tout, 375);
+
+    // ══════════ Résultat ══════════
+    document.getElementById('out').innerHTML =
+      '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    const total = pass + fail;
+    document.getElementById('summary').innerHTML = fail === 0
+      ? '<span class="pass">' + pass + '/' + total + ' — tout passe.</span>'
+      : '<span class="fail">' + fail + ' ÉCHEC(S) sur ' + total + '.</span>';
+    document.title = (fail === 0 ? 'OK ' : 'ECHEC ') + pass + '/' + total + ' — Tests notes de frais';
+  </script>
+</body>
+</html>
