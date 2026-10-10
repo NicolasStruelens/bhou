@@ -443,22 +443,31 @@
           <div class="section-head"><span class="section-title">Affichage</span><span class="section-code">SS // VUE</span></div>
           <div class="par-corps">
           <div class="reg">
-            <div class="reg-txt"><div class="reg-nom">Thème de cet appareil</div>
-              <div class="reg-aide">Ce que le bouton lune/soleil du bandeau applique, en plus détaillé. Propre à <strong>cet appareil</strong> : toi et Yannick pouvez ne pas avoir le même.</div></div>
+            <div class="reg-txt"><div class="reg-nom">Thème <span class="reg-appareil" title="Propre à cet appareil : enregistré dès que tu choisis, sans rien valider. Le bouton « Enregistrer » ne concerne que les réglages partagés avec Yannick.">cet appareil</span></div>
+              <div class="reg-aide">Ce que le bouton lune/soleil du bandeau applique, en plus détaillé. Propre à <strong>cet appareil</strong> : toi et Yannick pouvez ne pas avoir le même.
+                <strong>« Comme la société »</strong> remet cet écran sur le thème par défaut ci-dessous — c'est le seul chemin du retour une fois qu'on a choisi.</div></div>
             <div class="reg-champ"><select class="select" id="themeAppareil"></select></div>
           </div>
           <script>
             /* La liste des thèmes vient de SSTheme.THEMES, jamais recopiée ici : c'est la même
                erreur que les types de produit, qui ont vécu en 13 copies avant de diverger.
-               Ce réglage ne part PAS au serveur (pas de data-reg) — il est propre à l'appareil. */
+               Ce réglage ne part PAS au serveur (pas de data-reg) — il est propre à l'appareil.
+               Les trois familles du défaut de société viennent de SSTheme.FAMILLES pour la même
+               raison : elles étaient recopiées à la main dans la page, et rien ne vérifiait
+               qu'elles correspondaient encore à ce que theme.js sait lire. Elles sont montées
+               AVANT que peupler() ne pose la valeur enregistrée — celle-ci arrive après
+               SSConf.charger(), donc bien après ce DOMContentLoaded. */
             document.addEventListener('DOMContentLoaded', function () {
-              if (window.SSTheme) window.SSTheme.monterSelecteur(document.getElementById('themeAppareil'));
+              if (!window.SSTheme) return;
+              window.SSTheme.monterSelecteur(document.getElementById('themeAppareil'));
+              window.SSTheme.monterSelecteurSociete(document.getElementById('theme_defaut'));
             });
           </script>
           <div class="reg" data-reg="affichage.theme_defaut">
-            <div class="reg-txt"><div class="reg-nom">Thème par défaut</div>
-              <div class="reg-aide">Pour un appareil qui n'a <em>encore jamais</em> choisi. Dès qu'on touche au bouton lune/soleil ou au réglage ci-dessus, c'est l'appareil qui décide.</div></div>
-            <div class="reg-champ"><select class="select" id="theme_defaut"><option value="systeme">Comme le système</option><option value="clair">Clair</option><option value="sombre">Sombre</option></select></div>
+            <div class="reg-txt"><div class="reg-nom">Thème par défaut <span class="reg-societe" title="Réglage partagé : il part au serveur quand tu cliques sur « Enregistrer », et vaut pour tous les appareils qui n'ont pas choisi.">société</span></div>
+              <div class="reg-aide">Pour un appareil qui n'a <em>encore jamais</em> choisi. Dès qu'on touche au bouton lune/soleil ou au réglage ci-dessus, c'est l'appareil qui décide — et il garde son choix.
+                <em>Clair</em> et <em>Sombre</em> désignent une famille, pas un thème précis : le premier de la famille s'applique.</div></div>
+            <div class="reg-champ"><select class="select" id="theme_defaut"></select></div>
           </div>
           <div class="reg" data-reg="affichage.mantra">
             <div class="reg-txt"><div class="reg-nom">Pensée du jour</div>
@@ -840,6 +849,10 @@
          Sans ça, celui qui vient de décider le style de la maison ne le verrait pas sur son
          propre écran, et croirait que son enregistrement n'a rien fait. */
       if (window.__signalResync) window.__signalResync();
+      /* Le thème, lui, s'est DÉJÀ réaligné : `SSConf.enregistrer` réécrit le cache, et c'est
+         l'écriture du cache qui prévient `theme.js`. Il reste le libellé « Comme la société · … »
+         du sélecteur d'appareil, qui annoncerait encore l'ancien thème. */
+      if (window.SSTheme) window.SSTheme.rafraichirSelecteur(el('themeAppareil'));
       toast('Réglages enregistrés ✓ — ils s’appliquent aux devis à venir', 'ok', 5000);
     };
 

@@ -68,7 +68,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
 | `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
-| `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
+| `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
+| `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
 | `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
@@ -681,17 +682,56 @@ bouton lune/soleil pour savoir dans quelle famille basculer.
 ⚠️ Le bandeau garde DEUX boutons, pas une liste : jour/nuit est le geste qu'on fait vingt fois par
 jour, le choix du thème se fait une fois dans les Paramètres. Les boutons visent donc une FAMILLE
 et reviennent au dernier thème choisi dedans — sinon, à dix thèmes, le bouton devient inutilisable.
-⚠️ Le réglage du thème est PAR APPAREIL (`localStorage`), pas dans les réglages partagés : Nicolas
-et Yannick n'ont aucune raison de vouloir le même.
-⚠️ **`affichage.theme_defaut` N'EST BRANCHÉ NULLE PART — constaté le 10/10/2026.** Il est déclaré
-dans `config.js`, affiché et enregistrable dans Paramètres… et **aucun code ne le lit** :
-`getTheme()` retombe sur `prefers-color-scheme`, jamais sur ce réglage. Le choix de l'utilisateur
-est donc sans effet, en silence, depuis sa création. Cette ligne affirmait le contraire.
-La difficulté qui l'a laissé en plan n'est pas anodine : `theme.js` est chargé dans le `<head>`
-pour éviter un clignotement, donc AVANT `config.js` — `SSConf` n'existe pas encore quand
-`getTheme()` s'exécute. Appliquer le défaut après coup ferait clignoter le thème sur chaque page.
-Le signal, lui, n'a pas ce problème (il se charge en fin de page) : voir la règle 36 pour le
-motif complet appareil → société → repli, qui est celui qu'il faudra porter ici.
+⚠️ Le CHOIX du thème est PAR APPAREIL (`localStorage`), pas dans les réglages partagés : Nicolas
+et Yannick n'ont aucune raison de vouloir le même. Le DÉFAUT, lui, est au serveur — ci-dessous.
+
+**29 bis. APPAREIL → SOCIÉTÉ → SYSTÈME, et `affichage.theme_defaut` est enfin branché**
+(10/10/2026). Il était déclaré dans `config.js`, affiché et enregistrable dans Paramètres… et
+**aucun code ne le lisait** : le choix était sans effet, en silence, depuis sa création.
+Ce qu'on obtient maintenant : un appareil qui n'a **jamais** choisi prend le défaut de la société
+dès le premier rendu ; un appareil qui a choisi **garde son choix** ; l'option « Comme la société »
+du sélecteur est le **chemin du retour** (même rôle, même raison que le `SUIVRE` de la règle 36 —
+elle EFFACE la préférence locale, et elle est volontairement hors de `THEMES`).
+⚠️ **`theme_defaut` vaut une FAMILLE, pas un thème** : `'systeme' | 'clair' | 'sombre'`. « clair »
+donne le premier thème clair de `THEMES`, « sombre » le premier sombre. Un défaut qui nommerait
+`zen` deviendrait faux le jour où ce thème quitte la table, et imposerait un goût là où il ne
+s'agit que de lisibilité. `SSTheme.FAMILLES` fait foi ; Paramètres construit son menu avec.
+⚠️ **LA VRAIE CAUSE N'ÉTAIT PAS L'ORDRE DE CHARGEMENT — C'ÉTAIT QU'AFFICHER UNE PAGE VALAIT
+CHOIX.** `applyTheme()` enregistrait `ss_theme` à chaque appel, y compris celui, automatique, de
+fin de fichier. Dès la PREMIÈRE page vue, un appareil portait donc un thème « choisi » qu'il
+n'avait jamais choisi : plus aucun défaut de société ne pouvait s'appliquer, et
+`prefers-color-scheme` n'était consulté qu'UNE fois dans la vie d'un navigateur — passer son
+système en sombre ensuite ne changeait plus rien. D'où le second paramètre `retenir` :
+**une application automatique n'enregistre RIEN.** C'est la moitié du correctif, et celle qu'on
+ne voit pas. Un test la tient (`themes.test.html`, « une application AUTOMATIQUE n'enregistre pas
+de choix ») ; le désactiver fait tomber quatre cas.
+⚠️ **`theme.js` LIT `localStorage['ss_reglages']` À LA MAIN, SANS `SSConf`, et c'est voulu.** Il
+est dans le `<head>` — avant `config.js`, qui vit en fin de page — pour éviter le clignotement :
+`SSConf` n'existe pas encore quand `getTheme()` tourne. Et **douze pages chargent `theme.js` sans
+charger `config.js`** (devis, facture, picking, portfolio, index…) : sans lecture directe, le
+style de la maison ne s'appliquerait qu'à la moitié de l'ERP. **Le prix est un couplage par le nom
+de la clé** : `CLE_REGLAGES` (theme.js) et `CLE_CACHE` (config.js) doivent rester identiques, et
+les renommer d'un seul côté ne casse rien de visible — le thème retomberait juste sur le système,
+en silence. Les deux fichiers portent l'avertissement : **ne jamais en renommer qu'un**.
+⚠️ **C'est `config.js` qui PRÉVIENT `theme.js`**, depuis `ecrireCache()`, pas l'inverse. Sans ça,
+celui qui vient d'enregistrer un nouveau défaut ne le verrait pas sur son propre écran. Et
+`theme.js` ne demande les réglages lui-même (`SSConf.charger()`, au DOMContentLoaded) **que si le
+cache n'a jamais répondu** : sept pages chargent `config.js` sans appeler `charger()`, ce serait
+sept requêtes gratuites par visite.
+⚠️ **ON NE REPOSE LE THÈME QUE SI LA VALEUR EFFECTIVE CHANGE** (`suivreLaSociete()` rend `null`
+sinon). Un appareil déjà juste — le cas de tous les jours, le cache étant là — ne doit pas
+clignoter. Mesuré, pas supposé : `themes.test.html` charge `tests/amorce-theme.html` dans une
+iframe et compare `data-theme` **au plus tôt** (dans le `<head>`, juste après `theme.js`), en fin
+de document, puis après l'arrivée des réglages. Trois valeurs identiques ⇒ pas de clignotement.
+⚠️ **Le SEUL cas qui clignote est le tout premier démarrage d'un navigateur** : la valeur vit au
+serveur, on ne peut pas la connaître avant que le réseau réponde. Une fois, puis plus jamais.
+⚠️ **UN APPAREIL DÉJÀ UTILISÉ NE BOUGERA PAS**, et c'est volontaire : il porte un `ss_theme` écrit
+par l'ancien défaut. Pour le remettre au commun, il faut choisir « Comme la société » une fois.
+Migrer d'office aurait voulu dire deviner quel `ss_theme` était un vrai choix — et retourner
+l'écran de quelqu'un qui avait bel et bien choisi.
+⚠️ **MESURER AVEC LA FAMILLE OPPOSÉE À CELLE DU SYSTÈME, toujours.** Un défaut « clair » testé sur
+une machine qui préfère déjà le clair donne le bon thème même si le réglage n'est pas lu du tout.
+C'est exactement l'erreur qui a laissé croire que ce réglage fonctionnait.
 
 **30. LA RÉMUNÉRATION EST ÉCRITE DU POINT DE VUE DE NICOLAS, et c'est voulu.**
 SolariScreen facture sous SysCore et **Yannick est le patron** : ce qui lui revient, il en fait ce
@@ -1558,7 +1598,9 @@ soi-même — le détour qu'on ne fait pas.
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
    `tests/attente.test.html`, exiger « 73/73 ».
-   Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
+   Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
+   `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
+   quatre de ses cas chargent `tests/amorce-theme.html` en iframe pour mesurer le premier rendu.
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :

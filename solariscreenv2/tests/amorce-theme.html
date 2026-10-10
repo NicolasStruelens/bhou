@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<!-- ═══════════════════════════════════════════════════════════════════════════════════════════
+     AMORCE DE THÈME — ce n'est PAS une suite de tests, c'est le BANC DE MESURE de `themes`.
+
+     ⚠️ NE PAS L'AJOUTER À LA LISTE DES SUITES. Elle n'affiche aucun verdict et ne se lit pas
+     seule : `themes.test.html` la charge dans une <iframe> et lit ses relevés.
+
+     POURQUOI UNE PAGE SÉPARÉE. La question qu'on doit mesurer est « est-ce que le thème est
+     JUSTE AU PREMIER RENDU, et est-ce qu'il ne change plus ensuite ? ». Elle ne peut pas se
+     mesurer depuis la page de tests elle-même : `theme.js` y a déjà tourné au chargement, avec
+     le localStorage de ce moment-là. Pour mesurer un vrai démarrage, il faut un vrai chargement
+     de page — donc une page à charger, avec le localStorage déjà préparé.
+
+     CE QU'ELLE RELÈVE, dans `window.__mesures` :
+       • `tot`      — `data-theme` lu IMMÉDIATEMENT après `theme.js`, dans le `<head>`, avant
+                      que le `<body>` n'existe. C'est le premier rendu : s'il est faux ici, il
+                      sera corrigé plus tard, donc l'écran clignotera.
+       • `domReady` — le même attribut à la fin du document, une fois `config.js` passé.
+       • `apresReglages` — le même après que les réglages du « serveur » soient arrivés.
+       • `ecritures` — tout ce que la page a écrit dans `localStorage`, dans l'ordre. C'est ce
+                      relevé qui attrape la faute d'origine : afficher une page écrivait
+                      `ss_theme`, donc valait CHOIX, donc masquait le défaut de la société dès
+                      la page suivante.
+     `tot === domReady === apresReglages` ⇒ aucun clignotement. Trois valeurs à comparer, pas
+     une impression.
+
+     PARAMÈTRE `?serveur=` — le JSON que le faux serveur renverra (encodé). Il sert à simuler
+     l'appareil qui ouvre l'ERP pour la PREMIÈRE fois : son cache est vide, la valeur n'arrive
+     que par le réseau. Absent, aucun faux serveur n'est posé et `charger()` échoue comme
+     hors-ligne — ce qui est aussi un cas à mesurer.
+     ═══════════════════════════════════════════════════════════════════════════════════════════ -->
+<head>
+  <meta charset="UTF-8">
+  <title>Amorce de thème (banc de mesure)</title>
+
+  <script>
+    window.__mesures = { tot: null, domReady: null, apresReglages: null, ecritures: [] };
+    /* On enregistre les ÉCRITURES avant de charger quoi que ce soit, sinon on ne verrait que
+       le résultat final — or ce qui compte ici est de savoir si quelqu'un a écrit du tout. */
+    (function () {
+      const vrai = localStorage.setItem.bind(localStorage);
+      const oter = localStorage.removeItem.bind(localStorage);
+      localStorage.setItem = function (k, v) { window.__mesures.ecritures.push('set ' + k + '=' + v); return vrai(k, v); };
+      localStorage.removeItem = function (k) { window.__mesures.ecritures.push('del ' + k); return oter(k); };
+    })();
+  </script>
+
+  <!-- Le fichier mesuré, chargé exactement comme il l'est sur les 25 pages de l'ERP. -->
+  <script src="../assets/js/theme.js"></script>
+  <script>
+    // ⚠️ ICI, ET PAS AILLEURS : on est encore dans le <head>, rien n'a été peint. C'est la
+    // valeur que l'œil verra en premier.
+    window.__mesures.tot = document.documentElement.getAttribute('data-theme');
+  </script>
+</head>
+<body>
+  <p>Banc de mesure — voir <code>themes.test.html</code>.</p>
+
+  <script>
+    /* Le faux serveur, posé AVANT config.js parce que `SSConf.charger()` appelle
+       `window.SS.getSettings()`. Sans paramètre, on n'en pose aucun : `charger()` part alors en
+       échec, exactement comme un appareil hors-ligne, et doit retomber sur le cache. */
+    (function () {
+      const p = new URLSearchParams(location.search).get('serveur');
+      if (p === null) return;
+      let rep = null;
+      try { rep = JSON.parse(p); } catch (e) { rep = null; }
+      window.SS = { getSettings: function () { return Promise.resolve(rep); } };
+    })();
+  </script>
+  <script src="../assets/js/config.js"></script>
+  <script>
+    window.__mesures.domReady = document.documentElement.getAttribute('data-theme');
+    /* `theme.js` ne demande les réglages que si le cache n'a jamais répondu, et il le fait au
+       DOMContentLoaded. On attend donc la même chose, puis la promesse partagée de `charger()`,
+       pour relever l'état APRÈS que le défaut de la société soit connu. */
+    window.__pret = new Promise(function (ok) {
+      const fin = function () {
+        const suite = function () {
+          window.__mesures.apresReglages = document.documentElement.getAttribute('data-theme');
+          ok(window.__mesures);
+        };
+        if (window.SSConf && window.SSConf.charger) window.SSConf.charger().then(suite, suite);
+        else suite();
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fin);
+      else fin();
+    });
+  </script>
+</body>
+</html>
