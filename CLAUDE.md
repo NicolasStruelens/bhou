@@ -56,7 +56,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 
 | Fichier | Rôle |
 |---|---|
-| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 54 tests. |
+| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 58 tests. |
 | `assets/js/api.js` | Client API, cache local, file d'envoi hors-ligne (`window.SS`) |
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
@@ -64,7 +64,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 89 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 tests (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 54 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
 | `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -85,14 +85,29 @@ calculé (`pricing_v2.rates`). À la réouverture on relit *ceux-là*, jamais le
 devis ancien sans taux stockés retombe sur les taux historiques (0,77 / 0,23 / 2,5). Modifier une
 marge ne doit jamais changer un montant déjà annoncé à un client ni une facture émise.
 
-**1 bis. UNE LIGNE D'OUVERTURE VIDE NE FACTURE RIEN** (`SSCalc.ouverturesReelles`).
-Une ligne existe dès qu'on clique « Ajouter » ; tant qu'elle ne porte ni largeur, ni hauteur, ni
-projection, ni prix catalogue, elle ne représente aucun travail. C'est cette fonction qui décide
-`install_qty`, donc un MONTANT.
+**1 bis. LA POSE NE SE COMPTE QUE SUR UNE OUVERTURE CHIFFRÉE** (`SSCalc.ouverturesReelles`).
+C'est cette fonction qui décide `install_qty`, donc un MONTANT.
+⚠️ **LE DÉCLENCHEUR A CHANGÉ LE 10/10/2026, et il faut comprendre pourquoi.** Il était « une
+largeur, une hauteur, une projection OU un prix » — autrement dit « dès qu'on a commencé à
+décrire ». Sauf qu'on commence TOUJOURS par les mesures : on relève la baie chez le client, on
+tape 1000 × 1000, et le devis affichait aussitôt **296,80 € TVAC pour un catalogue à 0 €**.
+Nicolas : « quand je fais un nouveau devis il met déjà une somme ». Le chiffre n'était pas faux
+— c'était bien une pose — mais il apparaissait AVANT que le devis ne veuille dire quoi que ce
+soit, et **un total qu'on ne peut pas expliquer, on finit par ne plus le lire**.
+Le prix est le bon déclencheur parce qu'il est le DERNIER geste : une ouverture chiffrée est une
+ouverture décidée. Un prix à zéro ou négatif n'est pas un prix.
+⚠️ **LA SOUPAPE RESTE** : le drapeau « quantité saisie à la main » du simulateur (`_qtyManual`)
+décroche `install_qty` de ce compte. Un chantier où l'on pose une ouverture non chiffrée
+(matériel fourni par le client, geste commercial sur la fourniture) se facture donc toujours —
+à la main, ce qui est exactement le bon endroit pour une exception. Ne pas réintroduire
+d'exception dans la règle elle-même.
+⚠️ Comme toute règle d'argent, elle ne retouche AUCUN devis existant : les `calculs` sont figés
+en base (règle 1). Un devis déjà enregistré garde son total tant qu'il n'est pas rouvert.
 ⚠️ La règle ne vivait que dans le simulateur, écrite en dur. Le **Mode Terrain** comptait TOUTES
-les lignes : un devis fait chez le client avec une ouverture encore vide sortait à 280 €
-d'installation pour un catalogue à 0 — **296,80 € TVAC avant d'avoir chiffré quoi que ce soit**.
-Signalé par Nicolas : « on a l'impression que c'est un bug ». Il avait raison.
+les lignes : un devis fait chez le client avec une ouverture encore vide sortait déjà à 280 €
+d'installation pour un catalogue à 0. Signalé par Nicolas le 06/10/2026 : « on a l'impression que
+c'est un bug ». Il avait raison — et quatre jours plus tard, le même symptôme revenait par les
+MESURES, d'où le changement de déclencheur ci-dessus.
 Elle est dans `calc.js` et non dans `products.js` parce qu'elle détermine une entrée du moteur de
 prix : c'est le seul fichier où une règle d'argent est couverte par des tests.
 ⚠️ `computeDevis` ne l'appelle PAS et ne doit pas l'appeler : il reçoit les quantités telles
@@ -1131,8 +1146,8 @@ existait déjà dans `picking.html` (`VALEURS_MUETTES`) et devait suivre les vol
 
 ## Comment vérifier son travail
 
-1. **Les 54 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
-   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 54/54 ».
+1. **Les 58 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
+   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
    `tests/attente.test.html`, exiger « 73/73 ».
    Et dès qu'on touche à une COULEUR de thème : `tests/themes.test.html`, exiger « 50/50 ».
