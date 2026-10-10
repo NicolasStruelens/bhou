@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SolariScreen — Notes de frais</title>
+  <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SolariScreen">
+  <link rel="apple-touch-icon" href="../assets/img/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="../assets/img/logo-solariscreen.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+  <script src="../assets/js/theme.js"></script>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <link rel="stylesheet" href="../assets/css/theme-cyberpunk.css">
+  <link rel="stylesheet" href="../assets/css/theme-zen.css">
+  <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
+  <link rel="stylesheet" href="../assets/css/base.css">
+  <style>
+    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: var(--sp-4); }
+    .filters .sep { width: 1px; height: 22px; background: var(--border); margin: 0 0.3rem; }
+    .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+    /* ── Une ligne de ticket ─────────────────────────────────────────────────────────────
+       Pas un tableau : il y a une vignette, trois dates et deux boutons par ligne, et sur un
+       téléphone un tableau de six colonnes se lit à la loupe ou pas du tout.                */
+    .dp { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) 0;
+          border-bottom: 1px solid var(--border); }
+    .dp:last-child { border-bottom: none; }
+    .dp-vig { flex: none; width: 56px; height: 56px; border-radius: var(--r-sm); overflow: hidden;
+              border: 1px solid var(--border); background: var(--surface-2); display: grid; place-items: center;
+              cursor: pointer; color: var(--text-subtle); }
+    .dp-vig img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .dp-corps { flex: 1; min-width: 8ch; }
+    .dp-h { display: flex; gap: var(--sp-2); align-items: baseline; flex-wrap: wrap; }
+    .dp-m { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-md); flex: 0 0 auto; }
+    .dp-d { font-size: var(--fs-xs); color: var(--text-muted); }
+    .dp-detail { font-size: var(--fs-sm); margin-top: 0.15rem; }
+    .dp-meta { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; line-height: 1.6; }
+    .dp-act { flex: none; display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-end; }
+    .dp-vieux { color: var(--warn); font-weight: 600; }
+    .dp-tres-vieux { color: var(--danger); font-weight: 700; }
+
+    .etat { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: .04em;
+            text-transform: uppercase; padding: 0.12rem 0.45rem; border-radius: var(--r-sm);
+            border: 1px solid currentColor; white-space: nowrap; }
+    .etat.a_remettre { color: var(--warn); }
+    .etat.au_bureau  { color: var(--accent); }
+    .etat.rembourse  { color: var(--ok); }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: var(--sp-3); }
+    .seg { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+    .seg button { flex: 1; background: transparent; border: none; color: var(--text-muted);
+                  padding: 0.45rem 0.6rem; cursor: pointer; font: inherit; font-size: var(--fs-sm); }
+    .seg button.on { background: var(--accent); color: var(--on-accent); }
+    @media (pointer: coarse) { .seg button { min-height: 44px; } .chip { min-height: 44px; } }
+
+    /* ⚠️ Sur téléphone, les deux boutons d'action prennent ~190 px : le texte de la ligne
+       tombait alors à 82 px de large (mesuré à 390 px), et « Visserie inox + silicone » se
+       cassait en colonne. C'est le piège connu du texte coincé à côté d'un bloc qui ne cède
+       pas : ici c'est le MONTANT et le détail qui identifient le ticket, donc ce sont les
+       boutons qui passent dessous, pas l'inverse. */
+    @media (max-width: 560px) {
+      .dp { flex-wrap: wrap; }
+      .dp-corps { min-width: 55%; }
+      .dp-act { width: 100%; flex-direction: row; justify-content: flex-end;
+                flex-wrap: wrap; margin-top: var(--sp-2); }
+    }
+
+    .vignettes { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+    .vignettes .v { position: relative; width: 64px; height: 64px; border-radius: var(--r-sm);
+                    overflow: hidden; border: 1px solid var(--border); }
+    .vignettes .v img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .vignettes .v button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+                           border-radius: 50%; border: none; background: var(--danger); color: #fff;
+                           cursor: pointer; font-size: 11px; line-height: 20px; padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="fx-grid"></div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo"><img src="../assets/img/logo-solariscreen.svg" alt="" onerror="this.style.display='none'"></span>
+      <div>
+        <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
+        <div class="module">Notes de frais</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="quickNav"></span>
+      <span id="themeToggle"></span>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="kpis" id="kpis"></div>
+
+    <section class="section ticked">
+      <div class="section-head"><h2 id="formTitre">Nouveau ticket</h2><span class="section-tag">SS // FRAIS</span></div>
+      <div class="section-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="label">Qui a avancé l’argent</label>
+            <div class="seg" id="segQui"></div>
+          </div>
+          <div class="field"><label class="label" for="fDate">Date de l’achat</label>
+            <input class="input" type="date" id="fDate"></div>
+          <div class="field"><label class="label" for="fMontant">Montant payé</label>
+            <div class="input-unit"><input class="input input-num" type="number" min="0.01" step="0.01" id="fMontant" placeholder="0,00"><span class="unit">€</span></div></div>
+          <div class="field"><label class="label" for="fClient">Chantier / client (facultatif)</label>
+            <input class="input" type="text" id="fClient" list="dlClients" autocomplete="off" placeholder="Laisser vide si ce n’est pour personne"></div>
+        </div>
+        <div class="field mt-3"><label class="label" for="fDetail">Ce que j’ai acheté (facultatif)</label>
+          <input class="input" type="text" id="fDetail" maxlength="300" placeholder="Visserie + silicone, Brico Nivelles"></div>
+        <div class="form-grid mt-3">
+          <div class="field"><label class="label" for="fRemis">Remis au bureau le</label>
+            <input class="input" type="date" id="fRemis"></div>
+          <div class="field"><label class="label" for="fRembourse">Remboursé le</label>
+            <input class="input" type="date" id="fRembourse"></div>
+        </div>
+
+        <div class="field mt-3">
+          <label class="label">Photo du ticket</label>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;">
+            <span id="icPhoto"></span>&nbsp;Ajouter une photo
+            <input type="file" accept="image/*" capture="environment" multiple hidden id="fPhoto" onchange="choisirPhotos(this)">
+          </label>
+          <div class="vignettes" id="vignettes"></div>
+          <div class="text-muted mt-2" style="font-size:var(--fs-2xs);">
+            Le ticket thermique s’efface en quelques mois. La photo, elle, reste.
+          </div>
+        </div>
+
+        <div style="display:flex;gap:var(--sp-3);align-items:center;margin-top:var(--sp-4);flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" id="btnSave" onclick="enregistrer()">Enregistrer le ticket</button>
+          <button class="btn btn-ghost btn-sm" id="btnAnnuler" onclick="nouveau()" style="display:none;">Annuler la modification</button>
+          <span id="msg" class="text-muted" style="font-size:var(--fs-xs);"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section ticked mt-4">
+      <div class="section-head"><h2>Historique</h2><span class="section-tag" id="tagNb"></span></div>
+      <div class="section-body">
+        <div class="filters" id="filtres"></div>
+        <div id="liste"></div>
+      </div>
+    </section>
+  </main>
+
+  <datalist id="dlClients"></datalist>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script src="../assets/js/fetes.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <!-- Toute la logique (états, ancienneté, totaux, tri) vit dans ce module et y est testée. -->
+  <script src="../assets/js/depenses.js"></script>
+  <script>
+    const SS = window.SS, SSUI = window.SSUI, D = window.SSDepenses;
+    const el = SSUI.el, esc = SSUI.escHtml, fmtEur = SSUI.fmtEur, toast = SSUI.toast;
+    const icon = SSUI.icon, jsAttr = SSUI.jsAttr;
+
+    let TOUT = [], CLIENTS = [], MOI = 'nicolas';
+    let EDITE = null;                 // l'id du ticket en cours de modification, ou null
+    let FORM_QUI = 'nicolas';
+    let PHOTOS = [];                  // les photos du ticket en cours d'édition
+    let FILTRE = { qui: '', etat: '', annee: '' };
+
+    el('icPhoto').innerHTML = icon('camera', 14);
+
+    // ── Le formulaire ────────────────────────────────────────────────────────────────────
+    function rendreSegQui() {
+      el('segQui').innerHTML = D.GENS.map(g =>
+        `<button type="button" class="${FORM_QUI === g ? 'on' : ''}" onclick="choisirQui(${jsAttr(g)})">${
+          esc(SSUI.SELLER_LABELS[g] || g)}</button>`).join('');
+    }
+    window.choisirQui = function (g) { FORM_QUI = g; rendreSegQui(); };
+
+    function rendreVignettes() {
+      el('vignettes').innerHTML = PHOTOS.map((p, i) =>
+        `<div class="v"><img src="${esc(p.url)}" alt="Ticket" onclick="voirPhotos(${i})">` +
+        `<button type="button" title="Retirer" onclick="retirerPhoto(${i})">✕</button></div>`).join('');
+    }
+    window.voirPhotos = function (i) { SSUI.ouvrirPhotos(PHOTOS.map(p => p.url), i); };
+
+    /* ⚠️ Deux chemins, et c'est la même règle que les photos d'un sujet (règle 25) : tant que le
+       ticket n'est pas enregistré il n'a pas d'identifiant, donc la route ciblée ne peut pas
+       exister — la photo attend en mémoire et part à l'enregistrement. Une fois le ticket connu,
+       elle part TOUT DE SUITE : une photo qu'on croit jointe et qui ne l'est pas vaut moins que
+       pas de photo du tout. */
+    window.choisirPhotos = async function (input) {
+      const fichiers = [...input.files];
+      input.value = '';
+      for (const f of fichiers) {
+        try {
+          const url = await SSUI.compressAndUploadPhoto(f, EDITE || 'depense');
+          if (EDITE) {
+            const r = await SS.addDepensePhoto(EDITE, url);
+            if (!r || !r.ok) { toast(r && r.error ? r.error : 'Photo non enregistrée.', 'warn'); continue; }
+            PHOTOS = (await recharger(EDITE)).photos || [];
+          } else {
+            PHOTOS.push({ id: 'tmp-' + Math.random().toString(36).slice(2), url: url, _local: true });
+          }
+          rendreVignettes();
+        } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
+      }
+    };
+    window.retirerPhoto = async function (i) {
+      const p = PHOTOS[i];
+      if (!p) return;
+      if (EDITE && !p._local) {
+        const r = await SS.removeDepensePhoto(EDITE, p.id);
+        if (!r || !r.ok) return toast(r && r.error ? r.error : 'Suppression impossible.', 'warn');
+      }
+      PHOTOS.splice(i, 1);
+      rendreVignettes();
+    };
+
+    async function recharger(id) {
+      TOUT = await SS.listDepenses().catch(() => TOUT);
+      rendre();
+      return TOUT.filter(x => x.id === id)[0] || {};
+    }
+
+    window.nouveau = function () {
+      EDITE = null; PHOTOS = []; FORM_QUI = MOI;
+      el('formTitre').textContent = 'Nouveau ticket';
+      el('btnSave').textContent = 'Enregistrer le ticket';
+      /* ⚠️ `hidden` ne suffit PAS sur un `.btn` : la règle `display: inline-flex` de la feuille
+         de style l'emporte sur `[hidden] { display: none }` du navigateur, et le bouton reste
+         affiché. Vu à l'écran, pas en relisant le code. */
+      el('btnAnnuler').style.display = 'none';
+      el('fDate').value = SSUI.aujourdhui();
+      ['fMontant', 'fClient', 'fDetail', 'fRemis', 'fRembourse'].forEach(k => { el(k).value = ''; });
+      el('msg').textContent = '';
+      rendreSegQui(); rendreVignettes();
+    };
+
+    window.modifier = function (id) {
+      const d = TOUT.filter(x => x.id === id)[0];
+      if (!d) return;
+      EDITE = id; PHOTOS = (d.photos || []).slice(); FORM_QUI = d.qui || MOI;
+      el('formTitre').textContent = 'Modifier le ticket';
+      el('btnSave').textContent = 'Enregistrer les modifications';
+      el('btnAnnuler').style.display = '';
+      el('fDate').value = d.date || '';
+      el('fMontant').value = d.montant || '';
+      el('fClient').value = d.client_nom || '';
+      el('fDetail').value = d.detail || '';
+      el('fRemis').value = d.remis_le || '';
+      el('fRembourse').value = d.rembourse_le || '';
+      el('msg').textContent = '';
+      rendreSegQui(); rendreVignettes();
+      el('formTitre').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+
+    /** Un nom tapé → le client du CRM s'il existe. Un nom inconnu est gardé TEL QUEL mais sans
+     *  clé : mieux vaut conserver ce qui a été écrit que l'effacer parce qu'on ne le reconnaît
+     *  pas (même règle que les Échanges). */
+    function clientDepuisNom(nom) {
+      const propre = (nom || '').trim();
+      const lie = CLIENTS.filter(c => c.nom.toLowerCase() === propre.toLowerCase())[0];
+      return { client_nom: propre, client_key: (lie && lie.key) || '' };
+    }
+
+    window.enregistrer = async function () {
+      const base = EDITE ? (TOUT.filter(x => x.id === EDITE)[0] || {}) : {};
+      // Règle 2 : on étale l'existant, on ne le reconstruit pas par liste blanche.
+      const d = Object.assign({}, base, {
+        id: EDITE || ('dep-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)),
+        qui: FORM_QUI,
+        date: el('fDate').value,
+        montant: parseFloat(el('fMontant').value) || 0,
+        detail: el('fDetail').value.trim(),
+        remis_le: el('fRemis').value,
+        rembourse_le: el('fRembourse').value,
+      }, clientDepuisNom(el('fClient').value));
+
+      const pbs = D.problemes(d);
+      if (pbs.length) { el('msg').innerHTML = '<span style="color:var(--danger)">À compléter : ' +
+        esc(pbs.map(p => p.l).join(', ')) + '</span>'; return; }
+
+      el('btnSave').disabled = true;
+      const r = await SS.saveDepense(d);
+      el('btnSave').disabled = false;
+      if (!r || !r.ok) { el('msg').innerHTML = '<span style="color:var(--danger)">' + esc((r && r.error) || 'Enregistrement impossible.') + '</span>'; return; }
+
+      // Les photos choisies AVANT que le ticket existe partent maintenant, une par une.
+      const enAttente = PHOTOS.filter(p => p._local);
+      for (const p of enAttente) {
+        const rp = await SS.addDepensePhoto(d.id, p.url);
+        if (!rp || !rp.ok) toast('Une photo n’a pas pu être jointe.', 'warn');
+      }
+      toast(EDITE ? 'Ticket modifié.' : 'Ticket enregistré.', 'ok');
+      nouveau();
+      await recharger();
+    };
+
+    window.supprimer = async function (id) {
+      const d = TOUT.filter(x => x.id === id)[0];
+      if (!d) return;
+      if (!confirm('Supprimer ce ticket de ' + fmtEur(d.montant) + ' ? Cette ligne disparaît définitivement.')) return;
+      const r = await SS.deleteDepense(id);
+      if (!r || !r.ok) return toast((r && r.error) || 'Suppression impossible.', 'warn');
+      if (EDITE === id) nouveau();
+      toast('Ticket supprimé.', 'ok');
+      await recharger();
+    };
+
+    /* Les deux gestes du quotidien, en un clic depuis la liste : c'est tout l'intérêt de l'outil.
+       Les faire passer par le formulaire obligerait à rouvrir, dater, enregistrer — trois gestes
+       pour cocher une case, donc on ne le ferait pas. */
+    window.marquer = async function (id, champ) {
+      const d = TOUT.filter(x => x.id === id)[0];
+      if (!d) return;
+      const maj = Object.assign({}, d);
+      maj[champ] = maj[champ] ? '' : SSUI.aujourdhui();
+      const r = await SS.saveDepense(maj);
+      if (!r || !r.ok) return toast((r && r.error) || 'Impossible pour le moment.', 'warn');
+      await recharger();
+    };
+
+    // ── Les chiffres du haut ─────────────────────────────────────────────────────────────
+    function rendreKpis() {
+      const t = D.totaux(TOUT, FILTRE.qui || '');
+      const qui = FILTRE.qui ? (SSUI.SELLER_LABELS[FILTRE.qui] || FILTRE.qui) : 'Nicolas et Yannick';
+      el('kpis').innerHTML = `
+        <div class="kpi warn ticked"><div class="kpi-label">À remettre au bureau</div>
+          <div class="kpi-value">${fmtEur(t.a_remettre)}</div>
+          <div class="kpi-sub">Les tickets encore dans ta poche</div></div>
+        <div class="kpi accent ticked"><div class="kpi-label">Chez le bureau</div>
+          <div class="kpi-value">${fmtEur(t.au_bureau)}</div>
+          <div class="kpi-sub">Remis, pas encore remboursés</div></div>
+        <div class="kpi ok ticked"><div class="kpi-label">Remboursé</div>
+          <div class="kpi-value">${fmtEur(t.rembourse)}</div>
+          <div class="kpi-sub">Depuis le début</div></div>
+        <div class="kpi ticked"><div class="kpi-label">Total encore dû</div>
+          <div class="kpi-value">${fmtEur(t.du)}</div>
+          <div class="kpi-sub">${t.nb_du} ticket${t.nb_du > 1 ? 's' : ''} · ${esc(qui)}</div></div>`;
+    }
+
+    function rendreFiltres() {
+      const puce = (actif, libelle, onclick) =>
+        `<button type="button" class="chip ${actif ? 'active' : ''}" onclick="${onclick}">${esc(libelle)}</button>`;
+      let h = puce(!FILTRE.qui, 'Tout le monde', 'filtrer(\'qui\', \'\')');
+      D.GENS.forEach(g => { h += puce(FILTRE.qui === g, SSUI.SELLER_LABELS[g] || g, `filtrer('qui', ${jsAttr(g)})`); });
+      h += '<span class="sep"></span>';
+      h += puce(!FILTRE.etat, 'Tous les états', 'filtrer(\'etat\', \'\')');
+      D.ETATS.forEach(e => { h += puce(FILTRE.etat === e, D.ETAT_LABEL[e], `filtrer('etat', ${jsAttr(e)})`); });
+      const ans = D.annees(TOUT);
+      if (ans.length > 1) {
+        h += '<span class="sep"></span>';
+        h += puce(!FILTRE.annee, 'Toutes les années', 'filtrer(\'annee\', \'\')');
+        ans.forEach(a => { h += puce(FILTRE.annee === a, a, `filtrer('annee', ${jsAttr(a)})`); });
+      }
+      el('filtres').innerHTML = h;
+    }
+    window.filtrer = function (k, v) { FILTRE[k] = v; rendre(); };
+
+    // ── La liste ─────────────────────────────────────────────────────────────────────────
+    function ligne(d) {
+      const etat = D.etatDe(d);
+      const r = D.retard(d);
+      const age = D.ageJours(d);
+      const photo = (d.photos || [])[0];
+      const vign = photo
+        ? `<div class="dp-vig" title="Voir le ticket" onclick="ouvrirTicket(${jsAttr(d.id)})"><img src="${esc(photo.url)}" alt="Ticket"></div>`
+        : `<div class="dp-vig" title="Aucune photo — le ticket thermique s’efface, pense à le photographier">${icon('camera', 18)}</div>`;
+
+      /* L'ANCIENNETÉ EST LE CŒUR DE L'OUTIL. « 23 j » à côté d'un montant, c'est ce qui fait
+         qu'on se décide à aller au bureau. Un registre qui ne dit que des montants ne pousse
+         à rien — c'est exactement ce qui fait tomber les tickets dans l'oubli. */
+      const cl = r ? (r.jours > r.limite * 2 ? 'dp-tres-vieux' : 'dp-vieux') : '';
+      const anciennete = etat === 'rembourse' ? ''
+        : `<span class="${cl}">${age} j${r ? ' — ça traîne' : ''}</span>`;
+
+      const trace = [
+        'Acheté le ' + SSUI.fmtDate(d.date),
+        d.remis_le ? 'remis le ' + SSUI.fmtDate(d.remis_le) : '',
+        d.rembourse_le ? 'remboursé le ' + SSUI.fmtDate(d.rembourse_le) : '',
+      ].filter(Boolean).join(' · ');
+
+      return `<div class="dp">
+        ${vign}
+        <div class="dp-corps">
+          <div class="dp-h">
+            <span class="dp-m">${fmtEur(d.montant)}</span>
+            <span class="etat ${etat}">${esc(D.ETAT_LABEL[etat])}</span>
+            <span class="dp-d">${esc(SSUI.SELLER_LABELS[d.qui] || d.qui)}</span>
+            ${anciennete}
+          </div>
+          ${d.detail ? `<div class="dp-detail">${esc(d.detail)}</div>` : ''}
+          <div class="dp-meta">${esc(trace)}${d.client_nom ? ' · ' + esc(d.client_nom) : ''}</div>
+        </div>
+        <div class="dp-act">
+          ${etat !== 'rembourse' ? `<button class="btn btn-ghost btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('remis_le')})">${
+            d.remis_le ? 'Annuler « remis »' : 'Je l’ai remis'}</button>` : ''}
+          ${etat !== 'rembourse'
+            ? `<button class="btn btn-primary btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">J’ai été remboursé</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">Annuler « remboursé »</button>`}
+          <div style="display:flex;gap:0.3rem;">
+            <button class="btn btn-ghost btn-sm" title="Modifier" onclick="modifier(${jsAttr(d.id)})">${icon('edit', 13)}</button>
+            <button class="btn btn-ghost btn-sm" title="Supprimer" onclick="supprimer(${jsAttr(d.id)})">${icon('trash', 13)}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    window.ouvrirTicket = function (id) {
+      const d = TOUT.filter(x => x.id === id)[0];
+      if (!d) return;
+      SSUI.ouvrirPhotos((d.photos || []).map(p => p.url), 0);
+    };
+
+    function rendre() {
+      rendreKpis();
+      rendreFiltres();
+      const vus = D.trier(D.filtrer(TOUT, FILTRE));
+      el('tagNb').textContent = vus.length + (vus.length > 1 ? ' TICKETS' : ' TICKET');
+      el('liste').innerHTML = vus.length
+        ? vus.map(ligne).join('')
+        : '<div class="empty-mini">Aucun ticket ici. Le premier que tu enregistres apparaîtra en haut.</div>';
+    }
+
+    // ── Chargement ───────────────────────────────────────────────────────────────────────
+    (async () => {
+      const moi = await SSNav.getIdentity().catch(() => null);
+      MOI = (moi && moi.key) || 'nicolas';
+      FORM_QUI = MOI;
+      nouveau();
+
+      TOUT = await SS.listDepenses().catch(() => []);
+      const cls = await SS.listClients().catch(() => []);
+      CLIENTS = (cls || []).map(c => ({
+        nom: [c.prenom, c.nom].filter(Boolean).join(' ').trim(),
+        key: c.key || SSUI.clientKeyOf(c.prenom, c.nom),
+      })).filter(c => c.nom);
+      el('dlClients').innerHTML = CLIENTS.map(c => `<option value="${esc(c.nom)}"></option>`).join('');
+      rendre();
+    })();
+  </script>
+</body>
+</html>

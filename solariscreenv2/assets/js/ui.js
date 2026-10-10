@@ -907,6 +907,9 @@
 
   // ── Icônes SVG (trait fin, currentColor) — remplace les emojis partout ──
   const ICONS = {
+    // Un ticket de caisse : bord inférieur déchiré et deux lignes de texte. À 14 px c'est la
+    // DÉCHIRURE qui le fait reconnaître, pas les lignes — sans elle on lit « document ».
+    receipt:    '<path d="M6 2h12v19l-2.5-1.7L13 21l-2.5-1.7L8 21l-2-1.4z"/><line x1="9.5" y1="7.5" x2="14.5" y2="7.5"/><line x1="9.5" y1="11.5" x2="14.5" y2="11.5"/>',
     // Enveloppe et maillon : indispensables aux raccourcis « écrire au client » / « lien espace client ».
     mail:       '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/>',
     link:       '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
