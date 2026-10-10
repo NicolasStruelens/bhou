@@ -551,7 +551,32 @@
                  de faire. L'appel vit donc dans le gestionnaire d'enregistrement, plus bas.
                  Ici, on ne couvre que l'ARRIVÉE des réglages : au chargement le cache peut être
                  vide, et les libellés annonceraient le repli écrit dans `signal.js`. */
-              window.__signalResync = function () { S.rafraichirSelecteurs(selEffet, selCouleur, apercu); };
+              /* ⚠️ LES MENUS SOCIÉTÉ PRÉVISUALISENT LEUR CHOIX IMMÉDIATEMENT, sans rien enregistrer.
+                 Avant, choisir une couleur ici ne changeait rien à l écran tant qu on n avait pas
+                 cliqué « Enregistrer » — et un aperçu posé juste en dessous qui ne bouge pas ne se
+                 lit pas comme « pas encore enregistré », il se lit comme « ça ne marche pas ».
+                 Le bandeau « réglage modifié, pas encore enregistré » de la page dit déjà que
+                 rien n est acté ; l aperçu, lui, montre ce qu on obtiendra. */
+              const previsualiser = function () {
+                S.previsualiserSociete(socEffet ? socEffet.value : null, socCouleur ? socCouleur.value : null);
+                S.rafraichirSelecteurs(selEffet, selCouleur, apercu);
+              };
+              [socEffet, socCouleur].forEach(function (el) { if (el) el.addEventListener('change', previsualiser); });
+              /* ⚠️ ET AUSSI APRÈS UN CHANGEMENT CÔTÉ APPAREIL. `regler()` annule l aperçu société —
+                 à raison, un choix d appareil reprend la main. Mais quand on revient ensuite à
+                 « Comme la société », l aperçu est perdu : le menu société affichait « Or » et
+                 l écran repassait à l ancienne valeur enregistrée. Deux endroits de la même page
+                 qui se contredisent. Ces écouteurs sont posés APRÈS ceux de `monterSelecteurs`,
+                 donc ils repassent derrière `regler()` et remettent l aperçu en place. */
+              [selEffet, selCouleur].forEach(function (el) { if (el) el.addEventListener('change', previsualiser); });
+
+              window.__signalResync = function () {
+                /* Une fois enregistré, le cache porte la vraie valeur : l aperçu n a plus lieu
+                   d être, et le laisser masquerait un écart entre ce qu on voit et ce qui est
+                   en base. */
+                S.previsualiserSociete(null, null);
+                S.rafraichirSelecteurs(selEffet, selCouleur, apercu);
+              };
               if (window.SSConf && window.SSConf.charger) {
                 window.SSConf.charger().then(window.__signalResync).catch(function () {});
               }
