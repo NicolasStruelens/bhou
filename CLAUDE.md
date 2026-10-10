@@ -1040,6 +1040,28 @@ de la rangée**.
 factures ÉMISES », alors qu'on veut « combien reste sur le DEVIS » — ce qui n'est pas encore
 facturé compte aussi. Deux questions voisines, deux réponses différentes.
 
+**34. LE CONTRAT D'UNE NOUVELLE PAGE : le bandeau ne suffit pas, il faut le MONTER.**
+`app/depenses.html` est sortie **sans navigation**. Les emplacements étaient pourtant bien là
+(`#quickNav`, `#themeToggle`) — personne ne les remplissait. On arrivait sur la page et on ne
+pouvait plus aller nulle part, sauf par le bouton « Dashboard ». Nicolas l'a vu à la première
+ouverture : « j'ai pas le menu à gauche ? ».
+Deux lignes, et elles sont obligatoires sur **toute** page de `app/` :
+```js
+window.SSTheme.mountThemeToggle(el('themeToggle'));
+window.SSNav.mount(el('quickNav'));
+```
+⚠️ Le défaut est INVISIBLE à la relecture : le HTML du bandeau est complet, rien n'échoue,
+aucune erreur en console. Il ne se voit qu'en ouvrant la page — une raison de plus de toujours
+regarder l'écran, pas seulement les mesures.
+**Le contrôle qui attrape ça d'un coup**, pour toutes les pages :
+```bash
+for f in app/*.html; do q=$(grep -c 'id="quickNav"' "$f"); m=$(grep -c 'SSNav.mount' "$f");
+  [ "$q" -gt 0 ] && [ "$m" -eq 0 ] && echo "MENU NON MONTE : $f"; done
+```
+Une nouvelle page doit aussi : porter le `viewport`, le `manifest` et l'`apple-touch-icon` (sinon
+pas d'icône à l'ajout sur l'écran d'accueil), charger `ui.js` puis `nav.js`, et être déclarée
+dans `NAV_GROUPS` de `nav.js` — sans quoi on ne peut y arriver que par l'URL.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
