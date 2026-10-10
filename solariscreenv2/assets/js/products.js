@@ -1242,6 +1242,46 @@
       .map(([k, l]) => ({ k: k, l: l }));
   }
 
+  /* ── DUPLIQUER UNE OUVERTURE ─────────────────────────────────────────────
+     Sur une façade, les ouvertures se ressemblent : même RAL, même lame, même caisson, même
+     moteur, même toile — souvent seules les mesures changent. Les ressaisir une par une, c'est
+     une quarantaine de champs pour deux chiffres, et une occasion de se tromper à chaque champ.
+     Demande de Nicolas, 10/10/2026 : « que je puisse dupliquer une ouverture, comme ça je n'ai
+     pas à réécrire le RAL, les specs, juste les mesures ».
+     ⚠️ LA RÈGLE VIT ICI, PAS DANS LES PAGES (règle 10). Le simulateur ET le Mode Terrain
+     dupliquent, et ce qu'une copie emporte est une décision métier, pas un détail d'écran :
+     en deux exemplaires, elle aurait divergé au premier champ ajouté au configurateur.
+
+     CE QU'UNE COPIE N'EMPORTE PAS, et pourquoi :
+     • `_id` — cette fonction n'en POSE AUCUN, et c'est structurel. L'identité appartient à la
+       page qui tient la liste ; une copie qui garderait l'identifiant de son original se
+       confondrait avec lui au premier `find`, et les deux ouvertures se modifieraient ensemble.
+       En ne le produisant pas, l'oubli devient IMPOSSIBLE au lieu d'être seulement déconseillé.
+     • `photos` — une photo documente UNE fenêtre précise. Recopiée, elle part sur le document
+       client et sur la feuille de pose en désignant la mauvaise ouverture : pire qu'absente.
+
+     ⚠️ LES MESURES ET LE PRIX, EUX, SE COPIENT — et c'est un choix, pas un oubli. Deux fenêtres
+     identiques sur une même façade sont le cas le plus fréquent : les vider obligerait à retaper
+     ce qu'on vient de dupliquer. Et un prix catalogue qui correspond aux mesures copiées reste
+     cohérent ; le vider seul laisserait des mesures sans prix, donc un devis faux en silence.
+     C'est à l'interface de mettre la largeur sous le curseur, pas à la donnée de disparaître.
+
+     ⚠️ LA COPIE EST PROFONDE. Un tableau ou un objet partagé entre l'original et sa copie se
+     modifierait des DEUX côtés à la fois, et personne ne le verrait avant de relire le devis
+     enregistré — c'est-à-dire chez le client. */
+  const COPIE_JAMAIS = ['_id', 'photos'];
+
+  /**
+   * @returns {object} une ouverture neuve, sans identifiant et sans photos.
+   * L'appelant lui pose SON identifiant avant de l'insérer dans la liste.
+   */
+  function dupliquerOuverture(item) {
+    const copie = JSON.parse(JSON.stringify(item || {}));
+    COPIE_JAMAIS.forEach(function (k) { delete copie[k]; });
+    copie.photos = [];
+    return copie;
+  }
+
   const CATALOG_CATS = [...new Set(CATALOG_OPTIONS.map(o => o.cat))].sort();
   /**
    * Recherche tolérante : code article, marque, ou mots du libellé, dans n'importe quel ordre.
@@ -1279,6 +1319,7 @@
     VR_CHAMPS, vrChamps, vrValeurs, vrOptions, vrClesClient,
     CATALOG_OPTIONS, CATALOG_CATS, chercheAccessoires,
     CHAMPS_REQUIS, champsManquants,
+    COPIE_JAMAIS, dupliquerOuverture,
     RAL_TABLE, RAL_FREQUENTS, ralCode, ralNom, ralHex, ralHarol, ralLabel, ralListeHarol,
     HAROL_COLORIS, FINITION_L, SECTION_L, coloris, colorisDuCode, colorisCodes,
     chercheColoris, colorisLabel,

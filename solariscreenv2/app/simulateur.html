@@ -707,6 +707,8 @@
         <div class="item-card-head">
           <span class="item-no">#${idx + 1}</span>
           <span class="item-sub" data-sub></span>
+          <button class="btn btn-ghost btn-sm" onclick="duplicateItem('${item._id}')"
+            title="Dupliquer cette ouverture — tout sauf les photos">⧉ Dupliquer</button>
           <button class="btn btn-danger btn-sm" onclick="removeItem('${item._id}')">✕ Retirer</button>
         </div>
         <div class="grid grid-auto">
@@ -770,6 +772,35 @@
       ui_recalc();
     };
     window.removeItem = (id) => { markDirty(); state.items = state.items.filter(i => i._id !== id); renderItems(); ui_recalc(); };
+
+    /**
+     * DUPLIQUER UNE OUVERTURE — tout le configurateur, aucune photo.
+     * Ce qu'une copie emporte est décidé dans `SSProducts.dupliquerOuverture` (règle 10) :
+     * le Mode Terrain duplique aussi, et en deux exemplaires la règle aurait divergé au
+     * premier champ ajouté au configurateur VR150.
+     * ⚠️ La copie se range JUSTE APRÈS son original, pas en fin de liste : c'est une variante
+     * de celle-là, et la retrouver huit ouvertures plus bas annulerait le temps gagné.
+     * ⚠️ ET LA LARGEUR PART SÉLECTIONNÉE. Les mesures sont copiées (deux fenêtres identiques
+     * sur une façade, c'est le cas courant), donc rien ne signale à l'œil qu'il faut les
+     * revoir. Mettre le premier chiffre à changer sous le curseur fait de la correction le
+     * geste par défaut — sans effacer une donnée dont on a souvent besoin telle quelle.
+     */
+    window.duplicateItem = (id) => {
+      const i = state.items.findIndex(x => x._id === id);
+      if (i < 0) return;
+      const copie = window.SSProducts.dupliquerOuverture(state.items[i]);
+      copie._id = 'it' + (++_uid);      // l'identité appartient à cette page, pas au module
+      markDirty();
+      state.items.splice(i + 1, 0, copie);
+      renderItems();
+      ui_recalc();
+      const card = document.querySelector(`[data-id="${copie._id}"]`);
+      if (!card) return;
+      card.scrollIntoView({ block: 'nearest' });
+      const l = card.querySelector('[data-f="largeur"]');
+      if (l) { l.focus(); l.select(); }
+      toast('Ouverture dupliquée — vérifie les mesures.', 'ok');
+    };
     window.removePhoto = (id, pi) => { markDirty(); const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
     window.addPhotos = (id, input) => {
       const it = state.items.find(i => i._id === id); if (!it) return;
