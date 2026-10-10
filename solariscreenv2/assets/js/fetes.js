@@ -618,7 +618,17 @@
           teinte: { sombre: '#f08c3a', clair: '#c96a16' }, opacite: { sombre: 1, clair: 0.95 },
         },
       },
-      marque: { svg: MITRE, taille: 18,
+      /* 27 et non 18 : à 18 px la mitre faisait 23 px de haut dans une ligne de bandeau qui
+         en fait 36, à côté d'un logo de 36 — elle se lisait comme une poussière posée là.
+         Retour de Nicolas, 10/10/2026 : « juste plus grand la mitre ». 28 de large donne
+         34 de haut (le viewBox fait 1,28 fois plus haut que large) : elle remplit presque
+         toute la hauteur du logo SANS la dépasser. Mesuré : à 28 elle rendait 37 px et
+         faisait grandir le bandeau d'un pixel — c'est le LOGO qui doit fixer cette hauteur,
+         pas un décor, sinon la ligne bouge six jours par an sans raison visible.
+         ⚠️ La taille d'une marque se choisit sur la HAUTEUR DE SON VOISIN, pas sur la
+         valeur des autres fêtes : un sapin large et une mitre étroite à la même largeur
+         n'occupent pas la même place. */
+      marque: { svg: MITRE, taille: 27,
         teinte: { sombre: '#e4554f', clair: '#c0392b' }, opacite: { sombre: 1, clair: 1 } },
       /* LE RAIL PORTE LE PERSONNAGE. C'est le seul emplacement assez grand et assez calme pour
          un portrait : il est fixe, isolé en bas d'une colonne vide, et personne ne lit du texte
