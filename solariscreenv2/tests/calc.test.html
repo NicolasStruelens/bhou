@@ -127,34 +127,53 @@
     check('C7 taux renvoyés (diviseur)', r4.rates.net_divisor, 2.0);
     check('C7 taux renvoyés par défaut', sansTaux.rates.material_margin, 0.23);
 
-    // ═════ C8 — COMBIEN D'OUVERTURES RÉELLES ? C'est elle qui décide `install_qty`. ═════
-    /* ⚠️ Une ligne d'ouverture existe dès qu'on clique « Ajouter » : vide, elle ne représente
-       aucun travail et ne doit rien facturer. La règle ne vivait que dans le simulateur ; le Mode
-       Terrain comptait TOUTES les lignes, donc un devis terrain avec une ouverture encore vide
-       sortait à 280 € d'installation pour un catalogue à 0 — 296,80 € TVAC avant d'avoir chiffré
-       quoi que ce soit. Signalé par Nicolas le 06/10/2026. */
+    // ═════ C8 — COMBIEN D'OUVERTURES CHIFFRÉES ? C'est elle qui décide `install_qty`. ═════
+    /* ⚠️ LE DÉCLENCHEUR EST LE PRIX, et il a changé le 10/10/2026.
+       Il était « une largeur, une hauteur, une projection OU un prix » — « dès qu'on a commencé
+       à décrire ». Sauf qu'on commence TOUJOURS par les mesures : on relève la baie, on tape
+       1000 × 1000, et le devis affichait aussitôt 296,80 € TVAC pour un catalogue à 0 €.
+       Nicolas : « quand je fais un nouveau devis il met déjà une somme ». Le chiffre n'était
+       pas faux — c'était bien une pose — mais il apparaissait AVANT que le devis ne veuille
+       dire quoi que ce soit, et un total qu'on ne peut pas expliquer, on cesse de le lire.
+       Le prix est le dernier geste : une ouverture chiffrée est une ouverture décidée.
+       ⚠️ La soupape reste le drapeau « quantité saisie à la main » du simulateur, qui décroche
+       `install_qty` de ce compte — c'est là que vivent les exceptions, pas ici. */
     const ouv = SSCalc.ouverturesReelles;
     check('C8 aucune ouverture', ouv([]), 0);
     check('C8 une ligne VIDE ne compte pas', ouv([{ type: 'screen' }]), 0);
     check('C8 une ligne vide avec une quantité ne compte toujours pas', ouv([{ type: 'screen', quantite: 3 }]), 0);
-    check('C8 une largeur suffit à la rendre réelle', ouv([{ largeur: 1200 }]), 1);
-    check('C8 une hauteur aussi', ouv([{ hauteur: 2000 }]), 1);
-    check('C8 une projection aussi (tente solaire)', ouv([{ projection: 2500 }]), 1);
-    check('C8 un prix catalogue aussi', ouv([{ prix_catalogue_ht: 450 }]), 1);
-    check('C8 la quantité d’une ouverture décrite est respectée', ouv([{ largeur: 1200, quantite: 4 }]), 4);
-    check('C8 une quantité à zéro ou absente vaut une ouverture', ouv([{ largeur: 1200, quantite: 0 }]), 1);
-    check('C8 les lignes vides sont ignorées au milieu des autres',
-      ouv([{ largeur: 1200 }, { type: 'screen' }, { prix_catalogue_ht: 300, quantite: 2 }, {}]), 3);
-    check('C8 null et undefined ne cassent rien', ouv([null, undefined, { largeur: 900 }]), 1);
-    // Le cas EXACT de Nicolas, de bout en bout : une ouverture vide ne doit plus rien facturer.
+    // ⚠️ LE CAS DE NICOLAS : il relève la baie avant de chiffrer. Rien ne doit se facturer.
+    check('C8 des MESURES seules ne facturent aucune pose', ouv([{ largeur: 1000, hauteur: 1000 }]), 0);
+    check('C8 une largeur seule non plus', ouv([{ largeur: 1200 }]), 0);
+    check('C8 une projection seule non plus (tente solaire)', ouv([{ projection: 2500 }]), 0);
+    check('C8 c’est le PRIX qui déclenche la pose', ouv([{ prix_catalogue_ht: 450 }]), 1);
+    check('C8 un prix à zéro n’est pas un prix', ouv([{ largeur: 1200, prix_catalogue_ht: 0 }]), 0);
+    check('C8 un prix négatif non plus', ouv([{ largeur: 1200, prix_catalogue_ht: -450 }]), 0);
+    check('C8 la quantité d’une ouverture chiffrée est respectée', ouv([{ prix_catalogue_ht: 450, quantite: 4 }]), 4);
+    check('C8 une quantité à zéro ou absente vaut une ouverture', ouv([{ prix_catalogue_ht: 450, quantite: 0 }]), 1);
+    check('C8 seules les chiffrées comptent, au milieu des autres',
+      ouv([{ largeur: 1200 }, { type: 'screen' }, { prix_catalogue_ht: 300, quantite: 2 }, {}]), 2);
+    check('C8 null et undefined ne cassent rien', ouv([null, undefined, { prix_catalogue_ht: 900 }]), 1);
+    // Bout en bout : une ouverture mesurée mais pas chiffrée ne facture plus rien.
+    const mesuree = [{ type: 'volet_roulant', largeur: 1000, hauteur: 1000 }];
     const vide = computeDevis({
-      items: [{ type: 'screen' }],
+      items: mesuree,
       installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30,
-        install_qty: ouv([{ type: 'screen' }]), tech1_qty: 0, tech2_qty: 0, tools_qty: 0 },
+        install_qty: ouv(mesuree), tech1_qty: ouv(mesuree), tech2_qty: 0, tools_qty: 0 },
       tva_pct: 6,
     });
     check('C8 bout en bout : installation à 0', vide.total_installation_ht, 0);
-    check('C8 bout en bout : total TVAC à 0', vide.total_ttc, 0);
+    check('C8 bout en bout : total TVAC à 0 (c’était 296,80)', vide.total_ttc, 0);
+    // Et dès que le prix arrive, la pose revient — c'est l'autre moitié de la règle.
+    const chiffree = [{ type: 'volet_roulant', largeur: 1000, hauteur: 1000, prix_catalogue_ht: 1000 }];
+    const pleine = computeDevis({
+      items: chiffree,
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30,
+        install_qty: ouv(chiffree), tech1_qty: ouv(chiffree), tech2_qty: 0, tools_qty: 0 },
+      tva_pct: 6,
+    });
+    check('C8 le prix saisi fait revenir la pose', pleine.total_installation_ht, 280);
+    check('C8 … et le total est complet', pleine.total_ttc, 1356.8);
 
     document.getElementById('out').innerHTML =
       `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
