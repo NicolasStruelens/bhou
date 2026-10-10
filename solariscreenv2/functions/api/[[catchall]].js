@@ -1554,6 +1554,117 @@ export async function onRequest(context) {
       return json({ ok: true });
     }
 
+    // ══════════ NOTES DE FRAIS (l'argent avancé pour la société) ══════════
+    // Demandé par Nicolas le 10/10/2026 : il achète du matériel de chantier avec son argent et
+    // SolariScreen doit le lui rembourser. Le ticket finit dans une poche, la poche finit à la
+    // machine — ses mots : « c'est une sécurité pour moi de pouvoir être remboursé et ne pas
+    // tomber dans l'oubli ».
+    // ⚠️ VOLONTAIREMENT À PART, et il l'a demandé explicitement : aucun lien avec les
+    // statistiques, la rémunération ou le paiement. Un remboursement de matériel et une paie de
+    // pose ne sont pas la même nature d'argent. Pas de TVA, pas de catégorie, pas de référence
+    // comptable non plus : la pièce officielle reste chez SysCore / Falco.
+    // Table créée à la volée (IF NOT EXISTS) → aucune migration à lancer avant de déployer.
+    if (path === '/api/depenses' || path.indexOf('/api/depenses/') === 0) {
+      await env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS depenses (id TEXT PRIMARY KEY, qui TEXT NOT NULL DEFAULT '', " +
+        "date TEXT NOT NULL DEFAULT '', montant REAL NOT NULL DEFAULT 0, " +
+        "date_modification TEXT, data TEXT NOT NULL)"
+      ).run();
+    }
+    if (path === '/api/depenses' && method === 'GET') {
+      // Du plus récent au plus ancien : le tri utile (le plus vieux ticket en attente d'abord)
+      // est calculé à l'écran par SSDepenses.trier, parce qu'il dépend de l'ÉTAT, pas de la date.
+      const { results } = await env.DB.prepare('SELECT data FROM depenses ORDER BY date DESC').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/depenses' && method === 'POST') {
+      const x = await request.json().catch(() => null);
+      if (!x || typeof x !== 'object') return json({ ok: false, error: 'Requête invalide' }, 400);
+      if (!x.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      const qui = String(x.qui || '');
+      if (!['nicolas', 'yannick'].includes(qui)) return json({ ok: false, error: 'Personne inconnue' }, 400);
+      const date = String(x.date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, error: 'Date invalide' }, 400);
+      // Un montant nul ou négatif n'est pas une dépense : on refuse plutôt que d'enregistrer une
+      // ligne qui ferait bouger un total sans que personne ne comprenne pourquoi.
+      const montant = Math.round((Number(x.montant) || 0) * 100) / 100;
+      if (!(montant > 0)) return json({ ok: false, error: 'Montant invalide' }, 400);
+      const dateOuVide = (v) => {
+        const d = String(v || '').slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+      };
+      const ancien = safeParse((await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(String(x.id)).first() || {}).data) || {};
+      const emailDep = parseAccessEmail(request);
+      const acteur = (emailDep && IDENTITIES[emailDep.toLowerCase()]) || emailDep || null;
+      const now = new Date().toISOString();
+      // ⚠️ On ÉTALE l'existant (règle 2) : une énumération de champs effacerait les photos que
+      // l'autre vient d'ajouter par la route ciblée. Et on RÉINJECTE les photos par-dessus, pour
+      // la même raison — l'écran qui enregistre peut avoir une liste plus ancienne en mémoire.
+      const propre = {
+        ...ancien, ...x,
+        id: String(x.id).slice(0, 60), qui, date, montant,
+        detail: String(x.detail || '').slice(0, 300),
+        client_nom: String(x.client_nom || '').slice(0, 160),
+        client_key: String(x.client_key || '').slice(0, 160),
+        remis_le: dateOuVide(x.remis_le),
+        rembourse_le: dateOuVide(x.rembourse_le),
+        photos: Array.isArray(ancien.photos) ? ancien.photos : [],
+        acteur, date_modification: now,
+        date_creation: ancien.date_creation || x.date_creation || now,
+      };
+      await env.DB.prepare(`
+        INSERT INTO depenses (id, qui, date, montant, date_modification, data) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET qui = excluded.qui, date = excluded.date,
+          montant = excluded.montant, date_modification = excluded.date_modification, data = excluded.data
+      `).bind(propre.id, qui, date, montant, now, JSON.stringify(propre)).run();
+      return json({ ok: true, id: propre.id, data: propre });
+    }
+    // ── PHOTO d'une dépense (le ticket) ───────────────────────────────────────
+    // Écriture CIBLÉE (règle 3) : l'image part dans R2 avant cet appel, on ne stocke ici que son
+    // adresse. Réenregistrer la dépense entière écraserait une photo ajoutée entre-temps.
+    let mDepPhoto = path.match(/^\/api\/depenses\/([^/]+)\/photo$/);
+    if (mDepPhoto && method === 'POST') {
+      const id = decodeURIComponent(mDepPhoto[1]);
+      const body = await request.json().catch(() => ({}));
+      const url = String(body.url || '').trim();
+      if (!url) return json({ ok: false, error: 'Photo manquante' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Dépense introuvable' }, 404);
+      const now = new Date().toISOString();
+      const photo = { id: crypto.randomUUID(), url: url.slice(0, 2000000), date: now };
+      await env.DB.prepare(
+        `UPDATE depenses SET data = json_set(
+                    json_insert(
+                      json_set(data, '$.photos', json(COALESCE(json_extract(data, '$.photos'), '[]'))),
+                      '$.photos[#]', json(?1)),
+                    '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(photo), now, id).run();
+      return json({ ok: true, photo });
+    }
+    let mDepPhotoDel = path.match(/^\/api\/depenses\/([^/]+)\/photo\/([^/]+)$/);
+    if (mDepPhotoDel && method === 'DELETE') {
+      const id = decodeURIComponent(mDepPhotoDel[1]);
+      const pid = decodeURIComponent(mDepPhotoDel[2]);
+      const row = await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Dépense introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const restantes = (Array.isArray(d.photos) ? d.photos : []).filter(x => String(x.id) !== String(pid));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE depenses SET data = json_set(data, '$.photos', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(restantes), now, id).run();
+      return json({ ok: true, photos: restantes });
+    }
+    let mDep = path.match(/^\/api\/depenses\/([^/]+)$/);
+    if (mDep && method === 'DELETE') {
+      const id = decodeURIComponent(mDep[1]);
+      const r = await env.DB.prepare('DELETE FROM depenses WHERE id = ?').bind(id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Dépense introuvable' }, 404);
+      return json({ ok: true });
+    }
+
     // ══════════ OUTILLAGE (catalogue perso de références : visserie, fixations, outils…) ══════════
     // Table créée à la volée (IF NOT EXISTS) → aucune migration manuelle à lancer avant de déployer.
     // C'est le carnet de références personnel de Nicolas (photo + réf. + fournisseur + lien d'achat),

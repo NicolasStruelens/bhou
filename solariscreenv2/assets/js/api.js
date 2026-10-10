@@ -779,6 +779,39 @@
     // raison plus forte encore. Un prélèvement qui n'existerait que sur le téléphone qui l'a saisi
     // ferait afficher à l'autre un « reste à toucher » trop élevé — donc un second retrait sur de
     // l'argent déjà pris. Mieux vaut refuser tout de suite et le dire.
+    // ── Notes de frais (l'argent avancé pour la société) ───────────────────────────────
+    // ⚠️ Aucune file d'attente hors-ligne, volontairement — même raison que les prélèvements :
+    // un ticket qui n'existerait que sur le téléphone qui l'a saisi serait resaisi le lendemain,
+    // et on réclamerait deux fois le même remboursement. Mieux vaut refuser et le dire.
+    async listDepenses() {
+      const d = (await req('/depenses')).data || [];
+      return d;
+    },
+    async saveDepense(x) {
+      try { return await req('/depenses', { method: 'POST', body: JSON.stringify(x) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : un ticket s’enregistre en ligne, sinon tu le resaisirais demain.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async deleteDepense(id) {
+      try { return await req('/depenses/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    async addDepensePhoto(id, url) {
+      try { return await req('/depenses/' + encodeURIComponent(id) + '/photo', { method: 'POST', body: JSON.stringify({ url: url }) }); }
+      catch (e) { return { ok: false, error: (e && e.message) || MSG_SESSION }; }
+    },
+    async removeDepensePhoto(id, pid) {
+      try { return await req('/depenses/' + encodeURIComponent(id) + '/photo/' + encodeURIComponent(pid), { method: 'DELETE' }); }
+      catch (e) { return { ok: false, error: (e && e.message) || MSG_SESSION }; }
+    },
+
     async listPrelevements() {
       const d = (await req('/prelevements')).data || [];
       return d;

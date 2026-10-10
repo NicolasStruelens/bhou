@@ -166,6 +166,11 @@
       // particulier, il concerne Nicolas et Yannick — y compris pour ce qui ne touche aucun dossier.
       { href: 'echanges.html', label: 'Échanges', icon: 'message', badge: 'echanges' },
       { href: 'factures.html', label: 'Facturation', icon: 'filetext', badge: 'factures' },
+      // Les tickets de frais avancés. Le compteur EST la raison d'être de l'outil : « c'est une
+      // sécurité pour moi de pouvoir être remboursé et ne pas tomber dans l'oubli » (Nicolas).
+      // ⚠️ Il ne passe PAS par attente.js, et c'est voulu : cet outil est volontairement à part
+      // (ni statistiques, ni rémunération, ni paiement). Le menu compte, il n'intègre pas.
+      { href: 'depenses.html', label: 'Notes de frais', icon: 'receipt', badge: 'depenses' },
       { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
       { href: 'parametres.html', label: 'Paramètres', icon: 'settings' },
     ] },
@@ -180,13 +185,14 @@
   async function computeBadges() {
     if (badgesCache && Date.now() - badgesAt < 60000) return badgesCache;
     const SS = window.SS;
-    if (!SS) return { rdv: 0, sav: 0, factures: 0, echanges: 0 };
+    if (!SS) return { rdv: 0, sav: 0, factures: 0, echanges: 0, depenses: 0 };
     const today = window.SSUI.aujourdhui();
-    const [devis, factures, rdv, sujets, moi] = await Promise.all([
+    const [devis, factures, rdv, sujets, depenses, moi] = await Promise.all([
       SS.listDevis().catch(function () { return []; }),
       SS.listFactures().catch(function () { return []; }),
       (SS.listRdv ? SS.listRdv().catch(function () { return []; }) : Promise.resolve([])),
       (SS.listSujets ? SS.listSujets().catch(function () { return []; }) : Promise.resolve([])),
+      (SS.listDepenses ? SS.listDepenses().catch(function () { return []; }) : Promise.resolve([])),
       getIdentity().catch(function () { return { key: '' }; }),
     ]);
     // Demandes entrantes que personne n'a prises en charge (hors annulées/converties).
@@ -219,7 +225,16 @@
         nbEch = (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length;
       }
     }
-    badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac, echanges: nbEch };
+    /* MES tickets pas encore remboursés. Ceux de l'autre ne me concernent pas : le compteur
+       doit dire ce que JE dois aller chercher, sinon on apprend à ne plus le regarder.
+       Sans identité (session Access expirée), on n'affiche rien plutôt qu'un chiffre faux. */
+    let nbDep = 0;
+    if (moi && moi.key) {
+      nbDep = (depenses || []).filter(function (d) {
+        return d && String(d.qui || '') === moi.key && !String(d.rembourse_le || '').slice(0, 10);
+      }).length;
+    }
+    badgesCache = { rdv: nbRdv, sav: nbSav, factures: nbFac, echanges: nbEch, depenses: nbDep };
     badgesAt = Date.now();
     return badgesCache;
   }
