@@ -202,6 +202,64 @@
        s'est bien chargé en entier — si le gabarit avait été coupé, `SSSignal` n'existerait pas. */
     check('le module s’est chargé en entier', typeof S.monterSelecteurs, 'function');
 
+    // ══════════════ G. APPAREIL → SOCIÉTÉ → REPLI ══════════════
+    titre('G. Le défaut de la société');
+
+    /* ⚠️ UN DÉFAUT N'EST PAS UNE CONSIGNE. Nicolas, 10/10/2026 : « les changements ne doivent
+       pas être opérés serveur, comme ça c'est régi par celui qui décide ? ». Le défaut, oui ;
+       le réglage, non — en serveur SEUL, l'écran de l'un changerait au milieu d'un devis parce
+       que l'autre a touché un menu. Ces tests gardent les trois niveaux et leur ORDRE. */
+    const confReel = window.SSConf;
+    const faireConf = function (effet, couleur) {
+      window.SSConf = { get: function () { return { affichage: { signal_effet: effet, signal_couleur: couleur } }; } };
+    };
+
+    try { localStorage.removeItem('ss_signal_effet'); localStorage.removeItem('ss_signal_couleur'); } catch (e) {}
+
+    faireConf('pouls', 'cyan');
+    check('aucun choix local : la société décide', [S.effet(), S.couleur()], ['pouls', 'cyan']);
+    check('et l’écran le dit', S.suitLaSociete(), { effet: true, couleur: true });
+
+    // Le choix de l'appareil l'emporte, et SEULEMENT pour le réglage qu'il a choisi.
+    S.regler('trait', null);
+    check('choix local : il l’emporte', S.effet(), 'trait');
+    check('l’autre réglage suit toujours la société', S.couleur(), 'cyan');
+    check('et l’écran distingue les deux', S.suitLaSociete(), { effet: false, couleur: true });
+
+    /* ⚠️ LE CHEMIN DU RETOUR EST OBLIGATOIRE. Sans `SUIVRE`, un appareil qui a choisi une fois
+       ne pourrait plus JAMAIS revenir au réglage commun — et le défaut serveur deviendrait
+       inutile pour tout le monde dès la première fois qu'on y touche. */
+    S.regler(S.SUIVRE, null);
+    check('« Comme la société » : on repart sur le commun', S.effet(), 'pouls');
+    check('la préférence locale est bien EFFACÉE', S.suitLaSociete().effet, true);
+
+    // La société change : l'appareil qui la suit change avec elle, sans rien toucher.
+    faireConf('lisere', 'violet');
+    check('la société change, l’appareil suit', [S.effet(), S.couleur()], ['lisere', 'violet']);
+
+    // ... mais pas celui qui a choisi.
+    S.regler('halo', 'or');
+    faireConf('aucun', 'magenta');
+    check('la société change, le choix local tient', [S.effet(), S.couleur()], ['halo', 'or']);
+    S.regler(S.SUIVRE, S.SUIVRE);
+
+    /* ⚠️ UNE VALEUR SERVEUR ABIMÉE NE DOIT PAS ÉTEINDRE LE SIGNAL. Un réglage écrit à la main,
+       un ancien enregistrement, une faute de frappe : on retombe sur le repli écrit dans le
+       module plutôt que d'appliquer un effet qui n'a aucune feuille de style — auquel cas plus
+       rien ne s'allumerait, sans la moindre erreur. */
+    faireConf('effet_inconnu', 'couleur_inconnue');
+    check('valeur serveur abîmée : repli du module', [S.effet(), S.couleur()], ['halo', 'theme']);
+    window.SSConf = undefined;
+    check('pas de réglages du tout : repli du module', [S.effet(), S.couleur()], ['halo', 'theme']);
+
+    /* ⚠️ `SUIVRE` NE DOIT PAS ÊTRE UNE VALEUR ENREGISTRABLE : s'il figurait dans les listes, un
+       appareil pourrait porter l'effet « societe », qui n'a pas de style — et plus rien ne
+       s'allumerait. Il désigne l'ABSENCE de choix, pas un choix. */
+    check('SUIVRE n’est pas un effet', S.EFFETS.some(function (e) { return e.id === S.SUIVRE; }), false);
+    check('SUIVRE n’est pas une couleur', S.COULEURS.some(function (c) { return c.id === S.SUIVRE; }), false);
+
+    window.SSConf = confReel;
+
     // On rend les réglages à leur valeur de départ : un test ne laisse pas de trace.
     try { localStorage.removeItem('ss_signal_effet'); localStorage.removeItem('ss_signal_couleur'); } catch (e) {}
     S.monter();

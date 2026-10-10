@@ -86,11 +86,16 @@
        je change une couleur, normal ? ». Un bouton gris après une modification, ça ne se lit pas
        comme « déjà fait », ça se lit comme « ça n'a pas marché » — et on reste avec un doute.
        La pastille le dit une fois par ligne, sans alourdir le texte d'aide. */
-    .reg-appareil { display: inline-block; margin-left: 0.45rem; vertical-align: 2px;
+    /* Le pendant de « cet appareil » : ce qui PART au serveur et demande à être enregistré.
+       Les deux pastilles existent pour que la différence se voie sans lire le texte d'aide —
+       c'est exactement la question qui s'est posée : « pourquoi le bouton ne s'active pas ? » */
+    .reg-societe { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    .reg-appareil, .reg-societe { display: inline-block; margin-left: 0.45rem; vertical-align: 2px;
       font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 400;
       letter-spacing: .04em; color: var(--text-subtle);
       border: 1px solid var(--border); border-radius: var(--r-pill, 2px);
       padding: 0 0.4rem; line-height: 1.7; cursor: help; }
+    .reg-societe { cursor: default; }
     /* `.input-unit` est le composant maison : l'unité VIT dans le champ, comme au simulateur,
        au lieu d'un « % » orphelin flottant à droite de la boîte. */
     .reg-champ .input-unit { width: 100%; }
@@ -480,6 +485,20 @@
                 ni l'autre. <strong>Suit le thème</strong> reprend l'ambre de « la balle est dans notre camp ».</div></div>
             <div class="reg-champ"><select class="select" id="signalCouleur"></select></div>
           </div>
+          <div class="reg" data-reg="affichage.signal_effet">
+            <div class="reg-txt"><div class="reg-nom">Effet par défaut <span class="reg-societe">société</span></div>
+              <div class="reg-aide">Le style de la maison : il s'applique à tout appareil qui n'a <strong>jamais choisi</strong>
+                ci-dessus, et à tout appareil réglé sur « Comme la société ». Un appareil qui a fait son choix
+                le garde — un défaut n'est pas une consigne. Celui-ci part au serveur : il faut
+                <strong>Enregistrer</strong>.</div></div>
+            <div class="reg-champ"><select class="select" id="signal_effet"></select></div>
+          </div>
+          <div class="reg" data-reg="affichage.signal_couleur">
+            <div class="reg-txt"><div class="reg-nom">Couleur par défaut <span class="reg-societe">société</span></div>
+              <div class="reg-aide">Même principe pour la teinte. C'est ici que se décide ce que voit un téléphone
+                neuf, ou celui de Yannick s'il n'a rien touché.</div></div>
+            <div class="reg-champ"><select class="select" id="signal_couleur"></select></div>
+          </div>
           <div class="reg reg--pleine">
             <div class="reg-txt"><div class="reg-nom">Aperçu</div>
               <div class="reg-aide">Un vrai champ, avec les mêmes règles que dans le devis — pas une vignette.
@@ -493,10 +512,40 @@
                est nécessaire — signal.js est chargé en fin de page. */
             document.addEventListener('DOMContentLoaded', function () {
               if (!window.SSSignal) return;
-              window.SSSignal.monterSelecteurs(
-                document.getElementById('signalEffet'),
-                document.getElementById('signalCouleur'),
-                document.getElementById('signalApercu'));
+              const S = window.SSSignal;
+              const selEffet = document.getElementById('signalEffet');
+              const selCouleur = document.getElementById('signalCouleur');
+              const apercu = document.getElementById('signalApercu');
+
+              /* Les menus de la SOCIÉTÉ sont peuplés depuis `SSSignal` — jamais recopiés en dur
+                 dans cette page (règle 10). Un effet ajouté au module apparaît ici tout seul ;
+                 une liste recopiée aurait fini par proposer un effet qui n'existe plus. */
+              const socEffet = document.getElementById('signal_effet');
+              const socCouleur = document.getElementById('signal_couleur');
+              if (socEffet) socEffet.innerHTML = S.EFFETS.map(function (e) {
+                return '<option value="' + e.id + '">' + e.nom + '</option>'; }).join('');
+              if (socCouleur) socCouleur.innerHTML = S.COULEURS.map(function (c) {
+                return '<option value="' + c.id + '">' + c.nom + '</option>'; }).join('');
+
+              S.monterSelecteurs(selEffet, selCouleur, apercu);
+
+              /* ⚠️ QUAND LE DÉFAUT DE LA SOCIÉTÉ CHANGE, LES LIBELLÉS « Comme la société · … »
+                 MENTENT. Et sur l'appareil qui n'a rien choisi, l'écran doit changer tout de
+                 suite : sans ceci, celui qui vient de décider le style de la maison ne le verrait
+                 pas, et croirait que son enregistrement n'a rien fait. On écoute donc les deux
+                 menus serveur ET l'arrivée des réglages (le cache peut être vide au chargement). */
+              /* ⚠️ LA RESYNCHRO SE FAIT APRÈS L'ENREGISTREMENT, PAS SUR LE `change` DU MENU.
+                 `effetSociete()` lit le CACHE de `SSConf`, et ce cache n'est réécrit qu'une fois
+                 le serveur d'accord (`SSConf.enregistrer`). Branchée sur le `change`, la
+                 resynchro aurait relu l'ANCIENNE valeur et affiché « Comme la société · Halo »
+                 alors qu'on vient de choisir Pouls — un écran qui contredit le geste qu'on vient
+                 de faire. L'appel vit donc dans le gestionnaire d'enregistrement, plus bas.
+                 Ici, on ne couvre que l'ARRIVÉE des réglages : au chargement le cache peut être
+                 vide, et les libellés annonceraient le repli écrit dans `signal.js`. */
+              window.__signalResync = function () { S.rafraichirSelecteurs(selEffet, selCouleur, apercu); };
+              if (window.SSConf && window.SSConf.charger) {
+                window.SSConf.charger().then(window.__signalResync).catch(function () {});
+              }
             });
           </script>
           <div class="reg">
@@ -564,10 +613,10 @@
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
-  <script src="../assets/js/signal.js"></script>
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/signal.js"></script>
   <script>
     const SS = window.SS;
     const { el, toast, fmtEur, icon } = window.SSUI;
@@ -610,6 +659,8 @@
       { id: 'densite', chemin: ['usage', 'densite'], texte: true },
       { id: 'kpi_replies', chemin: ['usage', 'kpi_replies'], booleen: true },
       { id: 'theme_defaut', chemin: ['affichage', 'theme_defaut'], texte: true },
+      { id: 'signal_effet', chemin: ['affichage', 'signal_effet'], texte: true },
+      { id: 'signal_couleur', chemin: ['affichage', 'signal_couleur'], texte: true },
       { id: 'mantra', chemin: ['affichage', 'mantra'], booleen: true },
       { id: 'meteo', chemin: ['affichage', 'meteo'], booleen: true },
     ];
@@ -784,6 +835,11 @@
       }
       ENREGISTRES = conf;
       rafraichir();
+      /* Le défaut de la société a pu changer : l'appareil qui le SUIT doit s'aligner tout de
+         suite, et les libellés « Comme la société · … » doivent dire la nouvelle valeur.
+         Sans ça, celui qui vient de décider le style de la maison ne le verrait pas sur son
+         propre écran, et croirait que son enregistrement n'a rien fait. */
+      if (window.__signalResync) window.__signalResync();
       toast('Réglages enregistrés ✓ — ils s’appliquent aux devis à venir', 'ok', 5000);
     };
 

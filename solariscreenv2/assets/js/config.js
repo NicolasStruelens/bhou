@@ -51,6 +51,15 @@
     },
     affichage: {
       theme_defaut: 'systeme',   // 'clair' | 'sombre' | 'systeme'
+      /* LE STYLE DE LA MAISON pour la mise en lumière des champs à remplir (`signal.js`).
+         ⚠️ C'est un DÉFAUT, pas une consigne : il s'applique à tout appareil qui n'a jamais
+         choisi, et un appareil qui choisit garde son choix. Demandé par Nicolas le 10/10/2026
+         (« que ce soit régi par celui qui décide ») ; le motif est celui de `theme_defaut`.
+         ⚠️ ET CES DEUX CLÉS DOIVENT EXISTER ICI POUR ÊTRE ENREGISTRABLES DU TOUT :
+         `SSConf.fusionner` est une LISTE BLANCHE sur DEFAUTS, donc une clé absente d'ici est
+         silencieusement jetée à l'enregistrement. Même piège que les tarifs de pose. */
+      signal_effet: 'halo',      // voir SSSignal.EFFETS
+      signal_couleur: 'theme',   // voir SSSignal.COULEURS
       mantra: true,              // pensée du jour dans le bandeau
       meteo: true,               // météo chez le client
     },
