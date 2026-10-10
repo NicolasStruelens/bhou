@@ -523,6 +523,14 @@
      l'oublie : la liste des devis renvoie le statut à PLAT (`commande_statut`), la fiche dans un
      objet (`commande.statut`), et les deux doivent répondre pareil. */
   const COMMANDE_ETAPES = ['a_commander', 'commande', 'fabrication', 'recu', 'pose'];
+  /* Les noms affichables des étapes — SOURCE UNIQUE. Ils vivaient en DEUX copies (`vue.html`
+     et `track.html`, la page que le CLIENT ouvre) et le tableau de bord allait en créer une
+     troisième. C'est l'erreur des types de produit, qui ont vécu en 13 copies avant de diverger
+     — et ici la divergence se verrait chez le client. */
+  const COMMANDE_LABEL = {
+    a_commander: 'À commander', commande: 'Commandé', fabrication: 'Fabrication',
+    recu: 'Reçu', pose: 'Posé',
+  };
   function etatCommande(d) {
     const v = String((d && d.commande && d.commande.statut) || (d && d.commande_statut) || '');
     return COMMANDE_ETAPES.indexOf(v) >= 0 ? v : 'a_commander';
@@ -1741,7 +1749,7 @@
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
-    COMMANDE_ETAPES: COMMANDE_ETAPES, etatCommande: etatCommande,
+    COMMANDE_ETAPES: COMMANDE_ETAPES, COMMANDE_LABEL: COMMANDE_LABEL, etatCommande: etatCommande,
     materielRecu: materielRecu, livraisonEstimee: livraisonEstimee,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
