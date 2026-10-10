@@ -185,6 +185,39 @@
     F.allumer(true);
     check('rallumé', F.estAllumee(), true);
 
+    /* ══════════ 7. LE DÉCOR NE CACHE PAS LA NAVIGATION ══════════
+       Le pied du rail est en `position: fixed` : il flotte par-dessus le bas de la fenêtre.
+       Tant que les décors mesuraient 30 px ça ne se voyait pas ; Saint Nicolas en fait 68, et
+       sur un écran de 740 px de haut il recouvrait trois entrées du menu — qui restaient
+       CLIQUABLES, donc invisiblement vivantes. Le rail réserve désormais la hauteur du décor.
+       ⚠️ Ce test monte un VRAI rail et appelle le vrai `apercu` : c'est le geste, pas l'API.
+       Une assertion sur la seule valeur de `taille` n'aurait rien prouvé — `taille` est une
+       largeur, et c'est la HAUTEUR rendue qui provoquait le recouvrement. */
+    const railTest = document.createElement('nav');
+    railTest.className = 'ssrail';
+    for (let i = 0; i < 4; i++) {
+      const it = document.createElement('a');
+      it.className = 'ssrail-item';
+      it.textContent = 'Entrée ' + i;
+      railTest.appendChild(it);
+    }
+    document.body.appendChild(railTest);
+
+    F.apercu('saint-nicolas');
+    const pied = railTest.querySelector('.ssfete-railpied');
+    check('rail : le décor de pied est bien posé', !!pied, true);
+    const reserve = parseFloat(railTest.style.paddingBottom) || 0;
+    check('rail : la place du décor est réservée', reserve > 0, true);
+    // Strictement SUPÉRIEURE : la réserve vaut la hauteur du dessin plus une respiration.
+    check('rail : la réserve couvre toute la hauteur du décor',
+      pied ? reserve > pied.offsetHeight : false, true);
+
+    F.allumer(false);
+    check('rail : la réserve part avec le décor', railTest.style.paddingBottom, '');
+    F.allumer(true);
+    railTest.remove();
+    F.apercu();   // on rend la main au calendrier
+
     document.getElementById('out').innerHTML =
       '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>—</th></tr>' + rows.join('') + '</table>';
     const total = pass + fail;

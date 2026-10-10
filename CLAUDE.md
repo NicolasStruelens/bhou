@@ -69,7 +69,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 50 tests des thèmes : contraste et séparabilité. **Obligatoire avant de publier un thème.** |
-| `tests/fetes.test.html` | Les 93 tests du calendrier des fêtes et du contrat des décors. |
+| `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
@@ -568,6 +568,17 @@ côté de « Facturation ». En `fixed` elle se cale sur la fenêtre — donc su
 est lui-même fixe de haut en bas. Sa largeur suit celle du rail (212 px, 60 px replié) et le
 dessin se centre dedans, la taille étant posée sur un élément INTÉRIEUR : sans ça on ne peut pas
 centrer sans connaître la taille dans la feuille de style.
+⚠️ **UN DÉCOR NE CACHE JAMAIS UNE NAVIGATION : le rail RÉSERVE la hauteur de son décor de pied.**
+Conséquence directe du `position: fixed` ci-dessus — le pied flotte par-dessus le bas de la
+fenêtre, donc par-dessus les dernières entrées dès que le rail défile. Tant que les décors
+mesuraient 30 px, personne ne l'a vu. Saint Nicolas en fait 68 : mesuré sur un écran de 740 px de
+haut — un portable ordinaire — il recouvrait « Échanges », « Facturation » et « Notes de frais »,
+qui restaient CLIQUABLES (`pointer-events: none`) : pire que masquées, invisiblement vivantes.
+`poserRail` pose donc un `padding-bottom` égal à la hauteur RENDUE du décor plus une respiration,
+et `nettoyer` le reprend — sans quoi un trou de 86 px resterait au bas du rail toute l'année.
+⚠️ La hauteur se MESURE (`offsetHeight`), elle ne se déduit pas de `taille` : `taille` est une
+LARGEUR, et la hauteur dépend du viewBox de chaque dessin. Quatre tests le gardent, et ils ont
+été vérifiés en désactivant la correction — deux échecs — avant d'être conservés.
 ⚠️ **Un décor posé DANS le rail doit être hors du flux.** La citrouille de pied, en flux, ajoutait
 30 px à la colonne : le rail passait en défilement dès 820 px de haut, et la barre lui volait 10 px
 de largeur — « Outillage & références » se faisait tronquer. Ancrée par le bas, elle n'allonge plus
@@ -592,9 +603,35 @@ abandonner le saint sur son âne — trois fois que le défaut n'était PAS visi
 ⚠️ **À 85 px, en mouvement et en opacité basse, il faut QUATRE FORMES FRANCHES — pas une
 illustration.** Saint-Nicolas sur son âne a été dessiné, jugé à l'écran en grand, refait avec
 l'âne en retrait, rejugé, puis ABANDONNÉ : l'âne et le cavalier fusionnaient en une seule masse,
-et aucun détail ne rattrape ça à cette taille. Le bateau à vapeur l'a remplacé — coque, cabine,
-cheminée, fumée — et se lit d'un coup d'œil. Avant de peaufiner un décor figuratif, l'agrandir à
+et aucun détail ne rattrape ça à cette taille. Avant de peaufiner un décor figuratif, l'agrandir à
 200 px et le regarder : ce qui ne se lit pas en grand ne se lira jamais en petit.
+⚠️ **UN DÉCOR NE DEMANDE RIEN À PERSONNE : on dessine un PORTRAIT, pas une SCÈNE.** Le bateau à
+vapeur qui avait remplacé l'âne se lisait parfaitement — coque, cabine, cheminée, fumée — et il a
+pourtant été retiré. Nicolas, le 10/10/2026 : « je ne vois pas ce que le bateau vient faire dans
+la fête ». Il avait raison : il faut connaître la légende (le saint arrive d'Espagne par bateau)
+pour que l'image veuille dire quelque chose, et un décor qui exige un préalable a déjà échoué.
+Le buste l'a remplacé : mitre pointue, croix dorée, visage, grande barbe blanche — quatre formes
+qui ne se recouvrent pas, la silhouette la plus reconnaissable de décembre. **Le bon critère
+n'est donc pas « est-ce que ça se lit » mais « est-ce que ça se reconnaît sans explication ».**
+⚠️ **`var(--surface)` SERT AUX DÉCOUPES, PAS AUX FORMES BLANCHES** — et la confusion s'est payée
+TROIS FOIS sur la même planche. Le visage de la citrouille est un TROU qui laisse voir le fond,
+et ça marche parce que la citrouille est POSÉE sur ce fond. Une barbe n'est pas un trou : dessinée
+en `var(--surface)`, elle disparaît, et il ne reste qu'une tête qui flotte au-dessus d'une chape.
+Même panne pour les quartiers de la mandarine (sortis en bleu nuit sur l'orange, un fruit fêlé) et
+pour le ruban d'un cadeau qui TOMBE — un objet qui traverse la page n'a aucune carte sous lui.
+**Et le piège est SYMÉTRIQUE** : un relief en crème littérale est parfait sur le thème sombre et
+INVISIBLE sur le clair dès qu'il DÉPASSE de son objet — le nœud du cadeau s'était évaporé ainsi.
+La règle complète : **un relief clair ne vaut que s'il reste À L'INTÉRIEUR de l'objet ; ce qui
+dépasse se dessine dans la couleur de l'objet, pour se lire par sa FORME et non par son contraste.**
+Corollaire : deux formes voisines de même couleur (moustache et barbe) ne se distinguent que par
+la ligne d'ombre qui passe entre elles. **Toujours basculer le thème : un seul des deux laisse
+passer la moitié des défauts.**
+⚠️ **L'ÉCHELLE D'UN DÉCOR NE SE COPIE PAS D'UNE FÊTE À L'AUTRE.** Le moteur réduit chaque objet
+qui tombe de 0,62 à 1,13 fois sa `taille` : à 17 (la valeur des feuilles), les friandises
+tombaient à 10 px, où un biscuit, un cadeau et un bonbon sont trois mouchetures identiques. Une
+feuille et un flocon sont des SILHOUETTES VIDES, leur contour suffit ; une friandise porte un
+ruban, des quartiers, un visage — du détail INTÉRIEUR, qui a besoin de place. La taille se déduit
+de ce que le dessin doit MONTRER, et se mesure sur téléphone, où c'est le plus cruel.
 ⚠️ **Les périodes ne doivent JAMAIS se chevaucher.** `active` retient la PREMIÈRE qui correspond,
 donc deux fêtes qui se recouvrent se voleraient la vedette — et laquelle gagne dépendrait de
 l'ordre dans la table, ce qui ne se devine pas en la lisant. Un test balaie les 365 jours.

@@ -179,33 +179,123 @@
     '<path d="M16,23C24,21 38,21 46,24"/><path d="M15,28C24,26 38,26 47,29"/></g>' +
     '<path d="M9,34C4,30 5,22 10.5,19" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
 
-  /* Le bateau de Saint-Nicolas. Il arrive d'Espagne par bateau — d'où un décor qui TRAVERSE
-     l'écran pour une raison évidente. La fumée s'échappe vraiment (trois bouffées décalées),
-     la coque a sa ligne de flottaison et ses hublots, et il y a des caisses sur le pont.
-     ⚠️ Le saint sur son âne a été essayé DEUX fois et abandonné : à cette taille, en mouvement,
-     l'âne et le cavalier fusionnaient. Il faut QUATRE formes franches, pas une illustration. */
-  const BATEAU =
-    '<svg viewBox="0 0 120 72" fill="currentColor">' +
-    '<g opacity=".55"><circle class="ssfete-fumee" cx="84" cy="14" r="4.5" style="animation-delay:0s"/>' +
-    '<circle class="ssfete-fumee" cx="84" cy="14" r="3.4" style="animation-delay:1.5s"/>' +
-    '<circle class="ssfete-fumee" cx="84" cy="14" r="2.6" style="animation-delay:3s"/></g>' +
-    '<rect x="78" y="16" width="12" height="26" rx="2"/>' +
-    '<rect x="75.5" y="12.5" width="17" height="5" rx="2"/>' +
-    '<rect x="78" y="21" width="12" height="3.5" fill="var(--surface)" opacity=".5"/>' +
-    '<rect x="32" y="22" width="40" height="20" rx="2.5"/><rect x="29" y="18.5" width="46" height="4.5" rx="1.5"/>' +
-    '<g fill="var(--surface)" opacity=".55"><rect x="37" y="27" width="8" height="8" rx="1.5"/>' +
-    '<rect x="49" y="27" width="8" height="8" rx="1.5"/><rect x="61" y="27" width="7" height="8" rx="1.5"/></g>' +
-    '<rect x="13" y="30" width="14" height="12" rx="1.5"/>' +
-    '<g stroke="var(--surface)" stroke-width="1.5" opacity=".5"><path d="M20,30L20,42"/><path d="M13,36L27,36"/></g>' +
-    '<path d="M6,42L112,42L102,60L18,60Z"/>' +
-    '<path d="M10,50L107,50" stroke="var(--surface)" stroke-width="2.4" opacity=".4"/>' +
-    '<g fill="var(--surface)" opacity=".5"><circle cx="34" cy="46" r="2.4"/><circle cx="46" cy="46" r="2.4"/>' +
-    '<circle cx="58" cy="46" r="2.4"/><circle cx="70" cy="46" r="2.4"/></g>' +
-    '<path d="M22,42L22,9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
-    '<path d="M22,9L41,14.5L22,20Z"/>' +
-    '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
-    '<path d="M2,64C14,59 26,69 38,64C50,59 62,69 74,64C86,59 100,69 114,64" stroke-width="2.6" opacity=".45"/>' +
-    '<path d="M8,70C20,66 32,74 44,70C56,66 70,74 84,70" stroke-width="2" opacity=".26"/></g></svg>';
+  /* ── SAINT-NICOLAS LUI-MÊME ────────────────────────────────────────────────────────────
+     ⚠️ TROISIÈME TENTATIVE, et la première qui tient. Les deux précédentes dessinaient le
+     saint SUR SON ÂNE : à 85 px, en mouvement et en opacité basse, la monture et le cavalier
+     fusionnaient en une seule masse. Un bateau à vapeur les avait remplacées — il se lisait
+     très bien, mais Nicolas, le 10/10/2026 : « je vois pas ce que le bateau vient faire dans
+     la fête ». Il avait raison : un décor qui exige de connaître la légende (il arrive
+     d'Espagne par bateau) demande quelque chose au lecteur, et un décor ne demande rien.
+     CE QUI CHANGE ICI : on ne dessine plus une SCÈNE, on dessine un PORTRAIT. Quatre formes
+     franches qui ne peuvent pas se confondre — la mitre pointue, la croix dorée, le visage,
+     et la grande barbe blanche en triangle. C'est la silhouette la plus reconnaissable de
+     décembre, et elle tient à 50 px parce qu'aucune forme n'en recouvre une autre.
+     La croix scintille : l'animation appartient à l'objet, pas à son déplacement. */
+  const SAINT_NICOLAS =
+    '<svg viewBox="0 0 60 78" fill="currentColor">' +
+    // Les fanons qui pendent derrière la mitre — ils campent le personnage en un trait.
+    '<g opacity=".5"><path d="M15,32L12,49L16,46L20,49L18.5,32Z"/>' +
+    '<path d="M45,32L42,49L46,46L49,49L46.5,32Z"/></g>' +
+    // La chape, posée en premier : la barbe passera par-dessus.
+    '<path d="M3,78C3,65 12,58 30,58C48,58 57,65 57,78Z"/>' +
+    // La mitre.
+    '<path d="M30,2C40,13 48,25 48,34L48,40L12,40L12,34C12,25 20,13 30,2Z"/>' +
+    '<rect x="12" y="33" width="36" height="7.5" fill="#f6f1e8" opacity=".95"/>' +
+    '<g fill="var(--accent-2)" class="ssfete-scintille">' +
+    '<rect x="27.8" y="11" width="4.4" height="17" rx="1.5"/><rect x="21.5" y="16.8" width="17" height="4.4" rx="1.5"/></g>' +
+    /* ⚠️ LE VISAGE ET LA BARBE SONT EN COULEURS LITTÉRALES, pas en `var(--surface)`.
+       C'est la leçon de la première planche : `var(--surface)` sert aux DÉCOUPES — le visage
+       de la citrouille est un TROU qui laisse voir le fond, et ça marche parce que la
+       citrouille est POSÉE sur ce fond. Une barbe n'est pas un trou : c'est une forme blanche
+       qui doit exister par elle-même. Dessinée en `var(--surface)`, elle disparaît, et il ne
+       reste qu'une tête qui flotte au-dessus d'une chape — exactement le défaut qui avait fait
+       abandonner les deux premières versions. Vu sur planche, invisible autrement. */
+    '<ellipse cx="30" cy="48" rx="11.5" ry="9.5" fill="#f2c9a0"/>' +
+    '<g fill="#4a3426"><circle cx="25.5" cy="46" r="1.6"/><circle cx="34.5" cy="46" r="1.6"/></g>' +
+    // La barbe : large, par-dessus la chape, c'est elle qui donne la silhouette.
+    '<path d="M17,45C15,57 18,68 24,73C27,75.5 33,75.5 36,73C42,68 45,57 43,45' +
+    'C40,53 20,53 17,45Z" fill="#f6f1e8"/>' +
+    /* ⚠️ L'OMBRE N'EST PAS UN ORNEMENT, C'EST CE QUI SÉPARE DEUX FORMES DE MÊME COULEUR.
+       Moustache et barbe sont toutes deux crème : sans ce trait entre elles, elles fusionnent
+       en un seul aplat — la même panne qui avait tué le saint sur son âne, où monture et
+       cavalier devenaient une masse à 85 px. Ce qui distingue deux formes voisines, ce n'est
+       jamais leur dessin, c'est la ligne qui passe entre. */
+    '<path d="M20.5,52.5C24,55.5 36,55.5 39.5,52.5C38,56 22,56 20.5,52.5Z" fill="#d9cfbf" opacity=".6"/>' +
+    // La moustache, en deux moitiés : sans elle la barbe est un bavoir.
+    '<path d="M29,50C26.5,47 21,47.5 20,51C22.5,53.5 27,53 29,51Z" fill="#f6f1e8"/>' +
+    '<path d="M31,50C33.5,47 39,47.5 40,51C37.5,53.5 33,53 31,51Z" fill="#f6f1e8"/>' +
+    // Un cerne d'ombre dans la barbe, pour qu'elle ne soit pas un aplat.
+    '<path d="M22,64C26,67 34,67 38,64C36,70 24,70 22,64Z" fill="#d9cfbf" opacity=".5"/>' +
+    '</svg>';
+
+  /* La mandarine : la pelure, les quartiers, la feuille. C'est l'orange du fond du sabot —
+     l'image la plus partagée de cette fête, et la plus lisible à 21 px : un rond.
+     ⚠️ LES QUARTIERS SONT EN ORANGE CLAIR LITTÉRAL, PAS EN `var(--surface)`. Première version
+     tracée en `var(--surface)` : sur le thème sombre, `--surface` vaut #161d31, donc les
+     quartiers sortaient en BLEU NUIT sur l'orange — ça ne faisait pas une mandarine, ça faisait
+     un fruit fêlé. `var(--surface)` ne vaut que pour une forme POSÉE SUR une carte, où il
+     découpe un trou à la couleur du fond ; cette mandarine-ci flotte dans un coin de page.
+     Troisième fois que ce piège se paie sur la même planche (barbe, friandises, quartiers). */
+  const MANDARINE =
+    '<svg viewBox="0 0 34 36" fill="currentColor">' +
+    '<path d="M17,8.5C13,4.5 9,4 6,5.5C8,9 12,10.5 16,10Z" fill="#6b8f3a"/>' +
+    '<circle cx="17" cy="22" r="13"/>' +
+    '<g stroke="#ffd9a8" stroke-width="1.1" fill="none" opacity=".6" stroke-linecap="round">' +
+    '<path d="M17,10.5C13.5,16 13.5,28 17,34.2"/><path d="M17,10.5C20.5,16 20.5,28 17,34.2"/></g>' +
+    '<ellipse cx="12" cy="16.5" rx="3.6" ry="2.5" fill="#ffd9a8" opacity=".45"/>' +
+    '<circle cx="17" cy="10" r="1.5" fill="#8a5a2b"/></svg>';
+
+  /* CE QUI TOMBE LE 6 DÉCEMBRE : des friandises, pas de la neige. La neige appartient à Noël,
+     qui suit immédiatement — et deux fêtes de suite avec le même rideau blanc, c'est une seule
+     fête de trois semaines. Quatre dessins différents, comme pour les flocons : un seul objet
+     répété neuf fois se voit tout de suite.
+     La PALETTE l'emporte sur la teinte du thème, exactement comme les confettis : des
+     friandises d'une seule couleur ne sont plus des friandises.
+     ⚠️ LES RELIEFS SONT EN CRÈME LITTÉRALE, PAS EN `var(--surface)`. Un objet qui TOMBE n'a
+     pas de carte sous lui, seulement le fond de page : `var(--surface)` n'y découpe rien, il
+     y perce un trou. Un ruban de cadeau percé n'est plus un ruban. Même leçon que la barbe
+     du saint, payée sur la même planche. */
+  const GOURMANDISES = [
+    /* Un cadeau : la boîte, le couvercle, le ruban, le nœud.
+       ⚠️ LE NŒUD EST EN `currentColor`, PAS EN CRÈME, ET LE RUBAN SEUL EST CRÈME.
+       Première version : nœud crème comme le ruban. Impeccable sur le thème sombre, DISPARU
+       sur le thème clair — parce que le nœud, lui, DÉPASSE de la boîte, et qu'une forme crème
+       posée sur un fond presque blanc n'existe pas. C'est le piège SYMÉTRIQUE de celui de la
+       barbe, et il donne la règle complète : un relief clair ne vaut que s'il reste À
+       L'INTÉRIEUR de l'objet qu'il décore ; ce qui dépasse doit être dans la couleur de
+       l'objet, pour se lire par sa FORME et non par son contraste. Vu en basculant le thème :
+       un seul des deux l'aurait laissé passer. */
+    '<svg viewBox="0 0 30 30" fill="currentColor">' +
+    '<path d="M15,7.5C11,7.5 8,4.4 9.5,2C11.5,-0.2 15,3 15,7.5Z"/>' +
+    '<path d="M15,7.5C19,7.5 22,4.4 20.5,2C18.5,-0.2 15,3 15,7.5Z"/>' +
+    '<rect x="2" y="9" width="26" height="19" rx="2"/>' +
+    '<rect x="1" y="7" width="28" height="5.5" rx="1.6"/>' +
+    '<rect x="12.6" y="7" width="4.8" height="21" fill="#fdf8ef" opacity=".85"/></svg>',
+    // Une mandarine.
+    '<svg viewBox="0 0 30 30" fill="currentColor"><circle cx="15" cy="17" r="11.5"/>' +
+    '<path d="M15,5.5C12,2.5 8.5,2 6,3.5C8,6.5 11.5,7.5 14.5,7Z" fill="#6b8f3a"/>' +
+    '<ellipse cx="10.5" cy="12.5" rx="3" ry="2.1" fill="#fdf8ef" opacity=".4"/></svg>',
+    /* Un spéculoos. ⚠️ DEUXIÈME VERSION : la première était un rectangle arrondi portant un
+       relief détaillé (mitre + visage + corps). Vu sur planche à 92 px, c'était déjà une tache
+       informe ; à 17 px en train de tomber, c'aurait été un rectangle orange, point.
+       CE QUI CHANGE : le biscuit n'est plus un support portant un dessin, IL EST LE DESSIN —
+       une silhouette découpée. Une silhouette se lit à n'importe quelle taille parce qu'elle
+       n'a qu'un contour à reconnaître, là où un relief demande de distinguer deux tons. */
+    '<svg viewBox="0 0 30 30" fill="currentColor">' +
+    '<circle cx="15" cy="6" r="4.2"/>' +                               // la tête
+    '<path d="M15,10.4C19.2,10.4 21.6,13.6 22,19L8,19C8.4,13.6 10.8,10.4 15,10.4Z"/>' +  // le corps
+    '<path d="M3.5,13.6C6,11.4 8.6,11.6 10.2,13.4L8.6,16.2C6.6,15 4.8,15 3.5,13.6Z"/>' + // bras gauche
+    '<path d="M26.5,13.6C24,11.4 21.4,11.6 19.8,13.4L21.4,16.2C23.4,15 25.2,15 26.5,13.6Z"/>' +
+    '<path d="M9.4,20.6L13.2,20.6L12.4,28.4L8.8,28.4Z"/>' +             // les jambes
+    '<path d="M20.6,20.6L16.8,20.6L17.6,28.4L21.2,28.4Z"/>' +
+    '<g fill="#fdf8ef" opacity=".75"><circle cx="13.3" cy="5.6" r="1"/><circle cx="16.7" cy="5.6" r="1"/>' +
+    '<rect x="11.8" y="13.4" width="6.4" height="1.5" rx=".75"/></g></svg>',
+    // Un bonbon dans son papier torsadé.
+    '<svg viewBox="0 0 30 30" fill="currentColor"><ellipse cx="15" cy="15" rx="8" ry="7"/>' +
+    '<path d="M7.4,15L1.5,10.5L3,15L1.5,19.5Z"/><path d="M22.6,15L28.5,10.5L27,15L28.5,19.5Z"/>' +
+    '<g stroke="#fdf8ef" stroke-width="1.6" opacity=".6" fill="none">' +
+    '<path d="M12,9.5C10.5,13 10.5,17 12,20.5"/><path d="M18,9.5C19.5,13 19.5,17 18,20.5"/></g></svg>',
+  ];
 
   /* Le sapin : quatre étages, des guirlandes, des boules, et l'étoile qui scintille.
      La première version était un triangle en escalier — d'où le retour « pas assez soigné ». */
@@ -513,31 +603,57 @@
       id: 'saint-nicolas',
       nom: 'Saint-Nicolas',
       du: '12-01', au: '12-06',
-      // Un semis d'étoiles dans l'angle : c'est la nuit où il passe sur les toits.
+      /* Un semis d'étoiles dans l'angle : c'est la nuit où il passe sur les toits. Remonté de
+         0,42 à 0,52 — Nicolas, le 10/10/2026 : « je trouve pas ça du niveau de la fête ». Les
+         décors doivent rester en retrait (ils ne disent RIEN, règle 28) mais en retrait ne veut
+         pas dire invisible, et six jours par an méritent qu'on les voie. */
       coin: {
-        svg: ETOILES, taille: 56,
-        teinte: { sombre: '#f0d27a', clair: '#a87f12' }, opacite: { sombre: 0.42, clair: 0.42 },
+        svg: ETOILES, taille: 60,
+        teinte: { sombre: '#f0d27a', clair: '#9a7210' }, opacite: { sombre: 0.52, clair: 0.5 },
+        /* La mandarine remplace le spéculoos : même mécanisme, mais un ROND orange se lit à
+           19 px là où un biscuit brun rectangulaire ne se distinguait pas du fond. Le spéculoos
+           n'est pas perdu — il tombe maintenant du ciel avec le reste. */
         bete: {
-          svg: SPECULOOS, taille: 19, fil: 13,
-          teinte: { sombre: '#d09660', clair: '#8a5a2b' }, opacite: { sombre: 0.9, clair: 0.85 },
+          svg: MANDARINE, taille: 21, fil: 13,
+          teinte: { sombre: '#f08c3a', clair: '#c96a16' }, opacite: { sombre: 1, clair: 0.95 },
         },
       },
-      marque: { svg: MITRE, taille: 17,
+      marque: { svg: MITRE, taille: 18,
         teinte: { sombre: '#e4554f', clair: '#c0392b' }, opacite: { sombre: 1, clair: 1 } },
+      /* LE RAIL PORTE LE PERSONNAGE. C'est le seul emplacement assez grand et assez calme pour
+         un portrait : il est fixe, isolé en bas d'une colonne vide, et personne ne lit du texte
+         à côté. Les deux tentatives ratées le mettaient en VOLANT, traversant l'écran — en
+         mouvement et à opacité basse, aucun portrait ne tient. */
       rail: {
-        coin: { svg: ETOILES, taille: 52,
-          teinte: { sombre: '#f0d27a', clair: '#a87f12' }, opacite: { sombre: 0.3, clair: 0.3 } },
-        pied: { svg: SABOT, taille: 30,
-          teinte: { sombre: '#d09660', clair: '#8a5a2b' }, opacite: { sombre: 0.9, clair: 0.9 } },
+        coin: { svg: ETOILES, taille: 56,
+          teinte: { sombre: '#f0d27a', clair: '#9a7210' }, opacite: { sombre: 0.36, clair: 0.34 } },
+        pied: { svg: SAINT_NICOLAS, taille: 52,
+          teinte: { sombre: '#e4554f', clair: '#c0392b' }, opacite: { sombre: 1, clair: 0.95 } },
       },
+      /* UN SEUL volant, comme au Nouvel An : le bateau est parti (voir le commentaire de
+         SAINT_NICOLAS), et rien ne le remplace. Deux objets qui traversent n'ajoutent rien —
+         la fête est portée par le portrait du rail et par ce qui tombe. */
       volants: [
-        { svg: ETOILE_FILANTE, taille: 40, haut: '15%', duree: 22, retard: 4,
-          teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.5, clair: 0.36 } },
-        { svg: BATEAU, taille: 86, haut: '58%', duree: 34, retard: 15, rare: true,
-          teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.45, clair: 0.32 } },
+        { svg: ETOILE_FILANTE, taille: 42, haut: '15%', duree: 22, retard: 4,
+          teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.55, clair: 0.4 } },
       ],
-      tombe: { svg: FLOCONS, taille: 15, nombre: 9, duree: 16,
-        teinte: { sombre: '#cfe3ff', clair: '#7f9ec9' }, opacite: { sombre: 0.5, clair: 0.38 } },
+      /* DES FRIANDISES, PAS DE LA NEIGE. La neige appartient à Noël, qui commence quatre jours
+         plus tard : deux fêtes de suite avec le même rideau blanc, c'est une seule fête de trois
+         semaines. Ici il jette des douceurs depuis les toits — c'est l'image de la fête.
+         La palette l'emporte sur la teinte du thème, comme pour les confettis. */
+      /* ⚠️ 21 ET PAS 17, ALORS QUE LES FEUILLES ET LES FLOCONS SONT À 17 ET 16.
+         Le moteur réduit chaque objet de 0,62 à 1,13 fois la taille : à 17, les plus petites
+         friandises tombaient à 10 px, et à 10 px un biscuit, un cadeau et un bonbon sont trois
+         mouchetures identiques. Une feuille et un flocon sont des SILHOUETTES VIDES : leur
+         contour suffit, elles tiennent à 10 px. Une friandise porte un ruban, des quartiers,
+         un visage — du détail INTÉRIEUR, qui a besoin de place pour exister.
+         L'échelle d'un décor ne se copie donc pas d'une fête à l'autre : elle se déduit de ce
+         que le dessin doit montrer. Mesuré sur téléphone, où c'est le plus cruel. */
+      tombe: {
+        svg: GOURMANDISES, taille: 21, nombre: 11, duree: 15,
+        palette: ['#e4554f', '#f0c24b', '#f08c3a', '#d09660', '#f2e4c4'],
+        teinte: { sombre: '#f0c24b', clair: '#b07a00' }, opacite: { sombre: 0.85, clair: 0.75 },
+      },
     },
 
     /* NOËL — du 10 au 26. Il démarre après la Saint-Nicolas (pas de chevauchement : `active`
@@ -647,6 +763,10 @@
       if (n) n.remove();
     });
     document.querySelectorAll('.ssfete').forEach(function (n) { n.remove(); });
+    // La place réservée sous le menu part avec le décor : laissée en place, elle ferait un
+    // trou de 86 px au bas du rail toute l'année, et personne ne saurait d'où il vient.
+    const rail = document.querySelector('.ssrail');
+    if (rail) rail.style.paddingBottom = '';
   }
 
   function allumer(oui) {
@@ -796,6 +916,20 @@
       d.innerHTML = '<span class="ssfete-railpied-img" style="width:' + f.rail.pied.taille + 'px">' + dessin(f.rail.pied) + '</span>';
       rail.appendChild(d);
     }
+    /* ⚠️ RÉSERVER LA PLACE DU DÉCOR AU BAS DU RAIL. Un décor ne cache JAMAIS une navigation.
+       Le pied est en `position: fixed` (voir la feuille de style : c'est la seule façon qu'il
+       ne remonte pas avec le menu quand celui-ci défile), donc il flotte par-dessus le bas de
+       la fenêtre. Tant que le décor mesurait 30 px, ça ne se voyait pas. Saint Nicolas en fait
+       68 : mesuré sur un écran de 740 px de haut — un portable tout à fait ordinaire — il
+       recouvrait TROIS entrées, « Échanges », « Facturation » et « Notes de frais ». Elles
+       restaient cliquables (`pointer-events: none`), ce qui est pire : on ne voit pas qu'on
+       peut cliquer.
+       La hauteur est MESURÉE sur l'élément posé, pas déduite de `taille` : `taille` est une
+       LARGEUR, et la hauteur dépend du viewBox de chaque dessin — la calculer, ce serait
+       refaire le travail du navigateur et se tromper au premier dessin moins haut que large.
+       Le défaut existait pour toutes les fêtes ; il n'est devenu visible qu'avec celle-ci. */
+    const pied = rail.querySelector('.ssfete-railpied');
+    if (pied) rail.style.paddingBottom = (pied.offsetHeight + 18) + 'px';
   }
 
   /* Tout ce qui peut apparaître après coup se repose ici, en un seul endroit. */
@@ -933,6 +1067,13 @@
         25%  { opacity: 0.9; }
         100% { transform: translateY(-13px); opacity: 0; }
       }
+      /* ⚠️ AUCUN DESSIN N'UTILISE -fumee DEPUIS LE RETRAIT DU BATEAU (10/10/2026), et c'est
+         voulu : les classes d'animation sont un VOCABULAIRE PARTAGÉ (règle 28), pas la propriété
+         d'un objet. La supprimer, ce serait obliger la prochaine fête à la réécrire. À ne pas
+         confondre avec du code mort : la crosse et le bateau, eux, ont bien été supprimés.
+         ⚠️ PAS D'ACCENT GRAVE DE CITATION DANS CE COMMENTAIRE : tout ce bloc est un LITTÉRAL DE
+         GABARIT, et une paire d'accents graves le referme — le texte redevient du code, et la
+         page entiere meurt sur un << fumee is not defined >>. Paye une fois, ici meme. */
       .ssfete-fumee { animation: ssfete-fumee 4.5s ease-out infinite; }
       @keyframes ssfete-fumee {
         0%   { transform: translate(0, 0) scale(0.55); opacity: 0.6; }
