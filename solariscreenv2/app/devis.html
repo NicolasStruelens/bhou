@@ -267,8 +267,8 @@
            l'ouverture, ce qu'aucune option ne remplace quand on en a huit sur un chantier. */
         const estVoletLigne = !!(window.SSVolet && window.SSVolet.estVolet(it));
         const meta = (estVoletLigne
-          ? [it.emplacement, it.etage]
-          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, it.emplacement, it.etage]
+          ? [it.emplacement, window.SSUI.etageLisible(it.etage)]
+          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, it.emplacement, window.SSUI.etageLisible(it.etage)]
         ).filter(Boolean).join(' · ');
         rows += `<tr>
           <td class="num">${i + 1}</td>
@@ -282,7 +282,11 @@
       });
       const remiseCat = c.remise_catalogue || {};
       if (remiseCat.amount > 0) {
-        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td>—</td><td>—</td><td>—</td><td class="num">− ${fmtEur(remiseCat.amount)}</td></tr>`;
+        rows += `<tr class="remise-row">${/* ⚠️ CELLULES VIDES, PAS DES TIRETS. Une remise n'a ni dimension, ni quantité, ni prix
+     unitaire : écrire « — » trois fois de suite remplit la ligne de signes qui ne disent
+     RIEN au client, juste sous le produit qu'il est en train de vérifier. Vu sur un vrai
+     PDF le 10/10/2026. Le « — » de la colonne # reste : c'est la convention du document
+     pour « ce n'est pas une fourniture numérotée », et toutes les prestations le portent. */ ''}<td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td></td><td></td><td></td><td class="num">− ${fmtEur(remiseCat.amount)}</td></tr>`;
       }
 
       // Prestations / options
@@ -293,7 +297,7 @@
       const remiseInst = c.remise_installation || {}, remiseOutil = c.remise_outillage || {};
       const remiseInstallTotal = (remiseInst.amount || 0) + (remiseOutil.amount || 0);
       if (remiseInstallTotal > 0) {
-        presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
+        presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
         presta += `<tr>${cellNum()}<td class="desc"><strong>${esc(e.label)}</strong></td>${cellDim}<td class="num">${fmtQte(e.qty)}</td><td class="num">${fmtEur(e.unit_price_ht)}</td><td class="num">${fmtEur(e.total_ht)}</td></tr>`;
@@ -404,7 +408,10 @@
             <h4>${fait ? 'Travaux reçus — le client' : 'Bon pour accord — le client'}</h4>
             ${d.signature && d.signature.image
               ? `<img src="${d.signature.image}" alt="Signature du client" style="max-width:100%;max-height:65px;margin-top:0.3rem;"><div class="hint">Signé le ${fmtDate(d.signature.date)} — « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`
-              : `<div class="hint">Date et signature précédées de la mention « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`}
+              /* ⚠️ ESPACES INSÉCABLES AUTOUR DES GUILLEMETS. Sans elles, le guillemet fermant
+                 partait SEUL sur une deuxième ligne de l'encadré de signature — un signe de
+                 ponctuation isolé au bas d'un devis, c'est la première chose qu'on remarque. */
+              : `<div class="hint">Date et signature précédées de la mention « ${fait ? 'Travaux reçus' : 'Lu et approuvé'} »</div>`}
           </div>
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">${fait ? 'Technicien intervenant' : 'Pour acceptation'}</div></div>
         </div>`}
@@ -434,7 +441,7 @@
           Les présentes conditions sont soumises au droit belge. Tout litige relève des tribunaux de ${esc(COMPANY.court)}.
         </div>
         <div class="signatures" style="margin-top:var(--sp-4);">
-          <div class="sig-box"><h4>Le client</h4><div class="hint">Mention « Lu et approuvé », date et signature</div></div>
+          <div class="sig-box"><h4>Le client</h4><div class="hint">Mention « Lu et approuvé », date et signature</div></div>
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
         </div>
       </div>`;
@@ -457,7 +464,7 @@
         </div>
         <div class="signatures" style="margin-top:var(--sp-7);">
           <div class="sig-box"><h4>Date</h4><div class="hint">……… / ……… / ……………</div></div>
-          <div class="sig-box"><h4>Signature du client</h4><div class="hint">Précédée de la mention « Lu et approuvé »</div></div>
+          <div class="sig-box"><h4>Signature du client</h4><div class="hint">Précédée de la mention « Lu et approuvé »</div></div>
         </div>
       </div>`;
     }

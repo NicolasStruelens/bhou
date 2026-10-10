@@ -527,6 +527,20 @@
      et `track.html`, la page que le CLIENT ouvre) et le tableau de bord allait en créer une
      troisième. C'est l'erreur des types de produit, qui ont vécu en 13 copies avant de diverger
      — et ici la divergence se verrait chez le client. */
+  /* L'ÉTAGE, ÉCRIT POUR UN CLIENT.
+     Le champ est libre (liste de suggestions, pas une liste fermée) et on y tape ce qui va
+     vite : « 1er », « 2e ». Sur l'écran de saisie, sous une étiquette « Étage », c'est clair.
+     Sur le DEVIS, la valeur sort seule sous le nom du produit — et « 1er » tout seul, sous
+     « Volet — VR150 », ne veut rien dire pour celui qui lit. Vu sur un vrai PDF le 10/10/2026.
+     ⚠️ On n'ajoute « étage » qu'aux ORDINAUX NUS : « RDC étage », « Combles étage » ou
+     « Sous-sol étage » seraient pires que le mal. Et jamais deux fois : le champ étant libre,
+     quelqu'un a pu écrire « 1er étage » lui-même. */
+  function etageLisible(v) {
+    const t = String(v == null ? '' : v).trim();
+    if (!t || /étage/i.test(t)) return t;
+    return /^\d+\s*(er|ère|e|ème|eme)$/i.test(t) ? t + ' étage' : t;
+  }
+
   const COMMANDE_LABEL = {
     a_commander: 'À commander', commande: 'Commandé', fabrication: 'Fabrication',
     recu: 'Reçu', pose: 'Posé',
@@ -1749,6 +1763,7 @@
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS, TYPE_LABEL: TYPE_LABEL,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
+    etageLisible: etageLisible,
     COMMANDE_ETAPES: COMMANDE_ETAPES, COMMANDE_LABEL: COMMANDE_LABEL, etatCommande: etatCommande,
     materielRecu: materielRecu, livraisonEstimee: livraisonEstimee,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
