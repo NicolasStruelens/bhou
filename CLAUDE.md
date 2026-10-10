@@ -75,8 +75,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 135 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 49 tests (`window.SSSignal`) |
-| `tests/signal.test.html` | Les 49 tests du signal, dont la résolution appareil → société → repli. |
+| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 58 tests (`window.SSSignal`) |
+| `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 
@@ -1311,6 +1311,22 @@ Un appareil qui choisit garde son choix (`localStorage`, pastille « cet apparei
   geste qu'on vient de faire.
 • ⚠️ **Une valeur serveur abîmée retombe sur le repli du module**, jamais sur rien : sinon un
   réglage mal écrit éteindrait le signal sans que personne ne comprenne pourquoi.
+⚠️ **UN RÉGLAGE SOCIÉTÉ SE PRÉVISUALISE AVANT D'ÊTRE ENREGISTRÉ.** Il part au serveur, donc
+tant qu'on n'a pas cliqué « Enregistrer » le cache de `SSConf` porte encore l'ancienne valeur :
+choisir une couleur ne changeait RIEN à l'écran. Nicolas : « quand je change la couleur ça
+marche pas ». Il avait raison du point de vue qui compte — **un aperçu posé juste sous le menu
+et qui ne bouge pas ne se lit pas « pas encore enregistré », il se lit « ça ne marche pas ».**
+`SSSignal.previsualiserSociete` ajoute un quatrième niveau, VOLATIL : **appareil → aperçu →
+société enregistrée → repli**. Il ne s'écrit nulle part, un rechargement le perd — et le bandeau
+« réglage modifié, pas encore enregistré » de la page dit déjà que rien n'est acté.
+⚠️ **Il ne passe JAMAIS devant le choix de l'appareil** : un appareil qui a choisi garde le sien
+pendant qu'on règle le défaut de la maison, sinon on lui ferait croire que son réglage a sauté.
+⚠️ **`regler()` annule l'aperçu, et l'écran le REPOSE ensuite.** Les deux répondent à la même
+question ; les laisser actifs ensemble afficherait une couleur qui n'est ni l'une ni l'autre.
+Mais sans le reposer, revenir à « Comme la société » ramenait l'ancienne valeur pendant que le
+menu société affichait la nouvelle — deux endroits de la même page qui se contredisent. Les
+écouteurs de la page sont posés APRÈS ceux de `monterSelecteurs`, donc ils repassent derrière.
+
 ⚠️ **PARAMÈTRES MÊLE DEUX NATURES DE RÉGLAGE, et ça doit SE VOIR.** La plupart partent au serveur
 (bouton « Enregistrer ») ; décors de fête et choix d'appareil du signal ne partent nulle part et
 s'appliquent à l'instant. **Un bouton gris après une modification ne se lit pas « déjà fait »,
@@ -1620,7 +1636,7 @@ soi-même — le détour qu'on ne fait pas.
    `tests/volet.test.html`, exiger « 135/135 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
-   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 49/49 ».
+   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.

@@ -260,6 +260,47 @@
 
     window.SSConf = confReel;
 
+    // ══════════ H. L'APERÇU D'UN RÉGLAGE SOCIÉTÉ PAS ENCORE ENREGISTRÉ ══════════
+    titre('H. Prévisualiser le défaut de la société');
+
+    /* Le défaut société part au SERVEUR : tant qu'on n'a pas enregistré, le cache porte encore
+       l'ancienne valeur, donc choisir une couleur ne changeait RIEN à l'écran. Nicolas, le
+       10/10/2026 : « quand je change la couleur ça marche pas ». Un aperçu posé juste sous le
+       menu et qui ne bouge pas ne se lit pas « pas encore enregistré », il se lit « ça ne
+       marche pas ». */
+    try { localStorage.removeItem('ss_signal_effet'); localStorage.removeItem('ss_signal_couleur'); } catch (e) {}
+    faireConf('halo', 'theme');
+    S.previsualiserSociete(null, null);
+    check('départ : la valeur enregistrée', [S.effet(), S.couleur()], ['halo', 'theme']);
+
+    S.previsualiserSociete('pouls', 'or');
+    check('aperçu : l’écran montre le choix en attente', [S.effet(), S.couleur()], ['pouls', 'or']);
+    check('… mais la valeur ENREGISTRÉE n’a pas bougé',
+      [S.effetSociete(), S.couleurSociete()], ['halo', 'theme']);
+
+    /* ⚠️ L'APERÇU NE PASSE JAMAIS DEVANT LE CHOIX DE L'APPAREIL. Un appareil qui a choisi sa
+       propre couleur la garde, même pendant qu'on règle le défaut de la maison : sinon on lui
+       ferait croire que son réglage a sauté. */
+    S.regler('trait', 'cyan');
+    check('choix local : il l’emporte sur l’aperçu', [S.effet(), S.couleur()], ['trait', 'cyan']);
+    /* ⚠️ Et `regler` ANNULE l'aperçu : les deux répondent à la même question, et laisser les
+       deux actifs ferait afficher une couleur qui n'est ni l'une ni l'autre dès qu'on revient
+       à « Comme la société ». L'écran repose l'aperçu lui-même après coup. */
+    S.regler(S.SUIVRE, S.SUIVRE);
+    check('retour au commun : la valeur enregistrée, pas l’aperçu',
+      [S.effet(), S.couleur()], ['halo', 'theme']);
+
+    // Une valeur d'aperçu abîmée est ignorée : on ne peut pas prévisualiser ce qui n'existe pas.
+    check('aperçu d’une valeur inconnue : refusé', S.previsualiserSociete('nawak', 'nawak'), false);
+    check('… et l’écran reste sur l’enregistré', [S.effet(), S.couleur()], ['halo', 'theme']);
+
+    // Un seul des deux peut être en aperçu.
+    S.previsualiserSociete(null, 'magenta');
+    check('aperçu de la seule couleur', [S.effet(), S.couleur()], ['halo', 'magenta']);
+    S.previsualiserSociete(null, null);
+    check('aperçu annulé : retour à l’enregistré', [S.effet(), S.couleur()], ['halo', 'theme']);
+    window.SSConf = confReel;
+
     // On rend les réglages à leur valeur de départ : un test ne laisse pas de trace.
     try { localStorage.removeItem('ss_signal_effet'); localStorage.removeItem('ss_signal_couleur'); } catch (e) {}
     S.monter();

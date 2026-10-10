@@ -116,8 +116,45 @@
 
   function effetSociete() { return defautSociete('signal_effet', EFFETS, EFFET_DEFAUT); }
   function couleurSociete() { return defautSociete('signal_couleur', COULEURS, COULEUR_DEFAUT); }
-  function effet() { return choixAppareil(CLE_EFFET, EFFETS) || effetSociete(); }
-  function couleur() { return choixAppareil(CLE_COULEUR, COULEURS) || couleurSociete(); }
+
+  /* ── L APERÇU D UN RÉGLAGE SOCIÉTÉ PAS ENCORE ENREGISTRÉ ─────────────────────────
+     Le défaut de la société part au SERVEUR : tant qu on n a pas cliqué « Enregistrer », le
+     cache de `SSConf` porte encore l ancienne valeur, donc choisir une couleur ne changeait
+     RIEN à l écran. Nicolas, le 10/10/2026 : « quand je change la couleur ça marche pas ».
+     Il avait raison du point de vue qui compte : un aperçu posé juste sous le menu, et qui ne
+     bouge pas quand on touche le menu, ne dit pas « pas encore enregistré » — il dit « ton
+     choix n a pas été pris ».
+     ⚠️ CETTE VALEUR N EST JAMAIS ÉCRITE NULLE PART. Elle vit en mémoire, le temps de la page :
+     c est un APERÇU, pas un réglage. Un rechargement sans enregistrement la perd, ce qui est
+     exactement ce qu on veut — et le bandeau « 1 réglage modifié, pas encore enregistré » de
+     la page dit déjà que rien n est acté.
+     ⚠️ ET ELLE NE PASSE JAMAIS DEVANT LE CHOIX DE L APPAREIL. Un appareil qui a choisi sa
+     propre couleur garde la sienne, même pendant qu on règle le défaut de la maison : sinon on
+     lui ferait croire que son réglage a sauté. L ordre est donc : appareil → aperçu →
+     société enregistrée → repli. */
+  let APERCU = null;
+
+  /** Montre un réglage société avant enregistrement. `null` (ou rien) revient au réel. */
+  function previsualiserSociete(idEffet, idCouleur) {
+    const e = EFFETS.some(function (x) { return x.id === idEffet; }) ? idEffet : null;
+    const c = COULEURS.some(function (x) { return x.id === idCouleur; }) ? idCouleur : null;
+    APERCU = (e || c) ? { effet: e, couleur: c } : null;
+    monter();
+    return !!APERCU;
+  }
+
+  function effet() {
+    const local = choixAppareil(CLE_EFFET, EFFETS);
+    if (local) return local;
+    if (APERCU && APERCU.effet) return APERCU.effet;
+    return effetSociete();
+  }
+  function couleur() {
+    const local = choixAppareil(CLE_COULEUR, COULEURS);
+    if (local) return local;
+    if (APERCU && APERCU.couleur) return APERCU.couleur;
+    return couleurSociete();
+  }
   /** Cet appareil a-t-il une préférence à lui, ou suit-il la société ? */
   function suitLaSociete() {
     return { effet: !choixAppareil(CLE_EFFET, EFFETS), couleur: !choixAppareil(CLE_COULEUR, COULEURS) };
@@ -138,6 +175,10 @@
       if (idCouleur === SUIVRE) localStorage.removeItem(CLE_COULEUR);
       else if (idCouleur && COULEURS.some(function (x) { return x.id === idCouleur; })) localStorage.setItem(CLE_COULEUR, idCouleur);
     } catch (e) {}
+    /* ⚠️ Un choix d APPAREIL annule l aperçu société en cours : les deux répondent à la même
+       question, et laisser les deux actifs ferait afficher une couleur qui n est ni l une ni
+       l autre dès qu on revient à « Comme la société ». */
+    APERCU = null;
     monter();
   }
 
@@ -442,6 +483,7 @@
     couleur: couleur,
     effetSociete: effetSociete,
     couleurSociete: couleurSociete,
+    previsualiserSociete: previsualiserSociete,
     suitLaSociete: suitLaSociete,
     regler: regler,
     commencee: commencee,
