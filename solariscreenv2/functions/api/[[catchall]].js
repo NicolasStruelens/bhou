@@ -1007,12 +1007,18 @@ export async function onRequest(context) {
         maj.modifie_par = String(body.par || 'nicolas').slice(0, 40);
         maj.modifie_le = now;
       }
+      /* ⚠️ LE CHEMIN JSON SE CONSTRUIT EN JAVASCRIPT, JAMAIS PAR CONCATÉNATION SQL.
+         Première version : `'$.mails[' || ?1 || ']'` avec `?1` lié à l entier `i`. D1 lie un
+         nombre JavaScript en REAL, donc 0 devient « 0.0 » une fois concaténé en texte, et
+         SQLite répond `bad JSON path: '$.mails[0.0]'`. Trouvé par Nicolas en production.
+         Le chemin est donc assemblé ici, où `i` est un entier, et lié comme TEXTE. */
+      const chemin = '$.mails[' + i + ']';
       await env.DB.prepare(
         `UPDATE clients SET
-           data = json_set(data, '$.mails[' || ?1 || ']', json(?2), '$.date_modification', ?3),
+           data = json_set(data, ?1, json(?2), '$.date_modification', ?3),
            date_modification = ?3
          WHERE key = ?4`
-      ).bind(i, JSON.stringify(maj), now, key).run();
+      ).bind(chemin, JSON.stringify(maj), now, key).run();
       return json({ ok: true, mail: maj });
     }
 
@@ -1056,12 +1062,13 @@ export async function onRequest(context) {
       const piece = { id: pid, filename: file.name || safeName, mime: mime, taille: file.size, r2_key: r2Key, date_upload: new Date().toISOString() };
       const pieces = (c.mails[i].pieces || []).concat([piece]);
       const now = new Date().toISOString();
+      // Voir le commentaire de la correction : le chemin se construit ici, pas en SQL.
       await env.DB.prepare(
         `UPDATE clients SET
-           data = json_set(data, '$.mails[' || ?1 || '].pieces', json(?2), '$.date_modification', ?3),
+           data = json_set(data, ?1, json(?2), '$.date_modification', ?3),
            date_modification = ?3
          WHERE key = ?4`
-      ).bind(i, JSON.stringify(pieces), now, key).run();
+      ).bind('$.mails[' + i + '].pieces', JSON.stringify(pieces), now, key).run();
       return json({ ok: true, piece, pieces });
     }
 
@@ -1098,10 +1105,10 @@ export async function onRequest(context) {
         const now = new Date().toISOString();
         await env.DB.prepare(
           `UPDATE clients SET
-             data = json_set(data, '$.mails[' || ?1 || '].pieces', json(?2), '$.date_modification', ?3),
+             data = json_set(data, ?1, json(?2), '$.date_modification', ?3),
              date_modification = ?3
            WHERE key = ?4`
-        ).bind(i, JSON.stringify(reste), now, key).run();
+        ).bind('$.mails[' + i + '].pieces', JSON.stringify(reste), now, key).run();
         return json({ ok: true, pieces: reste });
       }
     }
