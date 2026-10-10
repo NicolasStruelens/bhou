@@ -73,7 +73,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 120 tests du VR150 **et des règles d'ouverture partagées** (duplication). **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `tests/volet.test.html` | Les 135 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 49 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 49 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
@@ -939,6 +939,41 @@ le bloc de signature avec lui — la page suivante porte alors ce qu'on signe, j
 seule. **Mesurer la hauteur rendue en forçant les règles d'impression** (parcourir
 `document.styleSheets` et passer les media `print` à `all`) : c'est le seul moyen de vérifier
 une pagination sans générer le PDF.
+⚠️ **UN SEUL ENCADRÉ POUR DES OUVERTURES IDENTIQUES** (`SSVolet.groupesConfig`). Sur un vrai
+devis (Kerremans, deux VR150 d'une même façade), les deux encadrés étaient identiques MOT POUR
+MOT et pesaient 123 px chacun : c'est eux, et eux seuls, qui faisaient passer le devis à DEUX
+pages. Mesuré : 1 091 px avant, **912 px après** pour 1 032 utiles. Sur huit ouvertures, trois
+pages deviennent deux. Et un client qui lit deux fois la même chose cesse de la lire.
+• **Consécutives seulement**, et c'est un choix : un encadré sous la ligne 3 qui couvrirait
+  aussi la ligne 1 obligerait à remonter par-dessus l'encadré de la ligne 2. Ça ne coûte rien
+  en pratique — **une ouverture dupliquée se range juste après son original** (règle 35), donc
+  les identiques sont déjà voisines. Une ouverture SANS encadré (un screen entre deux volets)
+  ne coupe pas un groupe : elle n'insère rien entre eux, la lecture reste continue.
+• **La comparaison porte sur le RÉSUMÉ AFFICHÉ, pas sur l'objet** : deux ouvertures peuvent
+  différer par des champs `client: false` (perçage, rivets) et présenter le même encadré. C'est
+  l'encadré qu'on dédoublonne, donc c'est lui qu'on compare. Ni les dimensions ni le prix n'y
+  entrent : ils vivent sur la ligne de produit.
+• **L'encadré NOMME ce qu'il couvre** dès qu'il en couvre plus d'un (« ouvertures 4 à 6 ») —
+  sans ça on ne saurait pas où s'arrête sa portée. Sur une seule, pas d'intitulé : écrire
+  « ouverture 1 » sous la ligne 1 n'apprend rien.
+• ⚠️ **`tr.spec-row { break-before: avoid }`** : mesuré sur huit ouvertures, la ligne 7 tombait
+  en bas de page et son encadré ouvrait la suivante, seul, sans le produit qu'il décrit. Limite
+  assumée : il colle à sa DERNIÈRE ligne, pas au groupe entier — l'intitulé nomme les lignes,
+  donc on sait toujours de quoi il parle.
+
+⚠️ **LES TOTAUX FLOTTENT À DROITE, LE RAPPEL DE PAIEMENT S'ÉCRIT À CÔTÉ.** Les totaux occupent
+320 px à droite et l'acompte s'écrivait DESSOUS, pleine largeur : il restait un quart de page
+vide juste avant la zone la plus regardée du document (« il faut vraiment que le devis soit plus
+joli », Nicolas, 10/10/2026). Côte à côte, le vide disparaît et on gagne 56 px.
+**Un flottant, pas une grille**, parce qu'il ne faut toucher AUCUN des deux gabarits : le rappel
+vit dans un ternaire à trois branches (devis, dépannage réalisé, dépannage proposé), dans les
+DEUX documents — six modifications de gabarit pour ce que trois lignes de style obtiennent, et
+six occasions de les faire diverger.
+⚠️ `overflow: hidden` sur le voisin n'est pas un rognage : c'est ce qui en fait un bloc qui
+occupe la place RESTANTE au lieu de s'enrouler autour du flottant. Et `clear: both` sur tout ce
+qui suit est obligatoire, sinon la ligne de validité et les partenaires remontent à côté des
+totaux. Vérifié dans les deux cas, avec et SANS rappel de paiement.
+
 Le document retire aussi les **codes de menu Harol** des valeurs (`SSVolet.sansCodeMenu`) : « 1 :
 type 1 (dans le jour) » se lit « Type 1 (dans le jour) ». ⚠️ On ne retire QUE un index (1-2
 chiffres) ou une référence d'article (A4118) — jamais 3 ou 4 chiffres, parce que « 7016 — Gris
@@ -1492,7 +1527,7 @@ ont exactement la même tête à l'écran, et c'est tout le problème.
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
-   `tests/volet.test.html`, exiger « 106/106 » — ça remplit un bon de commande fournisseur.
+   `tests/volet.test.html`, exiger « 135/135 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 49/49 ».

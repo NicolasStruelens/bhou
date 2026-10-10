@@ -213,19 +213,29 @@
          motorisation, jamais les références de commande Harol (perçage A168, rivets, embouts).
          Le choix est dans la spec (`client: true`), pas ici : un second arbitrage à cet endroit
          finirait par contredire le premier. */
-      const specBoxHtml = (it) => {
-        const V = window.SSVolet;
-        if (!V) return '';
-        const l = V.resume(it, 'client');
-        if (!l.length) return '';
+      /* ⚠️ UN SEUL ENCADRÉ POUR DES OUVERTURES IDENTIQUES. Sur un vrai devis (deux VR150
+         d'une même façade), les deux encadrés étaient identiques MOT POUR MOT et pesaient
+         92 pt chacun : 184 pt de papier pour une information écrite deux fois — et un client
+         qui lit deux fois la même chose cesse de la lire. La règle de regroupement vit dans
+         `SSVolet.groupesConfig` (règle 10) : `devis-review.html` la partage, et c'est le MÊME
+         client qui lit les deux documents (règle 7). */
+      const specBoxHtml = (g) => {
+        if (!g || !g.resume.length) return '';
+        const t = window.SSVolet.titreGroupe(g.indices);
         return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
           <div class="spec-box">
-            <div class="spec-box-t">Configuration retenue</div>
-            <div class="spec-box-l">${l.map(x => x.coche
+            <div class="spec-box-t">Configuration retenue${t ? ' — ' + esc(t) : ''}</div>
+            <div class="spec-box-l">${g.resume.map(x => x.coche
               ? `<span class="spec-box-i spec-box-f">${esc(x.l)}</span>`
               : `<span class="spec-box-i"><b>${esc(x.l)}</b>${esc(x.v)}</span>`).join('')}</div>
           </div></td></tr>`;
       };
+      /* L'encadré se pose sous la DERNIÈRE ouverture du groupe : c'est la seule position qui
+         se lise sans revenir en arrière (« ce qui précède », pas « ce qui suit »). */
+      const groupesSpec = {};
+      (window.SSVolet ? window.SSVolet.groupesConfig(d.items) : []).forEach(g => {
+        groupesSpec[g.indices[g.indices.length - 1]] = g;
+      });
 
       // Lignes fournitures
       let rows = '';
@@ -268,7 +278,7 @@
           <td class="num">${fmtEur(pu)}</td>
           <td class="num">${fmtEur(pu * qty)}</td>
         </tr>`;
-        rows += specBoxHtml(it);
+        if (groupesSpec[i]) rows += specBoxHtml(groupesSpec[i]);
       });
       const remiseCat = c.remise_catalogue || {};
       if (remiseCat.amount > 0) {

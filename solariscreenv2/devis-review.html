@@ -458,19 +458,24 @@
       let rows = '';
       /* L'encadré de configuration, identique à celui du PDF (voir `app/devis.html`).
          Il ne porte QUE le niveau client : jamais les références de commande Harol. */
-      const specBoxHtml = (it) => {
-        const V = window.SSVolet;
-        if (!V) return '';
-        const l = V.resume(it, 'client');
-        if (!l.length) return '';
+      /* ⚠️ UN SEUL ENCADRÉ POUR DES OUVERTURES IDENTIQUES — même règle que le PDF, et c'est
+         obligatoire : le MÊME client lit les deux documents (règle 7). La règle vit dans
+         `SSVolet.groupesConfig`, jamais recopiée ici. */
+      const specBoxHtml = (g) => {
+        if (!g || !g.resume.length) return '';
+        const t = window.SSVolet.titreGroupe(g.indices);
         return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
           <div class="spec-box">
-            <div class="spec-box-t">Configuration retenue</div>
-            <div class="spec-box-l">${l.map(x => x.coche
+            <div class="spec-box-t">Configuration retenue${t ? ' — ' + esc(t) : ''}</div>
+            <div class="spec-box-l">${g.resume.map(x => x.coche
               ? `<span class="spec-box-i spec-box-f">${esc(x.l)}</span>`
               : `<span class="spec-box-i"><b>${esc(x.l)}</b>${esc(x.v)}</span>`).join('')}</div>
           </div></td></tr>`;
       };
+      const groupesSpec = {};
+      (window.SSVolet ? window.SSVolet.groupesConfig(doc.items) : []).forEach(g => {
+        groupesSpec[g.indices[g.indices.length - 1]] = g;
+      });
       (doc.items || []).forEach((it, i) => {
         const dims = window.SSUI.dimsOf(it) || '—';
         const pu = it.prix_catalogue_ht || 0, qty = it.quantite || 1;
@@ -502,7 +507,7 @@
           <td class="num">${esc(fmtEur(pu))}</td>
           <td class="num">${esc(fmtEur(pu * qty))}</td>
         </tr>`;
-        rows += specBoxHtml(it);
+        if (groupesSpec[i]) rows += specBoxHtml(groupesSpec[i]);
       });
       if (c.remise_catalogue > 0) {
         rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td>—</td><td>—</td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
