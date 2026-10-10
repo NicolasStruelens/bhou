@@ -30,7 +30,16 @@
     /* Layout spécifique simulateur */
     .sim-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-5); align-items: start; }
     .sim-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
-    @media (max-width: 1040px) { .sim-layout { grid-template-columns: 1fr; } .sim-aside { position: static; } }
+    /* `minmax(0, 1fr)` et SURTOUT PAS `1fr` tout court. Le minimum automatique d'une piste `1fr`
+       vaut `min-content` et non 0 : la piste s'ELARGIT jusqu'a la plus grosse exigence intrinseque
+       de son contenu au lieu de s'arreter au conteneur. Mesure du 10/10/2026 a 366 px : la piste
+       s'etablissait a 353,6 px pour 334 px disponibles, et comme elle demarre a 16 px du bord, la
+       PAGE ENTIERE defilait de 4 px vers la droite (`scrollWidth` 370 pour un `clientWidth` 366).
+       Rien ne depassait dans une carte : c'est le conteneur de page qui s'etait elargi.
+       La piste de bureau, juste au-dessus, etait deja bornee — c'est la variante telephone qui
+       avait ete oubliee. Sans cette borne, n'importe quel contenu insecable ajoute plus tard
+       elargit a nouveau la page au lieu de rester dans sa carte. */
+    @media (max-width: 1040px) { .sim-layout { grid-template-columns: minmax(0, 1fr); } .sim-aside { position: static; } }
 
     /* Carte d'ouverture : réagit au survol (cadre accent + halo léger) et met en avant la carte en
        cours d'édition (focus-within) — on voit d'un coup d'œil quelle ouverture on remplit. */
@@ -42,7 +51,13 @@
     .item-card::before { content: ''; position: absolute; left: 0; top: var(--sp-4); bottom: var(--sp-4); width: 2px; border-radius: 2px;
       background: color-mix(in srgb, var(--accent) 35%, transparent); opacity: 0; transition: opacity var(--t-fast); }
     .item-card:hover::before, .item-card:focus-within::before { opacity: 1; }
-    .item-card-head { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+    /* `flex-wrap: wrap` : cette rangee est la plus grosse exigence de la page. Elle porte le
+       numero, le resume et DEUX boutons insecables (« Dupliquer » et « Retirer ») — 270,4 px de
+       minimum intrinseque pour 248 disponibles a 366 px. C'est elle qui portait la piste a
+       353,6 px. Borner la piste sans ce `wrap` aurait seulement fait COUPER « Retirer » par le
+       `overflow-x: hidden` du body : le symptome cache, le defaut intact — le piege deja paye sur
+       `.kpi-value`. Au bureau la rangee tient sur une ligne, donc `wrap` n'y change rien. */
+    .item-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
     .item-no { font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: var(--fs-md); }
     .item-sub { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
 
@@ -97,7 +112,12 @@
 
     /* ── Bloc configurateur spécifique produit (ex: Coolscreen 8) ── */
     .cs8-block { border: 1px dashed var(--accent-3); border-radius: var(--r-md); padding: var(--sp-4); background: color-mix(in srgb, var(--accent-3) 6%, transparent); }
-    .cs8-head { font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-3); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2); }
+    /* `flex-wrap: wrap`, pour la meme raison que `.item-card-head` et il faut les deux : titre en
+       Orbitron majuscules espacees + badge « Portail Harol » insecable = 232,9 px de minimum pour
+       213 disponibles. Faire ceder la seule rangee des boutons laissait celle-ci reclamer encore
+       349,7 px de piste — soit un bord droit a 365,7 px pour 366 de large : on repassait sous la
+       barre par 0,3 px, ce qui n'est pas une correction, c'est une coincidence. */
+    .cs8-head { font-family: var(--font-display); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-3); margin-bottom: var(--sp-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
     .field-check { display: flex; align-items: flex-end; padding-bottom: 0.55rem; }
     .field-check label { display: flex; align-items: center; gap: 0.4rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; user-select: none; }
     .field-readonly { opacity: 0.7; cursor: not-allowed; background: var(--surface-2); }
