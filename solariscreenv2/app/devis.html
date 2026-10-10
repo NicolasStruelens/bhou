@@ -237,6 +237,26 @@
         groupesSpec[g.indices[g.indices.length - 1]] = g;
       });
 
+      /* ── LA REMISE SE POSE AVANT L ENCADRÉ DE CONFIGURATION ────────────────────────
+         Elle était écrite après la boucle, donc tout à la fin — c est-à-dire SOUS l encadré.
+         L encadré porte un filet d accent et un fond : l œil regroupe ce qui le touche, et la
+         remise avait l air de se rapporter à la CONFIGURATION plutôt qu aux produits qu elle
+         réduit. Signalé par Nicolas sur un vrai devis, le 10/10/2026.
+         Elle suit maintenant la DERNIÈRE ligne de produit, là où elle se lit comme ce qu elle
+         est : la dernière ligne chiffrée des fournitures.
+         ⚠️ `ligneRemise` et `dernierItem` sont préparés AVANT la boucle : on ne peut pas décider
+         « après la dernière ligne » depuis l intérieur d une boucle qui ne sait pas encore où
+         elle s arrête. */
+      const remiseCat = c.remise_catalogue || {};
+      const ligneRemise = remiseCat.amount > 0
+        ? `<tr class="remise-row">${/* ⚠️ CELLULES VIDES, PAS DES TIRETS. Une remise n a ni dimension, ni
+             quantité, ni prix unitaire : écrire « — » trois fois remplit la ligne de signes qui ne
+             disent RIEN au client, juste sous le produit qu il vérifie. Le « — » de la colonne #
+             reste : c est la convention du document pour « ce n est pas une fourniture
+             numérotée », et toutes les prestations le portent. */ ''}<td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td></td><td></td><td></td><td class="num">− ${fmtEur(remiseCat.amount)}</td></tr>`
+        : '';
+      const dernierItem = (d.items || []).length - 1;
+
       // Lignes fournitures
       let rows = '';
       (d.items || []).forEach((it, i) => {
@@ -278,16 +298,9 @@
           <td class="num">${fmtEur(pu)}</td>
           <td class="num">${fmtEur(pu * qty)}</td>
         </tr>`;
+        if (i === dernierItem) rows += ligneRemise;
         if (groupesSpec[i]) rows += specBoxHtml(groupesSpec[i]);
       });
-      const remiseCat = c.remise_catalogue || {};
-      if (remiseCat.amount > 0) {
-        rows += `<tr class="remise-row">${/* ⚠️ CELLULES VIDES, PAS DES TIRETS. Une remise n'a ni dimension, ni quantité, ni prix
-     unitaire : écrire « — » trois fois de suite remplit la ligne de signes qui ne disent
-     RIEN au client, juste sous le produit qu'il est en train de vérifier. Vu sur un vrai
-     PDF le 10/10/2026. Le « — » de la colonne # reste : c'est la convention du document
-     pour « ce n'est pas une fourniture numérotée », et toutes les prestations le portent. */ ''}<td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td><td></td><td></td><td></td><td class="num">− ${fmtEur(remiseCat.amount)}</td></tr>`;
-      }
 
       // Prestations / options
       let presta = '';

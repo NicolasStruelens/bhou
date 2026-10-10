@@ -1001,6 +1001,19 @@ pages deviennent deux. Et un client qui lit deux fois la même chose cesse de la
   assumée : il colle à sa DERNIÈRE ligne, pas au groupe entier — l'intitulé nomme les lignes,
   donc on sait toujours de quoi il parle.
 
+⚠️ **LA REMISE SE POSE APRÈS LA DERNIÈRE LIGNE PRODUIT, AVANT L'ENCADRÉ DE CONFIGURATION.**
+Écrite après la boucle, elle tombait SOUS l'encadré — et l'encadré porte un filet d'accent et un
+fond, donc l'œil regroupe ce qui le touche : la remise avait l'air de se rapporter à la
+CONFIGURATION plutôt qu'aux produits qu'elle réduit. Signalé par Nicolas sur un vrai devis.
+⚠️ `ligneRemise` et `dernierItem` se préparent AVANT la boucle : on ne peut pas décider « après
+la dernière ligne » depuis l'intérieur d'une boucle qui ne sait pas encore où elle s'arrête.
+⚠️ **Contrepartie obligatoire : `tr.remise-row { break-before: avoid }`.** La remise s'intercale
+maintenant entre une ligne produit et son encadré ; or `spec-row` s'accroche à ce qui la
+précède, c'est-à-dire à la remise. Sans cette règle, un saut de page coupe le groupe en deux et
+l'encadré décrit des lignes qu'on ne voit plus.
+⚠️ Vérifié sur TROIS cas, pas un : 2 ouvertures (remise juste avant l'encadré, 946 px, 1 page),
+8 ouvertures (même règle, 1 829 px, 2 pages) et un devis SANS remise (aucune ligne parasite).
+
 ⚠️ **LES TOTAUX FLOTTENT À DROITE, LE RAPPEL DE PAIEMENT S'ÉCRIT À CÔTÉ.** Les totaux occupent
 320 px à droite et l'acompte s'écrivait DESSOUS, pleine largeur : il restait un quart de page
 vide juste avant la zone la plus regardée du document (« il faut vraiment que le devis soit plus

@@ -455,6 +455,16 @@
       const cellDim = dep ? '' : '<td>—</td>';
       let cptPoste = 0;
       const cellNum = () => dep ? `<td class="num">${++cptPoste}</td>` : '<td class="num">—</td>';
+      /* ── LA REMISE SE POSE AVANT L ENCADRÉ DE CONFIGURATION ────────────────────────
+         Elle était écrite après la boucle, donc SOUS l encadré. L encadré porte un filet
+         d accent et un fond : l œil regroupe ce qui le touche, et la remise avait l air de se
+         rapporter à la CONFIGURATION plutôt qu aux produits qu elle réduit. Signalé par Nicolas
+         sur un vrai devis, le 10/10/2026. Même correctif que le PDF — c est le MÊME client qui
+         lit les deux documents (règle 7). */
+      const ligneRemise = c.remise_catalogue > 0
+        ? `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`
+        : '';
+      const dernierItem = (doc.items || []).length - 1;
       let rows = '';
       /* L'encadré de configuration, identique à celui du PDF (voir `app/devis.html`).
          Il ne porte QUE le niveau client : jamais les références de commande Harol. */
@@ -507,17 +517,9 @@
           <td class="num">${esc(fmtEur(pu))}</td>
           <td class="num">${esc(fmtEur(pu * qty))}</td>
         </tr>`;
+        if (i === dernierItem) rows += ligneRemise;
         if (groupesSpec[i]) rows += specBoxHtml(groupesSpec[i]);
       });
-      if (c.remise_catalogue > 0) {
-        /* ⚠️ Cellules VIDES, pas des tirets — même règle que le PDF (règle 7). Une remise n'a
-           ni dimension, ni quantité, ni prix unitaire.
-           ⚠️ ET C'EST UN COMMENTAIRE JS ORDINAIRE, PAS UN `${...}` : ici on est entre deux
-           instructions, pas dans un littéral de gabarit. Un `${` à cette place est `$` suivi
-           d'un bloc, donc une ERREUR DE SYNTAXE qui tue le script ENTIER de la page — et donc
-           la page que le CLIENT ouvre. Payé ici le 10/10/2026. */
-        rows += `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`;
-      }
       let presta = '';
       if (c.install_total_brut > 0) {
         presta += `<tr>${cellNum()}<td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td></tr>`;
