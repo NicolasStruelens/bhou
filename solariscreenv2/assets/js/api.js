@@ -476,6 +476,63 @@
     // Même architecture que addComment : route CIBLÉE côté serveur (json_insert), jamais de
     // relecture-réécriture de la fiche complète — un mail archivé ne peut donc pas disparaître
     // parce que quelqu'un enregistre la fiche au même moment depuis un autre écran.
+    /* ── CORRIGER UN ÉCHANGE ARCHIVÉ ─────────────────────────────────────────
+       Un champ ABSENT du patch garde sa valeur : c est la moitié client de la règle 2. On
+       n envoie donc QUE ce qui a changé, et le serveur étale le reste sur l existant — sans
+       quoi corriger un objet effacerait les pièces jointes et le rattachement au devis. */
+    async editClientMail(key, mid, patch) {
+      const payload = {};
+      ['objet', 'de', 'date_mail', 'texte', 'devis_id', 'sens', 'par'].forEach(function (k) {
+        if (patch && patch[k] !== undefined) payload[k] = patch[k];
+      });
+      if (payload.texte !== undefined && !String(payload.texte).trim()) {
+        return { ok: false, error: 'Message vide' };
+      }
+      try {
+        const res = await req('/clients/' + encodeURIComponent(key) + '/mail/' + encodeURIComponent(mid),
+          { method: 'PATCH', body: JSON.stringify(payload) });
+        try {
+          const c = localClients.get(key);
+          if (c && c.mails) {
+            const i = c.mails.findIndex(function (x) { return String(x.id) === String(mid); });
+            if (i >= 0) { c.mails[i] = res.mail; localClients.save(c); }
+          }
+        } catch (e) {}
+        return res;
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        /* ⚠️ AUCUNE FILE D ATTENTE HORS-LIGNE, et c est volontaire : une correction qui n existe
+           que sur le téléphone qui l a faite laisse l autre lire l ancienne version en la croyant
+           à jour. Même raison que les photos d un sujet (règle 25) et que les prélèvements. */
+        return { ok: false, error: 'Correction NON enregistrée (hors ligne ?) — réessaie une fois connecté.' };
+      }
+    },
+    /* ── PIÈCE JOINTE : UNE IMAGE OU UN PDF ────────────────────────────────────
+       ⚠️ On envoie le fichier TEL QUEL, en multipart, sans passer par `compressAndUploadPhoto` :
+       celui-ci redessine l image dans un canvas pour la compresser, ce qui détruirait un PDF et
+       re-encoderait une capture d écran de mail en la rendant illisible. Les octets vont dans R2,
+       la ligne D1 ne garde que le nom, le type et la clé. */
+    async addClientMailPiece(key, mid, file) {
+      if (!file) return { ok: false, error: 'Aucun fichier' };
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        return await req('/clients/' + encodeURIComponent(key) + '/mail/' + encodeURIComponent(mid) + '/piece',
+          { method: 'POST', body: form });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        return { ok: false, error: 'Pièce NON jointe (hors ligne ?) — réessaie une fois connecté.' };
+      }
+    },
+    async deleteClientMailPiece(key, mid, pid) {
+      try {
+        return await req('/clients/' + encodeURIComponent(key) + '/mail/' + encodeURIComponent(mid)
+          + '/piece/' + encodeURIComponent(pid), { method: 'DELETE' });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        return { ok: false, error: 'Pièce NON supprimée (hors ligne ?).' };
+      }
+    },
     async addClientMail(key, mail) {
       const payload = {
         sens: mail.sens === 'envoye' ? 'envoye' : 'recu',

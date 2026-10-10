@@ -420,8 +420,12 @@
           <div class="subhead">Échanges e-mail (${(ct.mails || []).length})</div>
           <div id="mailHost"></div>
           <details class="ss-paste" id="mailPaste" style="margin-top:var(--sp-2);">
+            ${/* ⚠️ LE MÊME FORMULAIRE SERT À ARCHIVER ET À CORRIGER, et ce n est pas de
+                 l économie : un second formulaire aurait fini par diverger du premier — un champ
+                 ajouté d un côté, pas de l autre — et c est la même saisie dans les deux cas.
+                 Seuls le titre et le bouton changent, pilotés par `MAIL_EDITE`. */ ''}
             <summary style="cursor:pointer;font-family:var(--font-mono);font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.06em;color:var(--accent);">
-              ${icon('plus', 12)} Archiver un échange
+              <span id="mailFormTitre">${icon('plus', 12)} Archiver un échange</span>
             </summary>
             <div style="margin-top:var(--sp-3);">
               <p class="ss-paste-hint">Colle le mail tel quel, en-têtes compris. L'expéditeur, l'objet, la date
@@ -439,7 +443,21 @@
                   <option value="">Sans devis précis</option>
                   ${c.devis.map(d => `<option value="${esc(d.id)}">devis #${esc(d.id)}</option>`).join('')}
                 </select>
-                <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="archiverMail(${SSUI.jsAttr(key)})">${icon('save', 14)} Archiver</button>
+                <button class="btn btn-primary btn-sm" id="mailBtnOk" style="margin-left:auto;" onclick="validerMail(${SSUI.jsAttr(key)})">${icon('save', 14)} Archiver</button>
+                <button class="btn btn-ghost btn-sm" id="mailBtnAnnuler" hidden onclick="annulerModifMail()">Annuler</button>
+              </div>
+              ${/* ⚠️ LA PIÈCE JOINTE N APPARAÎT QU EN CORRECTION, et c est structurel : la route
+                   est CIBLÉE sur un mail, donc elle a besoin d un identifiant — qui n existe pas
+                   tant que le mail n est pas archivé. Plutôt qu une file d attente en mémoire
+                   comme pour les photos d un sujet (règle 25), on archive d abord, on joint
+                   ensuite : un mail se colle en deux secondes, la pièce suit. */ ''}
+              <div class="ss-paste-row" id="mailPjRow" hidden style="margin-top:var(--sp-2);">
+                <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+                  ${icon('upload', 14)} Joindre une image ou un PDF
+                  <input type="file" accept="image/*,application/pdf" hidden
+                         onchange="joindrePiece(${SSUI.jsAttr(key)}, this)">
+                </label>
+                <span class="ss-paste-hint" style="margin:0;">15 Mo maximum · image ou PDF uniquement.</span>
               </div>
             </div>
           </details>
@@ -487,6 +505,12 @@
         </div>`;
       // Saisie assistée code postal ↔ ville (à refaire à chaque rendu : les champs sont recréés).
       window.SSPostal && SSPostal.bindPair(el('f_cp'), el('f_ville'));
+      /* ⚠️ La clé de la fiche OUVERTE, retenue hors du DOM : les routes des pièces jointes en
+         ont besoin (elles sont ciblées sur un client ET un mail), et une correction en cours
+         doit survivre au re-rendu de la fiche. Posée ICI parce que c est le seul endroit qui
+         sache quelle fiche on regarde. */
+      CLE_FICHE = key;
+      MAIL_EDITE = null;        // on change de fiche : une correction en cours n a plus d objet
       renderMails(ct.mails || []);
       loadHistExtras(c);
     };
@@ -498,10 +522,111 @@
       const host = el('mailHost');
       if (!host) return;
       host.innerHTML = window.SSUI.mailsHtml(mails, {
-        onDelete: 'supprimerMail', onOpenDevis: 'ouvrirDevis',
+        clientKey: CLE_FICHE, onDelete: 'supprimerMail', onEdit: 'modifierMail',
+        onDeletePiece: 'supprimerPiece', onOpenDevis: 'ouvrirDevis',
         empty: 'Aucun échange archivé. Colle ci-dessous le premier mail de ce client — Yannick le verra ici et sur ses devis.',
       });
     }
+    /* ══════ CORRIGER UN ÉCHANGE, ET Y JOINDRE UNE PIÈCE ══════
+       Demande de Nicolas, 10/10/2026 : « je sais pas modifier un échange ? ça serait
+       intéressant. Et pouvoir ajouter une image ou un PDF. »
+       ⚠️ `MAIL_EDITE` vit HORS du formulaire, et c est délibéré. Le mettre dans un attribut
+       `data-` du DOM le ferait disparaître au premier re-rendu de la fiche — et on enverrait
+       alors une CORRECTION comme un nouvel archivage, donc un doublon. Même famille que
+       `EDITE_POUR` des Échanges (règle 15 bis). */
+    let MAIL_EDITE = null;
+    let CLE_FICHE = '';
+
+    window.modifierMail = (id) => {
+      const c = DIRECTORY.find(x => x.key === CLE_FICHE);
+      const m = ((c && c.contact.mails) || []).find(x => String(x.id) === String(id));
+      if (!m) { toast('\u00c9change introuvable \u2014 recharge la fiche.', 'warn'); return; }
+      MAIL_EDITE = m.id;
+      el('mailTexte').value = m.texte || '';
+      el('mailObjet').value = m.objet || '';
+      el('mailSens').value = m.sens === 'envoye' ? 'envoye' : 'recu';
+      el('mailDevis').value = m.devis_id || '';
+      /* ⚠️ On marque les champs comme TOUCHÉS : sans ça, `lireMail` les écraserait dès la
+         première frappe avec ce que l analyse croit comprendre du texte — c est-à-dire avec
+         exactement ce qu on est en train de corriger. */
+      el('mailObjet').dataset.touche = '1';
+      el('mailSens').dataset.touche = '1';
+      el('mailLu').classList.remove('on');
+      el('mailFormTitre').innerHTML = icon('edit', 12) + ' Corriger cet \u00e9change';
+      el('mailBtnOk').innerHTML = icon('save', 14) + ' Enregistrer la correction';
+      el('mailBtnAnnuler').hidden = false;
+      el('mailPjRow').hidden = false;
+      el('mailPaste').open = true;
+      el('mailPaste').scrollIntoView({ block: 'center' });
+    };
+
+    window.annulerModifMail = () => {
+      MAIL_EDITE = null;
+      el('mailTexte').value = ''; el('mailObjet').value = ''; el('mailDevis').value = '';
+      el('mailObjet').dataset.touche = ''; el('mailSens').dataset.touche = '';
+      el('mailLu').classList.remove('on');
+      el('mailFormTitre').innerHTML = icon('plus', 12) + ' Archiver un \u00e9change';
+      el('mailBtnOk').innerHTML = icon('save', 14) + ' Archiver';
+      el('mailBtnAnnuler').hidden = true;
+      el('mailPjRow').hidden = true;
+      el('mailPaste').open = false;
+    };
+
+    /** Un seul bouton pour les deux modes \u2014 c est `MAIL_EDITE` qui tranche. */
+    window.validerMail = async (key) => {
+      if (MAIL_EDITE) return enregistrerCorrectionMail(key);
+      return archiverMail(key);
+    };
+
+    async function enregistrerCorrectionMail(key) {
+      const texte = el('mailTexte').value.trim();
+      if (!texte) { toast('Le message ne peut pas \u00eatre vide.', 'warn'); return; }
+      const identite = await window.SSNav.getIdentity();
+      const res = await SS.editClientMail(key, MAIL_EDITE, {
+        texte, objet: el('mailObjet').value.trim(), sens: el('mailSens').value,
+        devis_id: el('mailDevis').value, par: identite.key || 'nicolas',
+      });
+      if (res.ok === false) { toast(res.error || 'Correction NON enregistr\u00e9e.', 'error', 6000); return; }
+      majMailLocal(key, res.mail);
+      toast('\u00c9change corrig\u00e9 \u2713', 'ok');
+      annulerModifMail();
+    }
+
+    /** Remplace le mail dans la copie locale, sans relire la fiche (\u00e9criture cibl\u00e9e c\u00f4t\u00e9 serveur). */
+    function majMailLocal(key, mail) {
+      const c = DIRECTORY.find(x => x.key === key);
+      if (!c) { renderMails([mail]); return; }
+      c.contact.mails = c.contact.mails || [];
+      const i = c.contact.mails.findIndex(x => String(x.id) === String(mail.id));
+      if (i >= 0) c.contact.mails[i] = mail; else c.contact.mails.push(mail);
+      renderMails(c.contact.mails);
+    }
+
+    window.joindrePiece = async (key, input) => {
+      const f = input.files && input.files[0];
+      input.value = '';                       // sinon rechoisir le m\u00eame fichier ne d\u00e9clenche rien
+      if (!f || !MAIL_EDITE) return;
+      /* \u26a0\ufe0f On refuse AVANT d envoyer 15 Mo pour rien : le serveur le refuserait aussi, mais
+         apr\u00e8s le t\u00e9l\u00e9versement complet \u2014 insupportable en 4G sur un chantier. */
+      if (f.size > 15 * 1024 * 1024) { toast('Fichier trop lourd (15 Mo maximum).', 'warn', 6000); return; }
+      toast('Envoi de ' + f.name + '\u2026', 'ok');
+      const res = await SS.addClientMailPiece(key, MAIL_EDITE, f);
+      if (res.ok === false) { toast(res.error || 'Pi\u00e8ce NON jointe.', 'error', 7000); return; }
+      const c = DIRECTORY.find(x => x.key === key);
+      const m = ((c && c.contact.mails) || []).find(x => String(x.id) === String(MAIL_EDITE));
+      if (m) { m.pieces = res.pieces; majMailLocal(key, m); }
+      toast('Pi\u00e8ce jointe \u2713', 'ok');
+    };
+
+    window.supprimerPiece = async (mid, pid) => {
+      if (!confirm('Retirer cette pi\u00e8ce jointe ?')) return;
+      const res = await SS.deleteClientMailPiece(CLE_FICHE, mid, pid);
+      if (res.ok === false) { toast(res.error || 'Pi\u00e8ce NON supprim\u00e9e.', 'error', 6000); return; }
+      const c = DIRECTORY.find(x => x.key === CLE_FICHE);
+      const m = ((c && c.contact.mails) || []).find(x => String(x.id) === String(mid));
+      if (m) { m.pieces = res.pieces; majMailLocal(CLE_FICHE, m); }
+    };
+
     window.ouvrirDevis = (id) => { location.href = 'vue.html?id=' + encodeURIComponent(id); };
     /** Aperçu en direct de ce que l'outil a compris du collage — et pré-remplissage des champs. */
     window.lireMail = () => {
@@ -697,7 +822,15 @@
     // du tableau de bord d'atterrir sur le bon client au lieu d'une liste où il faut le retrouver.
     load().then(() => {
       const k = window.SSUI.qp('key');
-      if (k && DIRECTORY.some(c => c.key === k)) renderDetail(k);
+      if (!k || !DIRECTORY.some(c => c.key === k)) return;
+      renderDetail(k);
+      /* ⚠️ `?mail=<id>` ouvre DIRECTEMENT la correction de cet échange. C est ce qui fait que
+         le bouton « Corriger » de la fiche devis mène quelque part d utile : sans ça, on
+         atterrirait sur le CRM avec la consigne implicite de retrouver soi-même le bon mail
+         dans la liste — et c est exactement le détour qu on ne fait pas.
+         Même idée que l arrivée sur un sujet classé depuis le Ctrl+K (règle 23 bis). */
+      const mid = window.SSUI.qp('mail');
+      if (mid) setTimeout(() => window.modifierMail(mid), 60);
     });
   </script>
 </body>

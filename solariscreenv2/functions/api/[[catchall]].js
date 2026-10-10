@@ -966,6 +966,146 @@ export async function onRequest(context) {
       const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.mails'), 0) AS n FROM clients WHERE key = ?").bind(key).first();
       return json({ ok: true, mail, mails_count: row ? row.n : null });
     }
+    /* ── ÉCHANGES E-MAIL : CORRECTION CIBLÉE ────────────────────────────────────
+       Demande de Nicolas, 10/10/2026 : « dans échanges mail je sais pas modifier un échange ? ».
+       Un mail archivé est un COLLAGE : l analyse devine l expéditeur, l objet et le sens, et elle
+       se trompe parfois — une citation plus bas, un en-tête exotique. Sans correction, la seule
+       issue était de supprimer et de recoller, donc de perdre la date d archivage et le
+       rattachement au devis.
+       ⚠️ ÉCRITURE CIBLÉE SUR LE SEUL MAIL (règle 3) : on relit la fiche pour trouver l index,
+       puis on écrit $.mails[i] — jamais la fiche entière, qui écraserait les coordonnées que
+       l autre vient de corriger depuis le CRM.
+       ⚠️ LES CHAMPS SONT ÉTALÉS SUR L EXISTANT (règle 2) : une énumération perdrait les pièces
+       jointes, le rattachement au devis et la date d archivage. On ne remplace que ce qui est
+       explicitement fourni — un champ absent du corps de requête garde sa valeur.
+       ⚠️ LA SIGNATURE N EST POSÉE QUE SI LE TEXTE A VRAIMENT CHANGÉ, même discipline que la
+       décision d un sujet (règle 15 bis). Corriger un objet mal lu ou rattacher un devis n est
+       pas une réécriture du message : afficher « modifié » pour ça ferait douter du contenu. */
+    let mMailEdit = path.match(/^\/api\/clients\/([^/]+)\/mail\/([^/]+)$/);
+    if (mMailEdit && (method === 'PATCH' || method === 'PUT')) {
+      const key = decodeURIComponent(mMailEdit[1]);
+      const mid = decodeURIComponent(mMailEdit[2]);
+      const body = await request.json().catch(() => ({}));
+      const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(key).first();
+      if (!row) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      const c = safeParse(row.data) || {};
+      const i = (c.mails || []).findIndex(x => String(x.id) === mid);
+      if (i < 0) return json({ ok: false, error: 'Échange introuvable' }, 404);
+      const avant = c.mails[i];
+      const texte = body.texte === undefined ? avant.texte : String(body.texte || '').trim().slice(0, 40000);
+      if (!texte) return json({ ok: false, error: 'Message vide' }, 400);
+      const maj = Object.assign({}, avant, {
+        texte: texte,
+        objet: body.objet === undefined ? avant.objet : String(body.objet || '').slice(0, 300),
+        de: body.de === undefined ? avant.de : String(body.de || '').slice(0, 200),
+        date_mail: body.date_mail === undefined ? avant.date_mail : String(body.date_mail || '').slice(0, 40),
+        devis_id: body.devis_id === undefined ? avant.devis_id : String(body.devis_id || '').slice(0, 40),
+        sens: body.sens === undefined ? avant.sens : (body.sens === 'envoye' ? 'envoye' : 'recu'),
+      });
+      const now = new Date().toISOString();
+      if (texte !== avant.texte) {
+        maj.modifie_par = String(body.par || 'nicolas').slice(0, 40);
+        maj.modifie_le = now;
+      }
+      await env.DB.prepare(
+        `UPDATE clients SET
+           data = json_set(data, '$.mails[' || ?1 || ']', json(?2), '$.date_modification', ?3),
+           date_modification = ?3
+         WHERE key = ?4`
+      ).bind(i, JSON.stringify(maj), now, key).run();
+      return json({ ok: true, mail: maj });
+    }
+
+    /* ── ÉCHANGES E-MAIL : PIÈCES JOINTES (R2) ────────────────────────────────────
+       « Et pouvoir ajouter une image ou un PDF ». Un mail de client arrive presque toujours avec
+       une pièce — un plan, une photo de façade, l offre d un concurrent. Collé sans elle,
+       l échange archivé ne raconte que la moitié de l histoire.
+       ⚠️ LES OCTETS VIVENT DANS R2, LA LIGNE D1 NE GARDE QUE LA MÉTADONNÉE — même architecture
+       que les documents fournisseur et les photos. Un PDF de 3 Mo en base64 dans la colonne
+       data, c est l incident déjà payé avec les photos non compressées.
+       ⚠️ PAS DE REPLI EN dataURL ici, contrairement aux photos : une photo d ouverture perdue
+       est gênante, un PDF de 15 Mo dans D1 casse la ligne pour tout le monde. Sans la liaison R2,
+       on le DIT plutôt que de dégrader en silence. */
+    let mMailPiece = path.match(/^\/api\/clients\/([^/]+)\/mail\/([^/]+)\/piece$/);
+    if (mMailPiece && method === 'POST') {
+      if (!env.DOCS) return json({ ok: false, error: "Stockage de documents non configuré (liaison R2 « DOCS » manquante)." }, 500);
+      const key = decodeURIComponent(mMailPiece[1]);
+      const mid = decodeURIComponent(mMailPiece[2]);
+      const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(key).first();
+      if (!row) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      const c = safeParse(row.data) || {};
+      const i = (c.mails || []).findIndex(x => String(x.id) === mid);
+      if (i < 0) return json({ ok: false, error: 'Échange introuvable' }, 404);
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!file || typeof file === 'string') return json({ ok: false, error: 'Fichier manquant' }, 400);
+      const MAX_SIZE = 15 * 1024 * 1024;
+      if (file.size > MAX_SIZE) return json({ ok: false, error: 'Fichier trop volumineux (15 Mo max)' }, 400);
+      /* ⚠️ LISTE BLANCHE DE TYPES, et c est volontaire. Une pièce jointe est le seul endroit
+         où un fichier venu de l extérieur entre dans le système. On accepte ce que Nicolas a
+         nommé — une image ou un PDF — et rien d autre. */
+      const TYPES_OK = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+      const mime = String(file.type || '').toLowerCase();
+      if (TYPES_OK.indexOf(mime) === -1) {
+        return json({ ok: false, error: 'Seules les images et les PDF sont acceptés (reçu : ' + (mime || 'type inconnu') + ').' }, 400);
+      }
+      const pid = crypto.randomUUID();
+      const safeName = (file.name || 'piece').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+      const r2Key = `clients/${key}/mail/${mid}/${pid}-${safeName}`;
+      await env.DOCS.put(r2Key, file.stream(), { httpMetadata: { contentType: mime } });
+      const piece = { id: pid, filename: file.name || safeName, mime: mime, taille: file.size, r2_key: r2Key, date_upload: new Date().toISOString() };
+      const pieces = (c.mails[i].pieces || []).concat([piece]);
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        `UPDATE clients SET
+           data = json_set(data, '$.mails[' || ?1 || '].pieces', json(?2), '$.date_modification', ?3),
+           date_modification = ?3
+         WHERE key = ?4`
+      ).bind(i, JSON.stringify(pieces), now, key).run();
+      return json({ ok: true, piece, pieces });
+    }
+
+    let mMailPieceOne = path.match(/^\/api\/clients\/([^/]+)\/mail\/([^/]+)\/piece\/([^/]+)$/);
+    if (mMailPieceOne) {
+      if (!env.DOCS) return json({ ok: false, error: "Stockage de documents non configuré (liaison R2 « DOCS » manquante)." }, 500);
+      const key = decodeURIComponent(mMailPieceOne[1]);
+      const mid = decodeURIComponent(mMailPieceOne[2]);
+      const pid = decodeURIComponent(mMailPieceOne[3]);
+      const row = await env.DB.prepare('SELECT data FROM clients WHERE key = ?').bind(key).first();
+      if (!row) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      const c = safeParse(row.data) || {};
+      const i = (c.mails || []).findIndex(x => String(x.id) === mid);
+      if (i < 0) return json({ ok: false, error: 'Échange introuvable' }, 404);
+      const piece = (c.mails[i].pieces || []).find(x => String(x.id) === pid);
+      if (!piece) return json({ ok: false, error: 'Pièce jointe introuvable' }, 404);
+      if (method === 'GET') {
+        const obj = await env.DOCS.get(piece.r2_key);
+        if (!obj) return json({ ok: false, error: 'Fichier introuvable dans le stockage' }, 404);
+        /* inline et non attachment : une photo de façade ou un plan se REGARDE, on ne veut pas
+           télécharger un fichier à chaque coup d œil. Le nom est débarrassé de ses guillemets,
+           sinon il referme l en-tête et le navigateur reçoit n importe quoi. */
+        return new Response(obj.body, {
+          headers: {
+            'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'application/octet-stream',
+            'Content-Disposition': `inline; filename="${String(piece.filename || 'piece').replace(/"/g, '')}"`,
+            'Cache-Control': 'private, max-age=3600',
+          },
+        });
+      }
+      if (method === 'DELETE') {
+        try { await env.DOCS.delete(piece.r2_key); } catch (e) { /* orphelin R2 sans gravité */ }
+        const reste = (c.mails[i].pieces || []).filter(x => String(x.id) !== pid);
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          `UPDATE clients SET
+             data = json_set(data, '$.mails[' || ?1 || '].pieces', json(?2), '$.date_modification', ?3),
+             date_modification = ?3
+           WHERE key = ?4`
+        ).bind(i, JSON.stringify(reste), now, key).run();
+        return json({ ok: true, pieces: reste });
+      }
+    }
+
     // ── ÉCHANGES E-MAIL : suppression CIBLÉE ───────────────────────────────────────────────────
     let mMailDel = path.match(/^\/api\/clients\/([^/]+)\/mail\/([^/]+)$/);
     if (mMailDel && method === 'DELETE') {

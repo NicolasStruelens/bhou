@@ -1270,6 +1270,41 @@ trancher (« je verrai le résultat et je te dirigerai »). La vraie question, q
 reviendra : **une case décochée veut-elle dire « non » ou « pas encore regardé » ?** Les deux
 ont exactement la même tête à l'écran, et c'est tout le problème.
 
+**37. UN ÉCHANGE E-MAIL SE CORRIGE, ET IL PORTE SES PIÈCES.**
+Demande de Nicolas (10/10/2026) : « je sais pas modifier un échange ? ça serait intéressant. Et
+pouvoir ajouter une image ou un PDF. » Un mail archivé est un COLLAGE : l'analyse devine
+l'expéditeur, l'objet et le sens, et elle se trompe parfois. Sans correction, la seule issue
+était de SUPPRIMER et de recoller — en perdant la date d'archivage et le rattachement au devis.
+**Entre perdre ça et laisser une erreur, on laissait l'erreur.**
+⚠️ **Écriture CIBLÉE sur le seul mail** (`PATCH /api/clients/:key/mail/:mid`, règle 3) : jamais
+la fiche entière, qui écraserait les coordonnées corrigées ailleurs. Et les champs sont
+**étalés sur l'existant** (règle 2) : un champ absent du corps de requête garde sa valeur, sinon
+corriger un objet effacerait les pièces jointes et le devis rattaché.
+⚠️ **La signature « modifié » n'est posée que si le TEXTE a changé** — même discipline que la
+décision d'un sujet (règle 15 bis). Corriger un objet mal lu ou rattacher un devis n'est pas une
+réécriture du message ; l'afficher ferait douter du contenu.
+⚠️ **Les octets d'une pièce vivent dans R2, la ligne D1 ne garde que la métadonnée**, comme les
+documents fournisseur. Et **pas de repli dataURL** ici, contrairement aux photos : une photo
+d'ouverture perdue est gênante, un PDF de 15 Mo dans D1 casse la ligne pour tout le monde. Sans
+la liaison R2 « DOCS », on le DIT plutôt que de dégrader en silence.
+⚠️ **Liste blanche de types** (images + PDF) : une pièce jointe est le seul endroit où un
+fichier venu de l'extérieur entre dans le système. Et la taille est refusée **avant** l'envoi :
+le serveur refuserait aussi, mais après avoir téléversé 15 Mo en 4G sur un chantier.
+⚠️ **La pièce ne se joint qu'À UN MAIL DÉJÀ ARCHIVÉ**, et c'est structurel : la route est
+ciblée, donc elle a besoin d'un identifiant qui n'existe pas avant. On archive d'abord, on joint
+ensuite — un mail se colle en deux secondes.
+⚠️ **LE MÊME FORMULAIRE ARCHIVE ET CORRIGE** : c'est la même saisie, et un second formulaire
+aurait fini par diverger du premier. Seuls le titre et le bouton changent, pilotés par
+`MAIL_EDITE` — qui vit **hors du DOM** : dans un `data-`, il disparaîtrait au premier re-rendu
+de la fiche et on enverrait une CORRECTION comme un nouvel archivage, donc un doublon (même
+famille que `EDITE_POUR`, règle 15 bis). Et les champs sont marqués « touchés » à l'ouverture,
+sinon `lireMail` les écraserait dès la première frappe avec ce qu'on est en train de corriger.
+⚠️ **La fiche DEVIS montre les échanges, elle ne les édite pas** : « Corriger » ouvre la fiche
+client sur le bon mail (`?mail=<id>`), exactement comme « Archiver un nouvel échange » y menait
+déjà. Les mails vivent sur le CLIENT, pas sur le dossier ; un second éditeur aurait divergé.
+Sans le paramètre, on atterrirait sur le CRM avec la consigne implicite de retrouver le bon mail
+soi-même — le détour qu'on ne fait pas.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe

@@ -1554,16 +1554,34 @@
       // Carte masquée tant qu'il n'y a pas d'échange : une carte vide n'apprend rien.
       card.classList.toggle('hidden', tous.length === 0);
       if (!tous.length) return;
+      const cl = DEVIS.client || {};
+      CLE_CLIENT_MAILS = clientKeyOf(cl.prenom, cl.nom);
       const ici = tous.filter(m => String(m.devis_id || '') === String(DEVIS.id));
       const autres = tous.filter(m => String(m.devis_id || '') !== String(DEVIS.id));
       setText('mailsSummary', tous.length + ' échange' + (tous.length > 1 ? 's' : '')
         + (ici.length ? ` · ${ici.length} sur ce devis` : ''));
-      host.innerHTML = (ici.length ? window.SSUI.mailsHtml(ici, {}) : '')
+      /* ⚠️ LA FICHE DEVIS MONTRE LES ÉCHANGES, ELLE NE LES ÉDITE PAS — « Corriger » ouvre la
+         FICHE CLIENT sur le bon mail. Les mails vivent sur le client, pas sur le dossier : un
+         second éditeur ici aurait fini par diverger de celui du CRM, et c est exactement ce
+         qu on évite depuis que les types de produit ont vécu en 13 copies (règle 10).
+         C est déjà le chemin d « Archiver un nouvel échange » juste en dessous : deux boutons
+         voisins qui mènent au même endroit, c est cohérent ; deux qui se comportent différemment
+         ne le serait pas. */
+      const optsMail = { clientKey: CLE_CLIENT_MAILS, onEdit: 'corrigerEchange' };
+      host.innerHTML = (ici.length ? window.SSUI.mailsHtml(ici, optsMail) : '')
         + (autres.length
           ? (ici.length ? '<div class="section-sub" style="margin:var(--sp-3) 0 var(--sp-2);">Autres échanges avec ce client</div>' : '')
-            + window.SSUI.mailsHtml(autres, {})
+            + window.SSUI.mailsHtml(autres, optsMail)
           : '');
     }
+    /* La clé du client de CE devis : les pièces jointes sont servies par une route ciblée
+       sur le client, donc la carte a besoin de savoir de qui elle parle. */
+    let CLE_CLIENT_MAILS = '';
+    window.corrigerEchange = (mid) => {
+      const cl = DEVIS.client || {};
+      location.href = 'clients.html?key=' + encodeURIComponent(clientKeyOf(cl.prenom, cl.nom))
+        + '&mail=' + encodeURIComponent(mid) + '#mails';
+    };
     window.ouvrirFicheClientMails = () => {
       const cl = DEVIS.client || {};
       const key = clientKeyOf(cl.prenom, cl.nom);
