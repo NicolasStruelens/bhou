@@ -77,21 +77,66 @@
 
   const EFFET_DEFAUT = 'halo';
   const COULEUR_DEFAUT = 'theme';
+  /* ⚠️ VOLONTAIREMENT HORS DES DEUX LISTES : `SUIVRE` ne désigne aucun effet ni aucune
+     couleur, il désigne l'ABSENCE de choix local. Le mettre dans `EFFETS` en ferait une valeur
+     enregistrable, donc un appareil pourrait se retrouver avec l'effet « societe », qui n'a
+     aucune feuille de style — et plus rien ne s'allumerait, sans la moindre erreur. */
+  const SUIVRE = 'societe';
 
-  function lire(cle, liste, defaut) {
+  /* ── TROIS NIVEAUX, ET L'ORDRE EST TOUT ───────────────────────────────────────
+     1. le choix de CET APPAREIL, s'il en a fait un ;
+     2. sinon le DÉFAUT DE LA SOCIÉTÉ, enregistré au serveur par celui qui décide ;
+     3. sinon le repli écrit ici, pour qu'un appareil hors-ligne et jamais configuré affiche
+        quand même quelque chose de juste.
+     Demande de Nicolas, 10/10/2026 : « les changements ne doivent pas être opérés serveur,
+     comme ça c'est régi par celui qui décide ? ». Réponse : le défaut, oui ; le réglage, non.
+     ⚠️ UN DÉFAUT N'EST PAS UNE CONSIGNE, et la nuance est tout l'intérêt du montage. En
+     serveur SEUL, Yannick changerait la couleur depuis son Android et l'écran de Nicolas
+     changerait au milieu d'un devis, sans qu'il sache pourquoi. Et la lisibilité dépend de
+     l'écran qu'on a sous les yeux : un halo calibré sur un moniteur de bureau est trop discret
+     sur un téléphone en plein soleil. Ce qui doit être RÉGI — quels champs bloquent une
+     commande — l'est déjà, dans `CHAMPS_REQUIS`, et personne ne peut le changer d'ici. */
+
+  /** La valeur choisie SUR CET APPAREIL, ou `null` s'il n'a jamais choisi. */
+  function choixAppareil(cle, liste) {
     try {
       const v = localStorage.getItem(cle);
-      return liste.some(function (x) { return x.id === v; }) ? v : defaut;
-    } catch (e) { return defaut; }
+      return liste.some(function (x) { return x.id === v; }) ? v : null;
+    } catch (e) { return null; }
   }
-  function effet() { return lire(CLE_EFFET, EFFETS, EFFET_DEFAUT); }
-  function couleur() { return lire(CLE_COULEUR, COULEURS, COULEUR_DEFAUT); }
 
-  /** Enregistre et applique dans la foulée. Un argument omis garde la valeur en place. */
+  /** Le défaut de la société, lu dans les réglages serveur (cache synchrone de `SSConf`). */
+  function defautSociete(nom, liste, repli) {
+    try {
+      const c = window.SSConf && window.SSConf.get ? window.SSConf.get() : null;
+      const v = c && c.affichage ? c.affichage[nom] : null;
+      return liste.some(function (x) { return x.id === v; }) ? v : repli;
+    } catch (e) { return repli; }
+  }
+
+  function effetSociete() { return defautSociete('signal_effet', EFFETS, EFFET_DEFAUT); }
+  function couleurSociete() { return defautSociete('signal_couleur', COULEURS, COULEUR_DEFAUT); }
+  function effet() { return choixAppareil(CLE_EFFET, EFFETS) || effetSociete(); }
+  function couleur() { return choixAppareil(CLE_COULEUR, COULEURS) || couleurSociete(); }
+  /** Cet appareil a-t-il une préférence à lui, ou suit-il la société ? */
+  function suitLaSociete() {
+    return { effet: !choixAppareil(CLE_EFFET, EFFETS), couleur: !choixAppareil(CLE_COULEUR, COULEURS) };
+  }
+
+  /**
+   * Enregistre le choix de CET APPAREIL et applique dans la foulée.
+   * ⚠️ `SUIVRE` n'est pas une valeur, c'est un RETRAIT : il efface la préférence locale pour
+   * que l'appareil reparte sur le défaut de la société. Sans ce chemin, un appareil qui a
+   * choisi une fois ne pourrait plus JAMAIS revenir au réglage commun — et le défaut serveur
+   * deviendrait inutile pour tout le monde dès la première fois qu'on y touche.
+   * Un argument omis (`null`) laisse ce réglage-là tel quel.
+   */
   function regler(idEffet, idCouleur) {
     try {
-      if (idEffet && EFFETS.some(function (x) { return x.id === idEffet; })) localStorage.setItem(CLE_EFFET, idEffet);
-      if (idCouleur && COULEURS.some(function (x) { return x.id === idCouleur; })) localStorage.setItem(CLE_COULEUR, idCouleur);
+      if (idEffet === SUIVRE) localStorage.removeItem(CLE_EFFET);
+      else if (idEffet && EFFETS.some(function (x) { return x.id === idEffet; })) localStorage.setItem(CLE_EFFET, idEffet);
+      if (idCouleur === SUIVRE) localStorage.removeItem(CLE_COULEUR);
+      else if (idCouleur && COULEURS.some(function (x) { return x.id === idCouleur; })) localStorage.setItem(CLE_COULEUR, idCouleur);
     } catch (e) {}
     monter();
   }
@@ -292,16 +337,58 @@
      mêmes classes que ceux du simulateur. Une vignette séparée serait une deuxième vérité, et
      elle aurait fini par montrer autre chose que ce qu'on obtient réellement. */
   function monterSelecteurs(selEffet, selCouleur, apercu) {
+    const suit = suitLaSociete();
+    const nomDe = function (liste, id) {
+      const x = liste.filter(function (o) { return o.id === id; })[0];
+      return x ? x.nom : id;
+    };
+    /* ⚠️ LA PREMIÈRE OPTION NOMME CE QU'ELLE DONNE : « Comme la société · Halo », pas
+       « Comme la société » tout court. Sans le nom, il faut choisir l'option POUR savoir ce
+       qu'elle fait, puis revenir en arrière si ça ne plaît pas — or revenir en arrière efface
+       justement la préférence qu'on avait. On montre donc la valeur avant de la choisir. */
     if (selEffet) {
-      selEffet.innerHTML = EFFETS.map(function (e) { return '<option value="' + e.id + '">' + e.nom + '</option>'; }).join('');
-      selEffet.value = effet();
-      selEffet.addEventListener('change', function () { regler(selEffet.value, null); rendreApercu(apercu, selEffet); });
+      selEffet.innerHTML =
+        '<option value="' + SUIVRE + '">Comme la société · ' + nomDe(EFFETS, effetSociete()) + '</option>' +
+        EFFETS.map(function (e) { return '<option value="' + e.id + '">' + e.nom + '</option>'; }).join('');
+      selEffet.value = suit.effet ? SUIVRE : effet();
+      selEffet.addEventListener('change', function () {
+        regler(selEffet.value, null);
+        rendreApercu(apercu, selEffet);
+      });
     }
     if (selCouleur) {
-      selCouleur.innerHTML = COULEURS.map(function (c) { return '<option value="' + c.id + '">' + c.nom + '</option>'; }).join('');
-      selCouleur.value = couleur();
-      selCouleur.addEventListener('change', function () { regler(null, selCouleur.value); rendreApercu(apercu, selEffet); });
+      selCouleur.innerHTML =
+        '<option value="' + SUIVRE + '">Comme la société · ' + nomDe(COULEURS, couleurSociete()) + '</option>' +
+        COULEURS.map(function (c) { return '<option value="' + c.id + '">' + c.nom + '</option>'; }).join('');
+      selCouleur.value = suit.couleur ? SUIVRE : couleur();
+      selCouleur.addEventListener('change', function () {
+        regler(null, selCouleur.value);
+        rendreApercu(apercu, selEffet);
+      });
     }
+    rendreApercu(apercu, selEffet);
+  }
+
+  /**
+   * À rappeler quand le DÉFAUT DE LA SOCIÉTÉ vient de changer (réglages reçus du serveur, ou
+   * enregistrement dans Paramètres) : les libellés « Comme la société · … » mentent sinon,
+   * et l'écran afficherait l'ancien défaut sur l'appareil qui vient de le changer.
+   */
+  function rafraichirSelecteurs(selEffet, selCouleur, apercu) {
+    const suit = suitLaSociete();
+    if (selEffet) {
+      const premier = selEffet.querySelector('option[value="' + SUIVRE + '"]');
+      if (premier) premier.textContent = 'Comme la société · ' +
+        (EFFETS.filter(function (o) { return o.id === effetSociete(); })[0] || {}).nom;
+      selEffet.value = suit.effet ? SUIVRE : effet();
+    }
+    if (selCouleur) {
+      const premier = selCouleur.querySelector('option[value="' + SUIVRE + '"]');
+      if (premier) premier.textContent = 'Comme la société · ' +
+        (COULEURS.filter(function (o) { return o.id === couleurSociete(); })[0] || {}).nom;
+      selCouleur.value = suit.couleur ? SUIVRE : couleur();
+    }
+    monter();
     rendreApercu(apercu, selEffet);
   }
 
@@ -331,13 +418,31 @@
 
   monter();
 
+  /* ⚠️ LES RÉGLAGES SERVEUR ARRIVENT APRÈS LE PREMIER RENDU, et il faut y revenir.
+     `SSConf.get()` lit un CACHE : sur un appareil qui vient d'être configuré par l'autre, ou
+     qui ouvre l'ERP pour la première fois, ce cache est vide ou périmé — on monterait donc le
+     repli écrit dans ce fichier au lieu du style de la maison, et il faudrait recharger la page
+     pour voir le bon. On remonte donc la feuille quand les réglages arrivent.
+     ⚠️ UNIQUEMENT si l'appareil n'a rien choisi : sinon on écraserait son choix une seconde
+     après l'avoir affiché, ce qui est exactement le défaut qu'on veut éviter. */
+  if (window.SSConf && window.SSConf.charger) {
+    window.SSConf.charger().then(function () {
+      const suit = suitLaSociete();
+      if (suit.effet || suit.couleur) monter();
+    }).catch(function () {});
+  }
+
   window.SSSignal = {
     EFFETS: EFFETS,
     COULEURS: COULEURS,
     CLASSE: CLASSE,
     CLASSE_VISE: CLASSE_VISE,
+    SUIVRE: SUIVRE,
     effet: effet,
     couleur: couleur,
+    effetSociete: effetSociete,
+    couleurSociete: couleurSociete,
+    suitLaSociete: suitLaSociete,
     regler: regler,
     commencee: commencee,
     champsASignaler: champsASignaler,
@@ -345,5 +450,6 @@
     viser: viser,
     monter: monter,
     monterSelecteurs: monterSelecteurs,
+    rafraichirSelecteurs: rafraichirSelecteurs,
   };
 })();

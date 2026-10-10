@@ -74,8 +74,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 120 tests du VR150 **et des règles d'ouverture partagées** (duplication). **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé ». 36 tests (`window.SSSignal`) |
-| `tests/signal.test.html` | Les 36 tests du signal. |
+| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 49 tests (`window.SSSignal`) |
+| `tests/signal.test.html` | Les 49 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 
@@ -682,8 +682,16 @@ bouton lune/soleil pour savoir dans quelle famille basculer.
 jour, le choix du thème se fait une fois dans les Paramètres. Les boutons visent donc une FAMILLE
 et reviennent au dernier thème choisi dedans — sinon, à dix thèmes, le bouton devient inutilisable.
 ⚠️ Le réglage du thème est PAR APPAREIL (`localStorage`), pas dans les réglages partagés : Nicolas
-et Yannick n'ont aucune raison de vouloir le même. Le réglage serveur `affichage.theme_defaut` ne
-sert qu'à un appareil qui n'a encore jamais choisi.
+et Yannick n'ont aucune raison de vouloir le même.
+⚠️ **`affichage.theme_defaut` N'EST BRANCHÉ NULLE PART — constaté le 10/10/2026.** Il est déclaré
+dans `config.js`, affiché et enregistrable dans Paramètres… et **aucun code ne le lit** :
+`getTheme()` retombe sur `prefers-color-scheme`, jamais sur ce réglage. Le choix de l'utilisateur
+est donc sans effet, en silence, depuis sa création. Cette ligne affirmait le contraire.
+La difficulté qui l'a laissé en plan n'est pas anodine : `theme.js` est chargé dans le `<head>`
+pour éviter un clignotement, donc AVANT `config.js` — `SSConf` n'existe pas encore quand
+`getTheme()` s'exécute. Appliquer le défaut après coup ferait clignoter le thème sur chaque page.
+Le signal, lui, n'a pas ce problème (il se charge en fin de page) : voir la règle 36 pour le
+motif complet appareil → société → repli, qui est celui qu'il faudra porter ici.
 
 **30. LA RÉMUNÉRATION EST ÉCRITE DU POINT DE VUE DE NICOLAS, et c'est voulu.**
 SolariScreen facture sous SysCore et **Yannick est le patron** : ce qui lui revient, il en fait ce
@@ -1183,6 +1191,44 @@ DÉMONSTRATION et non un champ.
 ⚠️ **L'aperçu est un VRAI champ**, avec les mêmes classes que le simulateur, pas une vignette
 dessinée pour l'occasion : une vignette serait une seconde vérité, et elle finirait par montrer
 autre chose que ce qu'on obtient.
+⚠️ **TROIS NIVEAUX, ET L'ORDRE EST TOUT : appareil → société → repli.** Nicolas, le
+10/10/2026 : « les changements ne doivent pas être opérés serveur, comme ça c'est régi par celui
+qui décide ? ». **Le défaut, oui ; le réglage, non** — et la nuance est tout le montage.
+`affichage.signal_effet` et `affichage.signal_couleur` sont des réglages SERVEUR (bouton
+« Enregistrer », pastille « société ») : ils s'appliquent à tout appareil qui n'a jamais choisi.
+Un appareil qui choisit garde son choix (`localStorage`, pastille « cet appareil »).
+• **Pourquoi pas serveur SEUL** : Yannick changerait la couleur depuis son Android et l'écran de
+  Nicolas changerait au milieu d'un devis, sans qu'il sache pourquoi. Et la lisibilité dépend de
+  l'écran : un halo calibré sur un moniteur est trop discret sur un téléphone en plein soleil.
+  Ce qui doit être RÉGI — quels champs bloquent une commande — l'est déjà dans `CHAMPS_REQUIS`,
+  et personne ne peut le changer depuis Paramètres.
+• ⚠️ **`SUIVRE` ('societe') est le CHEMIN DU RETOUR, et il est obligatoire.** Il n'est dans
+  aucune des deux listes : il ne désigne pas un effet, il désigne l'ABSENCE de choix local, et
+  le choisir EFFACE la préférence. Sans lui, un appareil qui a choisi une fois ne pourrait plus
+  jamais revenir au réglage commun — et le défaut serveur deviendrait inutile pour tout le monde
+  dès la première fois qu'on y touche. L'inscrire dans `EFFETS` en ferait au contraire une valeur
+  enregistrable, donc un appareil porterait l'effet « societe », qui n'a aucune feuille de style :
+  **plus rien ne s'allumerait, sans la moindre erreur.**
+• ⚠️ **Les deux clés DOIVENT exister dans `config.js`** : `SSConf.fusionner` est une liste blanche
+  sur DEFAUTS, donc une clé absente d'ici est silencieusement jetée à l'enregistrement.
+• ⚠️ **`signal.js` se charge APRÈS `config.js`** sur les trois pages : il lit le défaut de la
+  société au montage. Et il **remonte sa feuille quand les réglages arrivent** — `SSConf.get()`
+  lit un CACHE, vide sur un appareil qui ouvre l'ERP pour la première fois, donc sans ce rappel
+  il faudrait recharger la page pour voir le style de la maison. Uniquement si l'appareil n'a
+  rien choisi : sinon on écraserait son choix une seconde après l'avoir affiché.
+• ⚠️ **La resynchro des libellés « Comme la société · … » se fait APRÈS l'enregistrement**, pas
+  sur le `change` du menu : le cache n'est réécrit qu'une fois le serveur d'accord
+  (`SSConf.enregistrer`). Branchée sur le `change`, elle relisait l'ANCIENNE valeur et affichait
+  « Comme la société · Halo » alors qu'on venait de choisir Pouls — un écran qui contredit le
+  geste qu'on vient de faire.
+• ⚠️ **Une valeur serveur abîmée retombe sur le repli du module**, jamais sur rien : sinon un
+  réglage mal écrit éteindrait le signal sans que personne ne comprenne pourquoi.
+⚠️ **PARAMÈTRES MÊLE DEUX NATURES DE RÉGLAGE, et ça doit SE VOIR.** La plupart partent au serveur
+(bouton « Enregistrer ») ; décors de fête et choix d'appareil du signal ne partent nulle part et
+s'appliquent à l'instant. **Un bouton gris après une modification ne se lit pas « déjà fait »,
+il se lit « ça n'a pas marché »** — Nicolas a posé la question. D'où les deux pastilles
+`« cet appareil »` et `« société »` à côté du nom de la ligne.
+
 ⚠️ **Les cases à cocher ne sont PAS signalées dans cette version**, et c'est en attente, pas un
 oubli : aucune n'est dans `CHAMPS_REQUIS`, et Nicolas a préféré voir le résultat avant de
 trancher (« je verrai le résultat et je te dirigerai »). La vraie question, quand on y
@@ -1449,7 +1495,7 @@ ont exactement la même tête à l'écran, et c'est tout le problème.
    `tests/volet.test.html`, exiger « 106/106 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
-   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 36/36 ».
+   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 49/49 ».
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
