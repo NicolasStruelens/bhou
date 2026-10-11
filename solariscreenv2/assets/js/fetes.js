@@ -129,6 +129,76 @@
      ───────────────────────────────────────────────────────────────────────────────────────── */
 
   // Trois cristaux différents : une neige d'un seul flocon répété se voit tout de suite.
+  /* ══════ LE CORTÈGE D'HALLOWEEN ══════
+     Demande de Nicolas, 11/10/2026 : « une animation sur le thème d'Halloween qui défile de
+     gauche à droite UNE SEULE FOIS à chaque fois qu'on arrive sur la page, sur CHAQUE page de
+     l'ERP ; sur le tableau de bord elle passe, puis rend la place aux dictons habituels ».
+     ⚠️ TROIS DESSINS NEUFS, ET C'ÉTAIT OBLIGATOIRE. Halloween a déjà une toile, une araignée,
+     des chauves-souris, une sorcière et une citrouille — et les chauves-souris comme la
+     sorcière TRAVERSENT DÉJÀ l'écran dans le ciel. Reprendre l'une d'elles ici, ce serait le
+     même dessin à deux endroits, donc un objet et sa copie (règle 28), et en plus deux fois le
+     même geste à trois secondes d'intervalle.
+     ⚠️ ET CE N'EST PAS UN QUATRIÈME VOLANT : un volant tourne en boucle dans le ciel, par-dessus
+     la page ; le cortège passe UNE FOIS, dans le bandeau, et il disparaît. Le ciel est un décor
+     permanent, le cortège est un ÉVÉNEMENT — celui d'arriver sur la page. */
+
+  /* LE FANTÔME. Trois formes franches : la masse arrondie, l'ourlet ONDULé (c'est lui qui dit
+     « fantôme » et pas « goutte »), et les deux trouées des yeux.
+     ⚠️ LES YEUX SONT UN NOIR TRANSLUCIDE, pas une découpe en var(--surface) : le bandeau a son
+     propre fond, et il change avec le thème. Un noir translucide assombrit TOUJOURS, quelle que
+     soit la teinte dessous — c'est la leçon de la coiffe de la bouteille du Nouvel An. */
+  const FANTOME =
+    '<svg viewBox="0 0 36 44" fill="currentColor">' +
+    '<path d="M18,3C10,3 5.5,9.5 5.5,19L5.5,35C5.5,39.5 8.5,40.5 10.5,37.5C12,35.3 14,35.3 15.5,37.5' +
+    'C17,39.7 19,39.7 20.5,37.5C22,35.3 24,35.3 25.5,37.5C27.5,40.5 30.5,39.5 30.5,35L30.5,19' +
+    'C30.5,9.5 26,3 18,3Z"/>' +
+    // Le reflet : sans lui la masse est plate, et un fantôme plat est une tache.
+    '<path d="M11,10C9,13 8.5,16 8.5,20L8.5,30C8.5,31 10.5,31 10.5,30L10.5,20C10.5,16 11.5,13 13,11Z" fill="#fff" opacity=".22"/>' +
+    '<g fill="#000"><ellipse cx="13" cy="17.5" rx="2.9" ry="3.9" opacity=".55"/>' +
+    '<ellipse cx="23" cy="17.5" rx="2.9" ry="3.9" opacity=".55"/>' +
+    '<ellipse cx="18" cy="26.5" rx="2.4" ry="3.2" opacity=".42"/></g></svg>';
+
+  /* LE CHAT NOIR, DOS ROND. C'est LA silhouette d'Halloween après la citrouille, et elle se
+     reconnaît à son CONTOUR seul : le dos arqué, les oreilles pointues, la queue dressée en
+     point d'interrogation. Aucun détail intérieur — il n'en a pas besoin, et à 34 px il n'y
+     aurait de toute façon pas la place.
+     ⚠️ IL REGARDE À DROITE, le sens de la marche : un chat qui traverse à reculons, ça se voit
+     immédiatement sans qu'on sache dire pourquoi.
+     ⚠️ LES YEUX SONT LE SEUL ÉCLAT, en or littéral, et ils CLIGNENT — c'est ce qui le rend
+     vivant plutôt que découpé. Deux points suffisent : à cette taille, une pupille serait une
+     moucheture de plus. */
+  const CHAT_NOIR =
+    '<svg viewBox="0 0 58 46" fill="currentColor">' +
+    /* ⚠️ LE CORPS EST UN TRAIT ÉPAIS, PAS UN CONTOUR REMPLI. Première version écrite en un
+       seul `path` fermé : jugée sur planche à trois fois sa taille, elle n'avait pas de DOS —
+       une masse molle, un chat couché. Un arc tracé épais donne l'échine d'un seul geste, et
+       c'est ELLE la silhouette d'Halloween : le dos rond. */
+    '<g stroke="currentColor" fill="none" stroke-linecap="round">' +
+    // La queue, en premier : elle passe DERRIÈRE le corps.
+    '<path d="M15,33C6,31 2,22 6.5,13.5C8.5,9.5 14,9.5 15,13.5" stroke-width="5.5"/>' +
+    // L'échine : l'arc qui fait tout.
+    '<path d="M15,33C13,16 23,8.5 33,9.5C41,10.3 46,15 47.5,21" stroke-width="14"/>' +
+    // Les quatre pattes, vers le bas.
+    '<g stroke-width="4.6"><path d="M17,33L17,40"/><path d="M23,34.5L23,41"/>' +
+    '<path d="M39,32L39,41"/><path d="M45,30L45,40"/></g></g>' +
+    // La tête, baisée à l'avant comme celle d'un chat qui fait le gros dos.
+    '<path d="M42,17L43,7.5L49.5,13ZM57,16L53.5,7L48,12Z"/>' +
+    '<ellipse cx="48.5" cy="21" rx="8.5" ry="7"/>' +
+    /* Les yeux : le seul éclat du dessin, et ils CLIGNENT. Sans eux le chat est une ombre ;
+       avec, il regarde où il va. Deux points suffisent — à 40 px, une pupille serait une
+       moucheture de plus. */
+    '<g fill="#f0c24b"><circle class="ssfete-scintille" style="animation-delay:0s" cx="46" cy="20" r="1.7"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:.35s" cx="52" cy="20" r="1.7"/></g></svg>';
+
+  /* LA BRUME. Pas une créature : ce qui RESTE derrière le cortège. Trois ellipses molles à très
+     basse opacité — c'est ce qui fait la différence entre « deux dessins qui traversent » et
+     « quelque chose est passé ». Elle ouvre la marche et s'étire derrière les autres. */
+  const BRUME =
+    '<svg viewBox="0 0 120 34" fill="currentColor">' +
+    '<ellipse cx="34" cy="20" rx="34" ry="9" opacity=".30"/>' +
+    '<ellipse cx="68" cy="16" rx="26" ry="7" opacity=".22"/>' +
+    '<ellipse cx="96" cy="22" rx="22" ry="6" opacity=".16"/></svg>';
+
   const FLOCONS = ['M0,0L10,0M4.4,0l2.09,2.68M4.4,0l2.09,-2.68M7.2,0l1.6,2.05M7.2,0l1.6,-2.05M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.2,3.81l-1.27,3.15M2.2,3.81l3.37,0.47M3.6,6.24l-0.97,2.41M3.6,6.24l2.57,0.36M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.2,3.81l-3.37,0.47M-2.2,3.81l1.27,3.15M-3.6,6.24l-2.57,0.36M-3.6,6.24l0.97,2.41M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-4.4,0l-2.09,-2.68M-4.4,0l-2.09,2.68M-7.2,0l-1.6,-2.05M-7.2,0l-1.6,2.05M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.2,-3.81l1.27,-3.15M-2.2,-3.81l-3.37,-0.47M-3.6,-6.24l0.97,-2.41M-3.6,-6.24l-2.57,-0.36M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.2,-3.81l3.37,-0.47M2.2,-3.81l-1.27,-3.15M3.6,-6.24l2.57,-0.36M3.6,-6.24l-0.97,-2.41M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z', 'M0,0L10,0M5.5,0l1.9,3.29M5.5,0l1.9,-3.29M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.75,4.76l-1.9,3.29M2.75,4.76l3.8,0M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.75,4.76l-3.8,0M-2.75,4.76l1.9,3.29M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-5.5,0l-1.9,-3.29M-5.5,0l-1.9,3.29M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.75,-4.76l1.9,-3.29M-2.75,-4.76l-3.8,0M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.75,-4.76l3.8,0M2.75,-4.76l-1.9,-3.29M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3', 'M0,0L10,0M3.6,0l1.84,1.84M3.6,0l1.84,-1.84M6.2,0l2.26,2.26M6.2,0l2.26,-2.26M8.4,0l1.41,1.41M8.4,0l1.41,-1.41M0,0L5,8.66M1.8,3.12l-0.67,2.51M1.8,3.12l2.51,0.67M3.1,5.37l-0.83,3.09M3.1,5.37l3.09,0.83M4.2,7.27l-0.52,1.93M4.2,7.27l1.93,0.52M0,0L-5,8.66M-1.8,3.12l-2.51,0.67M-1.8,3.12l0.67,2.51M-3.1,5.37l-3.09,0.83M-3.1,5.37l0.83,3.09M-4.2,7.27l-1.93,0.52M-4.2,7.27l0.52,1.93M0,0L-10,0M-3.6,0l-1.84,-1.84M-3.6,0l-1.84,1.84M-6.2,0l-2.26,-2.26M-6.2,0l-2.26,2.26M-8.4,0l-1.41,-1.41M-8.4,0l-1.41,1.41M0,0L-5,-8.66M-1.8,-3.12l0.67,-2.51M-1.8,-3.12l-2.51,-0.67M-3.1,-5.37l0.83,-3.09M-3.1,-5.37l-3.09,-0.83M-4.2,-7.27l0.52,-1.93M-4.2,-7.27l-1.93,-0.52M0,0L5,-8.66M1.8,-3.12l2.51,-0.67M1.8,-3.12l-0.67,-2.51M3.1,-5.37l3.09,-0.83M3.1,-5.37l-0.83,-3.09M4.2,-7.27l1.93,-0.52M4.2,-7.27l-0.52,-1.93M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z'].map(function (d) {
     return '<svg viewBox="-13 -13 26 26" fill="none" stroke="currentColor" stroke-width="1.4" ' +
       'stroke-linecap="round" stroke-linejoin="round"><path d="' + d + '"/></svg>';
@@ -901,6 +971,21 @@
           teinte: { sombre: '#ff9f1c', clair: '#e07c00' }, opacite: { sombre: 0.85, clair: 0.9 } },
       },
       // Traversent l'écran. `rare: true` = masqué sur petit écran (voir le CSS).
+      /* LE CORTÈGE : une seule traversée, à l'arrivée sur la page. Voir `poserDefile`.
+         ⚠️ LES RETARDS FONT LE CORTÈGE. Sans eux, les trois objets partiraient en même temps et
+         se superposeraient : ce ne serait plus un cortège, ce serait un paquet. La brume ouvre
+         la marche (elle annonce), le fantôme suit, le chat ferme — et il va un peu moins vite,
+         ce qui étire l'ensemble au lieu de le figer en file indienne. */
+      defile: {
+        objets: [
+          { svg: BRUME, taille: 150, haut: '34%', duree: 5.6, retard: 0,
+            teinte: { sombre: '#8e7ab5', clair: '#9a86c2' }, opacite: { sombre: 0.5, clair: 0.4 } },
+          { svg: FANTOME, taille: 30, haut: '12%', duree: 5.2, retard: 0.5,
+            teinte: { sombre: '#e8e2f5', clair: '#8f7fb8' }, opacite: { sombre: 0.95, clair: 0.8 } },
+          { svg: CHAT_NOIR, taille: 40, haut: '30%', duree: 6.1, retard: 1.3,
+            teinte: { sombre: '#2b2436', clair: '#3a2f4a' }, opacite: { sombre: 1, clair: 0.9 } },
+        ],
+      },
       volants: [
         { svg: CHAUVE_SOURIS, taille: 46, haut: '16%', duree: 24, retard: 3, ailes: true,
           teinte: { sombre: '#b9a6e8', clair: '#7a63c4' }, opacite: { sombre: 0.42, clair: 0.3 } },
@@ -1211,6 +1296,10 @@
        de traverser l'écran pendant l'aperçu de Noël, et rien ne le signalait. */
     document.querySelectorAll('#ssfete-style, #' + SKY).forEach(function (n) { n.remove(); });
     document.querySelectorAll('.ssfete').forEach(function (n) { n.remove(); });
+    // Le cortège porte la classe `.ssfete`, donc il part avec le reste — mais son horodatage
+    // de fin, lui, doit être remis à zéro, sinon ce qui attend la fin du passage attendrait
+    // encore alors qu'il n'y a plus rien à attendre.
+    DEFILE_FIN = 0;
     // La place réservée sous le menu part avec le décor : laissée en place, elle ferait un
     // trou de 86 px au bas du rail toute l'année, et personne ne saurait d'où il vient.
     const rail = document.querySelector('.ssrail');
@@ -1252,6 +1341,9 @@
     if (f.rail && f.rail.pied) l.push(['railpied', f.rail.pied]);
     if (f.tombe) l.push(['tombe', f.tombe]);
     (f.volants || []).forEach(function (v, i) { l.push(['vol' + i, v]); });
+    // Les objets du cortège passent par le même mécanisme de teinte que tout le reste :
+    // ajouter un emplacement, c'est l'ajouter ICI et nulle part ailleurs (règle 28).
+    ((f.defile && f.defile.objets) || []).forEach(function (o, i) { l.push(['def' + i, o]); });
     return l;
   }
 
@@ -1266,7 +1358,9 @@
       const n = e[0], d = e[1];
       sombre.push('--ssf-' + n + '-c:' + ton(d.teinte, 'sombre') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'sombre') + ';');
       clair.push('--ssf-' + n + '-c:' + ton(d.teinte, 'clair') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'clair') + ';');
-      const sel = CIBLE[n] || ('.ssfete-vol[data-i="' + n.slice(3) + '"]');
+      const sel = CIBLE[n] || (n.slice(0, 3) === 'def'
+      ? '.ssfete-def[data-i="' + n.slice(3) + '"]'
+      : '.ssfete-vol[data-i="' + n.slice(3) + '"]');
       regles.push(sel + ' { color: var(--ssf-' + n + '-c); opacity: var(--ssf-' + n + '-o); }');
     });
     /* Les teintes « claires » ne visent plus le seul thème `light` : elles visent TOUS les
@@ -1382,6 +1476,78 @@
     if (pied) rail.style.paddingBottom = (pied.offsetHeight + 18) + 'px';
   }
 
+  /* ══════ LE CORTÈGE ── une seule traversée, à l'arrivée sur la page ══════
+     Demande de Nicolas (11/10/2026) : une animation qui traverse le bandeau de gauche à droite
+     UNE FOIS à chaque ouverture de page, sur toutes les pages de l'ERP.
+     ⚠️ IL N'EST PAS DANS `poser()`, ET C'EST ESSENTIEL. `poser` est rejoué par le
+     MutationObserver à chaque rendu de liste — des dizaines de fois sur un tableau de bord qui
+     se filtre. Le cortège repartirait à chaque frappe dans la recherche, ce qui est le contraire
+     exact de « une seule fois ». Il est appelé par `monter()`, qui ne tourne qu'au chargement
+     (et à un aperçu explicite, où le rejouer est justement ce qu'on veut voir).
+     ⚠️ IL SE RETIRE TOUT SEUL à la fin. Laissé en place, il garderait trois éléments animés au
+     repos en haut de chaque page, pour toujours — et un `overflow: hidden` sur le bandeau pour
+     rien.
+     ⚠️ MOUVEMENT RÉDUIT : rien du tout. Ce décor n'existe QUE par son mouvement ; le figer au
+     milieu du bandeau serait pire que de ne pas l'afficher (même règle que le ciel). */
+  const DEFILE = 'ssfete-cortege';
+  let DEFILE_FIN = 0;                 // horodatage de fin, pour `apresDefile`
+  function poserDefile(f) {
+    const d = f.defile;
+    if (!d || !(d.objets || []).length) return;
+    if (document.getElementById(DEFILE)) return;        // déjà passé sur cette page
+    const bandeau = document.querySelector('.app-header');
+    if (!bandeau) return;                               // pages document : pas de bandeau
+    try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+    const box = document.createElement('div');
+    box.id = DEFILE;
+    box.className = 'ssfete ssfete-defile';
+    box.setAttribute('aria-hidden', 'true');
+    let fin = 0;
+    d.objets.forEach(function (o, i) {
+      const e = document.createElement('div');
+      e.className = 'ssfete-def';
+      e.setAttribute('data-i', String(i));              // cible la règle de teinte de CET objet
+      e.style.width = o.taille + 'px';
+      e.style.top = o.haut;
+      e.style.animation = 'ssfete-defile ' + o.duree + 's linear ' + o.retard + 's both';
+      e.innerHTML = '<span class="ssfete-def-i">' + dessin(o) + '</span>';
+      box.appendChild(e);
+      fin = Math.max(fin, (o.duree + o.retard) * 1000);
+    });
+    // `position: relative` n'est pas garanti sur le bandeau : il est en `fixed`, ce qui en fait
+    // déjà un référent pour un enfant absolu. On ne touche donc à rien de sa mise en page.
+    bandeau.appendChild(box);
+    DEFILE_FIN = Date.now() + fin;
+    setTimeout(function () { const n = document.getElementById(DEFILE); if (n) n.remove(); }, fin + 200);
+  }
+  /** Ce qui doit attendre la fin du cortège le demande ICI, et n'a pas à savoir s'il y en a un.
+   *  Le tableau de bord s'en sert pour ne révéler sa pensée du jour qu'après le passage :
+   *  les deux occupent le même centimètre carré de bandeau, et se chevaucher ferait deux
+   *  animations qui se disputent le même endroit. */
+  /* ⚠️ IL FAUT UNE FILE D'ATTENTE, et le défaut s'est vu tout de suite à l'écran : le script
+     du tableau de bord tourne AVANT `monter()`. Celui-ci est accroché à `DOMContentLoaded`,
+     alors que le script de page, lui, s'exécute dès qu'il est lu, en fin de body. Au moment où
+     la pensée demandait « y a-t-il un cortège ? », il n'y en avait pas ENCORE : elle partait
+     donc immédiatement, et le fantôme lui passait dessus.
+     On met donc en file tant qu'on ne SAIT pas, et on libère au montage — qu'il y ait un
+     cortège ou non.
+     ⚠️ LA LIBÉRATION DOIT ARRIVER SUR TOUS LES CHEMINS. Si `monter()` sort tôt (aucune fête
+     aujourd'hui, décors éteints, page client), la file ne doit pas rester bloquée : la pensée
+     du jour ne s'afficherait JAMAIS, et le défaut serait bien pire que celui qu'on corrige.
+     D'où l'enveloppe autour de `monter`, plus un filet de 2 s au cas où le montage lèverait. */
+  let DEFILE_PRET = false;
+  const DEFILE_FILE = [];
+  function apresDefile(cb) {
+    if (typeof cb !== 'function') return;
+    if (!DEFILE_PRET) { DEFILE_FILE.push(cb); return; }
+    const reste = DEFILE_FIN - Date.now();
+    if (reste > 0) setTimeout(cb, reste); else cb();
+  }
+  function libererDefile() {
+    DEFILE_PRET = true;
+    DEFILE_FILE.splice(0).forEach(apresDefile);
+  }
+
   /* Tout ce qui peut apparaître après coup se repose ici, en un seul endroit. */
   function poser(f) { poserCoins(f); poserRail(f); }
 
@@ -1489,6 +1655,24 @@
         from { transform: translate3d(-18vw, 0, 0); }
         to   { transform: translate3d(118vw, -6vh, 0); }
       }
+      /* ── LE CORTÈGE ── il traverse le BANDEAU, une seule fois, à l'arrivée sur la page.
+         Le bandeau est déjà en << position: fixed >>, donc il sert de référent à un enfant
+         absolu : on ne touche à rien de sa mise en page.
+         ⚠️ << overflow: hidden >> EST OBLIGATOIRE ici, et pas seulement pour la propreté : sans
+         lui, les objets qui attendent leur retard sont visibles À GAUCHE DE L'ÉCRAN, sur le
+         contenu de la page, avant d'entrer dans le bandeau.
+         ⚠️ << pointer-events: none >> vient de la classe .ssfete : rien de tout ceci ne doit
+         intercepter un clic sur << Nouveau devis >> pendant les six secondes du passage. */
+      .ssfete-defile { position: absolute; inset: 0; overflow: hidden; z-index: 4; }
+      .ssfete-def { position: absolute; left: 0; will-change: transform; }
+      @keyframes ssfete-defile {
+        from { transform: translate3d(-26vw, 0, 0); }
+        to   { transform: translate3d(122vw, 0, 0); }
+      }
+      /* L'objet AVANCE par son parent et ONDULE par lui-même : deux animations sur le même
+         élément se remplaceraient l'une l'autre sur << transform >>. Même montage que le ciel. */
+      .ssfete-def-i { display: block; animation: ssfete-ondule 1.25s ease-in-out infinite; }
+      @keyframes ssfete-ondule { 0%, 100% { transform: translateY(-2.5px); } 50% { transform: translateY(2.5px); } }
       .ssfete-aile { transform-origin: center; animation: ssfete-aile 0.42s ease-in-out infinite alternate; }
       @keyframes ssfete-aile { from { transform: scaleY(1); } to { transform: scaleY(0.45); } }
       /* CE QUI TOMBE. L'emplacement s'appelle « tombe » et non « neige » parce que le meme
@@ -1585,7 +1769,7 @@
       /* Mouvement réduit : les décors FIXES restent, ceux qui ne vivent que par leur mouvement
          s'en vont. Les figer au milieu de l'écran serait pire que de ne rien afficher. */
       @media (prefers-reduced-motion: reduce) {
-        #${SKY} { display: none; }
+        #${SKY}, .ssfete-defile { display: none; }
         .ssfete-pendu, .ssfete-pendu .ssfete-fil, .ssfete-pendu .ssfete-bete { animation: none; }
         .ssfete-lueur, .ssfete-scintille, .ssfete-bulle, .ssfete-fumee,
         .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule, .ssfete-flotte { animation: none; }
@@ -1615,6 +1799,8 @@
 
     // 1. Les coins et le rail, puis on les repose à chaque rendu (voir surveiller()).
     poser(f);
+    // UNE SEULE FOIS, et donc ici et pas dans `poser()` : voir le commentaire de poserDefile.
+    poserDefile(f);
     surveiller();
 
     // 2. La marque à côté du logo.
@@ -1683,12 +1869,21 @@
     estAllumee: estAllumee,
     allumer: allumer,
     apercu: apercu,
+    apresDefile: apresDefile,
     FETES: FETES,
     // exposés pour les tests : ils décident de tout et ne doivent pas dériver en silence
     _moisJour: moisJour,
     _dansLaPeriode: dansLaPeriode,
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', monter);
-  else monter();
+  /* ⚠️ L'ENVELOPPE, pas un appel ajouté à la fin de `monter` : celui-ci sort tôt sur quatre
+     chemins différents (page client, aucune fête, décors éteints, aperçu annulé). Un `return`
+     oublié, et ce qui attend la fin du cortège attendrait pour toujours. */
+  function monterPuisLiberer(forcer) {
+    try { monter(forcer); } finally { libererDefile(); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { monterPuisLiberer(); });
+  else monterPuisLiberer();
+  // Filet : si le montage ne survenait jamais, la pensée du jour doit quand même apparaître.
+  setTimeout(libererDefile, 2000);
 })();

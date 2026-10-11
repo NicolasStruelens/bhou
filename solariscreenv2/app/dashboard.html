@@ -805,7 +805,17 @@
     // Pensée du jour et météo : décoratives, donc désactivables (Paramètres → Affichage).
     // On lit le cache local, disponible immédiatement : pas d'apparition-disparition au chargement.
     const AFFICHAGE = (window.SSConf && window.SSConf.get().affichage) || { mantra: true, meteo: true };
-    if (AFFICHAGE.mantra) showMantra(window.SSMantras.forSession());
+    /* ⚠️ LA PENSÉE ATTEND LA FIN DU CORTÈGE. Les deux occupent le MÊME centimètre carré de
+       bandeau : la révéler pendant le passage, ce serait deux animations qui se disputent le
+       même endroit — et la phrase, révélée mot à mot, se ferait traverser par un fantôme.
+       Demande de Nicolas : « il fait l'anim et repasse APRÈS sur les dictons habituels ».
+       `apresDefile` appelle immédiatement quand il n'y a pas de cortège — hors Halloween, en
+       mouvement réduit, ou décors éteints — donc rien n'attend pour rien. */
+    const lancerMantra = () => showMantra(window.SSMantras.forSession());
+    if (AFFICHAGE.mantra) {
+      if (window.SSFetes && window.SSFetes.apresDefile) window.SSFetes.apresDefile(lancerMantra);
+      else lancerMantra();
+    }
     else { const m = document.querySelector('.header-mood'); if (m) m.style.display = 'none'; }
     window.addEventListener('resize', fitMantra);
     try { document.fonts.ready.then(fitMantra); } catch (e) {}

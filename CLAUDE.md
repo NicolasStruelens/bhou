@@ -70,12 +70,12 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
-| `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
+| `tests/fetes.test.html` | Les 102 tests du calendrier des fêtes et du contrat des décors (cortège compris). |
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 135 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `tests/volet.test.html` | Les 139 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 58 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
@@ -776,6 +776,41 @@ des cadeaux au pied : **un sapin seul est un sapin de catalogue, c'est ce qu'il 
 en fait un matin de Noël.** Ils tiennent dans la largeur déjà occupée, de part et d'autre du
 pot — élargir le viewBox aurait rétréci l'arbre à taille égale.
 
+⚠️ **LE CORTÈGE : UN DÉCOR PEUT ÊTRE UN ÉVÉNEMENT, PAS SEULEMENT UN ÉTAT.** Demande de
+Nicolas (11/10/2026) : « une animation sur le thème d'Halloween qui défile de gauche à droite
+UNE SEULE FOIS à chaque fois qu'on arrive sur la page, sur chaque page de l'ERP ; sur le tableau
+de bord elle passe, puis rend la place aux dictons habituels ». C'est un emplacement d'un genre
+nouveau : `defile`, dans le BANDEAU, une seule traversée. Le ciel est un décor permanent ; le
+cortège, lui, célèbre **l'arrivée sur la page**.
+⚠️ **TROIS DESSINS NEUFS, ET C'ÉTAIT OBLIGATOIRE** : Halloween a déjà une toile, une araignée,
+des chauves-souris, une sorcière et une citrouille — et les deux dernières TRAVERSENT déjà
+l'écran. Reprendre l'une d'elles, c'eût été un objet et sa copie, **et deux fois le même geste
+à trois secondes d'intervalle**.
+⚠️ **IL N'EST PAS DANS `poser()`, ET C'EST ESSENTIEL.** `poser` est rejoué par le
+`MutationObserver` à chaque rendu de liste — des dizaines de fois sur un tableau de bord qu'on
+filtre. Le cortège repartirait à chaque frappe dans la recherche : l'exact contraire de « une
+seule fois ». Il vit dans `monter()`, qui ne tourne qu'au chargement. **Vérifié en provoquant
+cinq rendus : trois objets avant, trois après.**
+⚠️ **IL FAUT UNE FILE D'ATTENTE POUR CE QUI DOIT LE SUIVRE** (`SSFetes.apresDefile`). Le script
+du tableau de bord s'exécute AVANT `monter()` — celui-ci est accroché à `DOMContentLoaded`, le
+script de page non. Au moment où la pensée du jour demandait « y a-t-il un cortège ? », il n'y
+en avait pas ENCORE : elle partait aussitôt et le fantôme lui passait dessus. **Vu à l'écran,
+invisible dans le code.**
+⚠️ **ET LA LIBÉRATION DOIT ARRIVER SUR TOUS LES CHEMINS.** `monter()` sort tôt sur quatre
+chemins (page client, aucune fête, décors éteints, aperçu annulé) : un `return` oublié, et la
+pensée du jour ne s'afficherait **jamais** — un défaut bien pire que celui qu'on corrige. D'où
+une ENVELOPPE (`try/finally`) autour de `monter`, plus un filet de 2 s. **Testé décors éteints :
+pas de cortège, et la pensée apparaît immédiatement.**
+⚠️ **`overflow: hidden` SUR LE CONTENEUR N'EST PAS DE LA PROPRETÉ** : sans lui, les objets qui
+attendent leur retard sont visibles à gauche de l'écran, posés sur le contenu de la page, avant
+d'entrer dans le bandeau.
+⚠️ **IL SE RETIRE TOUT SEUL** à la fin : laissé en place, il garderait trois éléments animés au
+repos en haut de chaque page, pour toujours.
+⚠️ **UN CORPS SE DESSINE PARFOIS MIEUX AVEC UN TRAIT ÉPAIS QU'AVEC UN CONTOUR REMPLI.** Le chat
+noir, écrit en un seul `path` fermé, n'avait **pas de dos** — une masse molle, un chat couché.
+Un arc tracé en `stroke-width: 14` donne l'échine d'un seul geste, et c'est elle la silhouette
+d'Halloween. Jugé sur planche, refait, rejugé.
+
 ⚠️ **PAS DE PALETTE SUR LA NEIGE**, contrairement aux friandises et aux confettis : la neige est
 blanche, des flocons de six couleurs ne seraient plus de la neige. La variété vient des trois
 DESSINS, pas de la teinte — c'est l'opacité et la taille qu'il fallait relever, pas la couleur.
@@ -1246,6 +1281,22 @@ la mention sortait sur le PDF et PAS sur la page que le client ouvre — deux do
 contredisent pour le même client (règle 7). **Dans une liste SÉPARÉE** (`AUTRES_CLES_CLIENT`) :
 ce n'est pas une clé du VR150, et le test qui compare `VR_CLES_CLIENT` à
 `SSProducts.vrClesClient()` aurait échoué — à juste titre.
+
+⚠️ **LE PDF DOIT ÊTRE LE DOCUMENT QU'ON A VALIDÉ À L'ÉCRAN.** « Dans le PDF à enregistrer,
+c'est beaucoup moins joli que la prévisualisation sur l'ERP » (Nicolas, 11/10/2026, capture à
+l'appui). La cause n'est pas une faute de style, c'est une règle du navigateur : **à
+l'impression, Chrome SUPPRIME les fonds de couleur** (économie d'encre), sauf ceux qui demandent
+`print-color-adjust: exact`. Seuls trois éléments le faisaient — le bandeau du tableau, la
+pastille de paiement, le pavé TOTAL TVAC. Tout le reste (l'encadré de configuration, les bandes
+« FOURNITURES » et « PRESTATIONS », l'alternance des lignes, l'encadré d'estimation) sortait
+**en blanc**. La règle porte donc sur `.paper` ET sa descendance : **c'est le document qu'on
+veut fidèle, pas trois éléments choisis.**
+⚠️ Ça ne remet pas le filigrane en cause : il est peint à 5, au-dessus du tableau passé à
+`z-index: auto` — un fond qui réapparaît ne le masque pas.
+⚠️ **ET ÇA NE SE VÉRIFIE PAS EN FORÇANT LES RÈGLES `print` À L'ÉCRAN** : la suppression des
+fonds appartient au pipeline d'impression, pas à la media query. L'écran montrera toujours les
+couleurs. **Seul un PDF réellement généré fait foi** — d'où l'intérêt de le relire avec
+`pymupdf` plutôt que de conclure depuis un aperçu.
 
 ⚠️ **UN CONTENEUR VIDE QUI FORCE UN SAUT DE PAGE FABRIQUE UNE PAGE BLANCHE.** Trouvé le
 11/10/2026 dans un PDF réellement généré par Nicolas : deux pages, et la seconde ne contenait
