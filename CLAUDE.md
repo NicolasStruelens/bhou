@@ -728,6 +728,47 @@ continuait de traverser l'écran pendant l'aperçu de Noël**, sans la moindre e
 désormais par `querySelectorAll`, et `monter()` refuse d'en laisser deux. La leçon générale :
 **`getElementById` sur un id qu'on peut créer plusieurs fois est un nettoyage à moitié fait.**
 
+⚠️ **LE MÊME DESSIN À DEUX ENDROITS N'EST PAS DEUX OBJETS.** Le Nouvel An posait le MÊME feu
+d'artifice au coin des cartes ET au coin du rail — donc deux fois la même image à l'écran, en
+même temps. Chaque objet garde un endroit : le feu reste au coin du RAIL, où il est seul (et il
+y gagne 18 px), et les cartes reçoivent une **guirlande de fanions**, qui court de cadre en
+cadre là où un feu d'artifice est par nature un point fixe.
+⚠️ **MÊME GESTE, PAS MÊME DESSIN.** Les fanions reprennent la Bézier et les crochets de la
+guirlande de Noël — c'est le même geste, un fil tendu entre deux points qui pend — et **rien
+d'autre**. Des fanions ne s'allument pas, ils flottent ; ils n'ont ni douille, ni filament, ni
+halo. Recopier la guirlande en changeant la couleur aurait donné **deux fois la même fête à six
+jours d'intervalle**. La géométrie se partage, le vocabulaire visuel non.
+⚠️ **UN FANION PIVOTE DEPUIS SON ATTACHE, PAS DEPUIS SON MILIEU** (`ssfete-flotte`,
+`transform-origin: 50% 0`). Au centre — la valeur que partagent toutes les autres animations de
+détail — le triangle tourne sur son ventre et se décroche du fil à chaque oscillation : le même
+défaut que l'araignée qui se décrochait de sa soie. Et six flottent, six restent fixes : **un
+drapeau qui bouge ne se voit que parce que son voisin ne bouge pas.**
+⚠️ **UN RELIEF DE LA MÊME COULEUR QUE L'OBJET DISPARAÎT SUR L'UN DES DEUX THÈMES.** La coiffe
+de la bouteille était un `#8a5f00` translucide — parfait sur le thème sombre, où la bouteille
+est en or clair, et **invisible sur le clair, où la bouteille EST `#8a5f00`** : la même couleur
+posée sur elle-même. Un **noir translucide** assombrit toujours, quelle que soit la teinte
+dessous ; un blanc translucide éclaircit toujours. C'est le seul relief qui ne demande pas de
+connaître la couleur de l'objet — d'où aussi les plis des fanions et les facettes de la boule.
+⚠️ **UN EMPLACEMENT VIDE EST UN DÉFAUT, PAS UNE SOBRIÉTÉ.** Le Nouvel An n'avait RIEN qui pende
+(`coin.bete`) alors que c'est le seul décor qui bouge sans traverser l'écran, et **un seul
+volant** quand Noël en a deux — le ciel était vide la moitié du temps. Une boule à facettes et
+une bouteille qui saute. **Et la bouteille règle les deux défauts qui avaient fait retirer la
+fusée** : son profil (corps, épaule, col long, bague) ne ressemble à rien d'autre, et ce n'est
+pas une traînée lumineuse de plus à côté de l'étoile filante. **Le bouchon qui part devant**
+transforme un objet posé en événement : une bouteille fermée qui traverse le ciel ne dit rien,
+une bouteille qui saute dit minuit.
+⚠️ **UNE SPHÈRE SEULE EST UNE BOULE DE NOËL.** Ce qui fait une boule à facettes, c'est le
+quadrillage — des **arcs**, pas une grille droite : une grille droite sur un disque fait un
+filet à provisions, des arcs qui se resserrent vers les bords font une sphère. Et ses éclats ne
+s'allument jamais ensemble : une boule à facettes dont tout s'allume d'un coup est une
+guirlande, pas une boule qui tourne.
+⚠️ **L'HORLOGE PASSE DE 30 À 62 PX, ET ELLE SONNE.** Le pied du rail est le seul endroit où un
+objet a de la place — Saint Nicolas et le sapin y tiennent 52 px. Et deux arcs de chaque côté,
+qui battent avec `ssfete-eclat`, séparent une horloge DESSINÉE d'une horloge qui marque minuit.
+⚠️ **LE CADRAN RESTE EN `var(--surface)`, ET C'EST JUSTE LÀ** : le pied du rail est POSÉ sur le
+rail, donc une découpe y montre bien le fond. C'est sur un VOLANT qu'elle serait fausse. La
+question n'est jamais « quelle couleur », c'est **« qu'y a-t-il sous cet objet »**.
+
 ⚠️ **UN BORD LISSE NE FAIT PAS UN CONIFÈRE.** Les quatre étages du sapin du rail avaient un bas
 en courbe douce : ça se lisait comme un cône à étages. Dentelés, ils portent le mot
 « aiguilles » — même détail que les touffes de la guirlande, même raison. Et il y a désormais

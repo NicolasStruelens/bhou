@@ -563,6 +563,126 @@
     '<path d="M7,26C16,22 25,19 33,18" stroke-width="1.6" opacity=".22"/></g>' +
     '<path class="ssfete-scintille" d="M48,1C50.8,11.2 50.8,11.2 61,14C50.8,16.8 50.8,16.8 48,27C45.2,16.8 45.2,16.8 35,14C45.2,11.2 45.2,11.2 48,1Z"/></svg>';
 
+  /* ── LA GUIRLANDE DE FANIONS ── le décor de COIN du Nouvel An ──────────────────
+     Le coin portait un FEU D'ARTIFICE — le même dessin que le coin du RAIL, donc deux fois la
+     même image à l'écran. Chaque objet doit garder un endroit (règle 28) : le feu reste au coin
+     du rail, où il est seul, et les cartes reçoivent ce qui leur convient — quelque chose qui
+     COURT de cadre en cadre, comme la guirlande de Noël que Nicolas a aimée.
+     ⚠️ MÊME FIL, ET RIEN D'AUTRE EN COMMUN. C'est le même GESTE — un fil tendu entre deux
+     points, qui pend — donc la même Bézier et les mêmes crochets. Mais des fanions ne sont pas
+     des ampoules : ils ne s'allument pas, ils FLOTTENT, et ils n'ont ni douille, ni filament, ni
+     halo. Recopier la guirlande de Noël en changeant la couleur aurait donné deux fois la même
+     fête à six jours d'intervalle.
+     ⚠️ L'ANGLE DE CHAQUE FANION VIENT DE LA TANGENTE, calculée point par point : à la verticale
+     du cadre, ils auraient l'air collés dessus au lieu de pendre du fil.
+     ⚠️ SIX FLOTTENT, SIX RESTENT FIXES. Même raison que les ampoules qui ne clignotent pas
+     toutes : un drapeau qui bouge ne se voit QUE parce que son voisin ne bouge pas.
+     ⚠️ CHAQUE FANION A UN PLI. Un triangle plat est un triangle ; avec son pli, c'est du tissu.
+     Le pli est un noir translucide : il assombrit la couleur littérale sans dépendre du thème.
+     ⚠️ ET LES COULEURS SONT CELLES DES CONFETTIS, délibérément : les deux décors se voient
+     ensemble à l'écran, et deux palettes voisines mais différentes, ça se remarque. */
+  const FANIONS =
+    '<svg viewBox="0 0 154 50" fill="none">' +
+    // Les crochets : sans eux le fil flotte, accroché à rien du tout.
+    '<g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".75">' +
+    '<path d="M3,5L3,0M77,11L77,5M151,5L151,0"/></g>' +
+    // Le fil qui PEND : la courbe dit qu'il est tendu entre deux points et qu'il a du poids.
+    '<path d="M3,5C22,28 55,30 77,11C99,30 132,28 151,5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<g fill="currentColor"><circle cx="3" cy="5" r="2.3"/><circle cx="77" cy="11" r="2.1"/>' +
+    '<circle cx="151" cy="5" r="2.3"/></g>' +
+    // Quatre étincelles entre les fanions : sans elles, le fil est vide entre deux triangles.
+    '<g fill="#ffd45e"><path class="ssfete-scintille" style="animation-delay:1.4s" d="M14.48,8.38C15.38,11.18 15.38,11.18 18.08,12.08C15.38,12.98 15.38,12.98 14.48,15.78C13.58,12.98 13.58,12.98 10.88,12.08C13.58,11.18 13.58,11.18 14.48,8.38Z"/><path class="ssfete-scintille" style="animation-delay:1.4s" d="M51.73,16.1C52.63,18.9 52.63,18.9 55.33,19.8C52.63,20.7 52.63,20.7 51.73,23.5C50.83,20.7 50.83,20.7 48.13,19.8C50.83,18.9 50.83,18.9 51.73,16.1Z"/><path class="ssfete-scintille" style="animation-delay:.6s" d="M139.53,8.38C140.43,11.18 140.43,11.18 143.12,12.08C140.43,12.98 140.43,12.98 139.53,15.78C138.62,12.98 138.62,12.98 135.93,12.08C138.62,11.18 138.62,11.18 139.53,8.38Z"/><path class="ssfete-scintille" style="animation-delay:.6s" d="M102.27,16.1C103.17,18.9 103.17,18.9 105.87,19.8C103.17,20.7 103.17,20.7 102.27,23.5C101.37,20.7 101.37,20.7 98.67,19.8C101.37,18.9 101.37,18.9 102.27,16.1Z"/></g>' +
+    /* LES FANIONS. Chacun pend perpendiculairement À LA COURBE — l'angle vient de la
+       tangente, calculée point par point. Six flottent, six restent fixes : un drapeau
+       qui bouge se voit parce que son voisin ne bouge pas. */
+    '<g transform="translate(9.1,11.27) rotate(41.1)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:0s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ffd45e"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(20.22,18.68) rotate(26.16)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ff6b8a"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(32.5,22.87) rotate(11.5)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:.4s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#5ad1ff"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(45.31,23.83) rotate(-2.9)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#8fe36b"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(58.05,21.56) rotate(-17.24)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:.8s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#c08cff"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(70.1,16.07) rotate(-31.71)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ff9e5e"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(83.9,16.07) rotate(31.71)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:1.2s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ffd45e"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(95.95,21.56) rotate(17.24)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#5ad1ff"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(108.69,23.83) rotate(2.9)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:1.6s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ff6b8a"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(121.5,22.87) rotate(-11.5)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#c08cff"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(133.78,18.68) rotate(-26.16)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g class="ssfete-flotte" style="animation-delay:2s"><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#8fe36b"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '<g transform="translate(144.91,11.27) rotate(-41.1)"><rect x="-1.5" y="-1.2" width="3" height="2.8" rx="1" fill="currentColor"/><g><path d="M-5.6,1.4L5.6,1.4L0,15.5Z" fill="#ff9e5e"/><path d="M0,1.4L5.6,1.4L0,15.5Z" fill="#000" opacity=".15"/></g></g>' +
+    '</svg>';
+
+  /* ── LA BOULE À FACETTES ── ce qui PEND dans la guirlande de fanions ──────────────
+     Même mécanique que la couronne de Noël et l'araignée d'Halloween : même fil, même
+     balancement. Le Nouvel An n'avait RIEN qui pende — un emplacement vide, alors que c'est le
+     seul décor qui bouge tout seul sans traverser l'écran.
+     ⚠️ UNE SPHÈRE SEULE EST UNE BOULE DE NOËL. Ce qui en fait une boule à facettes, c'est le
+     QUADRILLAGE — deux familles d'arcs, pas une grille droite : une grille droite sur un disque
+     fait un filet à provisions, des arcs qui se bombent font une sphère. Et les quatre rayons
+     de lumière qui en partent disent qu'elle RENVOIE la lumière au lieu d'en porter.
+     ⚠️ LES FACETTES SONT UN NOIR TRANSLUCIDE et les éclats un crème translucide : tous deux
+     POSÉS sur la sphère, donc justes sur les deux thèmes sans avoir à nommer de couleur. */
+  const BOULE_FACETTES =
+    '<svg viewBox="0 0 34 40" fill="none">' +
+    // L'anneau par où ça pend : sans lui elle lévite.
+    '<path d="M17,9L17,5.6" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle cx="17" cy="3.6" r="2.3" stroke="currentColor" stroke-width="1.5"/>' +
+    // Six éclats qui PARTENT de la sphère : elle renvoie la lumière, elle n'en porte pas.
+    '<g class="ssfete-eclat" stroke="#ffd45e" stroke-width="1.3" stroke-linecap="round" opacity=".55">' +
+    '<path d="M8.5,14.5L4.6,10.6M25.5,14.5L29.4,10.6M5,23L1.2,23M29,23L32.8,23M8.5,31.5L4.6,35.4M25.5,31.5L29.4,35.4"/></g>' +
+    '<circle cx="17" cy="23" r="12" fill="currentColor"/>' +
+    /* LES FACETTES : cinq latitudes en arcs APLATIS et cinq méridiens en arcs BOMBés. Une
+       grille droite sur un disque fait un filet à provisions ; ce sont les arcs, et le fait
+       qu'ils se resserrent vers les bords, qui donnent la sphère. */
+    '<g stroke="#000" stroke-width=".9" opacity=".25" fill="none">' +
+    '<path d="M11.2,12.5A5.8,2 0 0 0 22.8,12.5M6.3,17.5A10.7,3 0 0 0 27.7,17.5M5,23A12,3.4 0 0 0 29,23M6.3,28.5A10.7,3 0 0 0 27.7,28.5M11.2,33.5A5.8,2 0 0 0 22.8,33.5"/>' +
+    '<path d="M17,11L17,35M17,11A4,12 0 0 0 17,35M17,11A4,12 0 0 1 17,35M17,11A8.4,12 0 0 0 17,35M17,11A8.4,12 0 0 1 17,35"/></g>' +
+    /* Les éclats : cinq facettes qui prennent la lumière, et JAMAIS en même temps — une boule
+       à facettes dont tout s'allume d'un coup est une guirlande, pas une boule qui tourne. */
+    '<g fill="#fffbe8">' +
+    '<rect class="ssfete-ampoule" style="animation-delay:0s" x="9.4" y="18.4" width="3.4" height="3.4" rx=".8" opacity=".9"/>' +
+    '<rect class="ssfete-ampoule" style="animation-delay:.55s" x="19.5" y="13.8" width="3" height="3" rx=".8" opacity=".85"/>' +
+    '<rect class="ssfete-ampoule" style="animation-delay:1.1s" x="23" y="24" width="3.2" height="3.2" rx=".8" opacity=".85"/>' +
+    '<rect class="ssfete-ampoule" style="animation-delay:1.65s" x="14.5" y="28.5" width="3.6" height="3.6" rx=".8" opacity=".8"/>' +
+    '<rect class="ssfete-ampoule" style="animation-delay:2.2s" x="12.2" y="12.6" width="2.8" height="2.8" rx=".8" opacity=".75"/></g>' +
+    '</svg>';
+
+  /* ── LA BOUTEILLE QUI SAUTE ── le second volant du Nouvel An ───────────────────
+     Le Nouvel An n'avait qu'UN volant, l'étoile filante, quand Noël en a deux : le ciel était
+     vide la moitié du temps. Une FUSÉE avait été dessinée puis retirée — agrandie, elle ne se
+     lisait pas (une tache orange allongée) et elle faisait doublon avec l'étoile filante.
+     ⚠️ LA BOUTEILLE RÉSOUT LES DEUX DÉFAUTS À LA FOIS. Son profil — corps, épaule, col long,
+     bague — ne ressemble à rien d'autre : c'est une SILHOUETTE, la seule chose qui tienne à
+     cette taille et en mouvement. Et ce n'est pas une traînée lumineuse de plus.
+     ⚠️ LE BOUCHON PART DEVANT, et c'est lui qui transforme un objet posé en événement : une
+     bouteille fermée qui traverse le ciel ne dit rien ; une bouteille qui SAUTE dit minuit.
+     ⚠️ L'ÉTIQUETTE RESTE DANS LE VERRE (crème à l'intérieur de la masse) et la coiffe du col est
+     un or plus sombre : un objet qui traverse la page n'a aucune carte sous lui, donc aucune
+     découpe en var(--surface) — c'est la leçon du ruban du cadeau qui tombe. */
+  const BOUTEILLE =
+    '<svg viewBox="0 0 112 56" fill="currentColor">' +
+    // Le corps, l'épaule et le col : le profil fait tout le travail.
+    '<path d="M14,13C8,13 5.5,19 5.5,28C5.5,37 8,43 14,43L48,43C55,43 59,38 61,33L61,23C59,18 55,13 48,13Z"/>' +
+    '<rect x="60" y="23" width="15" height="10" rx="2.5"/>' +
+    '<rect x="73.5" y="21.2" width="4.5" height="13.6" rx="1.6"/>' +
+    // La coiffe du col : un or plus sombre, jamais une découpe.
+    '<rect x="60" y="23" width="7" height="10" fill="#000" opacity=".28"/>' +
+    // L'étiquette : crème, mais À L'INTÉRIEUR du verre.
+    '<rect x="15" y="19" width="26" height="18" rx="2" fill="#f3ece0" opacity=".55"/>' +
+    '<path d="M18,24H38M18,28H34M18,32H38" stroke="#000" stroke-width="1.6" opacity=".3" fill="none"/>' +
+    // Le reflet sur la panse : il donne le verre.
+    '<path d="M11,20C9,24 9,33 11,37" stroke="#fff6da" stroke-width="2.2" opacity=".35" fill="none" stroke-linecap="round"/>' +
+    // Le bouchon qui part devant, et sa trace.
+    '<g transform="translate(96,14) rotate(-24)">' +
+    '<rect x="-4" y="-6" width="8" height="12" rx="2.6"/>' +
+    '<rect x="-4.6" y="-1.6" width="9.2" height="3.4" rx="1.2" fill="#000" opacity=".26"/></g>' +
+    '<path d="M82,20C86,18 89,16 91,14" stroke="currentColor" stroke-width="1.8" opacity=".35" stroke-linecap="round" fill="none"/>' +
+    // La gerbe : des bulles qui jaillissent du col, pas toutes au même moment.
+    '<g fill="#fff6da">' +
+    '<circle class="ssfete-scintille" style="animation-delay:0s" cx="83" cy="28" r="2.6" opacity=".85"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:.5s" cx="90" cy="33" r="2" opacity=".8"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:1s" cx="97" cy="27" r="2.3" opacity=".8"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:1.5s" cx="103" cy="34" r="1.7" opacity=".75"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:2s" cx="88" cy="22" r="1.6" opacity=".7"/></g>' +
+    '</svg>';
+
   /* Le feu d'artifice : un cœur lumineux, onze rayons de longueurs inégales, deux couronnes
      d'étincelles — et l'ensemble qui s'épanouit. */
   const FEU =
@@ -589,22 +709,49 @@
     '<g opacity=".45"><circle class="ssfete-bulle" cx="27" cy="8" r="1.8" style="animation-delay:0.4s"/>' +
     '<circle class="ssfete-bulle" cx="29.5" cy="4" r="1.2" style="animation-delay:1.8s"/></g></svg>';
 
-  /* L'horloge : cloches, marteau, pieds, un cadran avec ses DOUZE index (les cardinaux plus
-     longs), et les aiguilles à minuit pile. */
+  /* ── L'HORLOGE DE MINUIT ── le pied du rail du Nouvel An ─────────────────────
+     Cloches, marteau, pieds, un cadran avec ses DOUZE index (les cardinaux plus longs), et les
+     aiguilles à minuit pile — c'est l'image du passage à l'année suivante, et elle tient
+     d'elle-même.
+     ⚠️ ELLE PASSE DE 30 À 62 PX, et c'est la correction qu'on ne voit qu'en comparant : le pied
+     du rail est le SEUL endroit du décor où un objet a de la place. Saint Nicolas y tient 52 px,
+     le sapin de Noël 52 — l'horloge en faisait 30, donc le Nouvel An avait le décor le plus
+     timide juste après la fête la plus fournie de l'année. Un décor se compare à ses voisins,
+     pas à lui-même (règle 28), et c'est la PLANCHE qui le montre.
+     ⚠️ ELLE SONNE : deux arcs de chaque côté, qui battent avec « eclat ». C'est ce qui sépare
+     une horloge DESSINÉE d'une horloge qui marque minuit — même principe que les boules qui
+     clignotent sur le sapin : l'animation appartient à l'objet, elle ne le déplace pas.
+     ⚠️ LE CADRAN RESTE EN var(--surface), ET C'EST JUSTE ICI : le pied du rail est POSÉ sur le
+     rail, donc une découpe y montre bien le fond. C'est sur un VOLANT qu'elle serait fausse. */
   const HORLOGE =
-    '<svg viewBox="0 0 46 52" fill="currentColor">' +
+    '<svg viewBox="0 0 66 56" fill="currentColor">' +
+    // Elle sonne. Les arcs sont hors de la cloche : c'est le son, pas le métal.
+    '<g class="ssfete-eclat" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none">' +
+    '<path d="M8,8C4.5,10.5 4.5,16.5 8,19M4.5,5C0,9 0,18 4.5,22"/>' +
+    '<path d="M58,8C61.5,10.5 61.5,16.5 58,19M61.5,5C66,9 66,18 61.5,22"/></g>' +
+    // La lueur du cadran, derrière : minuit, c'est le moment où on la regarde.
+    '<circle cx="33" cy="27" r="25" opacity=".08"/><circle cx="33" cy="27" r="21" opacity=".1"/>' +
+    '<g transform="translate(10,1)">' +
     '<path d="M9.5,11C4,9 3,2.5 7.5,1.2C10.8,0.3 12.5,3.5 12.5,7.5Z"/>' +
     '<path d="M36.5,11C42,9 43,2.5 38.5,1.2C35.2,0.3 33.5,3.5 33.5,7.5Z"/>' +
     '<path d="M23,8.5L23,4.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<circle cx="23" cy="3" r="2.4"/>' +
     '<g stroke="currentColor" stroke-width="3.2" stroke-linecap="round" fill="none">' +
     '<path d="M12,42L8,50"/><path d="M34,42L38,50"/></g>' +
     '<circle cx="23" cy="26" r="17.5"/>' +
+    // Le cercle de laiton : un liéseré entre la carrure et le cadran, sinon le boîtier est plat.
+    '<circle cx="23" cy="26" r="15.4" fill="none" stroke="#fff6da" stroke-width="1.2" opacity=".3"/>' +
     '<circle cx="23" cy="26" r="13.8" fill="var(--surface)" opacity=".92"/>' +
     '<g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".65"><path d="M23,14.1L23,17.5M28.95,15.69L27.95,17.43M33.31,20.05L31.57,21.05M34.9,26L31.5,26M33.31,31.95L31.57,30.95M28.95,36.31L27.95,34.57M23,37.9L23,34.5M17.05,36.31L18.05,34.57M12.69,31.95L14.43,30.95M11.1,26L14.5,26M12.69,20.05L14.43,21.05M17.05,15.69L18.05,17.43"/></g>' +
     '<g stroke="currentColor" stroke-linecap="round"><path d="M23,26L23,16.5" stroke-width="2.6"/>' +
     '<path d="M23,26L23,19.5" stroke-width="3.2"/></g>' +
+    // La trotteuse, en rouge : le seul morceau qui dise que l'horloge TOURNE encore.
+    '<path d="M23,26L23,15" stroke="#e4554f" stroke-width="1.2" stroke-linecap="round" fill="none"/>' +
     '<circle cx="23" cy="26" r="1.9"/>' +
-    '<path d="M14,18C16.5,15 19.5,13.5 23,13.2" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".28" stroke-linecap="round"/></svg>';
+    '<path d="M14,18C16.5,15 19.5,13.5 23,13.2" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".28" stroke-linecap="round"/></g>' +
+    // L'ombre portee : sans elle, l'horloge flotte au-dessus du rail.
+    '<ellipse cx="33" cy="53.5" rx="19" ry="2.4" opacity=".14"/>' +
+    '</svg>';
 
   /* Trois confettis différents : un ruban, un disque, une serpentine. Un seul dessin répété
      seize fois se voit immédiatement. */
@@ -625,6 +772,15 @@
     // eclat triangulaire
     '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M7,0.5L13.5,12.5L0.5,12.5Z"/>' +
       '<path d="M7,0.5L13.5,12.5L7,12.5Z" fill="var(--surface)" opacity=".22"/></svg>',
+    /* Étoile et ruban torsadé, ajoutés le 11/10/2026. Quatre dessins pour seize confettis, ça
+       se voyait encore : à vingt, la répétition serait devenue franche. Chacun garde son PLI
+       ou son reflet — c'est lui qui donne du volume quand la chute applique sa rotation. */
+    // etoile
+    '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M7,0.4L8.8,5L13.6,5.3L9.9,8.4L11.1,13.1L7,10.4L2.9,13.1L4.1,8.4L0.4,5.3L5.2,5Z"/>' +
+      '<path d="M7,0.4L8.8,5L13.6,5.3L9.9,8.4L11.1,13.1L7,10.4Z" fill="var(--surface)" opacity=".2"/></svg>',
+    // ruban torsade
+    '<svg viewBox="0 0 12 26" fill="currentColor"><path d="M3,1C7,5 5,10 7,14C9,18 6,22 4,25L8,25C10,22 12,18 10,14C8,10 10,5 7,1Z"/>' +
+      '<path d="M5,1.6C8,5.4 6.6,10 8.4,14C10.2,18 8,21.8 6.4,24.4L8,25C10,22 12,18 10,14C8,10 10,5 7,1Z" fill="var(--surface)" opacity=".22"/></svg>',
   ];
 
   /* ── Rentrée scolaire ────────────────────────────────────────────────────────────────────
@@ -951,31 +1107,66 @@
       id: 'nouvel-an',
       nom: 'Nouvel An',
       du: '12-27', au: '01-02',
+      /* ⚠️ TOUT A ÉTÉ RELEVÉ LE 11/10/2026, et c'est la même correction qu'à Noël six jours
+         plus tôt : vue sur la PLANCHE à côté de la fête qui la précède, celle-ci était la plus
+         pauvre de l'année. Une marque à 15 px quand la mitre en fait 27 et le sapin 26, un pied
+         de rail à 30 quand les deux autres en font 52, UN seul volant quand Noël en a deux, et
+         le MÊME feu d'artifice au coin des cartes ET au coin du rail. Un décor se compare à ses
+         voisins, pas à lui-même.
+         ⚠️ ET LE FEU D'ARTIFICE NE SERT PLUS QU'UNE FOIS. Deux fois le même dessin à l'écran,
+         ce n'est pas deux objets : c'est un objet et sa copie. Il reste au coin du RAIL, où il
+         est seul, et il y gagne 18 px. */
       coin: {
-        svg: FEU, taille: 60,
-        teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.42, clair: 0.4 },
+        /* Les fanions prennent la place du feu au coin des cartes : il leur faut quelque chose
+           qui COURE de cadre en cadre, et un feu d'artifice est par nature un point fixe.
+           « miroir: x » : ce qui PEND ne se retourne jamais la tête en bas (voir la feuille de
+           style) — sinon la guirlande s'arque vers le haut dans le coin bas-gauche. */
+        svg: FANIONS, taille: 215, miroir: 'x',
+        teinte: { sombre: '#e8dcc0', clair: '#8a7a58' }, opacite: { sombre: 0.72, clair: 0.66 },
+        /* Le Nouvel An n'avait RIEN qui pende — un emplacement vide, alors que c'est le seul
+           décor qui bouge sans traverser l'écran. La boule tient à 26 px parce qu'elle se
+           reconnaît à son QUADRILLAGE, qui survit à la réduction ; un détail plus fin non. */
+        bete: {
+          svg: BOULE_FACETTES, taille: 26, fil: 11,
+          teinte: { sombre: '#cfe3ff', clair: '#5a6f94' }, opacite: { sombre: 1, clair: 0.95 },
+        },
       },
-      marque: { svg: FLUTE, taille: 15,
+      /* 24 et non 15 : même raisonnement que la mitre et le sapin. La ligne de bandeau fait
+         36 px et porte un logo de 36 ; le viewBox de la flûte étant 1,75 fois plus haut que
+         large, 21 rend 36 — mais la flûte est très étroite, donc on vise la LARGEUR utile et
+         non la hauteur : à 24 elle occupe sa place sans écraser le nom. */
+      marque: { svg: FLUTE, taille: 24,
         teinte: { sombre: '#ffd45e', clair: '#9a6f00' }, opacite: { sombre: 1, clair: 1 } },
       rail: {
-        coin: { svg: FEU, taille: 54,
-          teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.3, clair: 0.3 } },
-        pied: { svg: HORLOGE, taille: 30,
+        coin: { svg: FEU, taille: 72,
+          teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.34, clair: 0.32 } },
+        /* 62 et non 30 : le pied du rail est le seul endroit du décor où un objet a de la
+           place, et c'est là que Saint Nicolas et le sapin tiennent 52 px. L'horloge est plus
+           large que haute, donc 62 de large rendent 50 de haut — soit la même PRÉSENCE. */
+        pied: { svg: HORLOGE, taille: 62,
           teinte: { sombre: '#cfe3ff', clair: '#49618c' }, opacite: { sombre: 0.85, clair: 0.9 } },
       },
-      /* UN SEUL volant, et c'est un choix. Une fusee a ete dessinee puis retiree : agrandie, elle
-         ne se lisait pas (une tache orange allongee), et elle faisait doublon avec l'etoile
-         filante — deux trainees lumineuses qui traversent, ca n'ajoute rien. Les feux d'artifice
-         des coins et les seize confettis portent deja la fete. */
+      /* ⚠️ DEUX VOLANTS, ET LE SECOND A MIS DU TEMPS À TROUVER SA FORME. Une FUSÉE avait été
+         dessinée puis retirée : agrandie, elle ne se lisait pas (une tache orange allongée) et
+         elle faisait doublon avec l'étoile filante — deux traînées lumineuses qui traversent,
+         ça n'ajoute rien. La BOUTEILLE règle les deux défauts à la fois : son profil ne
+         ressemble à rien d'autre, et ce n'est pas une traînée de plus.
+         Un seul volant laissait le ciel vide la moitié du temps — Noël en a deux. */
       volants: [
         { svg: ETOILE_FILANTE, taille: 40, haut: '14%', duree: 21, retard: 3,
           teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.5, clair: 0.36 } },
+        { svg: BOUTEILLE, taille: 100, haut: '56%', duree: 26, retard: 11,
+          teinte: { sombre: '#ffd45e', clair: '#8a5f00' }, opacite: { sombre: 0.7, clair: 0.58 } },
       ],
       /* Les confettis réutilisent le mécanisme de la neige — c'est exactement pour ça que
          l'emplacement s'appelle « tombe » et non « neige ». Seule la PALETTE est nouvelle :
          des confettis d'une seule couleur ne sont plus des confettis. */
+      /* ⚠️ 16 PX ET 20 CONFETTIS, contre 13 et 16. À 13 px, le pli et le reflet de chaque
+         dessin — ce qui leur donne du volume quand ils tournent — ne se voyaient plus : on
+         avait six pastilles de couleur. Et SIX dessins au lieu de quatre, parce que à vingt
+         éléments la répétition serait devenue franche. */
       tombe: {
-        svg: CONFETTIS, taille: 13, nombre: 16, duree: 11,
+        svg: CONFETTIS, taille: 16, nombre: 20, duree: 11,
         palette: ['#ffd45e', '#ff6b8a', '#5ad1ff', '#8fe36b', '#c08cff', '#ff9e5e'],
         teinte: { sombre: '#ffd45e', clair: '#b07a00' }, opacite: { sombre: 0.75, clair: 0.6 },
       },
@@ -1332,6 +1523,17 @@
          transform-box — et le repos (animation coupée) laisse l'ampoule ALLUMÉE, ce qui est le
          bon état par défaut. */
       .ssfete-ampoule { animation: ssfete-ampoule 2.6s ease-in-out infinite; }
+      /* ⚠️ UN FANION PIVOTE DEPUIS SON ATTACHE, PAS DEPUIS SON MILIEU. D'où un
+         transform-origin à « 50% 0 » et non « center » comme les autres : au centre, le
+         triangle tourne sur son ventre et se décroche du fil à chaque oscillation — le même
+         défaut que l'araignée qui se décrochait de sa soie. Et fill-box reste indispensable,
+         sinon l'origine désigne le coin du viewBox entier. */
+      .ssfete-flotte { transform-box: fill-box; transform-origin: 50% 0;
+        animation: ssfete-flotte 3.4s ease-in-out infinite; }
+      @keyframes ssfete-flotte {
+        0%, 100% { transform: rotate(-4.5deg); }
+        50%      { transform: rotate(4.5deg); }
+      }
       @keyframes ssfete-ampoule { 0%, 100% { opacity: 0.34; } 50% { opacity: 1; } }
       .ssfete-bulle { animation: ssfete-bulle 2.8s ease-in infinite; }
       @keyframes ssfete-bulle {
@@ -1386,7 +1588,7 @@
         #${SKY} { display: none; }
         .ssfete-pendu, .ssfete-pendu .ssfete-fil, .ssfete-pendu .ssfete-bete { animation: none; }
         .ssfete-lueur, .ssfete-scintille, .ssfete-bulle, .ssfete-fumee,
-        .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule { animation: none; }
+        .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule, .ssfete-flotte { animation: none; }
       }
 
       /* À l'impression, rien. Jamais. */
