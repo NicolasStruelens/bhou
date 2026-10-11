@@ -1231,6 +1231,31 @@ contredisent pour le même client (règle 7). **Dans une liste SÉPARÉE** (`AUT
 ce n'est pas une clé du VR150, et le test qui compare `VR_CLES_CLIENT` à
 `SSProducts.vrClesClient()` aurait échoué — à juste titre.
 
+⚠️ **UN CONTENEUR VIDE QUI FORCE UN SAUT DE PAGE FABRIQUE UNE PAGE BLANCHE.** Trouvé le
+11/10/2026 dans un PDF réellement généré par Nicolas : deux pages, et la seconde ne contenait
+RIEN (mesuré à zéro caractère avec pymupdf). Un devis INFORMATIF n'a ni CGV ni attestation TVA,
+donc sans photo d'ouverture `#annex` reçoit une chaîne vide — mais le `<div>` restait dans la
+page avec son `page-break-before: always`, et le navigateur ouvrait une feuille pour n'y rien
+mettre. `.annex:empty { display: none }` suffit, et se désactive dès qu'une annexe existe.
+**Un aperçu à l'écran ne montre PAS ça** : une page blanche n'existe qu'au moment où le moteur
+d'impression pagine. Pour la voir, il faut lire le PDF — `pymupdf` est installé sur la machine
+de Nicolas, et `page.get_text()` sur chaque page dit immédiatement laquelle est vide.
+
+⚠️ **L'INTITULÉ ET LA VALEUR DOIVENT SE DISTINGUER AU PREMIER COUP D'ŒIL.** « Le cadre, je ne
+trouve pas ça super clair, il faut plus voir la différence entre la description et l'option »
+(Nicolas, sur le PDF généré). Les deux étaient au MÊME poids et ne différaient que par une
+nuance de gris : quatorze paires à la file, séparées par un point médian fin, ça se lit comme
+une seule phrase. La valeur passe en **600**, l'intitulé en `--text-subtle`, et une **barre
+verticale** sépare les paires là où le point médian se confondait avec la ponctuation des
+valeurs (« 7016 — Gris anthracite · Coulisses »). Coût en hauteur : **zéro** (124 px avant
+comme après).
+⚠️ **ET LE PIÈGE QUI A FAILLI PASSER : `white-space: nowrap` SUR LA PAIRE.** Il rendait chaque
+paire insécable — exactement ce qu'on veut — et la boîte tombait de 124 à 60 px, ce qui avait
+l'air d'un gain. **C'était trois lignes de 2 342 px** : le `::before` du séparateur hérite du
+nowrap, donc il ne reste AUCUNE occasion de couper, et le tableau passait de 703 à **2 406 px**.
+Seul l'intitulé porte `nowrap`. **Mesurer la boîte seule aurait validé le défaut : c'est la
+largeur du TABLEAU qu'il fallait regarder.**
+
 Le document retire aussi les **codes de menu Harol** des valeurs (`SSVolet.sansCodeMenu`) : « 1 :
 type 1 (dans le jour) » se lit « Type 1 (dans le jour) ». ⚠️ On ne retire QUE un index (1-2
 chiffres) ou une référence d'article (A4118) — jamais 3 ou 4 chiffres, parce que « 7016 — Gris

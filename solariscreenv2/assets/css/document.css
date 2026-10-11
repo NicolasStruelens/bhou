@@ -233,6 +233,16 @@ body { background: var(--bg); }
      remise s accroche elle aussi à la ligne produit d au-dessus, sinon un saut de page couperait
      le groupe en deux et l encadré décrirait des lignes qu on ne voit plus. */
   .doc-table tbody tr.remise-row { page-break-before: avoid; break-before: avoid; }
+  /* ⚠️ UN CONTENEUR VIDE QUI FORCE UN SAUT DE PAGE FABRIQUE UNE PAGE BLANCHE.
+     Trouvé le 11/10/2026 dans un PDF réellement généré par Nicolas : deux pages, et la seconde
+     ne contenait RIEN (mesuré : zéro caractère). Un devis INFORMATIF n'a ni CGV ni attestation
+     TVA — ce n'est pas un engagement contractuel — donc sans photo d'ouverture, `#annex` reçoit
+     une chaîne vide. Le <div> restait pourtant dans la page avec ce `page-break-before`, et le
+     navigateur ouvrait docilement une feuille pour n'y rien mettre.
+     `:empty` suffit : `innerHTML = ''` ne laisse aucun nœud enfant, donc la règle s'applique à
+     coup sûr, et elle se désactive d'elle-même dès qu'une annexe existe.
+     ⚠️ À L'ÉCRAN AUSSI, et pas seulement à l'impression : un cadre vide de 0 px n'est visible
+     nulle part, mais autant ne pas laisser dans la page un élément qui ne sert à rien. */
   .annex { page-break-before: always; margin-top: 0; }
   .annex .paper { margin: 0; }
   .annex .paper + .paper { page-break-before: always; margin-top: 0; }
@@ -398,9 +408,29 @@ body { background: var(--bg); }
    ⚠️ Le flux vaut à l'ÉCRAN AUSSI, volontairement : l'aperçu doit être le PDF. Une mise en
    page différente entre les deux, et on valide un aperçu pour obtenir autre chose.           */
 .spec-box-l { display: block; }
-.spec-box-i { display: inline; font-size: 0.74rem; line-height: 1.5; color: var(--text); }
-.spec-box-i b { font-weight: 400; color: var(--text-muted); }
+/* ⚠️ L'INTITULÉ ET LA VALEUR DOIVENT SE DISTINGUER AU PREMIER COUP D'ŒIL. Retour de Nicolas,
+   11/10/2026, sur un PDF réellement généré : « le cadre, je ne trouve pas ça super clair, il
+   faut plus voir la différence entre la description et l'option ». Il avait raison : les deux
+   étaient au MÊME poids (400) et ne différaient que par une nuance de gris — quatorze paires
+   à la file, séparées par un point médian fin, ça se lit comme une seule phrase continue.
+   Trois gestes, et aucun ne coûte un pixel de hauteur (mesuré : 124 px avant comme après) :
+   • LA VALEUR EN 600 et en `--text` : c'est elle que le client vérifie, c'est elle qui ressort.
+   • L'INTITULÉ en `--text-subtle` : il nomme, il n'informe pas.
+   • UNE BARRE VERTICALE entre les paires, là où le point médian se confondait avec la
+     ponctuation des valeurs (« 7016 — Gris anthracite · Coulisses »).
+   ⚠️ L'INTITULÉ SEUL PORTE `nowrap`, JAMAIS LA PAIRE ENTIÈRE. Essayé et MESURÉ : avec
+   `white-space: nowrap` sur `.spec-box-i`, le `::before` du séparateur hérite du nowrap — donc
+   il n'existe PLUS AUCUNE occasion de couper la ligne, et le tableau passe de 703 à **2 406 px
+   de large**. La boîte semblait pourtant aller mieux (60 px au lieu de 124) : c'est qu'elle
+   tenait sur trois lignes... de 2 342 px. Mesurer la boîte seule aurait validé le défaut. */
+.spec-box-i { display: inline; font-size: 0.74rem; line-height: 1.5; color: var(--text); font-weight: 600; }
+.spec-box-i b { font-weight: 400; color: var(--text-subtle); white-space: nowrap; }
 .spec-box-i b::after { content: ' : '; }
-.spec-box-i + .spec-box-i::before { content: ' · '; color: var(--text-subtle); }
-/* Une case cochée se mentionne sans valeur : elle porte donc le ton de l'intitulé. */
+.spec-box-i + .spec-box-i::before { content: ' | '; color: var(--border-strong); font-weight: 400; }
+/* Une case cochée se mentionne sans valeur : elle EST l'information, donc elle garde le poids
+   d'une valeur — « Commande murale Somfy individuelle incluse » n'est pas un intitulé. */
 .spec-box-f { color: var(--text-muted); }
+
+/* Voir le commentaire du bloc d'impression : une annexe VIDE ne doit pas exister du tout,
+   sinon son `page-break-before: always` fabrique une page blanche dans le PDF. */
+.annex:empty { display: none; }
