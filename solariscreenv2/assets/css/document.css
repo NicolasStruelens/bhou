@@ -95,7 +95,7 @@ body { background: var(--bg); }
 .totals { float: right; width: 320px; max-width: 100%; margin-left: var(--sp-5); }
 .totals .box { width: 100%; }
 .totals + .pay-note { overflow: hidden; margin-top: var(--sp-5); }
-.doc-ref, .terms, .partners, .signatures, .doc-foot { clear: both; }
+.doc-ref, .terms, .partners, .signatures, .doc-foot, .doc-close { clear: both; }
 
 /* Sous 560 px il n'y a pas la place pour deux colonnes : le rappel tomberait à ~90 px de large.
    On rend la pile, qui est la bonne mise en page à cette largeur. À l'impression on est
@@ -203,6 +203,40 @@ body { background: var(--bg); }
   body::before { display: none !important; }
   .paper-wrap { padding: 0; }
   .paper { width: auto; border: none; border-radius: 0; box-shadow: none; padding: 0; }
+  /* ⚠️ UNE FEUILLE A4 A UNE HAUTEUR FIXE, PAS LE DOCUMENT — D'OÙ LA BANDE BLANCHE.
+     Retour de Nicolas, 11/10/2026 : « sur l'ERP web il utilise toute la page ; quand je crée et
+     enregistre le PDF il y a une bande blanche en dessous ». Les deux observations sont justes,
+     et c'est la même chose vue des deux côtés : à l'écran `.paper` s'arrête où son contenu
+     s'arrête, donc aucun vide ne se voit ; sur une feuille A4 la hauteur est IMPOSÉE, et tout ce
+     que le contenu ne remplit pas reste blanc. Mesuré : 1 025 px de contenu pour 1 032 px utiles
+     sur un devis complet — mais 849 px dès qu'il manque un bloc (devis informatif : ni acompte
+     ni signatures), soit près de 5 cm de blanc sous le pied.
+     LA RÉPONSE N'EST PAS D'ÉTIRER LE CONTENU, c'est d'ANCRER LE PIED EN BAS DE LA FEUILLE : le
+     vide passe alors AU-DESSUS du bloc de clôture, entre le devis et sa signature, où il se lit
+     comme une marge — et non plus comme une page coupée.
+     ⚠️ ET SURTOUT PAS EN PASSANT `.paper` EN FLEX (`margin-top: auto` sur le pied). Essayé,
+     mesuré, écarté : `.totals` FLOTTE à droite pour que le rappel d'acompte tienne à côté des
+     totaux (voir « LE BLOC D'ARGENT » plus haut). En flex chaque enfant devient un élément de
+     flux : le flottant cesse de chevaucher, les marges ne fusionnent plus, et le devis passe de
+     1 025 à 1 091 px — il déborde sur une 2e page. La mise en page en bloc est VOULUE.
+     ⚠️ LA RÉSERVE N'EST PAS UNE MARGE DÉCORATIVE. Le bloc de clôture étant hors flux, rien
+     n'empêcherait le contenu de passer DESSOUS sur un devis long. Ce padding tient le flux à
+     distance du bas de la feuille : c'est la page elle-même qui porte la garantie, pas la
+     chance. Il vaut la hauteur réelle du bloc (mesuré : 176 px avec signatures, ~61 px sans),
+     et `renderPaper` le règle selon la variante.
+     ⚠️ LES 2 px EN MOINS SUR `min-height` SONT DÉLIBÉRÉS : une feuille calée au pixel près sur
+     la hauteur utile, et le moindre arrondi la fait déborder sur une page blanche — exactement
+     le défaut corrigé la veille avec `.annex:empty`. */
+  /* ⚠️ `:has()` N'EST PAS UNE COQUETTERIE ICI. La réserve n'a de sens que là où un bloc est
+     sorti du flux pour aller au bas de la feuille. Appliquée à un document qui n'en a pas, elle
+     confisquerait 4,7 cm de page sans rien y mettre — et ferait gagner une page à tout document
+     un peu long. La règle se branche donc sur la présence du bloc, pas sur le nom de la page :
+     une feuille future l'aura ou ne l'aura pas, sans que personne n'ait à y penser. */
+  .paper-wrap .paper:has(> .doc-close) {
+    min-height: calc(297mm - 24mm - 2px);          /* A4 moins les deux marges de @page */
+    padding-bottom: var(--close-reserve, 47mm);
+  }
+  .paper-wrap .paper > .doc-close { position: absolute; left: 0; right: 0; bottom: 0; }
   /* ⚠️ TOUT LE DOCUMENT GARDE SES COULEURS À L'IMPRESSION, pas seulement trois éléments.
      Retour de Nicolas, 11/10/2026, capture à l'appui : « dans le PDF à enregistrer, c'est
      beaucoup moins joli que la prévisualisation sur l'ERP — fais en sorte que le PDF soit

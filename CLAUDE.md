@@ -778,38 +778,89 @@ pot — élargir le viewBox aurait rétréci l'arbre à taille égale.
 
 ⚠️ **LE CORTÈGE : UN DÉCOR PEUT ÊTRE UN ÉVÉNEMENT, PAS SEULEMENT UN ÉTAT.** Demande de
 Nicolas (11/10/2026) : « une animation sur le thème d'Halloween qui défile de gauche à droite
-UNE SEULE FOIS à chaque fois qu'on arrive sur la page, sur chaque page de l'ERP ; sur le tableau
-de bord elle passe, puis rend la place aux dictons habituels ». C'est un emplacement d'un genre
-nouveau : `defile`, dans le BANDEAU, une seule traversée. Le ciel est un décor permanent ; le
-cortège, lui, célèbre **l'arrivée sur la page**.
-⚠️ **TROIS DESSINS NEUFS, ET C'ÉTAIT OBLIGATOIRE** : Halloween a déjà une toile, une araignée,
-des chauves-souris, une sorcière et une citrouille — et les deux dernières TRAVERSENT déjà
-l'écran. Reprendre l'une d'elles, c'eût été un objet et sa copie, **et deux fois le même geste
-à trois secondes d'intervalle**.
+UNE SEULE FOIS à chaque fois qu'on arrive sur la page, sur chaque page de l'ERP ». Emplacement
+`defile` : le ciel est un décor permanent, le cortège célèbre **l'arrivée sur la page**.
+⚠️ **IL A FALLU TROIS VERSIONS, ET LES DEUX PREMIÈRES SE SONT TROMPÉES EN SENS CONTRAIRE.**
+C'est la leçon la plus utile de ce décor, parce qu'elle vaut pour tous les suivants.
+1. **Trois objets pleins et nets dans le bandeau** (brume + fantôme + chat noir). Verdict de
+   Nicolas : « absolument horrible », et il avait raison — trois silhouettes opaques qui se
+   suivent en haut d'un outil de travail, c'est une **banderole de fête foraine**. Le défaut ne
+   tenait à aucun des trois dessins : il tenait à ce qu'ils étaient TROIS, PLEINS et NETS.
+2. **Un seul corbeau, flouté, à 13 %, toujours dans le bandeau.** Consigne suivie à la lettre
+   (« très discret ») — et **parfaitement invisible**, mesuré à l'écran derrière la pastille
+   « Terrain ». **Un décor qu'on ne voit pas n'est pas discret, il est absent.**
+3. **Le même corbeau dans LE CIEL**, à 120 px et 22 %. Il se remarque sans rien empêcher de lire.
+**La consigne tenait dans les deux mots que Nicolas avait employés : « très discret » ET
+« beau ». Le premier seul donne un décor absent ; le second seul donne une banderole.**
+⚠️ **LE BANDEAU EST LA MAUVAISE SCÈNE, ET ÇA N'EST PAS UNE QUESTION DE RÉGLAGE.** Il fait 60 px
+de haut et il est plein de boutons : pour qu'un objet n'y gêne pas la lecture, il faut le
+descendre si bas en opacité qu'il disparaît. **Aucune valeur ne convient** — exactement la
+conclusion à laquelle avait déjà mené l'araignée ancrée au bandeau, essayée et retirée. Le
+ciel, lui, est DÉJÀ l'espace du décor : plein écran, derrière le contenu, et la sorcière y
+prouve depuis le début qu'un objet s'y lit sans déranger personne. Même profondeur (z-index 3).
+⚠️ **ET LE DÉPLACEMENT A SUPPRIMÉ LA MOITIÉ DU CODE.** Tant que le cortège traversait le
+bandeau, il se disputait le même centimètre carré que la pensée du jour : il avait fallu une
+file d'attente (`apresDefile`), une enveloppe `try/finally` autour de `monter()` pour la libérer
+sur ses quatre sorties anticipées, et un filet de 2 s. Dans le ciel, **plus de conflit, donc
+plus rien de tout ça** — et plus de bandeau vide pendant les huit secondes du passage, ce que
+la file coûtait sans que ça se voie. **Quand un mécanisme devient compliqué, la question à
+poser n'est pas « comment le simplifier » mais « est-il au bon endroit ».**
 ⚠️ **IL N'EST PAS DANS `poser()`, ET C'EST ESSENTIEL.** `poser` est rejoué par le
 `MutationObserver` à chaque rendu de liste — des dizaines de fois sur un tableau de bord qu'on
 filtre. Le cortège repartirait à chaque frappe dans la recherche : l'exact contraire de « une
-seule fois ». Il vit dans `monter()`, qui ne tourne qu'au chargement. **Vérifié en provoquant
-cinq rendus : trois objets avant, trois après.**
-⚠️ **IL FAUT UNE FILE D'ATTENTE POUR CE QUI DOIT LE SUIVRE** (`SSFetes.apresDefile`). Le script
-du tableau de bord s'exécute AVANT `monter()` — celui-ci est accroché à `DOMContentLoaded`, le
-script de page non. Au moment où la pensée du jour demandait « y a-t-il un cortège ? », il n'y
-en avait pas ENCORE : elle partait aussitôt et le fantôme lui passait dessus. **Vu à l'écran,
-invisible dans le code.**
-⚠️ **ET LA LIBÉRATION DOIT ARRIVER SUR TOUS LES CHEMINS.** `monter()` sort tôt sur quatre
-chemins (page client, aucune fête, décors éteints, aperçu annulé) : un `return` oublié, et la
-pensée du jour ne s'afficherait **jamais** — un défaut bien pire que celui qu'on corrige. D'où
-une ENVELOPPE (`try/finally`) autour de `monter`, plus un filet de 2 s. **Testé décors éteints :
-pas de cortège, et la pensée apparaît immédiatement.**
-⚠️ **`overflow: hidden` SUR LE CONTENEUR N'EST PAS DE LA PROPRETÉ** : sans lui, les objets qui
-attendent leur retard sont visibles à gauche de l'écran, posés sur le contenu de la page, avant
-d'entrer dans le bandeau.
-⚠️ **IL SE RETIRE TOUT SEUL** à la fin : laissé en place, il garderait trois éléments animés au
-repos en haut de chaque page, pour toujours.
-⚠️ **UN CORPS SE DESSINE PARFOIS MIEUX AVEC UN TRAIT ÉPAIS QU'AVEC UN CONTOUR REMPLI.** Le chat
-noir, écrit en un seul `path` fermé, n'avait **pas de dos** — une masse molle, un chat couché.
-Un arc tracé en `stroke-width: 14` donne l'échine d'un seul geste, et c'est elle la silhouette
-d'Halloween. Jugé sur planche, refait, rejugé.
+seule fois ». Il vit dans `monter()`, qui ne tourne qu'au chargement.
+⚠️ **UN DESSIN NEUF, ET C'ÉTAIT OBLIGATOIRE** : Halloween a déjà une toile, une araignée, des
+chauves-souris, une sorcière et une citrouille — et les deux dernières TRAVERSENT déjà le ciel.
+Reprendre l'une d'elles, c'eût été un objet et sa copie. Le corbeau plutôt qu'une chauve-souris :
+une aile de chauve-souris a des doigts, donc du détail — or **un détail flouté devient une
+bouillie**. Le corbeau se reconnaît à sa seule silhouette, c'est le dessin qui RESTE juste quand
+on lui enlève la netteté.
+⚠️ **LE FLOU EST CE QUI FAIT UNE OMBRE PLUTÔT QU'UN AUTOCOLLANT**, mais il se dose à la taille :
+2 px sur 86 px effaçaient la silhouette, 1,2 px sur 120 px la gardent. Et l'objet **descend en
+traversant** (`derive`) : une trajectoire parfaitement horizontale se lit comme un élément
+d'interface qui glisse, une légère chute se lit comme un vol.
+⚠️ **`overflow: hidden` SUR LE CONTENEUR N'EST PAS DE LA PROPRETÉ** : sans lui, l'objet qui
+attend son retard est visible à gauche de l'écran, posé sur le contenu, avant d'entrer en scène.
+⚠️ **IL SE RETIRE TOUT SEUL** à la fin : laissé en place, il garderait un élément animé au
+repos sur chaque page, pour toujours.
+⚠️ **MOUVEMENT RÉDUIT : RIEN DU TOUT.** Ce décor n'existe QUE par son mouvement ; le figer au
+milieu de l'écran serait pire que de ne pas l'afficher.
+
+⚠️ **LA TOUCHE DE SAISON SUR LE DOCUMENT — ET COMMENT ELLE NUANCE LA RÈGLE 1 SANS LA CASSER.**
+Demande de Nicolas (11/10/2026) : « une case à cocher comme dans photos pour mettre ou pas, en
+saison de fête, les petites images du thème dans le devis — ça peut être sympa et festif pour
+les clients à ces périodes ». La règle 1 dit « jamais sur ce que le client voit » : elle n'est
+pas annulée, elle est **précisée**. Elle vise le décor **SUBI** — une araignée qui arrive toute
+seule sur un devis d'école, c'est un document qu'on ne prend pas au sérieux. Ici le décor est
+**CHOISI**, devis par devis, par celui qui l'envoie : ce n'est plus le même geste. D'où trois
+garde-fous : **jamais par défaut**, **jamais hors période** (la case n'apparaît même pas), et
+jamais sur les pages à jeton (`devis-review`, `track`), où personne ne serait là pour décider.
+⚠️ **IL NE PORTE PAS LA CLASSE `.ssfete`, ET C'EST VOULU.** `nettoyer()` retire tout `.ssfete`
+quand on éteint les décors dans Paramètres — or ce réglage parle de **l'écran de Nicolas** (un
+client par-dessus l'épaule), pas du document qu'il a décidé d'envoyer. Deux interrupteurs
+indépendants parce qu'ils répondent à deux questions différentes. Même raison pour la feuille
+de style, qui est à part : celle de la coque peut ne pas exister.
+⚠️ **AUCUN DESSIN NEUF** (règle 28) : le décor se déduit de ce que la fête déclare déjà — son
+dessin de COIN, justement tracé pour un angle, et sa MARQUE, qui est déjà son emblème à côté du
+logo. Les cinq fêtes sont servies sans une ligne de configuration en plus, et la sixième le sera
+sans y penser.
+⚠️ **UN SEUL ENDROIT SUR LA FEUILLE** : l'angle haut-droit, derrière le numéro de devis — là
+où un en-tête de saison se met depuis toujours. La leçon du cortège rejeté vaut ici encore plus
+fort : trois touches dispersées sur un devis, c'est une carte de vœux, pas un devis.
+⚠️ **LE COIN EST À 13 % ET L'EMBLÈME À 85 %** : le premier est un filigrane, il ne doit jamais
+disputer sa place au numéro qu'il accompagne ; le second est le seul vrai point de couleur de la
+feuille. **Vérifié qu'il ne touche aucun texte** : la citrouille tient dans la marge de 15 mm, à
+12 px du bloc de méta.
+⚠️ **POSITION, TOP, RIGHT ET Z-INDEX SONT EN LIGNE, PAS DANS LA FEUILLE DE STYLE.** `.paper > *`
+impose `position: relative` ET `z-index: 1` à tous les enfants directs du document : à égalité de
+spécificité, le décor serait passé **devant** le texte du devis. Même famille de piège que le
+filigrane INFORMATIF.
+⚠️ **À L'IMPRESSION, LA FEUILLE EST BLANCHE QUEL QUE SOIT LE THÈME** : les teintes « sombres »
+(pensées pour un fond foncé) y seraient invisibles, d'où un bloc `@media print` qui force les
+teintes claires. Et le choix se mémorise **dans ce navigateur seulement** (`localStorage`) : ce
+n'est pas une donnée du document, c'est une préférence d'impression — la mémoriser évite de
+recocher à chaque devis pendant les trois semaines d'une fête, et **la période l'éteint d'elle-
+même à sa fin**, sans rien à décocher.
 
 ⚠️ **PAS DE PALETTE SUR LA NEIGE**, contrairement aux friandises et aux confettis : la neige est
 blanche, des flocons de six couleurs ne seraient plus de la neige. La variété vient des trois
@@ -1297,6 +1348,40 @@ veut fidèle, pas trois éléments choisis.**
 fonds appartient au pipeline d'impression, pas à la media query. L'écran montrera toujours les
 couleurs. **Seul un PDF réellement généré fait foi** — d'où l'intérêt de le relire avec
 `pymupdf` plutôt que de conclure depuis un aperçu.
+
+⚠️ **UNE FEUILLE A4 A UNE HAUTEUR FIXE, PAS LE DOCUMENT — D'OÙ LA BANDE BLANCHE.**
+« Sur l'ERP web il utilise toute la page ; quand je crée et enregistre le PDF il y a une bande
+blanche en dessous » (Nicolas, 11/10/2026). Les deux observations sont justes, et c'est la même
+chose vue des deux côtés : **à l'écran `.paper` s'arrête où son contenu s'arrête**, donc aucun
+vide ne se voit ; **sur une feuille A4 la hauteur est imposée**, et tout ce que le contenu ne
+remplit pas reste blanc. Mesuré : 1 025 px pour 1 032 utiles sur un devis complet — mais
+**849 px** dès qu'il manque un bloc (devis informatif : ni acompte ni signatures), soit près de
+5 cm de blanc sous le pied.
+**La réponse n'est pas d'étirer le contenu, c'est d'ANCRER LE PIED EN BAS DE LA FEUILLE** : le
+vide passe alors AU-DESSUS du bloc de clôture, entre le devis et sa signature, où il se lit comme
+une marge et non comme une page coupée. D'où `.doc-close`, qui réunit partenaires + signatures +
+mentions **d'un seul tenant** : trois frères séparés auraient demandé trois ancrages, et le
+premier écart entre eux aurait tout décalé.
+⚠️ **ET SURTOUT PAS EN PASSANT `.paper` EN FLEX** (`margin-top: auto` sur le pied), qui est
+pourtant la réponse « évidente ». Essayé, mesuré, écarté : **`.totals` FLOTTE à droite** pour
+que le rappel d'acompte tienne à côté des totaux. En flex chaque enfant devient un élément de
+flux — le flottant cesse de chevaucher, les marges ne fusionnent plus — et le devis passe de
+**1 025 à 1 091 px**, donc sur une 2e page. La mise en page en bloc est VOULUE.
+⚠️ **LA RÉSERVE (`--close-reserve`) N'EST PAS UNE MARGE DÉCORATIVE.** Le bloc de clôture étant
+hors flux, **rien n'empêcherait le contenu de passer dessous** sur un devis long : ce
+`padding-bottom` tient le flux à distance du bas de la feuille. C'est la page elle-même qui porte
+la garantie, pas la chance. Elle vaut la hauteur RÉELLE du bloc, arrondie vers le haut — 176 px
+(47 mm) avec signatures, 76 px (21 mm) sans — et `renderPaper` la règle selon la variante. **Une
+réserve plus COURTE que le bloc ne protège plus de rien** : c'est exactement ce qui arrivait avec
+18 mm, où les 8 derniers pixels débordaient dans la zone où le texte a le droit de descendre.
+⚠️ **LES 2 px EN MOINS SUR `min-height` SONT DÉLIBÉRÉS** : une feuille calée au pixel près sur
+la hauteur utile, et le moindre arrondi la fait déborder sur une page blanche — exactement le
+défaut ci-dessous.
+⚠️ **ET LA RÈGLE SE BRANCHE SUR `:has(> .doc-close)`, PAS SUR LE NOM DE LA PAGE.** Appliquée à
+un document sans bloc de clôture, la réserve confisquerait 4,7 cm de page sans rien y mettre —
+et ferait gagner une page à tout document un peu long. Une feuille future l'aura ou ne l'aura
+pas, sans que personne ait à y penser. La facture a reçu le même bloc, même défaut, même
+correction.
 
 ⚠️ **UN CONTENEUR VIDE QUI FORCE UN SAUT DE PAGE FABRIQUE UNE PAGE BLANCHE.** Trouvé le
 11/10/2026 dans un PDF réellement généré par Nicolas : deux pages, et la seconde ne contenait
