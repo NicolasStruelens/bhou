@@ -1015,7 +1015,16 @@
       chantier: { color: 'var(--accent-3)',    ic: 'hammer'       }, // à organiser sur le terrain
     };
     // `hash` : ancre de la fiche où l'action s'exécute — présente = le chip devient cliquable.
-    const mk = (fam, txt, ic, hash) => ({ txt: txt, color: fam.color, ic: ic || fam.ic, hash: hash || '' });
+    // `titre` : ce que dit l'infobulle quand la LIGNE ne peut pas tout dire. Une ligne de liste
+    // a ~40 caractères utiles ; un motif de mise en attente en fait souvent trois fois plus, et
+    // le tronquer sans le donner nulle part reviendrait à ne pas l'avoir écrit.
+    const mk = (fam, txt, ic, hash, titre) => ({ txt: txt, color: fam.color, ic: ic || fam.ic, hash: hash || '', titre: titre || '' });
+    // Un motif tient sur la ligne OU va dans l'infobulle — jamais coupé au milieu d'un mot.
+    const motifCourt = (m, n) => {
+      const t = String(m || '').replace(/\s+/g, ' ').trim();
+      if (t.length <= (n || 44)) return t;
+      return t.slice(0, (n || 44)).replace(/\s+\S*$/, '') + '\u2026';
+    };
 
     // Renvoie null quand il n'y a rien à faire (dossier clos, payé, refusé…).
     function prochaineAction(d) {
@@ -1028,12 +1037,27 @@
       // et ce sur quoi je ne peux rien.
       if (d.statut === 'brouillon') return mk(FAM.ecrire, 'À finaliser et envoyer');
       if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return mk(FAM.gagne, 'Accepté par le client — à faire signer');
+      /* ⚠️ LA MISE EN ATTENTE PASSE AVANT LA RELANCE, et l'ordre EST le raisonnement : tant
+         qu'elle est active, il n'y a rien à faire sur ce dossier — le client a dit quand il
+         revient. C'est donc le GRIS (« la balle est chez le client »), pas l'ambre : un dossier
+         qu'on a volontairement mis de côté ne doit pas peser dans la liste des choses à faire.
+         Et le chip reste CLIQUABLE vers #relance — c'est là qu'on change d'avis. */
+      const att = window.SSUI.attenteClient(d);
+      if (att.active) {
+        return mk(FAM.rien, `En attente — ${motifCourt(att.motif, 34)} · ${fmtDate(att.revoir_le)}`,
+          'clock', '#relance', `${att.texte}${att.motif ? ' \u2014 ' + att.motif : ''}`);
+      }
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
         const faites = relancesFaites(d);
         // Un client qui a rouvert son devis plusieurs fois est chaud : dit dans le TEXTE, et non par
         // une teinte à part — l'or employé ici était celui du chantier, deux sens pour une couleur.
         const hot = d.review_views >= SEUIL_CHAUD();
-        return mk(FAM.pousser, `Relance ${faites + 1} à envoyer${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`, null, '#relance');
+        /* ⚠️ UNE ATTENTE ÉCHUE RAMÈNE SON MOTIF AVEC ELLE, et c'est tout l'intérêt du rappel :
+           le jour où l'ERP redemande la relance, ce qu'il faut savoir c'est ce que le client
+           avait dit. « Relance 2 à envoyer » tout seul, on a oublié depuis trois semaines. */
+        const rappel = att.echue && att.motif ? ` · ${motifCourt(att.motif, 30)}` : '';
+        return mk(FAM.pousser, `Relance ${faites + 1} à envoyer${rappel}${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`,
+          null, '#relance', att.echue ? `${att.texte} \u2014 ${att.motif}` : '');
       }
       if (isDevisExpire(d)) return mk(FAM.perdre, 'Devis expiré (30 j) — à relancer ou classer', null, '#relance');
       if (isAcompteUnpaid(d)) return mk(FAM.pousser, 'Acompte à encaisser', 'coin');
@@ -1122,7 +1146,7 @@
       const astuce = a.hash === '#relance' ? ' — clic : préparer le message'
                    : a.hash === '#question' ? ' — clic : ouvrir la réponse' : '';
       const clic = a.hash ? ` onclick="event.stopPropagation();location.href='vue.html?id=${d.id}${a.hash}'"` : '';
-      return `<span class="m-sig ${hot ? 'hot' : ''}${a.hash ? ' act' : ''}" style="--sc:${a.color}"${clic} title="${esc(a.txt + astuce)}">${icon(a.ic, 12)} ${esc(a.txt)}</span>`;
+      return `<span class="m-sig ${hot ? 'hot' : ''}${a.hash ? ' act' : ''}" style="--sc:${a.color}"${clic} title="${esc((a.titre || a.txt) + astuce)}">${icon(a.ic, 12)} ${esc(a.txt)}</span>`;
     }
     // Micro-parcours : Créé · Envoyé · Signé · Posé · Payé. Masqué pour brouillon/refusé/annulé.
     function milestoneDots(d) {
@@ -1226,7 +1250,7 @@
     const FILTER_LABELS = {
       actifs: 'Dossiers actifs', tous: 'Tous, refusés compris',
       archives: 'Archivés', accepte_client: 'Accepté par le client', question_client: 'Question client',
-      a_relancer: 'À relancer', en_retard: 'Paiement en retard', acompte_attente: 'Acompte non payé',
+      a_relancer: 'À relancer', en_attente: 'En attente client', en_retard: 'Paiement en retard', acompte_attente: 'Acompte non payé',
       solde_attente: 'Solde à encaisser', a_preparer: 'Chantier à préparer', expire: 'Devis expiré',
       lien_jamais_ouvert: 'Lien jamais ouvert', kpi_signes: 'Signés & terminés', kpi_en_jeu: 'En attente client',
       // Statuts de devis : repris de la source unique plutôt que recopiés une sixième fois.
@@ -1300,7 +1324,7 @@
     // Garde-fou : cette page s'appuie sans repli sur ui.js pour les relances ET pour l'argent
     // dû. S'il manquait, mieux vaut le dire tout de suite que laisser lire des chiffres faux.
     (function verifierUi() {
-      const requis = ['relanceEtat', 'relancesFaites', 'relanceDue', 'duFacture', 'factureAnnulee'];
+      const requis = ['relanceEtat', 'relancesFaites', 'relanceDue', 'duFacture', 'factureAnnulee', 'attenteClient'];
       const absents = requis.filter(k => !window.SSUI || typeof window.SSUI[k] !== 'function');
       if (!absents.length) return;
       setTimeout(() => toast("assets/js/ui.js n'est pas à jour en ligne (" + absents.join(', ')
@@ -1309,12 +1333,25 @@
     })();
     function renderTodayBrief() {
       const visible = DEVIS.filter(d => !d.archive);
+      /* ⚠️ UNE MISE EN ATTENTE FAIT TAIRE TOUT CE QUI POUSSE LE CLIENT À ACCEPTER, pas seulement
+         la relance. « Devis expiré — à relancer ou classer » et « lien jamais ouvert » disent
+         exactement la même chose que la relance ; les laisser crier pendant qu'on a reporté la
+         relance, c'était faire taire une bouche sur trois.
+         Ce qu'elle ne touche PAS, et c'est délibéré : l'argent (acompte, solde) — une facture
+         émise est une obligation, pas une conversation — et le chantier (commande, pose), qui
+         dépend de nous et pas du client. */
+      const enPause = (d) => window.SSUI.attenteClient(d).active;
+      /* ⚠️ `relanceDue` TIENT DÉJÀ COMPTE DE LA MISE EN ATTENTE : l'attente repousse l'échéance
+         dans ui.js, donc ce compteur baisse tout seul et AUCUN dossier n'est compté deux fois.
+         C'était la condition pour que ça serve à quelque chose : un « 3 devis à relancer » qui
+         ne descend pas quand on a reporté une relance, on cesse de le lire. */
       const toRelance = visible.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d));
+      const enAttente = visible.filter(enPause);
       const enRetard = visible.filter(isPaymentOverdue);
       const acompteAttente = visible.filter(isAcompteUnpaid);
       const soldeAttente = visible.filter(isSoldeUnpaid);
       const aPreparer = visible.filter(isChantierAPreparer);
-      const expires = visible.filter(isDevisExpire);
+      const expires = visible.filter(d => isDevisExpire(d) && !enPause(d));
       // Devis acceptés en ligne par le client mais pas encore signés : l'action la plus rentable
       // de la journée. Le prédicat sur WAITING_STATUSES fait que le chip disparaît tout seul une
       // fois le devis passé en « signé » — pas de compteur qui s'accumule.
@@ -1364,8 +1401,13 @@
       if (aPreparer.length) chips.push({ label: `${aPreparer.length} chantier${aPreparer.length > 1 ? 's' : ''} à préparer`, color: 'var(--accent-3)', filter: 'a_preparer', ic: 'calendar' });
       if (expires.length) chips.push({ label: `${expires.length} devis expiré${expires.length > 1 ? 's' : ''}`, color: 'var(--danger)', filter: 'expire', ic: 'warning' });
       // Lien envoyé mais jamais ouvert (#26) : on ne le signale qu'après 3 jours (avant, c'est normal).
-      const jamaisOuvert = visible.filter(d => isLinkNeverOpened(d) && daysInCurrentStatus(d) >= 3);
+      const jamaisOuvert = visible.filter(d => isLinkNeverOpened(d) && daysInCurrentStatus(d) >= 3 && !enPause(d));
       if (jamaisOuvert.length) chips.push({ label: `${jamaisOuvert.length} lien${jamaisOuvert.length > 1 ? 's' : ''} jamais ouvert${jamaisOuvert.length > 1 ? 's' : ''} — le client l'a-t-il reçu ?`, color: 'var(--text-subtle)', filter: 'lien_jamais_ouvert', ic: 'lock' });
+      /* Les dossiers en attente en GRIS, et en dernier : ce n'est pas une chose à faire, c'est
+         une chose à savoir. Mais sans cette pastille, un devis mis en attente disparaîtrait de
+         tous les compteurs — et un dossier qu'on ne voit plus nulle part finit par s'oublier,
+         ce qui est exactement ce que la mise en attente devait ÉVITER. */
+      if (enAttente.length) chips.push({ label: `${enAttente.length} en attente client`, color: 'var(--text-subtle)', filter: 'en_attente', ic: 'clock' });
       if (!chips.length) { box.classList.add('hidden'); return; }
       box.classList.remove('hidden');
       // Le partage ne s'invente pas : il existait déjà dans les données. Une pastille porte soit un
@@ -1492,6 +1534,7 @@
       if (activeFilter === 'accepte_client') rows = rows.filter(d => d.client_accepted && WAITING_STATUSES.includes(d.statut));
       else if (activeFilter === 'question_client') rows = rows.filter(d => d.client_question_open);
       else if (activeFilter === 'a_relancer') rows = rows.filter(d => WAITING_STATUSES.includes(d.statut) && !d.client_accepted && daysInCurrentStatus(d) >= 7);
+      else if (activeFilter === 'en_attente') rows = rows.filter(d => window.SSUI.attenteClient(d).active);
       else if (activeFilter === 'en_retard') rows = rows.filter(isPaymentOverdue);
       else if (activeFilter === 'acompte_attente') rows = rows.filter(isAcompteUnpaid);
       else if (activeFilter === 'solde_attente') rows = rows.filter(isSoldeUnpaid);

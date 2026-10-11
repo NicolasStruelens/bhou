@@ -319,6 +319,13 @@
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       date_envoi: d.date_envoi || '',
       relances: d.relances || [],
+      /* ⚠️ normDevis EST UNE LISTE BLANCHE : une clé absente d'ici est perdue EN SILENCE pour
+         tous les écrans qui passent par elle. Les mises en attente ont été ajoutées ici le
+         11/10/2026 APRÈS coup : le moteur répondait juste, la fiche devis affichait bien
+         « cadence gelée », et le tableau de bord continuait de réclamer la relance — parce
+         que SES devis, eux, n'avaient plus de champ « attentes ». Trouvé en rejouant le
+         GESTE, pas en relisant le code (règle 2). */
+      attentes: d.attentes || [],
       // Nature du document. Absente = devis, forme historique de tous les enregistrements
       // antérieurs au dépannage : c'est ce défaut qui rend le changement rétro-compatible.
       type_document: d.type_document || 'devis',
@@ -1608,6 +1615,92 @@
     if (h.length) return jour(h[0]);
     return jour(d.date_creation || d.date_modification);
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     LA MISE EN ATTENTE — arrêter la cadence SANS perdre le dossier
+     ══════════════════════════════════════════════════════════════════════════════════════
+     Demande de Nicolas, 11/10/2026, sur un cas réel (Doris Zurstrassen) : relance 1 envoyée,
+     la cliente répond « je reviens vers vous en novembre ». L'ERP, lui, réclamait la relance 2.
+     « La deuxième relance n'est pas obligatoire ici, juste tenir à l'œil novembre — pouvoir
+     arrêter ce décompte, mettre pourquoi, et me rappeler en novembre. »
+     ⚠️ LE PROBLÈME N'ÉTAIT PAS LA CADENCE, C'ÉTAIT QU'ELLE NE SAIT RIEN DE LA CONVERSATION.
+     Elle compte des jours depuis l'envoi ; elle ne peut pas savoir qu'une réponse est arrivée
+     entre-temps. Et un écran qui réclame une relance qu'on ne fera pas, on apprend très vite à
+     ne plus le lire — ce qui coûte AUSSI les relances qu'il fallait vraiment envoyer.
+     ⚠️ CE N'EST PAS UN STATUT DE PLUS, et c'est tout le choix de conception. Un statut
+     « en attente » aurait fait perdre l'information « où en est la cadence » (relance 1 faite),
+     il aurait fallu le remettre à sa valeur précédente ensuite, et personne ne le ferait. Une
+     mise en attente se POSE PAR-DESSUS : les statuts continuent de fonctionner normalement,
+     elle ne fait que REPOUSSER l'échéance et porter le pourquoi.
+     ⚠️ DEUX CHAMPS, ET LES DEUX SONT OBLIGATOIRES.
+     • LE MOTIF : sans lui, trois semaines plus tard, on a un dossier gelé dont personne ne sait
+       pourquoi il l'est — exactement le défaut que la décision écrite corrige sur un sujet
+       (règle 16) et la réparation sur un ticket SAV (règle 20 bis).
+     • LA DATE : une mise en attente sans date n'est pas une attente, c'est un trou. Le dossier
+       sortirait de tous les compteurs et ne reviendrait JAMAIS. « Une chose sans date n'est
+       jamais urgente » (règle 15) — ici elle ne serait même plus visible.
+     ⚠️ L'ATTENTE S'ÉTEINT TOUTE SEULE. Au jour dit, elle devient échue : la cadence reprend
+     exactement où elle en était, et le motif s'affiche À CÔTÉ de la relance réclamée — c'est au
+     moment d'écrire le message qu'on a besoin de savoir ce que le client avait dit. Aucun geste
+     à faire pour « réveiller » le dossier : un rappel qui dépend d'un geste n'arrive jamais.
+     ⚠️ ELLE NE SUSPEND QUE CE QUI POUSSE LE CLIENT À ACCEPTER — la cadence de relance, et rien
+     d'autre. Pas l'argent (acompte, solde) : une facture émise est une obligation, pas une
+     conversation. Pas le chantier (commande, pose) : ça dépend de nous, pas du client. D'où
+     `attenteApplicable`, qui limite la mise en attente aux devis qui attendent une réponse.
+     ⚠️ ET ELLE NE SORT JAMAIS VERS LE CLIENT : `attentes` n'est pas dans la liste blanche de
+     /api/devis-review (règle 31 ter). « Le client est en vacances » n'a rien à faire sur une
+     page qu'il peut ouvrir. */
+  const ATTENTE_STATUTS = ['envoye_client', 'relance_1', 'relance_2'];
+  /* Des motifs PRÊTS, mais le texte reste libre. Cinq, pas quinze : au-delà on hésite au moment
+     d'écrire, et un outil où l'on hésite à écrire ne sert plus à rien (même leçon que les quatre
+     natures d'un sujet, règle 14). Ce ne sont que des amorces : on les complète. */
+  const MOTIFS_ATTENTE = [
+    'Le client revient vers moi',
+    'En réflexion / compare des devis',
+    'Attend un budget ou un accord',
+    'Chantier reporté',
+    'Absent (vacances, travaux)',
+  ];
+  function attenteApplicable(d) {
+    if (!d || d.archive) return false;
+    if (d.client_accepted) return false;
+    return ATTENTE_STATUTS.indexOf(d.statut) !== -1;
+  }
+  /* La mise en attente COURANTE : la dernière qui n'a pas été levée. Les précédentes restent
+     dans le tableau — c'est la mémoire de la discussion, et elle se lit sur la fiche. */
+  function attenteCourante(d) {
+    const l = (d && Array.isArray(d.attentes)) ? d.attentes : [];
+    for (let i = l.length - 1; i >= 0; i--) if (l[i] && !l[i].levee_le) return l[i];
+    return null;
+  }
+  const ATTENTE_VIDE = { etat: 'aucune', active: false, echue: false, motif: '', revoir_le: '',
+                         par: '', le: '', id: '', jours: 0, texte: '' };
+  /**
+   * État de la mise en attente d'un devis.
+   * `active` = la cadence est gelée. `echue` = le jour dit est arrivé, la cadence a repris.
+   * ⚠️ « échue » dès que `revoir_le` est AUJOURD'HUI : le champ se lit « revenir dessus le »,
+   * donc ce jour-là le dossier doit être dans la liste du jour, pas encore masqué par l'attente.
+   */
+  function attenteClient(d) {
+    if (!attenteApplicable(d)) return ATTENTE_VIDE;
+    const a = attenteCourante(d);
+    const quand = a ? jour(a.revoir_le) : '';
+    if (!a || !/^\d{4}-\d{2}-\d{2}$/.test(quand)) return ATTENTE_VIDE;
+    const today = aujourdhui();
+    const reste = joursEntre(today, quand);        // > 0 = encore à venir
+    const echue = quand <= today;
+    return {
+      etat: echue ? 'echue' : 'active', active: !echue, echue: echue,
+      motif: String(a.motif || ''), revoir_le: quand, par: a.par || '', le: a.le || '',
+      id: a.id || '', jours: reste,
+      /* Le libellé court vit ICI, pas dans les quatre écrans qui l'affichent : c'est du
+         VOCABULAIRE (règle 10), et quatre copies finiraient par dire quatre choses. */
+      texte: echue
+        ? (reste === 0 ? 'À revoir aujourd\u2019hui'
+                       : 'À revoir — c’était prévu le ' + fmtDate(quand))
+        : 'En attente — à revoir le ' + fmtDate(quand) + (reste === 1 ? ' (demain)' : ' (dans ' + reste + ' j)'),
+    };
+  }
+
   /** État complet de la cadence : ce qui est fait, ce qui est dû, et quand. */
   function relanceEtat(d) {
     // ── Un BON D'INTERVENTION ne se relance pas ────────────────────────────────────────────
@@ -1634,6 +1727,7 @@
     doneMax = Math.max(doneMax, nStatut);
     const step = plan.find(s => s.n === doneMax + 1) || null;   // null = les 3 relances sont faites
     let due = step && envoi ? plusJours(envoi, step.j) : null;
+    const attente = attenteClient(d);
     // ÉCART MINIMUM APRÈS UNE RELANCE RÉELLE.
     // L'échéance ci-dessus est ancrée sur la date d'envoi, ce qui est voulu : un devis oublié
     // rattrape son retard. Mais prise seule, elle réclamait la relance suivante à la seconde où
@@ -1653,7 +1747,16 @@
         if (plancher > due) due = plancher;
       }
     }
+    /* ⚠️ LA MISE EN ATTENTE REPOUSSE L'ÉCHÉANCE, ELLE NE L'EFFACE PAS. Le client a dit quand il
+       revient : la relance suivante est due CE JOUR-LÀ, pas avant — et pas plus tard non plus.
+       On prend donc le MAXIMUM des deux : si la cadence tombe de toute façon après la date
+       annoncée, c'est la cadence qui gagne, et l'attente n'aura rien changé.
+       ⚠️ ET `retard` SUIT TOUT SEUL : il se déduit de `due`, donc geler la date suffit à faire
+       taire les quatre écrans qui réclament la relance. Un drapeau « ne pas relancer » en plus,
+       c'étaient deux vérités à tenir d'accord. */
+    if (attente.active && due && attente.revoir_le > due) due = attente.revoir_le;
     return {
+      attente: attente,
       kind: kind, plan: plan, envoi: envoi, today: today, done: done, doneMax: doneMax, step: step,
       jours: envoi ? joursEntre(envoi, today) : 0,
       due: due,
@@ -1780,6 +1883,8 @@
     manquantsDevis: manquantsDevis, nbManquants: nbManquants, badgeManquants: badgeManquants,
     RELANCE_PLAN: RELANCE_PLAN, planRelance: planRelance, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
+    attenteClient: attenteClient, attenteApplicable: attenteApplicable,
+    attenteCourante: attenteCourante, MOTIFS_ATTENTE: MOTIFS_ATTENTE,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
     deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline, poidsInline: poidsInline,
     dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,

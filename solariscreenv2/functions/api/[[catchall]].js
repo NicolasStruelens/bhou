@@ -404,6 +404,10 @@ export async function onRequest(context) {
                -- le blob, photos comprises, pour chaque ligne de la liste.
                LENGTH(data) AS poids,
                json_extract(data, '$.relances') AS relances_json,
+               -- Mises en attente : le tableau de bord en a besoin pour savoir si la cadence est
+               -- gelée, donc pour ne pas réclamer une relance qu'on a explicitement reportée.
+               -- Petit tableau de texte, aucune photo : le coût est négligeable.
+               json_extract(data, '$.attentes') AS attentes_json,
                -- Nature du document : un dépannage n'a pas d'ouvertures, ce qui autrement le
                -- ferait passer pour un devis vide (« 0 ouverture », aucun type de produit).
                json_extract(data, '$.type_document') AS type_document,
@@ -467,6 +471,7 @@ export async function onRequest(context) {
         const items_min = safeParse(r.items_min_json) || [];
         // Relances envoyées : nécessaires au tableau de bord pour savoir quelle relance est due.
         const relances = safeParse(r.relances_json) || [];
+        const attentes = safeParse(r.attentes_json) || [];
         // Planification d'un dépannage, regroupée pour le planning. On garde `motif` parce que c'est
         // le seul texte qui identifie une intervention dans une grille ; le reste du rapport
         // (constat, garantie, suite à donner) n'a rien à faire dans une liste.
@@ -477,9 +482,9 @@ export async function onRequest(context) {
           motif: r.dep_motif || '',
           techniciens: safeParse(r.dep_techniciens_json) || [],
         } : null;
-        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json; delete r.items_min_json;
+        delete r.client_json; delete r.statut_history_json; delete r.chantier_json; delete r.checklist_json; delete r.review_views_json; delete r.sav_tickets_json; delete r.item_types_json; delete r.relances_json; delete r.attentes_json; delete r.items_min_json;
         delete r.dep_date; delete r.dep_heure; delete r.dep_duree_h; delete r.dep_motif; delete r.dep_techniciens_json;
-        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, items_min, relances, depannage_plan };
+        return { ...r, client, statut_history, chantier, checklist, review_views, sav_tickets, item_types, items_min, relances, attentes, depannage_plan };
       });
       return json({ ok: true, data });
     }
@@ -684,6 +689,76 @@ export async function onRequest(context) {
       ).bind(JSON.stringify(tickets), now, id).run();
       return json({ ok: true, ticket, sav_tickets: tickets, date_modification: now });
     }
+    /* ── MISE EN ATTENTE D'UN DEVIS (écriture CIBLÉE) ──────────────────────────
+       « J'ai envoyé la relance 1 et la cliente m'a répondu qu'elle revient en novembre » : la
+       cadence ne peut pas le deviner, et un écran qui réclame une relance qu'on ne fera pas, on
+       apprend à ne plus le lire. Voir SSUI.attenteClient pour la règle complète.
+       ⚠️ LES DEUX CHAMPS SONT OBLIGATOIRES, et c'est le serveur qui le tient : un motif vide
+       donne un dossier gelé dont personne ne sait pourquoi, une date vide donne un dossier qui
+       sort de tous les compteurs et ne revient jamais.
+       ⚠️ LA DATE EST DANS LE FUTUR : une attente « jusqu'à hier » est née échue, donc elle n'a
+       servi à rien — autant le dire tout de suite plutôt que de laisser croire que c'est posé.
+       ⚠️ L'AUTEUR EST SIGNÉ PAR LE SERVEUR, comme les notes et les décisions : l'identité vient
+       d'Access, elle ne se choisit pas dans un menu. */
+    let mAttente = path.match(/^\/api\/devis\/([^/]+)\/attente$/);
+    if (mAttente && method === 'POST') {
+      const id = decodeURIComponent(mAttente[1]);
+      const body = await request.json().catch(() => ({}));
+      const motif = String(body.motif || '').trim().slice(0, 500);
+      const revoir = String(body.revoir_le || '').slice(0, 10);
+      if (!motif) return json({ ok: false, error: 'Dis pourquoi tu mets ce devis en attente \u2014 sans ça, dans trois semaines, personne ne saura pourquoi il est gelé.' }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(revoir)) return json({ ok: false, error: 'Date de reprise manquante.' }, 400);
+      const aujourdhui = new Date().toISOString().slice(0, 10);
+      if (revoir <= aujourdhui) return json({ ok: false, error: 'La date de reprise doit être dans le futur \u2014 sinon l\u2019attente est échue dès sa création.' }, 400);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const liste = Array.isArray(d.attentes) ? d.attentes.slice() : [];
+      const now = new Date().toISOString();
+      const qui = (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null;
+      // La dernière attente non levée se MODIFIE au lieu d'en empiler une seconde : corriger une
+      // date ou un motif est le geste normal, et deux attentes ouvertes n'auraient aucun sens.
+      let i = -1;
+      for (let k = liste.length - 1; k >= 0; k--) if (liste[k] && !liste[k].levee_le) { i = k; break; }
+      const att = {
+        id: (i !== -1 && liste[i].id) || ('att_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+        motif: motif, revoir_le: revoir,
+        par: (i !== -1 && liste[i].par) || qui, le: (i !== -1 && liste[i].le) || now,
+        // Trace de la DERNIÈRE correction : une date repoussée trois fois, ça se voit et ça dit
+        // quelque chose sur le dossier.
+        modifie_le: (i !== -1) ? now : null, modifie_par: (i !== -1) ? qui : null,
+        levee_le: null, levee_par: null,
+      };
+      if (i !== -1) liste[i] = att; else liste.push(att);
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.attentes', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(liste), now, id).run();
+      return json({ ok: true, attente: att, attentes: liste, date_modification: now });
+    }
+    if (mAttente && method === 'DELETE') {
+      const id = decodeURIComponent(mAttente[1]);
+      const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const liste = Array.isArray(d.attentes) ? d.attentes.slice() : [];
+      let i = -1;
+      for (let k = liste.length - 1; k >= 0; k--) if (liste[k] && !liste[k].levee_le) { i = k; break; }
+      if (i === -1) return json({ ok: true, attentes: liste });   // déjà levée : rien à faire
+      const now = new Date().toISOString();
+      // LEVÉE, PAS SUPPRIMÉE : ce qu'on s'est dit avec le client reste la mémoire du dossier, et
+      // c'est précisément ce qu'on vient relire trois semaines plus tard.
+      liste[i] = Object.assign({}, liste[i], {
+        levee_le: now,
+        levee_par: (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null,
+      });
+      await env.DB.prepare(
+        `UPDATE devis SET data = json_set(data, '$.attentes', json(?1), '$.date_modification', ?2),
+           date_modification = ?2 WHERE id = ?3`
+      ).bind(JSON.stringify(liste), now, id).run();
+      return json({ ok: true, attentes: liste, date_modification: now });
+    }
+
     // ── TICKET SAV : note interne (écriture CIBLÉE sur le seul ticket concerné) ──
     // « J'ai appelé le client, il rappelle lundi », « pièce commandée chez Harol ». Sans ça, un
     // ticket ouvert depuis trois semaines ne dit pas ce qui a déjà été tenté — et on recommence.
@@ -2104,13 +2179,20 @@ async function upsertDevis(db, devis) {
   let comments = Array.isArray(merged.comments) ? merged.comments : [];
   if (existing && Array.isArray(existing.comments)) comments = existing.comments;
 
+  // MÊME INVARIANT POUR LES MISES EN ATTENTE : elles ne sont modifiées que par la route ciblée
+  // /api/devis/:id/attente. La fiche devis garde un DEVIS complet en mémoire et le réenregistre
+  // au moindre changement de statut — sans ceci, poser une attente puis changer le statut depuis
+  // un onglet resté ouvert l'effacerait en silence, et la cadence se remettrait à réclamer.
+  let attentes = Array.isArray(merged.attentes) ? merged.attentes : [];
+  if (existing && Array.isArray(existing.attentes)) attentes = existing.attentes;
+
   const photosCount = (merged.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
   const commentsCount = comments.length;
   // Dénormalise les types de produits présents (petit tableau de chaînes) pour que la liste
   // /api/devis n'ait pas à extraire les items complets (avec leurs photos base64) juste pour ça.
   const itemTypes = [...new Set((merged.items || []).map(i => i.type).filter(Boolean))];
   const dataToStore = Object.assign({}, merged, {
-    comments, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes,
+    comments, attentes, photos_count: photosCount, comments_count: commentsCount, item_types: itemTypes,
   });
   // Les colonnes indexées sont dérivées de la version FUSIONNÉE (pas du payload brut) : un écran
   // qui omet `statut` ne doit pas faire retomber le devis en « brouillon ».
