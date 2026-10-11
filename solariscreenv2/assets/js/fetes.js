@@ -129,47 +129,6 @@
      ───────────────────────────────────────────────────────────────────────────────────────── */
 
   // Trois cristaux différents : une neige d'un seul flocon répété se voit tout de suite.
-  /* ══════ L'OMBRE QUI PASSE ══════
-     Demande de Nicolas, 11/10/2026 : une animation qui traverse le bandeau de gauche à droite,
-     UNE SEULE FOIS à chaque arrivée sur une page de l'ERP.
-     ⚠️ PREMIÈRE VERSION JETÉE, ET LE VERDICT ÉTAIT JUSTE : « absolument horrible ». C'était un
-     CORTÈGE — une brume, un fantôme et un chat noir, pleins, opaques, qui se suivaient en
-     traversée. Trois objets lisibles, bien dessinés… et le résultat était une banderole de fête
-     foraine en haut d'un outil de travail. Le défaut ne tenait à aucun des trois : il tenait à
-     ce qu'ils étaient TROIS, PLEINS et NETS.
-     CE QUI A ÉTÉ GARDÉ : le moteur (une seule traversée, la file d'attente pour la pensée du
-     jour, le retrait automatique). CE QUI A CHANGÉ : tout le reste.
-     ⚠️ UN SEUL OBJET, ET C'EST UNE OMBRE. Pas un personnage qui traverse : quelque chose qui
-     PASSE AU-DESSUS. Trois réglages font tout le travail, et aucun n'est un détail :
-     • LE FLOU (2 px). C'est lui qui transforme un autocollant en ombre portée. Sans lui, le
-       même dessin à la même opacité reste une forme collée sur le bandeau.
-     • L'OPACITÉ BASSE (0,16 / 0,13). On doit pouvoir LIRE le bandeau pendant le passage — le
-       nom du client, le bouton « Nouveau devis ». Un décor ne dit rien (règle 28) : ici il ne
-       doit même pas se faire remarquer, juste se faire SENTIR.
-     • LA LENTEUR (7 s). Un objet rapide attire l'œil et le retient ; un objet lent se laisse
-       ignorer, et c'est exactement ce qu'on veut d'un décor au-dessus d'un écran de travail.
-     ⚠️ ET IL DESCEND LÉGÈREMENT EN TRAVERSANT. Une trajectoire parfaitement horizontale se lit
-     comme un élément d'interface qui glisse ; une légère dérive se lit comme un vol. */
-
-  /* LE CORBEAU, vu de dessous, ailes déployées en vol plané. Un corbeau et pas une
-     chauve-souris : celle-ci traverse DÉJÀ le ciel (règle 28 — deux fois le même dessin, c'est
-     un objet et sa copie), et une aile de chauve-souris a des doigts, donc du détail — or un
-     détail flouté à 16 % devient une bouillie. Le corbeau se reconnaît à sa seule silhouette :
-     deux ailes en faux, un corps fuselé, une queue en coin. C'est le dessin qui RESTE juste
-     quand on lui enlève la netteté. */
-  const CORBEAU =
-    '<svg viewBox="0 0 92 40" fill="currentColor">' +
-    // Les deux ailes : une seule forme chacune, balayée vers l'arrière.
-    '<path class="ssfete-plane" d="M46,18C37,9 24,3 6,2C17,8 29,13 39,19Z"/>' +
-    '<path class="ssfete-plane" style="animation-delay:.25s" d="M46,21C37,30 24,36 6,37C17,31 29,26 39,20Z"/>' +
-    // La queue, en coin : elle dit le sens du vol autant que la tête.
-    '<path d="M40,19.5L26,15L29,19.5L26,24Z"/>' +
-    // Le corps fuselé, la tête et le bec.
-    '<ellipse cx="54" cy="19.5" rx="14" ry="4.4"/>' +
-    '<circle cx="68" cy="18.5" r="4"/>' +
-    '<path d="M71.5,17.5L80,19.3L71.5,20.6Z"/></svg>';
-
-
   const FLOCONS = ['M0,0L10,0M4.4,0l2.09,2.68M4.4,0l2.09,-2.68M7.2,0l1.6,2.05M7.2,0l1.6,-2.05M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.2,3.81l-1.27,3.15M2.2,3.81l3.37,0.47M3.6,6.24l-0.97,2.41M3.6,6.24l2.57,0.36M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.2,3.81l-3.37,0.47M-2.2,3.81l1.27,3.15M-3.6,6.24l-2.57,0.36M-3.6,6.24l0.97,2.41M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-4.4,0l-2.09,-2.68M-4.4,0l-2.09,2.68M-7.2,0l-1.6,-2.05M-7.2,0l-1.6,2.05M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.2,-3.81l1.27,-3.15M-2.2,-3.81l-3.37,-0.47M-3.6,-6.24l0.97,-2.41M-3.6,-6.24l-2.57,-0.36M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.2,-3.81l3.37,-0.47M2.2,-3.81l-1.27,-3.15M3.6,-6.24l2.57,-0.36M3.6,-6.24l-0.97,-2.41M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z', 'M0,0L10,0M5.5,0l1.9,3.29M5.5,0l1.9,-3.29M10,0l2.65,1.41M10,0l2.65,-1.41M0,0L5,8.66M2.75,4.76l-1.9,3.29M2.75,4.76l3.8,0M5,8.66l0.1,3M5,8.66l2.54,1.59M0,0L-5,8.66M-2.75,4.76l-3.8,0M-2.75,4.76l1.9,3.29M-5,8.66l-2.54,1.59M-5,8.66l-0.1,3M0,0L-10,0M-5.5,0l-1.9,-3.29M-5.5,0l-1.9,3.29M-10,0l-2.65,-1.41M-10,0l-2.65,1.41M0,0L-5,-8.66M-2.75,-4.76l1.9,-3.29M-2.75,-4.76l-3.8,0M-5,-8.66l-0.1,-3M-5,-8.66l-2.54,-1.59M0,0L5,-8.66M2.75,-4.76l3.8,0M2.75,-4.76l-1.9,-3.29M5,-8.66l2.54,-1.59M5,-8.66l0.1,-3', 'M0,0L10,0M3.6,0l1.84,1.84M3.6,0l1.84,-1.84M6.2,0l2.26,2.26M6.2,0l2.26,-2.26M8.4,0l1.41,1.41M8.4,0l1.41,-1.41M0,0L5,8.66M1.8,3.12l-0.67,2.51M1.8,3.12l2.51,0.67M3.1,5.37l-0.83,3.09M3.1,5.37l3.09,0.83M4.2,7.27l-0.52,1.93M4.2,7.27l1.93,0.52M0,0L-5,8.66M-1.8,3.12l-2.51,0.67M-1.8,3.12l0.67,2.51M-3.1,5.37l-3.09,0.83M-3.1,5.37l0.83,3.09M-4.2,7.27l-1.93,0.52M-4.2,7.27l0.52,1.93M0,0L-10,0M-3.6,0l-1.84,-1.84M-3.6,0l-1.84,1.84M-6.2,0l-2.26,-2.26M-6.2,0l-2.26,2.26M-8.4,0l-1.41,-1.41M-8.4,0l-1.41,1.41M0,0L-5,-8.66M-1.8,-3.12l0.67,-2.51M-1.8,-3.12l-2.51,-0.67M-3.1,-5.37l0.83,-3.09M-3.1,-5.37l-3.09,-0.83M-4.2,-7.27l0.52,-1.93M-4.2,-7.27l-1.93,-0.52M0,0L5,-8.66M1.8,-3.12l2.51,-0.67M1.8,-3.12l-0.67,-2.51M3.1,-5.37l3.09,-0.83M3.1,-5.37l-0.83,-3.09M4.2,-7.27l1.93,-0.52M4.2,-7.27l-0.52,-1.93M2.6,0L1.3,2.25L-1.3,2.25L-2.6,0L-1.3,-2.25L1.3,-2.25Z'].map(function (d) {
     return '<svg viewBox="-13 -13 26 26" fill="none" stroke="currentColor" stroke-width="1.4" ' +
       'stroke-linecap="round" stroke-linejoin="round"><path d="' + d + '"/></svg>';
@@ -942,25 +901,6 @@
           teinte: { sombre: '#ff9f1c', clair: '#e07c00' }, opacite: { sombre: 0.85, clair: 0.9 } },
       },
       // Traversent l'écran. `rare: true` = masqué sur petit écran (voir le CSS).
-      /* UNE SEULE OMBRE, ET ELLE TRAVERSE LE CIEL (voir CORBEAU et `poserDefile`).
-         ⚠️ LES VALEURS ONT DOUBLÉ EN PASSANT DU BANDEAU AU CIEL, et c'est la conséquence
-         directe du changement de scène : 86 px à 13 % derrière des boutons, c'était invisible ;
-         120 px à 22 % sur un écran entier, ça se remarque sans rien empêcher de lire. La
-         consigne de Nicolas tient dans les deux mots qu'il a employés : « très discret » ET
-         « beau » — le premier seul donne un décor absent.
-         ⚠️ LE FLOU TOMBE À 1,2 px. Il reste indispensable (c'est lui qui fait une OMBRE qui
-         passe plutôt qu'un autocollant qui glisse), mais à 2 px sur 120 px la silhouette
-         devenait une tache : un corbeau ne se reconnaît qu'à son profil.
-         ⚠️ ET IL DESCEND EN TRAVERSANT (`derive`). Une trajectoire parfaitement horizontale se
-         lit comme un élément d'interface qui glisse ; une légère chute se lit comme un vol.
-         `flou` et `derive` n'existent QUE pour cet emplacement : un volant tourne en boucle,
-         lui, et une ombre qui repasse toutes les trente secondes n'est plus un événement. */
-      defile: {
-        objets: [
-          { svg: CORBEAU, taille: 120, haut: '24%', duree: 8, retard: 0.8, flou: 1.2, derive: 26,
-            teinte: { sombre: '#cdbfe8', clair: '#2a2136' }, opacite: { sombre: 0.3, clair: 0.22 } },
-        ],
-      },
       volants: [
         { svg: CHAUVE_SOURIS, taille: 46, haut: '16%', duree: 24, retard: 3, ailes: true,
           teinte: { sombre: '#b9a6e8', clair: '#7a63c4' }, opacite: { sombre: 0.42, clair: 0.3 } },
@@ -1312,9 +1252,6 @@
     if (f.rail && f.rail.pied) l.push(['railpied', f.rail.pied]);
     if (f.tombe) l.push(['tombe', f.tombe]);
     (f.volants || []).forEach(function (v, i) { l.push(['vol' + i, v]); });
-    // Les objets du cortège passent par le même mécanisme de teinte que tout le reste :
-    // ajouter un emplacement, c'est l'ajouter ICI et nulle part ailleurs (règle 28).
-    ((f.defile && f.defile.objets) || []).forEach(function (o, i) { l.push(['def' + i, o]); });
     return l;
   }
 
@@ -1329,9 +1266,7 @@
       const n = e[0], d = e[1];
       sombre.push('--ssf-' + n + '-c:' + ton(d.teinte, 'sombre') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'sombre') + ';');
       clair.push('--ssf-' + n + '-c:' + ton(d.teinte, 'clair') + ';--ssf-' + n + '-o:' + ton(d.opacite, 'clair') + ';');
-      const sel = CIBLE[n] || (n.slice(0, 3) === 'def'
-      ? '.ssfete-def[data-i="' + n.slice(3) + '"]'
-      : '.ssfete-vol[data-i="' + n.slice(3) + '"]');
+      const sel = CIBLE[n] || ('.ssfete-vol[data-i="' + n.slice(3) + '"]');
       regles.push(sel + ' { color: var(--ssf-' + n + '-c); opacity: var(--ssf-' + n + '-o); }');
     });
     /* Les teintes « claires » ne visent plus le seul thème `light` : elles visent TOUS les
@@ -1447,52 +1382,6 @@
     if (pied) rail.style.paddingBottom = (pied.offsetHeight + 18) + 'px';
   }
 
-  /* ══════ LE CORTÈGE ── une seule traversée, à l'arrivée sur la page ══════
-     Demande de Nicolas (11/10/2026) : une animation qui traverse le bandeau de gauche à droite
-     UNE FOIS à chaque ouverture de page, sur toutes les pages de l'ERP.
-     ⚠️ IL N'EST PAS DANS `poser()`, ET C'EST ESSENTIEL. `poser` est rejoué par le
-     MutationObserver à chaque rendu de liste — des dizaines de fois sur un tableau de bord qui
-     se filtre. Le cortège repartirait à chaque frappe dans la recherche, ce qui est le contraire
-     exact de « une seule fois ». Il est appelé par `monter()`, qui ne tourne qu'au chargement
-     (et à un aperçu explicite, où le rejouer est justement ce qu'on veut voir).
-     ⚠️ IL SE RETIRE TOUT SEUL à la fin. Laissé en place, il garderait trois éléments animés au
-     repos en haut de chaque page, pour toujours — et un `overflow: hidden` sur le bandeau pour
-     rien.
-     ⚠️ MOUVEMENT RÉDUIT : rien du tout. Ce décor n'existe QUE par son mouvement ; le figer au
-     milieu du bandeau serait pire que de ne pas l'afficher (même règle que le ciel). */
-  const DEFILE = 'ssfete-cortege';
-  function poserDefile(f) {
-    const d = f.defile;
-    if (!d || !(d.objets || []).length) return;
-    if (document.getElementById(DEFILE)) return;        // déjà passé sur cette page
-    if (!document.body) return;
-    try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
-    const box = document.createElement('div');
-    box.id = DEFILE;
-    box.className = 'ssfete ssfete-defile';
-    box.setAttribute('aria-hidden', 'true');
-    let fin = 0;
-    d.objets.forEach(function (o, i) {
-      const e = document.createElement('div');
-      e.className = 'ssfete-def';
-      e.setAttribute('data-i', String(i));              // cible la règle de teinte de CET objet
-      e.style.width = o.taille + 'px';
-      e.style.top = o.haut;
-      /* ⚠️ LE FLOU EST CE QUI FAIT L'OMBRE. Sans lui, le même dessin à la même opacité reste
-         une forme COLLÉE sur le bandeau ; avec, il passe AU-DESSUS. Il est posé ici et pas dans
-         la feuille de style parce qu'il appartient à l'objet, comme sa taille. */
-      if (o.flou) e.style.filter = 'blur(' + o.flou + 'px)';
-      // La dérive : une trajectoire parfaitement horizontale se lit comme un élément
-      // d'interface qui glisse. Quelques pixels de descente, et c'est un vol.
-      e.style.setProperty('--def-derive', (o.derive || 0) + 'px');
-      e.style.animation = 'ssfete-defile ' + o.duree + 's linear ' + o.retard + 's both';
-      e.innerHTML = '<span class="ssfete-def-i">' + dessin(o) + '</span>';
-      box.appendChild(e);
-      fin = Math.max(fin, (o.duree + o.retard) * 1000);
-    });
-    document.body.appendChild(box);
-    setTimeout(function () { const n = document.getElementById(DEFILE); if (n) n.remove(); }, fin + 200);
-  }
   /* ══════ LA TOUCHE DE SAISON SUR LE DOCUMENT ══════
      Demande de Nicolas, 11/10/2026 : « une case à cocher comme dans photos pour mettre ou pas,
      en saison de fête, les petites images du thème dans le devis — ça peut être sympa et festif
@@ -1512,9 +1401,9 @@
      la fête déclare déjà : son dessin de COIN, qui est justement tracé pour un angle, et sa
      MARQUE, qui est déjà son emblème à côté du logo. Les cinq fêtes sont donc servies sans une
      ligne de configuration en plus, et une sixième le sera sans y penser.
-     ⚠️ UN SEUL ENDROIT SUR LA FEUILLE. La leçon du cortège rejeté vaut ici encore plus fort :
-     trois touches dispersées sur un devis, c'est une carte de vœux, pas un devis. Un angle
-     haut-droit, derrière le numéro — là où un en-tête de saison se met depuis toujours.
+     ⚠️ UN SEUL ENDROIT SUR LA FEUILLE : trois touches dispersées sur un devis, c'est une
+     carte de vœux, pas un devis. Un angle haut-droit, derrière le numéro — là où un en-tête
+     de saison se met depuis toujours.
      ⚠️ LE COIN EST À 13 % ET L'EMBLÈME À 85 %. Le premier est un filigrane : il se sent, il ne
      se lit pas, et il ne doit jamais disputer sa place au numéro de devis qu'il accompagne. Le
      second est le seul vrai point de couleur de la feuille, et c'est lui qu'on remarquera. */
@@ -1682,35 +1571,6 @@
         from { transform: translate3d(-18vw, 0, 0); }
         to   { transform: translate3d(118vw, -6vh, 0); }
       }
-      /* ── LE CORTÈGE ── il traverse LE CIEL, une seule fois, à l'arrivée sur la page.
-         ⚠️ IL A D'ABORD TRAVERSÉ LE BANDEAU, ET C'ÉTAIT LA MAUVAISE SCÈNE. Le bandeau fait
-         60 px de haut et il est plein de boutons : pour qu'un objet n'y gêne pas la lecture, il
-         faut le descendre si bas en opacité qu'il DISPARAÎT. Mesuré à 13 % avec un flou de
-         2 px : parfaitement invisible derrière la pastille « Terrain ». Un décor qu'on ne voit
-         pas n'est pas discret, il est absent — et c'est la même leçon que l'araignée ancrée au
-         bandeau, essayée et retirée (voir la fête Halloween). Le ciel, lui, est DÉJÀ l'espace
-         du décor : il occupe tout l'écran, il passe derrière le contenu, et la sorcière y
-         prouve depuis le début qu'un objet s'y lit sans déranger personne.
-         ⚠️ MÊME PROFONDEUR QUE LE CIEL (z-index 3), et ce n'est pas un hasard : au-dessus du
-         contenu, loin sous le bandeau (100) et sous les modales (9000).
-         ⚠️ << overflow: hidden >> EST OBLIGATOIRE : sans lui, l'objet qui attend son retard est
-         visible à GAUCHE DE L'ÉCRAN, posé sur le contenu, avant d'entrer en scène.
-         ⚠️ << pointer-events: none >> vient de la classe .ssfete : rien de tout ceci ne doit
-         intercepter un clic sur << Nouveau devis >> pendant les huit secondes du passage. */
-      .ssfete-defile { position: fixed; inset: 0; overflow: hidden; z-index: 3; }
-      .ssfete-def { position: absolute; left: 0; will-change: transform; }
-      @keyframes ssfete-defile {
-        from { transform: translate3d(-26vw, 0, 0); }
-        to   { transform: translate3d(122vw, var(--def-derive, 0px), 0); }
-      }
-      /* ⚠️ PLUS D'ONDULATION DU CORPS ENTIER. Elle faisait sautiller l'objet, ce qui est la
-         différence exacte entre << quelque chose a survôlé >> et << un autocollant a traversé >>.
-         Le vol vit maintenant dans les AILES seules, et très lentement : un oiseau qui plane ne
-         bat pas des ailes, il les ajuste. */
-      .ssfete-def-i { display: block; }
-      .ssfete-plane { transform-box: fill-box; transform-origin: right center;
-        animation: ssfete-plane 3.2s ease-in-out infinite; }
-      @keyframes ssfete-plane { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.82); } }
       .ssfete-aile { transform-origin: center; animation: ssfete-aile 0.42s ease-in-out infinite alternate; }
       @keyframes ssfete-aile { from { transform: scaleY(1); } to { transform: scaleY(0.45); } }
       /* CE QUI TOMBE. L'emplacement s'appelle « tombe » et non « neige » parce que le meme
@@ -1807,11 +1667,10 @@
       /* Mouvement réduit : les décors FIXES restent, ceux qui ne vivent que par leur mouvement
          s'en vont. Les figer au milieu de l'écran serait pire que de ne rien afficher. */
       @media (prefers-reduced-motion: reduce) {
-        #${SKY}, .ssfete-defile { display: none; }
+        #${SKY} { display: none; }
         .ssfete-pendu, .ssfete-pendu .ssfete-fil, .ssfete-pendu .ssfete-bete { animation: none; }
         .ssfete-lueur, .ssfete-scintille, .ssfete-bulle, .ssfete-fumee,
-        .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule, .ssfete-flotte,
-        .ssfete-plane { animation: none; }
+        .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule, .ssfete-flotte { animation: none; }
       }
 
       /* À l'impression, rien. Jamais. */
@@ -1838,8 +1697,6 @@
 
     // 1. Les coins et le rail, puis on les repose à chaque rendu (voir surveiller()).
     poser(f);
-    // UNE SEULE FOIS, et donc ici et pas dans `poser()` : voir le commentaire de poserDefile.
-    poserDefile(f);
     surveiller();
 
     // 2. La marque à côté du logo.

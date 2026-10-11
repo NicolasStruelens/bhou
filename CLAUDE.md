@@ -70,7 +70,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
-| `tests/fetes.test.html` | Les 102 tests du calendrier des fêtes et du contrat des décors (cortège compris). |
+| `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
@@ -776,55 +776,36 @@ des cadeaux au pied : **un sapin seul est un sapin de catalogue, c'est ce qu'il 
 en fait un matin de Noël.** Ils tiennent dans la largeur déjà occupée, de part et d'autre du
 pot — élargir le viewBox aurait rétréci l'arbre à taille égale.
 
-⚠️ **LE CORTÈGE : UN DÉCOR PEUT ÊTRE UN ÉVÉNEMENT, PAS SEULEMENT UN ÉTAT.** Demande de
-Nicolas (11/10/2026) : « une animation sur le thème d'Halloween qui défile de gauche à droite
-UNE SEULE FOIS à chaque fois qu'on arrive sur la page, sur chaque page de l'ERP ». Emplacement
-`defile` : le ciel est un décor permanent, le cortège célèbre **l'arrivée sur la page**.
-⚠️ **IL A FALLU TROIS VERSIONS, ET LES DEUX PREMIÈRES SE SONT TROMPÉES EN SENS CONTRAIRE.**
-C'est la leçon la plus utile de ce décor, parce qu'elle vaut pour tous les suivants.
-1. **Trois objets pleins et nets dans le bandeau** (brume + fantôme + chat noir). Verdict de
-   Nicolas : « absolument horrible », et il avait raison — trois silhouettes opaques qui se
-   suivent en haut d'un outil de travail, c'est une **banderole de fête foraine**. Le défaut ne
-   tenait à aucun des trois dessins : il tenait à ce qu'ils étaient TROIS, PLEINS et NETS.
-2. **Un seul corbeau, flouté, à 13 %, toujours dans le bandeau.** Consigne suivie à la lettre
+⚠️ **LE CORTÈGE A ÉTÉ CONSTRUIT TROIS FOIS, PUIS RETIRÉ — ET C'EST L'HISTOIRE QUI COMPTE.**
+Demande de Nicolas (11/10/2026) : « une animation sur le thème d'Halloween qui défile de gauche
+à droite UNE SEULE FOIS à chaque fois qu'on arrive sur la page ». Un emplacement `defile` a donc
+été ajouté, puis **supprimé le jour même** à sa demande : « pour l'animation que j'avais
+demandée, on l'enlève, j'aime pas ». Il ne reste rien dans le code, et c'est volontaire :
+**ne pas le reconstruire sans que Nicolas le redemande.**
+Les trois versions valent d'être retenues, parce qu'elles se sont trompées en sens CONTRAIRE :
+1. **Trois objets pleins et nets dans le bandeau** (brume + fantôme + chat noir) — verdict :
+   « absolument horrible ». Le défaut ne tenait à aucun des trois dessins, il tenait à ce
+   qu'ils étaient TROIS, PLEINS et NETS : en haut d'un outil de travail, c'est une **banderole
+   de fête foraine**.
+2. **Un seul corbeau flouté à 13 %**, toujours dans le bandeau. Consigne suivie à la lettre
    (« très discret ») — et **parfaitement invisible**, mesuré à l'écran derrière la pastille
    « Terrain ». **Un décor qu'on ne voit pas n'est pas discret, il est absent.**
-3. **Le même corbeau dans LE CIEL**, à 120 px et 22 %. Il se remarque sans rien empêcher de lire.
-**La consigne tenait dans les deux mots que Nicolas avait employés : « très discret » ET
-« beau ». Le premier seul donne un décor absent ; le second seul donne une banderole.**
-⚠️ **LE BANDEAU EST LA MAUVAISE SCÈNE, ET ÇA N'EST PAS UNE QUESTION DE RÉGLAGE.** Il fait 60 px
-de haut et il est plein de boutons : pour qu'un objet n'y gêne pas la lecture, il faut le
-descendre si bas en opacité qu'il disparaît. **Aucune valeur ne convient** — exactement la
-conclusion à laquelle avait déjà mené l'araignée ancrée au bandeau, essayée et retirée. Le
-ciel, lui, est DÉJÀ l'espace du décor : plein écran, derrière le contenu, et la sorcière y
-prouve depuis le début qu'un objet s'y lit sans déranger personne. Même profondeur (z-index 3).
-⚠️ **ET LE DÉPLACEMENT A SUPPRIMÉ LA MOITIÉ DU CODE.** Tant que le cortège traversait le
-bandeau, il se disputait le même centimètre carré que la pensée du jour : il avait fallu une
-file d'attente (`apresDefile`), une enveloppe `try/finally` autour de `monter()` pour la libérer
-sur ses quatre sorties anticipées, et un filet de 2 s. Dans le ciel, **plus de conflit, donc
-plus rien de tout ça** — et plus de bandeau vide pendant les huit secondes du passage, ce que
-la file coûtait sans que ça se voie. **Quand un mécanisme devient compliqué, la question à
-poser n'est pas « comment le simplifier » mais « est-il au bon endroit ».**
-⚠️ **IL N'EST PAS DANS `poser()`, ET C'EST ESSENTIEL.** `poser` est rejoué par le
-`MutationObserver` à chaque rendu de liste — des dizaines de fois sur un tableau de bord qu'on
-filtre. Le cortège repartirait à chaque frappe dans la recherche : l'exact contraire de « une
-seule fois ». Il vit dans `monter()`, qui ne tourne qu'au chargement.
-⚠️ **UN DESSIN NEUF, ET C'ÉTAIT OBLIGATOIRE** : Halloween a déjà une toile, une araignée, des
-chauves-souris, une sorcière et une citrouille — et les deux dernières TRAVERSENT déjà le ciel.
-Reprendre l'une d'elles, c'eût été un objet et sa copie. Le corbeau plutôt qu'une chauve-souris :
-une aile de chauve-souris a des doigts, donc du détail — or **un détail flouté devient une
-bouillie**. Le corbeau se reconnaît à sa seule silhouette, c'est le dessin qui RESTE juste quand
-on lui enlève la netteté.
-⚠️ **LE FLOU EST CE QUI FAIT UNE OMBRE PLUTÔT QU'UN AUTOCOLLANT**, mais il se dose à la taille :
-2 px sur 86 px effaçaient la silhouette, 1,2 px sur 120 px la gardent. Et l'objet **descend en
-traversant** (`derive`) : une trajectoire parfaitement horizontale se lit comme un élément
-d'interface qui glisse, une légère chute se lit comme un vol.
-⚠️ **`overflow: hidden` SUR LE CONTENEUR N'EST PAS DE LA PROPRETÉ** : sans lui, l'objet qui
-attend son retard est visible à gauche de l'écran, posé sur le contenu, avant d'entrer en scène.
-⚠️ **IL SE RETIRE TOUT SEUL** à la fin : laissé en place, il garderait un élément animé au
-repos sur chaque page, pour toujours.
-⚠️ **MOUVEMENT RÉDUIT : RIEN DU TOUT.** Ce décor n'existe QUE par son mouvement ; le figer au
-milieu de l'écran serait pire que de ne pas l'afficher.
+3. **Le même corbeau dans le ciel**, à 120 px et 22 % : lisible, sans gêner. Techniquement
+   juste, et refusé quand même — **ce qui est la vraie conclusion.**
+⚠️ **LA LEÇON N'EST PAS UN RÉGLAGE, C'EST UNE QUESTION DE GENRE.** Les décors de ce fichier
+sont des ÉTATS : ils sont là, on les oublie, ils ne demandent rien. Une animation qui se
+DÉCLENCHE à l'arrivée sur la page est un ÉVÉNEMENT : elle réclame l'attention au moment précis
+où l'on vient travailler, et sur vingt pages par jour ça se paie. **Aucune valeur d'opacité ne
+répare ça** : entre « trop visible » et « invisible » il n'y avait pas de fenêtre, et les
+versions 1 et 2 sont la preuve des deux bords.
+⚠️ **ET LE BANDEAU RESTE LA MAUVAISE SCÈNE, quoi qu'on y mette.** 60 px de haut, plein de
+boutons : c'est déjà ce qui avait fait retirer l'araignée ancrée au bandeau. **Deux fois la
+même conclusion sur le même endroit — ne pas y revenir une troisième.**
+⚠️ **CE QUE LE RETRAIT A RAPPORTÉ** : l'emplacement `defile`, le dessin du corbeau, la file
+d'attente `apresDefile`, l'enveloppe `try/finally` autour de `monter()`, le filet de 2 s, le
+conteneur plein écran, deux jeux d'animations CSS et un cas de contrat par fête. **Une
+fonctionnalité qu'on retire rend toujours plus de code qu'elle n'en avait l'air** — ici la
+moitié n'existait que pour réparer les ennuis qu'elle causait.
 
 ⚠️ **LA TOUCHE DE SAISON SUR LE DOCUMENT — ET COMMENT ELLE NUANCE LA RÈGLE 1 SANS LA CASSER.**
 Demande de Nicolas (11/10/2026) : « une case à cocher comme dans photos pour mettre ou pas, en
