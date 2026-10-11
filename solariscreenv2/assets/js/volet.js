@@ -366,11 +366,41 @@
    * Comment l'encadré d'un groupe se nomme. Vide pour une seule ouverture : écrire
    * « ouverture 1 » sous la ligne 1 n'apprend rien et alourdit la seule chose qu'on lit.
    */
-  function titreGroupe(indices) {
+  /* ⚠️ L'INTITULÉ NOMME CE QU'ON ACHÈTE, PAS LES NUMÉROS DE LIGNE. Demande de Nicolas,
+     11/10/2026, sur un PDF réel : « “ Configuration retenue — ouvertures 1 et 2 ” devrait
+     devenir “ Configuration retenue — 4 volets ” ». Il a raison, et c'est une question de
+     POINT DE VUE : « ouvertures 1 et 2 » désigne des lignes d'un tableau — une notion
+     d'ERP — alors que le client, lui, compte des volets. Et le compte n'est pas le même : deux
+     lignes de quantités 1 et 3, ça fait QUATRE volets, ce que l'ancien intitulé ne disait nulle
+     part.
+     ⚠️ LA QUANTITÉ SE LIT COMME LA LIGNE LA LIT (`quantite || 1`), et surtout PAS avec
+     `SSRemu.quantiteDe` : celle-là est la règle de l'ARGENT (un zéro écrit vaut zéro, un
+     négatif vaut zéro). Ici on écrit un intitulé qui doit s'accorder au chiffre affiché dans la
+     colonne « Qté » juste au-dessus ; deux règles différentes, et l'encadré contredirait le
+     tableau.
+     ⚠️ TROIS REPLIS VERS L'ANCIEN INTITULÉ, et aucun n'est de la prudence gratuite : sans les
+     ouvertures (appel historique à un seul argument), avec des TYPES MÉLANGÉS dans un même
+     groupe, ou sans `SSUI` chargé — dans ces trois cas on ne peut pas nommer le produit
+     honnêtement, et un intitulé faux est pire qu'un intitulé technique.
+     ⚠️ LE VOCABULAIRE VIENT DE `SSUI.TYPE_FORMES` (règle 10), jamais d'une table locale : les
+     noms de types ont déjà vécu en treize copies, et elles avaient divergé. */
+  function titreLignes(indices) {
     const n = (indices || []).length;
     if (n < 2) return '';
     const a = indices[0] + 1, b = indices[n - 1] + 1;
     return n === 2 ? 'ouvertures ' + a + ' et ' + b : 'ouvertures ' + a + ' à ' + b;
+  }
+  function titreGroupe(indices, items) {
+    const idx = indices || [];
+    if (idx.length < 2) return '';            // un encadré seul ne se nomme pas : voir plus bas
+    const lot = idx.map(function (i) { return (items || [])[i]; }).filter(Boolean);
+    if (lot.length !== idx.length) return titreLignes(idx);
+    const types = lot.map(function (it) { return it.type; }).filter(Boolean);
+    const unSeulType = types.length === lot.length && types.every(function (t) { return t === types[0]; });
+    const formes = window.SSUI && window.SSUI.TYPE_FORMES && window.SSUI.TYPE_FORMES[types[0]];
+    if (!unSeulType || !formes) return titreLignes(idx);
+    const total = lot.reduce(function (s, it) { return s + (Number(it.quantite) || 1); }, 0);
+    return total + ' ' + (total > 1 ? formes[1] : formes[0]).toLowerCase();
   }
 
   window.SSVolet = {
