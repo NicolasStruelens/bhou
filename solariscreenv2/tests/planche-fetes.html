@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planche — décors de fête</title>
+  <!-- PAS une suite de tests : un BANC D'ESSAI. Il n'affirme rien, il MONTRE.
+       Raison d'être (règle 28, « juger sur planche avant de garder ») : un décor ne se juge
+       pas en situation, où il est petit, en mouvement et à 40 % d'opacité — on y voit qu'il
+       « va bien » alors qu'il est deux fois plus pauvre que son voisin. Côte à côte et
+       agrandis, ça saute aux yeux en une seconde. Cette page a fait retirer la fusée, refaire
+       le traîneau et les confettis, abandonner le saint sur son âne, et elle a montré d'un
+       coup que Noël avait le décor le plus timide de l'année.
+       ⚠️ Elle affiche CHAQUE dessin DEUX FOIS : à sa taille réelle et agrandi. Les deux sont
+       nécessaires — « ce qui ne se lit pas en grand ne se lira jamais en petit », mais un
+       dessin qui n'est beau qu'en grand est un dessin qu'on ne verra jamais.
+       ⚠️ Et toujours BASCULER LE THÈME : un seul des deux laisse passer la moitié des défauts
+       (une barbe crème disparaît sur fond crème, un relief sombre sur fond sombre). -->
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/theme-dark.css">
+  <link rel="stylesheet" href="../assets/css/theme-light.css">
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text);
+      padding: 20px; margin: 0; }
+    h1 { font-size: 18px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 4px; }
+    .barre { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 22px; }
+    button, select { font: inherit; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-subtle);
+      border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 26px 0 14px; }
+    .grille { display: flex; flex-wrap: wrap; gap: 14px; }
+    .carte { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 12px; min-width: 180px; }
+    .nom { font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-subtle); margin-bottom: 10px; }
+    .duo { display: flex; align-items: flex-end; gap: 16px; }
+    .vraie, .grande { display: flex; align-items: flex-end; }
+    .mes { font-size: 10px; color: var(--text-subtle); margin-top: 8px; font-family: ui-monospace, monospace; }
+    .ssfete-svg svg { width: 100%; height: auto; display: block; }
+    body.fige * { animation: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Planche des décors</h1>
+  <div class="barre">
+    <select id="fete"></select>
+    <button id="theme">Basculer le thème</button>
+    <label><input type="checkbox" id="anim" checked> animations</label>
+    <span id="info" class="mes"></span>
+  </div>
+  <div id="out"></div>
+
+  <script src="../assets/js/theme.js"></script>
+  <script src="../assets/js/fetes.js"></script>
+  <script>
+    const F = window.SSFetes;
+    const el = (id) => document.getElementById(id);
+    // Les décors d'une fête, NOMMÉS — même découpage que le moteur, pour qu'aucun emplacement
+    // n'échappe à la planche le jour où on en ajoute un.
+    function decors(f) {
+      const l = [];
+      if (f.coin) { l.push(['coin', f.coin]); if (f.coin.bete) l.push(['coin.bete', f.coin.bete]); }
+      if (f.marque) l.push(['marque', f.marque]);
+      if (f.rail && f.rail.coin) l.push(['rail.coin', f.rail.coin]);
+      if (f.rail && f.rail.pied) l.push(['rail.pied', f.rail.pied]);
+      (f.volants || []).forEach((v, i) => l.push(['volant ' + (i + 1), v]));
+      if (f.tombe) l.push(['tombe', f.tombe]);
+      return l;
+    }
+    const ton = (v, q) => (v && typeof v === 'object') ? v[q] : v;
+    const clair = () => {
+      const t = document.documentElement.getAttribute('data-theme');
+      return window.SSTheme.THEMES.some(x => x.id === t && x.clair);
+    };
+
+    function rendre() {
+      const f = F.FETES.find(x => x.id === el('fete').value) || F.FETES[0];
+      const q = clair() ? 'clair' : 'sombre';
+      el('info').textContent = f.du + ' → ' + f.au + ' · thème ' + q;
+      const html = decors(f).map(function (e) {
+        const nom = e[0], d = e[1];
+        // Une liste de dessins (neige, confettis) : on les montre TOUS. Un seul dessin répété
+        // se voit immédiatement — c'est exactement ce que la planche doit attraper.
+        const svgs = Array.isArray(d.svg) ? d.svg : [d.svg];
+        const couleur = 'color:' + ton(d.teinte, q) + ';opacity:' + ton(d.opacite, q);
+        const vraie = svgs.map(s => '<span class="ssfete-svg" style="width:' + d.taille + 'px;' + couleur + '">' + s + '</span>').join('');
+        // Agrandi : la même opacité serait trompeuse (on jugerait un dessin qu'on ne voit pas),
+        // donc on la relève sans l'effacer — c'est le DESSIN qu'on regarde ici.
+        const gros = svgs.map(s => '<span class="ssfete-svg" style="width:' + Math.max(d.taille * 2.6, 150) + 'px;color:' + ton(d.teinte, q) + '">' + s + '</span>').join('');
+        return '<div class="carte"><div class="nom">' + nom + ' — ' + d.taille + ' px</div>' +
+          '<div class="duo"><div class="vraie">' + vraie + '</div></div>' +
+          '<div class="mes">agrandi ×2,6, opacité pleine</div>' +
+          '<div class="duo" style="margin-top:8px"><div class="grande">' + gros + '</div></div></div>';
+      }).join('');
+      el('out').innerHTML = '<h2>' + f.nom + '</h2><div class="grille">' + html + '</div>';
+    }
+
+    F.FETES.forEach(f => el('fete').insertAdjacentHTML('beforeend', '<option value="' + f.id + '">' + f.nom + '</option>'));
+    const auj = F.active();
+    if (auj) el('fete').value = auj.id;
+    el('fete').addEventListener('change', rendre);
+    el('theme').addEventListener('click', function () {
+      // `false` : une planche NE DOIT RIEN ENREGISTRER. Sans lui, regarder les décors
+      // changerait le thème retenu de l'appareil — un banc d'essai qui modifie ce qu'il
+      // observe (règle 29 bis : une application automatique n'enregistre rien).
+      window.SSTheme.applyTheme(clair() ? 'dark' : 'light', false);
+      rendre();
+    });
+    // Les animations vivent dans la feuille du module, qui n'est montée que par un aperçu.
+    // Sans elle, les classes ssfete-* ne font rien — et on jugerait un décor figé.
+    /* Couper les animations se fait par une CLASSE, jamais par `F.allumer(false)` : celui-là
+       écrit le réglage de l'appareil, donc regarder la planche éteindrait les décors partout. */
+    el('anim').addEventListener('change', function () { document.body.classList.toggle('fige', !this.checked); });
+    F.apercu(el('fete').value);
+    rendre();
+  </script>
+</body>
+</html>

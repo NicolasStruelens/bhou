@@ -71,6 +71,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
 | `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
+| `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
@@ -673,6 +674,66 @@ COURBE, pas à la verticale du cadre, sinon elles ont l'air collées dessus.
 clignotent ENSEMBLE ne font pas une guirlande, elles font un gyrophare — et au bas d'un menu
 qu'on regarde toute la journée, ça se paie. Une sur cinq reste FIXE : **sans point de repère
 immobile, on ne voit plus ce qui bouge.**
+
+⚠️ **UN FIL À AMPOULES N'EST PAS UNE GUIRLANDE : IL LUI MANQUE LE FEUILLAGE.** Retour de
+Nicolas, 11/10/2026, sur la première version : « la guirlande bien, mais pas encore assez, je
+trouve, plus fini, plus de détail ». Il avait raison, et le défaut se nomme : un trait, trois
+attaches et six verres, c'est une **rallonge électrique**. Ce qui l'a réparée, dans l'ordre
+d'importance : seize touffes d'aiguilles le long du fil (le même détail qui rend la branche du
+rail lisible à 56 px) ; **trois couches par ampoule** — la masse (le verre), un détail à
+l'intérieur (le filament) et la lumière (deux halos) ; une douille filetée POSÉE par-dessus le
+verre, sans quoi l'ampoule flotte à côté du fil ; des baies de houx et un nœud, parce qu'un
+feuillage régulier de bout en bout est mécanique. **Et la teinte est passée au VERT** : elle
+était gris-bleu, la couleur d'un câble — juste tant que le dessin était un câble.
+⚠️ **LES ANGLES SE CALCULENT, ILS NE S'ESTIMENT PAS.** Chaque ampoule pend perpendiculairement
+à la courbe, et l'angle vient de la TANGENTE de la Bézier, calculée point par point. À l'œil,
+deux ou trois sortent toujours de travers — et c'est exactement ce qui fait « pas fini » sans
+qu'on sache dire pourquoi.
+⚠️ **UNE AMPOULE NE GROSSIT PAS QUAND ELLE S'ALLUME, ELLE ÉCLAIRE.** D'où `ssfete-ampoule`,
+séparée de `ssfete-scintille` : celle-là porte un `scale`, parfait pour une étoile, et qui
+décollerait le verre de sa douille à chaque pulsation. Pas de transform, donc pas besoin de
+`transform-box` — et quand l'animation est coupée (mouvement réduit), l'ampoule reste ALLUMÉE,
+ce qui est le bon état par défaut.
+
+⚠️ **CE QUI PEND NE SE RETOURNE PAS : `miroir: 'x'`.** Un décor de coin est mis en miroir selon
+l'angle qu'il occupe — juste pour une toile, dont le moyeu doit rester dans l'angle. Pour une
+guirlande c'est FAUX : retournée verticalement dans le coin bas-gauche, elle s'arque vers le
+haut et ses ampoules pointent vers le ciel. **La gravité ne se retourne pas avec le coin.** Un
+décor qui pend porte donc `miroir: 'x'` : haut-droite retourné horizontalement (la variété
+reste), bas-gauche tel qu'il est dessiné.
+
+⚠️ **LE PÈRE NOËL DANS LE TRAÎNEAU — ET POURQUOI CE N'EST PAS LE BATEAU DE SAINT-NICOLAS.**
+Demande de Nicolas (« et le père noël dans son traineau ? »). Le bateau avait été retiré parce
+qu'il fallait connaître la légende pour le comprendre ; ici c'est l'inverse, et c'est la même
+règle : un traîneau VIDE demande au lecteur de deviner à qui il est, le Père Noël dedans ne
+demande rien à personne. **Le critère reste « est-ce que ça se reconnaît sans explication ».**
+À 25 px de haut, ce qui le fait reconnaître, c'est le BONNET POINTU et la BARBE — un visage
+avec des yeux serait trois mouchetures. Toujours pas d'attelage (règle de l'âne) : le bras levé
+remplace les rênes et ne coûte pas un pixel de largeur.
+⚠️ **TOUT CE QUI EST CLAIR RESTE À L'INTÉRIEUR DU ROUGE** : barbe, visage, bandeau du bonnet,
+revers de manche sont POSÉS dans une masse rouge d'un seul tenant (buste + tête + bonnet),
+dessinée d'abord exprès pour qu'aucun d'eux ne puisse dépasser. C'est la leçon payée trois fois
+sur la planche de Saint-Nicolas. **Le pompon, lui, dépasse par nature : il est donc ROUGE**, avec
+un point crème à l'intérieur et une ombre qui le sépare du bonnet — deux formes voisines de
+même couleur ne se distinguent que par la ligne d'ombre qui passe entre elles.
+⚠️ **ET AUCUNE DÉCOUPE EN `var(--surface)` SUR UN VOLANT.** Un objet qui TRAVERSE la page n'a
+aucune carte sous lui : la découpe ne montre pas le fond, elle pose une tache claire. Les
+reliefs d'un volant sont des teintes plus SOMBRES de l'objet, qui se lisent sur les deux thèmes.
+
+⚠️ **DEUX CIELS POUVAIENT COEXISTER, ET LE SECOND SURVIVAIT AU NETTOYAGE.** `nettoyer()` retirait
+le ciel par `getElementById`, **qui ne rend que le PREMIER élément portant l'id**. Une page qui
+demande un aperçu avant le `DOMContentLoaded` (la planche le fait) en monte un, puis le montage
+automatique en monte un second sans passer par le nettoyage : **la sorcière d'Halloween
+continuait de traverser l'écran pendant l'aperçu de Noël**, sans la moindre erreur. On retire
+désormais par `querySelectorAll`, et `monter()` refuse d'en laisser deux. La leçon générale :
+**`getElementById` sur un id qu'on peut créer plusieurs fois est un nettoyage à moitié fait.**
+
+⚠️ **UN BORD LISSE NE FAIT PAS UN CONIFÈRE.** Les quatre étages du sapin du rail avaient un bas
+en courbe douce : ça se lisait comme un cône à étages. Dentelés, ils portent le mot
+« aiguilles » — même détail que les touffes de la guirlande, même raison. Et il y a désormais
+des cadeaux au pied : **un sapin seul est un sapin de catalogue, c'est ce qu'il y a dessous qui
+en fait un matin de Noël.** Ils tiennent dans la largeur déjà occupée, de part et d'autre du
+pot — élargir le viewBox aurait rétréci l'arbre à taille égale.
 
 ⚠️ **PAS DE PALETTE SUR LA NEIGE**, contrairement aux friandises et aux confettis : la neige est
 blanche, des flocons de six couleurs ne seraient plus de la neige. La variété vient des trois

@@ -313,49 +313,83 @@
     '<circle cx="21" cy="21.5" r="1.4" opacity=".45"/></g>' +
     '<path class="ssfete-scintille" fill="var(--accent-2)" d="M21,0C22.4,5.6 22.4,5.6 28,7C22.4,8.4 22.4,8.4 21,14C19.6,8.4 19.6,8.4 14,7C19.6,5.6 19.6,5.6 21,0Z"/></svg>';
 
-  /* ── LA GUIRLANDE LUMINEUSE ── le décor de COIN de Noël ─────────────────────────
+  /* ── LA GUIRLANDE DE SAPIN LUMINEUSE ── le décor de COIN de Noël ───────────────
      Demande de Nicolas, 11/10/2026 : « des guirlandes illuminées dans le décor aussi, qui
-     passent de cadre en cadre ». C est la bonne idée : une guirlande n est jamais un objet
-     isolé, c est quelque chose qui COURT — et le décor de coin se pose justement sur chaque
+     passent de cadre en cadre ». C'est la bonne idée : une guirlande n'est jamais un objet
+     isolé, c'est quelque chose qui COURT — et le décor de coin se pose justement sur chaque
      encadré de la page.
-     ⚠️ ELLE PREND LA PLACE DE LA BRANCHE DE SAPIN DANS LE COIN DES CARTES, elle ne s ajoute
-     pas : deux décors dans le même angle se recouvriraient, et le moteur n a qu un emplacement
+     ⚠️ ELLE PREND LA PLACE DE LA BRANCHE DE SAPIN DANS LE COIN DES CARTES, elle ne s'ajoute
+     pas : deux décors dans le même angle se recouvriraient, et le moteur n'a qu'un emplacement
      par coin. La branche reste dans le coin du RAIL, où elle est seule — chaque objet garde un
      endroit, aucun ne se bat avec un autre.
-     ⚠️ LE FIL PEND, IL NE PASSE PAS DROIT. Une ligne horizontale n est pas une guirlande,
-     c est un trait : c est la COURBE qui dit qu un fil est tendu entre deux points et qu il a
-     du poids. Les ampoules pendent donc perpendiculairement à la courbe, pas à la verticale du
-     cadre — sinon elles ont l air collées dessus.
-     ⚠️ LES AMPOULES S ALLUMENT EN VAGUE (retards de 0 à 2 s sur un cycle de 2,6), comme les
+     ⚠️ REFAITE LE 11/10/2026, et le retour qui l'a déclenchée dit exactement ce qui manquait :
+     « la guirlande bien, mais pas encore assez, je trouve, plus fini, plus de détail ». La
+     première version était un FIL À AMPOULES : un trait, trois attaches, six verres. Vrai, mais
+     nu — et un fil nu ne dit pas Noël, il dit rallonge électrique.
+     CE QUI A CHANGÉ, et pourquoi :
+     • DU FEUILLAGE. Seize touffes de cinq aiguilles courent le long du fil. C'est elles, et
+       elles seules, qui font la différence entre un câble et une GUIRLANDE DE SAPIN — le même
+       détail qui rend la branche du rail lisible à 56 px. Les longueurs suivent une suite
+       ÉCRITE, jamais un tirage au hasard : un décor doit se rendre à l'identique d'un
+       chargement à l'autre, sinon un défaut ne se reproduit pas.
+     • TROIS COUCHES PAR AMPOULE (règle 28) : la masse (le verre), un détail à l'intérieur (le
+       filament) et la lumière (deux halos). Une ellipse pleine d'une seule teinte sortait en
+       pastille ; avec son filament et son halo, elle se lit comme une ampoule ALLUMÉE.
+     • UNE DOUILLE FILETÉE par-dessus le verre : c'est ce qui POSE l'ampoule sur le fil au lieu
+       de la laisser flotter à côté.
+     • DES BAIES DE HOUX ET UN NŒUD au point de reprise. Sans eux le feuillage est régulier de
+       bout en bout, donc mécanique.
+     • ET LA TEINTE PASSE AU VERT. Elle était gris-bleu — la couleur d'un câble, juste tant que
+       le dessin était un câble. Du feuillage gris n'est pas du feuillage.
+     ⚠️ LE FIL PEND, IL NE PASSE PAS DROIT. Une ligne horizontale n'est pas une guirlande,
+     c'est un trait : c'est la COURBE qui dit qu'un fil est tendu entre deux points et qu'il a
+     du poids. Les ampoules pendent donc perpendiculairement À LA COURBE — l'angle de chacune
+     est CALCULÉ sur la tangente de la Bézier, pas estimé à l'œil : à la verticale du cadre,
+     elles auraient l'air collées dessus.
+     ⚠️ LES AMPOULES S'ALLUMENT EN VAGUE (retards de 0 à 1,7 s sur un cycle de 2,6), comme les
      boules du sapin : des ampoules qui clignotent ENSEMBLE ne font pas une guirlande, elles
-     font un gyrophare. Et une sur cinq reste fixe — sans point de repère immobile, on ne voit
-     plus ce qui bouge.
-     ⚠️ LES AMPOULES SONT EN COULEURS LITTÉRALES : elles sont POSÉES sur le fil, elles ne le
-     percent pas. Le fil, lui, suit `currentColor` et donc la teinte du thème. */
+     font un gyrophare. Et deux sur huit restent fixes — sans point de repère immobile, on ne
+     voit plus ce qui bouge.
+     ⚠️ L'ANIMATION EST « ampoule » ET NON « scintille », et la nuance coûte un défaut :
+     « scintille » porte un « scale », qui décollerait le verre de sa douille à chaque pulsation.
+     Une ampoule ne grossit pas quand elle s'allume, elle éclaire.
+     ⚠️ LES AMPOULES SONT EN COULEURS LITTÉRALES : elles sont POSÉES sur le feuillage, elles ne
+     le percent pas. Le feuillage, lui, suit currentColor et donc la teinte du thème.
+     ⚠️ PAS DE VERT PARMI LES AMPOULES : sur du feuillage vert, une ampoule verte disparaît. */
   const GUIRLANDE =
-    '<svg viewBox="0 0 124 52" fill="none">' +
-    // Le fil : deux arcs qui pendent, accrochés en trois points.
-    '<path d="M2,6C20,30 44,30 62,12C80,30 104,30 122,6" stroke="currentColor" stroke-width="2.2" ' +
-    'stroke-linecap="round" opacity=".85"/>' +
-    // Les attaches : sans elles, le fil flotte sans être accroché à quoi que ce soit.
-    '<g fill="currentColor" opacity=".9"><circle cx="2" cy="6" r="2.4"/><circle cx="62" cy="12" r="2.2"/>' +
-    '<circle cx="122" cy="6" r="2.4"/></g>' +
-    /* Les ampoules. Chacune = une douille (petit rectangle sur le fil) + le verre, et elles
-       pendent perpendiculairement à la courbe — d où les rotations. */
-    '<g>' +
-    '<g transform="translate(18,21) rotate(28)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse class="ssfete-scintille" style="animation-delay:0s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#e4554f"/></g>' +
-    '<g transform="translate(37,27) rotate(8)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse class="ssfete-scintille" style="animation-delay:.5s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#f0c24b"/></g>' +
-    '<g transform="translate(52,20) rotate(-22)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse cx="0" cy="6" rx="3.4" ry="4.4" fill="#8fc7e8"/></g>' +
-    '<g transform="translate(78,21) rotate(26)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse class="ssfete-scintille" style="animation-delay:1s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#f0c24b"/></g>' +
-    '<g transform="translate(97,27) rotate(6)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse class="ssfete-scintille" style="animation-delay:1.5s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#e4554f"/></g>' +
-    '<g transform="translate(112,18) rotate(-26)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
-    '<ellipse class="ssfete-scintille" style="animation-delay:2s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#8fc7e8"/></g>' +
-    '</g></svg>';
+    '<svg viewBox="0 0 154 50" fill="none">' +
+    // Les crochets : sans eux le fil flotte, accroche a rien du tout.
+    '<g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".75">' +
+    '<path d="M3,5L3,0M77,11L77,5M151,5L151,0"/></g>' +
+    // Le fil qui PEND : c est la courbe qui dit qu il est tendu entre deux points.
+    '<path d="M3,5C22,28 55,30 77,11C99,30 132,28 151,5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' +
+    // Les aiguilles : seize touffes, cinq brins chacune. C est elles qui font la
+    // difference entre un fil a ampoules et une GUIRLANDE DE SAPIN.
+    '<path d="M6.26,8.6l-0.75,5.87M6.26,8.6l-5.26,5.2M6.26,8.6l-6.32,0.74M6.26,8.6l1.02,-3.71M6.26,8.6l3.32,-0.75M10.07,12.1l-0.14,4.88M10.07,12.1l-3.9,4.69M10.07,12.1l-5.13,1.12M10.07,12.1l0.53,-3.13M10.07,12.1l2.66,-0.88M14.13,15.15l0.45,6.54M14.13,15.15l-4.59,6.79M14.13,15.15l-6.71,2.17M14.13,15.15l0.3,-4.25M14.13,15.15l3.45,-1.53M18.39,17.74l0.87,5.21M18.39,17.74l-3.15,5.8M18.39,17.74l-5.2,2.26M18.39,17.74l-0.09,-3.43M18.39,17.74l2.64,-1.5M22.83,19.87l1.62,6.03M22.83,19.87l-3.04,7.18M22.83,19.87l-5.86,3.26M22.83,19.87l-0.5,-4.03M22.83,19.87l2.94,-2.06M27.41,21.56l1.66,4.42M27.41,21.56l-1.77,5.63M27.41,21.56l-4.18,2.88M27.41,21.56l-0.67,-2.99M27.41,21.56l2.06,-1.77M32.1,22.78l2.95,6.04M32.1,22.78l-1.74,8.22M32.1,22.78l-5.53,4.65M32.1,22.78l-1.35,-4.15M32.1,22.78l2.68,-2.78M36.87,23.56l2.84,4.64M36.87,23.56l-0.77,6.76M36.87,23.56l-4.1,4.17M36.87,23.56l-1.41,-3.24M36.87,23.56l1.95,-2.45M41.69,23.88l3.46,4.61M41.69,23.88l-0.14,7.2M41.69,23.88l-3.91,4.8M41.69,23.88l-1.81,-3.28M41.69,23.88l1.81,-2.77M46.52,23.75l3.39,3.73M46.52,23.75l0.47,6.28M46.52,23.75l-3.01,4.5M46.52,23.75l-1.84,-2.71M46.52,23.75l1.35,-2.56M51.33,23.17l4.73,4.31M51.33,23.17l1.34,7.89M51.33,23.17l-3.27,6.05M51.33,23.17l-2.65,-3.2M51.33,23.17l1.4,-3.4M56.09,22.13l4.15,3.13M56.09,22.13l1.68,6.28M56.09,22.13l-2.18,5.15M56.09,22.13l-2.39,-2.39M56.09,22.13l0.87,-2.86M60.76,20.64l5.18,3.19M60.76,20.64l2.65,7.12M60.76,20.64l-1.98,6.23M60.76,20.64l-3.04,-2.52M60.76,20.64l0.7,-3.42M65.32,18.69l4.31,2.12M65.32,18.69l2.61,5.4M65.32,18.69l-1.09,5.04M65.32,18.69l-2.58,-1.75M65.32,18.69l0.3,-2.74M69.74,16.29l5.91,2.24M69.74,16.29l4.1,6.75M69.74,16.29l-0.8,6.75M69.74,16.29l-3.6,-1.98M69.74,16.29l0.05,-3.63M73.62,13.69l4.93,1.39M73.62,13.69l3.79,5.16M73.62,13.69l-0.17,5.5M73.62,13.69l-3.05,-1.34M73.62,13.69l-0.22,-2.94" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>' +
+    '<path d="M147.74,8.6l5.88,0.69M147.74,8.6l5.26,5.2M147.74,8.6l0.81,6.31M147.74,8.6l-3.72,-0.98M147.74,8.6l-0.78,-3.31M143.93,12.1l4.77,1.04M143.93,12.1l3.9,4.69M143.93,12.1l0.16,5.24M143.93,12.1l-2.97,-1.1M143.93,12.1l-0.38,-2.78M139.87,15.15l6.24,2.02M139.87,15.15l4.59,6.79M139.87,15.15l-0.48,7.04M139.87,15.15l-3.83,-1.86M139.87,15.15l-0.14,-3.77M135.61,17.74l4.84,2.11M135.61,17.74l3.15,5.8M135.61,17.74l-0.94,5.6M135.61,17.74l-2.93,-1.79M135.61,17.74l0.19,-3.03M131.17,19.87l5.45,3.03M131.17,19.87l3.04,7.18M131.17,19.87l-1.74,6.48M131.17,19.87l-3.24,-2.45M131.17,19.87l0.57,-3.54M126.59,21.56l3.89,2.68M126.59,21.56l1.77,5.63M126.59,21.56l-1.78,4.75M126.59,21.56l-2.26,-2.08M126.59,21.56l0.68,-2.63M121.9,22.78l5.14,4.32M121.9,22.78l1.74,8.22M121.9,22.78l-3.17,6.49M121.9,22.78l-2.92,-3.25M121.9,22.78l1.32,-3.63M117.13,23.56l3.81,3.88M117.13,23.56l0.77,6.76M117.13,23.56l-3.05,4.99M117.13,23.56l-2.1,-2.84M117.13,23.56l1.35,-2.82M112.31,23.88l3.64,4.47M112.31,23.88l0.14,7.2M112.31,23.88l-3.72,4.95M112.31,23.88l-1.94,-3.2M112.31,23.88l1.7,-2.84M107.48,23.75l2.8,4.19M107.48,23.75l-0.47,6.28M107.48,23.75l-3.64,4.01M107.48,23.75l-1.42,-2.95M107.48,23.75l1.71,-2.34M102.67,23.17l3.04,5.63M102.67,23.17l-1.34,7.89M102.67,23.17l-5.08,4.64M102.67,23.17l-1.45,-3.9M102.67,23.17l2.44,-2.75M97.91,22.13l2.03,4.79M97.91,22.13l-1.68,6.28M97.91,22.13l-4.46,3.36M97.91,22.13l-0.87,-3.26M97.91,22.13l2.19,-2.04M93.24,20.64l1.84,5.8M93.24,20.64l-2.65,7.12M93.24,20.64l-5.57,3.43M93.24,20.64l-0.66,-3.9M93.24,20.64l2.77,-2.13M88.68,18.69l1.01,4.69M88.68,18.69l-2.61,5.4M88.68,18.69l-4.63,2.28M88.68,18.69l-0.23,-3.11M88.68,18.69l2.34,-1.47M84.26,16.29l0.74,6.28M84.26,16.29l-4.1,6.75M84.26,16.29l-6.35,2.41M84.26,16.29l0.09,-4.11M84.26,16.29l3.25,-1.64M80.38,13.69l0.16,5.12M80.38,13.69l-3.79,5.16M80.38,13.69l-5.3,1.49M80.38,13.69l0.36,-3.31M80.38,13.69l2.73,-1.09" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".9"/>' +
+    // Les attaches, par-dessus le feuillage.
+    '<g fill="currentColor"><circle cx="3" cy="5" r="2.3"/><circle cx="77" cy="11" r="2.1"/>' +
+    '<circle cx="151" cy="5" r="2.3"/></g>' +
+    // Les baies de houx : quatre grappes de trois, POSEES sur le feuillage.
+    '<g fill="#c23b35"><circle cx="20.96" cy="21.64" r="1.7"/><circle cx="23.86" cy="23.14" r="1.4"/><circle cx="18.46" cy="23.34" r="1.5"/><circle cx="56.48" cy="24.62" r="1.7"/><circle cx="59.38" cy="26.12" r="1.4"/><circle cx="53.98" cy="26.32" r="1.5"/><circle cx="133.04" cy="21.64" r="1.7"/><circle cx="135.94" cy="23.14" r="1.4"/><circle cx="130.54" cy="23.34" r="1.5"/><circle cx="97.52" cy="24.62" r="1.7"/><circle cx="100.42" cy="26.12" r="1.4"/><circle cx="95.02" cy="26.32" r="1.5"/></g>' +
+    // Le noeud du milieu : il dit ou la guirlande est reprise.
+    '<g fill="#c23b35"><path d="M77,11C71.5,6.5 68,10.5 71.5,13C74,14.8 77,13.5 77,11Z"/>' +
+    '<path d="M77,11C82.5,6.5 86,10.5 82.5,13C80,14.8 77,13.5 77,11Z"/>' +
+    '<path d="M77,11.5L73,18M77,11.5L81,18" stroke="#c23b35" stroke-width="2" stroke-linecap="round"/>' +
+    '<circle cx="77" cy="11.5" r="1.8" fill="#a8302b"/></g>' +
+    /* LES AMPOULES. Chacune = une douille filetee, le verre, un filament, et deux
+       halos qui s allument avec elle. Elles pendent perpendiculairement A LA COURBE
+       (d ou les rotations, calculees sur la tangente) : a la verticale du cadre, elles
+       auraient l air collees dessus. */
+    '<g transform="translate(13.78,14.91) rotate(34.55)"><g class="ssfete-ampoule" style="animation-delay:0s"><circle cx="0" cy="8" r="7.6" fill="#e4554f" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#e4554f" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#e4554f"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(30.92,22.52) rotate(13.31)"><g class="ssfete-ampoule" style="animation-delay:.34s"><circle cx="0" cy="8" r="7.6" fill="#f0c24b" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#f0c24b" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#f0c24b"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(48.53,23.56) rotate(-6.48)"><g><circle cx="0" cy="8" r="7.6" fill="#8fc7e8" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#8fc7e8" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#8fc7e8"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(66.44,18.13) rotate(-27.18)"><g class="ssfete-ampoule" style="animation-delay:.68s"><circle cx="0" cy="8" r="7.6" fill="#f0c24b" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#f0c24b" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#f0c24b"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(87.56,18.13) rotate(27.18)"><g class="ssfete-ampoule" style="animation-delay:1.02s"><circle cx="0" cy="8" r="7.6" fill="#e4554f" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#e4554f" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#e4554f"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(105.47,23.56) rotate(6.48)"><g class="ssfete-ampoule" style="animation-delay:1.36s"><circle cx="0" cy="8" r="7.6" fill="#f0c24b" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#f0c24b" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#f0c24b"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(123.08,22.52) rotate(-13.31)"><g><circle cx="0" cy="8" r="7.6" fill="#8fc7e8" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#8fc7e8" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#8fc7e8"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '<g transform="translate(140.22,14.91) rotate(-34.55)"><g class="ssfete-ampoule" style="animation-delay:1.7s"><circle cx="0" cy="8" r="7.6" fill="#e4554f" opacity=".16"/><circle cx="0" cy="8" r="5.2" fill="#e4554f" opacity=".22"/><path d="M0,2.8C-2.7,3.4 -3.5,6 -3.5,7.8C-3.5,10.2 -1.9,11.8 0,11.8C1.9,11.8 3.5,10.2 3.5,7.8C3.5,6 2.7,3.4 0,2.8Z" fill="#e4554f"/><path d="M-1.3,6.6C-0.5,8.8 0.5,5.9 1.3,8.1" stroke="#fff6da" stroke-width=".75" fill="none" stroke-linecap="round" opacity=".95"/></g><rect x="-2.1" y="-1" width="4.2" height="4.2" rx="1.3" fill="#4a5260"/><path d="M-2.1,0.4H2.1M-2.1,2.1H2.1" stroke="#9aa2b0" stroke-width=".5" opacity=".6"/></g>' +
+    '</svg>';
 
   /* ── LE SAPIN DÉCORÉ ── pour le PIED DU RAIL, à 52 px ─────────────────────────────
      Le pied du rail portait un CADEAU de 30 px. Saint Nicolas y tient 52 px, et il a raison :
@@ -376,11 +410,14 @@
     // Le socle : sans lui le sapin flotte, et un sapin qui flotte n est plus un sapin.
     '<path d="M22,74L40,74L42.5,83L19.5,83Z" fill="#8a5a2b"/>' +
     '<rect x="27.5" y="68" width="7" height="7" fill="#6b4420"/>' +
-    // Quatre étages, du plus large au plus étroit.
-    '<path d="M31,46L52,70Q31,65 10,70Z"/>' +
-    '<path d="M31,32L46,53Q31,48.5 16,53Z"/>' +
-    '<path d="M31,20L41,37Q31,33.5 21,37Z"/>' +
-    '<path d="M31,9L36.5,23Q31,20.5 25.5,23Z"/>' +
+    /* Quatre étages, du plus large au plus étroit. ⚠️ LE BORD DU BAS EST DENTELÉ, il n'est
+       plus une courbe lisse : un sapin dont les étages ont un bord net se lit comme un cône à
+       étages, pas comme un conifère. Ce sont ces pointes qui portent le mot « aiguilles » —
+       même détail que les touffes de la guirlande, même raison. */
+    '<path d="M31,46L52,70L49,72L46,68.8L43,71L40,68L37,70.2L34,67.6L31,69.8L28,67.6L25,70.2L22,68L19,71L16,68.8L13,72L10,70Z"/>' +
+    '<path d="M31,32L46,53L43.5,55L41,51.8L38.5,53.6L36,51L33.5,53L31,50.8L28.5,53L26,51L23.5,53.6L21,51.8L18.5,55L16,53Z"/>' +
+    '<path d="M31,20L41,37L39,38.6L37,35.9L35.5,37.3L34,35.4L32.5,36.9L31,35.3L29.5,36.9L28,35.4L26.5,37.3L25,35.9L23,38.6L21,37Z"/>' +
+    '<path d="M31,9L36.5,23L35,24.2L33.5,22.2L32.3,23.3L31,21.8L29.7,23.3L28.5,22.2L27,24.2L25.5,23Z"/>' +
     // La guirlande : une DÉCOUPE, donc un creux de lumière dans le feuillage.
     '<g fill="none" stroke="var(--surface)" stroke-linecap="round">' +
     '<path d="M13,65Q31,57 49,65" stroke-width="1.8" opacity=".40"/>' +
@@ -404,41 +441,97 @@
     '<circle class="ssfete-scintille" style="animation-delay:1.6s" cx="26" cy="35.5" r="2" fill="#e4554f"/>' +
     '<circle cx="36" cy="35.5" r="2" fill="#f0c24b"/>' +
     '<circle class="ssfete-scintille" style="animation-delay:2.2s" cx="31" cy="23.5" r="1.8" fill="#8fc7e8"/></g>' +
-    // L étoile : l animation appartient à l objet, pas à son déplacement.
-    '<path class="ssfete-scintille" fill="var(--accent-2)" ' +
-    'd="M31,0C32.9,7 32.9,7 40,9C32.9,11 32.9,11 31,18C29.1,11 29.1,11 22,9C29.1,7 29.1,7 31,0Z"/>' +
+    /* LES CADEAUX AU PIED. Un sapin seul est un sapin de catalogue ; c'est ce qu'il y a
+       DESSOUS qui en fait un matin de Noël. Ils tiennent dans la largeur déjà occupée, de part
+       et d'autre du pot — élargir le viewBox aurait rétréci l'arbre à taille égale. */
+    '<g><rect x="5" y="73" width="13" height="10" rx="1.5" fill="#e4554f"/>' +
+    '<rect x="10.4" y="73" width="2.4" height="10" fill="#f0c24b"/>' +
+    '<rect x="5" y="76.8" width="13" height="2.4" fill="#f0c24b"/>' +
+    '<path d="M11.6,73C9,73 7.6,70.6 9.4,69.8C11,69.1 11.6,71.2 11.6,73Z" fill="#f0c24b"/>' +
+    '<path d="M11.6,73C14.2,73 15.6,70.6 13.8,69.8C12.2,69.1 11.6,71.2 11.6,73Z" fill="#f0c24b"/>' +
+    '<rect x="44" y="76" width="12" height="7" rx="1.5" fill="#8fc7e8"/>' +
+    '<rect x="48.8" y="76" width="2.2" height="7" fill="#e4554f"/>' +
+    '<rect x="44" y="78.8" width="12" height="2.2" fill="#e4554f"/></g>' +
+    /* L'ÉTOILE ET SA LUEUR. L'animation appartient à l'objet, pas à son déplacement (règle 28).
+       Les deux halos sont DANS le même groupe qu'elle : une étoile qui scintille pendant que sa
+       lueur reste fixe, c'est une étoile découpée sur un rond. */
+    '<g class="ssfete-scintille" fill="var(--accent-2)">' +
+    '<circle cx="31" cy="9" r="11" opacity=".12"/><circle cx="31" cy="9" r="7" opacity=".16"/>' +
+    '<path d="M31,0C32.9,7 32.9,7 40,9C32.9,11 32.9,11 31,18C29.1,11 29.1,11 22,9C29.1,7 29.1,7 31,0Z"/></g>' +
     '</svg>';
 
-  /* ── LE TRAÎNEAU ── refait en SILHOUETTE ──────────────────────────────────────
-     L ancien était une masse rouge : vu sur planche à 150 px, on lisait un canapé. À 88 px, en
-     mouvement, à 30 % d opacité, ça ne pouvait pas être autre chose qu une tache — exactement
-     le défaut qui avait fait retirer le bateau de Saint-Nicolas.
-     CE QUI CHANGE : c est une SILHOUETTE, pas un volume. Le patin recourbé fait presque tout le
-     travail de reconnaissance — c est la seule forme que personne ne confond — donc il est
-     tracé épais, détaché de la caisse, et il remonte franchement à l avant. Les cadeaux
-     dépassent par-dessus le dossier : sans eux, c est une luge.
-     ⚠️ PAS D ATTELAGE. Deux rennes devant demanderaient un viewBox deux fois plus large, donc
-     des rennes de 25 px réels : la leçon de l âne de Saint-Nicolas, où monture et cavalier
-     fusionnaient. Un traîneau seul se lit ; un attelage minuscule ne se lit pas. */
-  const TRAINEAU_SILHOUETTE =
-    '<svg viewBox="0 0 104 64" fill="currentColor">' +
-    // Les cadeaux qui dépassent : sans eux, c est une luge.
-    '<g><rect x="36" y="14" width="17" height="15" rx="2" fill="#f0c24b"/>' +
-    '<rect x="42.5" y="14" width="4" height="15" fill="#e4554f" opacity=".75"/>' +
-    '<rect x="55" y="19" width="13" height="11" rx="2" fill="#8fc7e8"/>' +
-    '<rect x="59.5" y="19" width="3.5" height="11" fill="#e4554f" opacity=".7"/></g>' +
-    // La caisse : dossier haut à l arrière, bord bas à l avant.
-    '<path d="M30,29L74,29L70,45L34,45Z"/>' +
-    '<path d="M28,10L34,10L34,30L28,30Z"/>' +
-    // Le PATIN : la forme qui fait tout. Épais, détaché, et recourbé franchement à l avant.
-    '<path d="M26,47L78,47C86,47 92,42 93,34C93,40 89,51 79,51L30,51Z"/>' +
-    '<g opacity=".85"><rect x="40" y="44" width="4.5" height="6" rx="1.5"/>' +
-    '<rect x="64" y="44" width="4.5" height="6" rx="1.5"/></g>' +
-    // La traînée : trois étoiles qui scintillent derrière, décalées.
+  /* ── LE TRAÎNEAU DU PÈRE NOËL ───────────────────────────────────
+     Demande de Nicolas, 11/10/2026 : « et le père Noël dans son traîneau ? ». Il a raison, et
+     ça se défend par la règle même qui avait fait retirer le bateau de Saint-Nicolas : un
+     traîneau VIDE demande au lecteur de deviner à qui il est. Le Père Noël dedans, lui, ne
+     demande rien à personne — c'est l'image que tout le monde reconnaît sans explication.
+     L'HISTORIQUE, parce qu'il explique la forme : le premier traîneau était une masse rouge, et
+     vu sur planche à 150 px on lisait un canapé. Il est donc devenu une SILHOUETTE, où le patin
+     recourbé fait presque tout le travail de reconnaissance — c'est la seule forme que personne
+     ne confond. Cette version-là ne change pas : elle reçoit un passager.
+     ⚠️ LE PÈRE NOËL EST UNE SILHOUETTE ROUGE AVEC DEUX TROUÉES CLAIRES, et pas un bonhomme
+     dessiné. À cette taille il fait 25 px de haut : un visage avec des yeux serait trois
+     mouchetures. Ce qui le fait reconnaître, c'est le BONNET POINTU et la BARBE, rien d'autre —
+     donc ce sont les deux seules choses qu'on dessine en grand.
+     ⚠️ TOUT CE QUI EST CLAIR RESTE À L'INTÉRIEUR DU ROUGE : barbe, visage, bandeau du bonnet,
+     revers de la manche. C'est la règle payée trois fois sur la planche de Saint-Nicolas — un
+     relief crème qui DÉPASSE de son objet est parfait sur le thème sombre et INVISIBLE sur le
+     clair. Le pompon, lui, dépasse par nature : il est donc ROUGE, avec un point crème à
+     l'intérieur et une ombre qui le sépare du bonnet. Deux formes voisines de même couleur ne se
+     distinguent que par la ligne d'ombre qui passe entre elles.
+     ⚠️ ET AUCUNE DÉCOUPE EN var(--surface) ICI. Un objet qui TRAVERSE la page n'a aucune carte
+     sous lui : la découpe ne montrerait pas le fond, elle poserait une tache claire. Les reliefs
+     sont donc des rouges plus SOMBRES, qui se lisent sur les deux thèmes.
+     ⚠️ TOUJOURS PAS D'ATTELAGE. Deux rennes devant demanderaient un viewBox deux fois plus
+     large, donc des rennes de 25 px réels : la leçon de l'âne de Saint-Nicolas, où monture et
+     cavalier fusionnaient en une seule masse. Le bras levé remplace les rênes — il dit le
+     mouvement sans rien ajouter à la largeur. */
+  const TRAINEAU_PERE_NOEL =
+    '<svg viewBox="0 0 128 80" fill="currentColor">' +
+    // La traînée : trois étincelles derrière, décalées. Elles disent le sens de la marche.
     '<g fill="var(--accent-2)">' +
-    '<path class="ssfete-scintille" style="animation-delay:0s" d="M14,22C14.9,25.3 14.9,25.3 18,26C14.9,26.7 14.9,26.7 14,30C13.1,26.7 13.1,26.7 10,26C13.1,25.3 13.1,25.3 14,22Z"/>' +
-    '<path class="ssfete-scintille" style="animation-delay:.9s" d="M6,36C6.7,38.4 6.7,38.4 9,39C6.7,39.6 6.7,39.6 6,42C5.3,39.6 5.3,39.6 3,39C5.3,38.4 5.3,38.4 6,36Z"/>' +
-    '<path class="ssfete-scintille" style="animation-delay:1.8s" d="M20,40C20.6,42 20.6,42 22.5,42.5C20.6,43 20.6,43 20,45C19.4,43 19.4,43 17.5,42.5C19.4,42 19.4,42 20,40Z"/></g>' +
+    '<path class="ssfete-scintille" style="animation-delay:0s" d="M16,30C17,33.6 17,33.6 20.6,34.6C17,35.6 17,35.6 16,39.2C15,35.6 15,35.6 11.4,34.6C15,33.6 15,33.6 16,30Z"/>' +
+    '<path class="ssfete-scintille" style="animation-delay:.9s" d="M7,44C7.8,46.8 7.8,46.8 10.6,47.6C7.8,48.4 7.8,48.4 7,51.2C6.2,48.4 6.2,48.4 3.4,47.6C6.2,46.8 6.2,46.8 7,44Z"/>' +
+    '<path class="ssfete-scintille" style="animation-delay:1.8s" d="M22,50C22.7,52.4 22.7,52.4 25.1,53.1C22.7,53.8 22.7,53.8 22,56.2C21.3,53.8 21.3,53.8 18.9,53.1C21.3,52.4 21.3,52.4 22,50Z"/></g>' +
+    // Le dossier, avec sa volute : c'est lui qui dit où est l'arrière.
+    '<path d="M24,58L24,33C24,25 38,25 38,33C38,38.5 30.5,38.5 30.5,33.5L30.5,58Z"/>' +
+    // Les cadeaux chargés à l'arrière. Sans eux, c'est une luge.
+    '<g><rect x="38" y="35" width="19" height="22" rx="2" fill="#f0c24b"/>' +
+    '<rect x="44.5" y="35" width="5" height="22" fill="#c23b35" opacity=".85"/>' +
+    '<rect x="38" y="43" width="19" height="4" fill="#c23b35" opacity=".85"/>' +
+    '<rect x="42" y="23" width="14" height="12" rx="2" fill="#8fc7e8"/>' +
+    '<rect x="47.4" y="23" width="3.6" height="12" fill="#c23b35" opacity=".8"/>' +
+    '<path d="M49.2,23C46,23 45,20.2 47,19.4C48.8,18.8 49.2,21.2 49.2,23Z" fill="#c23b35"/>' +
+    '<path d="M49.2,23C52.4,23 53.4,20.2 51.4,19.4C49.6,18.8 49.2,21.2 49.2,23Z" fill="#c23b35"/></g>' +
+    /* LE PÈRE NOËL. D'abord la masse rouge d'un seul tenant — buste, tête, bonnet — pour que
+       tout ce qui vient ensuite soit POSÉ DEDANS et ne puisse pas dépasser. */
+    '<path d="M63,60C61,46 67,37 76,37C85,37 90,46 88,60Z"/>' +
+    '<circle cx="76" cy="30" r="8.5"/>' +
+    '<path d="M85,25C85,14 74,8 60,12C64,17 64,21 67,25Z"/>' +
+    // Le pompon : il DÉPASSE, donc il est rouge. L'ombre le détache du bonnet.
+    '<circle cx="58" cy="12" r="5"/>' +
+    '<path d="M61.6,8.6C62.8,10.6 62.8,13.4 61.6,15.4" stroke="#8f2e29" stroke-width="1.4" fill="none" opacity=".75"/>' +
+    '<circle cx="58" cy="12" r="2.2" fill="#f3ece0" opacity=".85"/>' +
+    // Le bandeau du bonnet, le visage, la barbe : tous les trois cernés de rouge.
+    '<rect x="69.5" y="21" width="13" height="4" rx="1.4" fill="#f3ece0" opacity=".9"/>' +
+    '<ellipse cx="77" cy="29" rx="4.6" ry="3.6" fill="#f0c9a8" opacity=".95"/>' +
+    '<path d="M71,31C70.5,39.5 73.5,46.5 77,48C80.5,46.5 83,39.5 82.5,31C79.5,34.5 74,34.5 71,31Z" fill="#f3ece0" opacity=".92"/>' +
+    // La moustache ne se détache de la barbe que par son ombre : même crème, ligne entre les deux.
+    '<path d="M71.8,33.4C74.2,36 79.8,36 82.2,33.4" stroke="#d6cbb6" stroke-width="1.2" fill="none" opacity=".8"/>' +
+    // La ceinture et sa boucle, dans le buste.
+    '<rect x="64" y="50" width="23" height="4.6" fill="#8f2e29" opacity=".9"/>' +
+    '<rect x="73.4" y="49.4" width="5.6" height="5.8" rx="1.2" fill="#f0c24b"/>' +
+    // Le bras levé : il remplace les rênes, et il ne coûte pas un pixel de largeur en plus.
+    '<path d="M85,44C91,42 95,36 96,31" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" fill="none"/>' +
+    '<circle cx="97" cy="29" r="4.6"/>' +
+    '<path d="M86.5,41.5C89,40.5 90.5,38.5 91.5,36.5" stroke="#f3ece0" stroke-width="3" opacity=".85" stroke-linecap="round" fill="none"/>' +
+    // La caisse, posée PAR-DESSUS : elle enterre le bas du passager et des cadeaux.
+    '<path d="M24,56L106,56L100,67L32,67Z"/>' +
+    '<path d="M27,59.5L102,59.5" stroke="#8f2e29" stroke-width="1.6" opacity=".5" fill="none"/>' +
+    // Les montants, puis LE PATIN : la forme qui fait tout. Épais, détaché, recourbé à l'avant.
+    '<g opacity=".9"><rect x="44" y="65" width="5" height="6" rx="1.6"/>' +
+    '<rect x="80" y="65" width="5" height="6" rx="1.6"/></g>' +
+    '<path d="M26,69L98,69C108,69 115,63 116,53C116,61 111,74 99,74L31,74Z"/>' +
     '</svg>';
 
   /* ── LA COURONNE ── ce qui PEND dans le coin, à la place de la boule ─────────────────
@@ -787,8 +880,19 @@
          ne serait qu une accolade avec des points dessous. La taille se déduit de ce que le
          dessin doit montrer — ici, un fil tendu entre deux accroches. */
       coin: {
-        svg: GUIRLANDE, taille: 190,
-        teinte: { sombre: '#5f6d82', clair: '#8a94a6' }, opacite: { sombre: 0.95, clair: 0.9 },
+        /* ⚠️ 230 px, ET LA TEINTE EST VERTE. La première version faisait 190 px en gris-bleu :
+           c'était la couleur d'un CÂBLE, juste tant que le dessin était un câble. Il porte
+           maintenant seize touffes d'aiguilles, donc c'est du feuillage — et du feuillage gris
+           n'est pas du feuillage. Les 40 px de plus sont ce que le détail réclame : à 190 px,
+           huit ampoules filetées et leurs halos se chevauchaient.
+           ⚠️ OPACITÉ BAISSÉE (0,72 / 0,68 contre 0,95 / 0,9) : un fil nu peut être franc, une
+           guirlande fournie non — dans le coin BAS-GAUCHE elle passe devant du texte, et c'est
+           là qu'un décor doit savoir se taire (règle 28 : le décor ne dit rien).
+           ⚠️ « miroir: x » : ce qui PEND ne se retourne pas la tête en bas. Voir la feuille de
+           style — sans ça, la guirlande du coin bas-gauche s'arquait vers le haut, ampoules
+           pointées vers le ciel. */
+        svg: GUIRLANDE, taille: 230, miroir: 'x',
+        teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.72, clair: 0.68 },
         /* ⚠️ UNE COURONNE, PLUS UNE BOULE. Le mécanisme ne change pas — même fil, même
            balancement, hérité de l'araignée. Mais une boule rouge qui pend à côté d'un sapin
            couvert de boules rouges, ça ne fait pas deux objets : ça fait un objet et sa copie.
@@ -817,11 +921,17 @@
         { svg: ETOILE_FILANTE, taille: 42, haut: '13%', duree: 20, retard: 3,
           teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.6, clair: 0.45 } },
         /* ⚠️ L'ancien traîneau était une masse rouge — vu sur planche à 150 px, on lisait un
-           canapé. Le nouveau est une SILHOUETTE : c'est le patin recourbé qui fait tout le
-           travail de reconnaissance. Et il n'est plus `rare` : un objet qu'on ne voit qu'un
-           passage sur deux, on ne le voit jamais — or c'est le plus beau du décor. */
-        { svg: TRAINEAU_SILHOUETTE, taille: 96, haut: '58%', duree: 30, retard: 14,
-          teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.62, clair: 0.5 } },
+           canapé. Le suivant était une SILHOUETTE, où le patin recourbé fait tout le travail de
+           reconnaissance. Celui-ci porte EN PLUS le Père Noël, demandé par Nicolas le 11/10/2026
+           — et c'est la même règle que pour le bateau de Saint-Nicolas, dans l'autre sens : un
+           traîneau vide demande de deviner à qui il est, le Père Noël dedans ne demande rien.
+           ⚠️ 130 px ET NON 118, ET PLUS OPAQUE (0,70 / 0,58). C'est le plus beau dessin du
+           décor et le seul qui raconte quelque chose : à 118 px et 0,5 d'opacité sur fond clair,
+           le passager devenait une tache. Un objet qu'on ne voit pas, autant ne pas le dessiner
+           — même raison qui avait fait retirer le drapeau « rare » : un objet vu un passage sur
+           deux, on ne le voit jamais. */
+        { svg: TRAINEAU_PERE_NOEL, taille: 130, haut: '58%', duree: 30, retard: 14,
+          teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.7, clair: 0.58 } },
       ],
       /* ⚠️ 20 px ET 18 FLOCONS, contre 16 et 14. Un flocon est une SILHOUETTE VIDE : son
          contour suffit, il tient donc à plus petite taille qu'une friandise, qui porte du
@@ -902,10 +1012,13 @@
      teinte de la fête courante et `style()` sort immédiatement si elle existe déjà : la garder
      ferait afficher les dessins de Noël avec les teintes d'Halloween, sans la moindre erreur. */
   function nettoyer() {
-    ['ssfete-style', SKY].forEach(function (id) {
-      const n = document.getElementById(id);
-      if (n) n.remove();
-    });
+    /* ⚠️ querySelectorAll ET NON getElementById, et ce n'est pas de la prudence gratuite :
+       getElementById ne rend QUE LE PREMIER élément portant l'id, et DEUX ciels peuvent
+       coexister. Une page qui demande un aperçu AVANT le DOMContentLoaded (la planche des
+       décors le fait) en monte un, puis le montage automatique en monte un second sans passer
+       par le nettoyage. Le survivant gardait ses volants : la sorcière d'Halloween continuait
+       de traverser l'écran pendant l'aperçu de Noël, et rien ne le signalait. */
+    document.querySelectorAll('#ssfete-style, #' + SKY).forEach(function (n) { n.remove(); });
     document.querySelectorAll('.ssfete').forEach(function (n) { n.remove(); });
     // La place réservée sous le menu part avec le décor : laissée en place, elle ferait un
     // trou de 86 px au bas du rail toute l'année, et personne ne saurait d'où il vient.
@@ -1018,7 +1131,9 @@
       const rang = deja + i;
       const haut = (rang % 2 === 0);
       const d = document.createElement('div');
-      d.className = 'ssfete ssfete-coin ' + (haut ? 'ssfete-coin--hd' : 'ssfete-coin--bg');
+      d.className = 'ssfete ssfete-coin ' + (haut ? 'ssfete-coin--hd' : 'ssfete-coin--bg') +
+        // Un décor qui PEND ne se retourne jamais la tête en bas : voir la feuille de style.
+        (f.coin.miroir === 'x' ? ' ssfete-coin--mirx' : '');
       d.setAttribute('aria-hidden', 'true');
       d.style.width = f.coin.taille + 'px';
       // L'araignée n'habite que la PREMIÈRE toile : une par encadré en ferait une invasion, et
@@ -1129,6 +1244,12 @@
       .ssfete-coin--hd .ssfete-toile { transform: scaleX(-1); }
       .ssfete-coin--bg { bottom: 0; left: 0; }
       .ssfete-coin--bg .ssfete-toile { transform: scaleY(-1); }
+      /* ⚠️ « miroir: x » — CE QUI PEND NE SE RETOURNE PAS. Le miroir vertical est juste pour
+         une toile, dont le moyeu doit rester dans l'angle. Pour une guirlande il est FAUX : elle
+         s'arque alors vers le haut et ses ampoules pointent vers le ciel. La gravité ne se
+         retourne pas avec le coin. Un décor qui PEND demande donc « miroir: x » : haut-droite
+         retourné horizontalement (la variété reste), bas-gauche tel qu'il est dessiné. */
+      .ssfete-coin--mirx.ssfete-coin--bg .ssfete-toile { transform: none; }
 
       /* LE RAIL. La toile se pose derrière les entrées (z-index 0, elles n'en ont pas), et la
          citrouille se cale en pied de colonne. */
@@ -1205,6 +1326,13 @@
         0%, 100% { opacity: 0.45; transform: scale(0.82); }
         50%      { opacity: 1;    transform: scale(1.1); }
       }
+      /* ⚠️ UNE AMPOULE NE GROSSIT PAS QUAND ELLE S'ALLUME, ELLE ÉCLAIRE. D'où une animation
+         séparée de « scintille », qui porte un scale : appliqué à une ampoule, il décollerait le
+         verre de sa douille à chaque pulsation. Pas de transform ici, donc pas besoin de
+         transform-box — et le repos (animation coupée) laisse l'ampoule ALLUMÉE, ce qui est le
+         bon état par défaut. */
+      .ssfete-ampoule { animation: ssfete-ampoule 2.6s ease-in-out infinite; }
+      @keyframes ssfete-ampoule { 0%, 100% { opacity: 0.34; } 50% { opacity: 1; } }
       .ssfete-bulle { animation: ssfete-bulle 2.8s ease-in infinite; }
       @keyframes ssfete-bulle {
         0%   { transform: translateY(2px); opacity: 0; }
@@ -1258,7 +1386,7 @@
         #${SKY} { display: none; }
         .ssfete-pendu, .ssfete-pendu .ssfete-fil, .ssfete-pendu .ssfete-bete { animation: none; }
         .ssfete-lueur, .ssfete-scintille, .ssfete-bulle, .ssfete-fumee,
-        .ssfete-eclore, .ssfete-eclat { animation: none; }
+        .ssfete-eclore, .ssfete-eclat, .ssfete-ampoule { animation: none; }
       }
 
       /* À l'impression, rien. Jamais. */
@@ -1301,6 +1429,9 @@
 
     // 3. Le ciel : ce qui le traverse, et ce qui tombe.
     if ((f.volants && f.volants.length) || f.tombe) {
+      // Jamais deux ciels : voir nettoyer(). Ici c'est la ceinture par-dessus les bretelles,
+      // pour le cas où l'on arrive par le montage automatique et non par un aperçu.
+      document.querySelectorAll('#' + SKY).forEach(function (n) { n.remove(); });
       const ciel = document.createElement('div');
       ciel.id = SKY;
       ciel.setAttribute('aria-hidden', 'true');
