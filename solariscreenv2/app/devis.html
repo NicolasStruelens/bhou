@@ -47,6 +47,9 @@
     <a class="btn btn-ghost btn-sm" href="factures.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Facturer</a>
     <div class="spacer"></div>
     <label class="check"><input type="checkbox" id="togglePhotos" onchange="renderPhotos()"> Inclure les photos</label>
+    <!-- Masquée hors période de fête : une case qui ne peut rien faire n'a rien à faire dans une
+         barre d'outils. `initFestif` la révèle et l'intitule avec le nom de la fête en cours. -->
+    <label class="check" id="festifWrap" hidden><input type="checkbox" id="toggleFestif" onchange="majFestif(true)"> <span id="festifLbl">Touche de saison</span></label>
     <span id="quickNav"></span>
     <span id="themeToggle"></span>
     <button class="btn btn-primary btn-sm" onclick="printDoc()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
@@ -417,6 +420,12 @@
 
         <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`)}
 
+        <!-- ⚠️ LE BLOC DE CLÔTURE EST UN SEUL BLOC, ET C'EST CE QUI PERMET DE L'ANCRER.
+             À l'impression il quitte le flux pour se coller au BAS de la feuille (voir
+             document.css) : le blanc qui restait sous le pied passe au-dessus de lui, entre le
+             devis et sa signature, où il se lit comme une marge. Trois frères séparés auraient
+             demandé trois ancrages — et le premier écart entre eux aurait tout décalé. -->
+        <div class="doc-close">
         <div class="partners">
           <span class="lbl">Partenaires</span>
           <span class="partner-chip"><img src="../assets/img/logo-harol.png" alt="Harol"></span>
@@ -438,7 +447,23 @@
         </div>`}
 
         <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
+        </div>
       `;
+
+      /* ⚠️ LA RÉSERVE SUIT LA VARIANTE, SINON ELLE SE RETOURNE CONTRE LE DOCUMENT. Le bloc de
+         clôture étant hors flux à l'impression, cette réserve est la seule chose qui empêche un
+         devis long de passer DESSOUS. Mais un devis informatif n'a pas de signatures : lui
+         réserver leur hauteur, ce serait 3 cm de page confisqués pour rien, et une page de plus
+         sur un devis déjà serré.
+         ⚠️ CHAQUE VALEUR EST MESURÉE, ET ARRONDIE VERS LE HAUT. 176 px (47 mm) avec signatures,
+         76 px (21 mm) sans. Une réserve plus COURTE que le bloc ne protège plus de rien : c'est
+         exactement ce qui arrivait avec 18 mm, où les 8 derniers pixels du bloc débordaient dans
+         la zone où le texte a le droit de descendre. */
+      el('paper').style.setProperty('--close-reserve', info ? '21mm' : '47mm');
+
+      // Le papier vient d'être réécrit : le décor de saison, s'il est demandé, se repose ICI —
+      // c'est le seul point par lequel passent les deux rendus (chargement et après signature).
+      majFestif(false);
     }
 
     // ── Annexe : Conditions Générales de Vente (statique, toujours jointe) ──
@@ -488,6 +513,41 @@
           <div class="sig-box"><h4>Signature du client</h4><div class="hint">Précédée de la mention « Lu et approuvé »</div></div>
         </div>
       </div>`;
+    }
+
+    /* ══════ LA TOUCHE DE SAISON ══════
+       Demande de Nicolas, 11/10/2026 : « une case à cocher comme dans photos pour mettre ou pas,
+       en saison de fête, les petites images du thème dans le devis — ça peut être sympa et
+       festif pour les clients à ces périodes ».
+       ⚠️ ÇA NUANCE LA RÈGLE 1 DE `fetes.js` (« jamais sur ce que le client voit »), ça ne
+       l'annule pas. Cette règle vise le décor SUBI : une araignée qui arrive toute seule sur un
+       devis d'école, c'est un document qu'on ne prend pas au sérieux. Ici le décor est CHOISI,
+       devis par devis, par celui qui l'envoie — ce n'est plus le même geste. D'où : jamais par
+       défaut, et une case qui n'apparaît même pas hors période.
+       ⚠️ LE CHOIX SE MÉMORISE, MAIS SEULEMENT DANS CE NAVIGATEUR. Il n'est pas enregistré avec
+       le devis : ce n'est pas une donnée du document, c'est une préférence d'impression. La
+       mémoriser évite de recocher à chaque devis pendant les trois semaines d'une fête, et la
+       période l'éteint d'elle-même à sa fin, sans rien à décocher. */
+    const FESTIF_CLE = 'ss_doc_festif';
+    window.majFestif = function (memoriser) {
+      const c = el('toggleFestif');
+      if (!c || !window.SSFetes || !window.SSFetes.papier) return;
+      if (memoriser) { try { localStorage.setItem(FESTIF_CLE, c.checked ? '1' : '0'); } catch (e) {} }
+      window.SSFetes.papier(el('paper'), c.checked);
+    };
+    function initFestif() {
+      const f = window.SSFetes && window.SSFetes.active && window.SSFetes.active();
+      const wrap = el('festifWrap');
+      if (!f || !wrap) return;
+      // « Touche de saison (Halloween) » plutôt qu'« une touche d'Halloween » : les cinq fêtes
+      // n'ont pas le même article (d'Halloween, de Noël, de Saint-Nicolas…), et une barre
+      // d'outils n'est pas l'endroit où débattre d'un h muet.
+      el('festifLbl').textContent = 'Touche de saison (' + f.nom + ')';
+      wrap.hidden = false;
+      let memo = '0';
+      try { memo = localStorage.getItem(FESTIF_CLE) || '0'; } catch (e) {}
+      el('toggleFestif').checked = memo === '1';
+      majFestif(false);
     }
 
     window.renderPhotos = function () {
@@ -646,6 +706,7 @@
       updateDocTitle(DEVIS);
       renderPaper();
       renderPhotos(); // affiche aussi les annexes CGV / attestation TVA dès le chargement
+      initFestif();   // la touche de saison — seulement si l'on est en période de fête
       renderSignatureUI();
     })();
   </script>
