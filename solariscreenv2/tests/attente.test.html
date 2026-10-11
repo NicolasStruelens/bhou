@@ -293,6 +293,76 @@
     check('C2 les orphelins ouvrent la liste', TOUT[0].qui, '');
     check('C3 un identifiant unique par ligne', TOUT.length, [...new Set(TOUT.map(i => i.id))].length);
 
+    /* ══════════ D. LA MISE EN ATTENTE D'UN DEVIS ══════════
+       Elle vit dans ui.js (SSUI.attenteClient) et elle TOUCHE À LA CADENCE DE RELANCE, qui
+       n'avait aucun test jusqu'ici. Elle est testée ICI parce que c'est le même sujet que tout
+       ce fichier : de qui on attend quelque chose, et jusqu'à quand.
+       ⚠️ Les dates sont construites en CHAÎNES à partir de SSUI.plusJours, jamais avec
+       toISOString().slice(0,10) — celui-ci renvoie une date UTC, donc LA VEILLE entre minuit
+       et 2 h du matin en heure d'été belge, et la suite se mettrait à échouer une nuit sur deux. */
+    const AUJ_ATT = SSUI.aujourdhui();
+    const JP_ATT = (n) => SSUI.plusJours(AUJ_ATT, n);
+    // Un devis parti il y a 30 jours : la cadence réclame largement une relance.
+    const devisVieux = (attentes) => ({
+      id: 'D1', statut: 'relance_1', date_envoi: JP_ATT(-30), relances: [{ n: 1, date: JP_ATT(-20) }],
+      attentes: attentes || [],
+    });
+    const ATT_ACTIVE = [{ id: 'a1', motif: 'Elle revient en novembre', revoir_le: JP_ATT(20), par: 'nicolas', le: JP_ATT(-1) }];
+    const ATT_ECHUE = [{ id: 'a1', motif: 'Elle revient en novembre', revoir_le: JP_ATT(-3), par: 'nicolas', le: JP_ATT(-25) }];
+    const ATT_LEVEE = [{ id: 'a1', motif: 'x', revoir_le: JP_ATT(20), par: 'nicolas', le: JP_ATT(-1), levee_le: JP_ATT(0) }];
+
+    check('D1 sans attente, rien n\u2019est gelé', SSUI.attenteClient(devisVieux()).etat, 'aucune');
+    check('D2 une attente à venir est ACTIVE', SSUI.attenteClient(devisVieux(ATT_ACTIVE)).etat, 'active');
+    check('D3 une attente passée est ÉCHUE', SSUI.attenteClient(devisVieux(ATT_ECHUE)).etat, 'echue');
+    // « Revenir dessus le X » : CE JOUR-LÀ le dossier doit être dans la liste, pas encore masqué.
+    check('D4 le jour dit, l\u2019attente est déjà échue',
+      SSUI.attenteClient(devisVieux([{ id: 'a', motif: 'm', revoir_le: AUJ_ATT }])).etat, 'echue');
+    check('D5 une attente levée ne compte plus', SSUI.attenteClient(devisVieux(ATT_LEVEE)).etat, 'aucune');
+    // Une attente sans date est un TROU : le dossier sortirait des compteurs sans jamais revenir.
+    check('D6 une attente sans date est ignorée',
+      SSUI.attenteClient(devisVieux([{ id: 'a', motif: 'm' }])).etat, 'aucune');
+    check('D7 une date illisible est ignorée',
+      SSUI.attenteClient(devisVieux([{ id: 'a', motif: 'm', revoir_le: 'bientôt' }])).etat, 'aucune');
+    // La DERNIÈRE non levée fait foi : on peut avoir reporté plusieurs fois.
+    check('D8 c\u2019est la dernière attente ouverte qui fait foi',
+      SSUI.attenteClient(devisVieux([
+        { id: 'a', motif: 'vieux', revoir_le: JP_ATT(-9), le: JP_ATT(-30), levee_le: JP_ATT(-8) },
+        { id: 'b', motif: 'récent', revoir_le: JP_ATT(5), le: JP_ATT(-1) },
+      ])).motif, 'récent');
+
+    /* ⚠️ L'EFFET SUR LA CADENCE — c'est LA raison d'être de la fonctionnalité. Sans ces trois
+       cas, on pourrait croire qu'elle marche en voyant juste le bandeau changer de texte. */
+    check('D9 sans attente, la relance est due', SSUI.relanceEtat(devisVieux()).retard, true);
+    check('D10 une attente ACTIVE gele la cadence', SSUI.relanceEtat(devisVieux(ATT_ACTIVE)).retard, false);
+    check('D11 l\u2019échéance devient la date de reprise', SSUI.relanceEtat(devisVieux(ATT_ACTIVE)).due, JP_ATT(20));
+    check('D12 une attente ÉCHUE rend la main à la cadence', SSUI.relanceEtat(devisVieux(ATT_ECHUE)).retard, true);
+    /* ⚠️ ON PREND LE MAXIMUM DES DEUX, jamais la date d'attente seule : si la cadence tombe de
+       toute façon APRÈS la date annoncée par le client, c'est la cadence qui gagne — sinon
+       mettre en attente RAPPROCHERAIT la relance, ce qui est l'inverse du but. */
+    const devisNeuf = { id: 'D2', statut: 'envoye_client', date_envoi: AUJ_ATT, relances: [],
+      attentes: [{ id: 'a', motif: 'm', revoir_le: JP_ATT(1) }] };
+    check('D13 une attente plus proche que la cadence ne la rapproche pas',
+      SSUI.relanceEtat(devisNeuf).due, JP_ATT(4));
+    // Le libellé vit dans ui.js : quatre écrans l'affichent, quatre copies diraient quatre choses.
+    check('D14 le libellé court est fourni par le moteur',
+      /^En attente — à revoir le /.test(SSUI.attenteClient(devisVieux(ATT_ACTIVE)).texte), true);
+
+    /* ⚠️ OÙ LA MISE EN ATTENTE N'A PAS SA PLACE. Elle suspend ce qui POUSSE LE CLIENT À
+       ACCEPTER, et seulement ça : un devis signé doit toujours être commandé, posé et encaissé,
+       et un devis accepté en ligne n'attend plus rien du client. */
+    check('D15 pas d\u2019attente sur un devis signé',
+      SSUI.attenteApplicable({ statut: 'signe', attentes: ATT_ACTIVE }), false);
+    check('D16 pas d\u2019attente sur un brouillon',
+      SSUI.attenteApplicable({ statut: 'brouillon' }), false);
+    check('D17 pas d\u2019attente sur un devis archivé',
+      SSUI.attenteApplicable({ statut: 'relance_1', archive: 1 }), false);
+    check('D18 pas d\u2019attente si le client a déjà accepté',
+      SSUI.attenteApplicable({ statut: 'relance_1', client_accepted: 1 }), false);
+    check('D19 attente possible sur un devis envoyé', SSUI.attenteApplicable({ statut: 'envoye_client' }), true);
+    // Changer de statut ne demande AUCUNE écriture : l'attente cesse simplement de s'appliquer.
+    check('D20 signer un devis éteint l\u2019attente sans rien effacer',
+      SSUI.attenteClient({ statut: 'signe', attentes: ATT_ACTIVE }).etat, 'aucune');
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';

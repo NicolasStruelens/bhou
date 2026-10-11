@@ -539,6 +539,11 @@
     .rl-mile.now  .rl-tick { background: var(--accent); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
     .rl-mile.late .rl-tick { background: var(--danger); height: 25px; box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 70%, transparent); }
     .rl-mile.todo .rl-tick { background: none; border-left: 2px dashed var(--border-strong); width: 0; }
+    /* ÉTAPE GELÉE (mise en attente). Un trait creux, gris, IMMOBILE : la barre doit dire
+       « arrêté à cet endroit », pas « en cours ». La peindre comme une étape en attente
+       ordinaire aurait fait croire que la cadence tourne toujours. */
+    .rl-mile.pause .rl-tick { background: var(--surface); border: 2px solid var(--text-subtle); width: 8px; height: 19px; border-radius: 2px; }
+    .rl-mile.pause .rl-lab, .rl-mile.pause .rl-date { color: var(--text-subtle); }
     .rl-lab { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
       letter-spacing: 0.05em; color: var(--text-subtle); white-space: nowrap; }
     .rl-mile.done .rl-lab { color: var(--accent-2-ink); }
@@ -586,6 +591,27 @@
     .rl-step.late { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); font-weight: 700; }
     .rl-next { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
     .rl-hint { margin: 0; font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; }
+
+    /* ── MISE EN ATTENTE ── */
+    .at-bloc { margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm);
+      border: 1px dashed var(--border-strong); background: var(--surface); }
+    .at-bloc.actif { border-style: solid; border-color: color-mix(in srgb, var(--text-subtle) 55%, transparent); }
+    .at-bloc.echue { border-style: solid; border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+    .at-tete { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-sm); }
+    .at-motif { font-style: italic; color: var(--text); }
+    .at-meta { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .at-form { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .at-chips { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    /* Les amorces de motif et les raccourcis de date sont des BOUTONS, pas des menus : un menu
+       oblige à ouvrir, lire, choisir, refermer. Ici on remplit le champ d'un seul geste — et le
+       texte reste libre ensuite, c'est l'essentiel. */
+    .at-chip { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.22rem 0.55rem;
+      border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: transparent;
+      color: var(--text-subtle); cursor: pointer; line-height: 1.3; }
+    .at-chip:hover, .at-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
+    .at-passees { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 0.2rem; }
+    .at-passee { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    @media (pointer: coarse) { .at-chip { min-height: 32px; } }
 
     /* ── Documents fournisseur (R2) ── */
     .doc-item { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface-2); }
@@ -2244,6 +2270,14 @@
           }
           case 1: { // Envoyé → Relance — ÉCHÉANCE RÉELLE (cadence J+4/J+9/J+21 ou J+5/J+12/J+21)
             const r = window.SSUI && SSUI.relanceEtat ? SSUI.relanceEtat(d) : null;
+            /* ⚠️ LA RÉGLETTE S'ARRÊTE AUSSI. C'est la demande de Nicolas : « jusqu'à la ligne du
+               temps, où l'on voit clairement où ça en est ». Une barre qui continue d'avancer
+               pendant que la cadence est gelée raconterait exactement le contraire. La position
+               reste celle atteinte, et le repère devient creux (« pause ») au lieu de battre. */
+            if (r && r.attente && r.attente.active) {
+              const t0 = (r.step && r.step.j) || 1;
+              return { f: clamp01(r.jours / t0), etat: 'pause', sub: 'en attente — ' + fmtDate(r.attente.revoir_le) };
+            }
             if (!r || !r.step) return { f: 0.5, etat: 'wait', sub: 'attente client' };
             const total = r.step.j || 1;
             if (r.retard) return { f: 1, etat: r.joursRetard > 0 ? 'late' : 'now',
@@ -2253,6 +2287,7 @@
           case 2: { // Relance → Signé : le client a la main, on avance au rythme des relances faites
             const r = window.SSUI && SSUI.relanceEtat ? SSUI.relanceEtat(d) : null;
             const n = r ? r.doneMax : nbRelances;
+            if (r && r.attente && r.attente.active) return { f: clamp01(n / 3), etat: 'pause', sub: 'en attente — ' + fmtDate(r.attente.revoir_le) };
             if (r && r.epuise) return { f: 0.95, etat: 'now', sub: 'sans réponse — trancher' };
             if (r && r.retard) return { f: clamp01(n / 3), etat: r.joursRetard > 0 ? 'late' : 'now',
               sub: 'relance ' + (n + 1) + (r.joursRetard > 0 ? ' en retard' : ' à faire') };
@@ -2429,8 +2464,19 @@
         nc = { color: 'var(--ok)', text: 'Accepté par le client — à faire signer', btn: { label: 'Ouvrir le document', on: `location.href='devis.html?id=${d.id}'` } };
       } else if (attente) {
         const st = relanceState(d);
-        if (st.epuise) nc = { color: 'var(--danger)', text: '3 relances sans réponse', sub: 'À classer si le client ne revient pas.', btn: { label: 'Ouvrir les relances', on: 'openRelance()' } };
-        else if (st.retard) nc = { color: st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)', text: `Relance ${st.step.n} à envoyer`, sub: `prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ' — retard de ' + st.joursRetard + ' j' : ''}`, btn: { label: 'Préparer la relance', on: 'openRelance()' } };
+        const att = window.SSUI.attenteClient(d);
+        /* L'attente passe devant : tant qu'elle court, la prochaine action N'EST PAS la relance.
+           Gris, comme sur le tableau de bord — les deux écrans doivent dire la même chose. */
+        if (att.active) nc = { color: 'var(--text-subtle)', text: 'En attente du client',
+          sub: `${att.motif} — à revoir le ${fmtDate(att.revoir_le)} (dans ${att.jours} j)`,
+          btn: { label: 'Modifier ou reprendre', on: 'openRelance()' } };
+        else if (st.epuise) nc = { color: 'var(--danger)', text: '3 relances sans réponse', sub: 'À classer si le client ne revient pas.', btn: { label: 'Ouvrir les relances', on: 'openRelance()' } };
+        else if (st.retard) nc = { color: st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)', text: `Relance ${st.step.n} à envoyer`,
+          // Une attente échue ramène son motif : c'est au moment d'écrire la relance qu'on a
+          // besoin de savoir ce que le client avait dit.
+          sub: att.echue ? `tu avais noté : « ${att.motif} » (reprise prévue le ${fmtDate(att.revoir_le)})`
+                         : `prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ' — retard de ' + st.joursRetard + ' j' : ''}`,
+          btn: { label: 'Préparer la relance', on: 'openRelance()' } };
         else nc = { color: 'var(--accent)', text: 'En attente de réponse client', sub: st.step ? `Relance ${st.step.n} prévue le ${fmtDate(st.due)}` : '' };
       } else if (d.statut === 'signe' && !poseFaite && acompte > 0 && totalPaye < acompte - 0.005) {
         nc = { color: 'var(--warn)', text: 'Encaisser l’acompte', sub: `${fmtEur(Math.max(0, acompte - totalPaye))} attendus avant de commander`, btn: { label: 'Facturer l’acompte', on: `location.href='factures.html?devis=${d.id}&type=acompte'` } };
@@ -2648,7 +2694,12 @@
       const st = relanceState(DEVIS);
       const host = el('relanceSuivi');
       if (!host) return;
-      const color = st.epuise ? 'var(--text-subtle)' : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)');
+      const att = window.SSUI.attenteClient(DEVIS);
+      /* ⚠️ LE GRIS PASSE DEVANT TOUT LE RESTE quand l'attente est active. La couleur dit
+         l'ACTION (règle 21 bis) : sur un dossier qu'on a volontairement mis de côté, il n'y a
+         rien à faire, et un liséré ambre dirait le contraire de ce qu'on vient de décider. */
+      const color = att.active ? 'var(--text-subtle)'
+                  : (st.epuise ? 'var(--text-subtle)' : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)'));
       const steps = st.plan.map(s => {
         const fait = st.done.find(r => r.n === s.n);
         // Jalon fait = bouton d'ANNULATION : c'est la seule marche arrière possible si on a marqué
@@ -2656,13 +2707,19 @@
         if (fait) return `<button type="button" class="rl-step done" onclick="undoRelance(${s.n})"
             title="Relance ${s.n} enregistrée — cliquer pour annuler">R${s.n} ✓ ${fait.date ? fmtDate(fait.date) : 'faite'}</button>`;
         if (st.step && s.n === st.step.n) {
+          // Gelée : ni « due » ni « late », et la date affichée est celle de la REPRISE — c'est
+          // elle qui fait foi tant que l'attente court.
+          if (att.active) return `<span class="rl-step" title="Cadence gelée par la mise en attente">R${s.n} — gelée jusqu’au ${fmtDate(att.revoir_le)}</span>`;
           const cls = st.retard ? (st.joursRetard >= 7 ? 'late' : 'due') : '';
           return `<span class="rl-step ${cls}">R${s.n} — ${st.retard ? 'à envoyer' : 'prévu'} le ${fmtDate(st.due)}</span>`;
         }
         return `<span class="rl-step">R${s.n} — J+${s.j}</span>`;
       }).join('');
       let next;
-      if (st.epuise) next = `Les 3 relances ont été envoyées, sans retour du client.
+      if (att.active) {
+        next = `<strong style="color:${color};">Cadence gelée</strong> — reprise le <strong>${fmtDate(att.revoir_le)}</strong>
+          (dans ${att.jours} j). Aucune relance ne sera réclamée d'ici là, ni ici ni sur le tableau de bord.`;
+      } else if (st.epuise) next = `Les 3 relances ont été envoyées, sans retour du client.
         <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="classerSansReponse()"
           style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">
           ${icon('check', 13)} Classer le dossier — pas de réponse</button>`;
@@ -2677,8 +2734,144 @@
           </div>
           <div class="rl-steps">${steps}</div>
           <div class="rl-next">${next}</div>
+          ${blocAttente(att)}
         </div>`;
     }
+
+    /* ── LE BLOC « MISE EN ATTENTE » ─────────────────────────────────────────
+       Il vit DANS le suivi de relance et nulle part ailleurs : c'est exactement là qu'on se
+       demande « est-ce que je relance ? ». Une seconde porte sur la fiche aurait été le défaut
+       des deux portes (règle 19) — la carte « Prochaine action » y mène, elle n'en ouvre pas
+       une autre.
+       ⚠️ IL AFFICHE AUSSI LES ATTENTES PASSÉES. Une mise en attente levée reste la mémoire de
+       la discussion : « elle avait déjà demandé un report en juin » se lit ici, et c'est ce
+       qu'on vient chercher trois semaines plus tard (même raison que la décision d'un sujet). */
+    function blocAttente(att) {
+      const passees = (DEVIS.attentes || []).filter(a => a && a.levee_le);
+      const histo = passees.length ? `<div class="at-passees">${passees.slice(-3).map(a =>
+        `<span class="at-passee">• ${esc(fmtDate(a.le))} → ${esc(fmtDate(a.revoir_le))} · ${esc(a.motif || '')} · levée le ${esc(fmtDate(a.levee_le))}</span>`).join('')}</div>` : '';
+      const cls = att.active ? 'actif' : (att.echue ? 'echue' : '');
+      let tete;
+      if (att.active) {
+        tete = `<div class="at-tete">${icon('clock', 13)} <span class="at-motif">« ${esc(att.motif)} »</span>
+            <span class="at-meta">posée le ${esc(fmtDate(att.le))}${att.par ? ' par ' + esc(SSUI.IDENTITE_LABEL[att.par] || att.par) : ''}</span>
+            <span style="margin-left:auto;display:flex;gap:.35rem;">
+              <button type="button" class="at-chip" onclick="ouvrirFormAttente()">Modifier</button>
+              <button type="button" class="at-chip" onclick="leverAttente()">Reprendre maintenant</button>
+            </span></div>`;
+      } else if (att.echue) {
+        /* ⚠️ L'ATTENTE ÉCHUE NE DISPARAÎT PAS, ELLE SE RAPPELLE. C'est tout l'intérêt du
+           dispositif : le jour où la cadence reprend, ce qu'il faut savoir c'est ce que le client
+           avait dit — c'est ça qu'on écrit dans la relance. */
+        tete = `<div class="at-tete">${icon('clock', 13)} <strong>Tu avais noté :</strong>
+            <span class="at-motif">« ${esc(att.motif)} »</span>
+            <span class="at-meta">reprise prévue le ${esc(fmtDate(att.revoir_le))}</span>
+            <span style="margin-left:auto;display:flex;gap:.35rem;">
+              <button type="button" class="at-chip" onclick="ouvrirFormAttente()">Reporter encore</button>
+              <button type="button" class="at-chip" onclick="leverAttente()">C’est réglé</button>
+            </span></div>`;
+      } else {
+        tete = `<div class="at-tete"><span class="at-meta">Le client t’a répondu et il faut attendre ?</span>
+            <button type="button" class="at-chip" style="margin-left:auto;" onclick="ouvrirFormAttente()">Mettre en attente…</button></div>`;
+      }
+      return `<div class="at-bloc ${cls}">${tete}${formAttente(att)}${histo}</div>`;
+    }
+
+    // Le formulaire est rendu MASQUÉ avec le reste : rien à construire au moment du clic, donc
+    // rien qui puisse manquer si le rendu de la fiche est repassé entre-temps.
+    function formAttente(att) {
+      const dMin = SSUI.plusJours(SSUI.aujourdhui(), 1);
+      /* ⚠️ NE JAMAIS PRÉ-REMPLIR AVEC UNE DATE PASSÉE. Sur une attente échue, « Reporter encore »
+         rouvrait le formulaire sur la date d'hier : le champ était sous le seuil `min`, et le
+         bouton d'enregistrement répondait « choisis une date dans le futur » à quelqu'un qui
+         n'avait rien tapé. Un formulaire qui refuse ce qu'il a lui-même proposé, on le ferme. */
+      const defaut = (att.revoir_le && att.revoir_le > SSUI.aujourdhui())
+        ? att.revoir_le : SSUI.plusJours(SSUI.aujourdhui(), 14);
+      const amorces = (SSUI.MOTIFS_ATTENTE || []).map(m =>
+        `<button type="button" class="at-chip" onclick="poserMotifAttente(${SSUI.jsAttr(m)})">${esc(m)}</button>`).join('');
+      return `<div class="at-form hidden" id="attForm">
+          <div class="field">
+            <label class="label" for="attMotif">Pourquoi ce dossier attend — obligatoire</label>
+            <div class="at-chips" style="margin-bottom:.35rem;">${amorces}</div>
+            <textarea class="textarea" id="attMotif" style="min-height:64px;"
+              placeholder="Ex. : elle a répondu au mail du 10/10 — elle revient vers moi en novembre.">${esc(att.motif || '')}</textarea>
+          </div>
+          <div class="rl-row">
+            <span class="rl-k">Revenir dessus le</span>
+            <input class="input" type="date" id="attDate" value="${esc(defaut)}" min="${esc(dMin)}">
+            <span class="at-chips">
+              <button type="button" class="at-chip" onclick="poserDateAttente(7)">+1 sem.</button>
+              <button type="button" class="at-chip" onclick="poserDateAttente(14)">+2 sem.</button>
+              <button type="button" class="at-chip" onclick="poserDateAttente(30)">+1 mois</button>
+              <button type="button" class="at-chip" onclick="poserDateAttente('mois')">début du mois prochain</button>
+            </span>
+          </div>
+          <p class="rl-hint">Ce jour-là, le dossier revient tout seul dans la liste du jour, avec ce que tu as écrit ici.
+            D'ici là, aucune relance n'est réclamée. — L'argent dû et le chantier, eux, continuent d'être suivis normalement.</p>
+          <div class="row wrap" style="gap:var(--sp-2);">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="fermerFormAttente()">Annuler</button>
+            <button type="button" class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="enregistrerAttente()">Mettre en attente</button>
+          </div>
+        </div>`;
+    }
+    window.ouvrirFormAttente = () => {
+      const f = el('attForm');
+      if (!f) return;
+      f.classList.remove('hidden');
+      const m = el('attMotif');
+      if (m) { m.focus(); m.selectionStart = m.value.length; }
+    };
+    window.fermerFormAttente = () => { const f = el('attForm'); if (f) f.classList.add('hidden'); };
+    window.poserMotifAttente = (texte) => {
+      const m = el('attMotif');
+      if (!m) return;
+      // On AJOUTE au lieu de remplacer : l'amorce est un début de phrase, pas une réponse.
+      m.value = m.value.trim() ? (m.value.trim() + ' — ' + texte) : texte;
+      m.focus();
+    };
+    window.poserDateAttente = (n) => {
+      const c = el('attDate');
+      if (!c) return;
+      if (n === 'mois') {
+        const x = new Date(SSUI.aujourdhui() + 'T00:00:00Z');
+        x.setUTCMonth(x.getUTCMonth() + 1, 1);
+        c.value = x.toISOString().slice(0, 10);
+      } else c.value = SSUI.plusJours(SSUI.aujourdhui(), n);
+    };
+    /* ⚠️ ÉCRITURE CIBLÉE, jamais `saveDevis` : la fiche garde un DEVIS complet en mémoire, et
+       l'enregistrer écraserait une attente posée entre-temps depuis un autre écran (règle 3).
+       Le serveur réinjecte d'ailleurs `attentes` à chaque enregistrement complet — écrire ici
+       via saveDevis n'aurait tout simplement RIEN enregistré, en silence. */
+    window.enregistrerAttente = async () => {
+      const motif = (el('attMotif').value || '').trim();
+      const quand = el('attDate').value || '';
+      if (!motif) { toast('Écris pourquoi ce dossier attend — dans trois semaines, c’est la seule chose qui te le rappellera.', 'warn', 6000); el('attMotif').focus(); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(quand) || quand <= SSUI.aujourdhui()) {
+        toast('Choisis une date de reprise dans le futur — sans date, le dossier sortirait des compteurs sans jamais revenir.', 'warn', 6000);
+        el('attDate').focus(); return;
+      }
+      const res = await SS.setDevisAttente(DEVIS.id, { motif, revoir_le: quand });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Mise en attente NON enregistrée — réessaie.', 'error', 7000); return; }
+      DEVIS.attentes = res.attentes || [];
+      // La route ciblée fait AVANCER date_modification : l'adopter évite que le prochain
+      // enregistrement complet de cette page soit refusé comme un conflit (voir api/[[catchall]]).
+      if (res.date_modification) DEVIS.date_modification = res.date_modification;
+      SS.logActivity && SS.logActivity({ action: 'devis.attente', entity_type: 'devis', entity_id: DEVIS.id, label: `Mis en attente jusqu'au ${quand} — devis #${DEVIS.id}` });
+      toast('Mis en attente ✓ — on te le remet sous les yeux le ' + fmtDate(quand), 'ok', 5000);
+      // render() et pas seulement le suivi : la carte « Prochaine action » et la réglette vivent
+      // DERRIÈRE la modale et afficheraient encore « Relance 2 à envoyer ».
+      render();
+      renderRelanceSuivi();
+    };
+    window.leverAttente = async () => {
+      const res = await SS.leverDevisAttente(DEVIS.id);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Reprise NON enregistrée — réessaie.', 'error', 7000); return; }
+      DEVIS.attentes = res.attentes || [];
+      if (res.date_modification) DEVIS.date_modification = res.date_modification;
+      toast('Cadence reprise ✓', 'ok');
+      render();
+      renderRelanceSuivi();
+    };
     // La date d'envoi déduite n'est qu'une estimation : dès que Nicolas la corrige, elle est stockée
     // explicitement sur le devis et fait foi pour toute la cadence.
     window.saveDateEnvoi = async (val) => {
@@ -2750,6 +2943,17 @@
         toast(res.error || 'Relance NON enregistrée — réessaie.', 'error', 6000);
         renderRelanceSuivi();
         return;
+      }
+      /* ⚠️ ENVOYER UNE RELANCE LÈVE L'ATTENTE. On vient de reprendre la main : la laisser
+         ouverte gellerait la relance SUIVANTE sur une date qui ne veut plus rien dire. Appel
+         séparé, parce que c'est une écriture ciblée — un échec ici ne doit pas annuler la
+         relance, qui est déjà enregistrée : on le DIT plutôt que de faire semblant. */
+      if (window.SSUI.attenteClient(DEVIS).etat !== 'aucune') {
+        const rl = await SS.leverDevisAttente(DEVIS.id);
+        if (rl && rl.ok !== false) {
+          DEVIS.attentes = rl.attentes || [];
+          if (rl.date_modification) DEVIS.date_modification = rl.date_modification;
+        } else toast('Relance enregistrée, mais la mise en attente n’a PAS pu être levée — lève-la à la main.', 'warn', 7000);
       }
       SS.logActivity && SS.logActivity({ action: 'devis.relance', entity_type: 'devis', entity_id: DEVIS.id, label: `Relance ${n} envoyée — devis #${DEVIS.id}` });
       toast(opts.auto ? `Relance ${n} enregistrée ✓ — clique sur « R${n} ✓ » pour annuler` : `Relance ${n} enregistrée ✓ — prochaine relance recalculée`,

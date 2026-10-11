@@ -62,11 +62,11 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 89 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 tests (`window.SSAttente`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 des 93 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
-| `tests/attente.test.html` | Les 73 tests du « qui doit agir ». Même principe. |
+| `tests/attente.test.html` | Les 93 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
@@ -1519,6 +1519,71 @@ déjà. Les mails vivent sur le CLIENT, pas sur le dossier ; un second éditeur 
 Sans le paramètre, on atterrirait sur le CRM avec la consigne implicite de retrouver le bon mail
 soi-même — le détour qu'on ne fait pas.
 
+**38. UNE MISE EN ATTENTE ARRÊTE LA CADENCE SANS PERDRE LE DOSSIER.**
+Demande de Nicolas (11/10/2026) sur un cas réel : relance 1 envoyée à Doris Zurstrassen, elle
+répond par mail « je reviens vers vous en novembre » — et l'ERP réclamait la relance 2.
+« Pouvoir arrêter ce décompte, mettre pourquoi, et me rappeler en novembre. »
+⚠️ **LE PROBLÈME N'ÉTAIT PAS LA CADENCE, C'EST QU'ELLE NE SAIT RIEN DE LA CONVERSATION.** Elle
+compte des jours depuis l'envoi ; elle ne peut pas savoir qu'une réponse est arrivée entre-temps.
+Et **un écran qui réclame une relance qu'on ne fera pas, on apprend très vite à ne plus le
+lire** — ce qui coûte AUSSI les relances qu'il fallait vraiment envoyer.
+⚠️ **CE N'EST PAS UN STATUT DE PLUS, et c'est tout le choix de conception.** Un statut
+« en attente » aurait fait perdre « où en est la cadence » (relance 1 faite), il aurait fallu le
+remettre à sa valeur précédente ensuite, et personne ne le ferait. Une mise en attente **se pose
+PAR-DESSUS** : les statuts continuent de fonctionner normalement, elle ne fait que REPOUSSER
+l'échéance et porter le pourquoi. C'est exactement ce que Nicolas demandait : « que je puisse
+laisser faire normalement, et si une info autre, arrêter ce décompte ».
+⚠️ **DEUX CHAMPS, ET LES DEUX SONT OBLIGATOIRES** (le serveur le tient, pas seulement l'écran).
+Le MOTIF : sans lui, trois semaines plus tard, on a un dossier gelé dont personne ne sait
+pourquoi — même défaut que la décision d'un sujet (règle 16) et la réparation d'un ticket SAV
+(règle 20 bis). La DATE : **une mise en attente sans date n'est pas une attente, c'est un trou**
+— le dossier sortirait de tous les compteurs et ne reviendrait jamais. Et elle doit être dans le
+FUTUR : une attente « jusqu'à hier » naît échue, donc elle n'a servi à rien.
+⚠️ **L'ATTENTE S'ÉTEINT TOUTE SEULE.** Au jour dit elle devient échue, la cadence reprend où elle
+en était, et **le motif s'affiche À CÔTÉ de la relance réclamée** — c'est au moment d'écrire le
+message qu'on a besoin de savoir ce que le client avait dit. Aucun geste pour « réveiller » le
+dossier : **un rappel qui dépend d'un geste n'arrive jamais.** « Revoir le 3 » veut dire que le
+3, le dossier est DÉJÀ dans la liste du jour — d'où `echue` dès que la date est AUJOURD'HUI.
+⚠️ **ELLE NE SUSPEND QUE CE QUI POUSSE LE CLIENT À ACCEPTER** : la cadence de relance, « devis
+expiré » et « lien jamais ouvert » — les trois disent la même chose, et n'en faire taire qu'une
+revenait à fermer une bouche sur trois. **Pas l'argent** (acompte, solde) : une facture émise est
+une obligation, pas une conversation. **Pas le chantier** (commande, pose) : ça dépend de nous.
+D'où `SSUI.attenteApplicable`, qui la limite aux devis qui attendent une réponse — signer un
+devis l'éteint donc **sans aucune écriture**, et sans rien effacer de l'historique.
+⚠️ **ELLE REPOUSSE L'ÉCHÉANCE, ELLE NE LA REMPLACE PAS** : `due = max(due, revoir_le)`. Si la
+cadence tombe de toute façon APRÈS la date annoncée, c'est la cadence qui gagne — sinon mettre
+en attente RAPPROCHERAIT la relance, l'inverse du but. Et `retard` se déduit de `due`, donc geler
+la date suffit à faire taire les quatre écrans : **un drapeau « ne pas relancer » en plus,
+c'étaient deux vérités à tenir d'accord.**
+⚠️ **UN DOSSIER EN ATTENTE RESTE VISIBLE**, en GRIS et en dernier dans le bandeau
+(« N en attente client », avec son filtre). Sans cette pastille il disparaîtrait de tous les
+compteurs — et un dossier qu'on ne voit plus nulle part finit par s'oublier, **ce que la mise en
+attente devait précisément ÉVITER**. Gris et pas ambre : la couleur dit l'ACTION (règle 21 bis),
+et sur un dossier qu'on a mis de côté exprès il n'y a rien à faire.
+⚠️ **LA RÉGLETTE S'ARRÊTE AUSSI** (état `pause` : repère creux, immobile). Demandé explicitement :
+« jusqu'à la ligne du temps où l'on voit clairement où ça en est ». Une barre qui continue
+d'avancer pendant que la cadence est gelée raconterait le contraire de ce qu'on vient de décider.
+⚠️ **ÉCRITURE CIBLÉE** (`POST|DELETE /api/devis/:id/attente`, règle 3) et **invariant serveur** :
+`upsertDevis` réinjecte `attentes` depuis la base, comme les commentaires. La fiche devis garde
+un DEVIS complet en mémoire et le réenregistre au moindre changement de statut — sans l'invariant,
+poser une attente puis changer le statut depuis un onglet resté ouvert l'effacerait en silence.
+⚠️ **UNE ATTENTE LEVÉE N'EST PAS SUPPRIMÉE** : `attentes` est une LISTE, la courante est la
+dernière non levée. Ce qu'on s'est dit avec le client est la mémoire du dossier — « elle avait
+déjà demandé un report en juin » se lit sur la fiche, et c'est ça qu'on vient chercher.
+Envoyer une relance LÈVE l'attente (on a repris la main) ; l'échec de cette levée est DIT, jamais
+avalé — la relance, elle, est déjà enregistrée.
+⚠️ **ELLE NE SORT JAMAIS VERS LE CLIENT** : `attentes` n'est pas dans la liste blanche de
+`/api/devis-review` (règle 31 ter). « Le client est en vacances » n'a rien à faire sur une page
+qu'il peut ouvrir.
+⚠️ **ET LE DÉFAUT QUI A ÉTÉ TROUVÉ EN REJOUANT LE GESTE : `normDevis` EST UNE LISTE BLANCHE.**
+Le moteur répondait juste, la fiche devis affichait « cadence gelée », les 20 tests passaient —
+et le tableau de bord continuait de réclamer la relance, parce que SES devis passent par
+`normDevis`, qui ne connaissait pas `attentes` et la jetait **en silence**. Invisible à la
+relecture, invisible aux tests du moteur : il a fallu charger la vraie page avec un vrai devis
+(règle 2, et « vérifier son travail » n° 5). **Toute nouvelle clé d'un devis doit se demander :
+qui la reconstruit par liste blanche ?** Ici il y en avait trois : `normDevis`, la projection SQL
+de `/api/devis`, et l'invariant d'`upsertDevis`.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -1771,7 +1836,7 @@ soi-même — le détour qu'on ne fait pas.
 1. **Les 58 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
-   `tests/attente.test.html`, exiger « 73/73 ».
+   `tests/attente.test.html`, exiger « 93/93 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
    quatre de ses cas chargent `tests/amorce-theme.html` en iframe pour mesurer le premier rendu.

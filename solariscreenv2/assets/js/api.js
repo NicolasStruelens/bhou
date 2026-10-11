@@ -389,6 +389,35 @@
       }
     },
 
+    /* ── MISE EN ATTENTE D'UN DEVIS ──
+       Écriture CIBLÉE (règle 3) et non un enregistrement du devis complet : la fiche devis garde
+       en mémoire un DEVIS entier, et l'enregistrer écraserait une attente posée entre-temps
+       depuis un autre écran. Le serveur réinjecte d'ailleurs `attentes` à chaque enregistrement
+       complet, comme les commentaires : une attente ne peut pas être perdue par un autre écran.
+       ⚠️ AUCUNE FILE HORS-LIGNE, volontairement — même raison que les indisponibilités et les
+       notes de frais : une attente qui n'existerait que sur le téléphone qui l'a saisie ferait
+       relancer un client à qui l'autre vient de dire « je vous laisse jusqu'en novembre ». */
+    async setDevisAttente(devisId, attente) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/attente',
+          { method: 'POST', body: JSON.stringify(attente || {}) });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : la mise en attente n\u2019a PAS été enregistrée — à refaire une fois connecté.' };
+      }
+    },
+    /** Reprendre la main avant l'échéance : lève l'attente en cours (elle reste dans l'historique). */
+    async leverDevisAttente(devisId) {
+      try {
+        return await req('/devis/' + encodeURIComponent(devisId) + '/attente', { method: 'DELETE' });
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : la reprise n\u2019a PAS été enregistrée — à refaire une fois connecté.' };
+      }
+    },
+
     // ── TICKETS SAV ──
     // Même architecture que les commentaires : écriture CIBLÉE côté serveur (route dédiée), pour
     // qu'un ticket ne puisse pas être écrasé par un enregistrement du devis complet fait ailleurs.
