@@ -1765,6 +1765,25 @@
       epuise: !step,
     };
   }
+  /* ══════ LA COMMANDE MURALE, DITE SUR LE DEVIS ══════
+     Demande de Nicolas, 11/10/2026 : « pour éviter toute ambiguïté, je préciserais
+     “ Commande murale Somfy individuelle incluse ” — pour chaque volet, mais pour les screens
+     également et les tentes aussi ».
+     ⚠️ TROIS NOMS POUR LA MÊME CHOSE, SELON LE TYPE : le volet et le screen portent `emetteur`
+     (« Émetteur inclus »), la tente porte `telecommande` (« Avec commande à distance »). Trois
+     formulaires, trois mots, et sur le document final : RIEN du tout pour un screen ou une
+     tente, et un « Émetteur » sec dans l'encadré d'un volet. Le client, lui, veut savoir s'il
+     aura de quoi commander son store — et c'est exactement le genre d'ambiguïté qui se règle
+     par téléphone trois semaines plus tard.
+     C'est à L'ERP de réunir les trois, pas au lecteur du devis (règle 10) : une phrase, une
+     seule, écrite ici et nulle part ailleurs.
+     ⚠️ « INDIVIDUELLE » N'EST PAS DE L'ORNEMENT : l'encadré de configuration peut couvrir
+     PLUSIEURS ouvertures (« ouvertures 1 à 3 »). Sans ce mot, le client peut comprendre une
+     commande pour le lot ; avec, il comprend une par ouverture, ce qui est ce qui est vendu. */
+  const MENTION_COMMANDE = 'Commande murale Somfy individuelle incluse';
+  function commandeIncluse(it) {
+    return !!(it && (it.emetteur || it.telecommande));
+  }
   function relancesFaites(d) { return relanceEtat(d).doneMax; }
   function relanceDue(d) { return relanceEtat(d).retard; }
 
@@ -1883,6 +1902,7 @@
     manquantsDevis: manquantsDevis, nbManquants: nbManquants, badgeManquants: badgeManquants,
     RELANCE_PLAN: RELANCE_PLAN, planRelance: planRelance, STATUT_RELANCE_N: STATUT_RELANCE_N, STATUT_RANK: STATUT_RANK,
     relanceEtat: relanceEtat, relancesFaites: relancesFaites, relanceDue: relanceDue,
+    MENTION_COMMANDE: MENTION_COMMANDE, commandeIncluse: commandeIncluse,
     attenteClient: attenteClient, attenteApplicable: attenteApplicable,
     attenteCourante: attenteCourante, MOTIFS_ATTENTE: MOTIFS_ATTENTE,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,

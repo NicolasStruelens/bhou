@@ -256,21 +256,32 @@ body { background: var(--bg); }
     display: block; z-index: 5;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  /* …MAIS les aplats pleins repassent DEVANT lui, exactement comme à l'écran : le filigrane
-     glisse DERRIÈRE le bandeau du tableau et derrière le pavé « TOTAL TVAC », au lieu de les
-     traverser en laissant une tache claire. Ce sont les seuls fonds réellement opaques du
-     document (les seuls à porter `print-color-adjust: exact` ci-dessus) ; tout le reste est
-     translucide — 10 % pour l'encadré d'estimation et les bandes de section, 60 % pour les
-     cellules — et laisse donc passer le filigrane, exactement comme à l'écran.
-     ⚠️ Le z-index se pose sur les CONTENEURS (.doc-table / .totals), pas sur le `th` ou le pavé
-     de total : ces conteneurs sont des `.paper > *` en `z-index: 1`, donc ils créent un contexte
-     d'empilement dont leurs enfants ne peuvent pas sortir. Leur propre fond est transparent :
-     les surélever ne masque rien d'autre. Vérifié point par point, pas supposé. */
-  .doc-table, .totals { z-index: 6; }
+  /* …MAIS les DEUX SEULS aplats vraiment opaques repassent devant lui : le bandeau du tableau
+     et le pavé « TOTAL TVAC ». Le filigrane glisse derrière eux au lieu de les traverser en
+     laissant une tache claire. Tout le reste est translucide — 10 % pour l'encadré d'estimation
+     et les bandes de section, 60 % pour les cellules — et laisse donc passer le filigrane.
+     ⚠️ CORRIGÉ LE 11/10/2026, et c'est une vraie erreur de raisonnement, pas un réglage.
+     Le z-index était posé sur les CONTENEURS (.doc-table / .totals) parce qu'ils sont des
+     `.paper > *` en `z-index: 1`, donc des contextes d'empilement dont les enfants ne peuvent
+     pas sortir — c'est exact, mais la conséquence ne l'était pas : surélever le TABLEAU ENTIER,
+     c'est surélever toute sa surface, et le filigrane disparaissait derrière elle. Sur un devis
+     ordinaire le tableau occupe la moitié de la page : il ne restait du mot que « …RMATIF »
+     au-dessus et « INFO… » en dessous. Signalé par Nicolas : « le INFORMATIF n'est pas bien
+     derrière tous les encadrés, alors que dans l'ERP c'est nickel ». Il avait raison, et c'était
+     visible au premier coup d'œil — invisible, en revanche, dans les mesures.
+     LA SORTIE : on RETIRE le contexte d'empilement des conteneurs (`z-index: auto`), ce qui
+     libère leurs enfants positionnés ; seuls les deux aplats montent alors au-dessus du
+     filigrane. Leur fond propre reste le seul masqué, et le mot court d'un bout à l'autre.
+     ⚠️ PAS DE `mix-blend-mode`, bien qu'il résoudrait aussi le problème (un multiply assombrit
+     au lieu d'éclaircir, donc le bandeau bleu resterait propre) : un mode de fusion peut forcer
+     la rastérisation de la couche à la génération du PDF. Ici on n'a besoin que d'ordre de
+     peinture — autant ne rien demander de plus au moteur d'impression. */
+  .doc-table, .totals { z-index: auto; }
+  .doc-table thead th, .totals .t-ttc { position: relative; z-index: 7; }
   /* Resserré spécifiquement à l'impression (jamais visible à l'écran) — pour qu'un petit
      devis/facture (peu de lignes) tienne sur 1 page A4 au lieu de faire déborder juste
      le bloc totaux+partenaires+pied de page sur une 2e page presque vide. */
-  .doc-head { padding-bottom: 0.5rem; }
+  .doc-head { padding-bottom: 0.4rem; }
   .pay-note { margin-top: 0.5rem; padding: 0.5rem 0.8rem; }
   .parties { margin-top: 0.5rem; gap: var(--sp-4); }
   .party h4 { margin-bottom: 0.15rem; }
@@ -280,8 +291,25 @@ body { background: var(--bg); }
   .totals { margin-top: 0.5rem; }
   .totals .t-row { padding: 0.2rem 0; }
   .totals .t-ttc { margin-top: 0.25rem; padding: 0.45rem 0.8rem; }
-  .partners { margin-top: 0.5rem; padding-top: 0.5rem; }
-  .doc-foot { margin-top: 0.5rem; padding-top: 0.4rem; }
+  /* ⚠️ LES BLANCS DU BAS, ET EUX SEULS. Retour transmis par Nicolas le 11/10/2026 :
+     « dommage que les conditions de paiement et les signatures soient seules sur la deuxième
+     page ; réduire légèrement l'espacement de la première donnerait un document plus compact
+     et professionnel ». Mesuré sur le devis Kerremans (2 lignes, un encadré, installation,
+     deux remises) : 1 059 px pour 1 032 utiles en A4. VINGT-SEPT PIXELS — le pied démarrait à
+     1 035, et comme il porte `break-before: avoid` et les signatures `break-after: avoid`, il
+     emmenait tout le bloc de signature sur une page qui ne contenait QUE ça.
+     ⚠️ ON NE RESSERRE QUE CE QUI EST APRÈS LES TOTAUX, et uniquement des MARGES : rien du
+     contenu que le client lit (les lignes, l'encadré de configuration, les montants) n'est
+     touché. Un devis se resserre par ses blancs, jamais par son texte — sinon on gagne une
+     page et on perd le document.
+     ⚠️ `.sig-box` GARDE SES 70 px : une signature manuscrite en demande 18 mm, soit 68.
+     C'est le seul blanc du bas qui n'en est pas un, et c'est pour ça qu'il n'est pas dans
+     cette liste. */
+  .pay-note { margin-top: 0.9rem; }
+  .doc-ref { margin-top: 0.6rem; }
+  .signatures { margin-top: 1rem; }
+  .partners { margin-top: 0.4rem; padding-top: 0.4rem; }
+  .doc-foot { margin-top: 0.4rem; padding-top: 0.3rem; }
   .spec-box { padding: 0.35rem 0.6rem; margin-top: 0.3rem; }
   .spec-box-t { margin-bottom: 0.15rem; font-size: 0.64rem; }
   .spec-box-i { font-size: 0.70rem; line-height: 1.4; }
