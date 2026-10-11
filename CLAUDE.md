@@ -1138,9 +1138,25 @@ pages deviennent deux. Et un client qui lit deux fois la même chose cesse de la
   différer par des champs `client: false` (perçage, rivets) et présenter le même encadré. C'est
   l'encadré qu'on dédoublonne, donc c'est lui qu'on compare. Ni les dimensions ni le prix n'y
   entrent : ils vivent sur la ligne de produit.
-• **L'encadré NOMME ce qu'il couvre** dès qu'il en couvre plus d'un (« ouvertures 4 à 6 ») —
-  sans ça on ne saurait pas où s'arrête sa portée. Sur une seule, pas d'intitulé : écrire
-  « ouverture 1 » sous la ligne 1 n'apprend rien.
+• **L'encadré NOMME ce qu'il couvre** dès qu'il en couvre plus d'un — sans ça on ne saurait
+  pas où s'arrête sa portée. Sur une seule ouverture, pas d'intitulé : écrire « ouverture 1 »
+  sous la ligne 1 n'apprend rien.
+  ⚠️ **ET IL NOMME DES PRODUITS, PAS DES NUMÉROS DE LIGNE** (11/10/2026) : « 4 volets » et non
+  « ouvertures 1 et 2 ». Demande de Nicolas sur un PDF réel, et c'est une question de POINT DE
+  VUE : une « ouverture 1 » désigne une ligne de tableau — une notion d'ERP — là où le client
+  compte des volets. **Et le compte n'est pas le même** : deux lignes de quantités 1 et 3, ça
+  fait QUATRE volets, ce que l'ancien intitulé ne disait nulle part.
+  ⚠️ La quantité se lit comme la LIGNE la lit (`quantite || 1`), **jamais avec
+  `SSRemu.quantiteDe`** : celle-là est la règle de l'ARGENT (un zéro écrit vaut zéro). Ici
+  l'intitulé doit s'accorder au chiffre de la colonne « Qté » juste au-dessus — deux règles
+  différentes, et l'encadré contredirait le tableau.
+  ⚠️ Trois replis vers l'ancien intitulé, et aucun n'est de la prudence gratuite : sans les
+  ouvertures, avec des types MÉLANGÉS dans un groupe, ou sans `SSUI`. Dans ces trois cas on ne
+  peut pas nommer le produit honnêtement, **et un intitulé faux est pire qu'un intitulé
+  technique**.
+  ⚠️ `TYPE_FORMES` était INTERNE à `ui.js` : la fonction retombait donc sur l'ancien intitulé
+  **en silence**, sur la page comme dans les tests. Ce sont les trois cas ajoutés à
+  `volet.test.html` qui l'ont dit — la page, elle, affichait juste « l'ancien » sans erreur.
 • ⚠️ **`tr.spec-row { break-before: avoid }`** : mesuré sur huit ouvertures, la ligne 7 tombait
   en bas de page et son encadré ouvrait la suivante, seul, sans le produit qu'il décrit. Limite
   assumée : il colle à sa DERNIÈRE ligne, pas au groupe entier — l'intitulé nomme les lignes,
