@@ -635,6 +635,32 @@ tombaient à 10 px, où un biscuit, un cadeau et un bonbon sont trois moucheture
 feuille et un flocon sont des SILHOUETTES VIDES, leur contour suffit ; une friandise porte un
 ruban, des quartiers, un visage — du détail INTÉRIEUR, qui a besoin de place. La taille se déduit
 de ce que le dessin doit MONTRER, et se mesure sur téléphone, où c'est le plus cruel.
+⚠️ **UN DÉCOR SE COMPARE À SES VOISINS, PAS À LUI-MÊME.** Noël portait sa marque à 17 px
+quand la mitre de Saint-Nicolas en fait 27, un pied de rail à 30 quand le saint en fait 52, et
+des flocons à 16 quand les friandises sont à 21 : **la fête la plus importante avait le décor le
+plus timide**, et ça ne se voyait pas en la regardant seule. C'est la PLANCHE qui le montre —
+d'où la règle de la juger avant de garder.
+⚠️ **UN DESSIN PENSÉ POUR ÊTRE LU EN PETIT N'A PAS LA DENSITÉ QU'IL FAUT EN GRAND, et l'agrandir
+ne la crée pas.** Le sapin de la marque (trois étages, deux guirlandes, cinq boules) est juste à
+17 px et devient VIDE à 52. `SAPIN_DECORE` est donc un dessin à part — quatre étages, un socle,
+neuf boules, une étoile qui scintille — et non le premier mis à l'échelle. La réciproque est la
+raison d'être du spéculoos-silhouette : ce qui porte du détail intérieur ne descend pas.
+⚠️ **DEUX OBJETS DE MÊME FORME CÔTE À CÔTE NE FONT PAS DEUX OBJETS**, ils font un objet et sa
+copie. Une boule rouge qui pend à côté d'un sapin couvert de boules rouges n'ajoute rien : la
+couronne l'a remplacée, et elle se reconnaît à son CONTOUR seul — un anneau — donc elle tient
+à 24 px là où un détail intérieur se serait perdu.
+⚠️ **`rare: true` SUR LE PLUS BEAU DESSIN EST UNE ERREUR.** Le traîneau n'apparaissait qu'un
+passage sur deux : un objet qu'on voit une fois sur deux, on ne le voit jamais. Le drapeau garde
+son sens pour un clin d'œil, jamais pour la pièce maîtresse.
+⚠️ **ET LE TRAÎNEAU A ÉTÉ REFAIT POUR LA MÊME RAISON QUE LE BATEAU A ÉTÉ RETIRÉ.** L'ancien
+était une masse rouge : vu sur planche à 150 px, on lisait un canapé. Le nouveau est une
+SILHOUETTE, et c'est le **patin recourbé** qui fait tout le travail — la seule forme que
+personne ne confond. Pas d'attelage : deux rennes devant demanderaient un viewBox deux fois plus
+large, donc des rennes de 25 px réels, et l'âne de Saint-Nicolas a déjà montré ce que ça donne.
+⚠️ **PAS DE PALETTE SUR LA NEIGE**, contrairement aux friandises et aux confettis : la neige est
+blanche, des flocons de six couleurs ne seraient plus de la neige. La variété vient des trois
+DESSINS, pas de la teinte — c'est l'opacité et la taille qu'il fallait relever, pas la couleur.
+
 ⚠️ **Les périodes ne doivent JAMAIS se chevaucher.** `active` retient la PREMIÈRE qui correspond,
 donc deux fêtes qui se recouvrent se voleraient la vedette — et laquelle gagne dépendrait de
 l'ordre dans la table, ce qui ne se devine pas en la lisant. Un test balaie les 365 jours.

@@ -313,57 +313,101 @@
     '<circle cx="21" cy="21.5" r="1.4" opacity=".45"/></g>' +
     '<path class="ssfete-scintille" fill="var(--accent-2)" d="M21,0C22.4,5.6 22.4,5.6 28,7C22.4,8.4 22.4,8.4 21,14C19.6,8.4 19.6,8.4 14,7C19.6,5.6 19.6,5.6 21,0Z"/></svg>';
 
-  /* La boule : calotte et anneau, un zigzag peint, une étoile gravée, et un reflet qui
-     respire. Avant : un disque avec un point blanc. */
-  const BOULE =
-    '<svg viewBox="0 0 36 48" fill="currentColor">' +
-    '<path d="M15,9L15,5.6A3.2,3.2 0 0 1 21,5.6L21,9" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
-    '<rect x="12.5" y="7.5" width="11" height="6.5" rx="2"/>' +
-    '<rect x="12.5" y="10.2" width="11" height="1.6" fill="var(--surface)" opacity=".45"/>' +
-    '<circle cx="18" cy="29" r="15"/>' +
-    '<path d="M4.6,26L9,23L13.4,26L17.8,23L22.2,26L26.6,23L31,26" fill="none" stroke="var(--surface)" stroke-width="2" opacity=".5"/>' +
-    '<path d="M5.4,34.5C10,37 26,37 30.6,34.5" fill="none" stroke="var(--surface)" stroke-width="1.5" opacity=".32"/>' +
-    '<path fill="var(--surface)" opacity=".38" d="M18,25.5C18.9,28.6 18.9,28.6 22,29.5C18.9,30.4 18.9,30.4 18,33.5C17.1,30.4 17.1,30.4 14,29.5C17.1,28.6 17.1,28.6 18,25.5Z"/>' +
-    '<ellipse class="ssfete-eclat" cx="11.5" cy="22.5" rx="3.4" ry="4.6" transform="rotate(-25 11.5 22.5)" fill="var(--surface)"/></svg>';
+  /* ── LE SAPIN DÉCORÉ ── pour le PIED DU RAIL, à 52 px ─────────────────────────────
+     Le pied du rail portait un CADEAU de 30 px. Saint Nicolas y tient 52 px, et il a raison :
+     c est le seul endroit du décor où un objet a de la place. Un cadeau de 30 px à Noël, quand
+     le saint en fait 52 six jours plus tôt, c est la fête la plus importante avec le décor le
+     plus timide. Retour de Nicolas, 11/10/2026 : « c est NOËL, mets le paquet ».
+     ⚠️ CE N EST PAS LE `SAPIN` DE LA MARQUE AGRANDI. Celui-là est dessiné pour 17 px : trois
+     étages, deux guirlandes, cinq boules. À 52 px il devient vide — un dessin pensé pour être
+     lu en petit n a pas la densité qu il faut en grand, et l agrandir ne la crée pas. Celui-ci
+     a quatre étages, un socle, une guirlande qui serpente, neuf boules de trois teintes et une
+     étoile qui scintille.
+     ⚠️ LES BOULES SONT EN COULEURS LITTÉRALES, pas en `var(--surface)` : elles sont POSÉES sur
+     le sapin, elles ne le percent pas. C est la leçon payée trois fois sur la planche de
+     Saint-Nicolas — `var(--surface)` découpe, il ne colorie pas. La guirlande, elle, est bien
+     une découpe : elle doit se lire comme un creux de lumière dans le feuillage. */
+  const SAPIN_DECORE =
+    '<svg viewBox="0 0 62 86" fill="currentColor">' +
+    // Le socle : sans lui le sapin flotte, et un sapin qui flotte n est plus un sapin.
+    '<path d="M22,74L40,74L42.5,83L19.5,83Z" fill="#8a5a2b"/>' +
+    '<rect x="27.5" y="68" width="7" height="7" fill="#6b4420"/>' +
+    // Quatre étages, du plus large au plus étroit.
+    '<path d="M31,46L52,70Q31,65 10,70Z"/>' +
+    '<path d="M31,32L46,53Q31,48.5 16,53Z"/>' +
+    '<path d="M31,20L41,37Q31,33.5 21,37Z"/>' +
+    '<path d="M31,9L36.5,23Q31,20.5 25.5,23Z"/>' +
+    // La guirlande : une DÉCOUPE, donc un creux de lumière dans le feuillage.
+    '<g fill="none" stroke="var(--surface)" stroke-linecap="round">' +
+    '<path d="M13,65Q31,57 49,65" stroke-width="1.8" opacity=".40"/>' +
+    '<path d="M18,49Q31,42 44,49" stroke-width="1.6" opacity=".36"/>' +
+    '<path d="M23,34Q31,29 39,34" stroke-width="1.3" opacity=".32"/></g>' +
+    // Les boules : POSÉES sur le sapin, donc en couleurs littérales.
+    '<g><circle cx="17" cy="66" r="2.6" fill="#e4554f"/><circle cx="31" cy="69" r="2.8" fill="#f0c24b"/>' +
+    '<circle cx="45" cy="66" r="2.6" fill="#8fc7e8"/>' +
+    '<circle cx="22" cy="50" r="2.3" fill="#f0c24b"/><circle cx="31" cy="52.5" r="2.4" fill="#8fc7e8"/>' +
+    '<circle cx="40" cy="50" r="2.3" fill="#e4554f"/>' +
+    '<circle cx="26" cy="35.5" r="2" fill="#e4554f"/><circle cx="36" cy="35.5" r="2" fill="#f0c24b"/>' +
+    '<circle cx="31" cy="23.5" r="1.8" fill="#8fc7e8"/></g>' +
+    // L étoile : l animation appartient à l objet, pas à son déplacement.
+    '<path class="ssfete-scintille" fill="var(--accent-2)" ' +
+    'd="M31,0C32.9,7 32.9,7 40,9C32.9,11 32.9,11 31,18C29.1,11 29.1,11 22,9C29.1,7 29.1,7 31,0Z"/>' +
+    '</svg>';
 
-  /* Le cadeau : couvercle débordant, deux rubans, et un VRAI nœud — deux boucles, un centre,
-     deux pans. C'est le nœud qui fait la différence avec une boîte quelconque. */
-  const CADEAU =
-    '<svg viewBox="0 0 44 44" fill="currentColor">' +
-    '<rect x="4" y="17" width="36" height="24" rx="2"/>' +
-    '<rect x="1" y="11.5" width="42" height="7" rx="2"/>' +
-    '<rect x="18.5" y="11.5" width="7" height="29.5" fill="var(--surface)" opacity=".5"/>' +
-    '<rect x="4" y="26" width="36" height="4" fill="var(--surface)" opacity=".3"/>' +
-    '<path d="M22,11.5C16,11.5 11,8 12,4.4C13,1.4 18,3 22,11.5Z"/>' +
-    '<path d="M22,11.5C28,11.5 33,8 32,4.4C31,1.4 26,3 22,11.5Z"/>' +
-    '<path d="M19.6,12.6L15,19.4L19.2,18Z" opacity=".65"/><path d="M24.4,12.6L29,19.4L24.8,18Z" opacity=".65"/>' +
-    '<circle cx="22" cy="10.4" r="2.7"/>' +
-    '<ellipse cx="18" cy="6.5" rx="1.5" ry="2.2" fill="var(--surface)" opacity=".3" transform="rotate(-25 18 6.5)"/></svg>';
+  /* ── LE TRAÎNEAU ── refait en SILHOUETTE ──────────────────────────────────────
+     L ancien était une masse rouge : vu sur planche à 150 px, on lisait un canapé. À 88 px, en
+     mouvement, à 30 % d opacité, ça ne pouvait pas être autre chose qu une tache — exactement
+     le défaut qui avait fait retirer le bateau de Saint-Nicolas.
+     CE QUI CHANGE : c est une SILHOUETTE, pas un volume. Le patin recourbé fait presque tout le
+     travail de reconnaissance — c est la seule forme que personne ne confond — donc il est
+     tracé épais, détaché de la caisse, et il remonte franchement à l avant. Les cadeaux
+     dépassent par-dessus le dossier : sans eux, c est une luge.
+     ⚠️ PAS D ATTELAGE. Deux rennes devant demanderaient un viewBox deux fois plus large, donc
+     des rennes de 25 px réels : la leçon de l âne de Saint-Nicolas, où monture et cavalier
+     fusionnaient. Un traîneau seul se lit ; un attelage minuscule ne se lit pas. */
+  const TRAINEAU_SILHOUETTE =
+    '<svg viewBox="0 0 104 64" fill="currentColor">' +
+    // Les cadeaux qui dépassent : sans eux, c est une luge.
+    '<g><rect x="36" y="14" width="17" height="15" rx="2" fill="#f0c24b"/>' +
+    '<rect x="42.5" y="14" width="4" height="15" fill="#e4554f" opacity=".75"/>' +
+    '<rect x="55" y="19" width="13" height="11" rx="2" fill="#8fc7e8"/>' +
+    '<rect x="59.5" y="19" width="3.5" height="11" fill="#e4554f" opacity=".7"/></g>' +
+    // La caisse : dossier haut à l arrière, bord bas à l avant.
+    '<path d="M30,29L74,29L70,45L34,45Z"/>' +
+    '<path d="M28,10L34,10L34,30L28,30Z"/>' +
+    // Le PATIN : la forme qui fait tout. Épais, détaché, et recourbé franchement à l avant.
+    '<path d="M26,47L78,47C86,47 92,42 93,34C93,40 89,51 79,51L30,51Z"/>' +
+    '<g opacity=".85"><rect x="40" y="44" width="4.5" height="6" rx="1.5"/>' +
+    '<rect x="64" y="44" width="4.5" height="6" rx="1.5"/></g>' +
+    // La traînée : trois étoiles qui scintillent derrière, décalées.
+    '<g fill="var(--accent-2)">' +
+    '<path class="ssfete-scintille" style="animation-delay:0s" d="M14,22C14.9,25.3 14.9,25.3 18,26C14.9,26.7 14.9,26.7 14,30C13.1,26.7 13.1,26.7 10,26C13.1,25.3 13.1,25.3 14,22Z"/>' +
+    '<path class="ssfete-scintille" style="animation-delay:.9s" d="M6,36C6.7,38.4 6.7,38.4 9,39C6.7,39.6 6.7,39.6 6,42C5.3,39.6 5.3,39.6 3,39C5.3,38.4 5.3,38.4 6,36Z"/>' +
+    '<path class="ssfete-scintille" style="animation-delay:1.8s" d="M20,40C20.6,42 20.6,42 22.5,42.5C20.6,43 20.6,43 20,45C19.4,43 19.4,43 17.5,42.5C19.4,42 19.4,42 20,40Z"/></g>' +
+    '</svg>';
+
+  /* ── LA COURONNE ── ce qui PEND dans le coin, à la place de la boule ─────────────────
+     La boule était juste, mais c est la MÊME forme que la boule du sapin juste à côté : deux
+     ronds rouges à vingt centimètres l un de l autre, ça ne fait pas deux objets, ça fait un
+     objet et sa copie. Une couronne se balance aussi bien au bout d un fil, et c est la seule
+     autre image de Noël qu on reconnaît à son CONTOUR seul : un anneau. */
+  const COURONNE =
+    '<svg viewBox="0 0 36 38" fill="none">' +
+    '<circle cx="18" cy="21" r="12.5" stroke="currentColor" stroke-width="7"/>' +
+    // Les aiguilles : de petits traits qui débordent, sinon c est un beignet.
+    '<g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".9">' +
+    '<path d="M18,6.5L18,3"/><path d="M28.5,13L31.5,11"/><path d="M28.5,29L31.5,31"/>' +
+    '<path d="M18,35.5L18,38"/><path d="M7.5,29L4.5,31"/><path d="M7.5,13L4.5,11"/></g>' +
+    // Les baies : posées sur la couronne, donc littérales.
+    '<g fill="#e4554f"><circle cx="11" cy="14" r="2.4"/><circle cx="25.5" cy="17" r="2.1"/>' +
+    '<circle cx="21" cy="31.5" r="2.2"/></g>' +
+    // Le nœud, en haut : il dit par où ça pend.
+    '<path d="M18,6C15,6 12.5,3.6 14,1.4C15.6,-0.3 18,2.2 18,6Z" fill="#e4554f"/>' +
+    '<path d="M18,6C21,6 23.5,3.6 22,1.4C20.4,-0.3 18,2.2 18,6Z" fill="#e4554f"/>' +
+    '</svg>';
 
   /* Le traîneau : patins à double courbe, volute au dossier, liseré, cadeaux rubannés, et une
      traînée d'étincelles qui scintillent. */
-  /* Le traineau. PREMIERE VERSION REFAITE : juge sur planche, il sortait en tache rouge — trop
-     de detail pour sa taille rendue (88 px), et une caisse qui n'occupait que la moitie du
-     cadre. Ici le cadre est resserre, les patins sont epais et leur double courbe est nette,
-     le dossier a sa volute, et les cadeaux sont poses bien en vue. Meme lecon que le saint sur
-     son ane : a cette taille, des formes franches, pas une illustration. */
-  const TRAINEAU =
-    '<svg viewBox="0 0 104 58" fill="currentColor">' +
-    '<g opacity=".5"><circle class="ssfete-scintille" cx="4" cy="26" r="2.6" style="animation-delay:0s"/>' +
-    '<circle class="ssfete-scintille" cx="11" cy="40" r="1.9" style="animation-delay:0.6s"/></g>' +
-    '<rect x="36" y="6" width="22" height="17" rx="2.5"/>' +
-    '<g stroke="var(--surface)" stroke-width="2.2" opacity=".5"><path d="M47,6L47,23"/><path d="M36,14.5L58,14.5"/></g>' +
-    '<rect x="62" y="12" width="16" height="11" rx="2.5"/>' +
-    '<path d="M70,12L70,23" stroke="var(--surface)" stroke-width="2" opacity=".45"/>' +
-    '<path d="M20,40C18,28 24,23 36,23L80,23C89,23 92,29 88,39L86,43L24,43Z"/>' +
-    '<path d="M80,23C90,17 95,22 92,31" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/>' +
-    '<path d="M25,34L86,34" stroke="var(--surface)" stroke-width="2.6" opacity=".38"/>' +
-    '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
-    '<path d="M16,52C10,44 14,35 24,32" stroke-width="4.2"/>' +
-    '<path d="M16,52L92,52" stroke-width="4.2"/>' +
-    '<path d="M92,52C99,48 99,41 92,39" stroke-width="4.2"/>' +
-    '<path d="M36,43.5L36,52M74,43.5L74,52" stroke-width="3"/></g></svg>';
-
   const ETOILE_FILANTE =
     '<svg viewBox="0 0 66 28" fill="currentColor">' +
     '<g fill="none" stroke="currentColor" stroke-linecap="round">' +
@@ -673,31 +717,60 @@
       id: 'noel',
       nom: 'Noël',
       du: '12-10', au: '12-26',
+      /* ⚠️ TOUTES LES TAILLES ONT ÉTÉ RELEVÉES LE 11/10/2026, et c'est une correction, pas un
+         caprice. Noël portait la marque à 17 px quand la mitre de Saint-Nicolas en fait 27, un
+         pied de rail à 30 quand le saint en fait 52, et des flocons à 16 quand les friandises
+         sont à 21 : la fête la plus importante avait le décor le plus timide. Demande de
+         Nicolas : « c'est NOËL, mets le paquet ».
+         ⚠️ Chaque taille est déduite de ce que le dessin doit MONTRER et de la place dont il
+         dispose, jamais copiée d'une autre fête (règle 28) : la marque se cale sur la hauteur
+         du logo (36 px), le pied de rail sur la place réservée sous le menu. */
       coin: {
         svg: BRANCHE_SAPIN, taille: 62,
-        teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.45, clair: 0.45 },
-        // La boule remplace l'araignée : même fil, même balancement — le mécanisme était déjà là.
+        teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.55, clair: 0.52 },
+        /* ⚠️ UNE COURONNE, PLUS UNE BOULE. Le mécanisme ne change pas — même fil, même
+           balancement, hérité de l'araignée. Mais une boule rouge qui pend à côté d'un sapin
+           couvert de boules rouges, ça ne fait pas deux objets : ça fait un objet et sa copie.
+           Une couronne se reconnaît à son CONTOUR seul — un anneau — donc elle tient à 24 px
+           là où un détail intérieur se serait perdu. */
         bete: {
-          svg: BOULE, taille: 20, fil: 11,
-          teinte: { sombre: '#e4554f', clair: '#b5342e' }, opacite: { sombre: 0.95, clair: 0.9 },
+          svg: COURONNE, taille: 24, fil: 11,
+          teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 1, clair: 0.95 },
         },
       },
-      marque: { svg: SAPIN, taille: 17,
+      /* 26 et non 17 : même raisonnement que la mitre. La ligne de bandeau fait 36 px et porte
+         un logo de 36 ; le viewBox du sapin étant 1,38 fois plus haut que large, 26 rend 36 —
+         il remplit la hauteur sans la pousser. */
+      marque: { svg: SAPIN, taille: 26,
         teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 1, clair: 1 } },
       rail: {
         coin: { svg: BRANCHE_SAPIN, taille: 56,
-          teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.32, clair: 0.32 } },
-        pied: { svg: CADEAU, taille: 30,
-          teinte: { sombre: '#e4554f', clair: '#b5342e' }, opacite: { sombre: 0.9, clair: 0.9 } },
+          teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.38, clair: 0.36 } },
+        /* Le sapin décoré remplace le cadeau de 30 px : c'est le seul endroit du décor où un
+           objet a de la place, et c'est l'image de Noël. Voir le commentaire de SAPIN_DECORE —
+           ce n'est PAS le sapin de la marque agrandi. */
+        pied: { svg: SAPIN_DECORE, taille: 52,
+          teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 1, clair: 0.95 } },
       },
       volants: [
         { svg: ETOILE_FILANTE, taille: 42, haut: '13%', duree: 20, retard: 3,
-          teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.5, clair: 0.36 } },
-        { svg: TRAINEAU, taille: 88, haut: '60%', duree: 34, retard: 17, rare: true,
-          teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.4, clair: 0.3 } },
+          teinte: { sombre: '#ffe9a8', clair: '#9a7b1f' }, opacite: { sombre: 0.6, clair: 0.45 } },
+        /* ⚠️ L'ancien traîneau était une masse rouge — vu sur planche à 150 px, on lisait un
+           canapé. Le nouveau est une SILHOUETTE : c'est le patin recourbé qui fait tout le
+           travail de reconnaissance. Et il n'est plus `rare` : un objet qu'on ne voit qu'un
+           passage sur deux, on ne le voit jamais — or c'est le plus beau du décor. */
+        { svg: TRAINEAU_SILHOUETTE, taille: 96, haut: '58%', duree: 30, retard: 14,
+          teinte: { sombre: '#e4554f', clair: '#b03a33' }, opacite: { sombre: 0.62, clair: 0.5 } },
       ],
-      tombe: { svg: FLOCONS, taille: 16, nombre: 14, duree: 14,
-        teinte: { sombre: '#dce9ff', clair: '#8ba6cc' }, opacite: { sombre: 0.55, clair: 0.4 } },
+      /* ⚠️ 20 px ET 18 FLOCONS, contre 16 et 14. Un flocon est une SILHOUETTE VIDE : son
+         contour suffit, il tient donc à plus petite taille qu'une friandise, qui porte du
+         détail intérieur. Mais à 16 px et 0,55 d'opacité sur fond sombre, il ne tombait pas de
+         la neige : il tombait de la poussière.
+         ⚠️ PAS DE PALETTE ICI, contrairement aux friandises et aux confettis, et c'est voulu :
+         la neige est blanche. Des flocons de six couleurs ne seraient plus de la neige. La
+         variété vient des TROIS dessins différents, pas de la teinte. */
+      tombe: { svg: FLOCONS, taille: 20, nombre: 18, duree: 14,
+        teinte: { sombre: '#dce9ff', clair: '#7e9cc4' }, opacite: { sombre: 0.78, clair: 0.58 } },
     },
 
     /* NOUVEL AN — du 27 décembre au 2 janvier. C'est la SEULE période qui enjambe le 1er janvier,
