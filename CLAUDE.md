@@ -1584,6 +1584,44 @@ relecture, invisible aux tests du moteur : il a fallu charger la vraie page avec
 qui la reconstruit par liste blanche ?** Ici il y en avait trois : `normDevis`, la projection SQL
 de `/api/devis`, et l'invariant d'`upsertDevis`.
 
+**38 bis. UNE FENÊTRE QUI PROPOSE DEUX CHOSES OPPOSÉES SE LIT COMME DU DÉSORDRE.**
+« Je trouve l'outil relance un peu trop brouillon » (Nicolas, 11/10/2026). Le défaut n'était
+pas esthétique et il ne se corrige pas en reprenant les marges : **la fenêtre se contredisait.**
+Elle annonçait en haut « cadence gelée — aucune relance ne sera réclamée », et proposait juste
+en dessous un message de relance 2 tout rédigé avec un bouton « Marquer relance 2 envoyée ».
+Deux intentions OPPOSÉES au même niveau : l'œil ne sait pas laquelle est la bonne, et il lit du
+désordre. **Le message se replie donc quand la cadence est gelée** — on peut toujours relancer
+(« Relancer quand même »), mais c'est alors un CHOIX, pas la pente naturelle de la fenêtre.
+⚠️ **L'ORDRE EST CELUI DU RAISONNEMENT** : où ça en est → le parcours → ce que je fais
+maintenant → le réglage. La date d'envoi trônait EN HAUT avec son champ de saisie alors qu'on y
+touche une fois dans la vie d'un devis ; elle est en pied, repliée derrière « corriger la date ».
+**Ce qu'on vient faire passe devant ce qui se règle une fois.**
+⚠️ **UN SEUL NIVEAU D'ENCADRÉ.** Il y en avait trois emboîtés — la fenêtre, une boîte grise
+dedans, la boîte d'attente dans celle-là. Trois bordures et trois fonds empilés : on ne sait
+plus ce qui appartient à quoi. Les sections se séparent par de l'ESPACE, pas par un cadre de plus.
+⚠️ **TROIS FORMATS POUR LA MÊME CHOSE, C'EST TROIS CHOSES.** Le suivi affichait
+« R1 ✓ 03/10/2026 », « R2 — gelée jusqu'au 28/11/2026 » et « R3 — J+21 ». Même vocabulaire
+pour les quatre jalons désormais. Et **une étape à venir ne porte PAS de date** : sa date de
+plan est comptée depuis l'envoi, donc elle est souvent déjà PASSÉE sur un devis ancien (R3 à
+J+21 sur un devis parti il y a 42 jours). **Une échéance fausse est pire que pas d'échéance.**
+⚠️ **UN BOUTON ALIGNÉ AVEC QUATRE AUTRES PASSE POUR LE CINQUIÈME DE LA SÉRIE.**
+« Marquer relance 2 envoyée » était au bout de la rangée Copier / Email / SMS / WhatsApp — or
+ces quatre-là enregistrent DÉJÀ la relance. Il passait donc pour un cinquième moyen d'envoi, ou
+pour une étape obligatoire de plus. Il est sorti de la rangée et porte son vrai rôle :
+**« J'ai relancé autrement — noter R2 comme envoyée »** (téléphone, de vive voix).
+⚠️ **ET LE DÉFAUT QUE LA REFONTE A FAILLI INTRODUIRE** : annuler une relance ne tenait plus
+qu'à un POINT DE 12 PX, découvrable au seul survol. C'est la règle 33 à l'envers — un raccourci
+sans son mot, et **sur téléphone il n'y a pas de survol**, donc muet là où il sert le plus. C'est
+la COLONNE entière du jalon qui clique (~130 × 70 px), le libellé vire au rouge et le mot
+« annuler » apparaît dessous — sa place est RÉSERVÉE, donc rien ne saute au survol.
+⚠️ Deux pièges de style, mesurés sur l'écran et pas dans le code : **deux `<span>` l'un sous
+l'autre sont en ligne** (le titre et le sous-titre du bandeau sortaient collés — « En attente du
+clientReprise le 28/11 »), et **une espace ordinaire en tête d'un pseudo-élément est avalée**
+(« Suivi de la relance —Doris »). Les deux demandent `display: block` et ` a0`.
+⚠️ **UNE CLASSE D'ÉTIQUETTE NE DOIT PAS DÉPENDRE DE SON PARENT.** `.rl-k` était écrite
+`.rl-row .rl-k` : la nouvelle étiquette « Envoyer par », qui n'est pas dans une `.rl-row`,
+sortait en texte brut — et aucune mesure ne le signalait.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe

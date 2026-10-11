@@ -576,21 +576,99 @@
     }
 
     /* ── Suivi de relance (cadence J+5/J+12/J+21 ou J+4/J+9/J+21) ── */
-    .rl-suivi { border: 1px solid var(--border); border-left: 3px solid var(--rlc, var(--accent)); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
+    /* ⚠️ `rl-k` EST AUTONOME, PAS SCOPÉE À `rl-row`. Elle l'était, et la nouvelle étiquette
+       « Envoyer par » — qui n'est pas dans une `rl-row` — sortait en texte brut, sans qu'aucune
+       mesure ne le signale. Une classe d'ÉTIQUETTE ne doit pas dépendre de son parent. */
+    .rl-k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-subtle); }
     .rl-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-    .rl-row .rl-k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
     .rl-row input[type="date"] { height: 30px; max-width: 160px; }
-    .rl-age { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
-    .rl-steps { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: var(--sp-2); }
-    .rl-step { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-sm); border: 1px solid var(--border-strong); color: var(--text-subtle); }
-    .rl-step.done { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
-    /* Jalon déjà fait = bouton d'annulation. Le survol vire au rouge pour annoncer ce que fait le clic. */
-    button.rl-step { background: transparent; cursor: pointer; line-height: 1.2; transition: color .12s, border-color .12s; }
-    button.rl-step:hover, button.rl-step:focus-visible { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
-    .rl-step.due { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); font-weight: 700; }
-    .rl-step.late { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); font-weight: 700; }
-    .rl-next { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
     .rl-hint { margin: 0; font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; }
+
+    /* ── SUIVI DE LA RELANCE ── refait le 11/10/2026 ───────────────────────────
+       UN SEUL NIVEAU D'ENCADRÉ. Avant : la fenêtre, une boîte grise dedans, et la boîte
+       d'attente dans celle-là — trois bordures et trois fonds empilés, l'œil ne savait plus ce
+       qui appartenait à quoi. Chaque section est maintenant au MÊME niveau, séparée par de
+       l'espace et non par un cadre de plus. */
+    .rl-corps { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+    .rl-qui { color: var(--text-subtle); font-weight: 400; }
+    /* ⚠️ Espaces INSÉCABLES : une espace ordinaire en tête d'un pseudo-élément est avalée au
+       rendu, et le nom se collait au tiret (« Suivi de la relance —Doris Zurstrassen »). */
+    .rl-qui::before { content: '\00a0\2014\00a0'; }
+
+    /* L'ÉTAT : la réponse à « où ça en est », en une phrase. C'est la seule chose en gras de
+       la fenêtre, et sa couleur est celle de l'ACTION (règle 21 bis), pas du statut. */
+    .rl-etat { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3);
+      border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--rlc) 32%, transparent);
+      border-left: 3px solid var(--rlc);
+      background: color-mix(in srgb, var(--rlc) 7%, var(--surface-2)); }
+    .rl-etat-ic { color: var(--rlc); flex: none; line-height: 0; margin-top: 2px; }
+    /* ⚠️ `display: block` SUR LES DEUX : ce sont des <span>, donc en ligne par défaut — le
+       titre et le sous-titre sortaient collés (« En attente du clientReprise le 28/11 »). */
+    .rl-etat-t { display: block; font-size: var(--fs-md); font-weight: 700; color: var(--rlc); line-height: 1.3; }
+    .rl-etat-s { display: block; font-size: var(--fs-sm); color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
+
+    /* LE PARCOURS. Quatre jalons, MÊME vocabulaire pour les quatre : avant, on lisait
+       « R1 ✓ 03/10/2026 », « R2 — gelée jusqu'au 28/11/2026 » et « R3 — J+21 » — trois formats
+       pour la même chose, dont un (« J+21 ») qui ne dit pas QUAND.
+       ⚠️ UNE ÉTAPE À VENIR NE PORTE PAS DE DATE, et c'est volontaire : sa date de plan est
+       comptée depuis l'envoi, donc elle est souvent DÉJÀ PASSÉE sur un devis ancien (R3 à J+21
+       sur un devis parti il y a 42 jours). Afficher une échéance fausse est pire que ne rien
+       afficher ; la cadence complète est rappelée en pied. */
+    .rl-frise { position: relative; display: flex; padding-top: 2px; }
+    .rl-frise::before { content: ''; position: absolute; left: 12.5%; right: 12.5%; top: 7px;
+      height: 2px; background: var(--border-strong); }
+    .rl-j { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; min-width: 0; }
+    .rl-pt { width: 12px; height: 12px; border-radius: 50%; background: var(--surface);
+      border: 2px solid var(--border-strong); padding: 0; position: relative; z-index: 1; flex: none; }
+    .rl-j.fait .rl-pt { background: var(--ok); border-color: var(--ok); }
+    .rl-j.now .rl-pt { background: var(--rlc); border-color: var(--rlc);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--rlc) 18%, transparent); }
+    /* GELÉ : creux et immobile, comme le repère de la réglette de la fiche. Les deux écrans
+       doivent dire la même chose avec la même forme. */
+    .rl-j.gel .rl-pt { background: var(--surface); border-color: var(--text-subtle); box-shadow: none; }
+    .rl-j.todo .rl-pt { border-style: dashed; }
+    /* Un jalon FAIT est un bouton d'annulation : la seule marche arrière si on l'a noté par
+       erreur. C'est la COLONNE entière qui clique — un point de 12 px serait muet au doigt. */
+    button.rl-j { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+    button.rl-j .rl-pt, button.rl-j .rl-jn { transition: background .12s, border-color .12s, color .12s; }
+    button.rl-j:hover .rl-pt, button.rl-j:focus-visible .rl-pt { background: var(--danger); border-color: var(--danger); }
+    button.rl-j:hover .rl-jn, button.rl-j:focus-visible .rl-jn { color: var(--danger); }
+    button.rl-j::after { content: 'annuler'; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      color: var(--danger); opacity: 0; transition: opacity .12s; }
+    button.rl-j:hover::after, button.rl-j:focus-visible::after { opacity: 1; }
+    @media (pointer: coarse) { button.rl-j { min-height: 44px; } }
+    .rl-jn { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-subtle); white-space: nowrap; }
+    .rl-j.fait .rl-jn { color: var(--ok); }
+    .rl-j.now .rl-jn { color: var(--rlc); font-weight: 700; }
+    .rl-jd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); white-space: nowrap; }
+    .rl-j.now .rl-jd { color: var(--rlc); }
+    @media (prefers-reduced-motion: no-preference) {
+      /* Seul le jalon qui demande une action respire. Un jalon GELÉ reste immobile : on vient
+         de décider qu'il n'y avait rien à faire, l'appeler du regard serait se contredire. */
+      .rl-j.now:not(.gel) .rl-pt { animation: rlBat 2.2s ease-in-out infinite; }
+      @keyframes rlBat { 0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--rlc) 18%, transparent); }
+                         50%      { box-shadow: 0 0 0 7px color-mix(in srgb, var(--rlc) 6%, transparent); } }
+    }
+
+    /* LE MESSAGE, repliable. Quand la cadence est gelée il disparaît : proposer un brouillon de
+       relance juste sous « aucune relance ne sera réclamée », c'était LE désordre. */
+    .rl-msg { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .rl-msg.replie { display: none; }
+    .rl-canaux { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .rl-canaux-b { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .rl-lien { background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
+      text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .rl-lien:hover, .rl-lien:focus-visible { color: var(--accent-ink, var(--accent)); }
+
+    /* LE PIED : le réglage dont tout dépend, mais qu'on touche une fois. */
+    .rl-pied { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+      padding-top: var(--sp-2); border-top: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .rl-pied input[type="date"] { height: 30px; max-width: 160px; }
+    @media (pointer: coarse) { .rl-lien { min-height: 32px; } }
 
     /* ── MISE EN ATTENTE ── */
     .at-bloc { margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm);
@@ -997,33 +1075,61 @@
     </div>
   </div>
 
-  <div class="viz-modal" id="relanceModal" role="dialog" aria-label="Relancer le client">
-    <div class="viz-panel" style="max-width:520px;">
+  <!-- ══════ SUIVI DE LA RELANCE ══════
+       ⚠️ REFAITE LE 11/10/2026 — « je trouve l'outil relance un peu trop brouillon » (Nicolas).
+       Le défaut n'était pas esthétique : LA FENÊTRE SE CONTREDISAIT. Elle annonçait en haut
+       « cadence gelée, aucune relance ne sera réclamée » et proposait juste en dessous un message
+       de relance 2 tout rédigé avec un bouton « Marquer relance 2 envoyée ». Deux intentions
+       OPPOSÉES au même niveau : c'est ça qui se lit comme du désordre, pas les marges.
+       L'ORDRE EST DÉSORMAIS CELUI DU RAISONNEMENT : où ça en est → le parcours → ce que je fais
+       maintenant → (en pied) le réglage qu'on touche une fois dans la vie du devis. -->
+  <div class="viz-modal" id="relanceModal" role="dialog" aria-label="Suivi de la relance">
+    <div class="viz-panel" style="max-width:560px;">
       <div class="viz-head">
-        <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Relancer le client</span>
+        <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Suivi de la relance<span class="rl-qui" id="relanceQui"></span></span>
         <button class="lb-btn" style="position:static;width:34px;height:34px;" onclick="closeRelance()" aria-label="Fermer">✕</button>
       </div>
-      <div style="padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-3);">
+      <div class="rl-corps">
+        <!-- 1. OÙ ÇA EN EST — une seule phrase, colorée par l'action à faire. -->
+        <div id="relanceEtat"></div>
+        <!-- 2. LE PARCOURS — Envoyé · R1 · R2 · R3, même vocabulaire pour les quatre. -->
+        <div id="relanceFrise"></div>
+        <!-- 3. CE QUE JE FAIS MAINTENANT — la mise en attente, et le repli du message. -->
         <div id="relanceSuivi"></div>
-        <div class="field"><label class="label" for="relanceType">Type de message</label>
-          <select class="select" id="relanceType" onchange="fillRelanceText()">
-            <option value="r1">Relance 1 — premier rappel</option>
-            <option value="r2">Relance 2 — relance</option>
-            <option value="r3">Dernière relance</option>
-            <option value="acompte">Rappel acompte</option>
-            <option value="pose">Confirmation de pose</option>
-            <option value="libre">Message libre</option>
-          </select>
+        <!-- Le message. REPLIÉ quand la cadence est gelée : on vient de décider de ne pas
+             relancer, lui tendre un brouillon de relance serait se contredire. -->
+        <div id="relanceMessage" class="rl-msg">
+          <div class="field"><label class="label" for="relanceType">Type de message</label>
+            <select class="select" id="relanceType" onchange="fillRelanceText()">
+              <option value="r1">Relance 1 — premier rappel</option>
+              <option value="r2">Relance 2 — relance</option>
+              <option value="r3">Dernière relance</option>
+              <option value="acompte">Rappel acompte</option>
+              <option value="pose">Confirmation de pose</option>
+              <option value="libre">Message libre</option>
+            </select>
+          </div>
+          <div class="field"><label class="label" for="relanceText">Message (modifiable)</label><textarea class="textarea" id="relanceText" style="min-height:140px;"></textarea></div>
+          <!-- ⚠️ LES QUATRE CANAUX SONT UN GROUPE, et le cinquième bouton n'en faisait pas partie :
+               aligné avec eux, il laissait croire à un cinquième moyen d'envoi. Les quatre
+               ENREGISTRENT déjà la relance ; celui-là sert quand on a relancé AUTREMENT (au
+               téléphone, de vive voix). Il porte donc ce nom-là, et il est en dessous. -->
+          <div class="rl-canaux">
+            <span class="rl-k">Envoyer par</span>
+            <div class="rl-canaux-b">
+              <button class="btn btn-ghost btn-sm" id="btnRelanceCopy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
+              <button class="btn btn-ghost btn-sm" id="btnRelanceEmail">Email</button>
+              <button class="btn btn-ghost btn-sm" id="btnRelanceSms">SMS</button>
+              <button class="btn btn-ghost btn-sm" id="btnRelanceWa">WhatsApp</button>
+            </div>
+          </div>
+          <p class="rl-hint">Ces quatre boutons <strong>enregistrent la relance</strong> — le point du parcours s'annule d'un clic.
+            <button type="button" class="rl-lien" id="btnRelanceDone" onclick="markRelanceSent()">J'ai relancé autrement</button></p>
         </div>
-        <div class="field"><label class="label" for="relanceText">Message (modifiable)</label><textarea class="textarea" id="relanceText" style="min-height:140px;"></textarea></div>
-        <div class="row wrap" style="gap:var(--sp-2);">
-          <button class="btn btn-ghost btn-sm" id="btnRelanceCopy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
-          <button class="btn btn-ghost btn-sm" id="btnRelanceEmail">Email</button>
-          <button class="btn btn-ghost btn-sm" id="btnRelanceSms">SMS</button>
-          <button class="btn btn-ghost btn-sm" id="btnRelanceWa">WhatsApp</button>
-          <button class="btn btn-primary btn-sm" id="btnRelanceDone" style="margin-left:auto;" onclick="markRelanceSent()">Marquer comme relancé</button>
-        </div>
-        <p class="rl-hint">Les quatre boutons enregistrent la relance automatiquement. Un jalon <strong>R1 ✓</strong> du suivi s'annule d'un clic.</p>
+        <!-- 4. LE RÉGLAGE. En pied et replié : toute la cadence en dépend, mais on y touche une
+             fois. En haut, avec son champ de saisie, il prenait la place de ce qu'on vient faire. -->
+        <div id="relancePied"></div>
       </div>
     </div>
   </div>
@@ -2690,53 +2796,135 @@
     }
     // Tableau de suivi : date d'envoi, relances faites, prochaine échéance. C'est ce qui évite de
     // perdre un client uniquement parce qu'on a oublié de revenir vers lui.
+    /* ══════ LE SUIVI DE LA RELANCE ══════
+       Quatre morceaux, dans l'ordre du raisonnement : où ça en est → le parcours → ce que je
+       fais maintenant → le réglage. Chacun a son conteneur, donc chacun se relit seul.
+       ⚠️ UNE SEULE FONCTION LES APPELLE TOUS LES QUATRE : découpés en quatre points d'entrée,
+       un appelant en aurait oublié un et la fenêtre se serait contredite à nouveau — c'est
+       exactement le défaut qu'on vient de corriger. */
     function renderRelanceSuivi() {
+      if (!el('relanceSuivi')) return;
       const st = relanceState(DEVIS);
-      const host = el('relanceSuivi');
-      if (!host) return;
       const att = window.SSUI.attenteClient(DEVIS);
-      /* ⚠️ LE GRIS PASSE DEVANT TOUT LE RESTE quand l'attente est active. La couleur dit
-         l'ACTION (règle 21 bis) : sur un dossier qu'on a volontairement mis de côté, il n'y a
-         rien à faire, et un liséré ambre dirait le contraire de ce qu'on vient de décider. */
+      /* ⚠️ LE GRIS PASSE DEVANT TOUT quand l'attente est active. La couleur dit l'ACTION
+         (règle 21 bis) : sur un dossier qu'on a volontairement mis de côté, il n'y a rien à
+         faire, et un liséré ambre dirait le contraire de ce qu'on vient de décider. */
       const color = att.active ? 'var(--text-subtle)'
-                  : (st.epuise ? 'var(--text-subtle)' : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)'));
-      const steps = st.plan.map(s => {
-        const fait = st.done.find(r => r.n === s.n);
-        // Jalon fait = bouton d'ANNULATION : c'est la seule marche arrière possible si on a marqué
-        // une relance par erreur (sans elle, la cadence sautait définitivement une étape).
-        if (fait) return `<button type="button" class="rl-step done" onclick="undoRelance(${s.n})"
-            title="Relance ${s.n} enregistrée — cliquer pour annuler">R${s.n} ✓ ${fait.date ? fmtDate(fait.date) : 'faite'}</button>`;
-        if (st.step && s.n === st.step.n) {
-          // Gelée : ni « due » ni « late », et la date affichée est celle de la REPRISE — c'est
-          // elle qui fait foi tant que l'attente court.
-          if (att.active) return `<span class="rl-step" title="Cadence gelée par la mise en attente">R${s.n} — gelée jusqu’au ${fmtDate(att.revoir_le)}</span>`;
-          const cls = st.retard ? (st.joursRetard >= 7 ? 'late' : 'due') : '';
-          return `<span class="rl-step ${cls}">R${s.n} — ${st.retard ? 'à envoyer' : 'prévu'} le ${fmtDate(st.due)}</span>`;
-        }
-        return `<span class="rl-step">R${s.n} — J+${s.j}</span>`;
-      }).join('');
-      let next;
+                  : (st.epuise ? 'var(--text-subtle)'
+                  : (st.retard ? (st.joursRetard >= 7 ? 'var(--danger)' : 'var(--warn)') : 'var(--accent)'));
+      const cl = DEVIS.client || {};
+      const qui = el('relanceQui');
+      if (qui) qui.textContent = [cl.prenom, cl.nom].filter(Boolean).join(' ');
+      renderRelanceEtat(st, att, color);
+      renderRelanceFrise(st, att, color);
+      el('relanceSuivi').innerHTML = blocAttente(att);
+      renderRelancePied(st);
+      /* ⚠️ LE MESSAGE SE REPLIE QUAND LA CADENCE EST GELÉE. C'est LA correction du 11/10/2026 :
+         annoncer « aucune relance ne sera réclamée » et tendre dans la foulée un brouillon de
+         relance tout rédigé, ce sont deux intentions opposées dans la même boîte. On peut
+         toujours relancer — le lien est dans le bloc d'attente — mais c'est alors un choix,
+         pas la pente naturelle de la fenêtre.
+         ⚠️ On ne replie PAS un message déjà déplié à la main : sans ce garde-fou, corriger le
+         motif de l'attente refermait le message qu'on était en train d'écrire. */
+      const msg = el('relanceMessage');
+      if (msg && !msg.dataset.ouvert) msg.classList.toggle('replie', att.active);
+    }
+
+    // 1. OÙ ÇA EN EST — une phrase, une seule, et c'est la seule chose en gras de la fenêtre.
+    function renderRelanceEtat(st, att, color) {
+      const host = el('relanceEtat');
+      if (!host) return;
+      let ic = 'clock', t, sub;
       if (att.active) {
-        next = `<strong style="color:${color};">Cadence gelée</strong> — reprise le <strong>${fmtDate(att.revoir_le)}</strong>
-          (dans ${att.jours} j). Aucune relance ne sera réclamée d'ici là, ni ici ni sur le tableau de bord.`;
-      } else if (st.epuise) next = `Les 3 relances ont été envoyées, sans retour du client.
-        <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="classerSansReponse()"
-          style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">
-          ${icon('check', 13)} Classer le dossier — pas de réponse</button>`;
-      else if (st.retard) next = `<strong style="color:${color};">Relance ${st.step.n} à envoyer</strong> — prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ` (en retard de ${st.joursRetard} j)` : ''}.`;
-      else next = `Prochaine relance (R${st.step.n}) le <strong>${fmtDate(st.due)}</strong> — dans ${daysBetween(st.today, st.due)} j.`;
-      host.innerHTML = `
-        <div class="rl-suivi" style="--rlc:${color};">
-          <div class="rl-row">
-            <span class="rl-k">Devis envoyé le</span>
-            <input class="input" type="date" id="relDateEnvoi" value="${esc(st.envoi)}" onchange="saveDateEnvoi(this.value)">
-            <span class="rl-age">il y a ${st.jours} j · cadence ${st.kind === 'informatif' ? 'devis informatif' : 'après visite'}</span>
-          </div>
-          <div class="rl-steps">${steps}</div>
-          <div class="rl-next">${next}</div>
-          ${blocAttente(att)}
+        ic = 'clock';
+        t = 'En attente du client';
+        sub = `Reprise le <strong>${fmtDate(att.revoir_le)}</strong> — dans ${att.jours} j. Aucune relance ne sera réclamée d'ici là, ni ici ni sur le tableau de bord.`;
+      } else if (st.epuise) {
+        ic = 'warning';
+        t = '3 relances envoyées, sans réponse';
+        sub = 'Il n\u2019y a plus rien à envoyer — à classer si le client ne revient pas.';
+      } else if (st.retard) {
+        ic = 'warning';
+        t = `Relance ${st.step.n} à envoyer`;
+        sub = st.joursRetard > 0
+          ? `Prévue le ${fmtDate(st.due)} — <strong>${st.joursRetard} j de retard</strong>.`
+          : `C\u2019est prévu pour aujourd\u2019hui.`;
+      } else {
+        ic = 'check';
+        t = `Relance ${st.step.n} prévue le ${fmtDate(st.due)}`;
+        sub = `Dans ${daysBetween(st.today, st.due)} j — rien à faire d\u2019ici là.`;
+      }
+      host.innerHTML = `<div class="rl-etat" style="--rlc:${color};">
+          <span class="rl-etat-ic">${icon(ic, 18)}</span>
+          <span><span class="rl-etat-t">${esc(t)}</span><span class="rl-etat-s">${sub}</span></span>
         </div>`;
     }
+
+    // 2. LE PARCOURS — Envoyé · R1 · R2 · R3, même vocabulaire pour les quatre.
+    function renderRelanceFrise(st, att, color) {
+      const host = el('relanceFrise');
+      if (!host) return;
+      const jalons = [{ cls: 'fait', nom: 'Envoyé', date: fmtDate(st.envoi), btn: null }];
+      st.plan.forEach(p => {
+        const fait = st.done.find(r => r.n === p.n);
+        if (fait) {
+          jalons.push({ cls: 'fait', nom: 'R' + p.n, date: fait.date ? fmtDate(fait.date) : 'faite',
+            btn: `undoRelance(${p.n})`, titre: `Relance ${p.n} enregistrée — cliquer pour annuler` });
+        } else if (st.step && p.n === st.step.n) {
+          jalons.push({ cls: att.active ? 'now gel' : 'now', nom: 'R' + p.n,
+            // Pas d'emoji ici : les icônes viennent de SSUI.icon(). Le point CREUX et le bandeau
+            // au-dessus disent déjà que c'est gelé ; la date, elle, est la vraie échéance.
+            date: fmtDate(att.active ? att.revoir_le : st.due),
+            btn: null, titre: att.active ? 'Gelée par la mise en attente' : '' });
+        } else {
+          // Pas de date sur une étape à venir : voir la feuille de style, elle serait fausse.
+          jalons.push({ cls: 'todo', nom: 'R' + p.n, date: 'à venir', btn: null });
+        }
+      });
+      /* ⚠️ C'EST LE JALON ENTIER QUI EST LE BOUTON, PAS LE POINT. Un disque de 12 px dont la
+         seule indication est un `title` au survol, c'est un raccourci sans son mot (règle 33) —
+         et sur téléphone il n'y a PAS de survol, donc il serait muet là où il sert le plus. En
+         prenant toute la colonne, la cible fait ~130 × 40 px au lieu de 12 × 12, et le libellé
+         change de couleur au survol : on voit qu'il se passe quelque chose. */
+      host.innerHTML = `<div class="rl-frise" style="--rlc:${color};">` + jalons.map(j => {
+        const dedans = `<span class="rl-pt"></span><span class="rl-jn">${esc(j.nom)}</span><span class="rl-jd">${esc(j.date)}</span>`;
+        return j.btn
+          ? `<button type="button" class="rl-j ${j.cls}" onclick="${j.btn}" title="${esc(j.titre || '')}">${dedans}</button>`
+          : `<div class="rl-j ${j.cls}"${j.titre ? ` title="${esc(j.titre)}"` : ''}>${dedans}</div>`;
+      }).join('') + '</div>';
+    }
+
+    // 4. LE RÉGLAGE — en pied, et replié : toute la cadence en dépend, mais on y touche une fois.
+    function renderRelancePied(st) {
+      const host = el('relancePied');
+      if (!host) return;
+      const plan = st.plan.map(p => 'J+' + p.j).join(' / ');
+      host.innerHTML = `<div class="rl-pied">
+          <span>Devis parti le <strong>${esc(fmtDate(st.envoi))}</strong> · il y a ${st.jours} j
+            · cadence ${st.kind === 'informatif' ? 'devis informatif' : 'après visite'} (${esc(plan)})</span>
+          <button type="button" class="rl-lien" style="margin-left:auto;" onclick="ouvrirDateEnvoi()">corriger la date</button>
+          <input class="input hidden" type="date" id="relDateEnvoi" value="${esc(st.envoi)}" onchange="saveDateEnvoi(this.value)">
+        </div>`;
+    }
+    window.ouvrirDateEnvoi = () => {
+      const c = el('relDateEnvoi');
+      if (!c) return;
+      c.classList.remove('hidden');
+      c.focus();
+      // Le bouton disparaît : laisser les deux à l'écran ferait hésiter sur lequel agit.
+      const b = c.previousElementSibling;
+      if (b && b.classList.contains('rl-lien')) b.classList.add('hidden');
+    };
+    // « Relancer quand même » : on déplie, et on MARQUE le dépliage pour qu'un re-rendu ne le
+    // referme pas sous les doigts.
+    window.deplierMessage = () => {
+      const m = el('relanceMessage');
+      if (!m) return;
+      m.dataset.ouvert = '1';
+      m.classList.remove('replie');
+      const t = el('relanceText');
+      if (t) t.focus();
+    };
 
     /* ── LE BLOC « MISE EN ATTENTE » ─────────────────────────────────────────
        Il vit DANS le suivi de relance et nulle part ailleurs : c'est exactement là qu'on se
@@ -2758,7 +2946,9 @@
             <span style="margin-left:auto;display:flex;gap:.35rem;">
               <button type="button" class="at-chip" onclick="ouvrirFormAttente()">Modifier</button>
               <button type="button" class="at-chip" onclick="leverAttente()">Reprendre maintenant</button>
-            </span></div>`;
+            </span></div>
+            <p class="rl-hint" style="margin-top:var(--sp-2);">Le message de relance est masqué tant que l\u2019attente court.
+              <button type="button" class="rl-lien" onclick="deplierMessage()">Relancer quand même</button></p>`;
       } else if (att.echue) {
         /* ⚠️ L'ATTENTE ÉCHUE NE DISPARAÎT PAS, ELLE SE RAPPELLE. C'est tout l'intérêt du
            dispositif : le jour où la cadence reprend, ce qu'il faut savoir c'est ce que le client
@@ -3017,7 +3207,11 @@
       if (btn) {
         const n = ({ r1: 1, r2: 2, r3: 3 })[type];
         btn.style.display = n ? '' : 'none';
-        btn.textContent = n ? `Marquer relance ${n} envoyée` : '';
+        /* ⚠️ IL NE DIT PLUS « Marquer relance 2 envoyée ». Aligné avec les quatre canaux, qui
+           enregistrent DÉJÀ, il passait pour un cinquième moyen d'envoi — ou pour une étape
+           supplémentaire obligatoire. Son vrai rôle est le cas où l'on a relancé AUTREMENT : au
+           téléphone, de vive voix, depuis un autre appareil. Il porte donc ce nom-là. */
+        btn.textContent = n ? `J’ai relancé autrement — noter R${n} comme envoyée` : '';
         btn.disabled = st.epuise;
       }
       updateRelanceLinks();
@@ -3062,6 +3256,10 @@
       // Sélectionne d'office la relance que la cadence recommande aujourd'hui.
       const st = relanceState(DEVIS);
       el('relanceType').value = st.step ? ('r' + st.step.n) : 'r3';
+      // Le dépliage manuel ne survit pas à la fermeture : à la réouverture, la fenêtre doit
+      // repartir de ce que dit la cadence, pas de ce qu'on avait forcé la fois d'avant.
+      const msg = el('relanceMessage');
+      if (msg) delete msg.dataset.ouvert;
       renderRelanceSuivi();
       window.fillRelanceText();
       el('relanceModal').classList.add('open');
