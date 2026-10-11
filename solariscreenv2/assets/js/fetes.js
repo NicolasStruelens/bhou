@@ -313,6 +313,50 @@
     '<circle cx="21" cy="21.5" r="1.4" opacity=".45"/></g>' +
     '<path class="ssfete-scintille" fill="var(--accent-2)" d="M21,0C22.4,5.6 22.4,5.6 28,7C22.4,8.4 22.4,8.4 21,14C19.6,8.4 19.6,8.4 14,7C19.6,5.6 19.6,5.6 21,0Z"/></svg>';
 
+  /* ── LA GUIRLANDE LUMINEUSE ── le décor de COIN de Noël ─────────────────────────
+     Demande de Nicolas, 11/10/2026 : « des guirlandes illuminées dans le décor aussi, qui
+     passent de cadre en cadre ». C est la bonne idée : une guirlande n est jamais un objet
+     isolé, c est quelque chose qui COURT — et le décor de coin se pose justement sur chaque
+     encadré de la page.
+     ⚠️ ELLE PREND LA PLACE DE LA BRANCHE DE SAPIN DANS LE COIN DES CARTES, elle ne s ajoute
+     pas : deux décors dans le même angle se recouvriraient, et le moteur n a qu un emplacement
+     par coin. La branche reste dans le coin du RAIL, où elle est seule — chaque objet garde un
+     endroit, aucun ne se bat avec un autre.
+     ⚠️ LE FIL PEND, IL NE PASSE PAS DROIT. Une ligne horizontale n est pas une guirlande,
+     c est un trait : c est la COURBE qui dit qu un fil est tendu entre deux points et qu il a
+     du poids. Les ampoules pendent donc perpendiculairement à la courbe, pas à la verticale du
+     cadre — sinon elles ont l air collées dessus.
+     ⚠️ LES AMPOULES S ALLUMENT EN VAGUE (retards de 0 à 2 s sur un cycle de 2,6), comme les
+     boules du sapin : des ampoules qui clignotent ENSEMBLE ne font pas une guirlande, elles
+     font un gyrophare. Et une sur cinq reste fixe — sans point de repère immobile, on ne voit
+     plus ce qui bouge.
+     ⚠️ LES AMPOULES SONT EN COULEURS LITTÉRALES : elles sont POSÉES sur le fil, elles ne le
+     percent pas. Le fil, lui, suit `currentColor` et donc la teinte du thème. */
+  const GUIRLANDE =
+    '<svg viewBox="0 0 124 52" fill="none">' +
+    // Le fil : deux arcs qui pendent, accrochés en trois points.
+    '<path d="M2,6C20,30 44,30 62,12C80,30 104,30 122,6" stroke="currentColor" stroke-width="2.2" ' +
+    'stroke-linecap="round" opacity=".85"/>' +
+    // Les attaches : sans elles, le fil flotte sans être accroché à quoi que ce soit.
+    '<g fill="currentColor" opacity=".9"><circle cx="2" cy="6" r="2.4"/><circle cx="62" cy="12" r="2.2"/>' +
+    '<circle cx="122" cy="6" r="2.4"/></g>' +
+    /* Les ampoules. Chacune = une douille (petit rectangle sur le fil) + le verre, et elles
+       pendent perpendiculairement à la courbe — d où les rotations. */
+    '<g>' +
+    '<g transform="translate(18,21) rotate(28)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse class="ssfete-scintille" style="animation-delay:0s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#e4554f"/></g>' +
+    '<g transform="translate(37,27) rotate(8)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse class="ssfete-scintille" style="animation-delay:.5s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#f0c24b"/></g>' +
+    '<g transform="translate(52,20) rotate(-22)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse cx="0" cy="6" rx="3.4" ry="4.4" fill="#8fc7e8"/></g>' +
+    '<g transform="translate(78,21) rotate(26)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse class="ssfete-scintille" style="animation-delay:1s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#f0c24b"/></g>' +
+    '<g transform="translate(97,27) rotate(6)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse class="ssfete-scintille" style="animation-delay:1.5s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#e4554f"/></g>' +
+    '<g transform="translate(112,18) rotate(-26)"><rect x="-1.6" y="-1" width="3.2" height="3" rx="1" fill="currentColor" opacity=".8"/>' +
+    '<ellipse class="ssfete-scintille" style="animation-delay:2s" cx="0" cy="6" rx="3.4" ry="4.4" fill="#8fc7e8"/></g>' +
+    '</g></svg>';
+
   /* ── LE SAPIN DÉCORÉ ── pour le PIED DU RAIL, à 52 px ─────────────────────────────
      Le pied du rail portait un CADEAU de 30 px. Saint Nicolas y tient 52 px, et il a raison :
      c est le seul endroit du décor où un objet a de la place. Un cadeau de 30 px à Noël, quand
@@ -342,13 +386,24 @@
     '<path d="M13,65Q31,57 49,65" stroke-width="1.8" opacity=".40"/>' +
     '<path d="M18,49Q31,42 44,49" stroke-width="1.6" opacity=".36"/>' +
     '<path d="M23,34Q31,29 39,34" stroke-width="1.3" opacity=".32"/></g>' +
-    // Les boules : POSÉES sur le sapin, donc en couleurs littérales.
-    '<g><circle cx="17" cy="66" r="2.6" fill="#e4554f"/><circle cx="31" cy="69" r="2.8" fill="#f0c24b"/>' +
+    /* Les boules : POSÉES sur le sapin, donc en couleurs littérales.
+       ⚠️ QUATRE D ENTRE ELLES CLIGNOTENT, PAS LES NEUF. Une guirlande, c est ce qui fait qu un
+       sapin est allumé plutôt que dessiné — l animation appartient à l objet, elle ne le
+       déplace pas (règle 28). Mais neuf boules qui pulsent ensemble, ce n est plus un sapin,
+       c est un gyrophare : au bas d un menu qu on regarde toute la journée, ça se paie.
+       ⚠️ LES RETARDS MONTENT VERS L ÉTOILE (0,4 → 2,2 s sur un cycle de 2,6) : la lueur
+       PARCOURT l arbre au lieu de battre sur place, et elle finit là où l œil va déjà. Quatre
+       boules sans décalage auraient clignoté comme une seule.
+       ⚠️ Les cinq autres restent FIXES, et c est ce qui rend le clignotement lisible : sans
+       point de repère immobile, on ne voit plus ce qui bouge. */
+    '<g><circle class="ssfete-scintille" style="animation-delay:.4s" cx="17" cy="66" r="2.6" fill="#e4554f"/>' +
+    '<circle cx="31" cy="69" r="2.8" fill="#f0c24b"/>' +
     '<circle cx="45" cy="66" r="2.6" fill="#8fc7e8"/>' +
     '<circle cx="22" cy="50" r="2.3" fill="#f0c24b"/><circle cx="31" cy="52.5" r="2.4" fill="#8fc7e8"/>' +
-    '<circle cx="40" cy="50" r="2.3" fill="#e4554f"/>' +
-    '<circle cx="26" cy="35.5" r="2" fill="#e4554f"/><circle cx="36" cy="35.5" r="2" fill="#f0c24b"/>' +
-    '<circle cx="31" cy="23.5" r="1.8" fill="#8fc7e8"/></g>' +
+    '<circle class="ssfete-scintille" style="animation-delay:1s" cx="40" cy="50" r="2.3" fill="#e4554f"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:1.6s" cx="26" cy="35.5" r="2" fill="#e4554f"/>' +
+    '<circle cx="36" cy="35.5" r="2" fill="#f0c24b"/>' +
+    '<circle class="ssfete-scintille" style="animation-delay:2.2s" cx="31" cy="23.5" r="1.8" fill="#8fc7e8"/></g>' +
     // L étoile : l animation appartient à l objet, pas à son déplacement.
     '<path class="ssfete-scintille" fill="var(--accent-2)" ' +
     'd="M31,0C32.9,7 32.9,7 40,9C32.9,11 32.9,11 31,18C29.1,11 29.1,11 22,9C29.1,7 29.1,7 31,0Z"/>' +
@@ -725,9 +780,15 @@
          ⚠️ Chaque taille est déduite de ce que le dessin doit MONTRER et de la place dont il
          dispose, jamais copiée d'une autre fête (règle 28) : la marque se cale sur la hauteur
          du logo (36 px), le pied de rail sur la place réservée sous le menu. */
+      /* ⚠️ LA GUIRLANDE PREND LA PLACE DE LA BRANCHE DANS LE COIN DES CARTES, elle ne s ajoute
+         pas : le moteur n a qu un emplacement par coin, et deux décors dans le même angle se
+         recouvriraient. La branche reste dans le coin du RAIL, où elle est seule.
+         ⚠️ 124 px et non 62 : une guirlande doit COURIR pour se lire comme telle. À 62 px elle
+         ne serait qu une accolade avec des points dessous. La taille se déduit de ce que le
+         dessin doit montrer — ici, un fil tendu entre deux accroches. */
       coin: {
-        svg: BRANCHE_SAPIN, taille: 62,
-        teinte: { sombre: '#4e8f5e', clair: '#2f6b3f' }, opacite: { sombre: 0.55, clair: 0.52 },
+        svg: GUIRLANDE, taille: 190,
+        teinte: { sombre: '#5f6d82', clair: '#8a94a6' }, opacite: { sombre: 0.95, clair: 0.9 },
         /* ⚠️ UNE COURONNE, PLUS UNE BOULE. Le mécanisme ne change pas — même fil, même
            balancement, hérité de l'araignée. Mais une boule rouge qui pend à côté d'un sapin
            couvert de boules rouges, ça ne fait pas deux objets : ça fait un objet et sa copie.
