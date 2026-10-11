@@ -170,6 +170,13 @@ export async function onRequest(context) {
         'lame_type', 'couleur_lame', 'ajourage', 'lame_finale_couleur', 'montage_type',
         'alimentation', 'moteur', 'cote_manoeuvre', 'emetteur', 'caisson_forme', 'couleur',
         'coulisse_type', 'couleur_coulisses', 'borstels'];
+      /* ⚠️ LISTE SÉPARÉE, ET C'EST VOULU. `telecommande` est le champ de la TENTE SOLAIRE, pas
+         du VR150 : l'ajouter à VR_CLES_CLIENT ferait échouer le test qui compare cette liste à
+         SSProducts.vrClesClient() — et il aurait raison, ce n'est pas une clé de volet.
+         Sans elle, en revanche, la mention « Commande murale Somfy incluse » apparaîtrait sur le
+         PDF et PAS sur la page que le client ouvre : deux documents qui se contredisent pour le
+         même client (règles 7 et 31 ter). */
+      const AUTRES_CLES_CLIENT = ['telecommande'];
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
         // projection : dimension PRINCIPALE d'une tente solaire (avec la largeur) — sans elle,
@@ -192,6 +199,7 @@ export async function onRequest(context) {
         // endroits finit par diverger : `tests/volet.test.html` compare les deux et echoue si
         // on ajoute un champ client sans le porter ici.
         ...Object.fromEntries(VR_CLES_CLIENT.map(k => [k, it[k] === undefined ? null : it[k]])),
+        ...Object.fromEntries(AUTRES_CLES_CLIENT.map(k => [k, it[k] === undefined ? null : it[k]])),
       }));
       // Fil de discussion visible côté client : ses propres questions, + les réponses de
       // Nicolas/Yannick explicitement marquées `visible_client` (opt-in, jamais par défaut —

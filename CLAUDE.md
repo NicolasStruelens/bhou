@@ -1172,6 +1172,65 @@ occupe la place RESTANTE au lieu de s'enrouler autour du flottant. Et `clear: bo
 qui suit est obligatoire, sinon la ligne de validité et les partenaires remontent à côté des
 totaux. Vérifié dans les deux cas, avec et SANS rappel de paiement.
 
+⚠️ **SURÉLEVER UN CONTENEUR, C'EST SURÉLEVER TOUTE SA SURFACE** — le filigrane INFORMATIF.
+À l'impression, `--surface` devient blanc opaque : le filigrane, peint derrière le contenu, se
+faisait recouvrir. On l'avait donc fait passer DEVANT, puis remonter `.doc-table` et `.totals`
+au-dessus de lui pour que le bandeau bleu et le pavé « TOTAL TVAC » ne soient pas traversés par
+une tache claire. Le raisonnement sur l'empilement était juste (ce sont des `.paper > *` en
+`z-index: 1`, donc des contextes dont les enfants ne sortent pas) — **mais pas la conséquence** :
+sur un devis ordinaire le tableau occupe la moitié de la page, et il ne restait du mot que
+« …RMATIF » au-dessus et « INFO… » en dessous. Signalé par Nicolas : « le INFORMATIF n'est pas
+bien derrière tous les encadrés, alors que dans l'ERP c'est nickel ».
+**La sortie : RETIRER le contexte d'empilement** (`z-index: auto` sur les conteneurs), ce qui
+libère leurs enfants positionnés ; seuls les deux aplats vraiment opaques
+(`thead th`, `.t-ttc`) montent alors au-dessus du filigrane.
+⚠️ **PAS DE `mix-blend-mode`**, bien qu'un `multiply` résoudrait aussi le problème : un mode de
+fusion peut forcer la rastérisation de la couche à la génération du PDF. **Quand on n'a besoin
+que d'ordre de peinture, on ne demande rien de plus au moteur d'impression.**
+
+⚠️ **VINGT-SEPT PIXELS SUFFISENT À FAIRE UNE DEUXIÈME PAGE.** Retour transmis par Nicolas le
+11/10/2026 : « dommage que les conditions de paiement et les signatures soient seules sur la
+deuxième page ». Mesuré sur le devis Kerremans : **1 059 px pour 1 032 utiles**. Le pied
+démarrait à 1 035 — et comme il porte `break-before: avoid` et les signatures `break-after:
+avoid`, il emmenait tout le bloc de signature sur une page qui ne contenait QUE ça.
+**On resserre les BLANCS DU BAS, et eux seuls** (`.pay-note`, `.doc-ref`, `.signatures`,
+`.partners`, `.doc-foot`), uniquement à l'impression : 1 059 → **1 025 px**, une page.
+**Un devis se resserre par ses blancs, jamais par son texte** — sinon on gagne une page et on
+perd le document. Et `.sig-box` garde ses 70 px : une signature manuscrite demande 18 mm, soit
+68 — c'est le seul blanc du bas qui n'en est pas un.
+⚠️ Un devis PLUS gros débordera toujours légitimement, et c'est très bien : les deux règles de
+saut font alors voyager les signatures AVEC le pied, donc la page suivante porte ce qu'on signe.
+⚠️ **UN DEVIS INFORMATIF N'A PAS DE BLOC SIGNATURE** (`${info ? '' : …}`) : il pesait 942 px
+là où le même devis normal en fait 1 059. **Mesurer le mauvais des deux, c'est conclure qu'il
+n'y a pas de problème.**
+
+**39. UNE OPTION QUI PORTE TROIS NOMS N'EN EST PLUS UNE — la commande murale.**
+Demande de Nicolas (11/10/2026) : « pour éviter toute ambiguïté, je préciserais “ Commande
+murale Somfy individuelle incluse ” — pour chaque volet, mais pour les screens également et les
+tentes aussi ».
+⚠️ **TROIS FORMULAIRES, TROIS MOTS, ET RIEN SUR LE DOCUMENT.** Le volet et le screen portent
+`emetteur` (« Émetteur inclus »), la tente porte `telecommande` (« Avec commande à distance »).
+Sur le devis : un « Émetteur » sec dans l'encadré d'un volet — un mot de CATALOGUE, où
+personne ne sait s'il s'agit d'une télécommande, d'un boîtier mural ou d'une pièce du moteur —
+et **absolument rien** pour un screen ou une tente, qui n'ont pas d'encadré de configuration.
+C'est exactement le genre d'ambiguïté qui se règle par téléphone trois semaines plus tard.
+**C'est à l'ERP de réunir les trois, pas au lecteur du devis** (règle 10) : `SSUI.commandeIncluse`
+et `SSUI.MENTION_COMMANDE`, écrits une fois, lus par les deux documents.
+⚠️ **« INDIVIDUELLE » N'EST PAS DE L'ORNEMENT** : l'encadré de configuration peut couvrir
+PLUSIEURS ouvertures (« ouvertures 1 à 3 », règle 31 septies). Sans ce mot, le client peut
+comprendre une commande pour le lot ; avec, il comprend une par ouverture — ce qui est vendu.
+⚠️ **LE LIBELLÉ COURT EST CELUI QUE LIT LE CLIENT.** C'est `lCourt` qui part sur le devis, pas
+`l` : c'est donc lui qui porte la phrase entière. Et une case cochée se MENTIONNE sans valeur
+(« Oui » est tu sur le document client), donc la phrase se lit telle quelle dans l'encadré.
+⚠️ **POUR UN SCREEN OU UNE TENTE, LA MENTION VA SUR LA LIGNE**, pas dans un encadré : ils n'en
+ont pas. Deux endroits différents pour la même phrase selon le type, et c'est voulu — chacun la
+porte là où le client lit le produit.
+⚠️ **ET `telecommande` A DÛ ENTRER DANS LA LISTE BLANCHE DU LIEN CLIENT** (règle 31 ter), sinon
+la mention sortait sur le PDF et PAS sur la page que le client ouvre — deux documents qui se
+contredisent pour le même client (règle 7). **Dans une liste SÉPARÉE** (`AUTRES_CLES_CLIENT`) :
+ce n'est pas une clé du VR150, et le test qui compare `VR_CLES_CLIENT` à
+`SSProducts.vrClesClient()` aurait échoué — à juste titre.
+
 Le document retire aussi les **codes de menu Harol** des valeurs (`SSVolet.sansCodeMenu`) : « 1 :
 type 1 (dans le jour) » se lit « Type 1 (dans le jour) ». ⚠️ On ne retire QUE un index (1-2
 chiffres) ou une référence d'article (A4118) — jamais 3 ou 4 chiffres, parce que « 7016 — Gris

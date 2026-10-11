@@ -960,7 +960,12 @@
     { g: 'Manœuvre', k: 'moteur', l: 'Moteur', t: 'select', vals: it => vrMoteursFor(it.alimentation), client: true },
     { g: 'Manœuvre', k: 'cote_manoeuvre', l: 'Côté de manœuvre', lCourt: 'Côté', t: 'select', vals: VR_COTES_MANOEUVRE,
       aide: 'Vu de l’intérieur.', client: true },
-    { g: 'Manœuvre', k: 'emetteur', l: 'Émetteur inclus', lCourt: 'Émetteur', t: 'check', client: true },
+    /* ⚠️ « Émetteur » EST UN MOT DE CATALOGUE, PAS UN MOT DE CLIENT. Il sortait tel quel
+       dans l'encadré du devis, où personne ne sait si ça veut dire une télécommande, un boîtier
+       mural ou une pièce interne au moteur. Le libellé court est celui que LIT LE CLIENT :
+       c'est donc lui qui porte la phrase entière (voir SSUI.MENTION_COMMANDE). */
+    { g: 'Manœuvre', k: 'emetteur', l: 'Commande murale Somfy incluse',
+      lCourt: 'Commande murale Somfy individuelle incluse', t: 'check', client: true },
     // Batterie et panneau solaire n'existent QUE sur une motorisation solaire : les afficher
     // sur un moteur filaire, c'est inviter à les remplir pour rien.
     { g: 'Manœuvre', k: 'batterie', l: 'Batterie', t: 'select', vals: VR_BATTERIES,
