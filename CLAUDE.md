@@ -657,6 +657,23 @@ son sens pour un clin d'œil, jamais pour la pièce maîtresse.
 SILHOUETTE, et c'est le **patin recourbé** qui fait tout le travail — la seule forme que
 personne ne confond. Pas d'attelage : deux rennes devant demanderaient un viewBox deux fois plus
 large, donc des rennes de 25 px réels, et l'âne de Saint-Nicolas a déjà montré ce que ça donne.
+⚠️ **UNE GUIRLANDE DOIT COURIR, SINON C'EST UNE ACCOLADE.** Demande de Nicolas : « des
+guirlandes illuminées qui passent de cadre en cadre ». Elle occupe l'emplacement `coin` de
+Noël — celui qui se pose sur CHAQUE encadré de la page, jusqu'à six — donc elle va bien de
+cadre en cadre sans toucher au moteur. **Elle REMPLACE la branche de sapin dans ce coin, elle ne
+s'y ajoute pas** : le moteur n'a qu'un emplacement par angle, et deux décors au même endroit se
+recouvriraient. La branche reste au coin du RAIL, où elle est seule.
+⚠️ **190 px et non 62** : à la taille d'un décor de coin ordinaire, une guirlande n'est qu'une
+accolade avec des points dessous. Et **le fil PEND, il ne passe pas droit** — une ligne
+horizontale n'est pas une guirlande, c'est un trait : c'est la courbe qui dit qu'un fil est
+tendu entre deux points et qu'il a du poids. Les ampoules pendent perpendiculairement À LA
+COURBE, pas à la verticale du cadre, sinon elles ont l'air collées dessus.
+⚠️ **LES LUMIÈRES S'ALLUMENT EN VAGUE, ET PAS TOUTES.** Retards échelonnés sur le cycle
+(0 → 2 s pour 2,6 s), aussi bien sur la guirlande que sur les boules du sapin : des lumières qui
+clignotent ENSEMBLE ne font pas une guirlande, elles font un gyrophare — et au bas d'un menu
+qu'on regarde toute la journée, ça se paie. Une sur cinq reste FIXE : **sans point de repère
+immobile, on ne voit plus ce qui bouge.**
+
 ⚠️ **PAS DE PALETTE SUR LA NEIGE**, contrairement aux friandises et aux confettis : la neige est
 blanche, des flocons de six couleurs ne seraient plus de la neige. La variété vient des trois
 DESSINS, pas de la teinte — c'est l'opacité et la taille qu'il fallait relever, pas la couleur.
