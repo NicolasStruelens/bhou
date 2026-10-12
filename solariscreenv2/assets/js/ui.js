@@ -128,6 +128,65 @@
     dernierRepli = now;
     toast('Photo gardée dans le devis, pas envoyée au stockage (' + raison + '). Le devis va s’alourdir — allège-le depuis le tableau de bord quand la connexion revient.', 'warn', 9000);
   }
+  /* ══════ UNE PHOTO QUI RATE UNE FOIS RESTE CASSÉE POUR TOUJOURS ══════
+     Signalé par Nicolas le 12/10/2026 : une vignette d'Échange sortait en icône de papier
+     déchiré, alors que la MÊME photo s'ouvrait parfaitement dans la visionneuse au clic. Les
+     deux lisent pourtant la même `url`, sans la moindre transformation — ce n'était donc pas un
+     défaut de chemin, mais une REQUÊTE qui avait raté. Ctrl+F5 et la vignette revenait.
+     ⚠️ NOS PHOTOS SONT DERRIÈRE CLOUDFLARE ACCESS (`/api/photos/...`). Quand la session se
+     renouvelle, la requête d'image reçoit la page de connexion — **un 200 avec du HTML**, pas une
+     erreur réseau. Le navigateur ne voit pas une image, l'`<img>` échoue, et **il n'y a aucun
+     réessai dans une page web** : l'élément reste cassé jusqu'au prochain rechargement complet.
+     ⚠️ LE PARAMÈTRE DU RÉESSAI N'EST PAS DE LA SUPERSTITION. Cette réponse d'échec peut être
+     MISE EN CACHE, justement parce que c'est un 200 : redemander l'URL à l'identique se ferait
+     resservir l'échec depuis le cache, et le réessai ne prouverait rien.
+     ⚠️ ÉCOUTEUR DÉLÉGUÉ EN CAPTURE, et c'est la seule façon de couvrir tout l'ERP d'un coup :
+     l'événement `error` d'une image NE REMONTE PAS (il ne bouillonne pas), mais il DESCEND bien
+     en phase de capture. Un seul écouteur sur `document` attrape donc toutes les photos de
+     toutes les pages — y compris les quatre qui portent encore leur propre visionneuse en copie
+     locale (règle 26), et celles qu'on écrira demain, sans rien à brancher nulle part.
+     ⚠️ ET SEULEMENT NOS PHOTOS : le filtre sur `/api/photos/` écarte les logos, les images
+     partenaires et les pictogrammes. Un réessai général sur toute image de l'ERP masquerait de
+     vraies erreurs de chemin derrière une seconde chance.
+     ⚠️ APRÈS LE SECOND ÉCHEC, UN REPÈRE NEUTRE PLUTÔT QUE L'ICÔNE DU NAVIGATEUR. C'est la
+     question que Nicolas a posée telle quelle : devant un papier déchiré, **rien ne dit si la
+     photo est perdue ou si c'est seulement l'affichage qui a raté**. La vignette reste cliquable,
+     et l'ouvrir refait une requête neuve — donc le geste naturel est aussi le bon. */
+  const PHOTO_KO = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    /* ⚠️ `width` ET `height` SONT OBLIGATOIRES ICI. Un SVG sans dimensions intrinsèques se voit
+       attribuer une taille PAR DÉFAUT par le navigateur (300 × 150) : avec `object-fit: contain`
+       le repère sortait minuscule et calé en haut à gauche de la vignette, ce qui ressemblait
+       encore à une image cassée — soit exactement ce qu'on vient de remplacer. Mesuré à l'écran,
+       invisible dans le code. */
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" ' +
+    'fill="none" stroke="#8a93a6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="3" y="4" width="18" height="16" rx="2"/>' +
+    '<circle cx="8.6" cy="9.6" r="1.4"/>' +
+    '<path d="M21 15.5l-4.5-4.5L9 18.5"/>' +
+    '<path d="M3.2 3.2l17.6 17.6"/></svg>');
+
+  function surErreurPhoto(ev) {
+    const img = ev && ev.target;
+    if (!img || img.tagName !== 'IMG') return;
+    const src = img.getAttribute('src') || '';
+    if (src.indexOf('/api/photos/') === -1) return;
+    if (img.dataset.ssPhoto === 'ko') return;            // déjà abandonnée, on ne boucle pas
+    if (!img.dataset.ssPhoto) {
+      img.dataset.ssPhoto = 'reessai';
+      // Le délai laisse le temps à l'aller-retour d'Access de se terminer : réessayer dans la
+      // milliseconde retomberait sur la même page de connexion.
+      const neuf = src + (src.indexOf('?') === -1 ? '?' : '&') + 'r=' + Date.now();
+      setTimeout(function () { img.src = neuf; }, 900);
+      return;
+    }
+    img.dataset.ssPhoto = 'ko';
+    img.src = PHOTO_KO;
+    img.classList.add('ss-photo-ko');
+    img.title = 'Photo indisponible — clique pour réessayer';
+  }
+  /* En CAPTURE (le `true`) : voir plus haut, `error` ne bouillonne pas. */
+  try { document.addEventListener('error', surErreurPhoto, true); } catch (e) {}
+
   async function compressAndUploadPhoto(file, ownerId, maxDim, quality) {
     const dataUrl = await compressImage(file, maxDim, quality);
     return uploadPhotoDataUrl(dataUrl, ownerId);
