@@ -554,6 +554,44 @@ un document, c’est le genre de collision qu’on ne voit qu’un jour de malch
 passe par le helper ; les quatre copies restent à ramener dessus, quand on y touchera pour autre chose.
 Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
 
+**26 bis. UNE IMAGE QUI RATE UNE FOIS RESTE CASSÉE POUR TOUJOURS — une page web ne réessaie
+JAMAIS.** Signalé par Nicolas le 12/10/2026 : une vignette d'Échange sortait en icône de papier
+déchiré, alors que **la même photo s'ouvrait parfaitement dans la visionneuse au clic**.
+⚠️ **LA PREMIÈRE CHOSE À ÉTABLIR ÉTAIT QUE CE N'ÉTAIT PAS UN DÉFAUT DE CODE.** La vignette et
+la visionneuse lisent la même `url`, dans le même tableau, sans aucune transformation : les
+seules différences de balisage sont `loading="lazy"` et l'échappement HTML, et **ni l'un ni
+l'autre ne peut faire échouer une requête**. Ce constat élimine d'un coup toute une famille de
+causes et déplace la question : ce n'est pas le CHEMIN qui diffère, c'est la REQUÊTE qui avait
+raté. **Ctrl+F5 et la vignette revenait** — c'est ce fait, demandé à Nicolas plutôt que deviné,
+qui a tranché. Ne pas réparer un symptôme qu'on n'a pas reproduit : c'est le piège du
+`position: sticky`, déjà payé une fois.
+⚠️ **NOS PHOTOS SONT DERRIÈRE CLOUDFLARE ACCESS** (`/api/photos/...`). Quand la session se
+renouvelle, la requête d'image reçoit la page de connexion — **un 200 avec du HTML**, pas une
+erreur réseau. L'`<img>` échoue, et rien ne la relance : elle reste cassée jusqu'au prochain
+rechargement complet de la page.
+⚠️ **LE PARAMÈTRE AJOUTÉ AU RÉESSAI N'EST PAS DE LA SUPERSTITION** : cette réponse d'échec peut
+être MISE EN CACHE, précisément parce que c'est un 200. Redemander l'URL à l'identique se ferait
+resservir l'échec depuis le cache, et le réessai ne prouverait rien.
+⚠️ **UN SEUL ÉCOUTEUR DÉLÉGUÉ, EN CAPTURE, ET C'EST LA CLÉ.** L'événement `error` d'une image
+**ne bouillonne pas** — mais il DESCEND en phase de capture. `document.addEventListener('error',
+…, true)` dans `ui.js` couvre donc toutes les photos de toutes les pages d'un coup, **y compris
+les quatre qui portent encore leur visionneuse en copie locale** (règle 26) et celles qu'on
+écrira demain — sans une ligne à brancher sur aucun appel.
+⚠️ **ET SEULEMENT NOS PHOTOS** : le filtre sur `/api/photos/` écarte logos, images partenaires
+et pictogrammes. Un réessai général masquerait de vraies erreurs de chemin derrière une seconde
+chance.
+⚠️ **APRÈS LE SECOND ÉCHEC, UN REPÈRE NEUTRE PLUTÔT QUE L'ICÔNE DU NAVIGATEUR** (`ss-photo-ko`).
+C'est la question que Nicolas a posée telle quelle : devant un papier déchiré, **rien ne dit si
+la photo est perdue ou si c'est seulement l'affichage qui a raté**. La vignette reste cliquable,
+et l'ouvrir refait une requête neuve — le geste naturel est donc aussi le bon.
+⚠️ **`width` ET `height` SUR LE SVG DU REPÈRE SONT OBLIGATOIRES.** Sans dimensions intrinsèques,
+le navigateur attribue à un SVG une taille PAR DÉFAUT (300 × 150) : avec `object-fit: contain`,
+le repère sortait minuscule et calé en haut à gauche de la vignette — **ce qui ressemblait
+encore à une image cassée**, donc exactement ce qu'on venait de remplacer. Vu à l'écran,
+invisible dans le code et dans les mesures (`naturalWidth` répondait bien 150).
+⚠️ `object-fit: contain` y porte un `!important` délibéré : les vignettes le passent à `cover`
+avec une sélectivité ÉGALE (`.ec-ph img`), depuis une feuille chargée APRÈS `base.css`.
+
 **27. Une relance ne se réclame jamais le jour où l’on vient d’en envoyer une** (`relanceEtat`).
 L’échéance de chaque relance est ancrée sur la date d’ENVOI du devis (R1 à J+4, R2 à J+9, R3 à
 J+21), et c’est VOULU : un devis oublié rattrape son retard. Mais prise seule, cette règle
