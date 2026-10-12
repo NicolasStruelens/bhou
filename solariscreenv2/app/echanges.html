@@ -48,12 +48,50 @@
     /* Flux de TEXTE, pas une rangee flex : en flex, les morceaux de texte deviennent des elements
        anonymes et se retrouvaient cote a cote en deux colonnes qui se cassaient chacune de leur
        cote sur telephone. En bloc, la phrase se replie comme une phrase. */
-    .at-critique { display: block; margin-bottom: var(--sp-4);
+    /* ⚠️ UN COMPTEUR QUI NE DÉSIGNE RIEN FAIT CHERCHER. « C'est quoi la situation critique ? »
+       (Nicolas, 12/10/2026, capture à l'appui) : le bandeau annonçait « 1 situation critique » et
+       les trois lignes en dessous étaient rigoureusement identiques à l'œil. Rien ne portait
+       l'urgence : le liseré de gauche dit la SOURCE, l'âge dit l'ÂGE — et à 9, 10 et 11 jours les
+       trois étaient rouges. Il fallait donc connaître les seuils d'`attente.js` par cœur pour
+       répondre. **Un écran qui compte doit désigner**, sinon on cherche, et au bout de deux fois
+       on ne cherche plus. */
+    .at-critique { display: block; width: 100%; text-align: left; margin-bottom: var(--sp-4);
       padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-family: var(--font-mono);
       font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em;
       color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-      background: color-mix(in srgb, var(--danger) 8%, transparent); line-height: 1.5; }
+      background: color-mix(in srgb, var(--danger) 8%, transparent); line-height: 1.5;
+      cursor: pointer; }
+    .at-critique:hover, .at-critique:focus-visible {
+      background: color-mix(in srgb, var(--danger) 15%, transparent);
+      border-color: color-mix(in srgb, var(--danger) 70%, transparent); }
     .at-critique svg { vertical-align: -2px; margin-right: 6px; }
+    /* ⚠️ L'ACTION PORTE SON MOT. Un bandeau cliquable sans rien qui le dise, personne ne
+       clique dessus — et sur téléphone il n'y a pas de survol pour le découvrir. */
+    .at-aller { text-decoration: underline; font-weight: 700; white-space: nowrap; }
+    /* Hauteur de cible tactile : le bloc `pointer: coarse` de base.css ne couvre que `.btn`. */
+    @media (pointer: coarse) { .at-critique { min-height: 44px; } }
+
+    /* ⚠️ LA PASTILLE NOMME L'URGENCE, elle ne se contente pas de la colorier. C'est la même
+       règle que les raccourcis sans légende : une couleur seule se devine, un mot se lit. Et elle
+       ne touche NI le liseré NI le fond de la ligne, qui disent déjà autre chose (la source, et
+       « personne ne s'en occupe ») : deux sens sur un même signe, et les deux se perdent. */
+    .at-urg { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 0.1rem 0.45rem;
+      border-radius: var(--r-sm); background: var(--danger); color: var(--on-accent);
+      font-weight: 700; }
+    /* ⚠️ LA PULSATION MARQUE UN ÉVÉNEMENT, PAS UN ÉTAT : elle dure le temps d'arriver et
+       s'éteint seule. Un halo permanent sur la ligne critique redeviendrait du décor, et on
+       cesserait de le voir — exactement ce qu'on vient de corriger. */
+    .at-item.at-vise { animation: at-vise 1.4s ease-out 1; }
+    @keyframes at-vise {
+      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 55%, transparent); }
+      70%  { box-shadow: 0 0 0 10px color-mix(in srgb, var(--danger) 0%, transparent); }
+      100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 0%, transparent); }
+    }
+    /* Sans mouvement, la visée doit quand même se voir : un cadre, qu'on retire au même moment. */
+    @media (prefers-reduced-motion: reduce) {
+      .at-item.at-vise { animation: none; outline: 2px solid var(--danger); outline-offset: 2px; }
+    }
     .at-bloc { margin-bottom: var(--sp-5); }
     .at-titre { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs);
       text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: var(--sp-3); }
@@ -269,6 +307,7 @@
     const A = window.SSAttente;
     let SUJETS = [];
     let ATTENTES = [];        // les quatre sources réunies (voir assets/js/attente.js)
+    let CRIT_I = 0;           // rang de la prochaine situation critique à viser (voir voirCritique)
     let PLIE_AUTRE = true;    // ce qui est chez l'autre : replié par défaut, ce n'est pas mon travail
     let MOI = { key: '', name: '' };
     let CLIENTS = [];
@@ -499,6 +538,9 @@
       const j = A.joursDepuis(it.depuis);
       const clAge = j >= A.SEUILS.ATTENTE_TRES_LONGUE_J ? 'tresvieux' : (j >= A.SEUILS.ATTENTE_LONGUE_J ? 'vieux' : '');
       const id = window.SSUI.jsAttr(it.id);
+      // `data-crit` est ce que vise le bandeau : un marqueur de STRUCTURE, pas une classe de
+      // style, pour que changer l'apparence de la pastille ne casse jamais le saut.
+      const crit = estCritique(it);
       // Attribuer d'un clic, sans quitter l'écran : c'est le saut vers une autre page qui casse
       // le geste et fait qu'on remet à plus tard. Ce qui n'est pas attribuable renvoie à sa fiche.
       let actions = '';
@@ -509,9 +551,13 @@
         actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',\'' + autre(MOI.key) + '\')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
       }
       if (it.href) actions += '<button class="btn btn-ghost btn-sm" onclick="location.href=\'' + it.href + '\'">Ouvrir</button>';
-      return '<div class="at-item ' + (it.qui ? '' : 'orphelin') + '" style="--uc:' + (s.couleur || 'var(--accent)') + '">' +
+      return '<div class="at-item ' + (it.qui ? '' : 'orphelin') + '"' + (crit ? ' data-crit="1"' : '') +
+        ' style="--uc:' + (s.couleur || 'var(--accent)') + '">' +
         '<div class="at-corps">' +
           '<div class="at-l1">' +
+            // Le mot vient de `attente.js` et pas d'ici : le vocabulaire vit à un seul endroit
+            // (règle 10), sinon l'écran et le moteur finissent par ne plus dire la même chose.
+            (crit ? '<span class="at-urg">' + escHtml(A.URGENCE_LABEL[A.URGENCE.CRITIQUE]) + '</span>' : '') +
             '<span class="at-src" style="--sc:' + (s.couleur || 'var(--accent)') + '">' + escHtml(s.label || it.source) + '</span>' +
             '<span class="at-quoi">' + escHtml(it.quoi) + '</span>' +
             '<span class="at-nom">' + escHtml(it.titre) + '</span>' +
@@ -533,10 +579,15 @@
       // occupe la place de ce qui compte.
       const nbCritique = A.compter(ATTENTES).critique;
       if (nbCritique) {
-        html += '<div class="at-critique">' + icon('warning', 13) + ' <strong>' + nbCritique +
+        html += '<button type="button" class="at-critique" onclick="voirCritique()">' +
+          icon('warning', 13) + ' <strong>' + nbCritique +
           '</strong> ' + (nbCritique > 1 ? 'situations critiques' : 'situation critique') +
-          ' <span class="at-nom">— conflit, client qui attend, retard</span></div>';
+          ' <span class="at-nom">— conflit, client qui attend, retard</span> ' +
+          '<span class="at-aller">' + (nbCritique > 1 ? 'Les voir' : 'La voir') + ' →</span></button>';
       }
+      // La visée repart du début à chaque rendu : les lignes sont neuves, l'ancien rang ne
+      // désignerait plus la même.
+      CRIT_I = 0;
       // L'ordre n'est pas décoratif : ce que PERSONNE n'a pris passe avant tout le reste, parce
       // que c'est exactement ce dont chacun croit que l'autre s'occupe.
       if (orphelins.length) {
@@ -561,6 +612,38 @@
       el('attenteHost').innerHTML = html;
     }
     window.basculerAutre = function () { PLIE_AUTRE = !PLIE_AUTRE; rendreAttentes(); };
+
+    /* Le seuil vit dans `attente.js` — ici on ne fait que le lire. Écrire `>= 3` en dur, c'est
+       la garantie que l'écran et le compteur divergeront le jour où l'échelle bougera. */
+    function estCritique(it) { return it && it.urgence >= A.URGENCE.CRITIQUE; }
+
+    /** Emmène sur la situation critique. Plusieurs ? Chaque clic passe à la suivante : un bouton
+     *  qui ramène toujours au même endroit alors que le compteur en annonce trois passe pour
+     *  cassé. */
+    window.voirCritique = function () {
+      /* ⚠️ LE BLOC DE L'AUTRE PEUT ÊTRE REPLIÉ, et il compte dans le total. Sans ce dépliage, le
+         bouton promettrait « la voir » et ne sauterait nulle part — une promesse d'écran doit
+         être tenable. Le rendu qui suit recrée les lignes, donc on cherche APRÈS. */
+      if (PLIE_AUTRE && A.pourQui(ATTENTES, autre(MOI.key)).some(estCritique)) {
+        PLIE_AUTRE = false;
+        rendreAttentes();
+      }
+      const cibles = [].slice.call(document.querySelectorAll('#attenteHost .at-item[data-crit]'));
+      if (!cibles.length) return;
+      /* Deux clics rapprochés laissaient DEUX lignes allumées en même temps — la pulsation dure
+         1,5 s, et on peut recliquer avant. Une visée qui en désigne deux ne désigne plus rien :
+         c'est le défaut qu'on est en train de corriger, en plus petit. */
+      [].forEach.call(document.querySelectorAll('.at-item.at-vise'), function (e) { e.classList.remove('at-vise'); });
+      const n = cibles[CRIT_I % cibles.length];
+      CRIT_I++;
+      n.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      /* Retirer puis forcer un calcul de style avant de remettre : sans ce reflux, un deuxième
+         clic sur la MÊME ligne ne rejouerait pas l'animation, et le bouton aurait l'air inerte. */
+      n.classList.remove('at-vise');
+      void n.offsetWidth;
+      n.classList.add('at-vise');
+      setTimeout(function () { n.classList.remove('at-vise'); }, 1500);
+    };
 
     /** Attribue un élément À SA SOURCE — chaque module range l'information à un endroit différent,
      *  c'est précisément ce qui rendait l'attribution introuvable depuis un écran commun. */

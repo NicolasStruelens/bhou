@@ -248,6 +248,40 @@ COMPLÉMENTAIRES — ne pas les « dédoublonner » en croyant bien faire, on pe
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
 
+**15 quater. UN COMPTEUR QUI NE DÉSIGNE RIEN FAIT CHERCHER — donc, au bout de deux fois, plus
+rien.** « C'est quoi la situation critique ? » (Nicolas, 12/10/2026, capture à l'appui). Le
+bandeau des Échanges annonçait « 1 situation critique » et les trois lignes en dessous étaient
+**rigoureusement identiques à l'œil**. Rien ne portait l'urgence : le liseré de gauche dit la
+SOURCE, l'âge dit l'ÂGE — et à 9, 10 et 11 jours les trois étaient rouges. Pour répondre, il
+fallait connaître les seuils d'`attente.js` par cœur.
+⚠️ **C'EST LA MÊME FAMILLE QUE LA RÈGLE 36**, et elle revient pour la troisième fois : les
+pastilles « ce qui manque » qui NOMMAIENT un champ sans y emmener, le signal qui parlait d'un
+champ au lieu de l'allumer, et maintenant un compteur qui compte sans montrer. **Un texte qui
+parle d'une chose oblige à la CHERCHER, et entre les deux on abandonne.**
+⚠️ **LA PASTILLE NOMME L'URGENCE, elle ne se contente pas de la colorier** (`.at-urg`,
+« Critique »). Le mot vient d'`URGENCE_LABEL` dans `attente.js`, pas de la page : le vocabulaire
+vit à un seul endroit (règle 10), sinon l'écran et le moteur finissent par ne plus dire la même
+chose. Et **seul le niveau CRITIQUE est marqué** : marquer aussi « urgent » reviendrait à
+marquer presque tout, donc à ne rien marquer (règle 36, premier point).
+⚠️ **ELLE NE TOUCHE NI LE LISERÉ NI LE FOND DE LA LIGNE.** Les deux disent déjà autre chose —
+la source, et « personne ne s'en occupe » (`.orphelin`, qui est déjà rouge). Deux sens sur un
+même signe, et **les deux se perdent** (règle 21).
+⚠️ **ET LE BANDEAU EMMÈNE** (`voirCritique`) : il est devenu un vrai `<button>` qui porte son
+mot (« La voir → »), parce qu'un bandeau cliquable que rien ne signale, personne ne clique
+dessus — et **sur téléphone il n'y a pas de survol pour le découvrir** (règle 33).
+Trois détails qui font la différence entre « ça marche » et « ça ne passe pas pour cassé » :
+• **Le bloc « Chez l'autre » peut être REPLIÉ et il compte dans le total.** Sans dépliage
+  préalable, le bouton promettrait « la voir » et ne sauterait nulle part : **une promesse
+  d'écran doit être tenable** (même règle que le tarif de pose, 30 bis-2).
+• **Plusieurs critiques ? Chaque clic passe à la suivante**, puis revient au début. Un bouton qui
+  ramène toujours au même endroit alors que le compteur en annonce trois passe pour cassé.
+• **La pulsation marque un ÉVÉNEMENT, pas un ÉTAT** : 1,5 s puis plus rien (règle 36, 3e point).
+  Et toute visée en cours est éteinte AVANT d'en poser une nouvelle — deux clics rapprochés
+  allumaient deux lignes à la fois, c'est-à-dire le défaut qu'on corrige, en plus petit. Le
+  `classList.remove` + lecture d'`offsetWidth` avant de remettre la classe n'est pas une
+  précaution de style : **sans ce reflux, recliquer sur la MÊME ligne ne rejoue pas l'animation**,
+  et le bouton a l'air inerte.
+
 **15 bis. ON PEUT CORRIGER CE QU'ON A ÉCRIT, et la correction SE VOIT.**
 Un fil où l'on ne peut pas se relire se remplit de « (pardon, je voulais dire…) », et une faute
 de frappe dans un titre reste là pour toujours. Le SUJET (titre + corps, même convention qu'à la
