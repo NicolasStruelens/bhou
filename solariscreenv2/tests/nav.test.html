@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — menu de navigation</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du menu de navigation</h1>
+  <p class="note">
+    Le menu est sur les 21 pages : un défaut ici se voit partout. L'enquête du 25/10/2026 en a
+    trouvé quatre, tous invisibles en relisant le code — ces tests sont là pour qu'ils ne reviennent pas.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong>, pas en <code>file://</code> : la seconde
+    moitié charge les vraies pages de l'ERP dans des cadres de 1500 px de large (le rail n'apparaît
+    qu'au-delà de 1400 px) et rejoue les vrais clics.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/nav.js"></script>
+  <script>
+    const N = window.SSNav;
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests menu';
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Quelle page est « en cours » — la clé normalisée');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* ⚠️ LE DÉFAUT DE PRODUCTION : Cloudflare sert « …/app/echanges » SANS l'extension. L'ancien
+       test comparait à « echanges.html » : en production, aucune entrée ne s'allumait jamais. */
+    check('P1 nom de fichier', N._pageKey('echanges.html'), 'echanges');
+    check('P2 adresse Cloudflare, sans extension', N._pageKey('/app/echanges'), 'echanges');
+    check('P3 adresse locale, avec extension', N._pageKey('/app/echanges.html'), 'echanges');
+    check('P4 barre finale', N._pageKey('/app/echanges/'), 'echanges');
+    check('P5 paramètres ignorés', N._pageKey('simulateur.html?type=depannage'), 'simulateur');
+    check('P6 ancre ignorée', N._pageKey('vue.html#sav'), 'vue');
+    check('P7 casse ignorée', N._pageKey('/app/Echanges.HTML'), 'echanges');
+    /* Un dossier seul n'est la page d'aucune entrée : ce qui compte, c'est que rien ne s'y allume
+       (une première version de ce cas exigeait un nom interne précis — elle testait le détail,
+       pas le comportement). */
+    check('P8 un dossier seul n\'allume aucune entrée',
+      [N._NAV.accueil].concat(...N._NAV.groupes.map(g => g.pages), [N._NAV.reglages])
+        .some(p => N._estActive(p.href, N._pageCourante('/app/'))), false);
+    check('P9 vide = index', N._pageKey(''), 'index');
+    check('P10 le défaut de production est corrigé',
+      N._estActive('echanges.html', N._pageCourante('/app/echanges')), true);
+    check('P11 une autre page ne s\'allume pas',
+      N._estActive('dashboard.html', N._pageCourante('/app/echanges')), false);
+    /* Une page hors menu s'oriente sur sa page MÈRE : sinon, sur la fiche d'un devis — la page
+       qu'on consulte le plus — le menu ne dit pas où l'on est. */
+    check('P12 fiche devis → tableau de bord', N._pageCourante('/app/vue'), 'dashboard');
+    check('P13 document du devis → tableau de bord', N._pageCourante('/app/devis.html'), 'dashboard');
+    check('P14 éditeur de devis → tableau de bord', N._pageCourante('/app/simulateur'), 'dashboard');
+    check('P15 fiche facture → facturation', N._pageCourante('/app/facture'), 'factures');
+    check('P16 page sans mère → elle-même', N._pageCourante('/app/picking'), 'picking');
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('La structure — « le fil de l\'affaire »');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    const NAV = N._NAV;
+    const pages = [NAV.accueil].concat(...NAV.groupes.map(g => g.pages), [NAV.reglages]);
+    check('S1 les 5 groupes, dans l\'ordre du métier', NAV.groupes.map(g => g.title),
+      ['Affaires', 'Chantiers', 'Après-vente', 'Argent', 'Équipe']);
+    check('S2 aucun groupe vide', NAV.groupes.every(g => g.pages.length > 0), true);
+    check('S3 aucune page en double', new Set(pages.map(p => N._pageKey(p.href))).size, pages.length);
+    check('S4 le tableau de bord est la maison, hors des groupes', NAV.accueil.href, 'dashboard.html');
+    check('S5 les réglages sont au pied, hors des groupes', NAV.reglages.href, 'parametres.html');
+    check('S6 Mode Terrain est dans Affaires (il sert à faire le devis chez le client)',
+      NAV.groupes[0].pages.some(p => p.href === 'terrain.html'), true);
+    /* Chaque page du menu, ouverte, allume UNE entrée et une seule : la sienne. */
+    check('S7 chaque page allume exactement sa propre entrée',
+      pages.every(p => pages.filter(q => N._estActive(q.href, N._pageCourante('/app/' + N._pageKey(p.href)))).length === 1), true);
+    check('S8 trois actions « Nouveau », chacune avec son titre complet',
+      NAV.creer.map(p => p.titre), ['Nouveau devis', 'Nouveau dépannage', 'Nouvelle demande de RDV']);
+    /* Une ACTION n'est pas un endroit : elle ne doit jamais apparaître parmi les pages qui
+       s'allument, sinon « Nouveau devis » s'allumerait sur la fiche d'un devis existant. */
+    check('S9 aucune action n\'est une entrée de page',
+      NAV.creer.every(c => !pages.some(p => p.href === c.href)), true);
+    const clesUtilisees = pages.filter(p => p.badge).map(p => p.badge).sort();
+    check('S10 chaque compteur du menu a sa clé de calcul', clesUtilisees.every(k => NAV.badges.indexOf(k) !== -1), true);
+    check('S11 chaque clé de calcul a son entrée', NAV.badges.slice().sort(), clesUtilisees);
+    /* Aucune page perdue en route : les 16 destinations de l'ancien menu sont toutes encore là. */
+    const ANCIENNES = ['rdv.html', 'simulateur.html', 'terrain.html', 'clients.html', 'planning.html', 'carte.html',
+      'sav.html', 'simulateur.html?type=depannage', 'portfolio.html', 'outillage.html', 'dashboard.html',
+      'echanges.html', 'factures.html', 'depenses.html', 'stats.html', 'parametres.html'];
+    const toutes = pages.concat(NAV.creer).map(p => p.href);
+    check('S12 aucune destination de l\'ancien menu n\'a disparu', ANCIENNES.filter(h => toutes.indexOf(h) === -1), []);
+
+    rendre();
+
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    // LES VRAIES PAGES, dans des cadres — on rejoue les gestes, pas l'API.
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+        f.onload = function () { setTimeout(function () { resolve(f); }, 1800); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function libelles(doc, sel) { return [...doc.querySelectorAll(sel)].map(e => e.textContent.trim()); }
+
+    (async function () {
+      let ls = null;
+      try { ls = localStorage.getItem('ss_rail'); localStorage.removeItem('ss_rail'); } catch (e) {}
+
+      titre('Toutes les destinations existent');
+      for (const h of toutes) {
+        const fichier = h.split('?')[0];
+        const r = await fetch('../app/' + fichier, { method: 'HEAD', cache: 'no-store' }).catch(() => ({ ok: false }));
+        check('E · ' + h, r.ok, true);
+      }
+
+      titre('Une page SANS attente.js (Statistiques)');
+      let f = await cadre('../app/stats.html');
+      let d = f.contentDocument, w = f.contentWindow;
+      await attendre(800);
+      /* ⚠️ LE COMPTEUR « ÉCHANGES » CHANGEAIT SELON LA PAGE : sur 16 pages, attente.js n'était pas
+         chargé et le calcul retombait sur une version réduite. Le menu va le chercher lui-même. */
+      check('I1 le menu a chargé le calcul commun', typeof w.SSAttente, 'object');
+      check('I2 le rail est là', !!d.querySelector('.ssrail'), true);
+      check('I3 une seule entrée allumée', d.querySelectorAll('.ssrail-item.active').length, 1);
+      check('I4 c\'est la bonne', (d.querySelector('.ssrail-item.active') || {}).textContent, 'Statistiques');
+      check('I5 elle est annoncée comme page en cours', (d.querySelector('.ssrail-item.active') || { getAttribute: () => null }).getAttribute('aria-current'), 'page');
+      check('I6 les groupes du rail, dans l\'ordre', libelles(d, '.ssrail-group'), ['Affaires', 'Chantiers', 'Après-vente', 'Argent', 'Équipe']);
+      check('I7 le pied porte Paramètres', libelles(d, '.ssrail-foot .ssrail-item:not([hidden]) .ssrail-lbl'), ['Paramètres']);
+      /* ⚠️ LE RAIL DOIT TENIR SUR UN ÉCRAN ORDINAIRE. La première version montait à 1 068 px :
+         sur la fenêtre de 900 px de Nicolas, le pied passait sous le bord. Et 2 px de trop
+         suffisent : la barre de défilement apparaît, vole 9 px de LARGEUR et coupe « Outillage &
+         références ». Ce cadre fait 900 px de haut, comme l'écran de Nicolas, décor du jour compris
+         (vérifié à la main avec les quatre fêtes, Noël et ses 72 px de pied compris). */
+      const railS = d.querySelector('.ssrail');
+      check('I7b le rail tient dans 900 px, sans barre de défilement', railS.scrollHeight - railS.clientHeight, 0);
+      const outil = [...d.querySelectorAll('.ssrail-lbl')].find(e => e.textContent.indexOf('Outillage') === 0);
+      check('I7b2 « Outillage & références » n\'est pas coupé', outil.scrollWidth <= outil.clientWidth, true);
+      check('I7c le bouton de réduction est en haut, à côté du logo', !!d.querySelector('.ssrail-top .ssrail-toggle'), true);
+      /* ⚠️ « hidden » est battu par le « display: flex » de la feuille si rien ne le protège : la
+         ligne d'identité s'afficherait vide hors connexion. */
+      check('I8 sans identité, la ligne « qui » est vraiment invisible', d.querySelector('.ssrail-who').offsetHeight, 0);
+      check('I9 plus de bouton « Menu » qui réduisait le menu', libelles(d, '.ssrail-lbl').indexOf('Menu'), -1);
+      const comp = await w.SSNav.rafraichirCompteurs();
+      check('I10 les compteurs produisent les 5 clés', Object.keys(comp).sort(), NAV.badges.slice().sort());
+
+      titre('« + Nouveau » — clics, Échap, clic ailleurs');
+      const nb = d.querySelector('.ssrail-newbtn'), liste = d.querySelector('.ssrail-newlist');
+      check('N1 fermé au départ', [liste.offsetHeight === 0, nb.getAttribute('aria-expanded')], [true, 'false']);
+      nb.click(); await attendre(50);
+      check('N2 un clic l\'ouvre', [liste.offsetHeight > 0, nb.getAttribute('aria-expanded')], [true, 'true']);
+      check('N3 il propose les trois créations', libelles(d, '.ssrail-sub .ssrail-lbl'), ['Devis', 'Dépannage', 'Demande de RDV']);
+      d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await attendre(50);
+      check('N4 Échap le referme', liste.offsetHeight, 0);
+      check('N5 et rend le focus au bouton', d.activeElement === nb, true);
+      nb.click(); await attendre(50);
+      d.querySelector('.ssrail-group').click(); await attendre(50);
+      check('N6 un clic ailleurs le referme', liste.offsetHeight, 0);
+      nb.click(); nb.click(); await attendre(50);
+      check('N7 un second clic sur le bouton le referme', liste.offsetHeight, 0);
+
+      titre('Réduire / déployer');
+      const tg = d.querySelector('.ssrail-toggle'), rail = d.querySelector('.ssrail');
+      check('R1 déployé au départ', [Math.round(rail.getBoundingClientRect().width), tg.getAttribute('aria-expanded')], [212, 'true']);
+      tg.click(); await attendre(80);
+      check('R2 un clic le réduit à 60 px', Math.round(rail.getBoundingClientRect().width), 60);
+      check('R3 le bouton dit ce qu\'il fera ensuite', [tg.getAttribute('aria-label'), tg.getAttribute('aria-expanded')], ['Déployer le menu', 'false']);
+      check('R4 le choix est retenu', w.localStorage.getItem('ss_rail'), 'reduit');
+      check('R5 réduit, les compteurs restent des pastilles sur les icônes', getComputedStyle(d.querySelector('.ssrail-group')).display, 'none');
+      tg.click(); await attendre(80);
+      check('R6 un second clic le redéploie', Math.round(rail.getBoundingClientRect().width), 212);
+      f.remove();
+
+      titre('Une page hors menu s\'oriente sur sa mère');
+      f = await cadre('../app/vue.html');
+      d = f.contentDocument;
+      check('M1 sur la fiche devis, c\'est le tableau de bord qui s\'allume', libelles(d, '.ssrail-item.active'), ['Tableau de bord']);
+      f.remove();
+
+      titre('« Nouveau › Demande de RDV » arrive sur une demande vierge');
+      f = await cadre('../app/rdv.html?nouvelle=1');
+      await attendre(600);
+      d = f.contentDocument; w = f.contentWindow;
+      check('D1 la fenêtre de nouvelle demande est ouverte', d.getElementById('modalBg').classList.contains('open'), true);
+      check('D2 son titre est le bon', d.getElementById('mTitle').textContent, 'Nouvelle demande de RDV');
+      check('D3 le paramètre a disparu de l\'adresse (un rechargement ne la rouvre pas)', w.location.search, '');
+      f.remove();
+
+      titre('Sous 1400 px : le volet déroulant, même description');
+      f = await cadre('../app/echanges.html', 1200);
+      d = f.contentDocument;
+      check('V1 pas de rail', getComputedStyle(d.querySelector('.ssrail')).display, 'none');
+      check('V2 les mêmes groupes, plus « Nouveau »', libelles(d, '.ssnav-menu .ssnav-group:not(.ssnav-mobile)'),
+        ['Nouveau', 'Affaires', 'Chantiers', 'Après-vente', 'Argent', 'Équipe']);
+      check('V3 la page en cours s\'allume aussi dans le volet', libelles(d, '.ssnav-menu .ssnav-item.active'), ['Échanges']);
+      f.remove();
+
+      /* ⚠️ SUR TÉLÉPHONE, UN MENU NE DOIT NI ENFERMER NI CACHER. Demande de Nicolas : « pas de
+         bug de dépassement, d'emprisonnement dans des menus, des choses que l'on ne voit pas ou
+         l'on ne sait pas revenir en arrière ». D'où trois questions, rejouées au geste : tout
+         tient-il dans l'écran, chaque entrée se touche-t-elle, et en sort-on par tous les chemins
+         qu'un pouce essaie (toucher à côté, retoucher le bouton, Échap au clavier). */
+      titre('Téléphone (390 × 700) : rien ne déborde, rien n\'enferme');
+      f = await cadre('../app/dashboard.html', 390, 700);
+      d = f.contentDocument; w = f.contentWindow;
+      const vt = d.querySelector('.ssnav-toggle'), vm = d.querySelector('.ssnav-menu');
+      const voletOuvert = () => vm.getBoundingClientRect().height > 0 && w.getComputedStyle(vm).visibility !== 'hidden';
+      check('T1 la page ne déborde pas en largeur', d.documentElement.scrollWidth <= w.innerWidth, true);
+      vt.click(); await attendre(120);
+      check('T2 le bouton ouvre le volet', voletOuvert(), true);
+      check('T3 le volet tient dans la hauteur de l\'écran', vm.getBoundingClientRect().bottom <= w.innerHeight, true);
+      check('T4 et dans sa largeur', [vm.getBoundingClientRect().left >= 0, vm.getBoundingClientRect().right <= w.innerWidth, vm.scrollWidth <= vm.clientWidth], [true, true, true]);
+      const horsDePortee = [];
+      for (const e of vm.querySelectorAll('.ssnav-item')) {
+        e.scrollIntoView({ block: 'nearest' }); await attendre(5);
+        const b = e.getBoundingClientRect(), h = d.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        if (!h || !(h === e || e.contains(h))) horsDePortee.push(e.textContent.trim());
+      }
+      check('T5 chaque entrée se touche (en faisant défiler le volet)', horsDePortee, []);
+      d.elementFromPoint(20, w.innerHeight - 20).click(); await attendre(120);
+      check('T6 toucher à côté le referme', voletOuvert(), false);
+      vt.click(); await attendre(120); vt.click(); await attendre(120);
+      check('T7 retoucher le bouton le referme', voletOuvert(), false);
+      vt.click(); await attendre(120);
+      d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(120);
+      check('T8 Échap le referme', voletOuvert(), false);
+      check('T9 et le bouton le dit (aria-expanded)', vt.getAttribute('aria-expanded'), 'false');
+      f.remove();
+
+      try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}
+      rendre();
+    })();
+  </script>
+</body>
+</html>

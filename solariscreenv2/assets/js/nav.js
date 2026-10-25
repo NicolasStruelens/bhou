@@ -3,6 +3,9 @@
 // Script classique (file:// OK). Global : window.SSNav
 // ═══════════════════════════════════════════════════════════
 (function () {
+  /* L'adresse de CE script, pour charger ses voisins (attente.js) depuis n'importe quelle page.
+     ⚠️ Elle ne se lit que PENDANT l'exécution du script : plus tard, currentScript vaut null. */
+  const NAV_SRC = (document.currentScript && document.currentScript.src) || '';
   // Styles injectés ici (pas dans base.css) car nav.js tourne sur des pages qui ne
   // définissent pas toutes ".status-menu" — le popover doit être autonome partout.
   if (!document.getElementById('ssnav-injected-styles')) {
@@ -93,6 +96,15 @@
           min-width: 15px; padding: 0 3px; font-size: 0.58rem; line-height: 15px; }
         /* Replie, il ne reste que le logo : c'est le seul repere de marque encore visible. */
         html.ss-rail-reduit .ssrail-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+        html.ss-rail-reduit .ssrail-kbd, html.ss-rail-reduit .ssrail-chev { display: none; }
+        html.ss-rail-reduit .ssrail-top { flex-direction: column; gap: 0.4rem; }
+        /* Un conteneur flex en colonne de hauteur fixe ÉCRASE ses enfants au lieu de défiler
+           (piège déjà payé sur la fiche devis) : chaque entrée garde sa hauteur, le rail défile. */
+        .ssrail > * { flex: none; }
+        /* UNE SEULE IDENTITÉ À L'ÉCRAN, comme une seule marque : dès que le rail est là, c'est son
+           pied qui dit « Nicolas », et la pastille du bandeau ferait doublon à 1 000 px de là.
+           Elle reste au-dessous de 1400 px, où il n'y a pas de rail. */
+        .ssnav-who { display: none; }
 
         /* UNE SEULE MARQUE À L'ÉCRAN. Dès que le rail est là, il porte le logo et le nom — les
            répéter dans le bandeau juste à côté faisait deux fois la même chose à 200 px
@@ -119,62 +131,162 @@
       .ssrail-brand:focus-visible, a.brand-logo:focus-visible {
         outline: 2px solid var(--accent, #4d8bff); outline-offset: 2px; }
       .ssrail-item { position: relative; display: flex; align-items: center; gap: 0.6rem;
-        padding: 0.44rem 0.55rem; border-radius: var(--r-sm, 3px); text-decoration: none;
+        padding: 0.38rem 0.55rem; border-radius: var(--r-sm, 3px); text-decoration: none;
         color: var(--text-muted, #97a4cc); font-size: var(--fs-sm, 0.86rem); white-space: nowrap; }
       .ssrail-item:hover { background: color-mix(in srgb, var(--accent, #4d8bff) 10%, transparent);
         color: var(--text, #e9eefb); }
       .ssrail-item.active { background: color-mix(in srgb, var(--accent, #4d8bff) 16%, transparent);
         color: var(--accent, #4d8bff); font-weight: 600; }
+      .ssrail-item:focus-visible { outline: 2px solid var(--accent, #4d8bff); outline-offset: -2px; }
+      /* Les boutons du rail ont l'allure des liens : ce sont des entrées de menu. */
+      button.ssrail-item { border: none; background: none; cursor: pointer; width: 100%;
+        text-align: left; font: inherit; font-size: var(--fs-sm, 0.86rem); }
       .ssrail-item svg { flex: none; }
       .ssrail-lbl { overflow: hidden; text-overflow: ellipsis; }
+      /* ⚠️ « hidden » NE SUFFIT PAS ICI : la feuille donne « display: flex » à ces éléments, et une
+         règle d'auteur l'emporte sur celle du navigateur. Sans cette ligne, la liste « Nouveau »
+         serait toujours ouverte et la ligne d'identité visible, vide, même hors connexion. */
+      .ssrail [hidden] { display: none !important; }
       .ssrail-group { font-family: var(--font-mono, monospace); font-size: var(--fs-3xs, 0.62rem);
         text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle, #8593bf);
-        padding: var(--sp-3, 0.75rem) 0.55rem 0.25rem; }
-      .ssrail-toggle { display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-        margin-bottom: var(--sp-2, 0.5rem); padding: 0.4rem; border-radius: var(--r-sm, 3px);
-        background: none; border: 1px solid var(--border, #243056); cursor: pointer;
-        color: var(--text-subtle, #8593bf); font-family: var(--font-mono, monospace);
-        font-size: var(--fs-3xs, 0.62rem); }
-      .ssrail-toggle:hover { color: var(--text, #e9eefb); border-color: var(--border-strong, #324273); }
+        padding: 0.5rem 0.55rem 0.2rem; }
+      /* Chaque pixel de hauteur compte : 2 px de trop suffisent à faire apparaître la barre de
+         défilement, qui vole 9 px de LARGEUR et coupe « Outillage & références ». Mesuré à 860 px. */
+      .ssrail-top { display: flex; align-items: center; gap: 0.25rem; padding-bottom: 0.5rem; }
+      .ssrail-top .ssrail-brand { flex: 1 1 auto; min-width: 0; padding-bottom: 0; }
+      /* Icône seule, mais le rail n'existe qu'au-delà de 1400 px, donc devant une souris : l'infobulle
+         et le libellé accessible disent ce qu'il fait. L'icône est la convention des panneaux
+         latéraux, et non plus une grille qui annonçait l'ouverture d'un menu. */
+      .ssrail-toggle { flex: none; display: grid; place-items: center; width: 28px; height: 28px;
+        border: none; border-radius: var(--r-sm, 3px); background: none; cursor: pointer;
+        color: var(--text-subtle, #8593bf); }
+      .ssrail-toggle:hover { color: var(--text, #e9eefb);
+        background: color-mix(in srgb, var(--accent, #4d8bff) 10%, transparent); }
+      .ssrail-toggle:focus-visible { outline: 2px solid var(--accent, #4d8bff); outline-offset: 1px; }
+      .ssrail-kbd { margin-left: auto; font-family: var(--font-mono, monospace); font-size: 0.58rem;
+        color: var(--text-subtle, #8593bf); border: 1px solid var(--border, #243056); border-radius: 3px;
+        padding: 0.05rem 0.3rem; }
+      /* « + Nouveau » est la seule ACTION du rail : c'est donc la seule entrée encadrée. */
+      button.ssrail-newbtn { justify-content: center; border: 1px solid var(--border-strong, #324273);
+        color: var(--text, #e9eefb); font-weight: 600; margin-bottom: 0.2rem; }
+      .ssrail-chev { display: inline-flex; transition: transform 0.15s ease; }
+      .ssrail-newbtn[aria-expanded="true"] .ssrail-chev { transform: rotate(180deg); }
+      .ssrail-newlist { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--sp-2, 0.5rem); }
+      .ssrail-sub { padding-left: 1.7rem; }
+      /* Le pied colle en bas quand il y a de la place, et suit le contenu quand le rail défile. */
+      .ssrail-foot { margin-top: auto; padding-top: var(--sp-2, 0.5rem);
+        border-top: 1px solid var(--border, #243056); display: flex; flex-direction: column; gap: 2px; }
+      button.ssrail-who { color: var(--text, #e9eefb); font-weight: 600; }
+      .ssrail-ava { width: 20px; height: 20px; flex: none; border-radius: 50%; display: grid; place-items: center;
+        font-size: 0.62rem; font-weight: 700; color: var(--text, #e9eefb);
+        border: 1px solid var(--ssrail-ava, var(--accent, #4d8bff));
+        background: color-mix(in srgb, var(--ssrail-ava, var(--accent, #4d8bff)) 16%, transparent); }
+      @media (prefers-reduced-motion: reduce) { .ssrail-chev { transition: none; } }
     `;
     document.head.appendChild(style);
   }
 
-  // Navigation groupée par MÉTIER plutôt qu'en liste plate : l'ERP couvre désormais trois
-  // activités distinctes (vendre / poser / gérer) et une liste de 11 entrées obligeait à
-  // relire tout le menu à chaque fois. `badge` = clé de compteur d'alerte (voir computeBadges).
+  /* ══════ LE MENU : « LE FIL DE L'AFFAIRE » (choisi par Nicolas le 25/10/2026) ══════
+     Les groupes suivent la vie d'un dossier : on le décroche (Affaires), on le pose (Chantiers),
+     on le suit (Après-vente), on l'encaisse (Argent) — et l'Équipe à part, parce qu'un échange
+     ne concerne pas forcément un dossier. Chaque compteur se retrouve donc là où se fait le
+     travail qu'il réclame.
+     ⚠️ TROIS SORTES D'ENTRÉES, ET C'EST VOULU :
+     • la MAISON (le tableau de bord) : hors des groupes, en tête. C'était la 13e ligne du menu,
+       sous « Gestion », alors que c'est la page d'où l'on part et où l'on revient ;
+     • les ACTIONS (« + Nouveau ») : créer un devis, un dépannage, une demande. Ce ne sont pas
+       des endroits où aller, elles ne s'allument donc jamais comme page en cours ;
+     • les RÉGLAGES, au pied du rail avec l'identité : on y va une fois par mois, ils n'ont pas
+       leur place au milieu des outils du jour.
+     ⚠️ UNE SEULE DESCRIPTION pour le rail ET le volet déroulant : deux listes finiraient par
+     diverger, et le menu dirait deux choses selon la largeur de l'écran.
+     `badge` = clé de compteur d'alerte (voir computeBadges). */
+  const NAV_ACCUEIL = { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' };
+  const NAV_CREER = [
+    { href: 'simulateur.html', label: 'Devis', titre: 'Nouveau devis', icon: 'calculator' },
+    // Le dépannage est le même écran que le devis, ouvert directement sur le bon type de document.
+    { href: 'simulateur.html?type=depannage', label: 'Dépannage', titre: 'Nouveau dépannage', icon: 'wrench' },
+    { href: 'rdv.html?nouvelle=1', label: 'Demande de RDV', titre: 'Nouvelle demande de RDV', icon: 'bellphone' },
+  ];
   const NAV_GROUPS = [
-    { title: 'Vente', pages: [
+    { title: 'Affaires', pages: [
       { href: 'rdv.html', label: 'Demandes de RDV', icon: 'bellphone', badge: 'rdv' },
-      { href: 'simulateur.html', label: 'Nouveau devis', icon: 'plus' },
+      { href: 'clients.html', label: 'Clients', icon: 'users' },
+      // Le Mode Terrain sert à établir le devis CHEZ le client : c'est de la vente, pas du chantier.
       { href: 'terrain.html', label: 'Mode Terrain', icon: 'phone' },
-      { href: 'clients.html', label: 'Clients (CRM)', icon: 'users' },
     ] },
-    { title: 'Chantier', pages: [
+    { title: 'Chantiers', pages: [
       { href: 'planning.html', label: 'Planning', icon: 'calendar' },
       { href: 'carte.html', label: 'Carte des chantiers', icon: 'pin' },
-      { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
-      // Depannage : meme ecran que le devis, ouvert directement sur le bon type de document.
-      // Range dans Chantier et non dans Vente : c'est une intervention, pas une affaire a vendre.
-      { href: 'simulateur.html?type=depannage', label: 'Nouveau dépannage', icon: 'wrench' },
       { href: 'portfolio.html', label: 'Portfolio', icon: 'image' },
+    ] },
+    { title: 'Après-vente', pages: [
+      { href: 'sav.html', label: 'SAV', icon: 'warning', badge: 'sav' },
       { href: 'outillage.html', label: 'Outillage & références', icon: 'hammer' },
     ] },
-    { title: 'Gestion', pages: [
-      { href: 'dashboard.html', label: 'Tableau de bord', icon: 'grid' },
-      // Le fil d'échange interne. Rangé ici et non dans Vente : il ne concerne pas un client en
-      // particulier, il concerne Nicolas et Yannick — y compris pour ce qui ne touche aucun dossier.
-      { href: 'echanges.html', label: 'Échanges', icon: 'message', badge: 'echanges' },
+    { title: 'Argent', pages: [
       { href: 'factures.html', label: 'Facturation', icon: 'filetext', badge: 'factures' },
       // Les tickets de frais avancés. Le compteur EST la raison d'être de l'outil : « c'est une
       // sécurité pour moi de pouvoir être remboursé et ne pas tomber dans l'oubli » (Nicolas).
-      // ⚠️ Il ne passe PAS par attente.js, et c'est voulu : cet outil est volontairement à part
-      // (ni statistiques, ni rémunération, ni paiement). Le menu compte, il n'intègre pas.
+      // ⚠️ Il reste un outil à part (ni statistiques, ni rémunération) : le menu compte, il
+      // n'intègre pas.
       { href: 'depenses.html', label: 'Notes de frais', icon: 'receipt', badge: 'depenses' },
       { href: 'stats.html', label: 'Statistiques', icon: 'sliders' },
-      { href: 'parametres.html', label: 'Paramètres', icon: 'settings' },
+    ] },
+    { title: 'Équipe', pages: [
+      // Le fil interne entre Nicolas et Yannick, y compris pour ce qui ne touche aucun dossier.
+      { href: 'echanges.html', label: 'Échanges', icon: 'message', badge: 'echanges' },
     ] },
   ];
+  const NAV_REGLAGES = { href: 'parametres.html', label: 'Paramètres', icon: 'settings' };
+  // Les clés que computeBadges DOIT produire : un test vérifie que chaque compteur du menu en a une.
+  const BADGE_KEYS = ['rdv', 'sav', 'factures', 'echanges', 'depenses'];
+
+  /* ══════ QUELLE PAGE EST « EN COURS » ? ══════
+     ⚠️ L'ANCIEN TEST NE MARCHAIT QU'EN LOCAL. Il comparait la fin de l'adresse à « echanges.html »,
+     or Cloudflare sert les pages SANS l'extension (« …/app/echanges »). En production, aucune
+     entrée ne s'allumait JAMAIS — et en local, où le serveur de test garde le « .html », tout
+     avait l'air de marcher. D'où une clé de page NORMALISÉE des deux côtés : sans extension,
+     sans paramètres, sans barre finale.
+     ⚠️ Une page qui n'est pas dans le menu s'oriente sur sa page MÈRE : la fiche d'un devis (et
+     son document, et son éditeur) appartient au tableau de bord, la fiche d'une facture à la
+     Facturation. Sans ça, sur la page qu'on consulte le plus, le menu ne dit pas où l'on est. */
+  const PAGE_MERE = { vue: 'dashboard', devis: 'dashboard', simulateur: 'dashboard', facture: 'factures' };
+  function pageKey(adresse) {
+    let p = String(adresse || '').split('#')[0].split('?')[0].replace(/\/+$/, '');
+    p = p.slice(p.lastIndexOf('/') + 1).replace(/\.html?$/i, '').toLowerCase();
+    return p || 'index';
+  }
+  function pageCourante(chemin) {
+    const k = pageKey(chemin == null ? location.pathname : chemin);
+    return PAGE_MERE[k] || k;
+  }
+  function estActive(href, courante) { return pageKey(href) === courante; }
+
+  /* ══════ LE CALCUL COMMUN DE « CE QUI T'ATTEND », CHARGÉ À LA DEMANDE ══════
+     ⚠️ Le compteur « Échanges » n'avait pas la même valeur selon la page. Sur les 5 pages qui
+     chargent attente.js, il comptait tout ce qui t'attend (demandes, SAV, sujets) ; sur les 16
+     autres, seulement les sujets. Nicolas a vu 3 sur une page et 2 sur une autre, le même jour.
+     Plutôt que d'ajouter une balise à 16 pages (et d'oublier la 17e), le menu va chercher le
+     calcul lui-même, une fois. S'il n'y arrive pas, il n'affiche RIEN plutôt qu'un chiffre qui
+     voudrait dire autre chose. */
+  let attentePromise = null;
+  function chargerAttente() {
+    if (window.SSAttente) return Promise.resolve(window.SSAttente);
+    if (attentePromise) return attentePromise;
+    attentePromise = new Promise(function (resolve) {
+      const m = NAV_SRC.match(/^(.*\/)nav\.js(?:[?#].*)?$/);
+      // Sans adresse reconnaissable, on ne devine pas : recharger nav.js lui-même par erreur
+      // monterait un deuxième menu.
+      if (!m) { resolve(null); return; }
+      const sc = document.createElement('script');
+      sc.src = m[1] + 'attente.js';
+      sc.onload = function () { resolve(window.SSAttente || null); };
+      sc.onerror = function () { resolve(null); };
+      document.head.appendChild(sc);
+    });
+    return attentePromise;
+  }
 
   // ── Compteurs d'alerte du menu ────────────────────────────────────────────────────────
   // Jusqu'ici il fallait ALLER sur le tableau de bord pour savoir qu'il se passait quelque
@@ -187,13 +299,14 @@
     const SS = window.SS;
     if (!SS) return { rdv: 0, sav: 0, factures: 0, echanges: 0, depenses: 0 };
     const today = window.SSUI.aujourdhui();
-    const [devis, factures, rdv, sujets, depenses, moi] = await Promise.all([
+    const [devis, factures, rdv, sujets, depenses, moi, A] = await Promise.all([
       SS.listDevis().catch(function () { return []; }),
       SS.listFactures().catch(function () { return []; }),
       (SS.listRdv ? SS.listRdv().catch(function () { return []; }) : Promise.resolve([])),
       (SS.listSujets ? SS.listSujets().catch(function () { return []; }) : Promise.resolve([])),
       (SS.listDepenses ? SS.listDepenses().catch(function () { return []; }) : Promise.resolve([])),
       getIdentity().catch(function () { return { key: '' }; }),
+      chargerAttente(),
     ]);
     // Demandes entrantes que personne n'a prises en charge (hors annulées/converties).
     const nbRdv = (rdv || []).filter(function (r) {
@@ -215,15 +328,11 @@
     // Le calcul passe par SSAttente quand il est chargé, pour que le badge dise exactement la même
     // chose que l'écran Échanges. Les alertes du PLANNING (conflits) en sont volontairement
     // exclues : elles exigeraient de charger le moteur du temps sur chacune des seize pages.
-    let nbEch = 0;
-    if (moi && moi.key) {
-      const A = window.SSAttente;
-      if (A) {
-        const items = [].concat(A.depuisRdv(rdv, devis), A.depuisSav(devis), A.depuisSujets(sujets));
-        nbEch = A.concerne(items, moi.key).length;
-      } else {
-        nbEch = (sujets || []).filter(function (s) { return s.statut !== 'fait' && s.awaiting === moi.key; }).length;
-      }
+    // null = « on ne sait pas » : le menu n'affiche alors rien, plutôt qu'un chiffre faux.
+    let nbEch = null;
+    if (moi && moi.key && A) {
+      const items = [].concat(A.depuisRdv(rdv, devis), A.depuisSav(devis), A.depuisSujets(sujets));
+      nbEch = A.concerne(items, moi.key).length;
     }
     /* MES tickets pas encore remboursés. Ceux de l'autre ne me concernent pas : le compteur
        doit dire ce que JE dois aller chercher, sinon on apprend à ne plus le regarder.
@@ -303,15 +412,24 @@
       connLogEl.className = 'conn-log';
       document.body.appendChild(connLogEl);
       document.addEventListener('click', function (ev) {
-        if (connLogEl.classList.contains('open') && !connLogEl.contains(ev.target) && !ev.target.closest('.ssnav-who')) connLogEl.classList.remove('open');
+        // Le clic sur le déclencheur est géré par le déclencheur lui-même : le compter ici comme
+        // « ailleurs » fermait puis rouvrait aussitôt l'historique.
+        if (connLogEl.classList.contains('open') && !connLogEl.contains(ev.target) && !ev.target.closest('.ssnav-who, .ssrail-who')) connLogEl.classList.remove('open');
       }, true);
       document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') connLogEl.classList.remove('open'); });
     }
     if (connLogEl.classList.contains('open')) { connLogEl.classList.remove('open'); return; }
     connLogEl.innerHTML = '<div style="padding:0.8rem 1rem;font-size:var(--fs-xs);color:var(--text-subtle);">Chargement…</div>';
     const r = e.currentTarget.getBoundingClientRect();
-    connLogEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 340)) + 'px';
-    connLogEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 380) + 'px';
+    if (e.currentTarget.closest && e.currentTarget.closest('.ssrail')) {
+      // Depuis le pied du rail : À DROITE du rail et calé sur le bas, sinon l'historique
+      // s'ouvrirait par-dessus le menu lui-même.
+      connLogEl.style.left = Math.round(r.right + 8) + 'px';
+      connLogEl.style.top = Math.max(8, Math.round(r.bottom - 360)) + 'px';
+    } else {
+      connLogEl.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 340)) + 'px';
+      connLogEl.style.top = Math.min(r.bottom + 6, window.innerHeight - 380) + 'px';
+    }
     connLogEl.classList.add('open');
     try {
       const res = await fetch('/api/connections', { credentials: 'same-origin' }).then(function (r) { return r.json(); });
@@ -473,33 +591,106 @@
     sp.replaceWith(a);
   }
 
+  let peindreCompteurs = null;
+  /** Recalcule les compteurs TOUT DE SUITE, sans attendre le cache d'une minute. Pour une page
+   *  qui vient de changer ce qu'ils comptent (un ticket SAV clos, un sujet classé). */
+  function rafraichirCompteurs() {
+    badgesCache = null;
+    return computeBadges().then(function (b) { if (peindreCompteurs) peindreCompteurs(b); return b; });
+  }
+
   function mountRail(cur) {
     if (document.querySelector('.ssrail')) return;
     const icon = window.SSUI.icon;
     const rail = document.createElement('aside');
     rail.className = 'ssrail';
     rail.setAttribute('aria-label', 'Navigation');
+    const entree = function (pg) {
+      const actif = estActive(pg.href, cur);
+      return '<a class="ssrail-item' + (actif ? ' active' : '') + '" href="' + pg.href + '"' +
+        (actif ? ' aria-current="page"' : '') +
+        (pg.badge ? ' data-badge="' + pg.badge + '"' : '') + ' title="' + pg.label + '">' +
+        icon(pg.icon, 15) + '<span class="ssrail-lbl">' + pg.label + '</span></a>';
+    };
     rail.innerHTML =
-      '<a class="ssrail-brand" href="dashboard.html" title="Retour au tableau de bord"><svg viewBox="60.7 69.8 359.3 359.3" aria-hidden="true"><circle cx="205" cy="261.4" r="134.1" fill="#FFC501"/><path d="M158.4,83L315.5,83A8,8 0 0 1 323.2,89L407.2,406A8,8 0 0 1 399.5,416L242.4,416A8,8 0 0 1 234.7,410L150.7,93A8,8 0 0 1 158.4,83Z" fill="#1F319D"/></svg><span class="ssrail-lbl">SolariScreen</span></a>' +
-      '<button class="ssrail-toggle" type="button" title="Réduire ou déployer le menu">' +
-        icon('grid9', 14) + '<span class="ssrail-lbl">Menu</span></button>' +
-      '<button class="ssrail-item ssrail-search" type="button" style="border:none;background:none;cursor:pointer;width:100%;text-align:left;" title="Rechercher (Ctrl+K)">' +
-        icon('search', 15) + '<span class="ssrail-lbl">Recherche</span></button>' +
+      /* ⚠️ LE BOUTON DE RÉDUCTION VIT À CÔTÉ DU LOGO, et pas dans le pied. Essayé dans le pied :
+         le rail montait à 1 068 px pour une fenêtre de 950, le pied passait sous le bord et la
+         citrouille d'Halloween se posait sur le nom de l'utilisateur. L'ancien bouton « Menu »
+         était déjà en haut : la main sait où le chercher. */
+      '<div class="ssrail-top">' +
+        '<a class="ssrail-brand" href="dashboard.html" title="Retour au tableau de bord"><svg viewBox="60.7 69.8 359.3 359.3" aria-hidden="true"><circle cx="205" cy="261.4" r="134.1" fill="#FFC501"/><path d="M158.4,83L315.5,83A8,8 0 0 1 323.2,89L407.2,406A8,8 0 0 1 399.5,416L242.4,416A8,8 0 0 1 234.7,410L150.7,93A8,8 0 0 1 158.4,83Z" fill="#1F319D"/></svg><span class="ssrail-lbl">SolariScreen</span></a>' +
+        '<button class="ssrail-toggle" type="button">' + icon('panelleft', 16) + '</button>' +
+      '</div>' +
+      // La liste se DÉPLIE dans le rail au lieu de flotter à côté : le rail a un « overflow »
+      // masqué, une liste flottante y serait coupée — et replié à 60 px, elle n'aurait nulle part
+      // où s'afficher.
+      '<button class="ssrail-item ssrail-newbtn" type="button" aria-expanded="false" aria-controls="ssrail-newlist" title="Créer un devis, un dépannage ou une demande de RDV">' +
+        icon('plus', 15) + '<span class="ssrail-lbl">Nouveau</span><span class="ssrail-chev" aria-hidden="true">' + icon('chevrondown', 13) + '</span></button>' +
+      '<div class="ssrail-newlist" id="ssrail-newlist" hidden>' +
+        NAV_CREER.map(function (pg) {
+          return '<a class="ssrail-item ssrail-sub" href="' + pg.href + '" title="' + pg.titre + '">' +
+            icon(pg.icon, 15) + '<span class="ssrail-lbl">' + pg.label + '</span></a>';
+        }).join('') + '</div>' +
+      entree(NAV_ACCUEIL) +
+      '<button class="ssrail-item ssrail-search" type="button" title="Rechercher (Ctrl+K)">' +
+        icon('search', 15) + '<span class="ssrail-lbl">Recherche</span><span class="ssrail-kbd">Ctrl K</span></button>' +
       NAV_GROUPS.map(function (g) {
-        return '<div class="ssrail-group">' + g.title + '</div>' +
-          g.pages.map(function (pg) {
-            return '<a class="ssrail-item' + (pg.href === cur ? ' active' : '') + '" href="' + pg.href + '"' +
-              (pg.badge ? ' data-badge="' + pg.badge + '"' : '') + ' title="' + pg.label + '">' +
-              icon(pg.icon, 15) + '<span class="ssrail-lbl">' + pg.label + '</span></a>';
-          }).join('');
-      }).join('');
+        return '<div class="ssrail-group">' + g.title + '</div>' + g.pages.map(entree).join('');
+      }).join('') +
+      '<div class="ssrail-foot">' +
+        '<button class="ssrail-item ssrail-who" type="button" hidden><span class="ssrail-ava" aria-hidden="true"></span><span class="ssrail-lbl"></span></button>' +
+        entree(NAV_REGLAGES) +
+      '</div>';
     document.body.appendChild(rail);
-    rail.querySelector('.ssrail-toggle').addEventListener('click', function () {
-      const reduit = document.documentElement.classList.toggle('ss-rail-reduit');
-      try { localStorage.setItem('ss_rail', reduit ? 'reduit' : 'large'); } catch (e) {}
+
+    /* ── « + Nouveau » ── Échap et un clic ailleurs referment ; Échap rend le focus au bouton,
+       sinon le clavier se retrouve perdu au milieu d'une liste qui vient de disparaître. */
+    const nb = rail.querySelector('.ssrail-newbtn');
+    const liste = rail.querySelector('.ssrail-newlist');
+    function ouvrirNouveau(oui) { liste.hidden = !oui; nb.setAttribute('aria-expanded', String(oui)); }
+    nb.addEventListener('click', function (e) { e.stopPropagation(); ouvrirNouveau(liste.hidden); });
+    document.addEventListener('click', function (e) {
+      if (!liste.hidden && !liste.contains(e.target) && !nb.contains(e.target)) ouvrirNouveau(false);
     });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !liste.hidden) { ouvrirNouveau(false); nb.focus(); }
+    });
+
     rail.querySelector('.ssrail-search').addEventListener('click', function () {
       if (window.ssCommandPalette) window.ssCommandPalette();
+    });
+
+    /* ── Réduire / déployer ── Le bouton s'appelait « Menu » avec une icône de grille : il
+       annonçait l'ouverture d'un menu et faisait l'inverse. Il dit maintenant ce qu'il fait, et
+       son état est lisible par un lecteur d'écran (replié, son libellé n'est plus affiché). */
+    const tg = rail.querySelector('.ssrail-toggle');
+    function peindreToggle() {
+      const reduit = document.documentElement.classList.contains('ss-rail-reduit');
+      const t = reduit ? 'Déployer le menu' : 'Réduire le menu';
+      tg.title = t; tg.setAttribute('aria-label', t);
+      tg.setAttribute('aria-expanded', String(!reduit));
+    }
+    peindreToggle();
+    tg.addEventListener('click', function () {
+      const reduit = document.documentElement.classList.toggle('ss-rail-reduit');
+      try { localStorage.setItem('ss_rail', reduit ? 'reduit' : 'large'); } catch (e) {}
+      peindreToggle();
+    });
+
+    /* ── Qui est connecté ── Rien hors connexion (aperçu, serveur de test) : une ligne vide ou
+       « inconnu » ne servirait à rien. Un clic ouvre l'historique de connexion, comme la
+       pastille du bandeau qu'elle remplace sur grand écran. */
+    getIdentity().then(function (id) {
+      if (!id || !id.email) return;
+      const who = rail.querySelector('.ssrail-who');
+      const nom = id.name || id.email;
+      who.querySelector('.ssrail-ava').textContent = nom.charAt(0).toUpperCase();
+      who.querySelector('.ssrail-lbl').textContent = nom;
+      who.style.setProperty('--ssrail-ava', 'var(' + id.colorVar + ')');
+      who.title = 'Connecté : ' + id.email + ' — voir l\'historique de connexion';
+      who.setAttribute('aria-label', who.title);
+      who.hidden = false;
+      who.addEventListener('click', function (e) { window.toggleConnLog(e); });
     });
     return rail;
   }
@@ -508,17 +699,27 @@
     logoCliquable();
     if (!container) return;
     const icon = window.SSUI.icon;
-    const cur = location.pathname.split('/').pop();
+    const cur = pageCourante();
+    const lien = function (p) {
+      const actif = estActive(p.href, cur);
+      return `<a class="ssnav-item ${actif ? 'active' : ''}" href="${p.href}" role="menuitem"${actif ? ' aria-current="page"' : ''}${p.badge ? ` data-badge="${p.badge}"` : ''}>${icon(p.icon, 14)} ${p.label}</a>`;
+    };
     container.innerHTML = `
       <div class="ssnav">
         <button class="btn btn-ghost btn-sm ssnav-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Naviguer vers une autre page">${icon('grid9', 14)}</button>
         <div class="ssnav-menu" role="menu">
           <button class="ssnav-item ssnav-search" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('search', 14)} Recherche<span style="margin-left:auto;font-family:var(--font-mono);font-size:0.58rem;opacity:0.7;border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;">Ctrl&nbsp;K</span></button>
-          ${NAV_GROUPS.map((g, gi) => `
-            ${gi ? '<div class="ssnav-sep"></div>' : ''}
+          ${lien(NAV_ACCUEIL)}
+          <div class="ssnav-sep"></div>
+          <div class="ssnav-group">Nouveau</div>
+          ${NAV_CREER.map(p => `<a class="ssnav-item" href="${p.href}" role="menuitem">${icon(p.icon, 14)} ${p.titre}</a>`).join('')}
+          ${NAV_GROUPS.map(g => `
+            <div class="ssnav-sep"></div>
             <div class="ssnav-group">${g.title}</div>
-            ${g.pages.map(p => `<a class="ssnav-item ${p.href === cur ? 'active' : ''}" href="${p.href}" role="menuitem"${p.badge ? ` data-badge="${p.badge}"` : ''}>${icon(p.icon, 14)} ${p.label}</a>`).join('')}
+            ${g.pages.map(lien).join('')}
           `).join('')}
+          <div class="ssnav-sep"></div>
+          ${lien(NAV_REGLAGES)}
         </div>
       </div>`;
     mountRail(cur);
@@ -589,7 +790,20 @@
         btn.title = total + ' point(s) d\'attention — ouvrir le menu';
       }
     }
+    peindreCompteurs = paintBadges;
     computeBadges().then(paintBadges).catch(function () {});
+    /* ⚠️ SUR GRAND ÉCRAN, LES COMPTEURS NE BOUGEAIENT JAMAIS. Ils n'étaient recalculés qu'à
+       l'ouverture du volet déroulant — or le volet DISPARAÎT dès que le rail est là. Une page
+       laissée ouverte gardait les chiffres du matin. Ils se rafraîchissent donc toutes les deux
+       minutes tant que la page est regardée, et dès qu'on revient sur l'onglet. Le cache d'une
+       minute de computeBadges évite de tout relire à chaque retour d'onglet.
+       setInterval et non requestAnimationFrame : rAF ne tire pas dans un onglet en arrière-plan. */
+    setInterval(function () {
+      if (document.visibilityState === 'visible') computeBadges().then(paintBadges).catch(function () {});
+    }, 120000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') computeBadges().then(paintBadges).catch(function () {});
+    });
     function close() { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
     function toggle(e) {
       e.stopPropagation();
@@ -754,5 +968,10 @@
     }
   })();
 
-  window.SSNav = { mount: mount, getIdentity: getIdentity };
+  window.SSNav = {
+    mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs,
+    // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
+    _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
+    _NAV: { accueil: NAV_ACCUEIL, creer: NAV_CREER, groupes: NAV_GROUPS, reglages: NAV_REGLAGES, badges: BADGE_KEYS },
+  };
 })();
