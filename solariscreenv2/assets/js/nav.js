@@ -182,6 +182,38 @@
         border: 1px solid var(--ssrail-ava, var(--accent, #4d8bff));
         background: color-mix(in srgb, var(--ssrail-ava, var(--accent, #4d8bff)) 16%, transparent); }
       @media (prefers-reduced-motion: reduce) { .ssrail-chev { transition: none; } }
+
+      /* -- Soli, la mascotte de l'assistant : en bas a droite, sur toutes les pages --
+         Au-dessus du bandeau (sinon il la recouvre en haut de page sur telephone), SOUS les
+         fenetres modales : une modale ouverte la cache, comme le reste de la page. */
+      .ssfab { position: fixed; z-index: calc(var(--z-header, 100) + 5);
+        right: max(16px, env(safe-area-inset-right, 0px));
+        bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + var(--ssfab-leve, 0px));
+        width: 60px; height: 60px; padding: 0; border-radius: 50%; cursor: pointer;
+        display: grid; place-items: center;
+        border: 1px solid var(--border-strong, #324273); background: var(--surface, #111a33);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 0 0 4px color-mix(in srgb, #FFC501 20%, transparent);
+        transition: transform 0.18s ease, bottom 0.18s ease; }
+      .ssfab:hover { transform: translateY(-2px) scale(1.05); }
+      .ssfab:focus-visible { outline: 2px solid var(--accent, #4d8bff); outline-offset: 4px; }
+      .ssfab .ssm { width: 52px; height: 52px; display: block; }
+      .ssm-rayons { transform-origin: 32px 34px; transition: transform 0.6s ease; }
+      .ssfab:hover .ssm-rayons { transform: rotate(45deg); }
+      .ssm-reflet { animation: ssm-reflet 7s ease-in-out infinite; }
+      @keyframes ssm-reflet { 0%, 86%, 100% { opacity: 0.9; } 92% { opacity: 0; } }
+      .ssfab-x { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; border-radius: 50%;
+        display: grid; place-items: center; background: var(--text, #e9eefb); color: var(--bg, #0b1021);
+        opacity: 0; transform: scale(0.6); pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
+      .ssfab[aria-expanded="true"] .ssfab-x { opacity: 1; transform: none; }
+      @media (max-width: 640px) {
+        .ssfab { width: 56px; height: 56px; }
+        .ssfab .ssm { width: 48px; height: 48px; }
+        html.ssa-ouvert .ssfab { visibility: hidden; }
+      }
+      @media print { .ssfab { display: none !important; } }
+      @media (prefers-reduced-motion: reduce) {
+        .ssfab, .ssm-rayons { transition: none; } .ssm-reflet { animation: none; }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -312,6 +344,68 @@
       if (!A) return;
       if (direct) A.ouvrir(null, { direct: true }); else A.basculer(depuis);
     });
+  }
+
+  /* ══════ SOLI, LA MASCOTTE (demandée par Nicolas le 25/10/2026) ══════
+     Un soleil — le rond jaune du logo — qui porte en lunettes le parallélogramme bleu du logo :
+     une protection solaire, ce que vend SolariScreen. Couleurs FIXES, celles de la marque : la
+     pastille garde la même tête dans tous les thèmes. Une seule description, réutilisée par
+     l'assistant (en-tête, accueil) : deux dessins finiraient par ne plus se ressembler. */
+  const RAYONS = [[32, 13, 32, 7], [46.85, 19.15, 51.09, 14.91], [53, 34, 59, 34], [46.85, 48.85, 51.09, 53.09],
+    [32, 55, 32, 61], [17.15, 48.85, 12.91, 53.09], [11, 34, 5, 34], [17.15, 19.15, 12.91, 14.91]];
+  function mascotte(taille) {
+    const t = taille || 52;
+    return '<svg class="ssm" viewBox="0 0 64 64" width="' + t + '" height="' + t + '" aria-hidden="true" focusable="false">' +
+      '<g class="ssm-rayons" stroke="#FFC501" stroke-width="3.6" stroke-linecap="round">' +
+        RAYONS.map(function (r) { return '<line x1="' + r[0] + '" y1="' + r[1] + '" x2="' + r[2] + '" y2="' + r[3] + '"/>'; }).join('') + '</g>' +
+      '<circle cx="32" cy="34" r="18" fill="#FFC501" stroke="#E9A400" stroke-width="1.5"/>' +
+      '<ellipse cx="21" cy="40.6" rx="3.2" ry="2.1" fill="#FF7A59" opacity="0.5"/>' +
+      '<ellipse cx="43" cy="40.6" rx="3.2" ry="2.1" fill="#FF7A59" opacity="0.5"/>' +
+      '<path d="M16.5 26.5h11.5l1.8 8.3H18.3z" fill="#1F319D"/>' +
+      '<path d="M34.2 26.5h11.5l1.8 8.3H36z" fill="#1F319D"/>' +
+      '<path d="M27.6 27.6h7" fill="none" stroke="#1F319D" stroke-width="2" stroke-linecap="round"/>' +
+      '<g class="ssm-reflet" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"><path d="M19.6 28.4l1 3.8"/><path d="M37.3 28.4l1 3.8"/></g>' +
+      '<path d="M25.5 41.5q6.5 6 13 0" fill="none" stroke="#7A3E00" stroke-width="2.4" stroke-linecap="round"/>' +
+      '</svg>';
+  }
+
+  /* La pastille en bas à droite, sur toutes les pages qui ont un menu.
+     ⚠️ ELLE NE SE POSE JAMAIS SUR UNE BARRE COLLÉE EN BAS D'ÉCRAN — l'assistant du Mode Terrain,
+     la barre d'enregistrement des Paramètres : elle monte au-dessus, et redescend quand la barre
+     s'en va. Une nouvelle barre de ce genre prend l'attribut data-barre-bas (ou rejoint la liste). */
+  const BARRES_BAS = '.wiz-bar, .barre, [data-barre-bas]';
+  let fab = null, leveePrevue = false;
+  function leverMascotte() {
+    const h = window.innerHeight, l = window.innerWidth;
+    let leve = 0;
+    document.querySelectorAll(BARRES_BAS).forEach(function (b) {
+      const r = b.getBoundingClientRect();
+      if (!r.width || !r.height || r.top >= h || r.bottom < h - 40 || r.right < l - 100) return;
+      leve = Math.max(leve, h - r.top - 6);   // 10 px d'air au-dessus de la barre
+    });
+    document.documentElement.style.setProperty('--ssfab-leve', Math.max(0, Math.round(leve)) + 'px');
+  }
+  function planifierLevee() {
+    if (leveePrevue) return;
+    leveePrevue = true;
+    requestAnimationFrame(function () { leveePrevue = false; leverMascotte(); });
+  }
+  function monterMascotte() {
+    if (fab || document.querySelector('.ssfab')) return;
+    fab = document.createElement('button');
+    fab.type = 'button';
+    fab.className = 'ssfab';
+    fab.title = 'Soli, ton assistant : une question sur tes devis, factures, planning, échanges…';
+    fab.setAttribute('aria-label', 'Ouvrir Soli, l\u2019assistant');
+    fab.setAttribute('aria-expanded', 'false');
+    fab.innerHTML = mascotte(52) + '<span class="ssfab-x" aria-hidden="true">' + window.SSUI.icon('x', 12) + '</span>';
+    fab.addEventListener('click', function () { ouvrirAssistant(fab); });
+    document.body.appendChild(fab);
+    leverMascotte();
+    window.addEventListener('resize', planifierLevee, { passive: true });
+    window.addEventListener('scroll', planifierLevee, { passive: true, capture: true });
+    // Une barre qui apparaît sans défilement (étape suivante du Mode Terrain) : on revérifie.
+    setInterval(function () { if (document.visibilityState === 'visible') leverMascotte(); }, 1500);
   }
 
   // ── Compteurs d'alerte du menu ────────────────────────────────────────────────────────
@@ -660,8 +754,6 @@
       entree(NAV_ACCUEIL) +
       '<button class="ssrail-item ssrail-search" type="button" title="Rechercher (Ctrl+K)">' +
         icon('search', 15) + '<span class="ssrail-lbl">Recherche</span><span class="ssrail-kbd">Ctrl K</span></button>' +
-      '<button class="ssrail-item ssrail-assist" type="button" title="Assistant : pose une question sur tes devis, factures, planning, échanges">' +
-        icon('sparkle', 15) + '<span class="ssrail-lbl">Assistant</span></button>' +
       NAV_GROUPS.map(function (g) {
         return '<div class="ssrail-group">' + g.title + '</div>' + g.pages.map(entree).join('');
       }).join('') +
@@ -687,7 +779,6 @@
     rail.querySelector('.ssrail-search').addEventListener('click', function () {
       if (window.ssCommandPalette) window.ssCommandPalette();
     });
-    rail.querySelector('.ssrail-assist').addEventListener('click', function (e) { ouvrirAssistant(e.currentTarget); });
 
     /* ── Réduire / déployer ── Le bouton s'appelait « Menu » avec une icône de grille : il
        annonçait l'ouverture d'un menu et faisait l'inverse. Il dit maintenant ce qu'il fait, et
@@ -738,7 +829,6 @@
         <button class="btn btn-ghost btn-sm ssnav-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Naviguer vers une autre page">${icon('grid9', 14)}</button>
         <div class="ssnav-menu" role="menu">
           <button class="ssnav-item ssnav-search" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('search', 14)} Recherche<span style="margin-left:auto;font-family:var(--font-mono);font-size:0.58rem;opacity:0.7;border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;">Ctrl&nbsp;K</span></button>
-          <button class="ssnav-item ssnav-assist" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('sparkle', 14)} Assistant</button>
           ${lien(NAV_ACCUEIL)}
           <div class="ssnav-sep"></div>
           <div class="ssnav-group">Nouveau</div>
@@ -847,12 +937,16 @@
     btn.addEventListener('click', toggle);
     const searchItem = root.querySelector('.ssnav-search');
     if (searchItem) searchItem.addEventListener('click', function (e) { e.preventDefault(); close(); if (window.ssCommandPalette) window.ssCommandPalette(); });
-    const assistItem = root.querySelector('.ssnav-assist');
-    if (assistItem) assistItem.addEventListener('click', function (e) { e.preventDefault(); close(); ouvrirAssistant(btn); });
     document.addEventListener('click', function (e) { if (!root.contains(e.target)) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     mountWhoAmI(container);
-    try { if (sessionStorage.getItem('ss_assistant_ouvert') === '1') ouvrirAssistant(null, true); } catch (e) {}
+    monterMascotte();
+    /* Une conversation ouverte SUIT l'onglet au bureau : la page suivante rouvre la fenêtre.
+       ⚠️ JAMAIS SUR TÉLÉPHONE. Le panneau y couvre tout l'écran : rouvert tout seul, il revenait
+       à chaque « retour » du navigateur, et Nicolas restait enfermé dedans (25/10/2026). */
+    try {
+      if (sessionStorage.getItem('ss_assistant_ouvert') === '1' && !window.matchMedia('(max-width: 640px)').matches) ouvrirAssistant(null, true);
+    } catch (e) {}
   }
 
   // ── Palette de recherche globale (Ctrl+K / ⌘K) — devis, clients, factures, RDV, échanges ──
@@ -1002,7 +1096,7 @@
   })();
 
   window.SSNav = {
-    mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant,
+    mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant, mascotte: mascotte,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
     _NAV: { accueil: NAV_ACCUEIL, creer: NAV_CREER, groupes: NAV_GROUPS, reglages: NAV_REGLAGES, badges: BADGE_KEYS },
