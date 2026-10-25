@@ -80,6 +80,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
+| `tests/nav.test.html` | Les 87 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, et de vraies pages en cadre à 1500, 1200 et 390 px. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -527,6 +528,47 @@ bandeau au-delà de 1400 px avait purement supprimé le raccourci sur grand écr
 par un `<a>` de même classe, jamais enveloppé dans un `<a display:contents>` : ce mode est mal
 rendu dans l'arbre d'accessibilité de plusieurs navigateurs, et un lien qu'un lecteur d'écran ne
 voit pas n'est pas un lien.
+
+**24 bis. LE MENU SUIT LE FIL DE L'AFFAIRE (variante B, choisie par Nicolas le 25/10/2026).**
+Ordre du rail ET du volet : Tableau de bord · **+ Nouveau** (Devis, Dépannage, Demande de RDV) ·
+Affaires · Chantiers · Après-vente · Argent · Équipe · et Paramètres en pied, avec la ligne
+« qui ». Les groupes suivent la vie d'un dossier, de la demande à l'encaissement : on cherche
+une page par « où en est l'affaire », pas par ordre alphabétique. **Une seule description**
+(`NAV_ACCUEIL`, `NAV_CREER`, `NAV_GROUPS`, `NAV_REGLAGES`) rendue deux fois — rail et volet ne
+peuvent pas diverger. Protégé par `tests/nav.test.html` (87 tests, dont des cadres réels à
+1500, 1200 et 390 px).
+⚠️ **QUATRE DÉFAUTS TROUVÉS EN ENQUÊTANT, AUCUN NE SE VOYAIT EN RELISANT :**
+• **La page en cours ne s'allumait JAMAIS en production.** Le test comparait à `echanges.html`,
+  or Cloudflare Pages sert les pages SANS `.html` (`/app/echanges`). En local tout allait bien.
+  `pageKey()` normalise (extension, `?`, `#`, `/` final, casse) ; `PAGE_MERE` oriente les pages
+  hors menu sur leur mère (fiche devis, document, simulateur → Tableau de bord ; facture →
+  Facturation). Un dossier seul (`/app/`) n'allume rien plutôt que d'allumer au hasard.
+• **Le compteur « Échanges » changeait selon la page** : 16 pages ne chargent pas `attente.js`,
+  et le calcul retombait sur une version réduite. Le menu va le chercher lui-même
+  (`chargerAttente`, depuis le dossier de `nav.js`), et rend `null` plutôt qu'un faux chiffre
+  s'il échoue.
+• **Sur grand écran, les compteurs ne se rafraîchissaient jamais** : le volet les recalculait à
+  l'ouverture, le rail — toujours ouvert — jamais. Rafraîchis toutes les 2 min quand l'onglet
+  est visible, et au retour sur l'onglet (`setInterval`, pas rAF : voir les pièges).
+• **Le bouton « Menu » réduisait le menu** : un libellé qui dit le contraire de ce qu'il fait.
+  Remplacé par une icône de panneau à côté du logo, dont le libellé accessible dit l'action
+  (« Réduire le menu » / « Déployer le menu »).
+⚠️ **LE RAIL DOIT TENIR SUR 900 px DE HAUT, DÉCOR DE FÊTE COMPRIS.** La première version montait
+à 1 068 px : le pied passait sous le bord et la citrouille se posait sur le nom. Et **2 px de
+trop suffisent** : la barre de défilement apparaît, vole 9 px de LARGEUR et coupe
+« Outillage & références ». Le test mesure `scrollHeight − clientHeight === 0`, pas un seuil.
+⚠️ **`[hidden]` EST BATTU PAR UN `display: flex` DE LA FEUILLE** : la ligne « qui », vide hors
+connexion, s'affichait quand même. `.ssrail [hidden] { display: none !important }`. Et
+`.ssrail > * { flex: none }` : une colonne flex de hauteur fixe ÉCRASE ses enfants au lieu de
+défiler (même piège que `.vue-rail`).
+⚠️ **UNE SEULE IDENTITÉ À L'ÉCRAN** : au-delà de 1400 px, la pastille « qui » du bandeau se
+masque, le pied du rail la porte (même raison que la marque, règle 24).
+⚠️ **« Nouveau › Demande de RDV » ouvre `rdv.html?nouvelle=1`** : la page ouvre la fenêtre de
+création puis RETIRE le paramètre de l'adresse — sinon un rechargement en rouvrirait une.
+⚠️ **SUR TÉLÉPHONE, UN MENU NE DOIT NI ENFERMER NI CACHER** (demande de Nicolas). Le volet tient
+dans l'écran à 375 et 390 px, défile seul (`overscroll-behavior: contain`), chaque entrée se
+touche, et l'on en sort par les trois gestes qu'un pouce essaie : toucher à côté, retoucher le
+bouton, Échap. Les cas T1 à T9 du test le rejouent au geste.
 
 **25. Une PHOTO sur un sujet suit la même discipline que les réponses.** Une photo est souvent LE
 message — une pièce cassée, un mail fournisseur, un repérage de façade — et la décrire coûte dix
@@ -2174,6 +2216,7 @@ sortait en texte brut — et aucune mesure ne le signalait.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
+   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
