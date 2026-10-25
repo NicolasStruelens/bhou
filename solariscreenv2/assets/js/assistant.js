@@ -25,6 +25,7 @@
   const API = '/api/assistant';
   const CLE_CONV = 'ss_assistant_conv';
   const CLE_OUVERT = 'ss_assistant_ouvert';
+  const CLE_BROUILLON = 'ss_assistant_brouillon';
   const MAX_ETAPES = 8;               // appels au modèle pour UNE question (boucle d'outils)
   const MAX_RESULTAT = 14000;         // caractères renvoyés par outil
   const MAX_CONV = 700000;            // au-delà, on propose d'en commencer une nouvelle
@@ -61,6 +62,29 @@
     .ssa-sous { font-family: var(--font-mono, monospace); font-size: 0.6rem; font-weight: 500; letter-spacing: 0.06em;
       text-transform: uppercase; color: var(--text-subtle, #7d8bb0); white-space: nowrap; }
     .ssa-fermer-lib { display: none; }
+    /* ── LA FENÊTRE SE DÉPLACE ET SE REDIMENSIONNE (bureau et tablette) ──
+       L'en-tête est la poignée : une petite barre en haut le dit, le curseur aussi. Pendant le
+       geste, la fenêtre « se soulève » (ombre plus profonde) ; aucune transition ne traîne derrière
+       la main. Les bords et les coins se tirent ; le coin bas-droit porte des stries visibles. */
+    .ssa-tete { position: relative; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+    .ssa-tete::before { content: ''; position: absolute; top: 4px; left: 50%; width: 34px; height: 4px; margin-left: -17px;
+      border-radius: 4px; background: var(--border-strong, #324273); opacity: 0.55; transition: opacity 0.15s ease, width 0.15s ease; }
+    .ssa-tete:hover::before { opacity: 0.9; }
+    .ssa.deplace .ssa-tete { cursor: grabbing; }
+    .ssa.deplace, .ssa.redim { transition: none; user-select: none; -webkit-user-select: none; }
+    .ssa.deplace { box-shadow: 0 34px 90px rgba(0,0,0,0.45), 0 0 0 1px color-mix(in srgb, var(--accent, #4d8bff) 35%, transparent); }
+    .ssa-p { position: absolute; z-index: 4; touch-action: none; }
+    .ssa-p[data-dir="n"] { top: 0; left: 16px; right: 16px; height: 6px; cursor: ns-resize; }
+    .ssa-p[data-dir="s"] { bottom: 0; left: 16px; right: 16px; height: 6px; cursor: ns-resize; }
+    .ssa-p[data-dir="e"] { right: 0; top: 16px; bottom: 16px; width: 6px; cursor: ew-resize; }
+    .ssa-p[data-dir="w"] { left: 0; top: 16px; bottom: 16px; width: 6px; cursor: ew-resize; }
+    .ssa-p[data-dir="nw"] { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+    .ssa-p[data-dir="ne"] { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+    .ssa-p[data-dir="sw"] { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+    .ssa-p[data-dir="se"] { bottom: 0; right: 0; width: 18px; height: 18px; cursor: nwse-resize; }
+    .ssa-p[data-dir="se"]::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 9px; height: 9px; opacity: 0.55;
+      background: linear-gradient(135deg, transparent 0 45%, var(--text-subtle, #7d8bb0) 45% 55%, transparent 55% 70%, var(--text-subtle, #7d8bb0) 70% 80%, transparent 80%); }
+    .ssa-p[data-dir="se"]:hover::after { opacity: 1; }
     .ssa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; min-height: 36px;
       padding: 0 0.6rem; border-radius: 8px; border: 1px solid var(--border, #263459); background: transparent;
       color: var(--text-muted, #b5c0de); font: inherit; font-size: 0.78rem; cursor: pointer; }
@@ -137,11 +161,15 @@
       .ssa-btn.ssa-fermer { width: auto; min-height: 44px; padding: 0 0.75rem; color: var(--text, #e9eefb);
         border-color: var(--border-strong, #324273); font-weight: 600; }   /* après .ssa-btn, sinon il retombe à 40 px */
       .ssa-fermer-lib { display: inline; }
+      .ssa-p { display: none; }
+      .ssa-tete { cursor: default; touch-action: auto; }
+      .ssa-tete::before { display: none; }
       html.ssa-ouvert, html.ssa-ouvert body { overflow: hidden; }
       .ssa-texte { font-size: 16px; }   /* sous 16 px, iOS zoome sur le champ et la page déborde */
     }
     @media (prefers-reduced-motion: reduce) {
       .ssa, .ssa.open { transition: none; } .ssa-roue, .ssa-attente i { animation: none; }
+      .ssa-tete::before { transition: none; }
     }
   `;
 
@@ -710,7 +738,9 @@
   async function tour() {
     if (enCours) return;
     enCours = true; erreur = null; avis = '';
+    soliPense(true);
     peindre();
+    let reponse = false;
     try {
       for (let etape = 0; etape < MAX_ETAPES; etape++) {
         vivant = { texte: '' };
@@ -721,6 +751,7 @@
           if (!planifie) { planifie = true; requestAnimationFrame(() => { planifie = false; peindreVivant(); }); }
         });
         vivant = null;
+        reponse = true;
         let contenu = Array.isArray(fin.content) ? fin.content : [];
         // Un refus peut arriver sans un mot (avant toute réponse) ou au milieu d'une phrase. On ne
         // garde que son texte : un appel d'outil coupé n'est pas à exécuter. Et jamais de message
@@ -763,8 +794,22 @@
       else erreur = { message: (e && e.message) || 'Erreur inconnue', reessayer: !(e && e.definitif) };
     } finally {
       enCours = false; controleur = null; outilsEnCours = {};
+      soliPense(false);
+      if (reponse && !erreur) soliSaute();
       peindre();
     }
+  }
+
+  /* Soli réfléchit pendant que l'assistant travaille (ses rayons tournent, dans l'en-tête comme
+     sur la pastille), et saute de joie quand la réponse arrive. */
+  function soliPense(oui) {
+    document.querySelectorAll('.ssa-tete .ssm, .ssfab .ssm').forEach((m) => m.classList.toggle('ssm-pense', oui));
+  }
+  function soliSaute() {
+    const m = panneau && panneau.querySelector('.ssa-tete .ssm');
+    if (!m) return;
+    m.classList.remove('ssm-saut'); void m.getBoundingClientRect(); m.classList.add('ssm-saut');
+    m.addEventListener('animationend', () => m.classList.remove('ssm-saut'), { once: true });
   }
 
   function envoyer(texte) {
@@ -792,6 +837,7 @@
     conv.decisions = {};
     sauver();
     if (zone) { zone.value = ''; ajusterZone(); }
+    try { sessionStorage.removeItem(CLE_BROUILLON); } catch (e) {}
     tour();
   }
 
@@ -946,7 +992,16 @@
         '<textarea class="ssa-texte" rows="1" placeholder="Pose ta question…" aria-label="Ta question à l’assistant"></textarea>' +
         '<button type="submit" class="ssa-envoi" title="Envoyer" aria-label="Envoyer">' + icon('chevronright', 18) + '</button></div>' +
         '<div class="ssa-avert">Claude peut se tromper : vérifie un montant avant d’agir. Rien n’est modifié sans ton clic.</div></form>';
+    panneau.insertAdjacentHTML('beforeend', ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se']
+      .map((d) => '<i class="ssa-p" data-dir="' + d + '" aria-hidden="true"></i>').join(''));
     document.body.appendChild(panneau);
+    // ⚠️ « enTete », pas « tete » : tete() dessine Soli, et un nom repris ici la masquerait.
+    const enTete = panneau.querySelector('.ssa-tete');
+    enTete.title = 'Glisse pour déplacer · double-clic pour remettre à sa place';
+    enTete.addEventListener('pointerdown', (e) => { if (!e.target.closest('button, a')) geste(e, 'deplacer'); });
+    enTete.addEventListener('dblclick', (e) => { if (!e.target.closest('button, a')) remettreEnPlace(); });
+    panneau.querySelectorAll('.ssa-p').forEach((p) => p.addEventListener('pointerdown', (e) => geste(e, p.dataset.dir)));
+    window.addEventListener('resize', () => { if (panneau.classList.contains('open')) appliquerGeo(); });
     fil = panneau.querySelector('.ssa-fil');
     zone = panneau.querySelector('.ssa-texte');
     boutonEnvoi = panneau.querySelector('.ssa-envoi');
@@ -956,7 +1011,12 @@
       if (enCours) { if (controleur) controleur.abort(); return; }
       envoyer(zone.value);
     });
-    zone.addEventListener('input', ajusterZone);
+    zone.addEventListener('input', () => {
+      ajusterZone();
+      try { sessionStorage.setItem(CLE_BROUILLON, zone.value); } catch (e) {}
+    });
+    // Une question commencée ne se perd pas en changeant de page.
+    try { const b = sessionStorage.getItem(CLE_BROUILLON); if (b) { zone.value = b; setTimeout(ajusterZone, 0); } } catch (e) {}
     zone.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!enCours) envoyer(zone.value); }
     });
@@ -1022,6 +1082,8 @@
     const direct = !!(o && o.direct);
     monter();
     ouvreur = depuis || (direct ? null : document.activeElement);
+    appliquerGeo();
+    origineDepuisSoli();
     if (direct) { panneau.style.transition = 'none'; void panneau.offsetWidth; }
     panneau.classList.add('open');
     if (direct) { void panneau.offsetWidth; panneau.style.transition = ''; }
@@ -1049,6 +1111,102 @@
     }
     if (ouvreur && ouvreur.focus && document.contains(ouvreur)) { try { ouvreur.focus(); } catch (e) {} }
   }
+  /* ── LA GÉOMÉTRIE DE LA FENÊTRE ──
+     « La fenêtre, je dois savoir la bouger, la redimensionner, qu'elle ne parte pas quand je
+     change de page » (Nicolas, 25/10/2026). Bureau et tablette seulement : sur téléphone, plein
+     écran. Elle vit dans localStorage (propre à l'appareil) et suit l'onglet d'une page à l'autre.
+     ⚠️ ELLE EST TOUJOURS RAMENÉE DANS L'ÉCRAN : posée sur un grand écran puis rouverte sur un
+     portable, une fenêtre ne doit jamais se retrouver hors de portée, poignée comprise. */
+  const CLE_GEO = 'ss_assistant_fenetre';
+  const MARGE = 12, MIN_L = 340, MIN_H = 380, AIMANT = 18;
+  let geo = lireGeo();   // { x, y, w, h } — null : sa place par défaut, au-dessus de Soli
+  function lireGeo() {
+    try {
+      const g = JSON.parse(localStorage.getItem(CLE_GEO) || 'null');
+      return g && ['x', 'y', 'w', 'h'].every((k) => typeof g[k] === 'number' && isFinite(g[k])) ? g : null;
+    } catch (e) { return null; }
+  }
+  function borner(g) {
+    const W = window.innerWidth, H = window.innerHeight;
+    const w = Math.max(Math.min(Math.max(g.w, MIN_L), W - 2 * MARGE), 200);
+    const h = Math.max(Math.min(Math.max(g.h, MIN_H), H - 2 * MARGE), 200);
+    const x = Math.min(Math.max(g.x, MARGE), W - MARGE - w), y = Math.min(Math.max(g.y, MARGE), H - MARGE - h);
+    return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+  }
+  // Les bords de l'écran attirent la fenêtre : posée à 2 cm du coin, elle s'y cale.
+  function aimanter(g) {
+    const W = window.innerWidth, H = window.innerHeight;
+    if (Math.abs(g.x - MARGE) < AIMANT) g.x = MARGE;
+    if (Math.abs(W - MARGE - (g.x + g.w)) < AIMANT) g.x = W - MARGE - g.w;
+    if (Math.abs(g.y - MARGE) < AIMANT) g.y = MARGE;
+    if (Math.abs(H - MARGE - (g.y + g.h)) < AIMANT) g.y = H - MARGE - g.h;
+    return g;
+  }
+  function appliquerGeo() {
+    if (!panneau) return;
+    if (!geo || TEL()) {
+      ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach((k) => panneau.style.removeProperty(k));
+      panneau.classList.remove('libre');
+      return;
+    }
+    const g = borner(geo);
+    Object.assign(panneau.style, { left: g.x + 'px', top: g.y + 'px', width: g.w + 'px', height: g.h + 'px', right: 'auto', bottom: 'auto' });
+    panneau.classList.add('libre');
+  }
+  function sauverGeo() {
+    try { if (geo) localStorage.setItem(CLE_GEO, JSON.stringify(borner(geo))); else localStorage.removeItem(CLE_GEO); } catch (e) {}
+  }
+  function remettreEnPlace() {
+    geo = null; sauverGeo(); appliquerGeo();
+    if (panneau.animate) panneau.animate([{ transform: 'scale(0.98)', opacity: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'ease-out' });
+  }
+  // L'ouverture naît de Soli : le point de départ de l'animation est la pastille elle-même.
+  function origineDepuisSoli() {
+    const f = document.querySelector('.ssfab');
+    if (!f || TEL()) { panneau.style.removeProperty('transform-origin'); return; }
+    const fr = f.getBoundingClientRect(), pr = panneau.getBoundingClientRect();
+    panneau.style.transformOrigin = Math.round(fr.left + fr.width / 2 - pr.left) + 'px ' + Math.round(fr.top + fr.height / 2 - pr.top) + 'px';
+  }
+  /** Glisser (l'en-tête) ou tirer un bord / un coin ('n', 'se'…). Souris, stylet et doigt. */
+  function geste(e, mode) {
+    if (TEL() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    const r = panneau.getBoundingClientRect();
+    const depart = { x: r.left, y: r.top, w: r.width, h: r.height }, x0 = e.clientX, y0 = e.clientY;
+    const cible = e.currentTarget;
+    try { cible.setPointerCapture(e.pointerId); } catch (_) {}
+    panneau.classList.add(mode === 'deplacer' ? 'deplace' : 'redim');
+    const bouger = (ev) => {
+      const dx = ev.clientX - x0, dy = ev.clientY - y0, W = window.innerWidth, H = window.innerHeight;
+      let g = Object.assign({}, depart);
+      if (mode === 'deplacer') {
+        g.x += dx; g.y += dy;
+        g = aimanter(borner(g));
+      } else {
+        if (mode.indexOf('e') >= 0) g.w = Math.min(depart.w + dx, W - MARGE - depart.x);
+        if (mode.indexOf('s') >= 0) g.h = Math.min(depart.h + dy, H - MARGE - depart.y);
+        if (mode.indexOf('w') >= 0) { g.x = Math.max(depart.x + dx, MARGE); g.w = depart.x + depart.w - g.x; }
+        if (mode.indexOf('n') >= 0) { g.y = Math.max(depart.y + dy, MARGE); g.h = depart.y + depart.h - g.y; }
+        // Taille minimale atteinte : c'est le bord tiré qui s'arrête, l'autre ne bouge pas.
+        if (g.w < MIN_L) { if (mode.indexOf('w') >= 0) g.x = depart.x + depart.w - MIN_L; g.w = MIN_L; }
+        if (g.h < MIN_H) { if (mode.indexOf('n') >= 0) g.y = depart.y + depart.h - MIN_H; g.h = MIN_H; }
+        g = borner(g);
+      }
+      geo = g;
+      appliquerGeo();
+    };
+    const finir = () => {
+      cible.removeEventListener('pointermove', bouger);
+      cible.removeEventListener('pointerup', finir);
+      cible.removeEventListener('pointercancel', finir);
+      panneau.classList.remove('deplace', 'redim');
+      sauverGeo();
+    };
+    cible.addEventListener('pointermove', bouger);
+    cible.addEventListener('pointerup', finir);
+    cible.addEventListener('pointercancel', finir);
+  }
+
   function basculer(depuis) { if (panneau && panneau.classList.contains('open')) fermer(); else ouvrir(depuis); }
 
   window.SSAssistant = {
@@ -1058,5 +1216,6 @@
     _md: md, _lienSur: lienSur, _contexte: contexte, _sansContexte: sansContexte, _outils: OUTILS,
     _donnees: donnees, _oublier: oublierDonnees, _etat: () => ({ conv, enCours, erreur, avis }),
     _envoyer: envoyer, _decider: decider, _nouvelle: nouvelle, _API: API, _CLE_CONV: CLE_CONV, _CLE_OUVERT: CLE_OUVERT,
+    _CLE_GEO: CLE_GEO, _geo: () => geo, _remettreEnPlace: () => remettreEnPlace(),
   };
 })();
