@@ -37,18 +37,30 @@
 
   /* ══════ STYLES ══════ */
   const CSS = `
-    .ssa { position: fixed; top: 0; right: 0; bottom: 0; z-index: 5500; width: min(440px, 100vw);
-      display: flex; flex-direction: column; background: var(--surface, #111a33); color: var(--text, #e9eefb);
-      border-left: 1px solid var(--border, #263459); box-shadow: -18px 0 48px rgba(0,0,0,0.28);
-      transform: translateX(104%); visibility: hidden; transition: transform 0.22s ease, visibility 0s linear 0.22s; }
-    .ssa.open { transform: none; visibility: visible; transition: transform 0.22s ease; }
-    .ssa-tete { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.6rem 0.6rem 0.9rem;
-      border-bottom: 1px solid var(--border, #263459); min-height: 52px; box-sizing: border-box; }
-    .ssa-titre { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.45rem;
-      font-family: var(--font-display, inherit); font-weight: 700; font-size: 0.98rem; }
-    .ssa-titre .ssa-ic { color: var(--accent, #4d8bff); display: inline-flex; }
+    /* Au bureau et sur tablette : une FENÊTRE posée au-dessus de Soli, en bas à droite. Elle laisse
+       voir la page — l'ancien panneau pleine hauteur recouvrait la colonne du relais et la liste.
+       Plan d'empilement pris dans tokens.css, jamais un nombre en dur (au-dessus des modales :
+       on l'ouvre volontairement, par-dessus ce qu'on regarde). Sur téléphone : plein écran, plus bas. */
+    .ssa { position: fixed; z-index: calc(var(--z-overlay, 1000) + 20);
+      right: max(16px, env(safe-area-inset-right, 0px));
+      bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + var(--ssfab-leve, 0px) + 72px);
+      width: min(420px, calc(100vw - 32px)); height: min(640px, calc(100vh - 110px - var(--ssfab-leve, 0px)));
+      display: flex; flex-direction: column; overflow: hidden; border-radius: 16px;
+      background: var(--surface, #111a33); color: var(--text, #e9eefb);
+      border: 1px solid var(--border-strong, #324273); box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+      transform-origin: bottom right; transform: translateY(10px) scale(0.97); opacity: 0; visibility: hidden;
+      transition: transform 0.2s ease, opacity 0.2s ease, visibility 0s linear 0.2s; }
+    .ssa.open { transform: none; opacity: 1; visibility: visible; transition: transform 0.2s ease, opacity 0.2s ease; }
+    .ssa-tete { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.6rem 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border, #263459); min-height: 56px; box-sizing: border-box;
+      background: color-mix(in srgb, #FFC501 7%, var(--surface, #111a33)); }
+    .ssa-titre { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+    .ssa-titre .ssm { width: 34px; height: 34px; flex: none; }
+    .ssa-nom { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+    .ssa-nom b { font-family: var(--font-display, inherit); font-weight: 700; font-size: 1rem; }
     .ssa-sous { font-family: var(--font-mono, monospace); font-size: 0.6rem; font-weight: 500; letter-spacing: 0.06em;
-      text-transform: uppercase; color: var(--text-subtle, #7d8bb0); }
+      text-transform: uppercase; color: var(--text-subtle, #7d8bb0); white-space: nowrap; }
+    .ssa-fermer-lib { display: none; }
     .ssa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; min-height: 36px;
       padding: 0 0.6rem; border-radius: 8px; border: 1px solid var(--border, #263459); background: transparent;
       color: var(--text-muted, #b5c0de); font: inherit; font-size: 0.78rem; cursor: pointer; }
@@ -98,6 +110,8 @@
       display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     .ssa-note { font-size: 0.76rem; color: var(--text-subtle, #7d8bb0); }
     .ssa-vide { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.4rem 0; }
+    .ssa-salut { display: flex; align-items: center; gap: 0.7rem; }
+    .ssa-salut .ssm { width: 56px; height: 56px; flex: none; }
     .ssa-vide-t { font-size: 0.9rem; font-weight: 600; } .ssa-vide-s { font-size: 0.8rem; color: var(--text-muted, #b5c0de); line-height: 1.45; }
     .ssa-suggs { display: flex; flex-direction: column; gap: 0.35rem; }
     .ssa-sugg { text-align: left; min-height: 38px; padding: 0.45rem 0.7rem; border-radius: 9px; cursor: pointer; font: inherit; font-size: 0.82rem;
@@ -116,9 +130,13 @@
     .ssa-envoi:disabled { opacity: 0.5; cursor: default; }
     .ssa-avert { font-size: 0.66rem; color: var(--text-subtle, #7d8bb0); line-height: 1.35; }
     @media (max-width: 640px) {
-      .ssa { width: 100vw; border-left: 0; box-shadow: none; }
+      .ssa { inset: 0; width: auto; height: auto; border-radius: 0; border: 0; box-shadow: none;
+        transform: translateY(14px); transform-origin: center; }
       .ssa-btn { min-height: 40px; }
-      .ssa-btn.ssa-fermer { width: 44px; min-height: 44px; }   /* après .ssa-btn, sinon il retombe à 40 px */
+      /* « Fermer » EN TOUTES LETTRES sur téléphone : une croix seule ne s'est pas vue (25/10/2026). */
+      .ssa-btn.ssa-fermer { width: auto; min-height: 44px; padding: 0 0.75rem; color: var(--text, #e9eefb);
+        border-color: var(--border-strong, #324273); font-weight: 600; }   /* après .ssa-btn, sinon il retombe à 40 px */
+      .ssa-fermer-lib { display: inline; }
       html.ssa-ouvert, html.ssa-ouvert body { overflow: hidden; }
       .ssa-texte { font-size: 16px; }   /* sous 16 px, iOS zoome sur le champ et la page déborde */
     }
@@ -841,6 +859,10 @@
       '<div class="ssa-carte-q">' + esc(c.quoi) + '</div><div class="ssa-carte-texte">' + esc(c.texte) + '</div>' +
       '<div class="ssa-carte-pied">' + pied + '</div></div>';
   }
+  // Soli, dessiné par nav.js (une seule description de la mascotte) ; repli discret sinon.
+  function tete(taille) {
+    return window.SSNav && window.SSNav.mascotte ? window.SSNav.mascotte(taille) : '<span style="color:var(--accent)">' + icon('sparkle', Math.round(taille / 2)) + '</span>';
+  }
   function htmlVide() {
     const id = new URLSearchParams(location.search).get('id');
     const k = window.SSNav && window.SSNav._pageKey ? window.SSNav._pageKey(location.pathname) : '';
@@ -850,8 +872,8 @@
       'Qu’est-ce qui reste à encaisser ?');
     // « l'autre » n'a de sens que si l'on sait qui est connecté.
     if (D.moi && D.moi.autre) s.push('Qu’est-ce qui attend ' + nomAssocie(D.moi.autre) + ' ?');
-    return '<div class="ssa-vide"><div class="ssa-vide-t">Que veux-tu savoir ?</div>' +
-      '<div class="ssa-vide-s">Je lis les devis, les factures, le planning et les échanges. Je ne modifie rien sans ton clic.</div>' +
+    return '<div class="ssa-vide"><div class="ssa-salut">' + tete(56) + '<div><div class="ssa-vide-t">Salut ! Moi, c’est Soli.</div>' +
+      '<div class="ssa-vide-s">Je lis les devis, les factures, le planning et les échanges. Je ne modifie rien sans ton clic.</div></div></div>' +
       '<div class="ssa-suggs">' + s.slice(0, 5).map((q) => '<button type="button" class="ssa-sugg" data-ssa-q="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div></div>';
   }
   function peindre() {
@@ -914,11 +936,11 @@
     panneau = document.createElement('aside');
     panneau.className = 'ssa';
     panneau.setAttribute('role', 'dialog');
-    panneau.setAttribute('aria-label', 'Assistant');
+    panneau.setAttribute('aria-label', 'Soli, l’assistant');
     panneau.innerHTML =
-      '<div class="ssa-tete"><div class="ssa-titre"><span class="ssa-ic">' + icon('sparkle', 17) + '</span><span>Assistant</span><span class="ssa-sous">Claude</span></div>' +
+      '<div class="ssa-tete"><div class="ssa-titre">' + tete(34) + '<span class="ssa-nom"><b>Soli</b><span class="ssa-sous">assistant · Claude</span></span></div>' +
         '<button type="button" class="ssa-btn" data-ssa-nouvelle="1" title="Commencer une nouvelle conversation">' + icon('plus', 13) + ' Nouvelle</button>' +
-        '<button type="button" class="ssa-btn ssa-fermer" data-ssa-fermer="1" title="Fermer (Échap)" aria-label="Fermer l’assistant">' + icon('x', 16) + '</button></div>' +
+        '<button type="button" class="ssa-btn ssa-fermer" data-ssa-fermer="1" title="Fermer (Échap)" aria-label="Fermer l’assistant">' + icon('x', 16) + '<span class="ssa-fermer-lib">Fermer</span></button></div>' +
       '<div class="ssa-fil" aria-live="polite"></div>' +
       '<form class="ssa-saisie" novalidate><div class="ssa-ligne">' +
         '<textarea class="ssa-texte" rows="1" placeholder="Pose ta question…" aria-label="Ta question à l’assistant"></textarea>' +
@@ -941,15 +963,23 @@
     panneau.addEventListener('click', (e) => {
       const t = e.target.closest('button, a');
       if (!t || !panneau.contains(t)) return;
-      if (t.dataset.ssaFermer) fermer();
+      if (t.dataset.ssaFermer) fermer({});
       else if (t.dataset.ssaNouvelle) nouvelle();
       else if (t.dataset.ssaQ) envoyer(t.dataset.ssaQ);
       else if (t.dataset.ssaOui) decider(t.dataset.ssaOui, true);
       else if (t.dataset.ssaNon) decider(t.dataset.ssaNon, false);
       else if (t.dataset.ssaReessayer) tour();
-      else if (t.tagName === 'A' && window.matchMedia('(max-width: 640px)').matches) {
+      else if (t.tagName === 'A' && TEL()) {
         // Sur téléphone le panneau couvre tout l'écran : on le referme pour voir la page ouverte.
         try { sessionStorage.setItem(CLE_OUVERT, '0'); } catch (e2) {}
+        // L'entrée d'historique du panneau est d'abord retirée, PUIS on suit le lien : sinon le
+        // « retour » depuis la page ouverte retomberait sur une étape morte (rien ne bouge).
+        if (entreeHistorique && /^https?:/.test(t.href)) {
+          e.preventDefault();
+          lienApres = t.href;
+          entreeHistorique = false;
+          history.back();
+        }
       }
     });
     document.addEventListener('keydown', (e) => {
@@ -964,6 +994,28 @@
     peindre();
   }
 
+  /* ── LE « RETOUR » DU TÉLÉPHONE FERME L'ASSISTANT ──
+     « Quand je suis en mode tel, je ne sais pas sortir de l'assistant, pas moyen de revenir en
+     arrière » (Nicolas, 25/10/2026). Sur téléphone le panneau couvre tout l'écran : la main fait
+     le geste « retour », qui quittait la PAGE — et la page précédente rouvrait le panneau (il
+     suivait l'onglet). Désormais l'ouverture ajoute une étape d'historique : « retour » ferme le
+     panneau et laisse la page en place. La réouverture automatique est réservée au bureau (nav.js). */
+  const TEL = () => window.matchMedia('(max-width: 640px)').matches;
+  let entreeHistorique = false, lienApres = '';
+  window.addEventListener('popstate', () => {
+    if (lienApres) { const u = lienApres; lienApres = ''; location.href = u; return; }
+    if (entreeHistorique) {
+      entreeHistorique = false;
+      if (panneau && panneau.classList.contains('open')) fermer({ historique: true });
+    }
+  });
+  function peindrePastille(ouvert) {
+    const f = document.querySelector('.ssfab');
+    if (!f) return;
+    f.setAttribute('aria-expanded', String(ouvert));
+    f.setAttribute('aria-label', ouvert ? 'Fermer Soli' : 'Ouvrir Soli, l’assistant');
+  }
+
   // o.direct : réouverture au chargement d'une page (la conversation suit l'onglet) — sans
   // glissement, qui ferait croire à une nouvelle ouverture, et sans voler le focus de la page.
   function ouvrir(depuis, o) {
@@ -974,17 +1026,27 @@
     panneau.classList.add('open');
     if (direct) { void panneau.offsetWidth; panneau.style.transition = ''; }
     document.documentElement.classList.add('ssa-ouvert');
+    peindrePastille(true);
     try { sessionStorage.setItem(CLE_OUVERT, '1'); } catch (e) {}
+    if (!direct && TEL() && !entreeHistorique) {
+      try { history.pushState({ ssa: 1 }, ''); entreeHistorique = true; } catch (e) {}
+    }
     peindre();
     if (fil) fil.scrollTop = fil.scrollHeight;
     // Pas de clavier qui surgit sur téléphone : on ne donne le focus que là où il y a une souris.
     if (!direct && window.matchMedia('(pointer: fine)').matches) setTimeout(() => zone && zone.focus(), 60);
   }
-  function fermer() {
+  // o.historique : la fermeture VIENT du « retour » — l'étape est déjà retirée, on n'y touche pas.
+  function fermer(o) {
     if (!panneau) return;
     panneau.classList.remove('open');
     document.documentElement.classList.remove('ssa-ouvert');
+    peindrePastille(false);
     try { sessionStorage.setItem(CLE_OUVERT, '0'); } catch (e) {}
+    if (!(o && o.historique) && entreeHistorique) {
+      entreeHistorique = false;
+      try { history.back(); } catch (e) {}
+    }
     if (ouvreur && ouvreur.focus && document.contains(ouvreur)) { try { ouvreur.focus(); } catch (e) {} }
   }
   function basculer(depuis) { if (panneau && panneau.classList.contains('open')) fermer(); else ouvrir(depuis); }

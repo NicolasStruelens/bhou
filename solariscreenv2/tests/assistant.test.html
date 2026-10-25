@@ -113,7 +113,7 @@
       // Un cadre placé hors de l'écran ne fait pas avancer ses animations : le panneau resterait
       // figé en plein glissement. On mesure donc la position FINALE, sans animation.
       const st = w.document.createElement('style');
-      st.textContent = '.ssa, .ssa.open { transition: none !important; }';
+      st.textContent = '.ssa, .ssa.open, .ssfab { transition: none !important; }';
       w.document.head.appendChild(st);
       w.SSNav.getIdentity = async () => ID(identite === undefined ? 'nicolas' : identite);
       w.SS.listActivity = async () => [];
@@ -361,48 +361,117 @@
         f2.remove(); f3.remove();
 
         /* ══════════ B — BUREAU ══════════ */
-        titre('B — Au bureau (1500 px) : le rail, le panneau, le clavier');
+        titre('B — Au bureau (1500 px) : Soli en bas à droite, la fenêtre posée au-dessus');
         w.SSAssistant.fermer();
-        const bt = w.document.querySelector('.ssrail-assist');
-        check('B1 L’entrée « Assistant » est dans le rail, sous la recherche',
-          [!!bt, bt && bt.previousElementSibling && bt.previousElementSibling.classList.contains('ssrail-search')], [true, true]);
-        bt.focus(); bt.click(); await attendre(350);
+        const fab = w.document.querySelector('.ssfab');
+        const dw = w.document.documentElement;
+        const fr = fab.getBoundingClientRect();
+        const auCentre = (win, el) => { const b = el.getBoundingClientRect(); return el.contains(win.document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)); };
+        check('B1 Soli est en bas à droite, une seule fois — et le menu ne porte plus d’entrée en double',
+          [w.document.querySelectorAll('.ssfab').length, Math.round(dw.clientWidth - fr.right), Math.round(w.innerHeight - fr.bottom), !!w.document.querySelector('.ssrail-assist, .ssnav-assist')], [1, 16, 16, false]);
+        check('B2 Rien ne le recouvre (ni le bandeau, ni les décors)', auCentre(w, fab), true);
+        check('B3 La mascotte : le soleil du logo, avec l’écran bleu du logo en lunettes', [!!fab.querySelector('svg.ssm circle[fill="#FFC501"]'), fab.querySelectorAll('svg.ssm path[fill="#1F319D"]').length], [true, 2]);
+        fab.focus(); fab.click(); await attendre(350);
         const pr = w.document.querySelector('.ssa').getBoundingClientRect();
-        check('B2 Le clic ouvre un panneau de 440 px collé à droite', [w.SSAssistant.estOuvert(), Math.round(pr.width), Math.round(pr.right)], [true, 440, w.document.documentElement.clientWidth]);
+        check('B4 Un clic ouvre une fenêtre de 420 px AU-DESSUS de Soli, alignée sur lui',
+          [w.SSAssistant.estOuvert(), Math.round(pr.width), Math.round(pr.right) === Math.round(fr.right), pr.bottom <= fr.top - 8, pr.top >= 0], [true, 420, true, true, true]);
+        check('B5 Elle laisse voir la page : pas toute la hauteur, pas toute la largeur', [pr.height < w.innerHeight - 100, pr.left > dw.clientWidth / 2], [true, true]);
+        check('B6 Soli reste cliquable et annonce qu’il refermera', [auCentre(w, fab), fab.getAttribute('aria-expanded')], [true, 'true']);
+        check('B7 L’en-tête présente Soli', /Soli/.test(w.document.querySelector('.ssa-tete').textContent) && !!w.document.querySelector('.ssa-tete svg.ssm'), true);
         w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         await attendre(300);
-        check('B3 Échap le ferme et rend le focus au bouton', [w.SSAssistant.estOuvert(), w.document.activeElement === bt, w.getComputedStyle(w.document.querySelector('.ssa')).visibility], [false, true, 'hidden']);
+        check('B8 Échap la ferme et rend le focus à Soli', [w.SSAssistant.estOuvert(), w.document.activeElement === fab, w.getComputedStyle(w.document.querySelector('.ssa')).visibility, fab.getAttribute('aria-expanded')], [false, true, 'hidden', 'false']);
+        fab.click(); await attendre(250); fab.click(); await attendre(250);
+        check('B9 Un second clic sur Soli referme la fenêtre', w.SSAssistant.estOuvert(), false);
+        check('B10 Au bureau, ouvrir ne touche pas à l’historique du navigateur', (w.history.state || {}).ssa, undefined);
         f1.remove();
 
+        /* Soli ne se pose jamais sur une barre collée en bas d'écran */
+        // Cadre hors écran = animations gelées : on coupe la transition de Soli, puis on fait
+        // remesurer (comme le ferait un défilement ou un redimensionnement).
+        const sansAnim = async (win) => {
+          const st = win.document.createElement('style');
+          st.textContent = '.ssfab, .ssa, .ssa.open { transition: none !important; }';
+          win.document.head.appendChild(st);
+          win.dispatchEvent(new win.Event('resize'));
+          await attendre(250);
+        };
+        const fp = await cadre('../app/parametres.html?t=' + Date.now(), 1500, 900);
+        await attendre(500); await sansAnim(fp.contentWindow);
+        const barre = fp.contentWindow.document.querySelector('.barre'), fabP = fp.contentWindow.document.querySelector('.ssfab');
+        check('B11 Paramètres : Soli monte AU-DESSUS de la barre d’enregistrement',
+          [!!barre && !!fabP, !!barre && !!fabP && fabP.getBoundingClientRect().bottom <= barre.getBoundingClientRect().top - 4], [true, true]);
+        fp.remove();
+
         /* ══════════ T — TÉLÉPHONE ══════════ */
-        titre('T — Sur téléphone (390 × 700) : plein écran, rien qui dépasse, on sait toujours revenir');
+        titre('T — Sur téléphone (390 × 700) : plein écran, et « retour » comme « Fermer » ramènent TOUJOURS à la page');
+        // Les cadres partagent l'historique de CETTE page : un « retour » de trop quitterait la page
+        // de test au lieu d'échouer proprement. Trois étapes de garde l'absorbent, et le comptent.
+        let fuites = 0;
+        const garde = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', garde);
         const ft = await ouvrir(390, 700, 'nicolas');
         const wt = ft.contentWindow;
-        const item = wt.document.querySelector('.ssnav-assist');
-        check('T1 L’entrée « Assistant » est dans le volet du menu', !!item, true);
-        item.click(); await attendre(400);
         const dt = wt.document.documentElement;
+        const fabT = wt.document.querySelector('.ssfab');
+        const ftr = fabT.getBoundingClientRect();
+        check('T1 Soli est en bas à droite, assez grand pour un doigt, et rien ne le recouvre',
+          [Math.round(ftr.width) >= 48, Math.round(dt.clientWidth - ftr.right), auCentre(wt, fabT)], [true, 16, true]);
+        fabT.click(); await attendre(400);
         const r = wt.document.querySelector('.ssa').getBoundingClientRect();
-        check('T2 Le panneau couvre tout l’écran, sans déborder', [Math.round(r.left), Math.round(r.width) === dt.clientWidth, dt.scrollWidth <= dt.clientWidth], [0, true, true]);
+        check('T2 Le panneau couvre tout l’écran, sans déborder',
+          [Math.round(r.left), Math.round(r.top), Math.round(r.width) === dt.clientWidth, Math.round(r.height) === wt.innerHeight, dt.scrollWidth <= dt.clientWidth], [0, 0, true, true, true]);
         appels = fauxServeur(wt, () => [fin([texte('Une réponse assez longue pour vérifier que rien ne déborde : ' + 'mot '.repeat(80))])]);
         wt.SSAssistant._envoyer('Test téléphone avec une question longue ' + 'x'.repeat(120));
         await finTour(wt);
         const env = wt.document.querySelector('.ssa-envoi').getBoundingClientRect();
-        const ferm = wt.document.querySelector('.ssa-fermer').getBoundingClientRect();
+        const fermEl = wt.document.querySelector('.ssa-fermer');
+        const ferm = fermEl.getBoundingClientRect();
         check('T3 Le bouton d’envoi reste visible, dans l’écran', [env.right <= dt.clientWidth, env.bottom <= wt.innerHeight, env.top >= 0], [true, true, true]);
-        check('T4 Le bouton Fermer fait 44 px (assez grand pour un doigt) et reste en haut', [Math.round(ferm.height) >= 44, ferm.top >= 0 && ferm.bottom <= 60], [true, true]);
+        check('T4 « Fermer » est écrit en toutes lettres, fait 44 px, reste en haut, et RIEN ne le recouvre',
+          [fermEl.textContent.trim(), Math.round(ferm.height) >= 44, ferm.top >= 0 && ferm.bottom <= 64, auCentre(wt, fermEl)], ['Fermer', true, true, true]);
         check('T5 Rien ne déborde à l’horizontale, même avec une question sans espace',
-          [...wt.document.querySelectorAll('.ssa-moi, .ssa-lui')].every(n => n.getBoundingClientRect().right <= dt.clientWidth + 0.5), true);
+          [...wt.document.querySelectorAll('.ssa-moi, .ssa-lui, .ssa-tete')].every(n => n.getBoundingClientRect().right <= dt.clientWidth + 0.5), true);
         check('T6 La page derrière ne défile plus (un seul défilement : celui de la conversation)', wt.getComputedStyle(wt.document.body).overflow, 'hidden');
         check('T7 Le champ est en 16 px (sinon iOS zoome et la page déborde)', wt.getComputedStyle(wt.document.querySelector('.ssa-texte')).fontSize, '16px');
-        const lien = wt.document.createElement('a'); lien.href = '#x'; lien.textContent = 'lien';
+        wt.history.back(); await attendre(500);
+        check('T8 Le geste « retour » FERME l’assistant et laisse la page en place',
+          [wt.SSAssistant.estOuvert(), /dashboard/.test(wt.location.pathname), wt.getComputedStyle(wt.document.body).overflow !== 'hidden'], [false, true, true]);
+        fabT.click(); await attendre(300);
+        check('T9 Rouvert, il reprend la conversation là où elle en était', /question longue/.test(wt.document.querySelector('.ssa-fil').textContent), true);
+        wt.document.querySelector('.ssa-fermer').click(); await attendre(500);
+        check('T10 « Fermer » ferme ET retire l’étape d’historique (pas de « retour » qui ne fait rien ensuite)',
+          [wt.SSAssistant.estOuvert(), (wt.history.state || {}).ssa], [false, undefined]);
+        fabT.click(); await attendre(300);
+        const lien = wt.document.createElement('a'); lien.href = 'echanges.html'; lien.textContent = 'lien';
         wt.document.querySelector('.ssa-lui').appendChild(lien);
-        lien.addEventListener('click', (e) => e.preventDefault());
+        const charge = Promise.race([new Promise(res => ft.addEventListener('load', res, { once: true })), attendre(5000)]);
         lien.click();
-        check('T8 Un lien suivi depuis le panneau ne le rouvrira pas sur la page suivante (on veut voir la page)', wt.sessionStorage.getItem('ss_assistant_ouvert'), '0');
-        wt.document.querySelector('.ssa-fermer').click(); await attendre(300);
-        check('T9 Fermer rend la page (défilement rétabli, panneau caché)', [wt.SSAssistant.estOuvert(), wt.getComputedStyle(wt.document.body).overflow !== 'hidden'], [false, true]);
+        await charge; await attendre(1200);
+        check('T11 Un lien suivi depuis l’assistant ouvre la page, panneau FERMÉ (on veut voir la page)',
+          [/echanges/.test(ft.contentWindow.location.pathname), !!(ft.contentWindow.SSAssistant && ft.contentWindow.SSAssistant.estOuvert())], [true, false]);
+        const retour = Promise.race([new Promise(res => ft.addEventListener('load', res, { once: true })), attendre(5000)]);
+        ft.contentWindow.history.back();
+        await retour; await attendre(800);
+        check('T12 …et UN SEUL « retour » ramène au tableau de bord', /dashboard/.test(ft.contentWindow.location.pathname), true);
         ft.remove();
+        sessionStorage.setItem('ss_assistant_ouvert', '1');
+        const ft2 = await cadre('../app/dashboard.html?t=' + Date.now(), 390, 700);
+        await attendre(500);
+        check('T13 Sur téléphone, l’assistant ne se rouvre JAMAIS tout seul en changeant de page', !!(ft2.contentWindow.SSAssistant && ft2.contentWindow.SSAssistant.estOuvert()), false);
+        ft2.remove();
+        sessionStorage.removeItem('ss_assistant_ouvert');
+        const fw = await cadre('../app/terrain.html?t=' + Date.now(), 390, 700);
+        await attendre(800); await sansAnim(fw.contentWindow);
+        const wiz = fw.contentWindow.document.querySelector('.wiz-bar'), fabW = fw.contentWindow.document.querySelector('.ssfab');
+        const wr = wiz && wiz.getBoundingClientRect();
+        check('T14 Mode Terrain : Soli monte AU-DESSUS de la barre des étapes, jamais dessus',
+          [!!(wr && wr.height), !!(wr && fabW) && fabW.getBoundingClientRect().bottom <= wr.top - 4], [true, true]);
+        fw.remove();
+        await attendre(300);
+        window.removeEventListener('popstate', garde);
+        check('T15 Aucun « retour » de trop : chaque ouverture a été défaite exactement une fois', fuites, 0);
 
         /* ══════════ I — SANS IDENTITÉ ══════════ */
         titre('I — Sans identité connue');
