@@ -6,10 +6,6 @@
 // Liaison D1 "DB" : Pages → Settings → Functions → D1 database bindings.
 // ═══════════════════════════════════════════════════════════
 
-// Le SDK officiel d'Anthropic, pour l'assistant uniquement (routeAssistant, en bas du fichier).
-// Version figée dans package.json : Cloudflare Pages l'installe à chaque déploiement.
-import Anthropic from '@anthropic-ai/sdk';
-
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -2424,6 +2420,81 @@ function assistantPourRenvoi(content) {
   return content.filter((b, i) => i > fin || !['thinking', 'redacted_thinking', 'tool_use', 'server_tool_use'].includes(b.type));
 }
 
+/* Le flux de l'API Anthropic (Server-Sent Events) relu événement par événement, pour rebâtir le
+   message complet — réflexion et signature comprises, car il doit repartir TEL QUEL au tour
+   suivant — et transmettre le texte au navigateur au fil de l'eau.
+   ⚠️ Un appel d'outil arrive en MORCEAUX de JSON (input_json_delta) : il ne se lit qu'une fois le
+   bloc fermé. Un JSON illisible (réponse coupée) donne une entrée vide marquée, jamais un appel
+   exécuté sur une demande tronquée — le navigateur vérifie de toute façon chaque entrée. */
+async function assistantLireFlux(corps, surTexte) {
+  const lecteur = corps.getReader();
+  const dec = new TextDecoder();
+  let tampon = '', msg = null, fini = false;
+  const traiter = (bloc) => {
+    let data = '';
+    bloc.split('\n').forEach((l) => { if (l.startsWith('data:')) data += l.slice(5).replace(/^ /, ''); });
+    if (!data) return;
+    let e; try { e = JSON.parse(data); } catch (x) { return; }
+    if (e.type === 'message_start') { msg = Object.assign({}, e.message, { content: [] }); return; }
+    if (e.type === 'error') { const err = new Error((e.error && e.error.message) || 'Erreur pendant la réponse'); err.status = (e.error && e.error.type === 'overloaded_error') ? 529 : 500; throw err; }
+    if (!msg) return;
+    if (e.type === 'content_block_start') {
+      const b = Object.assign({}, e.content_block);
+      if (b.type === 'tool_use') { b._json = ''; b.input = {}; }
+      msg.content[e.index] = b;
+    } else if (e.type === 'content_block_delta') {
+      const b = msg.content[e.index], d = e.delta || {};
+      if (!b) return;
+      if (d.type === 'text_delta') { b.text = (b.text || '') + d.text; surTexte(d.text); }
+      else if (d.type === 'thinking_delta') b.thinking = (b.thinking || '') + d.thinking;
+      else if (d.type === 'signature_delta') b.signature = d.signature;
+      else if (d.type === 'input_json_delta') b._json += d.partial_json || '';
+      else if (d.type === 'citations_delta' && d.citation) (b.citations = b.citations || []).push(d.citation);
+    } else if (e.type === 'content_block_stop') {
+      const b = msg.content[e.index];
+      if (b && b.type === 'tool_use') {
+        try { b.input = b._json ? JSON.parse(b._json) : {}; } catch (x) { b.input = {}; b.entree_illisible = true; }
+        delete b._json;
+      }
+    } else if (e.type === 'message_delta') {
+      Object.assign(msg, e.delta || {});
+      if (e.usage) msg.usage = Object.assign({}, msg.usage, e.usage);
+    } else if (e.type === 'message_stop') fini = true;
+  };
+  for (;;) {
+    const { value, done } = await lecteur.read();
+    if (done) break;
+    tampon += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let i;
+    while ((i = tampon.indexOf('\n\n')) >= 0) { const bloc = tampon.slice(0, i); tampon = tampon.slice(i + 2); traiter(bloc); }
+  }
+  if (tampon.trim()) traiter(tampon);
+  if (!msg || !fini) { const err = new Error('Réponse interrompue'); err.status = 500; throw err; }
+  // Un bloc fermé sans contenu laisserait un trou dans le tableau : on n'en garde que les blocs réels.
+  msg.content = msg.content.filter(Boolean).map((b) => {
+    if (b.type === 'tool_use' && b.entree_illisible) { const c = Object.assign({}, b); delete c.entree_illisible; c.input = {}; return c; }
+    return b;
+  });
+  return msg;
+}
+
+// Ce que la personne lit quand Anthropic répond une erreur : le POURQUOI et quoi faire, jamais un
+// code brut. (Correspond aux codes documentés de l'API.)
+function assistantMessageErreur(status, detail) {
+  if (status === 401) return 'La clé de l’assistant est refusée par Anthropic — à vérifier dans les secrets Cloudflare.';
+  if (status === 402) return 'Crédit Anthropic épuisé ou limite de dépense atteinte — à régler sur la console Anthropic.';
+  if (status === 403) return 'Cette clé n’a pas le droit d’utiliser l’assistant (console Anthropic).';
+  if (status === 404) return 'Le modèle ' + ASSISTANT_MODELE + ' n’est pas ouvert sur ce compte Anthropic.';
+  if (status === 413) return 'Conversation trop longue — commence-en une nouvelle (bouton « Nouvelle »).';
+  if (status === 429) return 'Trop de demandes en même temps — réessaie dans une minute.';
+  if (status === 400) return 'Anthropic a refusé la demande (' + String(detail || '').slice(0, 160) + '). Commence une nouvelle conversation.';
+  if (status === 529 || status >= 500) return 'Le service d’Anthropic est surchargé — réessaie dans un instant.';
+  return 'L’assistant n’a pas pu répondre. Réessaie dans un instant.';
+}
+// Surcharge et erreurs passagères : on réessaie deux fois AVANT que la réponse ne commence (après,
+// le texte est déjà parti chez la personne, et le rejouer le doublerait).
+const ASSISTANT_ATTENTES = [800, 2000];
+
 async function routeAssistant(request, env) {
   const email = parseAccessEmail(request);
   const qui = (email && IDENTITIES[email.toLowerCase()]) || null;
@@ -2445,32 +2516,57 @@ async function routeAssistant(request, env) {
     await env.DB.prepare('INSERT INTO assistant_usage (jour, qui, appels) VALUES (?, ?, 1) ON CONFLICT(jour, qui) DO UPDATE SET appels = appels + 1').bind(jour, qui).run();
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const requeteApi = JSON.stringify({
+    model: ASSISTANT_MODELE,
+    max_tokens: 16000,
+    stream: true,
+    // Repli de modèle côté serveur si Claude décline : l'API choisit le bon modèle selon la raison.
+    fallbacks: 'default',
+    // Pas de paramètre de réflexion : elle est toujours active sur ce modèle (l'envoyer = 400).
+    output_config: { effort: 'medium' },
+    cache_control: { type: 'ephemeral' },
+    tools: ASSISTANT_OUTILS,
+    system: [
+      { type: 'text', text: ASSISTANT_SYSTEME, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: `Tu parles avec ${qui === 'yannick' ? 'Yannick' : 'Nicolas'} ; « l'autre associé » est ${qui === 'yannick' ? 'Nicolas' : 'Yannick'}.` },
+    ],
+    messages,
+  });
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const enc = new TextEncoder();
+  const arret = new AbortController();
   let ferme = false;
-  const ecrire = (o) => { if (!ferme) writer.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => { ferme = true; }); };
+  const ecrire = (o) => {
+    if (ferme) return;
+    // La personne a fermé le panneau ou la page : on coupe l'appel, plus rien ne sert à rien payer.
+    writer.write(enc.encode(JSON.stringify(o) + '\n')).catch(() => { ferme = true; try { arret.abort(); } catch (e) {} });
+  };
 
   (async () => {
-    let stream = null;
     try {
-      stream = client.beta.messages.stream({
-        model: ASSISTANT_MODELE,
-        max_tokens: 16000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-        output_config: { effort: 'medium' },
-        cache_control: { type: 'ephemeral' },
-        tools: ASSISTANT_OUTILS,
-        system: [
-          { type: 'text', text: ASSISTANT_SYSTEME, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `Tu parles avec ${qui === 'yannick' ? 'Yannick' : 'Nicolas'} ; « l'autre associé » est ${qui === 'yannick' ? 'Nicolas' : 'Yannick'}.` },
-        ],
-        messages,
-      });
-      stream.on('text', (delta) => { if (ferme) { try { stream.abort(); } catch (e) {} } else ecrire({ t: 'texte', d: delta }); });
-      const msg = await stream.finalMessage();
+      let rep = null;
+      for (let essai = 0; ; essai++) {
+        rep = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', signal: arret.signal, body: requeteApi,
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2026-10-21',
+            'anthropic-beta': 'server-side-fallback-2026-07-01',
+          },
+        });
+        const passager = rep.status === 429 || rep.status === 529 || rep.status >= 500;
+        if (rep.ok || !passager || essai >= ASSISTANT_ATTENTES.length) break;
+        try { await rep.body.cancel(); } catch (e) {}
+        await new Promise((r) => setTimeout(r, ASSISTANT_ATTENTES[essai]));
+      }
+      if (!rep.ok) {
+        const j = await rep.json().catch(() => null);
+        ecrire({ t: 'erreur', message: assistantMessageErreur(rep.status, j && j.error && j.error.message) });
+        return;
+      }
+      const msg = await assistantLireFlux(rep.body, (d) => ecrire({ t: 'texte', d }));
       const u = msg.usage || {};
       if (env.DB) {
         try {
@@ -2482,14 +2578,7 @@ async function routeAssistant(request, env) {
         stop_details: msg.stop_details || null, modele: msg.model,
         usage: { entree: u.input_tokens || 0, cache: u.cache_read_input_tokens || 0, sortie: u.output_tokens || 0 } });
     } catch (e) {
-      let texte = 'L’assistant n’a pas pu répondre. Réessaie dans un instant.';
-      if (e instanceof Anthropic.AuthenticationError) texte = 'La clé de l’assistant est refusée par Anthropic — à vérifier dans les secrets Cloudflare.';
-      else if (e instanceof Anthropic.RateLimitError) texte = 'Trop de demandes en même temps — réessaie dans une minute.';
-      else if (e instanceof Anthropic.BadRequestError) texte = 'Anthropic a refusé la demande (' + String(e.message || '').slice(0, 160) + '). Commence une nouvelle conversation.';
-      else if (e instanceof Anthropic.APIError && e.status === 404) texte = 'Le modèle ' + ASSISTANT_MODELE + ' n’est pas ouvert sur ce compte Anthropic.';
-      else if (e instanceof Anthropic.APIError && e.status === 402) texte = 'Crédit Anthropic épuisé ou limite de dépense atteinte — à régler sur la console Anthropic.';
-      else if (e instanceof Anthropic.APIError && (e.status === 529 || e.status >= 500)) texte = 'Le service d’Anthropic est surchargé — réessaie dans un instant.';
-      ecrire({ t: 'erreur', message: texte });
+      if (!(e && e.name === 'AbortError')) ecrire({ t: 'erreur', message: assistantMessageErreur(e && e.status) });
     } finally {
       ferme = true;
       try { await writer.close(); } catch (e) {}

@@ -177,8 +177,8 @@ Le bouton **Assistant** du menu parle à Claude par `/api/assistant`. Tant que l
    déploiements suivants.
 5. Facultatif : variable `ASSISTANT_PLAFOND_JOUR` pour changer le plafond quotidien.
 
-Le SDK d'Anthropic est installé par Cloudflare à chaque déploiement, depuis `package.json` (version
-figée) : aucune commande de build à ajouter. L'assistant exige une identité Access (Nicolas ou
+Rien à installer ni à compiler : la route appelle l'API d'Anthropic directement (pas de SDK,
+pas de `package.json` — voir CLAUDE.md, règle 41). L'assistant exige une identité Access (Nicolas ou
 Yannick) : sur l'aperçu d'une branche, qui n'est pas derrière Access, il répond 403 — c'est voulu.
 La table D1 `assistant_usage` (créée toute seule) compte les appels et les jetons par jour et par personne.
 

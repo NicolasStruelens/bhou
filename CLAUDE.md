@@ -84,8 +84,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
-| `tests/assistant.test.html` | Les 88 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux SDK), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
-| `package.json` | **Une seule dépendance** : le SDK Anthropic (version figée), pour la Function `/api/assistant`. Cloudflare l'installe à chaque déploiement ; les pages restent sans compilation. |
+| `tests/assistant.test.html` | Les 92 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -2077,7 +2076,12 @@ Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEM
 • **Ce qui part chez Anthropic** : ce que renvoient les outils (noms, coordonnées, montants). Les
   bénéfices des vendeurs en font partie — le prompt interdit de les reprendre dans un texte destiné
   à un client.
-• **Le SDK est figé** (`package.json`) : on le monte volontairement, jamais « latest ».
+• **Pas de SDK : un appel HTTP direct** (`fetch` vers l'API Messages, `anthropic-version: 2026-10-21`,
+  flux SSE relu par `assistantLireFlux`). Le SDK officiel a été essayé le 25/10/2026 : il importe des
+  modules Node (`child_process`, `fs`, `os`…) que Cloudflare Pages ne compile pas sans `nodejs_compat`
+  — le build de l'aperçu a ÉCHOUÉ. Activer ce réglage changerait le moteur de TOUT le backend ;
+  Nicolas a choisi l'appel direct. Aucun `package.json` : le site se publie toujours sans étape de
+  build. Ne pas réintroduire le SDK sans ce réglage ET un aperçu vert.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2345,7 +2349,7 @@ Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEM
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
-   exiger « 88/88 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   exiger « 92/92 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
