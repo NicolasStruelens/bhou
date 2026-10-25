@@ -454,6 +454,43 @@
     return 'echanges.html' + (q.length ? '?' + q.join('&') : '');
   }
 
+  /** Un nouveau sujet des Échanges, prêt à partir par `SS.saveSujet`.
+   *  ⚠️ IL S'ÉCRIT À DEUX ENDROITS désormais — l'écran des Échanges et le « mot à l'autre » du
+   *  tableau de bord — donc il se FABRIQUE à un seul (règle 10) : deux constructions finiraient
+   *  par ne pas poser les mêmes champs, et le sujet écrit depuis l'accueil n'apparaîtrait pas
+   *  pareil dans le fil. Même convention qu'à la publication : première ligne = titre, le reste
+   *  = corps. L'auteur n'y est PAS : le serveur le signe, et il ne change plus ensuite. */
+  function nouveauSujet(texte, o) {
+    const opt = o || {};
+    const lignes = String(texte || '').trim().split('\n');
+    const premiere = lignes[0].trim();
+    const reste = lignes.slice(1).join('\n').trim();
+    /* ⚠️ UNE PREMIÈRE LIGNE DE PLUS DE 200 CARACTÈRES PERDAIT SA FIN, EN SILENCE : le titre est
+       borné à 200 (ici et au serveur) et rien ne gardait le reste. Un mot tapé d'une traite, sans
+       retour à la ligne, arrivait coupé chez l'autre. Le titre est désormais abrégé à un mot
+       entier, et la phrase COMPLÈTE part dans le corps. */
+    const trop = premiere.length > 200;
+    return {
+      id: 'SUJ-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      kind: opt.kind || 'afaire', pour: opt.pour || '', statut: 'ouvert',
+      titre: trop ? premiere.slice(0, 199).replace(/\s+\S*$/, '') + '…' : premiere,
+      corps: trop ? [premiere, reste].filter(Boolean).join('\n') : reste,
+      client_nom: opt.client_nom || '', client_key: opt.client_key || '', devis_id: opt.devis_id || '',
+      echeance: opt.echeance || '',
+    };
+  }
+
+  /** Date de passage en « signé » : la DERNIÈRE transition vers « signe » de l'historique, et à
+   *  défaut la date de modification d'un devis signé ou terminé. La date de création ne dirait
+   *  rien — un devis de mars signé en octobre compte pour octobre.
+   *  ⚠️ Elle vivait dans `stats.html` (`signeDateOf`, le podium du mois). Le tableau de bord en a
+   *  besoin pour « signé ce mois » : deux copies auraient fini par ne pas compter le même mois. */
+  function dateSignature(d) {
+    const hist = (d && d.statut_history) || [];
+    for (let i = hist.length - 1; i >= 0; i--) if (hist[i] && hist[i].statut === 'signe') return hist[i].date;
+    return d && ['signe', 'termine'].indexOf(d.statut) >= 0 ? (d.date_modification || null) : null;
+  }
+
   // Natures d'un ticket SAV. Vivait en double (sav.html + vue.html) ; source unique ici.
   // `materiel` est né d'un cas réel : sur 33 screens livrés, un seul était défectueux — AVANT la
   // pose. Ce n'est ni un moteur grillé ni un réglage, et ça devait pouvoir se tracer.
@@ -1980,6 +2017,7 @@
     COMMANDE_ETAPES: COMMANDE_ETAPES, COMMANDE_LABEL: COMMANDE_LABEL, etatCommande: etatCommande,
     materielRecu: materielRecu, livraisonEstimee: livraisonEstimee,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
+    nouveauSujet: nouveauSujet, dateSignature: dateSignature,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,

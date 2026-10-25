@@ -48,6 +48,10 @@
       vue_defaut: 'actifs',             // vue du tableau de bord au premier chargement
       densite: 'confort',               // densité des lignes par défaut
       kpi_replies: false,               // chiffres du haut repliés par défaut
+      /* Objectif de signature du MOIS, en € TVAC. 0 = pas d'objectif : le tableau de bord montre
+         alors le signé du mois sans anneau, plutôt qu'un anneau mesuré contre un chiffre inventé.
+         ⚠️ Doit exister ICI pour pouvoir être enregistré : `fusionner` est une liste blanche. */
+      objectif_mensuel: 0,
     },
     affichage: {
       /* LE STYLE DE LA MAISON pour le THÈME. Trois valeurs, et ce sont des FAMILLES, pas des
