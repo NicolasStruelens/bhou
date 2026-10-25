@@ -70,6 +70,11 @@
       .toolbar .btn > svg { width: 20px; height: 20px; }
       .toolbar #advCount { display: none; }
       .vue-seg button { height: 44px; }
+      /* Le menu de tri n'avait que ~50 px de texte : « Par urgence » s'y lisait « Par urg ». Les
+         compteurs d'Actifs/Tous cèdent leur place (ils sont dans l'infobulle et dans « Filtres »),
+         et le menu resserre ses marges — la flèche du système garde la sienne. */
+      .vue-seg button span { display: none; }
+      .toolbar .select { padding-left: 8px; padding-right: 4px; }
       .fp-ligne { flex-direction: column; gap: 6px; }
       .fp-lib { width: auto; }
       /* Sauvegarde et restauration d'un fichier JSON : ça se fait au bureau, jamais au doigt sur
@@ -466,7 +471,7 @@
       /* Client · le fil de l'affaire · l'action · le montant. La frise, l'action et le montant ont
          des largeurs FIXES : chaque ligne est sa propre grille, et sans ça la frise tomberait à une
          abscisse différente d'une ligne à l'autre — on ne pourrait plus les comparer en descendant. */
-      grid-template-columns: minmax(0, 1fr) 180px 280px 140px; gap: 15px; align-items: center;
+      grid-template-columns: minmax(0, 1fr) 200px 270px 140px; gap: 15px; align-items: center;
       cursor: pointer; transition: transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast); }
     /* Le rail coloré remplace l'ancienne pastille d'initiales : il dit la même chose (le dossier) en
        portant en plus le statut, et rend ~53 px de large à chaque ligne pour du contenu utile. */
@@ -517,7 +522,10 @@
       text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle);
       border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0 0.45rem; line-height: 1.5; }
     .m-nb { display: inline-flex; align-items: center; gap: 6px; flex: none; }
-    .m-sub { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    /* 8 px et non 10 : depuis que la frise, l'action et le montant ont des colonnes fixes, la
+       colonne du client est plus étroite, et un dossier riche (statut, n°, pose, photos, notes,
+       date) passait sur deux lignes pour une dizaine de pixels. */
+    .m-sub { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
     .m-sub .id { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     .m-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
     /* ══════════ LE FIL DE L'AFFAIRE (bandeaux, variante A) ════════════════════════════════════
@@ -540,13 +548,18 @@
     .mf-c.fait { background: var(--accent); }
     /* Les relances : trois petits points entre « envoyé » et « signé ». Pleins = envoyées,
        cerclé = celle qu'on attend de nous. */
-    .mf-r { width: 5px; height: 5px; flex: none; margin: 0 2px; border-radius: 50%; background: var(--border-strong); }
+    /* Les relances sont des perles SUR le trait « envoyé → signé » (un segment plus long que les
+       autres) : la ligne reste continue, et les trois perles se lisent comme trois relances. */
+    .mf-c.mf-rel { flex: 2.2 1 0; min-width: 34px; display: flex; align-items: center; justify-content: space-evenly; }
+    .mf-r { position: relative; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--border-strong); box-sizing: border-box;
+      box-shadow: 0 0 0 2px var(--surface-2); }
     .mf-r.fait { background: var(--warn); }
-    .mf-r.due { background: var(--surface); box-shadow: 0 0 0 1.5px var(--warn); }
+    .mf-r.due { background: var(--surface); border: 1.5px solid var(--warn); }
     .mf-cap { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); text-align: center;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .mf-cap.chaud { color: var(--accent-2-ink, var(--accent-2)); font-weight: 700; }
     .mf-cap.alerte { color: var(--warn); }
+    .mf-cap.pause { font-style: italic; color: var(--text-muted); }
     .m-fil.mort .mf-n.fait, .m-fil.mort .mf-c.fait { background: var(--border-strong); border-color: var(--border-strong); }
     .m-fil.mort .mf-n.ici { border-color: var(--text-subtle); box-shadow: none; }
     .section-legende { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); letter-spacing: 0.03em; }
@@ -567,7 +580,11 @@
     /* L'action et l'état de paiement restent sur UNE ligne (règle 33 bis) : depuis que la colonne
        a une largeur fixe, les deux passaient l'un sous l'autre et la ligne grandissait. C'est
        l'ACTION qui cède (points de suspension, texte complet en infobulle), jamais le paiement. */
-    .m-signal { flex-wrap: nowrap; min-width: 0; }
+    /* ⚠️ `justify-self: stretch`, et non « end » : calée à droite, la case prenait la largeur de son
+       CONTENU (une grille ne rétrécit pas sous la largeur minimale du contenu) et une longue
+       pastille — « En attente — Le client revient vers moi · 28/11/2026 » — débordait VERS LA
+       GAUCHE, par-dessus la frise. Étirée, la case vaut sa colonne, et c'est la pastille qui cède. */
+    .m-signal { flex-wrap: nowrap; min-width: 0; justify-self: stretch; justify-content: flex-end; }
     .m-signal .m-sig { max-width: 100%; min-width: 0; flex: 0 1 auto; }
     .m-signal .m-pay { flex: none; }
     .m-right { position: relative; }
@@ -577,6 +594,12 @@
     .m-reste { position: absolute; top: 100%; right: 0; margin-top: 1px;
       font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle);
       white-space: nowrap; pointer-events: none; }
+    /* L'état de paiement (argentHtml) : soldé en vert, retard en rouge — la couleur qui dit
+       « gagné » et celle qui dit « ça se perd » (règle 21 bis). Le reste, en neutre. */
+    .m-reste.ok { color: var(--ok); font-weight: 600; }
+    .m-reste.retard { color: var(--danger); font-weight: 600; }
+    /* L'infobulle doit pouvoir s'afficher : la ligne est hors flux, mais pas inerte au survol. */
+    .m-reste[title] { pointer-events: auto; cursor: help; }
     /* Le suivi de chantier : discret, dans la ligne de méta. Il répond à « où en est la
        commande » et « c'est quand », les deux questions qu'on se pose sur un chantier signé. */
     .m-chantier { display: inline-flex; align-items: center; gap: 4px; flex: none;
@@ -609,22 +632,33 @@
     .actions-menu .am-titre { font-family: var(--font-mono); font-size: var(--fs-3xs);
       letter-spacing: .07em; text-transform: uppercase; color: var(--text-subtle);
       padding: 9px 11px 4px; border-top: 1px solid var(--border); margin-top: 4px; }
+    /* Les largeurs sont CALCULÉES sur le texte le plus long, pas estimées : 190 px pour la plus
+       longue légende (« envoyé il y a 26 j · non ouvert », 31 car. à 6 px), 260 px pour la plus
+       longue action (« Accepté en ligne — à faire signer », 33 car. à 6,5 px + icône + marges).
+       En dessous, ils partaient en points de suspension. */
     @media (max-width: 1250px) {
-      .mrow { grid-template-columns: minmax(0, 1fr) 150px 240px 130px; }
+      .mrow { grid-template-columns: minmax(0, 1fr) 190px 260px 130px; }
     }
     /* En dessous, quatre colonnes ne tiennent plus : identité + montant sur la première ligne,
        puis le fil (frise et légende côte à côte), puis l'action. Le montant est placé
-       EXPLICITEMENT en ligne 1 : sinon le placement automatique le renvoyait sous l'action. */
-    @media (max-width: 960px) {
+       EXPLICITEMENT en ligne 1 : sinon le placement automatique le renvoyait sous l'action.
+       1100 et non 960 : entre les deux, les colonnes fixes ne laissaient que ~250 px au client. */
+    /* `.m-bas` réunit la frise et l'action. Au bureau il est TRANSPARENT (`display: contents`) :
+       elles restent deux colonnes de la grille. En dessous de 1100 px, il devient une rangée :
+       la frise à gauche, l'action à droite, sur UNE ligne — empilées l'une sous l'autre, elles
+       faisaient monter chaque devis à 178 px. */
+    .m-bas { display: contents; }
+    @media (max-width: 1100px) {
       .mrow { grid-template-columns: minmax(0, 1fr) auto; }
       .m-right { grid-row: 1; grid-column: 2; }
-      .m-fil { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; }
+      .m-bas { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 6px 14px; min-width: 0; }
+      .m-fil { flex-direction: row; align-items: center; gap: 10px; min-width: 0; }
       .mf-rail { width: 180px; flex: none; }
       .mf-cap { text-align: left; min-width: 0; }
-      /* `max-width` : en `justify-self: start`, la case prend la largeur de son CONTENU et non de
-         la piste — l'action débordait de 59 px à droite sur téléphone. Ici la ligne est pleine
-         largeur : l'état de paiement peut passer dessous sans désaligner quoi que ce soit. */
-      .m-signal { grid-column: 1 / -1; justify-self: start; justify-content: flex-start; max-width: 100%; flex-wrap: wrap; }
+      /* `max-width` : sans lui, la pastille prenait la largeur de son CONTENU et débordait de
+         59 px à droite sur téléphone. */
+      .m-signal { justify-self: auto; justify-content: flex-start; max-width: 100%; min-width: 0; flex: 0 1 auto; }
     }
     /* ── TÉLÉPHONE ── Une ligne faisait 257 px : trois dossiers par écran, et le montant
        atterrissait tout en bas, loin du nom. On repasse en deux colonnes (identité à gauche,
@@ -654,6 +688,10 @@
       .m-signal { justify-content: flex-start; }
       .m-sub, .m-fil, .m-signal { grid-column: 1 / -1; }
       .mf-rail { width: 150px; }
+      /* La légende SOUS la frise : à côté, elle n'avait que ~150 px et « envoyé il y a 26 j ·
+         non ouvert » partait en points de suspension. */
+      .m-fil { flex-direction: column; align-items: flex-start; gap: 3px; }
+      .mf-cap { max-width: 100%; }
       .m-signal { justify-self: start; margin-top: 0; }
       /* Le NOM du client d'abord : les pastilles de type (Screen, Volet…) le réduisaient à
          66 px — « Doris Zurstrassen » devenait illisible — et s'empilaient sur trois rangées.
@@ -878,13 +916,14 @@
       </div>
       <div class="vue-seg" id="vueSeg" role="group" aria-label="Vue"></div>
       <button class="btn btn-ghost btn-sm" id="advToggle" onclick="toggleAdvFilters()" title="Filtres : statut, situation, vendeur, produit, montant, dates" aria-expanded="false" aria-controls="advPanel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Filtres<span id="advCount"></span></button>
-      <!-- Libellés COURTS : sur téléphone le menu n'a que ~95 px, « Tri : à faire d'abord »
-           s'y lisait « Tri : à ». « Urgence » = ce qui demande une action d'abord. -->
-      <select class="select" id="sort" style="max-width:190px;" onchange="choisirTri(this.value)" aria-label="Trier les devis" title="Ordre de la liste — « urgence » : ce qui demande une action passe devant">
-        <option value="urgence">Tri : urgence</option>
-        <option value="modif">Tri : récents</option>
-        <option value="montant">Tri : montant ↓</option>
-        <option value="nom">Tri : nom A→Z</option>
+      <!-- Libellés COURTS et qui se suffisent : sur téléphone le menu n'a que ~95 px, et
+           « Tri : à faire d'abord » s'y lisait « Tri : à », puis « Tri : urgence » « Tri : urg ».
+           « Par … » dit à lui seul que c'est un ordre. « Urgence » = ce qui demande une action. -->
+      <select class="select" id="sort" style="max-width:170px;" onchange="choisirTri(this.value)" aria-label="Trier les devis" title="Ordre de la liste — « urgence » : ce qui demande une action passe devant">
+        <option value="urgence">Par urgence</option>
+        <option value="modif">Par date</option>
+        <option value="montant" title="Du plus gros au plus petit">Par montant</option>
+        <option value="nom" title="De A à Z">Par nom</option>
       </select>
       <button class="btn btn-ghost btn-sm" id="btnPlus" onclick="ouvrirPlus(event)" title="Affichage, journal d'activité, sauvegarde" aria-haspopup="menu"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg> Plus</button>
       <input type="file" id="importFile" accept="application/json" hidden onchange="importJSON(this)">
@@ -917,7 +956,7 @@
       <div class="filigrane-marque" aria-hidden="true"></div>
       <div class="section-head">
         <span class="section-title">Devis</span>
-        <span class="section-legende" title="Le fil de chaque devis : l'étape en cours prend la couleur de l'action à faire">brouillon → envoyé → relances → signé → posé → payé</span>
+        <span class="section-legende" title="Le fil de chaque devis : l'étape en cours prend la couleur de l'action à faire">créé → envoyé → relances → signé → posé → payé</span>
         <span class="section-sub" id="resultCount">—</span>
       </div>
       <div id="tableHost"></div>
@@ -1213,8 +1252,16 @@
       return due > 0 && totalPaid < due - 0.005;
     }
     // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
+    /* ⚠️ UNE POSE À VENIR N'EST PAS FAITE, MÊME SI UN PV EXISTE DÉJÀ. Un chantier posé en deux fois
+       (École du Bonheur : 28 screens, puis les 5 restants le 29/10) porte le PV de la PREMIÈRE pose :
+       `isPoseDone` répondait « posé », la frise affichait « soldé ✓ » et personne n'était prévenu de
+       préparer la seconde. Une date de pose dans le futur, c'est du travail qui vient. */
+    function poseAVenir(d) {
+      const p = d.chantier && d.chantier.date_pose;
+      return !!p && String(p).slice(0, 10) >= SSUI.aujourdhui();
+    }
     function isChantierAPreparer(d) {
-      if (d.statut !== 'signe' || window.SSUI.isPoseDone(d) || !d.chantier || !d.chantier.date_pose) return false;
+      if (d.statut !== 'signe' || !d.chantier || !d.chantier.date_pose) return false;
       const days = Math.round((new Date(d.chantier.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
       return days >= 0 && days <= 7;
     }
@@ -1296,7 +1343,11 @@
       // n'attend rien de moi. Les peindre pareil mêlait les deux extrêmes : ce que je dois faire,
       // et ce sur quoi je ne peux rien.
       if (d.statut === 'brouillon') return mk(FAM.ecrire, 'À finaliser et envoyer');
-      if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return mk(FAM.gagne, 'Accepté par le client — à faire signer');
+      /* ⚠️ LES LIBELLÉS D'ACTION TIENNENT EN ~32 CARACTÈRES : c'est la largeur de la colonne
+         d'action. Plus longs, ils partaient en points de suspension — « Accepté par le client — à
+         faire signer » se lisait « Accepté par le client — à f… ». Le détail (vues, motif) vit
+         dans l'infobulle, sous la frise, et sur la carte du cockpit. */
+      if (d.client_accepted && WAITING_STATUSES.includes(d.statut)) return mk(FAM.gagne, 'Accepté en ligne — à faire signer', null, '', 'Accepté par le client sur son espace en ligne — à faire signer');
       /* ⚠️ LA MISE EN ATTENTE PASSE AVANT LA RELANCE, et l'ordre EST le raisonnement : tant
          qu'elle est active, il n'y a rien à faire sur ce dossier — le client a dit quand il
          revient. C'est donc le GRIS (« la balle est chez le client »), pas l'ambre : un dossier
@@ -1304,22 +1355,31 @@
          Et le chip reste CLIQUABLE vers #relance — c'est là qu'on change d'avis. */
       const att = window.SSUI.attenteClient(d);
       if (att.active) {
-        return mk(FAM.rien, `En attente — ${motifCourt(att.motif, 34)} · ${fmtDate(att.revoir_le)}`,
+        /* LE QUAND ICI, LE POURQUOI SOUS LA FRISE. Les deux sur une seule pastille ne tenaient pas
+           dans la colonne : la fin partait en points de suspension, et « … · 28/ » coupait
+           justement la date. La pastille dit quand on y revient (JJ/MM, l'année ne dit rien à
+           quelques semaines) ; la légende de la frise porte le motif ; l'infobulle, les deux. */
+        return mk(FAM.rien, `En attente · revoir le ${safeDate(att.revoir_le).slice(0, 5)}`,
           'clock', '#relance', `${att.texte}${att.motif ? ' \u2014 ' + att.motif : ''}`);
       }
       if (WAITING_STATUSES.includes(d.statut) && relanceDue(d)) {
         const faites = relancesFaites(d);
-        // Un client qui a rouvert son devis plusieurs fois est chaud : dit dans le TEXTE, et non par
-        // une teinte à part — l'or employé ici était celui du chantier, deux sens pour une couleur.
+        // Un client qui a rouvert son devis plusieurs fois est chaud : dit en MOTS (infobulle, carte
+        // du cockpit, légende de la frise) et non par une teinte de pastille à part — l'or employé
+        // ici était celui du chantier, deux sens pour une couleur.
         const hot = d.review_views >= SEUIL_CHAUD();
         /* ⚠️ UNE ATTENTE ÉCHUE RAMÈNE SON MOTIF AVEC ELLE, et c'est tout l'intérêt du rappel :
            le jour où l'ERP redemande la relance, ce qu'il faut savoir c'est ce que le client
            avait dit. « Relance 2 à envoyer » tout seul, on a oublié depuis trois semaines. */
-        const rappel = att.echue && att.motif ? ` · ${motifCourt(att.motif, 30)}` : '';
-        return mk(FAM.pousser, `Relance ${faites + 1} à envoyer${rappel}${hot ? ` · client très intéressé (${d.review_views} vues)` : ''}`,
-          null, '#relance', att.echue ? `${att.texte} \u2014 ${att.motif}` : '');
+        /* Le motif s'écrit JUSTE À CÔTÉ, sous la frise (filAffaire), et en entier dans l'infobulle
+           et sur la carte du cockpit : dans la pastille, il la faisait déborder. Même chose pour
+           le client très intéressé, que la légende de la frise dit en or. */
+        const details = [att.echue && att.motif ? `${att.texte} — ${att.motif}` : '',
+                         hot ? `client très intéressé (${d.review_views} vues)` : ''].filter(Boolean).join(' · ');
+        return mk(FAM.pousser, `Relance ${faites + 1} à envoyer`, null, '#relance',
+          details ? `Relance ${faites + 1} à envoyer — ${details}` : '');
       }
-      if (isDevisExpire(d)) return mk(FAM.perdre, 'Devis expiré (30 j) — à relancer ou classer', null, '#relance');
+      if (isDevisExpire(d)) return mk(FAM.perdre, 'Expiré — à relancer ou classer', null, '#relance', 'Devis expiré (plus de 30 jours) — à relancer ou à classer');
       if (isAcompteUnpaid(d)) return mk(FAM.pousser, 'Acompte à encaisser', 'coin');
       /* ⚠️ UN DÉPANNAGE N'A NI COMMANDE NI POSE (règle 7) : la suite ci-dessous ne le concerne pas.
          Une PROPOSITION de dépannage acceptée attend son intervention — c'est ça qu'on dit. Un bon
@@ -1340,6 +1400,14 @@
       }
       if (isChantierAPreparer(d)) return mk(FAM.chantier, 'Chantier à préparer');
       if (isSoldeUnpaid(d)) return mk(FAM.pousser, 'Solde à encaisser', 'coin');
+      /* Posé, payé, rien à venir — mais toujours « signé » : il reste à le passer en TERMINÉ, et
+         c'est ce qui le fait sortir de la liste du quotidien (« Actifs »). Sans cette consigne la
+         ligne affichait « Signé » dans la colonne de l'action, la même chose que la pastille de
+         statut juste à côté, et le dossier restait là sans que rien ne dise pourquoi. Poids FAIBLE :
+         c'est du rangement, pas une urgence. */
+      if (d.statut === 'signe' && window.SSUI.isPoseDone(d) && !poseAVenir(d) && isPaidFull(d)) {
+        return Object.assign(mk(FAM.gagne, 'Posé et soldé — à clôturer', 'check', '', 'Posé et soldé — à passer en « Terminé »'), { rangement: true });
+      }
       if (WAITING_STATUSES.includes(d.statut)) return mk(FAM.rien, 'En attente de réponse client');
       if (d.statut === 'signe' && !window.SSUI.isPoseDone(d) && !(d.chantier && d.chantier.date_pose)) {
         return mk(FAM.rien, 'Chez le fournisseur — ' + (window.SSUI.COMMANDE_LABEL[window.SSUI.etatCommande(d)] || '').toLowerCase());
@@ -1352,6 +1420,7 @@
     const POIDS_FAM = { perdre: 5, gagne: 5, pousser: 3, chantier: 3, ecrire: 2, rien: 0 };
     function poidsAction(a, d) {
       if (!a) return 0;
+      if (a.rangement) return 1;                             // clore un dossier fini : ça peut attendre
       if (a.hash === '#question') return 6;                  // un client qui attend une réponse
       return (POIDS_FAM[a.fam] || 0) + (isPaymentOverdue(d) ? 1 : 0) + (isChantierAPreparer(d) ? 1 : 0);
     }
@@ -1364,16 +1433,6 @@
       return (isFinite(v) && v > 0) ? v : 5;
     };
 
-    function paymentInfo(d) {
-      const facs = FACTURES.filter(f => f.devis_id === d.id);
-      if (!facs.length) return '';
-      const totalFact = facs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
-      const totalPaid = facs.reduce((s, f) => s + paidSum(f), 0);
-      if (totalPaid > 0 && totalPaid >= d.ttc - 0.005) return `<span class="badge badge-ok" title="Encaissé : ${fmtEur(totalPaid)}">${icon('coin', 10)} Soldé</span>`;
-      if (isPaymentOverdue(d)) return `<span class="badge badge-danger" title="Facturé ${fmtEur(totalFact)}, payé ${fmtEur(totalPaid)}">${icon('warning', 10)} Retard paiement</span>`;
-      if (totalPaid > 0) return `<span class="badge badge-warn" title="Payé ${fmtEur(totalPaid)} sur ${fmtEur(totalFact)} facturé">${icon('coin', 10)} Acompte payé</span>`;
-      return `<span class="badge" title="Facturé ${fmtEur(totalFact)}, en attente de paiement">${icon('coin', 10)} À encaisser</span>`;
-    }
 
     // Lien espace client créé mais JAMAIS ouvert par le client (#26) : soit il ne l'a pas reçu,
     // soit il n'a pas cliqué → à vérifier, c'est du CA qui dort.
@@ -1423,6 +1482,12 @@
       const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
       if (!a) {
         const s = STATUSES[d.statut] || {};
+        // Un dossier perdu dit POURQUOI (la raison du refus) ; les autres disaient leur statut —
+        // « Signé » — c'est-à-dire exactement ce que la pastille de statut affiche déjà à gauche.
+        // Ce qu'il faut lire ici, c'est qu'il n'y a RIEN à faire : c'est une information.
+        if (!DEAD_STATUSES.includes(d.statut)) {
+          return `<span class="m-sig muted" title="Aucune action en attente sur ce dossier">${icon('check', 12)} Rien à faire</span>`;
+        }
         const extra = d.statut === 'refuse' && d.raison_refus ? ' · ' + esc(d.raison_refus) : '';
         return `<span class="m-sig muted" title="${esc((s.label || '') + (d.raison_refus ? ' — ' + d.raison_refus : ''))}">${esc(s.label || '')}${extra}</span>`;
       }
@@ -1440,13 +1505,26 @@
        des devis en attente et ajoutait une rangée de hauteur variable sous la ligne (l'escalier
        de la règle 33 bis). La légende garde ce qu'elle disait — les vues, « chaud », le lien jamais
        ouvert — sur UNE ligne de hauteur fixe, pour tous les devis. */
+    /** « aujourd'hui », « hier », « il y a 26 j », « il y a 3 mois » — depuis un JOUR (AAAA-MM-JJ).
+     *  `relTime` part d'un instant : sur une date seule, il annonçait « il y a 10 h » pour aujourd'hui. */
+    function depuisJour(j) {
+      const s = String(j || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+      const n = window.SSUI.joursEntre(s, SSUI.aujourdhui());
+      if (!isFinite(n) || n < 0) return '';
+      if (n === 0) return 'aujourd’hui';
+      if (n === 1) return 'hier';
+      return n < 60 ? `il y a ${n} j` : `il y a ${Math.round(n / 30)} mois`;
+    }
     function filAffaire(d) {
       const mort = DEAD_STATUSES.includes(d.statut);
       const dep = estDepannage(d);
       const signe = ['signe', 'termine'].includes(d.statut);
       // Un bon d'intervention (travaux faits) est « réalisé » dès qu'il existe ; une proposition
-      // de dépannage ne l'est qu'une fois terminée.
-      const pose = window.SSUI.isPoseDone(d) || d.statut === 'termine' || (dep && signe && d.depannage_mode !== 'a_realiser');
+      // de dépannage ne l'est qu'une fois terminée. Et une pose À VENIR n'est pas faite, même
+      // avec le PV d'une première pose (voir poseAVenir).
+      const pose = (window.SSUI.isPoseDone(d) || d.statut === 'termine' || (dep && signe && d.depannage_mode !== 'a_realiser'))
+        && !(signe && !dep && poseAVenir(d));
       const paye = isPaidFull(d);
       const noms = ['Créé', 'Envoyé', 'Signé', dep ? 'Réalisé' : 'Posé', 'Payé'];
       // Étape EN COURS = la première qui n'est pas faite (même règle que l'ancien parcours).
@@ -1464,34 +1542,58 @@
         return `<i class="${cls}" title="${esc(noms[i])}${e === 'fait' ? ' ✓' : (e === 'ici' ? ' — en cours' : '')}"></i>`;
       };
       const lien = (i) => `<i class="mf-c ${etat(i + 1) === 'fait' ? 'fait' : ''}"></i>`;
-      // Les relances entre « envoyé » et « signé » : envoyées, puis celle qu'on attend de nous.
+      /* Les relances sont des PERLES posées sur le trait qui va d'« envoyé » à « signé » : collées
+         au nœud, elles coupaient la ligne en deux et faisaient un amas illisible. Pleines = envoyées,
+         cerclée = celle qu'on attend de nous. Une fois signé, seules celles qui ont été faites
+         restent : les autres ne veulent plus rien dire. */
       const faites = Math.min(3, relancesFaites(d));
       const due = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && relanceDue(d);
       let relances = '';
       if (!dep) for (let r = 1; r <= 3; r++) {
+        if (signe && r > faites) break;
         relances += `<i class="mf-r ${r <= faites ? 'fait' : (due && r === faites + 1 ? 'due' : '')}" title="Relance ${r}${r <= faites ? ' envoyée' : (due && r === faites + 1 ? ' à envoyer' : '')}"></i>`;
       }
-      // La légende : la seule information qui manque pour comprendre l'étape en cours.
-      let cap = '', capCls = '';
+      /* LA LÉGENDE : le QUAND de l'étape en cours, et rien de ce que la ligne dit déjà. La pastille
+         d'action dit quoi faire (et la mise en attente), les pastilles de suivi disent la commande
+         et la date de pose : les répéter ici, c'était lire deux fois la même chose. Elle tient en
+         ~28 caractères ; la phrase complète est dans l'infobulle. */
+      let cap = '', capCls = '', capTitre = '';
       if (mort) cap = (STATUSES[d.statut] || {}).label || '';
-      else if (d.statut === 'brouillon') cap = 'créé ' + (relTime(d.date_creation) || '');
+      else if (d.statut === 'brouillon') { cap = 'créé ' + depuisJour(d.date_creation); capTitre = 'Devis créé le ' + safeDate(d.date_creation); }
       else if (!signe) {
-        if (d.client_accepted) cap = 'accepté en ligne';
-        else if (att.active) cap = 'en attente → ' + fmtDate(att.revoir_le).slice(0, 5);
-        else if (d.review_views > 0) { cap = `${d.review_views} vue${d.review_views > 1 ? 's' : ''}${chaud ? ' · chaud' : ''}`; if (chaud) capCls = 'chaud'; }
-        else if (d.has_review_link) { cap = 'lien jamais ouvert'; capCls = 'alerte'; }
-        else cap = 'envoyé';
+        const envoi = window.SSUI.dateEnvoiOf(d);
+        if (d.client_accepted) {
+          cap = ('accepté ' + depuisJour(d.client_accepted_at)).trim();
+          capTitre = 'Accepté par le client sur son espace en ligne' + (d.client_accepted_at ? ' le ' + safeDate(d.client_accepted_at) : '');
+        } else if (att.motif && (att.active || (att.echue && relanceDue(d)))) {
+          // En pause : la pastille dit QUAND on y revient, la légende dit POURQUOI. Attente échue
+          // et relance réclamée : le motif revient JUSTE À CÔTÉ de la relance (règle 38).
+          cap = '« ' + att.motif.replace(/\s+/g, ' ').trim() + ' »';
+          capTitre = `${att.texte} — ${att.motif} (envoyé le ${safeDate(envoi)})`;
+          capCls = 'pause';
+        } else {
+          cap = 'envoyé ' + depuisJour(envoi);
+          capTitre = 'Envoyé le ' + safeDate(envoi);
+          if (d.review_views > 0) {
+            cap += ` · ${d.review_views} vue${d.review_views > 1 ? 's' : ''}`;
+            capTitre += ` · ouvert ${d.review_views} fois par le client${chaud ? ' — client très intéressé' : ''}`;
+            if (chaud) capCls = 'chaud';
+          } else if (d.has_review_link) {
+            cap += ' · non ouvert';             // « jamais ouvert » ne tenait pas dans la colonne
+            capTitre += ' · le client n’a jamais ouvert son lien : l’a-t-il reçu ?';
+            capCls = 'alerte';
+          }
+        }
       } else if (!pose) {
-        // Pas la commande ni la date de pose : les pastilles de suivi, juste à gauche, les
-        // disent déjà (règle 33 quater) — les répéter ici, c'était lire deux fois la même chose.
         const sd = window.SSUI.dateSignature(d);
-        cap = dep ? 'intervention à faire' : ('signé ' + (relTime(sd) || ''));
-      } else if (!paye) cap = 'reste à encaisser';
+        cap = dep ? 'intervention à faire' : ('signé ' + depuisJour(sd));
+        capTitre = sd ? 'Signé le ' + safeDate(sd) : '';
+      } else if (!paye) { cap = ('posé ' + depuisJour(d.reception_date)).trim(); capTitre = 'Posé, il reste à encaisser'; }
       else cap = 'soldé ✓';
       return `<div class="m-fil${mort ? ' mort' : ''}" style="--fc:${fc}">
         <div class="mf-rail" role="img" aria-label="${esc('Où en est l’affaire : ' + noms.map((n, i) => n + (etat(i) === 'fait' ? ' fait' : (etat(i) === 'ici' ? ' en cours' : ''))).join(', '))}">${
-          noeud(0)}${lien(0)}${noeud(1)}${relances || ''}${lien(1)}${noeud(2)}${lien(2)}${noeud(3)}${lien(3)}${noeud(4)}</div>
-        <span class="mf-cap ${capCls}">${esc(cap)}</span>
+          noeud(0)}${lien(0)}${noeud(1)}<i class="mf-c mf-rel ${etat(2) === 'fait' ? 'fait' : ''}">${relances}</i>${noeud(2)}${lien(2)}${noeud(3)}${lien(3)}${noeud(4)}</div>
+        <span class="mf-cap ${capCls}"${capTitre ? ` title="${esc(capTitre)}"` : ''}>${esc(cap)}</span>
       </div>`;
     }
 
@@ -1707,6 +1809,7 @@
     const SOURCE_IC = { rdv: 'bellphone', sav: 'wrench', echange: 'message', planning: 'calendar' };
     const SOURCE_COUL = { rdv: 'var(--accent)', sav: 'var(--accent-3)', echange: 'var(--accent)', planning: 'var(--accent-3)' };
     function boutonAction(a) {
+      if (a.rangement) return 'Clôturer';
       if (a.hash === '#relance') return 'Relancer';
       if (a.hash === '#question') return 'Répondre';
       if (a.hash === '#commande') return 'Commander';
@@ -1730,7 +1833,9 @@
           poids: poidsAction(a, d), depuis: d.date_modification || '',
           fam: a.ic === 'coin' ? 'Argent' : (a.lib || ''), ic: a.ic, couleur: a.color,
           nom: ((d.prenom || '') + ' ' + (d.nom || '')).trim() || 'Sans nom',
-          detail: a.txt, titre: a.titre || a.txt,
+          // La carte a deux lignes de place : elle prend la phrase COMPLÈTE (vues, motif) quand
+          // l'action en a une, là où la pastille de la liste doit tenir sur une.
+          detail: a.titre || a.txt, titre: a.titre || a.txt,
           extra: d.ttc ? fmtEur(d.ttc) : '', bouton: boutonAction(a),
           href: 'vue.html?id=' + encodeURIComponent(d.id) + (a.hash || ''),
         });
@@ -2218,7 +2323,6 @@
       const PASTILLES = window.SSUI.avatarsClients(rows);
       el('tableHost').innerHTML = `<div class="mix-list">${rows.map(d => {
         const hot = WAITING_STATUSES.includes(d.statut) && !d.client_accepted && d.review_views >= SEUIL_CHAUD();
-        const pay = paymentInfo(d);
         const ava = PASTILLES.get(clientKeyOf(d.prenom, d.nom)) || window.SSUI.avatarClient(d.prenom, d.nom);
         return `
         <div class="mrow ${hot ? 'is-hot' : ''}" data-id="${d.id}" style="--rail:${railColor(d)}" title="Ouvrir la fiche du devis">
@@ -2257,15 +2361,17 @@
               ${raccourcisTerrain(d)}
             </div>
           </div>
+          <div class="m-bas">
           ${filAffaire(d)}
-          ${/* L'ÉTAT DE PAIEMENT VOYAGE AVEC L'ACTION, et plus sous le montant. Il vivait dans
-                 la colonne de droite, EN DESSOUS du prix : dès qu'il existait, le bloc grandissait
-                 et — la ligne centrant ses colonnes — le montant REMONTAIT par rapport à la
-                 pastille d'action. Trois hauteurs différentes sur la même ligne, et des lignes
-                 qui ne s'alignaient plus entre elles. Signalé par Nicolas : « c'est pas aligné ».
-                 Les deux disent la même chose (où en est ce dossier), donc ils vont ensemble ;
-                 la colonne de droite ne porte plus qu'UNE ligne, pour toutes les lignes. */ ''}
-          <div class="m-signal">${signalChip(d)}${pay ? `<span class="m-pay">${pay}</span>` : ''}</div>
+          ${/* L'ÉTAT DE PAIEMENT a d'abord vécu SOUS le montant (la colonne grandissait et les
+                 montants ne s'alignaient plus — règle 33 bis), puis À CÔTÉ de l'action. Depuis que
+                 l'action a une colonne de largeur fixe (le fil de l'affaire), les deux ne tenaient
+                 plus ensemble : « Acompte à encaisser » sortait en « Acompte à e… » à côté de
+                 « Retard paiement ». Il vit désormais SOUS LE MONTANT (argentHtml), en position
+                 absolue : l'argent se lit au même endroit, et aucune hauteur ne bouge. La colonne
+                 d'action ne porte plus que l'action, sur une ligne, pour toutes les lignes. */ ''}
+          <div class="m-signal">${signalChip(d)}</div>
+          </div>
           ${/* ⚠️ LE RESTE À ENCAISSER EST EN POSITION ABSOLUE, ET C'EST VOLONTAIRE.
                  Le montant affichait le total alors qu'un acompte était déjà encaissé : le chiffre
                  de trésorerie — ce qu'il reste à rentrer — n'était nulle part dans la liste.
@@ -2278,7 +2384,7 @@
           <div class="m-right">
             <button class="m-more" onclick="event.stopPropagation();openActionsMenu(event,'${d.id}')" title="Actions" aria-label="Actions du devis ${d.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
             <span class="price">${fmtEur(d.ttc)}</span>
-            ${resteHtml(d)}
+            ${argentHtml(d)}
           </div>
         </div>`;
       }).join('')}</div>`;
@@ -2297,15 +2403,30 @@
      * ⚠️ `SSUI.duFacture` n'est pas utilisé ici : il répond « combien dû sur les FACTURES ÉMISES »,
      * alors qu'on veut « combien reste sur le DEVIS » — ce qui n'est pas encore facturé compte
      * aussi. Deux questions voisines, deux réponses différentes.
+     *
+     * ⚠️ L'ÉTAT DE PAIEMENT VIT ICI AUSSI (25/10/2026), sous le montant : c'est là que l'œil
+     * cherche l'argent. Il a été un badge SOUS le prix (la colonne grandissait — règle 33 bis),
+     * puis À CÔTÉ de l'action ; depuis que l'action a une colonne de largeur fixe (le fil de
+     * l'affaire), les deux ne tenaient plus ensemble — « Acompte à encaisser » sortait en
+     * « Acompte à e… » — et, passé à gauche, il faisait déborder les pastilles d'état sur deux
+     * lignes. En position absolue sous le montant, il ne change aucune hauteur.
      */
-    function resteHtml(d) {
+    function argentHtml(d) {
       const facs = FACTURES.filter(f => f.devis_id === d.id);
       if (!facs.length) return '';
       const paye = facs.reduce((s, f) => s + paidSum(f), 0);
-      if (paye <= 0.005) return '';                       // rien encore encaissé : le total suffit
+      const facture = facs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
       const reste = Math.round((Number(d.ttc) - paye) * 100) / 100;
-      if (reste <= 0.005) return '';                      // soldé : le badge le dit déjà
-      return `<span class="m-reste" title="${esc(fmtEur(paye))} encaissés sur ${esc(fmtEur(d.ttc))}">reste ${fmtEur(reste)}</span>`;
+      if (paye > 0.005 && reste <= 0.005) {
+        return `<span class="m-reste ok" title="Encaissé : ${esc(fmtEur(paye))}">soldé ✓</span>`;
+      }
+      if (isPaymentOverdue(d)) {
+        return `<span class="m-reste retard" title="${esc(`Facturé ${fmtEur(facture)}, payé ${fmtEur(paye)} — une échéance est dépassée`)}">en retard · reste ${eurRond(reste)}</span>`;
+      }
+      if (paye > 0.005) {
+        return `<span class="m-reste" title="${esc(fmtEur(paye))} encaissés sur ${esc(fmtEur(d.ttc))}">reste ${fmtEur(reste)}</span>`;
+      }
+      return `<span class="m-reste" title="${esc(`Facturé ${fmtEur(facture)}, en attente de paiement`)}">facturé · rien encaissé</span>`;
     }
 
     /**
@@ -2321,7 +2442,10 @@
       // signal, en ambre — la seule couleur de cette pastille qui dit « à toi de jouer ».
       if (estDepannage(d)) return '';
       const out = [];
-      const etat = window.SSUI.etatCommande(d);
+      // Un chantier déjà posé (PV de réception) dont la commande n'a jamais été notée n'est PAS
+      // « à commander » : l'ambre disait « à toi de jouer » sur du matériel déjà au mur.
+      const etat0 = window.SSUI.etatCommande(d);
+      const etat = (etat0 === 'a_commander' && window.SSUI.isPoseDone(d)) ? 'pose' : etat0;
       // « Posé » est déjà dit par le statut du devis : le répéter serait du bruit.
       if (etat !== 'pose') {
         out.push(`<span class="m-chantier ${esc(etat)}" title="Commande fournisseur : ${esc(window.SSUI.COMMANDE_LABEL[etat])}">${
