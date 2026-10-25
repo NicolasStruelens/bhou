@@ -374,7 +374,40 @@
                caEncaisse, totalFacture, resteEncaisser, enRetard, encPct, nicolasNet, yannickNet };
     }
 
+    /* ── LE BILAN D'UN CLIENT (ou de tout ensemble de devis) ─────────────────────────────────────
+       Les MÊMES définitions que les chiffres du cockpit, appliquées aux seuls devis d'un client :
+       la fiche client et le tableau de bord ne peuvent pas annoncer deux montants signés
+       différents. La page Clients comptait les devis REFUSÉS dans son « CA » (un client qui avait
+       refusé 50 000 € passait en tête) et les ARCHIVÉS dans son « CA signé » (25/10/2026).
+       • signé / en cours : devis non archivés (comme le cockpit) ;
+       • encaissé / reste dû : TOUTES les factures de ces devis — l'argent ne s'archive pas ;
+       • action : la plus urgente de ses devis (même poids que « À faire maintenant »). */
+    function bilanDevis(liste) {
+      const L = liste || [];
+      const ids = new Set(L.map(d => d.id));
+      const FACTURES = FACT();
+      const facs = FACTURES.filter(f => ids.has(f.devis_id));
+      const vivants = L.filter(d => !d.archive);
+      const signes = vivants.filter(d => ['signe', 'termine'].includes(d.statut));
+      const enCours = vivants.filter(d => WAITING_STATUSES.includes(d.statut));
+      let action = null, poids = -1;
+      L.forEach(d => {
+        const a = prochaineAction(d);
+        if (!a) return;
+        const p = poidsAction(a, d);
+        if (p > poids) { poids = p; action = Object.assign({ devis_id: d.id }, a); }
+      });
+      return {
+        signe: signes.reduce((s, d) => s + (Number(d.ttc) || 0), 0), nbSignes: signes.length,
+        enCours: enCours.reduce((s, d) => s + (Number(d.ttc) || 0), 0), nbEnCours: enCours.length,
+        encaisse: facs.reduce((s, f) => s + paidSum(f), 0),
+        resteDu: facs.reduce((s, f) => s + SSUI.duFacture(f, FACTURES), 0),
+        action,
+      };
+    }
+
     return {
+      bilanDevis,
       paidSum, isPaymentOverdue, isAcompteUnpaid, poseAVenir, isChantierAPreparer, isSoldeUnpaid,
       daysSinceSent, isDevisExpire, isPaidFull, estDepannage, FAM, prochaineAction, poidsAction,
       SEUIL_CHAUD, boutonAction, actionsDuJour, chiffres, totalEncaisse, estSolde, estClos, estActif,

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — clients</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Clients</h1>
+  <p class="note">
+    La revue du 25/10/2026 a trouvé huit défauts sur la page Clients, tous vérifiés sur des données :
+    une note de crédit affichée « Soldée » et la facture qu'elle annule « Impayée », un « CA signé »
+    qui comptait les devis archivés (le tableau de bord non), un « CA » par client qui comptait les
+    devis refusés, chaque enregistrement de fiche qui réécrivait TOUS les devis du client, le
+    « retour » du téléphone qui quittait la page, une recherche sensible aux accents et aveugle à la
+    ville, des chiffres qui repoussaient la liste hors du premier écran, des lignes inatteignables au
+    clavier. Ces tests les tiennent, avec les cinq améliorations choisies par Nicolas (A à E).
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : la vraie page est chargée dans des cadres
+    avec des données FICTIVES ; les écritures sont interceptées (rien n'est envoyé). Les données
+    locales du navigateur sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;') + '</td><td>' + String(b).replace(/</g, '&lt;') + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests clients';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+        f.onload = function () { resolve(f); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+
+    // ── Données d'essai FICTIVES ──
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const cli = (prenom, nom, ville, tel, email) => ({ prenom, nom, telephone: tel, email, adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville } });
+    const DEVIS = [
+      { id: 'C-SIG', client: cli('Marc', 'Signe', 'Wavre', '0471 11 11 11', 'marc@exemple.be'), statut: 'signe', date_creation: T(-30), date_modification: T(-5), calculs: { total_ttc: 10000 }, seller_principal: 'nicolas', acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-5) }] },
+      { id: 'C-REF', client: cli('Marc', 'Signe', 'Wavre', '0471 11 11 11', 'marc@exemple.be'), statut: 'refuse', date_creation: T(-60), date_modification: T(-50), calculs: { total_ttc: 50000 }, seller_principal: 'nicolas' },
+      { id: 'C-ARCH', client: cli('Paul', 'Archive', 'Namur', '0472 22 22 22', 'paul@exemple.be'), statut: 'termine', archive: true, date_creation: T(-300), date_modification: T(-200), calculs: { total_ttc: 8000 }, seller_principal: 'nicolas' },
+      { id: 'C-AV', client: cli('Anne', 'Avoir', 'Ottignies', '0473 33 33 33', 'anne@exemple.be'), statut: 'termine', date_creation: T(-90), date_modification: T(-20), calculs: { total_ttc: 3000 }, seller_principal: 'yannick' },
+      { id: 'C-DU', client: cli('Luc', 'Doit', 'Genval', '0478 12 34 56', 'luc@exemple.be'), statut: 'signe', date_creation: T(-80), date_modification: T(-10), calculs: { total_ttc: 5000 }, seller_principal: 'nicolas', commande: { statut: 'pose' }, chantier: { date_pose: J(-15) }, statut_history: [{ statut: 'signe', date: T(-70) }] },
+      { id: 'C-SOEUR', client: cli('Marie', 'Doit-Lambert', 'Genval', '0478 12 34 56', 'marie@exemple.be'), statut: 'envoye_client', date_creation: T(-6), date_modification: T(-6), date_envoi: J(-6), calculs: { total_ttc: 2500 }, seller_principal: 'yannick' },
+      { id: 'C-BOUCHE1', client: cli('Jean', 'Bouche', 'Uccle', '0470 00 00 00', ''), statut: 'brouillon', date_creation: T(-4), date_modification: T(-4), calculs: { total_ttc: 1200 }, seller_principal: 'nicolas' },
+      { id: 'C-BOUCHE2', client: cli('Hugo', 'Trou', 'Ixelles', '0470 00 00 00', ''), statut: 'brouillon', date_creation: T(-4), date_modification: T(-4), calculs: { total_ttc: 900 }, seller_principal: 'nicolas' },
+      { id: 'C-MUET', client: cli('Sans', 'Contact', 'Rixensart', '', ''), statut: 'envoye_client', date_creation: T(-3), date_modification: T(-3), date_envoi: J(-3), calculs: { total_ttc: 4000 }, seller_principal: 'nicolas' },
+      { id: 'C-DUP1', client: cli('Quentin', 'Détrempé', 'Wavre', '', 'quentin@exemple.be'), statut: 'brouillon', date_creation: T(-3), date_modification: T(-2), calculs: { total_ttc: 0 }, seller_principal: 'nicolas' },
+    ];
+    const FACTURES = [
+      { id: 'F-1', devis_id: 'C-AV', type: 'totale', total_ttc: 3000, date: J(-20), echeance: J(-5), paiements: [] },
+      { id: 'F-1-AV', devis_id: 'C-AV', type: 'avoir', avoir_de: 'F-1', total_ttc: -3000, date: J(-10), paiements: [] },
+      { id: 'F-2', devis_id: 'C-SIG', type: 'acompte', total_ttc: 3000, date: J(-5), echeance: J(10), paiements: [{ montant: 3000 }] },
+      { id: 'F-3', devis_id: 'C-DU', type: 'solde', total_ttc: 5000, date: J(-14), echeance: J(-1), paiements: [] },
+    ];
+    const CLIENTS = [
+      { key: 'depptre|quentin', prenom: 'Quentin', nom: 'Depptre', tags: [], notes: '' },
+      { key: 'signe|marc', prenom: 'Marc', nom: 'Signe', telephone: '0471 11 11 11', email: 'marc@exemple.be', tags: ['Chaud'], notes: '', adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' } },
+    ];
+    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_clients_cache', 'ss_outbox'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_factures_cache', JSON.stringify(FACTURES));
+      localStorage.setItem('ss_clients_cache', JSON.stringify(CLIENTS));
+    }
+    function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+
+    /** La page Clients chargée, ses chiffres SANS animation (un cadre hors écran la gèle). */
+    async function ouvrir(largeur, hauteur, suffixe) {
+      const f = await cadre('../app/clients.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      const w = f.contentWindow;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 8000) { try { if (w.eval('DIRECTORY.length')) break; } catch (e) {} await attendre(100); }
+      await attendre(200);
+      w.SSUI.animateKpis = null;
+      w.eval('renderKPIs()');
+      return f;
+    }
+    const texte = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+
+    (async function () {
+      try {
+        semer();
+        const f = await ouvrir(1500, 900);
+        const w = f.contentWindow, d = w.document;
+        // Même normalisation des espaces que `texte` (fmtEur écrit des espaces fines insécables).
+        const eur = (n) => w.SSUI.fmtEur(n).replace(/\s+/g, ' ');
+
+        titre('K — Les chiffres du haut : ceux du tableau de bord');
+        const kpi = [...d.querySelectorAll('#kpis .kpi')].map(k => [texte(k.querySelector('.kpi-label')), texte(k.querySelector('.kpi-value'))]);
+        check('K1 « CA signé » = signé + terminé, ARCHIVÉS EXCLUS (10 000 + 3 000 + 5 000), comme le tableau de bord',
+          [kpi[2][1], w.eval('ACT.chiffres().caSigne')], [eur(18000), 18000]);
+        check('K2 « Ont signé » compte les clients avec un devis signé ou terminé (l’archivé ne compte pas)', kpi[1], ['Ont signé', '3']);
+
+        titre('A — Chaque ligne dit où, quoi faire, et ce que le client doit');
+        const ligne = (k) => d.querySelector('.crm-item[data-key="' + k + '"]');
+        const actionDe = (id) => { const n = w.eval('DEVIS_N').find(x => x.id === id); const a = w.eval('ACT').prochaineAction(n); return a ? a.txt : null; };
+        check('A1 Marc : sa ville et la prochaine action de son devis signé (même phrase que le tableau de bord)',
+          [texte(ligne('signe|marc').querySelector('.ci-ville')), texte(ligne('signe|marc').querySelector('.ci-act'))], ['Wavre', actionDe('C-SIG')]);
+        check('A2 …et plus aucun « 60 000 € » : le devis refusé de 50 000 € ne gonfle plus rien', /60 000/.test(texte(ligne('signe|marc'))), false);
+        check('A3 Luc doit encore 5 000 € (facture de solde impayée)', texte(ligne('doit|luc').querySelector('.ci-du')), 'doit ' + eur(5000));
+        check('A4 Anne ne doit rien : sa facture est annulée par une note de crédit', !!ligne('avoir|anne').querySelector('.ci-du'), false);
+        check('A5 Une fiche sans devis le dit', texte(ligne('depptre|quentin').querySelector('.ci-act')), 'Aucun devis');
+        w.document.getElementById('sort').value = 'ca'; w.renderList();
+        check('A6 Tri « Signé ↓ » : Marc (10 000 signés) devant, le refus de 50 000 € n’y est pour rien',
+          [...d.querySelectorAll('.crm-item')].slice(0, 3).map(i => i.dataset.key), ['signe|marc', 'doit|luc', 'avoir|anne']);
+        w.document.getElementById('sort').value = 'recent'; w.renderList();
+
+        titre('R — La recherche : sans accents, par ville, numéro de devis, mot par mot');
+        const cherche = (q) => { d.getElementById('search').value = q; w.renderList(); return [...d.querySelectorAll('.crm-item')].map(i => i.dataset.key); };
+        check('R1 « detrempe » trouve « Détrempé »', cherche('detrempe'), ['détrempé|quentin']);
+        check('R2 « genval » trouve par la ville', cherche('genval').sort(), ['doit-lambert|marie', 'doit|luc']);
+        check('R3 « c-ref » trouve par le numéro de devis (même refusé)', cherche('c-ref'), ['signe|marc']);
+        check('R4 Chaque mot compte : « quentin wavre » ne garde que Détrempé', cherche('quentin wavre'), ['détrempé|quentin']);
+        check('R5 Par le téléphone, chiffres seuls', cherche('0478123456').sort(), ['doit-lambert|marie', 'doit|luc']);
+        cherche('');
+
+        titre('F — Les factures du client : la règle de la page Facturation');
+        w.renderDetail('avoir|anne'); await attendre(300);
+        check('F1 Anne : la note de crédit est une « Note de crédit », la facture qu’elle annule est « Annulée »',
+          [...d.querySelectorAll('#histFactures .hist-row')].map(r => texte(r.querySelector('.badge'))).sort(), ['Annulée', 'Note de crédit']);
+        w.renderDetail('doit|luc'); await attendre(300);
+        const rowLuc = d.querySelector('#histFactures .hist-row');
+        check('F2 Luc : facture de solde « En retard », et le reste dû est écrit', [texte(rowLuc.querySelector('.badge')), /reste 5 000/.test(texte(rowLuc))], ['En retard', true]);
+        check('F3 La règle vit dans ui.js : mêmes réponses que la Facturation pour les quatre cas',
+          FACTURES.map(x => w.SSUI.statutFacture(x, FACTURES)), ['annulee', 'avoir', 'payee', 'impayee']);
+
+        titre('B — La fiche : l’argent du client, et la prochaine action');
+        w.renderDetail('signe|marc'); await attendre(300);
+        const mk = [...d.querySelectorAll('.mini-kpi')].map(m => [texte(m.querySelector('.v')), texte(m.querySelector('.l'))]);
+        check('B1 Marc : signé 10 000 (le refus ne compte pas), encaissé 3 000, ne doit rien, rien chez lui',
+          mk, [[eur(10000), 'Signé · 1'], [eur(3000), 'Encaissé'], [eur(0), 'Reste dû'], [eur(0), 'Chez lui']]);
+        const fa = d.querySelector('.fiche-action');
+        check('B2 La prochaine action du client s’affiche sous son nom, et mène au bon devis',
+          [texte(fa), fa && fa.getAttribute('href').indexOf('vue.html?id=C-SIG') === 0], [actionDe('C-SIG'), true]);
+        check('B3 Chaque devis de l’historique porte sa propre action (le refusé n’en a pas)', [...d.querySelectorAll('.hist-act')].map(texte), [actionDe('C-SIG')]);
+        w.renderDetail('doit|luc'); await attendre(300);
+        check('B4 Luc : le reste dû est mis en évidence', [texte(d.querySelectorAll('.mini-kpi .v')[2]), d.querySelectorAll('.mini-kpi .v')[2].classList.contains('du')], [eur(5000), true]);
+
+        titre('E — Les étiquettes : plus de raccourcis qui mentent, rien d’effacé');
+        w.renderDetail('signe|marc'); await attendre(250);
+        check('E1 Ni « À relancer » ni « Chaud » parmi les raccourcis', [...d.querySelectorAll('.tag-chip')].map(texte).filter(t => /relancer|Chaud/.test(t)), []);
+        check('E2 …mais l’étiquette « Chaud » déjà posée sur Marc s’affiche toujours', [...d.querySelectorAll('.detail-head .badge-purple')].map(texte), ['Chaud']);
+
+        titre('P — Enregistrer une fiche : seuls les devis dont les coordonnées changent sont réécrits');
+        const ecrits = [];
+        let conflitPour = '';
+        w.SS.listDevis = async () => JSON.parse(JSON.stringify(DEVIS));
+        w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(x => x.id === id)));
+        w.SS.saveClient = async () => ({ ok: true });
+        w.SS.saveDevis = async (dv, o) => { ecrits.push([dv.id, o && o.expectedDateModification, dv.client.telephone]); return dv.id === conflitPour ? { ok: true, conflict: true } : { ok: true }; };
+        const dernierToast = () => { const t = [...d.querySelectorAll('#toasts .toast')].pop(); return t ? t.textContent : ''; };
+        await w.saveFiche('signe|marc'); await attendre(300);
+        check('P1 Rien n’a changé dans les coordonnées : AUCUN devis réécrit (avant : tous)', ecrits.length, 0);
+        w.renderDetail('signe|marc'); await attendre(250);
+        d.getElementById('f_tel').value = '0499 99 99 99';
+        conflitPour = 'C-REF';
+        await w.saveFiche('signe|marc'); await attendre(300);
+        check('P2 Le téléphone change : ses deux devis sont réécrits, chacun avec sa version lue (détection de conflit)',
+          ecrits.map(e => [e[0], e[1], e[2]]).sort(), [['C-REF', T(-50), '0499 99 99 99'], ['C-SIG', T(-5), '0499 99 99 99']]);
+        check('P3 Un devis modifié entre-temps n’est PAS écrasé, et le message le dit', /1 devis modifié\(s\) entre-temps/.test(dernierToast()), true);
+
+        titre('C — « À ranger » : ce qui mérite un coup de balai (bureau)');
+        semer();
+        await w.load(); w.fermerFiche(); await attendre(200);
+        const ar = d.getElementById('detail');
+        const paires = [...ar.querySelectorAll('.ar-bloc')].find(b => /Doublons/.test(texte(b.querySelector('h4'))));
+        const lignesPaires = paires ? [...paires.querySelectorAll('.ar-ligne')].map(texte) : [];
+        check('C1 Détrempé / Depptre : même prénom, nom proche — signalés', lignesPaires.some(t => /Détrempé.*Depptre|Depptre.*Détrempé/.test(t) && /même prénom, nom proche/.test(t)), true);
+        check('C2 Deux clients au même vrai numéro : signalés', lignesPaires.some(t => /Luc Doit/.test(t) && /Marie Doit-Lambert/.test(t) && /même téléphone/.test(t)), true);
+        check('C3 Un numéro bouche-trou (« 0470 00 00 00 ») ne fait PAS de doublon', lignesPaires.some(t => /Bouche/.test(t) && /Trou/.test(t)), false);
+        const bloc = (re) => { const b = [...ar.querySelectorAll('.ar-bloc')].find(x => re.test(texte(x.querySelector('h4')))); return b ? [...b.querySelectorAll('.ar-ligne button')].map(texte) : []; };
+        check('C4 Un client avec un devis en cours et ni téléphone ni e-mail', bloc(/Sans téléphone/), ['Sans Contact']);
+        check('C5 Les fiches sans aucun devis', bloc(/sans aucun devis/), ['Quentin Depptre']);
+        ar.querySelector('[data-ouvrir="depptre|quentin"]').click(); await attendre(250);
+        check('C6 Un clic sur un nom ouvre sa fiche', texte(d.querySelector('.detail-head h2')), 'Quentin Depptre');
+
+        titre('D — Nouveau client : un formulaire qui prévient avant de créer un doublon');
+        w.newClient(); await attendre(100);
+        const modal = d.getElementById('modalClient');
+        const taper = (id, v) => { const i = d.getElementById(id); i.value = v; i.dispatchEvent(new w.Event('input', { bubbles: true })); };
+        check('D1 La fenêtre s’ouvre, vide, le curseur dans le prénom', [modal.classList.contains('open'), d.getElementById('mc_nom').value, d.activeElement && d.activeElement.id], [true, '', 'mc_prenom']);
+        taper('mc_prenom', 'Quentin'); taper('mc_nom', 'Detrempe');
+        check('D2 « Quentin Detrempe » (sans accent) : « existe peut-être déjà », et le bouton dit « Créer quand même »',
+          [!d.getElementById('mcDoublon').hidden, /Détrempé/.test(texte(d.getElementById('mcDoublon'))), texte(d.getElementById('mcOk'))], [true, true, 'Créer quand même']);
+        taper('mc_prenom', 'Marc'); taper('mc_nom', 'Signe');
+        check('D3 Un nom déjà pris : on propose d’OUVRIR la fiche, jamais d’en créer une seconde', texte(d.getElementById('mcOk')), 'Ouvrir la fiche existante');
+        const crees = [];
+        w.SS.saveClient = async (c) => { crees.push(c); return { ok: true }; };
+        w.SS.getClient = async () => null;
+        await w.creerClient(); await attendre(300);
+        check('D4 …et « Ouvrir » ouvre bien Marc, sans rien enregistrer', [crees.length, modal.classList.contains('open'), texte(d.querySelector('.detail-head h2'))], [0, false, 'Marc Signe']);
+        w.newClient(); await attendre(50);
+        taper('mc_prenom', 'Zoé'); taper('mc_nom', 'Nouvelle'); taper('mc_tel', '0476 54 32 10'); taper('mc_email', 'zoe@exemple.be'); taper('mc_cp', '1410'); taper('mc_ville', 'Waterloo');
+        check('D5 Un vrai nouveau client : pas d’alerte', [d.getElementById('mcDoublon').hidden, texte(d.getElementById('mcOk'))], [true, 'Créer la fiche']);
+        await w.creerClient(); await attendre(300);
+        const z = crees[0] || {};
+        check('D6 La fiche créée garde téléphone, e-mail, code postal et ville', [z.key, z.telephone, z.email, z.adresse && z.adresse.code_postal, z.adresse && z.adresse.ville], ['nouvelle|zoé', '0476 54 32 10', 'zoe@exemple.be', '1410', 'Waterloo']);
+        w.newClient(); await attendre(50);
+        modal.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('D7 Échap ferme la fenêtre', modal.classList.contains('open'), false);
+
+        titre('K — Le clavier');
+        semer(); await w.load(); w.fermerFiche(); await attendre(150);
+        const it = d.querySelector('.crm-item[data-key="avoir|anne"]');
+        check('K3 Une ligne se rejoint au clavier (tabulation)', [it.getAttribute('role'), it.tabIndex], ['button', 0]);
+        it.focus(); it.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await attendre(250);
+        check('K4 …et Entrée ouvre la fiche', texte(d.querySelector('.detail-head h2')), 'Anne Avoir');
+        f.remove();
+
+        /* ══════════ T — TÉLÉPHONE ══════════ */
+        titre('T — Sur téléphone (390 × 760) : la liste dans le premier écran, et « retour » revient à la liste');
+        let fuites = 0;
+        const garde = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', garde);
+        const ft = await ouvrir(390, 760);
+        const wt = ft.contentWindow, dt = wt.document;
+        const k = [...dt.querySelectorAll('#kpis .kpi')].map(x => x.getBoundingClientRect());
+        check('T1 Les quatre chiffres en deux rangées (deux par ligne)', [Math.round(k[0].top) === Math.round(k[1].top), Math.round(k[2].top) === Math.round(k[3].top), k[2].top > k[0].top], [true, true, true]);
+        const premier = dt.querySelector('.crm-item').getBoundingClientRect();
+        check('T2 Le premier client est visible sans faire défiler', premier.bottom <= wt.innerHeight, true);
+        const det = dt.querySelector('.crm-item[data-key="détrempé|quentin"]');
+        const nomEl = det.querySelector('.ci-nom'), todo = det.querySelector('.ci-todo');
+        check('T3 La pastille « à compléter » n’est plus coupée (le nom cède la place)', [todo.scrollWidth <= todo.clientWidth + 1, todo.getBoundingClientRect().right <= det.getBoundingClientRect().right], [true, true]);
+        check('T4 Rien ne déborde à l’horizontale', dt.documentElement.scrollWidth <= dt.documentElement.clientWidth, true);
+        det.click(); await attendre(300);
+        check('T5 La fiche remplace la liste (une étape d’historique est ajoutée)', [dt.body.classList.contains('crm-fiche-ouverte'), (wt.history.state || {}).crmFiche], [true, 'détrempé|quentin']);
+        wt.history.back(); await attendre(500);
+        check('T6 Le geste « retour » REVIENT À LA LISTE, sans quitter la page', [dt.body.classList.contains('crm-fiche-ouverte'), /clients/.test(wt.location.pathname), !!dt.querySelector('.crm-item')], [false, true, true]);
+        dt.querySelector('.crm-item[data-key="avoir|anne"]').click(); await attendre(300);
+        dt.getElementById('crmRetour').click(); await attendre(500);
+        check('T7 « ← Tous les clients » ramène aussi à la liste, et retire l’étape (pas de « retour » qui ne fait rien)', [dt.body.classList.contains('crm-fiche-ouverte'), (wt.history.state || {}).crmFiche], [false, undefined]);
+        ft.remove();
+        const fk = await ouvrir(390, 760, '?key=' + encodeURIComponent('signe|marc') + '&t=' + Date.now());
+        check('T8 Arrivé d’une autre page sur une fiche (?key=…) : pas d’étape ajoutée, « retour » ramène d’où l’on vient',
+          [fk.contentWindow.document.body.classList.contains('crm-fiche-ouverte'), (fk.contentWindow.history.state || {}).crmFiche], [true, undefined]);
+        fk.contentWindow.newClient(); await attendre(80);
+        const mr = fk.contentWindow.document.querySelector('#modalClient .modal').getBoundingClientRect();
+        check('T9 La fenêtre « Nouveau client » tient dans l’écran du téléphone', [mr.left >= 0, mr.right <= fk.contentWindow.innerWidth, mr.bottom <= fk.contentWindow.innerHeight], [true, true, true]);
+        fk.remove();
+        await attendre(300);
+        window.removeEventListener('popstate', garde);
+        check('T10 Aucun « retour » de trop', fuites, 0);
+
+        /* ══════════ La page Facturation n'a pas changé de réponse ══════════ */
+        titre('G — La page Facturation, branchée sur la règle commune, répond pareil');
+        const fg = await cadre('../app/factures.html?t=' + Date.now(), 1500, 900);
+        await attendre(2500);
+        const dg = fg.contentWindow.document;
+        const badgeDe = (id) => { const tr = [...dg.querySelectorAll('tr')].find(r => r.querySelector('.badge') && r.querySelector('td') && texte(r.querySelector('td')).split(' ')[0] === id); return tr ? [...tr.querySelectorAll('.badge')].map(texte).pop() : null; };
+        check('G1 Note de crédit, Annulée, Payée, En retard — comme avant', ['F-1-AV', 'F-1', 'F-2', 'F-3'].map(badgeDe), ['Note de crédit', 'Annulée', 'Payée', 'En retard']);
+        fg.remove();
+      } catch (e) {
+        check('Erreur inattendue', String(e && e.stack || e).slice(0, 300), '');
+      } finally {
+        remettre();
+        rendre();
+      }
+    })();
+  </script>
+</body>
+</html>

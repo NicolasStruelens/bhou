@@ -221,28 +221,15 @@
     // Une NOTE DE CRÉDIT n'est ni payée ni impayée : elle annule, elle ne s'encaisse pas. Sans ce
     // cas à part, son total NÉGATIF passait le test « payé ≥ total » et elle s'affichait « Payée ».
     const estAvoir = f => f && f.type === 'avoir';
-    // Reste dû et annulation : définitions PARTAGÉES (assets/js/ui.js), les mêmes qu'aux
-    // statistiques — sinon les deux écrans annonceraient deux créances différentes.
+    // Reste dû : définition PARTAGÉE (assets/js/ui.js), la même qu'aux statistiques — sinon les
+    // deux écrans annonceraient deux créances différentes.
     const duDe = f => window.SSUI.duFacture(f, FACTURES);
-    const estAnnulee = f => window.SSUI.factureAnnulee(f, FACTURES);
-    function statutOf(f) {
-      if (estAvoir(f)) return 'avoir';
-      if (estAnnulee(f)) return 'annulee';
-      const p = paidSum(f);
-      if (p >= (f.total_ttc || 0) - 0.005) return 'payee';
-      if (p > 0) return 'partielle';
-      return 'impayee';
-    }
-    const isOverdue = f => ['avoir', 'annulee', 'payee'].indexOf(statutOf(f)) === -1 && f.echeance && f.echeance < today();
-    function badgeFor(f) {
-      const st = statutOf(f);
-      if (st === 'avoir') return '<span class="badge badge-purple">Note de crédit</span>';
-      if (st === 'annulee') return '<span class="badge" style="opacity:.75;">Annulée</span>';
-      if (st === 'payee') return '<span class="badge badge-ok">Payée</span>';
-      if (st === 'partielle') return '<span class="badge badge-warn">Partielle</span>';
-      return isOverdue(f) ? '<span class="badge badge-danger">En retard</span>' : '<span class="badge badge-cyan">À payer</span>';
-    }
-    const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale', partielle: 'Partielle', avoir: 'Note de crédit' };
+    // Statut, retard, pastille et libellés : SOURCE UNIQUE dans ui.js, partagée avec la fiche
+    // client — sa copie locale ignorait les notes de crédit (25/10/2026).
+    const statutOf = f => window.SSUI.statutFacture(f, FACTURES);
+    const isOverdue = f => window.SSUI.factureEnRetard(f, FACTURES);
+    const badgeFor = f => window.SSUI.badgeFacture(f, FACTURES);
+    const TYPE_LABEL_FAC = window.SSUI.TYPE_FACTURE_LABEL;
 
     async function load() {
       FACTURES = (await SS.listFactures()) || [];

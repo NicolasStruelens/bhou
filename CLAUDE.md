@@ -92,6 +92,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 106 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
+| `tests/clients.test.html` | Les 51 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger », nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -2100,6 +2101,27 @@ Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEM
   Nicolas a choisi l'appel direct. Aucun `package.json` : le site se publie toujours sans étape de
   build. Ne pas réintroduire le SDK sans ce réglage ET un aperçu vert.
 
+**42. LA PAGE CLIENTS NE CALCULE RIEN À SA FAÇON** (revue du 25/10/2026, propositions A à E choisies
+par Nicolas). Protégé par `tests/clients.test.html`.
+• **L'argent et l'action d'un client viennent d'`actions.js` (`bilanDevis`)** : signé et « chez lui »
+  sur les devis NON archivés (comme le cockpit), encaissé et reste dû sur TOUTES ses factures (l'argent
+  ne s'archive pas, notes de crédit déduites par `SSUI.duFacture`), action = la plus urgente de ses
+  devis (même poids que « À faire maintenant »). Le « CA signé » du haut EST `chiffres().caSigne`.
+  Avant : le CA signé comptait les archivés, le « CA » par client comptait les devis REFUSÉS.
+• **Le statut d'une facture vit dans `ui.js`** (`statutFacture`, `badgeFacture`, `factureEnRetard`,
+  `TYPE_FACTURE_LABEL`), partagé avec la Facturation. La copie de la fiche client affichait un avoir
+  « Soldée » et la facture qu'il annule « Impayée ».
+• **Enregistrer une fiche ne réécrit QUE les devis dont le téléphone, l'e-mail ou l'adresse diffèrent**,
+  et avec détection de conflit : avant, une étiquette ajoutée réécrivait tous les devis du client
+  (date de modification avancée, faux « modifié par quelqu'un d'autre » chez l'autre).
+• **Doublons : l'ERP SIGNALE, il ne fusionne rien** (panneau « À ranger », et alerte dans « Nouveau
+  client »). La clé « nom|prénom » ne pardonne ni faute ni accent. Un numéro bouche-trou (six chiffres
+  identiques de suite) n'identifie personne.
+• **Pas d'étiquette « À relancer » ni « Chaud » en raccourci** : l'ERP les calcule. Les étiquettes
+  existantes restent affichées.
+• **Téléphone : « retour » revient à la liste** (étape d'historique à l'ouverture d'une fiche ; pas
+  d'étape quand on ARRIVE sur une fiche par `?key=`, pour que « retour » ramène d'où l'on vient).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2367,6 +2389,8 @@ Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEM
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 106/106 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
+   `tests/clients.test.html`, exiger « 51/51 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
