@@ -232,6 +232,8 @@
         check('R1 le relais est là, au nom de l’autre', d.querySelector('.rl-nom').textContent, 'Le relais avec Yannick');
         check('R2 ses nouveautés, sans les miennes', d.querySelectorAll('#relaisNews .rl-ligne').length, 3);
         check('R3 sa présence se lit dans le bandeau', d.getElementById('presence').textContent.trim(), 'Yannick en ligne');
+        // « vu 13/10/2026 » obligeait à compter les jours de tête : on dit depuis combien de temps.
+        check('R3b une absence se dit en jours', [w.texteVu({ enLigne: false, vu: iso(12 * 24 * 60) }), w.texteVu({ enLigne: false, vu: iso(26 * 60) })], ['vu il y a 12 j', 'vu hier']);
         d.querySelector('.rl-vu').click(); await attendre(60);
         check('R4 « Tout vu » avance le repère jusqu’à la dernière nouvelle, pas jusqu’à maintenant', w.localStorage.getItem('ss_activity_seen'), ACTIVITE[3 - 1].ts);
         check('R5 …et le relais se calme', d.querySelectorAll('#relaisNews .rl-ligne').length, 0);
@@ -258,6 +260,11 @@
         check('B3 aucune tuile de chiffres ne déborde', [...d.querySelectorAll('.ck-t, .af-carte, .et-seg')].filter(e => e.scrollWidth > e.clientWidth + 1).length, 0);
         check('B4 « Terrain » et « Nouveau devis » quittent le bandeau quand le rail les porte', [...d.querySelectorAll('.header-actions .dash-dup')].map(e => e.offsetWidth), [0, 0]);
         check('B5 aucun gestionnaire de la page ne casse à la compilation', [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2).map(a => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 60); } }).filter(Boolean)), []);
+        // Une étape à 0 € tombait si étroite que son nom partait en points de suspension. On FORCE
+        // le cas : sans le seul dossier « à encaisser », cette étape vaut 0 €.
+        w.eval("DEVIS = DEVIS.filter(x => x.id !== 'T-TER')"); w.render(); await attendre(60);
+        check('B6 chaque étape se lit en entier, même à 0 €', [...d.querySelectorAll('.et-lib')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent), []);
+        await w.rafraichir(); await attendre(100);
         f.remove();
 
         titre('Sans identité : on ne devine pas qui est qui');
