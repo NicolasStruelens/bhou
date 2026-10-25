@@ -142,12 +142,12 @@
         let f = await ouvrir(1500, 900, 'nicolas');
         let w = f.contentWindow, d = f.contentDocument;
         const N = (o) => w.SSUI.normDevis(Object.assign({ id: 'X' + Math.random().toString(36).slice(2, 6), client: { prenom: 'A', nom: "L'Hoest" }, calculs: { total_ttc: 1000 } }, o));
-        const txt = (o) => { const a = w.prochaineAction(N(o)); return a ? a.txt : null; };
+        const txt = (o) => { const a = w.eval('prochaineAction')(N(o)); return a ? a.txt : null; };
         /* ⚠️ JAMAIS D'ACOMPTE SUR UN DÉPANNAGE (règle 7) : il sortait en « Acompte à encaisser »
            et en « À commander ». */
         const dep = { statut: 'signe', type_document: 'depannage', depannage_mode: 'realise' };
         check('A1 un bon d’intervention signé n’attend rien', txt(dep), null);
-        check('A2 …et ne réclame aucun acompte', w.isAcompteUnpaid(N(dep)), false);
+        check('A2 …et ne réclame aucun acompte', w.eval('isAcompteUnpaid')(N(dep)), false);
         check('A3 …ni de commande fournisseur', w.suiviChantier(N(dep)), '');
         check('A4 une proposition de dépannage acceptée attend son intervention', txt({ statut: 'signe', type_document: 'depannage', depannage_mode: 'a_realiser' }), 'Intervention à réaliser');
         /* ⚠️ ON NE RÉCLAME UNE DATE DE POSE QU'UNE FOIS LE MATÉRIEL REÇU (règle 15 ter) : le tableau
@@ -156,7 +156,7 @@
         // ⚠️ `FACTURES` est un `let` de la page, PAS une propriété de window : « w.FACTURES = … »
         // ne changerait rien et le test passerait sans rien prouver. On l'écrit DANS la page.
         w.eval("FACTURES = [{ id: 'FX', devis_id: 'PAYE', type: 'acompte', total_ttc: 300, paiements: [{ montant: 300 }] }]");
-        const P = (o) => { const a = w.prochaineAction(N(Object.assign({ id: 'PAYE', statut: 'signe', acompte_pct: 30 }, o))); return a ? [a.txt, a.fam] : null; };
+        const P = (o) => { const a = w.eval('prochaineAction')(N(Object.assign({ id: 'PAYE', statut: 'signe', acompte_pct: 30 }, o))); return a ? [a.txt, a.fam] : null; };
         check('A5 signé, rien commandé → commander', P({}), ['Matériel à commander', 'chantier']);
         check('A6 commandé → la balle est chez le fournisseur', P({ commande: { statut: 'commande' } }), ['Chez le fournisseur — commandé', 'rien']);
         check('A7 matériel reçu → planifier la pose', P({ commande: { statut: 'recu' } }), ['Matériel reçu — pose à planifier', 'chantier']);
@@ -179,7 +179,7 @@
         check('L3d en partie payé : le reste', /^reste /.test(argent('T-POSE')), true);
         check('L3e plus aucun badge de paiement ailleurs dans la ligne', d.querySelectorAll('.mrow .m-pay').length, 0);
         const clot = w.SSUI.normDevis(DEVIS.find(x => x.id === 'T-CLOT'));
-        check('L4 …avec un poids de rangement, pas d’urgence', w.poidsAction(w.prochaineAction(clot), clot), 1);
+        check('L4 …avec un poids de rangement, pas d’urgence', w.eval('poidsAction')(w.eval('prochaineAction')(clot), clot), 1);
         check('L5 rien à faire : la colonne le DIT, au lieu de répéter le statut', signal('T-RIEN'), 'Rien à faire');
         check('L6 un chantier posé n’est jamais « à commander »', /commander/i.test(ligne('T-DEUX').querySelector('.m-sub').textContent), false);
         /* ⚠️ LA PASTILLE DÉBORDAIT SUR LA FRISE : calée à droite, la case prenait la largeur de son

@@ -288,6 +288,32 @@
     return attentePromise;
   }
 
+  /* ══════ L'ASSISTANT (assets/js/assistant.js), CHARGÉ AU PREMIER CLIC ══════
+     Même principe qu'attente.js : une balise de moins sur 21 pages, et rien à télécharger tant
+     qu'on ne s'en sert pas. Une conversation ouverte SUIT l'onglet : la page suivante rouvre le
+     panneau tout de suite (sessionStorage), sinon chaque lien suivi depuis l'assistant le fermerait. */
+  let assistantPromise = null;
+  function chargerAssistant() {
+    if (window.SSAssistant) return Promise.resolve(window.SSAssistant);
+    if (assistantPromise) return assistantPromise;
+    assistantPromise = new Promise(function (resolve) {
+      const m = NAV_SRC.match(/^(.*\/)nav\.js(?:[?#].*)?$/);
+      if (!m) { resolve(null); return; }
+      const sc = document.createElement('script');
+      sc.src = m[1] + 'assistant.js';
+      sc.onload = function () { resolve(window.SSAssistant || null); };
+      sc.onerror = function () { assistantPromise = null; resolve(null); };
+      document.head.appendChild(sc);
+    });
+    return assistantPromise;
+  }
+  function ouvrirAssistant(depuis, direct) {
+    return chargerAssistant().then(function (A) {
+      if (!A) return;
+      if (direct) A.ouvrir(null, { direct: true }); else A.basculer(depuis);
+    });
+  }
+
   // ── Compteurs d'alerte du menu ────────────────────────────────────────────────────────
   // Jusqu'ici il fallait ALLER sur le tableau de bord pour savoir qu'il se passait quelque
   // chose. Ces compteurs suivent l'utilisateur sur toutes les pages. Calculés une seule fois
@@ -634,6 +660,8 @@
       entree(NAV_ACCUEIL) +
       '<button class="ssrail-item ssrail-search" type="button" title="Rechercher (Ctrl+K)">' +
         icon('search', 15) + '<span class="ssrail-lbl">Recherche</span><span class="ssrail-kbd">Ctrl K</span></button>' +
+      '<button class="ssrail-item ssrail-assist" type="button" title="Assistant : pose une question sur tes devis, factures, planning, échanges">' +
+        icon('sparkle', 15) + '<span class="ssrail-lbl">Assistant</span></button>' +
       NAV_GROUPS.map(function (g) {
         return '<div class="ssrail-group">' + g.title + '</div>' + g.pages.map(entree).join('');
       }).join('') +
@@ -659,6 +687,7 @@
     rail.querySelector('.ssrail-search').addEventListener('click', function () {
       if (window.ssCommandPalette) window.ssCommandPalette();
     });
+    rail.querySelector('.ssrail-assist').addEventListener('click', function (e) { ouvrirAssistant(e.currentTarget); });
 
     /* ── Réduire / déployer ── Le bouton s'appelait « Menu » avec une icône de grille : il
        annonçait l'ouverture d'un menu et faisait l'inverse. Il dit maintenant ce qu'il fait, et
@@ -709,6 +738,7 @@
         <button class="btn btn-ghost btn-sm ssnav-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Naviguer vers une autre page">${icon('grid9', 14)}</button>
         <div class="ssnav-menu" role="menu">
           <button class="ssnav-item ssnav-search" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('search', 14)} Recherche<span style="margin-left:auto;font-family:var(--font-mono);font-size:0.58rem;opacity:0.7;border:1px solid var(--border);border-radius:3px;padding:0.05rem 0.3rem;">Ctrl&nbsp;K</span></button>
+          <button class="ssnav-item ssnav-assist" type="button" role="menuitem" style="width:100%;text-align:left;background:none;cursor:pointer;">${icon('sparkle', 14)} Assistant</button>
           ${lien(NAV_ACCUEIL)}
           <div class="ssnav-sep"></div>
           <div class="ssnav-group">Nouveau</div>
@@ -817,9 +847,12 @@
     btn.addEventListener('click', toggle);
     const searchItem = root.querySelector('.ssnav-search');
     if (searchItem) searchItem.addEventListener('click', function (e) { e.preventDefault(); close(); if (window.ssCommandPalette) window.ssCommandPalette(); });
+    const assistItem = root.querySelector('.ssnav-assist');
+    if (assistItem) assistItem.addEventListener('click', function (e) { e.preventDefault(); close(); ouvrirAssistant(btn); });
     document.addEventListener('click', function (e) { if (!root.contains(e.target)) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     mountWhoAmI(container);
+    try { if (sessionStorage.getItem('ss_assistant_ouvert') === '1') ouvrirAssistant(null, true); } catch (e) {}
   }
 
   // ── Palette de recherche globale (Ctrl+K / ⌘K) — devis, clients, factures, RDV, échanges ──
@@ -969,7 +1002,7 @@
   })();
 
   window.SSNav = {
-    mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs,
+    mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
     _NAV: { accueil: NAV_ACCUEIL, creer: NAV_CREER, groupes: NAV_GROUPS, reglages: NAV_REGLAGES, badges: BADGE_KEYS },

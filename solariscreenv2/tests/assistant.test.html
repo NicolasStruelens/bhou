@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — assistant</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de l'assistant</h1>
+  <p class="note">
+    L'assistant (assets/js/assistant.js) parle à Claude par /api/assistant ; ses OUTILS tournent dans
+    le navigateur avec les fonctions de l'ERP. Ces tests vérifient qu'il répond avec les MÊMES règles
+    que les écrans (le module partagé assets/js/actions.js, comparé au tableau de bord), qu'il ne
+    peut rien écrire sans un clic, que la conversation renvoyée à l'API reste toujours valide
+    (jamais deux messages de suite du même côté, jamais un appel d'outil sans résultat, jamais un
+    message vide), qu'aucun lien inventé ne s'affiche, et que le panneau tient au bureau comme sur
+    téléphone.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : la vraie page est chargée dans des cadres
+    avec des données FICTIVES ; le serveur de Claude est SIMULÉ (aucun appel réel, aucun coût).
+    Les données locales du navigateur sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;') + '</td><td>' + String(b).replace(/</g, '&lt;') + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests assistant';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+        f.onload = function () { setTimeout(function () { resolve(f); }, 1500); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+
+    // ── Données d'essai FICTIVES (même jeu que le tableau de bord, réduit) ──
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const cli = (prenom, nom, ville) => ({ prenom, nom, telephone: '0470 00 00 00', email: 'test@exemple.be', adresse: { rue: 'Rue des Essais 1', cp: '1400', ville } });
+    const scr = (n, p) => Array.from({ length: n }, (_, i) => ({ _id: 'it' + i, type: 'screen', largeur: 2000, hauteur: 2000, quantite: 1, prix: p }));
+    const calc = (ttc) => ({ total_ttc: ttc, nicolas_net: Math.round(ttc * 0.05), yannick_net: Math.round(ttc * 0.02) });
+    const DEVIS = [
+      { id: 'T-ACC', client: cli('Anne', 'Accepte', 'Wavre'), statut: 'envoye_client', date_creation: T(-3), date_envoi: J(-1), calculs: calc(6000), items: scr(2, 2000), seller_principal: 'nicolas', review_token: 'x', review_views: [T(0)], client_accepted: true },
+      { id: 'T-REL', client: cli('Martine', "L'Hoëst", 'Nivelles'), statut: 'envoye_client', date_creation: T(-8), date_envoi: J(-5), statut_history: [{ statut: 'envoye_client', date: T(-5) }], calculs: calc(8000), items: scr(3, 1500), seller_principal: 'nicolas', review_token: 'x', review_views: [T(-2)] },
+      { id: 'T-REL2', client: cli('Luc', 'Relance', 'Wavre'), statut: 'relance_1', date_creation: T(-20), date_envoi: J(-15), calculs: calc(5000), items: scr(2, 1500), seller_principal: 'yannick', relances: [{ n: 1, date: J(-10) }] },
+      { id: 'T-SIG', client: cli('Marc', 'Signe', 'Ottignies'), statut: 'signe', date_creation: T(-25), date_envoi: J(-22), calculs: calc(12000), items: scr(4, 2000), seller_principal: 'nicolas', acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-2) }] },
+      { id: 'T-POSE', client: cli('École', 'Chantier', 'Bruxelles'), statut: 'signe', date_creation: T(-60), calculs: calc(30000), items: scr(5, 4000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-50) }] },
+      { id: 'T-RIEN', client: cli('Inès', 'Calme', 'Uccle'), statut: 'signe', date_creation: T(-40), calculs: calc(5000), items: scr(2, 2000), seller_principal: 'nicolas', chantier: { date_pose: J(30) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-30) }] },
+      { id: 'T-TER', client: cli('Julie', 'Termine', 'Rixensart'), statut: 'termine', date_creation: T(-80), calculs: calc(9000), items: scr(3, 2000), seller_principal: 'yannick', chantier: { date_pose: J(-15) }, commande: { statut: 'pose' } },
+      { id: 'T-DEP', client: cli('Thomas', 'Depannage', 'Braine'), statut: 'signe', type_document: 'depannage', depannage_mode: 'realise', date_creation: T(-1), calculs: calc(285), items: [], seller_principal: 'yannick' },
+      { id: 'T-REF', client: cli('Paul', 'Refuse', 'Jodoigne'), statut: 'refuse', date_creation: T(-45), calculs: calc(4000), items: scr(2, 1500), seller_principal: 'nicolas' },
+    ];
+    const FACTURES = [
+      { id: 'TF-1', devis_id: 'T-POSE', type: 'acompte', total_ttc: 9000, date: J(-50), echeance: J(-35), paiements: [{ montant: 9000, date: J(-45) }] },
+      { id: 'TF-2', devis_id: 'T-SIG', type: 'acompte', total_ttc: 3600, date: J(-8), echeance: J(-1), paiements: [] },
+      { id: 'TF-3', devis_id: 'T-TER', type: 'solde', total_ttc: 9000, date: J(-14), echeance: J(5), paiements: [{ montant: 4000, date: J(-3) }] },
+      { id: 'TF-6', devis_id: 'T-RIEN', type: 'acompte', total_ttc: 1500, date: J(-25), echeance: J(-10), paiements: [{ montant: 1500, date: J(-20) }] },
+    ];
+    const SUJETS = [
+      { id: 'SUJ-T1', kind: 'question', statut: 'ouvert', titre: 'Quel RAL pour Signe ?', awaiting: 'nicolas', pour: 'nicolas', auteur: 'yannick', date_creation: T(-2), date_modification: T(-2) },
+      { id: 'SUJ-T2', kind: 'afaire', statut: 'ouvert', titre: 'Rappeler le fournisseur', awaiting: 'yannick', pour: 'yannick', auteur: 'nicolas', date_creation: T(-4), date_modification: T(-4) },
+    ];
+    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_sujets_cache', 'ss_rdv_cache', 'ss_clients_cache', 'ss_dash_view'];
+    const CLES_SESSION = ['ss_assistant_conv', 'ss_assistant_ouvert'];
+    const SAUVE = {}, SAUVE_S = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    CLES_SESSION.forEach(k => { try { SAUVE_S[k] = sessionStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_factures_cache', JSON.stringify(FACTURES));
+      localStorage.setItem('ss_sujets_cache', JSON.stringify(SUJETS));
+      localStorage.setItem('ss_rdv_cache', '[]');
+      localStorage.removeItem('ss_dash_view');
+      CLES_SESSION.forEach(k => sessionStorage.removeItem(k));
+    }
+    function remettre() {
+      CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
+      CLES_SESSION.forEach(k => { try { if (SAUVE_S[k] == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, SAUVE_S[k]); } catch (e) {} });
+    }
+    const ID = (k) => (k ? { key: k, name: k === 'nicolas' ? 'Nicolas' : 'Yannick', email: 'x', colorVar: '--accent' } : { key: null, name: null, email: null, colorVar: '--text-subtle' });
+    /** Le tableau de bord, connecté, avec l'assistant chargé (panneau fermé). */
+    async function ouvrir(largeur, hauteur, identite) {
+      const f = await cadre('../app/dashboard.html?t=' + Date.now(), largeur, hauteur);
+      const w = f.contentWindow;
+      // Un cadre placé hors de l'écran ne fait pas avancer ses animations : le panneau resterait
+      // figé en plein glissement. On mesure donc la position FINALE, sans animation.
+      const st = w.document.createElement('style');
+      st.textContent = '.ssa, .ssa.open { transition: none !important; }';
+      w.document.head.appendChild(st);
+      w.SSNav.getIdentity = async () => ID(identite === undefined ? 'nicolas' : identite);
+      w.SS.listActivity = async () => [];
+      w.SS.listConnections = async () => [];
+      await w.rafraichir();
+      await w.SSNav.ouvrirAssistant();          // charge assistant.js et ouvre
+      w.SSAssistant.fermer();
+      w.SSAssistant._oublier();
+      w.SSAssistant._nouvelle();
+      await attendre(150);
+      return f;
+    }
+    /* Le faux serveur de Claude : `script(corps, n)` renvoie les lignes du flux (tableau) ou
+       { status, json } pour une erreur. Chaque requête est gardée pour être inspectée. */
+    function fauxServeur(w, script) {
+      const appels = [];
+      const vrai = w.fetch;
+      w.fetch = async (url, o) => {
+        if (String(url).indexOf('/api/assistant') < 0) return vrai.call(w, url, o);
+        const corps = JSON.parse(o.body); appels.push(corps);
+        const r = script(corps, appels.length);
+        if (r && r.status) return new w.Response(JSON.stringify(r.json), { status: r.status, headers: { 'Content-Type': 'application/json' } });
+        return new w.Response((r || []).map(l => JSON.stringify(l) + '\n').join(''), { headers: { 'Content-Type': 'application/x-ndjson' } });
+      };
+      return appels;
+    }
+    const fin = (content, stop) => ({ t: 'fin', content, stop_reason: stop || 'end_turn' });
+    const texte = (t) => ({ type: 'text', text: t });
+    const outil = (id, name, input) => ({ type: 'tool_use', id, name, input: input || {} });
+    async function finTour(w, max) {
+      const t0 = Date.now();
+      await attendre(40);
+      while (w.SSAssistant._etat().enCours && Date.now() - t0 < (max || 6000)) await attendre(40);
+      await attendre(40);
+    }
+    // La forme que l'API exige, vérifiée sur CHAQUE requête envoyée.
+    function formeValide(messages) {
+      if (!messages.length || messages[0].role !== 'user') return 'premier message pas « user »';
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (i && messages[i - 1].role === m.role) return 'deux messages « ' + m.role + ' » de suite (' + i + ')';
+        if (!Array.isArray(m.content) || !m.content.length) return 'message vide (' + i + ')';
+        const appels = m.role === 'assistant' ? m.content.filter(b => b.type === 'tool_use').map(b => b.id) : [];
+        if (appels.length) {
+          const suite = messages[i + 1];
+          if (!suite) continue;   // dernier message : la requête suivante portera les résultats
+          const res = suite.content.filter(b => b.type === 'tool_result');
+          if (JSON.stringify(res.map(b => b.tool_use_id)) !== JSON.stringify(appels)) return 'résultats ≠ appels (' + i + ')';
+          if (suite.content.findIndex(b => b.type !== 'tool_result') !== -1 && suite.content.findIndex(b => b.type !== 'tool_result') < res.length) return 'texte avant les résultats (' + (i + 1) + ')';
+        }
+      }
+      return 'ok';
+    }
+
+    (async function () {
+      try {
+        semer();
+
+        /* ══════════ M — LE MODULE PARTAGÉ (assets/js/actions.js) ══════════ */
+        titre('M — La prochaine action vit dans un module partagé : l’assistant et le tableau de bord disent la même chose');
+        const f1 = await ouvrir(1500, 900, 'nicolas');
+        const w = f1.contentWindow;
+        check('M1 window.SSActions expose creer, WAITING_STATUSES et DEAD_STATUSES',
+          [typeof w.SSActions.creer, w.SSActions.WAITING_STATUSES.join(','), w.SSActions.DEAD_STATUSES.join(',')],
+          ['function', 'envoye_client,relance_1,relance_2', 'refuse,annule']);
+        const ND = DEVIS.map(w.SSUI.normDevis);
+        let factures = FACTURES.slice();
+        const A = w.SSActions.creer({ factures: () => factures, devis: () => ND, rdv: () => [], sujets: () => SUJETS });
+        const pa = w.eval('prochaineAction');
+        check('M2 Pour CHAQUE devis, le module seul donne la même action que le tableau de bord',
+          ND.map(d => (A.prochaineAction(d) || {}).txt || null), ND.map(d => (pa(d) || {}).txt || null));
+        check('M3 …dont l’acompte à encaisser, et aucun acompte sur un dépannage',
+          [(A.prochaineAction(ND[3]) || {}).txt, A.isAcompteUnpaid(ND.find(d => d.id === 'T-DEP'))], ['Acompte à encaisser', false]);
+        factures = FACTURES.concat([{ id: 'TF-X', devis_id: 'T-SIG', type: 'solde', total_ttc: 3600, paiements: [{ montant: 3600 }] }]);
+        check('M4 Les factures sont relues À CHAQUE APPEL (une copie figée garderait l’acompte impayé)',
+          A.isAcompteUnpaid(ND[3]), false);
+        factures = FACTURES.slice();
+        check('M5 Les chiffres du cockpit : même calcul, mêmes montants que l’écran',
+          JSON.stringify(A.chiffres()), JSON.stringify(w.eval('ACT').chiffres()));
+        check('M6 « Actifs » : refusé et terminé-soldé exclus, terminé NON soldé gardé (argent à encaisser)',
+          ND.filter(d => !A.estActif(d)).map(d => d.id), ['T-REF']);
+        check('M7 chiffres(mois) accepte un autre mois et refuse un format faux (repli sur le mois en cours)',
+          [A.chiffres('2001-01').mois, A.chiffres('n’importe').mois], ['2001-01', w.SSUI.aujourdhui().slice(0, 7)]);
+
+        /* ══════════ O — LES OUTILS DE LECTURE ══════════ */
+        titre('O — Les outils de lecture répondent avec les règles des écrans');
+        const O = w.SSAssistant._outils;
+        const moiDash = w.eval('ACTIONS').moi, autreDash = w.eval('ACTIONS').autre;
+        const afMoi = await O.a_faire.run({ pour: 'moi' });
+        check('O1 « À faire » pour moi = la liste « À faire maintenant » du tableau de bord, dans le même ordre',
+          afMoi.entrees.map(x => x.client + '|' + x.detail), moiDash.map(x => x.nom + '|' + x.detail));
+        const afAutre = await O.a_faire.run({ pour: 'autre' });
+        check('O2 …et pour l’autre associé, ce qui l’attend', afAutre.entrees.map(x => x.client), autreDash.map(x => x.nom));
+        check('O3 Chaque entrée porte un lien vers l’ERP (/app/…)', afMoi.entrees.every(x => /^\/app\//.test(x.lien)), true);
+        const ch = await O.chercher_devis.run({ texte: 'hoest' });
+        check('O4 Chercher « hoest » trouve « L’Hoëst » (accents et apostrophes ignorés)', ch.devis.map(d => d.id), ['T-REL']);
+        const actifs = await O.chercher_devis.run({});
+        const tous = await O.chercher_devis.run({ statut: 'tous', limite: 50 });
+        check('O5 Par défaut, les devis ACTIFS ; « tous » ajoute le refusé', [actifs.devis.some(d => d.id === 'T-REF'), tous.devis.some(d => d.id === 'T-REF')], [false, true]);
+        const det = await O.detail_devis.run({ id: 't-sig' });
+        check('O6 Le détail d’un devis : prochaine action, reste dû de sa facture (calcul de l’ERP), lien',
+          [det.prochaine_action, det.factures[0].reste_du, det.lien], ['Acompte à encaisser', w.SSUI.fmtEur(3600), '/app/vue.html?id=T-SIG']);
+        check('O7 Un numéro inconnu répond une ERREUR claire, jamais un devis inventé', !!(await O.detail_devis.run({ id: 'ZZZ' })).erreur, true);
+        const fa = await O.factures.run({});
+        const faR = await O.factures.run({ etat: 'en_retard' });
+        check('O8 Factures à encaisser : le total = la somme des restes dus (3 600 + 5 000)', [fa.nombre, fa.total_reste_du], [2, w.SSUI.fmtEur(8600)]);
+        check('O9 …et en retard : seule celle dont l’échéance est passée', faR.factures.map(x => x.numero), ['TF-2']);
+        const chi = await O.chiffres.run({});
+        check('O10 Les chiffres donnés à Claude = ceux du cockpit', [chi.reste_a_encaisser, chi.dont_en_retard],
+          [w.SSUI.fmtEur(w.eval('ACT').chiffres().resteEncaisser), w.SSUI.fmtEur(w.eval('ACT').chiffres().enRetard)]);
+        const pl = await O.planning.run({});
+        check('O11 Le planning des 14 jours : la pose dans 3 jours, pas celle dans 30', pl.prevu.map(x => x.client), ['École Chantier']);
+        const ech = await O.echanges.run({});
+        check('O12 Les échanges ouverts, avec qui attend', ech.sujets.map(s => s.attend).sort(), ['Nicolas', 'Yannick']);
+        check('O13 Un outil qui plante renvoie une erreur lisible au lieu de casser la conversation',
+          await (async () => { const g = w.SS.getDevis; w.SS.getDevis = async () => { throw new Error('boum'); }; const r = await O.detail_devis.run({ id: 'T-SIG' }); w.SS.getDevis = g; return r.id; })(), 'T-SIG');
+
+        /* ══════════ E — LES ÉCRITURES : vérifiées, puis seulement après un clic ══════════ */
+        titre('E — Une écriture n’est qu’une carte : vérifiée d’abord, faite seulement après « Confirmer »');
+        check('E1 Mise en attente avec une date passée : refusée avant même la carte', !!(await O.proposer_attente.verifier({ devis_id: 'T-REL', motif: 'x', revoir_le: J(-1) })), true);
+        check('E2 …sans motif : refusée', !!(await O.proposer_attente.verifier({ devis_id: 'T-REL', motif: ' ', revoir_le: J(10) })), true);
+        check('E3 …sur un devis SIGNÉ (rien à attendre du client) : refusée', !!(await O.proposer_attente.verifier({ devis_id: 'T-SIG', motif: 'x', revoir_le: J(10) })), true);
+        check('E4 …bien formée sur un devis chez le client : acceptée', await O.proposer_attente.verifier({ devis_id: 'T-REL', motif: 'Revient après les vacances', revoir_le: J(10) }), '');
+        check('E5 Un mot vide est refusé ; une note sur un devis inconnu aussi',
+          [!!(await O.proposer_mot.verifier({ texte: '  ' })), !!(await O.proposer_note.verifier({ devis_id: 'NOPE', texte: 'x' }))], [true, true]);
+
+        /* ══════════ C — LA CONVERSATION ══════════ */
+        titre('C — La conversation envoyée à Claude reste toujours valide');
+        const ecrits = [];
+        w.SS.saveSujet = async (s) => { ecrits.push(s); return { ok: true }; };
+        let appels = fauxServeur(w, (c, n) => {
+          if (n === 1) return [{ t: 'texte', d: 'Je regarde.' }, fin([{ type: 'thinking', thinking: '', signature: 'SIG-1' }, texte('Je regarde.'), outil('tu1', 'a_faire', { pour: 'moi' })], 'tool_use')];
+          if (n === 2) return [fin([texte('Je propose un mot.'), outil('tu2', 'proposer_mot', { texte: 'Rappelle Signe pour le RAL', genre: 'question' })], 'tool_use')];
+          return [{ t: 'texte', d: 'Bien reçu.' }, fin([texte('Bien reçu.')])];
+        });
+        w.SSAssistant.ouvrir();
+        w.SSAssistant._envoyer('Qu’est-ce que je dois faire ?');
+        await finTour(w);
+        const m1 = appels[0].messages;
+        check('C1 Le premier message porte le contexte (date, page) avant la question', [m1.length, /^\[Contexte\] Aujourd.+\(dashboard\)\.\n\nQu’est-ce que je dois faire \?$/.test(m1[0].content[0].text)], [1, true]);
+        check('C1b …avec le nom de la page, sans celui de l’application', /Page ouverte : Tableau de bord \(dashboard\)/.test(m1[0].content[0].text), true);
+        const m2 = appels[1].messages;
+        check('C2 La réflexion de Claude repart TELLE QUELLE (signature comprise), suivie du résultat de l’outil',
+          [m2[1].content[0].signature, m2[2].content[0].type, m2[2].content[0].tool_use_id], ['SIG-1', 'tool_result', 'tu1']);
+        check('C3 Une carte attend : RIEN n’est écrit, aucun appel de plus', [ecrits.length, appels.length, !!w.document.querySelector('[data-ssa-oui]')], [0, 2, true]);
+        check('C4 Le texte de la carte est celui que Claude propose', w.document.querySelector('.ssa-carte-texte').textContent, 'Rappelle Signe pour le RAL');
+        w.document.querySelector('[data-ssa-oui]').click();
+        await finTour(w);
+        check('C5 Après « Confirmer » : un seul mot, POUR l’autre associé, du bon genre', [ecrits.length, ecrits[0].pour, ecrits[0].kind, ecrits[0].titre], [1, 'yannick', 'question', 'Rappelle Signe pour le RAL']);
+        const r3 = appels[2].messages[appels[2].messages.length - 1].content[0];
+        check('C6 …et Claude reçoit le résultat (ok) pour continuer', [r3.tool_use_id, JSON.parse(r3.content).ok], ['tu2', true]);
+        check('C7 Toutes les requêtes avaient la forme exigée par l’API', appels.map(a => formeValide(a.messages)), ['ok', 'ok', 'ok']);
+
+        // Annuler, puis une nouvelle question pendant qu'une carte attend
+        w.SSAssistant._nouvelle();
+        appels = fauxServeur(w, (c, n) => {
+          if (n === 1) return [fin([outil('tA', 'proposer_note', { devis_id: 'T-SIG', texte: 'Client à rappeler' }), outil('tB', 'proposer_mot', { texte: 'Info' })], 'tool_use')];
+          return [fin([texte('Compris.')])];
+        });
+        const notes = [];
+        w.SS.addComment = async (id, o) => { notes.push([id, o]); return { ok: true }; };
+        w.SSAssistant._envoyer('Note ça');
+        await finTour(w);
+        check('C8 Deux cartes en même temps : rien ne part tant qu’elles attendent', [appels.length, w.document.querySelectorAll('[data-ssa-oui]').length], [1, 2]);
+        w.document.querySelector('[data-ssa-non="tA"]').click();
+        await finTour(w);
+        check('C9 Annuler l’une n’envoie rien tant que l’autre attend', [appels.length, notes.length], [1, 0]);
+        w.SSAssistant._envoyer('Laisse tomber, autre chose');
+        await finTour(w);
+        const u = appels[1].messages[appels[1].messages.length - 1].content;
+        check('C10 Nouvelle question pendant une carte : les DEUX résultats d’abord (annulés), puis la question',
+          [u.map(b => b.type).join(','), JSON.parse(u[0].content).annule, JSON.parse(u[1].content).annule, /autre chose$/.test(u[2].text)],
+          ['tool_result,tool_result,text', true, true, true]);
+        check('C11 …et rien n’a été écrit', [notes.length, ecrits.length], [0, 1]);
+        check('C12 Forme valide', appels.map(a => formeValide(a.messages)), ['ok', 'ok']);
+
+        // Refus du modèle, sans un mot
+        w.SSAssistant._nouvelle();
+        appels = fauxServeur(w, (c, n) => n === 1 ? [fin([], 'refusal')] : [fin([texte('ok')])]);
+        w.SSAssistant._envoyer('Question qui sera refusée');
+        await finTour(w);
+        const conv = w.SSAssistant._etat().conv.messages;
+        check('C13 Un refus sans un mot ne laisse JAMAIS un message vide (l’API refuserait la suite)',
+          [conv[1].role, conv[1].content.length > 0, conv[1].content[0].type], ['assistant', true, 'text']);
+        w.SSAssistant._envoyer('Autre question');
+        await finTour(w);
+        check('C14 …et la conversation repart', [appels.length, formeValide(appels[1].messages)], [2, 'ok']);
+
+        // Erreur du serveur : pas de réponse → la question suivante complète le même message
+        w.SSAssistant._nouvelle();
+        appels = fauxServeur(w, (c, n) => n === 1 ? { status: 503, json: { ok: false, code: 'cle', error: 'Pas de clé' } } : [fin([texte('ok')])]);
+        w.SSAssistant._envoyer('Première');
+        await finTour(w);
+        check('C15 La clé manque : le message du serveur s’affiche, sans « Réessayer » (inutile)',
+          [w.document.querySelector('.ssa-err') && /Pas de clé/.test(w.document.querySelector('.ssa-err').textContent), !!w.document.querySelector('[data-ssa-reessayer]')], [true, false]);
+        w.SSAssistant._envoyer('Deuxième');
+        await finTour(w);
+        const mm = appels[1].messages;
+        check('C16 La question suivante COMPLÈTE le message resté sans réponse (jamais deux « user » de suite)',
+          [mm.length, mm[0].content.length, formeValide(mm)], [1, 2, 'ok']);
+
+        // Une entrée d'outil coupée par la limite de longueur n'est pas exécutée
+        w.SSAssistant._nouvelle();
+        let lu = 0; const gd = O.chercher_devis.run; O.chercher_devis.run = async (p) => { lu++; return gd(p); };
+        appels = fauxServeur(w, (c, n) => n === 1 ? [fin([outil('tM', 'chercher_devis', { texte: 'Sig' })], 'max_tokens')] : [fin([texte('ok')])]);
+        w.SSAssistant._envoyer('Cherche');
+        await finTour(w);
+        O.chercher_devis.run = gd;
+        check('C17 Appel coupé (max_tokens) : l’outil ne tourne PAS, Claude reçoit une erreur', [lu, JSON.parse(appels[1].messages[2].content[0].content).erreur ? 'erreur' : 'non'], [0, 'erreur']);
+
+        // Boucle qui ne s'arrête pas : garde-fou
+        w.SSAssistant._nouvelle();
+        appels = fauxServeur(w, (c, n) => [fin([outil('tL' + n, 'chiffres', {})], 'tool_use')]);
+        w.SSAssistant._envoyer('Boucle');
+        await finTour(w, 15000);
+        const etat = w.SSAssistant._etat();
+        check('C18 Une boucle d’outils s’arrête à 8 appels, avec un mot pour le dire', [appels.length, /8 étapes/.test(etat.avis)], [8, true]);
+        check('C19 …et la conversation laissée est valide (le dernier appel a son résultat)',
+          [etat.conv.messages[etat.conv.messages.length - 1].role, formeValide(etat.conv.messages)], ['user', 'ok']);
+
+        /* ══════════ L — LIENS ET TEXTE ══════════ */
+        titre('L — Aucun lien inventé, aucun HTML de Claude n’est exécuté');
+        const html = w.SSAssistant._md('<img src=x onerror=alert(1)> [a](javascript:alert(1)) [b](https://evil.example/x) [c](/app/vue.html?id=T-1&x=2) [d](tel:0470 12 34 56) [e](factures.html) **g**');
+        check('L1 Le HTML est échappé', html.indexOf('<img') === -1, true);
+        check('L2 javascript: et un site extérieur ne deviennent PAS des liens', [/javascript:/.test(html.match(/href="[^"]*"/g).join(' ')), /evil/.test(html.match(/href="[^"]*"/g).join(' '))], [false, false]);
+        check('L3 Les pages de l’ERP et le téléphone deviennent des liens', html.match(/href="[^"]*"/g), ['href="/app/vue.html?id=T-1&amp;x=2"', 'href="tel:0470123456"', 'href="/app/factures.html"']);
+        check('L4 Gras et listes', [w.SSAssistant._md('**g**'), w.SSAssistant._md('- a\n- b')], ['<p><strong>g</strong></p>', '<ul><li>a</li><li>b</li></ul>']);
+        check('L5 Le contexte ne s’affiche pas dans la bulle de la question', w.SSAssistant._sansContexte('[Contexte] Aujourd’hui : x.\n\nBonjour'), 'Bonjour');
+
+        /* ══════════ P — LA CONVERSATION SUIT L'ONGLET ══════════ */
+        titre('P — La conversation suit l’onglet d’une page à l’autre');
+        w.SSAssistant._nouvelle();
+        appels = fauxServeur(w, () => [fin([texte('Réponse gardée.')])]);
+        w.SSAssistant.ouvrir();
+        w.SSAssistant._envoyer('Garde-moi');
+        await finTour(w);
+        const f2 = await cadre('../app/dashboard.html?t=' + Date.now(), 1500, 900);
+        const w2 = f2.contentWindow;
+        await attendre(600);
+        check('P1 Page suivante : le panneau se rouvre de lui-même, avec la conversation', [!!(w2.SSAssistant && w2.SSAssistant.estOuvert()), /Réponse gardée/.test(w2.document.querySelector('.ssa-fil').textContent)], [true, true]);
+        w2.SSAssistant.fermer();
+        const f3 = await cadre('../app/dashboard.html?t=' + Date.now(), 1500, 900);
+        await attendre(400);
+        check('P2 Fermé, il ne se rouvre pas (et assistant.js n’est même pas chargé)', !!f3.contentWindow.SSAssistant, false);
+        f2.remove(); f3.remove();
+
+        /* ══════════ B — BUREAU ══════════ */
+        titre('B — Au bureau (1500 px) : le rail, le panneau, le clavier');
+        w.SSAssistant.fermer();
+        const bt = w.document.querySelector('.ssrail-assist');
+        check('B1 L’entrée « Assistant » est dans le rail, sous la recherche',
+          [!!bt, bt && bt.previousElementSibling && bt.previousElementSibling.classList.contains('ssrail-search')], [true, true]);
+        bt.focus(); bt.click(); await attendre(350);
+        const pr = w.document.querySelector('.ssa').getBoundingClientRect();
+        check('B2 Le clic ouvre un panneau de 440 px collé à droite', [w.SSAssistant.estOuvert(), Math.round(pr.width), Math.round(pr.right)], [true, 440, w.document.documentElement.clientWidth]);
+        w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await attendre(300);
+        check('B3 Échap le ferme et rend le focus au bouton', [w.SSAssistant.estOuvert(), w.document.activeElement === bt, w.getComputedStyle(w.document.querySelector('.ssa')).visibility], [false, true, 'hidden']);
+        f1.remove();
+
+        /* ══════════ T — TÉLÉPHONE ══════════ */
+        titre('T — Sur téléphone (390 × 700) : plein écran, rien qui dépasse, on sait toujours revenir');
+        const ft = await ouvrir(390, 700, 'nicolas');
+        const wt = ft.contentWindow;
+        const item = wt.document.querySelector('.ssnav-assist');
+        check('T1 L’entrée « Assistant » est dans le volet du menu', !!item, true);
+        item.click(); await attendre(400);
+        const dt = wt.document.documentElement;
+        const r = wt.document.querySelector('.ssa').getBoundingClientRect();
+        check('T2 Le panneau couvre tout l’écran, sans déborder', [Math.round(r.left), Math.round(r.width) === dt.clientWidth, dt.scrollWidth <= dt.clientWidth], [0, true, true]);
+        appels = fauxServeur(wt, () => [fin([texte('Une réponse assez longue pour vérifier que rien ne déborde : ' + 'mot '.repeat(80))])]);
+        wt.SSAssistant._envoyer('Test téléphone avec une question longue ' + 'x'.repeat(120));
+        await finTour(wt);
+        const env = wt.document.querySelector('.ssa-envoi').getBoundingClientRect();
+        const ferm = wt.document.querySelector('.ssa-fermer').getBoundingClientRect();
+        check('T3 Le bouton d’envoi reste visible, dans l’écran', [env.right <= dt.clientWidth, env.bottom <= wt.innerHeight, env.top >= 0], [true, true, true]);
+        check('T4 Le bouton Fermer fait 44 px (assez grand pour un doigt) et reste en haut', [Math.round(ferm.height) >= 44, ferm.top >= 0 && ferm.bottom <= 60], [true, true]);
+        check('T5 Rien ne déborde à l’horizontale, même avec une question sans espace',
+          [...wt.document.querySelectorAll('.ssa-moi, .ssa-lui')].every(n => n.getBoundingClientRect().right <= dt.clientWidth + 0.5), true);
+        check('T6 La page derrière ne défile plus (un seul défilement : celui de la conversation)', wt.getComputedStyle(wt.document.body).overflow, 'hidden');
+        check('T7 Le champ est en 16 px (sinon iOS zoome et la page déborde)', wt.getComputedStyle(wt.document.querySelector('.ssa-texte')).fontSize, '16px');
+        const lien = wt.document.createElement('a'); lien.href = '#x'; lien.textContent = 'lien';
+        wt.document.querySelector('.ssa-lui').appendChild(lien);
+        lien.addEventListener('click', (e) => e.preventDefault());
+        lien.click();
+        check('T8 Un lien suivi depuis le panneau ne le rouvrira pas sur la page suivante (on veut voir la page)', wt.sessionStorage.getItem('ss_assistant_ouvert'), '0');
+        wt.document.querySelector('.ssa-fermer').click(); await attendre(300);
+        check('T9 Fermer rend la page (défilement rétabli, panneau caché)', [wt.SSAssistant.estOuvert(), wt.getComputedStyle(wt.document.body).overflow !== 'hidden'], [false, true]);
+        ft.remove();
+
+        /* ══════════ I — SANS IDENTITÉ ══════════ */
+        titre('I — Sans identité connue');
+        const fi = await ouvrir(1500, 900, null);
+        const wi = fi.contentWindow;
+        check('I1 Pas de mot à « l’autre » quand on ne sait pas qui est connecté', !!(await wi.SSAssistant._outils.proposer_mot.verifier({ texte: 'x' })), true);
+        wi.SSAssistant.ouvrir(); await attendre(300);
+        check('I2 …ni de suggestion qui parle de « l’autre »', /attend/.test(wi.document.querySelector('.ssa-fil').textContent), false);
+        fi.remove();
+
+        /* ══════════ S — LA ROUTE SERVEUR /api/assistant ══════════
+           Le VRAI fichier du backend, chargé ici avec un faux SDK (aucun appel à Anthropic) et une
+           fausse base : on vérifie ce que la route exige, ce qu'elle envoie à Claude et ce qu'elle
+           renvoie au navigateur. */
+        titre('S — La route serveur : identité, clé, plafond, ce qui part chez Claude, ce qui revient');
+        let src = await (await fetch('../functions/api/%5B%5Bcatchall%5D%5D.js?t=' + Date.now())).text();
+        const IMPORT = "import Anthropic from '@anthropic-ai/sdk';";
+        check('S1 Le backend importe le SDK officiel (une seule fois)', src.split(IMPORT).length - 1, 1);
+        src = src.replace(IMPORT, 'const Anthropic = globalThis.__FauxAnthropic;') +
+          '\nexport { routeAssistant, assistantMessages, assistantPourRenvoi, ASSISTANT_OUTILS };\n';
+        class APIError extends Error { constructor(status, m) { super(m); this.status = status; } }
+        class AuthenticationError extends APIError {}
+        class RateLimitError extends APIError {}
+        class BadRequestError extends APIError {}
+        const FA = {
+          params: null, cle: null, scenario: null,
+          stream(p) {
+            FA.params = p;
+            const sc = FA.scenario;
+            const cbs = [];
+            return {
+              on(ev, cb) { if (ev === 'text') cbs.push(cb); return this; },
+              abort() {},
+              async finalMessage() {
+                if (sc.erreur) throw sc.erreur;
+                (sc.deltas || []).forEach(d => cbs.forEach(cb => cb(d, '')));
+                return sc.message;
+              },
+            };
+          },
+        };
+        function FauxAnthropic(o) { FA.cle = o.apiKey; this.beta = { messages: { stream: FA.stream } }; }
+        Object.assign(FauxAnthropic, { APIError, AuthenticationError, RateLimitError, BadRequestError });
+        globalThis.__FauxAnthropic = FauxAnthropic;
+        const S = await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+        const jeton = (email) => 'x.' + btoa(JSON.stringify({ email })).replace(/=+$/, '') + '.y';
+        function fausseBase(appelsDuJour) {
+          const b = { appels: appelsDuJour || 0, sql: [] };
+          b.prepare = (sql) => {
+            const q = { args: [], bind(...a) { q.args = a; return q; },
+              async run() { b.sql.push(sql); if (/^INSERT INTO assistant_usage/.test(sql)) b.appels++; return { meta: { changes: 1 } }; },
+              async first() { b.sql.push(sql); return /SELECT appels/.test(sql) ? (b.appels ? { appels: b.appels } : null) : null; } };
+            return q;
+          };
+          return b;
+        }
+        const requete = (corps, email) => new Request('https://x/api/assistant', { method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, email ? { 'Cf-Access-Jwt-Assertion': jeton(email) } : {}),
+          body: typeof corps === 'string' ? corps : JSON.stringify(corps) });
+        const OKMSG = { messages: [{ role: 'user', content: [{ type: 'text', text: 'Bonjour' }] }] };
+        const envT = (o) => Object.assign({ ANTHROPIC_API_KEY: 'cle-de-test', DB: fausseBase() }, o || {});
+        const lignes = async (res) => (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l));
+
+        let res = await S.routeAssistant(requete(OKMSG, null), envT());
+        check('S2 Sans identité Access (l’aperçu d’une branche) : 403, et AUCUN appel à Claude', [res.status, FA.params], [403, null]);
+        res = await S.routeAssistant(requete(OKMSG, 'inconnu@exemple.be'), envT());
+        check('S3 Une identité qui n’est ni Nicolas ni Yannick : 403', res.status, 403);
+        res = await S.routeAssistant(requete(OKMSG, 'nicolas.struelens@me.com'), envT({ ANTHROPIC_API_KEY: '' }));
+        check('S4 Sans clé dans les secrets Cloudflare : 503 avec l’explication', [res.status, (await res.json()).code], [503, 'cle']);
+        res = await S.routeAssistant(requete({ messages: [{ role: 'assistant', content: [{ type: 'text', text: 'x' }] }] }, 'nicolas.struelens@me.com'), envT());
+        check('S5 Une conversation qui commence par Claude : refusée (400)', res.status, 400);
+        res = await S.routeAssistant(requete({ messages: [{ role: 'user', content: [{ type: 'image', source: {} }] }] }, 'nicolas.struelens@me.com'), envT());
+        check('S6 Un type de bloc inattendu : refusé (400)', res.status, 400);
+        res = await S.routeAssistant(requete({ messages: [{ role: 'user', content: [] }] }, 'nicolas.struelens@me.com'), envT());
+        check('S7 Un message vide : refusé (400)', res.status, 400);
+        res = await S.routeAssistant(requete('x'.repeat(900001), 'nicolas.struelens@me.com'), envT());
+        check('S8 Une conversation trop lourde : 413', res.status, 413);
+        res = await S.routeAssistant(requete(OKMSG, 'nicolas.struelens@me.com'), envT({ DB: fausseBase(150) }));
+        check('S9 Plafond du jour atteint : 429, sans appel', [res.status, (await res.json()).code, FA.params], [429, 'plafond', null]);
+
+        FA.scenario = { deltas: ['Bon', 'jour'], message: { content: [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: 'Bonjour' }], stop_reason: 'end_turn', model: 'claude-opus-5-5', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 3 } } };
+        const base = fausseBase();
+        res = await S.routeAssistant(requete(OKMSG, 'info@solariscreen.be'), envT({ DB: base }));
+        const L = await lignes(res);
+        check('S10 La réponse arrive en flux : les morceaux de texte, puis la fin', [res.headers.get('Content-Type').indexOf('ndjson') >= 0, L.map(x => x.t)], [true, ['texte', 'texte', 'fin']]);
+        check('S11 La fin porte le message complet (réflexion comprise) et la raison d’arrêt', [L[2].content.map(b => b.type), L[2].stop_reason], [['thinking', 'text'], 'end_turn']);
+        const P = FA.params;
+        check('S12 Claude Opus 5.5, effort moyen, repli de modèle par défaut', [P.model, P.output_config.effort, P.fallbacks, P.betas], ['claude-opus-5-5', 'medium', 'default', ['server-side-fallback-2026-07-01']]);
+        check('S13 Pas de paramètre de réflexion (toujours actif sur ce modèle : l’envoyer coûte un 400)', ['thinking' in P, 'temperature' in P, 'tool_choice' in P], [false, false, false]);
+        check('S14 Le prompt est mis en cache, et dit à qui Claude parle (identité venant d’Access)', [P.system[0].cache_control.type, /Yannick/.test(P.system[1].text), P.cache_control.type], ['ephemeral', true, 'ephemeral']);
+        check('S15 Les 13 outils sont envoyés, dans un ordre fixe (cache)', P.tools.map(t => t.name).join(','), 'a_faire,chercher_devis,detail_devis,chercher_clients,factures,planning,demandes_rdv,echanges,chiffres,sav,proposer_mot,proposer_note,proposer_attente');
+        check('S16 Aucun outil ne supprime, ne change un statut ni n’écrit au client', P.tools.some(t => /suppr|delete|statut|envoyer_client|mail/i.test(t.name)), false);
+        check('S17 La clé vient des secrets, jamais du navigateur', FA.cle, 'cle-de-test');
+        check('S18 L’appel est compté AVANT, les jetons APRÈS', [base.appels, base.sql.some(q => /^UPDATE assistant_usage SET entree/.test(q))], [1, true]);
+
+        FA.params = null;
+        FA.scenario = { erreur: new AuthenticationError(401, 'invalid x-api-key') };
+        res = await S.routeAssistant(requete(OKMSG, 'nicolas.struelens@me.com'), envT());
+        const LE = await lignes(res);
+        check('S19 Une clé refusée par Anthropic : un message clair, sans détail technique brut', [LE.map(x => x.t), /clé/.test(LE[0].message)], [['erreur'], true]);
+        FA.scenario = { erreur: new APIError(529, 'overloaded') };
+        res = await S.routeAssistant(requete(OKMSG, 'nicolas.struelens@me.com'), envT());
+        check('S20 Anthropic surchargé : « réessaie dans un instant »', /surchargé/.test((await lignes(res))[0].message), true);
+
+        const avecRepli = [{ type: 'thinking', signature: 'a' }, { type: 'tool_use', id: 't0' }, { type: 'text', text: 'début' }, { type: 'fallback' }, { type: 'thinking', signature: 'b' }, { type: 'text', text: 'suite' }];
+        check('S21 Après un repli de modèle, ce qui précède le repli (réflexion, appels) n’est pas renvoyé',
+          S.assistantPourRenvoi(avecRepli).map(b => b.type + (b.signature || b.text || '')), ['textdébut', 'fallback', 'thinkingb', 'textsuite']);
+        check('S22 Sans repli, le message repart intact', S.assistantPourRenvoi(avecRepli.slice(4)).length, 2);
+      } catch (e) {
+        check('Erreur inattendue', String(e && e.stack || e).slice(0, 300), '');
+      } finally {
+        remettre();
+        rendre();
+      }
+    })();
+  </script>
+</body>
+</html>
