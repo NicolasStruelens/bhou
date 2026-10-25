@@ -1910,6 +1910,34 @@
     return avoirsSur(factures, f.id) >= (Number(f.total_ttc) || 0) - 0.005;
   }
 
+  /* ── LE STATUT D'UNE FACTURE — source unique (règle 10) ──
+     Il vivait dans factures.html, et la fiche client en avait une COPIE qui ignorait les notes de
+     crédit : un avoir s'y affichait « Soldée — −3 000 € » et la facture qu'il annule « Impayée »,
+     là où la Facturation disait « Note de crédit » et « Annulée » (trouvé le 25/10/2026). Une NOTE
+     DE CRÉDIT n'est ni payée ni impayée : elle annule, elle ne s'encaisse pas.
+     @returns 'avoir' | 'annulee' | 'payee' | 'partielle' | 'impayee' */
+  const TYPE_FACTURE_LABEL = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale', partielle: 'Partielle', avoir: 'Note de crédit' };
+  function statutFacture(f, factures) {
+    if (f && f.type === 'avoir') return 'avoir';
+    if (factureAnnulee(f, factures)) return 'annulee';
+    const p = paiementsSum(f);
+    if (p >= ((f && Number(f.total_ttc)) || 0) - 0.005) return 'payee';
+    if (p > 0) return 'partielle';
+    return 'impayee';
+  }
+  /** Encore due ET échéance dépassée. Jamais pour un avoir, une facture annulée ou payée. */
+  function factureEnRetard(f, factures) {
+    return ['avoir', 'annulee', 'payee'].indexOf(statutFacture(f, factures)) === -1 && !!(f && f.echeance) && f.echeance < aujourdhui();
+  }
+  function badgeFacture(f, factures) {
+    const st = statutFacture(f, factures);
+    if (st === 'avoir') return '<span class="badge badge-purple">Note de crédit</span>';
+    if (st === 'annulee') return '<span class="badge" style="opacity:.75;">Annulée</span>';
+    if (st === 'payee') return '<span class="badge badge-ok">Payée</span>';
+    if (st === 'partielle') return '<span class="badge badge-warn">Partielle</span>';
+    return factureEnRetard(f, factures) ? '<span class="badge badge-danger">En retard</span>' : '<span class="badge badge-cyan">À payer</span>';
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
      CHAMPS MANQUANTS — signalés du tableau de bord jusqu'à la fiche
      ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -2003,6 +2031,7 @@
     attenteClient: attenteClient, attenteApplicable: attenteApplicable,
     attenteCourante: attenteCourante, MOTIFS_ATTENTE: MOTIFS_ATTENTE,
     avoirsSur: avoirsSur, duFacture: duFacture, factureAnnulee: factureAnnulee,
+    TYPE_FACTURE_LABEL: TYPE_FACTURE_LABEL, statutFacture: statutFacture, factureEnRetard: factureEnRetard, badgeFacture: badgeFacture,
     deporterPhotos: deporterPhotos, estPhotoInline: estPhotoInline, poidsInline: poidsInline,
     dateEnvoiOf: dateEnvoiOf, joursEntre: joursEntre, plusJours: plusJours,
     memo: memo, remplirDatalist: remplirDatalist,
