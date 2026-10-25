@@ -81,6 +81,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 | `tests/nav.test.html` | Les 87 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, et de vraies pages en cadre à 1500, 1200 et 390 px. **Par le serveur de test.** |
+| `tests/dashboard.test.html` | Les 51 tests du tableau de bord (règle 40) : prochaine action (dépannage, commande), situations, étapes, relais, alignement au bureau, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -241,11 +242,13 @@ signalent déjà, et une liste qui se répète perd sa crédibilité), le planni
 écran. Même raison pour « à recontacter », qui n'est produit que si quelqu'un est déjà assigné.
 Le TABLEAU DE BORD le consomme aussi depuis le 03/10/2026. Il ne chargeait même pas `attente.js` :
 on ouvrait l'ERP sur un écran qui annonçait la journée en ignorant les tickets SAV et les échanges,
-pendant que le badge du menu, lui, les comptait. La bande « Aujourd'hui » en tire désormais ses
-pastilles SAV et Échanges, donc les chiffres ne peuvent plus diverger d'un écran à l'autre.
-⚠️ Les pastilles DEVIS de cette bande (relances, acompte, solde, devis expiré, lien jamais ouvert)
-ne sont PAS des copies : `attente.js` ne couvre ni les relances ni l'argent. Les deux sources sont
+pendant que le badge du menu, lui, les comptait. Le cockpit (règle 40) en tire désormais ses
+actions RDV, SAV et Échanges, donc les chiffres ne peuvent plus diverger d'un écran à l'autre.
+⚠️ Les actions DEVIS du cockpit (relances, acompte, solde, devis expiré, chantier) ne sont PAS des
+copies : `attente.js` ne couvre ni les relances ni l'argent. Les deux sources sont
 COMPLÉMENTAIRES — ne pas les « dédoublonner » en croyant bien faire, on perdrait la moitié du brief.
+Seul un même DOSSIER n'apparaît qu'une fois : quand le devis porte déjà son action, l'élément
+d'attente qui pointe sur lui se tait.
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
 
@@ -1953,6 +1956,61 @@ clientReprise le 28/11 »), et **une espace ordinaire en tête d'un pseudo-élé
 `.rl-row .rl-k` : la nouvelle étiquette « Envoyer par », qui n'est pas dans une `.rl-row`,
 sortait en texte brut — et aucune mesure ne le signalait.
 
+**40. LE TABLEAU DE BORD : COCKPIT, RELAIS, FIL DE L'AFFAIRE** (25/10/2026 — variantes « haut A +
+relais B + bandeaux A » choisies par Nicolas sur maquettes). Protégé par `tests/dashboard.test.html`.
+De haut en bas : le **cockpit** (bonjour, résumé du jour, 4 chiffres), le **poste** (« à faire
+maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barre d'outils, la liste.
+• **« À faire maintenant » nomme des DOSSIERS, pas des compteurs.** L'ancienne bande disait « 2 devis
+  à relancer » : il fallait cliquer, puis lire la liste filtrée. Les cartes portent le client, l'action
+  et le bouton qui y mène. Tri : ce que PERSONNE n'a pris d'abord (règle 15), puis le poids
+  (`poidsAction` : perdu/gagné > pousser/chantier > rédiger), puis le plus ancien. QUI = vendeur pour
+  une action de devis, le `qui` d'attente.js pour le reste. Quatre cartes au bureau, trois sur
+  téléphone, « voir les N » déplie SANS quitter la page.
+• **LE RELAIS REMPLACE LA FENÊTRE « QUOI DE NEUF »** qui s'ouvrait toute seule à l'arrivée : un
+  ÉVÉNEMENT qui réclame l'attention au moment où l'on vient travailler (la leçon du cortège, règle
+  28). C'est un ÉTAT : ce que l'autre a fait depuis le repère, ce qui l'attend, un mot pour lui.
+  ⚠️ Le repère (`ss_activity_seen`) n'avance plus à chaque chargement mais sur « Tout vu », et
+  jusqu'à la DERNIÈRE nouvelle affichée (pas « maintenant ») : ce qui arrive pendant qu'on lit
+  revient au prochain chargement au lieu d'être perdu.
+  ⚠️ **Le mot à l'autre est un SUJET des Échanges** (`pour` = l'autre), fabriqué par
+  `SSUI.nouveauSujet` — la même fabrique que l'écran des Échanges (règle 10). Le champ ne se vide
+  qu'APRÈS la confirmation du serveur (règle 6), et le formulaire n'est JAMAIS réécrit par le rendu
+  (le tableau de bord se redessine à chaque retour d'onglet : un mot en cours de frappe partirait).
+  ⚠️ **Sans identité connue, le relais se TAIT** : on ne devine pas qui est l'autre — un mot adressé
+  à la mauvaise personne est pire que pas de mot.
+  La PRÉSENCE (bandeau + relais) lit les battements déjà enregistrés (`/api/connections`) :
+  « en ligne » = un battement depuis moins de 3 min (il part toutes les 30 s quand on travaille).
+• **LE FIL DE L'AFFAIRE** (`filAffaire`) : Créé → Envoyé → relances → Signé → Posé → Payé. Il
+  remplace les cinq points muets ET la jauge de vues (qui ajoutait une rangée de hauteur variable).
+  L'étape en cours prend la couleur de l'ACTION (règle 21 bis), creuse et immobile si le dossier est
+  mis en attente (règle 38), pulsante si le client est chaud. ⚠️ **Frise, action et montant ont des
+  largeurs FIXES** : chaque ligne est sa propre grille, sans ça la frise tombait à une abscisse
+  différente d'une ligne à l'autre (test B1). La légende ne répète PAS les pastilles de suivi.
+• **CE QUI A ÉTÉ RANGÉ, PAS SUPPRIMÉ** : Export / Import / Journal / densité / masquer les chiffres
+  → menu « Plus » (la sauvegarde y est masquée sur téléphone) ; statut, vendeur, produit et les
+  situations « à traiter » → panneau « Filtres », chaque rangée NOMMÉE, sans défilement de côté ;
+  « + Nouveau devis » et « Terrain » du bandeau → masqués au-delà de 1400 px, le rail les porte
+  (règle 24) ; « En ligne » → le badge ne s'affiche plus que HORS LIGNE ; la pensée du jour → sous
+  le bonjour. ⚠️ Les raccourcis au survol de la maquette (Note · Appeler · → Yannick) n'ont PAS été
+  posés sur la ligne (règle 33 zero bis) : « Demander à … » vit dans le menu ⋯ (porte de la règle 19).
+• **SIX DÉFAUTS TROUVÉS EN ENQUÊTANT**, chacun tenu par un test :
+  1. un DÉPANNAGE signé réclamait un acompte et une commande (règle 7) ;
+  2. un chantier jamais commandé réclamait une date de pose (règle 15 ter) — désormais « Matériel à
+     commander », puis rien pendant que la balle est chez le fournisseur, puis la date ;
+  3. trois situations comptaient une population et en filtraient une autre (« à relancer » comptait
+     les relances DUES et filtrait « 7 jours dans le statut ») → `SITUATIONS`, UN prédicat lu par le
+     compte ET par le filtre ;
+  4. trois réglages des Paramètres n'étaient lus par personne (`vue_defaut`, `densite`,
+     `kpi_replies`) — même famille que la règle 29 bis ; ordre appareil → société → repli ;
+  5. un mot de plus de 200 caractères perdait sa fin (titre borné, rien ne gardait le reste) ;
+  6. sur téléphone le premier devis tombait à 1 147 px : la bande prenait tout le premier écran.
+• **TÉLÉPHONE** : le premier devis commence dans le premier écran (test T3). Les actions deviennent
+  des BANDES (nom + action + bouton), les étapes tiennent sur une rangée en libellé court, le relais
+  se replie dès qu'il passe sous les cartes (≤ 1100 px, par la seule media query).
+• **« SIGNÉ CE MOIS »** lit `SSUI.dateSignature` (déménagée de `stats.html` : deux copies n'auraient
+  pas compté le même mois). L'anneau n'existe que si `usage.objectif_mensuel` > 0 (Paramètres) :
+  mieux vaut pas de cible qu'une cible inventée.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2217,6 +2275,7 @@ sortait en texte brut — et aucune mesure ne le signalait.
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
+   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 51/51 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.

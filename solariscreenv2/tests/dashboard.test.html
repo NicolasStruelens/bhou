@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — tableau de bord</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du tableau de bord</h1>
+  <p class="note">
+    Le tableau de bord est l'écran qu'on ouvre en premier. La refonte du 25/10/2026 (cockpit, relais
+    avec l'autre, fil de l'affaire) a été précédée d'une enquête qui a trouvé six défauts, tous
+    invisibles en relisant le code : un dépannage réclamait un acompte, un chantier jamais commandé
+    réclamait une date de pose, trois pastilles comptaient d'autres dossiers que ceux qu'elles
+    affichaient, trois réglages des Paramètres n'étaient lus par personne, un mot de plus de 200
+    caractères perdait sa fin, et sur téléphone le premier devis tombait hors du premier écran.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong>, pas en <code>file://</code> : les cas chargent
+    la vraie page dans des cadres (1500 px et 390 px de large) avec des données d'essai FICTIVES, et
+    rejouent les vrais clics. Les données locales du navigateur sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + a + '</td><td>' + b + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests tableau de bord';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+        f.onload = function () { setTimeout(function () { resolve(f); }, 1500); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+
+    // ── Les données d'essai (FICTIVES) ─────────────────────────────────────────────────────────
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const cli = (prenom, nom, ville) => ({ prenom, nom, telephone: '0470 00 00 00', email: 'test@exemple.be', adresse: { rue: "Rue de l'Église 1", cp: '1400', ville } });
+    const scr = (n, p) => Array.from({ length: n }, (_, i) => ({ _id: 'it' + i, type: 'screen', largeur: 2000, hauteur: 2000, quantite: 1, prix: p }));
+    const calc = (ttc) => ({ total_ttc: ttc, nicolas_net: Math.round(ttc * 0.05), yannick_net: Math.round(ttc * 0.02) });
+    const DEVIS = [
+      { id: 'T-ACC', client: cli('Anne', 'Accepte', 'Wavre'), statut: 'envoye_client', date_creation: T(-3), date_envoi: J(-1), calculs: calc(6000), items: scr(2, 2000), seller_principal: 'nicolas', review_token: 'x', review_views: [T(0)], client_accepted: true },
+      // Envoyé il y a 5 jours : la relance 1 est DUE (J+4) alors qu'il n'est dans son statut que
+      // depuis 5 jours. L'ancien filtre (« 7 jours dans le statut ») l'excluait.
+      { id: 'T-REL', client: cli('Martine', "L'Hoest", 'Nivelles'), statut: 'envoye_client', date_creation: T(-8), date_envoi: J(-5), statut_history: [{ statut: 'envoye_client', date: T(-5) }], calculs: calc(8000), items: scr(3, 1500), seller_principal: 'nicolas', review_token: 'x', review_views: [T(-2)] },
+      { id: 'T-REL2', client: cli('Luc', 'Relance', 'Wavre'), statut: 'relance_1', date_creation: T(-20), date_envoi: J(-15), calculs: calc(5000), items: scr(2, 1500), seller_principal: 'yannick', relances: [{ n: 1, date: J(-10) }] },
+      { id: 'T-BRO', client: cli('Sophie', 'Brouillon', 'Waterloo'), statut: 'brouillon', date_creation: T(-2), calculs: calc(3000), items: scr(1, 2000), seller_principal: 'yannick' },
+      { id: 'T-SIG', client: cli('Marc', 'Signe', 'Ottignies'), statut: 'signe', date_creation: T(-25), date_envoi: J(-22), calculs: calc(12000), items: scr(4, 2000), seller_principal: 'nicolas', acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-2) }] },
+      { id: 'T-POSE', client: cli('École', 'Chantier', 'Bruxelles'), statut: 'signe', date_creation: T(-60), calculs: calc(30000), items: scr(5, 4000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-50) }] },
+      { id: 'T-ATT', client: cli('Claire', 'Attente', 'Genval'), statut: 'relance_1', date_creation: T(-30), date_envoi: J(-26), calculs: calc(7000), items: scr(3, 1500), seller_principal: 'nicolas', relances: [{ n: 1, date: J(-21) }], attentes: [{ id: 'a1', motif: 'Revient en novembre', revoir_le: J(21), par: 'nicolas', le: T(-11) }] },
+      { id: 'T-TER', client: cli('Julie', 'Termine', 'Rixensart'), statut: 'termine', date_creation: T(-80), calculs: calc(9000), items: scr(3, 2000), seller_principal: 'yannick', chantier: { date_pose: J(-15) }, commande: { statut: 'pose' } },
+      { id: 'T-DEP', client: cli('Thomas', 'Depannage', 'Braine'), statut: 'signe', type_document: 'depannage', depannage_mode: 'realise', date_creation: T(-1), calculs: calc(285), items: [], seller_principal: 'yannick' },
+      { id: 'T-REF', client: cli('Paul', 'Refuse', 'Jodoigne'), statut: 'refuse', date_creation: T(-45), calculs: calc(4000), items: scr(2, 1500), seller_principal: 'nicolas' },
+    ];
+    const FACTURES = [
+      { id: 'TF-1', devis_id: 'T-POSE', type: 'acompte', total_ttc: 9000, date: J(-50), echeance: J(-35), paiements: [{ montant: 9000, date: J(-45) }] },
+      { id: 'TF-2', devis_id: 'T-SIG', type: 'acompte', total_ttc: 3600, date: J(-8), echeance: J(-1), paiements: [] },
+      { id: 'TF-3', devis_id: 'T-TER', type: 'solde', total_ttc: 9000, date: J(-14), echeance: J(5), paiements: [{ montant: 4000, date: J(-3) }] },
+    ];
+    const SUJETS = [
+      { id: 'SUJ-T1', kind: 'question', statut: 'ouvert', titre: 'Quel RAL pour Signe ?', awaiting: 'nicolas', pour: 'nicolas', auteur: 'yannick', date_creation: T(-2), date_modification: T(-2) },
+      { id: 'SUJ-T2', kind: 'afaire', statut: 'ouvert', titre: 'Rappeler le fournisseur', awaiting: 'yannick', pour: 'yannick', auteur: 'nicolas', date_creation: T(-4), date_modification: T(-4) },
+    ];
+    const iso = (min) => new Date(Date.now() - min * 60000).toISOString();
+    const ACTIVITE = [
+      { id: 1, ts: iso(190), actor: 'yannick', action: 'devis.statut', entity_type: 'devis', entity_id: 'T-BRO', label: 'Devis #T-BRO → Envoyé' },
+      { id: 2, ts: iso(130), actor: 'yannick', action: 'note.add', entity_type: 'devis', entity_id: 'T-SIG', label: "Note sur #T-SIG : « rappelle lundi »" },
+      { id: 3, ts: iso(95), actor: 'yannick', action: 'devis.pose', entity_type: 'devis', entity_id: 'T-POSE', label: 'Pose fixée' },
+      { id: 4, ts: iso(40), actor: 'nicolas', action: 'devis.modif', entity_type: 'devis', entity_id: 'T-REL', label: 'ma propre action' },
+    ];
+    // Les clés locales touchées : sauvées avant, remises après — on ne laisse rien derrière soi.
+    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_sujets_cache', 'ss_rdv_cache', 'ss_activity_seen',
+                  'ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis', 'ss_reglages'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_factures_cache', JSON.stringify(FACTURES));
+      localStorage.setItem('ss_sujets_cache', JSON.stringify(SUJETS));
+      localStorage.setItem('ss_rdv_cache', '[]');
+      localStorage.setItem('ss_activity_seen', iso(20 * 60));
+      ['ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis'].forEach(k => localStorage.removeItem(k));
+    }
+    function remettre() {
+      CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
+    }
+    /** Ouvre le tableau de bord, puis le connecte en « nicolas » (ou sans identité). */
+    async function ouvrir(largeur, hauteur, identite) {
+      const f = await cadre('../app/dashboard.html?t=' + Date.now(), largeur, hauteur);
+      const w = f.contentWindow;
+      w.SSNav.getIdentity = async () => (identite ? { key: identite, name: identite === 'nicolas' ? 'Nicolas' : 'Yannick', email: 'x' } : { key: null, name: null, email: null });
+      w.SS.listActivity = async () => ACTIVITE.slice();
+      w.SS.listConnections = async () => [{ identity: 'yannick', last_seen: iso(1) }];
+      await w.rafraichir();
+      await attendre(300);
+      return f;
+    }
+
+    (async function () {
+      try {
+        semer();
+
+        titre('La prochaine action — dépannage et commande');
+        let f = await ouvrir(1500, 900, 'nicolas');
+        let w = f.contentWindow, d = f.contentDocument;
+        const N = (o) => w.SSUI.normDevis(Object.assign({ id: 'X' + Math.random().toString(36).slice(2, 6), client: { prenom: 'A', nom: "L'Hoest" }, calculs: { total_ttc: 1000 } }, o));
+        const txt = (o) => { const a = w.prochaineAction(N(o)); return a ? a.txt : null; };
+        /* ⚠️ JAMAIS D'ACOMPTE SUR UN DÉPANNAGE (règle 7) : il sortait en « Acompte à encaisser »
+           et en « À commander ». */
+        const dep = { statut: 'signe', type_document: 'depannage', depannage_mode: 'realise' };
+        check('A1 un bon d’intervention signé n’attend rien', txt(dep), null);
+        check('A2 …et ne réclame aucun acompte', w.isAcompteUnpaid(N(dep)), false);
+        check('A3 …ni de commande fournisseur', w.suiviChantier(N(dep)), '');
+        check('A4 une proposition de dépannage acceptée attend son intervention', txt({ statut: 'signe', type_document: 'depannage', depannage_mode: 'a_realiser' }), 'Intervention à réaliser');
+        /* ⚠️ ON NE RÉCLAME UNE DATE DE POSE QU'UNE FOIS LE MATÉRIEL REÇU (règle 15 ter) : le tableau
+           de bord disait « Pose à planifier » sur un dossier jamais commandé. L'acompte est réglé
+           ici pour que ce soit bien la commande qu'on teste. */
+        // ⚠️ `FACTURES` est un `let` de la page, PAS une propriété de window : « w.FACTURES = … »
+        // ne changerait rien et le test passerait sans rien prouver. On l'écrit DANS la page.
+        w.eval("FACTURES = [{ id: 'FX', devis_id: 'PAYE', type: 'acompte', total_ttc: 300, paiements: [{ montant: 300 }] }]");
+        const P = (o) => { const a = w.prochaineAction(N(Object.assign({ id: 'PAYE', statut: 'signe', acompte_pct: 30 }, o))); return a ? [a.txt, a.fam] : null; };
+        check('A5 signé, rien commandé → commander', P({}), ['Matériel à commander', 'chantier']);
+        check('A6 commandé → la balle est chez le fournisseur', P({ commande: { statut: 'commande' } }), ['Chez le fournisseur — commandé', 'rien']);
+        check('A7 matériel reçu → planifier la pose', P({ commande: { statut: 'recu' } }), ['Matériel reçu — pose à planifier', 'chantier']);
+        await w.rafraichir(); await attendre(200);
+
+        titre('« À traiter » : chaque compteur montre exactement ses dossiers');
+        /* ⚠️ Trois situations comptaient une population et en filtraient une autre (« à relancer »
+           comptait les relances DUES et filtrait « 7 jours dans le statut »). */
+        d.getElementById('advToggle').click(); await attendre(80);
+        const sits = [...d.querySelectorAll('#situationFilters .chip')];
+        check('S0 il y a des situations à vérifier', sits.length > 3, true);
+        for (let i = 0; i < sits.length; i++) {
+          const b = d.querySelectorAll('#situationFilters .chip')[i];
+          const lib = b.childNodes[0].textContent.trim();
+          const n = Number(b.querySelector('span').textContent);
+          b.click(); await attendre(40);
+          check('S' + (i + 1) + ' ' + lib, d.querySelectorAll('.mrow').length, n);
+        }
+        w.setFilter('actifs'); await attendre(40);
+        d.getElementById('advToggle').click(); await attendre(40);
+        // Le SENS de « à relancer », et pas seulement l'accord du compte et du filtre.
+        w.setFilter('a_relancer'); await attendre(40);
+        const aRelancer = [...d.querySelectorAll('.mrow')].map(r => r.dataset.id).sort();
+        check('S+ « à relancer » compte une relance due, même avant 7 jours dans le statut', aRelancer.includes('T-REL'), true);
+        check('S+ …mais pas un dossier mis en attente (règle 38)', aRelancer.includes('T-ATT'), false);
+        w.setFilter('actifs'); await attendre(40);
+
+        titre('Les étapes et la vue');
+        const seg = () => [...d.querySelectorAll('.et-seg')];
+        const nbClient = DEVIS.filter(x => ['envoye_client', 'relance_1', 'relance_2'].includes(x.statut)).length;
+        seg()[1].click(); await attendre(60);
+        check('E1 « chez le client » filtre ses devis', d.querySelectorAll('.mrow').length, nbClient);
+        check('E2 …et le dit dans les filtres actifs', /Chez le client/.test(d.getElementById('activeFilters').textContent), true);
+        seg()[1].click(); await attendre(60);
+        check('E3 recliquer revient aux actifs', d.querySelector('#vueSeg .on').textContent.replace(/\d+/g, ''), 'Actifs');
+        d.querySelectorAll('#vueSeg button')[1].click(); await attendre(60);
+        check('E4 « Tous » montre tout, refusés compris', d.querySelectorAll('.mrow').length, DEVIS.length);
+        w.setFilter('actifs'); await attendre(40);
+
+        titre('Le relais avec l’autre');
+        check('R1 le relais est là, au nom de l’autre', d.querySelector('.rl-nom').textContent, 'Le relais avec Yannick');
+        check('R2 ses nouveautés, sans les miennes', d.querySelectorAll('#relaisNews .rl-ligne').length, 3);
+        check('R3 sa présence se lit dans le bandeau', d.getElementById('presence').textContent.trim(), 'Yannick en ligne');
+        d.querySelector('.rl-vu').click(); await attendre(60);
+        check('R4 « Tout vu » avance le repère jusqu’à la dernière nouvelle, pas jusqu’à maintenant', w.localStorage.getItem('ss_activity_seen'), ACTIVITE[3 - 1].ts);
+        check('R5 …et le relais se calme', d.querySelectorAll('#relaisNews .rl-ligne').length, 0);
+        const envois = [];
+        w.SS.saveSujet = async (s) => { envois.push(s); return w.__echec ? { ok: false, error: 'test' } : { ok: true }; };
+        w.SS.listSujets = async () => SUJETS;
+        d.querySelector('[data-kind="question"]').click();
+        d.getElementById('motAutre').value = "Tu peux rappeler L'Hoest ?";
+        d.getElementById('btnMot').click(); await attendre(150);
+        check('R6 le mot part en sujet adressé à l’autre', envois[0] && [envois[0].pour, envois[0].kind, envois[0].titre], ['yannick', 'question', "Tu peux rappeler L'Hoest ?"]);
+        check('R7 …et le champ se vide une fois confirmé', d.getElementById('motAutre').value, '');
+        w.__echec = true;
+        d.getElementById('motAutre').value = 'ne part pas';
+        d.getElementById('btnMot').click(); await attendre(150);
+        check('R8 un échec garde le texte (règle 6)', d.getElementById('motAutre').value, 'ne part pas');
+        const long = 'mot '.repeat(70).trim();
+        const s = w.SSUI.nouveauSujet(long, {});
+        check('R9 un mot de plus de 200 caractères ne perd rien', [s.titre.length <= 200, s.corps === long], [true, true]);
+
+        titre('Bureau (1500 px) : alignement');
+        const filX = [...new Set([...d.querySelectorAll('.m-fil')].map(e => Math.round(e.getBoundingClientRect().left)))];
+        check('B1 la frise tombe à la même abscisse sur toutes les lignes', filX.length, 1);
+        check('B2 l’action et le paiement tiennent sur une ligne', [...d.querySelectorAll('.m-signal')].every(e => e.getBoundingClientRect().height <= 34), true);
+        check('B3 aucune tuile de chiffres ne déborde', [...d.querySelectorAll('.ck-t, .af-carte, .et-seg')].filter(e => e.scrollWidth > e.clientWidth + 1).length, 0);
+        check('B4 « Terrain » et « Nouveau devis » quittent le bandeau quand le rail les porte', [...d.querySelectorAll('.header-actions .dash-dup')].map(e => e.offsetWidth), [0, 0]);
+        check('B5 aucun gestionnaire de la page ne casse à la compilation', [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2).map(a => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 60); } }).filter(Boolean)), []);
+        f.remove();
+
+        titre('Sans identité : on ne devine pas qui est qui');
+        semer();
+        f = await ouvrir(1500, 900, null);
+        d = f.contentDocument;
+        check('I1 le relais se tait', d.getElementById('relais').classList.contains('hidden'), true);
+        check('I2 les actions restent toutes visibles, avec leur nom', d.querySelectorAll('.af-carte').length > 0 && [...d.querySelectorAll('.af-carte .qui')].every(q => q.textContent.length > 0), true);
+        f.remove();
+
+        titre('Téléphone (390 × 800) : rien ne déborde, le travail se voit');
+        semer();
+        f = await ouvrir(390, 800, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        check('T1 la page ne déborde pas en largeur', d.documentElement.scrollWidth <= w.innerWidth, true);
+        check('T2 aucun élément ne sort de l’écran à droite', [...d.querySelectorAll('main *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && b.right > w.innerWidth + 1; }).length, 0);
+        /* ⚠️ L'ANCIENNE BANDE PRENAIT TOUT LE PREMIER ÉCRAN : le premier devis tombait à 1 147 px. */
+        check('T3 le premier devis commence dans le premier écran', d.querySelector('.mrow').getBoundingClientRect().top < w.innerHeight, true);
+        check('T4 le relais est replié', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'none');
+        d.querySelector('.rl-deplier').click(); await attendre(60);
+        check('T5 …et se déplie d’un appui', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'block');
+        check('T6 les quatre étapes tiennent sur une rangée', new Set([...d.querySelectorAll('.et-seg')].map(e => Math.round(e.getBoundingClientRect().top))).size, 1);
+        check('T7 trois actions au repos', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, 3);
+        d.querySelector('.af-tout').click(); await attendre(60);
+        check('T8 « voir les N » les montre toutes, sans quitter la page', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, d.querySelectorAll('.af-carte').length);
+        w.ouvrirPlus({ stopPropagation() {}, currentTarget: d.getElementById('btnPlus') }); await attendre(60);
+        check('T9 la sauvegarde n’est pas proposée au doigt', [...d.querySelectorAll('.actions-menu .am-bureau')].every(e => e.offsetHeight === 0), true);
+        f.remove();
+
+        titre('Réglages de la SOCIÉTÉ : enfin lus (appareil → société → repli)');
+        /* ⚠️ « Vue du tableau de bord », « Densité » et « Chiffres repliés » étaient enregistrables
+           dans Paramètres et sans aucun effet. */
+        semer();
+        const conf = JSON.parse(SAUVE.ss_reglages || 'null') || {};
+        conf.usage = Object.assign({}, conf.usage, { vue_defaut: 'tous', densite: 'compact', kpi_replies: true, objectif_mensuel: 25000 });
+        localStorage.setItem('ss_reglages', JSON.stringify(conf));
+        f = await ouvrir(1500, 900, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        check('G1 la vue par défaut de la société', d.querySelector('#vueSeg .on').textContent.replace(/\d+/g, ''), 'Tous');
+        check('G2 la densité de la société', d.querySelector('.mix-list').classList.contains('dense'), true);
+        check('G3 les chiffres repliés de la société', d.getElementById('kpis').classList.contains('hidden'), true);
+        check('G4 l’objectif du mois dessine son anneau', !!d.querySelector('#kpis .ck-t .ck-ring'), true);
+        w.toggleDense();
+        check('G5 le choix de l’appareil passe devant', d.querySelector('.mix-list').classList.contains('dense'), false);
+        f.remove();
+      } catch (e) {
+        check('Erreur inattendue', String(e && e.message || e), '');
+      } finally {
+        remettre();
+        rendre();
+      }
+    })();
+  </script>
+</body>
+</html>
