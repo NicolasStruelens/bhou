@@ -88,8 +88,8 @@
       { id: 'SUJ-T1', kind: 'question', statut: 'ouvert', titre: 'Quel RAL pour Signe ?', awaiting: 'nicolas', pour: 'nicolas', auteur: 'yannick', date_creation: T(-2), date_modification: T(-2) },
       { id: 'SUJ-T2', kind: 'afaire', statut: 'ouvert', titre: 'Rappeler le fournisseur', awaiting: 'yannick', pour: 'yannick', auteur: 'nicolas', date_creation: T(-4), date_modification: T(-4) },
     ];
-    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_sujets_cache', 'ss_rdv_cache', 'ss_clients_cache', 'ss_dash_view'];
-    const CLES_SESSION = ['ss_assistant_conv', 'ss_assistant_ouvert'];
+    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_sujets_cache', 'ss_rdv_cache', 'ss_clients_cache', 'ss_dash_view', 'ss_assistant_fenetre', 'ss_fetes'];
+    const CLES_SESSION = ['ss_assistant_conv', 'ss_assistant_ouvert', 'ss_assistant_brouillon'];
     const SAUVE = {}, SAUVE_S = {};
     CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
     CLES_SESSION.forEach(k => { try { SAUVE_S[k] = sessionStorage.getItem(k); } catch (e) {} });
@@ -99,6 +99,7 @@
       localStorage.setItem('ss_sujets_cache', JSON.stringify(SUJETS));
       localStorage.setItem('ss_rdv_cache', '[]');
       localStorage.removeItem('ss_dash_view');
+      localStorage.removeItem('ss_assistant_fenetre');
       CLES_SESSION.forEach(k => sessionStorage.removeItem(k));
     }
     function remettre() {
@@ -370,7 +371,27 @@
         check('B1 Soli est en bas à droite, une seule fois — et le menu ne porte plus d’entrée en double',
           [w.document.querySelectorAll('.ssfab').length, Math.round(dw.clientWidth - fr.right), Math.round(w.innerHeight - fr.bottom), !!w.document.querySelector('.ssrail-assist, .ssnav-assist')], [1, 16, 16, false]);
         check('B2 Rien ne le recouvre (ni le bandeau, ni les décors)', auCentre(w, fab), true);
-        check('B3 La mascotte : le soleil du logo, avec l’écran bleu du logo en lunettes', [!!fab.querySelector('svg.ssm circle[fill="#FFC501"]'), fab.querySelectorAll('svg.ssm path[fill="#1F319D"]').length], [true, 2]);
+        const couleurs = (win, el) => { const m = el.querySelector('svg.ssm'); const cs = (sel, prop) => win.getComputedStyle(m.querySelector(sel))[prop]; return [cs('.ssm-face', 'fill'), cs('.ssm-verre', 'fill')]; };
+        const themeAvant = w.document.documentElement.getAttribute('data-theme');
+        w.document.documentElement.setAttribute('data-theme', 'light');
+        check('B3 La mascotte (thème Pro) : le soleil du logo, avec l’écran bleu du logo en lunettes', [couleurs(w, fab), fab.querySelectorAll('svg.ssm .ssm-verre').length], [['rgb(255, 197, 1)', 'rgb(31, 49, 157)'], 2]);
+        w.document.documentElement.setAttribute('data-theme', 'cyberpunk');
+        check('B3b Thème Cyberpunk : Soli passe au néon (visière cyan)', couleurs(w, fab), ['rgb(255, 212, 0)', 'rgb(0, 229, 255)']);
+        w.document.documentElement.setAttribute('data-theme', 'zen');
+        check('B3c Thème Zen : tons doux, verres sarcelle', couleurs(w, fab), ['rgb(235, 200, 110)', 'rgb(15, 95, 107)']);
+        w.document.documentElement.setAttribute('data-theme', 'ardoise');
+        check('B3d Thème Ardoise : ambre et ardoise', couleurs(w, fab), ['rgb(232, 198, 106)', 'rgb(47, 58, 72)']);
+        w.document.documentElement.setAttribute('data-theme', themeAvant || 'dark');
+        w.localStorage.removeItem('ss_fetes');
+        w.SSFetes.apercu('noel');
+        check('B3e Pendant une fête, Soli porte l’accessoire de la saison (bonnet à Noël), et le rayon du haut s’efface',
+          [/ssm-acc/.test(w.SSNav.mascotte(52)), /#D62828/.test(w.SSNav.mascotte(52)), /class="ssm accessoire"/.test(w.SSNav.mascotte(52))], [true, true, true]);
+        w.SSFetes.apercu('halloween');
+        check('B3f …un chapeau de sorcière à Halloween', /#3B2357/.test(w.SSNav.mascotte(52)), true);
+        w.SSFetes.apercu(null);
+        w.localStorage.setItem('ss_fetes', 'non');
+        check('B3g Décors éteints dans les Paramètres : pas d’accessoire', /ssm-acc/.test(w.SSNav.mascotte(52)), false);
+        w.localStorage.removeItem('ss_fetes');
         fab.focus(); fab.click(); await attendre(350);
         const pr = w.document.querySelector('.ssa').getBoundingClientRect();
         check('B4 Un clic ouvre une fenêtre de 420 px AU-DESSUS de Soli, alignée sur lui',
@@ -384,6 +405,63 @@
         fab.click(); await attendre(250); fab.click(); await attendre(250);
         check('B9 Un second clic sur Soli referme la fenêtre', w.SSAssistant.estOuvert(), false);
         check('B10 Au bureau, ouvrir ne touche pas à l’historique du navigateur', (w.history.state || {}).ssa, undefined);
+
+        /* ── La fenêtre se déplace, se redimensionne, placeGardee sa place ── */
+        const tirer = async (win, el, dx, dy) => {
+          const b = el.getBoundingClientRect(), x = b.left + Math.min(b.width / 2, 60), y = b.top + Math.min(b.height / 2, 20);
+          const ev = (type, cx, cy) => el.dispatchEvent(new win.PointerEvent(type, { clientX: cx, clientY: cy, pointerId: 7, pointerType: 'mouse', button: 0, buttons: 1, bubbles: true, cancelable: true }));
+          ev('pointerdown', x, y); ev('pointermove', x + dx / 2, y + dy / 2); ev('pointermove', x + dx, y + dy); ev('pointerup', x + dx, y + dy);
+          await attendre(60);
+        };
+        const rect = () => { const r = w.document.querySelector('.ssa').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; };
+        fab.click(); await attendre(300);
+        const q0 = rect();
+        await tirer(w, w.document.querySelector('.ssa-tete'), -400, -100);
+        const q1 = rect();
+        check('B12 L’en-tête se tire : la fenêtre suit la main (−400, −100), sans changer de taille', [q1.x - q0.x, q1.y - q0.y, q1.w === q0.w, q1.h === q0.h], [-400, -100, true, true]);
+        check('B13 …et sa place est gardée sur cet appareil', JSON.parse(w.localStorage.getItem('ss_assistant_fenetre')), q1);
+        await tirer(w, w.document.querySelector('.ssa-p[data-dir="nw"]'), -120, -60);
+        const q2 = rect();
+        check('B14 Le coin haut-gauche agrandit : les bords droit et bas ne bougent pas', [q2.w - q1.w, q2.h - q1.h, q2.x + q2.w === q1.x + q1.w, q2.y + q2.h === q1.y + q1.h], [120, 60, true, true]);
+        await tirer(w, w.document.querySelector('.ssa-p[data-dir="se"]'), -2000, -2000);
+        const q3 = rect();
+        check('B15 Rapetissée à l’extrême : jamais sous 340 × 380 (la conversation reste lisible)', [q3.w, q3.h], [340, 380]);
+        await tirer(w, w.document.querySelector('.ssa-tete'), -(q3.x - 22), 0);
+        check('B16 Lâchée près du bord, elle s’y aimante (12 px), sans jamais sortir de l’écran', rect().x, 12);
+        await tirer(w, w.document.querySelector('.ssa-tete'), 5000, 5000);
+        const q4 = rect();
+        check('B17 Poussée hors de l’écran : elle reste entière dedans', [q4.x + q4.w <= w.innerWidth - 12, q4.y + q4.h <= w.innerHeight - 12], [true, true]);
+        const z = w.document.querySelector('.ssa-texte');
+        z.value = 'Question commencée…'; z.dispatchEvent(new w.Event('input', { bubbles: true }));
+        const placeGardee = JSON.parse(w.localStorage.getItem('ss_assistant_fenetre'));
+        const f5 = await cadre('../app/dashboard.html?t=' + Date.now(), 1500, 900);
+        await attendre(700);
+        const w5 = f5.contentWindow, a5 = w5.document.querySelector('.ssa'), b5 = a5 && a5.getBoundingClientRect();
+        check('B18 Page suivante : la fenêtre se rouvre À LA MÊME PLACE, à la même taille', b5 && [Math.round(b5.left), Math.round(b5.top), Math.round(b5.width), Math.round(b5.height)], [placeGardee.x, placeGardee.y, placeGardee.w, placeGardee.h]);
+        check('B19 …avec la question commencée', w5.document.querySelector('.ssa-texte').value, 'Question commencée…');
+        f5.remove();
+        w.localStorage.setItem('ss_assistant_fenetre', JSON.stringify({ x: 4000, y: 3000, w: 2500, h: 2500 }));
+        const f6 = await cadre('../app/dashboard.html?t=' + Date.now(), 1100, 700);
+        await attendre(700);
+        const b6 = f6.contentWindow.document.querySelector('.ssa').getBoundingClientRect();
+        check('B20 Une place gardée sur un grand écran est ramenée DANS un plus petit', [b6.left >= 12, b6.top >= 12, b6.right <= 1100 - 12 + 0.5, b6.bottom <= 700 - 12 + 0.5], [true, true, true, true]);
+        f6.remove();
+        w.dispatchEvent(new w.MouseEvent('resize'));
+        w.document.querySelector('.ssa-tete').dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+        await attendre(300);
+        const q7 = rect(), fq7 = fab.getBoundingClientRect();
+        check('B21 Double-clic sur l’en-tête : retour à sa place, au-dessus de Soli, et l’ancienne place est oubliée',
+          [w.localStorage.getItem('ss_assistant_fenetre'), Math.round(q7.x + q7.w) === Math.round(fq7.right), q7.y + q7.h <= fq7.top], [null, true, true]);
+        let pendant = null;
+        const appelsP = fauxServeur(w, () => [fin([texte('Fini.')])]);
+        const vraiF = w.fetch;
+        w.fetch = (u, o) => new Promise(res => setTimeout(() => { pendant = !!w.document.querySelector('.ssa-tete .ssm.ssm-pense') && !!w.document.querySelector('.ssfab .ssm.ssm-pense'); res(vraiF(u, o)); }, 150));
+        w.SSAssistant._envoyer('Pense');
+        await finTour(w);
+        check('B22 Soli réfléchit pendant que l’assistant travaille (dans l’en-tête et sur la pastille), puis s’arrête',
+          [pendant, !!w.document.querySelector('.ssm-pense')], [true, false]);
+        w.fetch = vraiF;
+        w.SSAssistant.fermer();
         f1.remove();
 
         /* Soli ne se pose jamais sur une barre collée en bas d'écran */
@@ -435,6 +513,7 @@
           [...wt.document.querySelectorAll('.ssa-moi, .ssa-lui, .ssa-tete')].every(n => n.getBoundingClientRect().right <= dt.clientWidth + 0.5), true);
         check('T6 La page derrière ne défile plus (un seul défilement : celui de la conversation)', wt.getComputedStyle(wt.document.body).overflow, 'hidden');
         check('T7 Le champ est en 16 px (sinon iOS zoome et la page déborde)', wt.getComputedStyle(wt.document.querySelector('.ssa-texte')).fontSize, '16px');
+        check('T7b Plein écran : ni poignées, ni déplacement', [[...wt.document.querySelectorAll('.ssa-p')].every(p => wt.getComputedStyle(p).display === 'none'), wt.getComputedStyle(wt.document.querySelector('.ssa-tete')).cursor], [true, 'default']);
         wt.history.back(); await attendre(500);
         check('T8 Le geste « retour » FERME l’assistant et laisse la page en place',
           [wt.SSAssistant.estOuvert(), /dashboard/.test(wt.location.pathname), wt.getComputedStyle(wt.document.body).overflow !== 'hidden'], [false, true, true]);

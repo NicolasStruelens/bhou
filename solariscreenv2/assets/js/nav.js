@@ -201,6 +201,35 @@
       .ssfab:hover .ssm-rayons { transform: rotate(45deg); }
       .ssm-reflet { animation: ssm-reflet 7s ease-in-out infinite; }
       @keyframes ssm-reflet { 0%, 86%, 100% { opacity: 0.9; } 92% { opacity: 0; } }
+      /* -- Soli prend le style du THEME : une palette par theme, en variables. Le dessin ne change
+         pas, ses couleurs oui. Pro = la marque (le jaune et le bleu du logo). -- */
+      .ssm { --ssm-soleil: #FFC501; --ssm-bord: #E9A400; --ssm-rayons: #FFC501; --ssm-verres: #1F319D;
+        --ssm-reflet: #ffffff; --ssm-bouche: #7A3E00; --ssm-joues: #FF7A59; overflow: visible; }
+      html[data-theme="dark"] .ssm { --ssm-soleil: #FFD23F; --ssm-bord: #E0A800; --ssm-rayons: #FFD23F; --ssm-verres: #2E5FD8; }
+      html[data-theme="cyberpunk"] .ssm { --ssm-soleil: #FFD400; --ssm-bord: #FF4ECD; --ssm-rayons: #FF4ECD; --ssm-verres: #00E5FF;
+        --ssm-reflet: #ffffff; --ssm-bouche: #2A0F3D; --ssm-joues: #FF4ECD; filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.55)); }
+      html[data-theme="zen"] .ssm { --ssm-soleil: #EBC86E; --ssm-bord: #C9A227; --ssm-rayons: #E2B95A; --ssm-verres: #0F5F6B;
+        --ssm-bouche: #6B4F2A; --ssm-joues: #E8A598; }
+      html[data-theme="ardoise"] .ssm { --ssm-soleil: #E8C66A; --ssm-bord: #C9A94F; --ssm-rayons: #E8C66A; --ssm-verres: #2F3A48;
+        --ssm-bouche: #5C4320; --ssm-joues: #D98C7C; }
+      .ssm-rayons { stroke: var(--ssm-rayons); }
+      .ssm-face { fill: var(--ssm-soleil); stroke: var(--ssm-bord); }
+      .ssm-verre { fill: var(--ssm-verres); }
+      .ssm-pont { stroke: var(--ssm-verres); }
+      .ssm-reflet { stroke: var(--ssm-reflet); }
+      .ssm-bouche { stroke: var(--ssm-bouche); }
+      .ssm-joue { fill: var(--ssm-joues); }
+      /* Un accessoire de fete couvre le rayon du haut : il s'efface. */
+      .ssm.accessoire .ssm-r0 { display: none; }
+      /* Soli reflechit (l'assistant travaille) : les rayons tournent doucement ; il saute quand la
+         reponse arrive. */
+      .ssm-pense .ssm-rayons { animation: ssm-tourne 2.4s linear infinite; }
+      @keyframes ssm-tourne { to { transform: rotate(360deg); } }
+      .ssm-saut { animation: ssm-saut 0.55s cubic-bezier(.3, 1.6, .5, 1); transform-origin: 50% 90%; }
+      @keyframes ssm-saut { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-4px) scale(1.06, 0.96); } 100% { transform: none; } }
+      .ssfab[aria-expanded="false"]:hover { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), 0 0 0 6px color-mix(in srgb, var(--ssm-anneau, #FFC501) 26%, transparent); }
+      html[data-theme="cyberpunk"] .ssfab { --ssm-anneau: #00E5FF; }
+      html[data-theme="zen"] .ssfab { --ssm-anneau: #0F5F6B; }
       .ssfab-x { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; border-radius: 50%;
         display: grid; place-items: center; background: var(--text, #e9eefb); color: var(--bg, #0b1021);
         opacity: 0; transform: scale(0.6); pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; }
@@ -212,7 +241,7 @@
       }
       @media print { .ssfab { display: none !important; } }
       @media (prefers-reduced-motion: reduce) {
-        .ssfab, .ssm-rayons { transition: none; } .ssm-reflet { animation: none; }
+        .ssfab, .ssm-rayons { transition: none; } .ssm-reflet, .ssm-pense .ssm-rayons, .ssm-saut { animation: none; }
       }
     `;
     document.head.appendChild(style);
@@ -353,20 +382,45 @@
      l'assistant (en-tête, accueil) : deux dessins finiraient par ne plus se ressembler. */
   const RAYONS = [[32, 13, 32, 7], [46.85, 19.15, 51.09, 14.91], [53, 34, 59, 34], [46.85, 48.85, 51.09, 53.09],
     [32, 55, 32, 61], [17.15, 48.85, 12.91, 53.09], [11, 34, 5, 34], [17.15, 19.15, 12.91, 14.91]];
+  /* Les couleurs vivent dans la feuille de style (variables --ssm-*), une palette par THÈME :
+     Soli prend le style du thème choisi sans être redessiné. Et pendant une fête (si les décors
+     sont allumés), il porte l'accessoire de la saison — posé sur le rayon du haut, qui s'efface. */
+  const ACCESSOIRES = {
+    halloween: '<g class="ssm-acc"><ellipse cx="32" cy="17.6" rx="14" ry="2.8" fill="#2B1B3D"/>' +
+      '<path d="M22.5 17.5Q27 9 33.5 2.5Q35 8 41.5 17.5Z" fill="#3B2357"/>' +
+      '<path d="M23.6 15.2h17.2l0.9 2.3H22.7z" fill="#FF8C1A"/><circle cx="33.5" cy="2.7" r="1.4" fill="#FF8C1A"/></g>',
+    'saint-nicolas': '<g class="ssm-acc"><path d="M24 18.5L25.5 8L32 1.5L38.5 8L40 18.5Z" fill="#C1121F"/>' +
+      '<path d="M32 4v12M28 9.5h8" stroke="#F4C430" stroke-width="1.6" stroke-linecap="round"/><path d="M23.6 16.6h16.8v2.6H23.6z" fill="#F4C430"/></g>',
+    noel: '<g class="ssm-acc"><path d="M20.5 18Q27 3.5 41 4.5Q46 6 46.5 11Q44.5 13 44 18Z" fill="#D62828"/>' +
+      '<rect x="18.6" y="15.4" width="27.4" height="5" rx="2.5" fill="#ffffff"/><circle cx="46.6" cy="11" r="3.1" fill="#ffffff"/></g>',
+    'nouvel-an': '<g class="ssm-acc"><path d="M25.5 18.5L32 2.5L38.5 18.5Z" fill="#7B2CBF"/>' +
+      '<path d="M27.6 13.5L35.5 10.2M26.4 16.6L37.3 12.9M29.6 8.4L33.9 6.6" stroke="#FFD23F" stroke-width="1.4" stroke-linecap="round"/>' +
+      '<circle cx="32" cy="2.4" r="2" fill="#FFD23F"/><circle cx="20" cy="9" r="1" fill="#FF4ECD"/><circle cx="45" cy="7" r="1" fill="#00E5FF"/></g>',
+    rentree: '<g class="ssm-acc"><path d="M32 5L47 11L32 17L17 11Z" fill="#1B1F3B"/><path d="M24 13.6v4.4q8 3.4 16 0v-4.4L32 17Z" fill="#2A3058"/>' +
+      '<path d="M47 11v6.5" stroke="#F4C430" stroke-width="1.2"/><circle cx="47" cy="18.4" r="1.4" fill="#F4C430"/></g>',
+  };
+  function accessoireDuJour() {
+    try {
+      const F = window.SSFetes;
+      const f = F && F.estAllumee() ? F.active() : null;
+      return (f && ACCESSOIRES[f.id]) || '';
+    } catch (e) { return ''; }
+  }
   function mascotte(taille) {
     const t = taille || 52;
-    return '<svg class="ssm" viewBox="0 0 64 64" width="' + t + '" height="' + t + '" aria-hidden="true" focusable="false">' +
-      '<g class="ssm-rayons" stroke="#FFC501" stroke-width="3.6" stroke-linecap="round">' +
-        RAYONS.map(function (r) { return '<line x1="' + r[0] + '" y1="' + r[1] + '" x2="' + r[2] + '" y2="' + r[3] + '"/>'; }).join('') + '</g>' +
-      '<circle cx="32" cy="34" r="18" fill="#FFC501" stroke="#E9A400" stroke-width="1.5"/>' +
-      '<ellipse cx="21" cy="40.6" rx="3.2" ry="2.1" fill="#FF7A59" opacity="0.5"/>' +
-      '<ellipse cx="43" cy="40.6" rx="3.2" ry="2.1" fill="#FF7A59" opacity="0.5"/>' +
-      '<path d="M16.5 26.5h11.5l1.8 8.3H18.3z" fill="#1F319D"/>' +
-      '<path d="M34.2 26.5h11.5l1.8 8.3H36z" fill="#1F319D"/>' +
-      '<path d="M27.6 27.6h7" fill="none" stroke="#1F319D" stroke-width="2" stroke-linecap="round"/>' +
-      '<g class="ssm-reflet" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"><path d="M19.6 28.4l1 3.8"/><path d="M37.3 28.4l1 3.8"/></g>' +
-      '<path d="M25.5 41.5q6.5 6 13 0" fill="none" stroke="#7A3E00" stroke-width="2.4" stroke-linecap="round"/>' +
-      '</svg>';
+    const acc = accessoireDuJour();
+    return '<svg class="ssm' + (acc ? ' accessoire' : '') + '" viewBox="0 0 64 64" width="' + t + '" height="' + t + '" aria-hidden="true" focusable="false">' +
+      '<g class="ssm-rayons" stroke-width="3.6" stroke-linecap="round">' +
+        RAYONS.map(function (r, i) { return '<line' + (i === 0 ? ' class="ssm-r0"' : '') + ' x1="' + r[0] + '" y1="' + r[1] + '" x2="' + r[2] + '" y2="' + r[3] + '"/>'; }).join('') + '</g>' +
+      '<circle class="ssm-face" cx="32" cy="34" r="18" stroke-width="1.5"/>' +
+      '<ellipse class="ssm-joue" cx="21" cy="40.6" rx="3.2" ry="2.1" opacity="0.5"/>' +
+      '<ellipse class="ssm-joue" cx="43" cy="40.6" rx="3.2" ry="2.1" opacity="0.5"/>' +
+      '<path class="ssm-verre" d="M16.5 26.5h11.5l1.8 8.3H18.3z"/>' +
+      '<path class="ssm-verre" d="M34.2 26.5h11.5l1.8 8.3H36z"/>' +
+      '<path class="ssm-pont" d="M27.6 27.6h7" fill="none" stroke-width="2" stroke-linecap="round"/>' +
+      '<g class="ssm-reflet" stroke-width="1.4" stroke-linecap="round"><path d="M19.6 28.4l1 3.8"/><path d="M37.3 28.4l1 3.8"/></g>' +
+      '<path class="ssm-bouche" d="M25.5 41.5q6.5 6 13 0" fill="none" stroke-width="2.4" stroke-linecap="round"/>' +
+      acc + '</svg>';
   }
 
   /* La pastille en bas à droite, sur toutes les pages qui ont un menu.
