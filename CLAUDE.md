@@ -91,7 +91,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
-| `tests/assistant.test.html` | Les 124 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
+| `tests/assistant.test.html` | Les 128 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/clients.test.html` | Les 51 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger », nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
@@ -2082,6 +2082,11 @@ Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEM
   « Fermer » ; un lien suivi depuis le panneau retire l'étape AVANT de partir). Et le panneau ne se
   rouvre JAMAIS tout seul en changeant de page : il le faisait, et chaque « retour » y renvoyait —
   Nicolas restait enfermé dedans (25/10/2026). « Fermer » s'écrit en toutes lettres.
+• **Un outil donne à Claude des PHRASES, jamais des champs bruts qui se contredisent en apparence.**
+  Sur l'École du Bonheur (posée en deux fois), « pose faite : oui » + « date de pose : 29/10 » + commande
+  « Posé » lui ont fait diagnostiquer une incohérence et proposer de « corriger » des données justes
+  (25/10/2026). La pose se dit maintenant en une phrase, avec la règle du tableau de bord (`poseAVenir`) :
+  « première pose faite (PV), la suite est prévue le … », et les repères du métier le disent aussi.
 • **Soli prend le style du THÈME** (une palette par thème, en variables `--ssm-*` dans `nav.js` :
   Pro = la marque, Néon, Cyberpunk lumineux, Zen doux, Ardoise) et, pendant une fête si les décors
   sont allumés, l'accessoire de la saison (`ACCESSOIRES` : sorcière, mitre, bonnet, chapeau de fête,
@@ -2397,7 +2402,7 @@ par Nicolas). Protégé par `tests/clients.test.html`.
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
-   exiger « 124/124 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 51/51 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y

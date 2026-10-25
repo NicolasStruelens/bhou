@@ -265,6 +265,14 @@
   const lienDevis = (id) => lienApp('vue.html?id=' + encodeURIComponent(id));
   const statutLib = (s) => (SSUI.STATUT_DEVIS_LABEL && SSUI.STATUT_DEVIS_LABEL[s]) || s || '';
   const adresseTexte = (a) => (a && typeof a === 'object' ? Object.values(a).filter((v) => typeof v === 'string' && v.trim()).join(', ') : String(a || ''));
+  // L'état de la pose d'un devis, en clair — mêmes règles que le tableau de bord.
+  function etatPose(n, A) {
+    const dp = n.chantier && n.chantier.date_pose, faite = SSUI.isPoseDone(n);
+    if (faite && A.poseAVenir(n)) return 'première pose faite (PV), la suite est prévue le ' + jj(dp) + ' : chantier posé en plusieurs fois';
+    if (faite) return 'pose faite' + (dp ? ' (le ' + jj(dp) + ')' : '');
+    if (dp) return 'prévue le ' + jj(dp);
+    return 'pas encore de date';
+  }
   function trouverDevis(id) {
     const k = String(id || '').trim().replace(/^#/, '').toLowerCase();
     if (!k) return null;
@@ -355,8 +363,12 @@
         espace_client: { lien_cree: !!n.has_review_link, vues: n.review_views || 0, accepte_en_ligne: !!n.client_accepted,
           question_sans_reponse: !!n.client_question_open },
         commande: A.estDepannage(n) ? undefined : (SSUI.COMMANDE_LABEL[SSUI.etatCommande(n)] || undefined),
-        pose: (n.chantier && n.chantier.date_pose) ? jj(n.chantier.date_pose) : (A.estDepannage(n) ? undefined : 'pas de date'),
-        pose_faite: SSUI.isPoseDone(n),
+        /* ⚠️ LA POSE SE DIT EN UNE PHRASE, avec la règle du tableau de bord (poseAVenir) : un PV avec
+           une date de pose À VENIR, c'est un chantier posé en plusieurs fois, dont la suite est
+           prévue. Donné en deux champs bruts (« pose faite : oui », « pose : 29/10 »), Claude y a vu
+           une incohérence sur l'École du Bonheur et a proposé de « corriger » des données justes
+           (25/10/2026). */
+        pose: A.estDepannage(n) ? undefined : etatPose(n, A),
         factures: facs.map((x) => ({
           numero: x.id, type: x.type || undefined, total: eur(x.total_ttc), paye: eur(A.paidSum(x)),
           reste_du: eur(SSUI.duFacture(x, D.factures)), echeance: jj(x.echeance) || undefined,
@@ -423,7 +435,7 @@
       D.devis.forEach((d) => {
         const dp = d.chantier && d.chantier.date_pose;
         if (!dp || !dans(dp) || window.SSActions.DEAD_STATUSES.includes(d.statut)) return;
-        out.push({ date: String(dp).slice(0, 10), quoi: A.estDepannage(d) ? 'Intervention' : 'Pose', client: nomDevis(d),
+        out.push({ date: String(dp).slice(0, 10), quoi: A.estDepannage(d) ? 'Intervention' : (SSUI.isPoseDone(d) ? 'Suite de pose (chantier en plusieurs fois)' : 'Pose'), client: nomDevis(d),
           ville: d.ville || undefined, resume: SSUI.resumeDevis(d) || undefined, vendeur: nomAssocie(d.seller_principal), lien: lienDevis(d.id) });
       });
       D.rdv.forEach((r) => {

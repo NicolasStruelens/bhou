@@ -73,6 +73,8 @@
       { id: 'T-REL2', client: cli('Luc', 'Relance', 'Wavre'), statut: 'relance_1', date_creation: T(-20), date_envoi: J(-15), calculs: calc(5000), items: scr(2, 1500), seller_principal: 'yannick', relances: [{ n: 1, date: J(-10) }] },
       { id: 'T-SIG', client: cli('Marc', 'Signe', 'Ottignies'), statut: 'signe', date_creation: T(-25), date_envoi: J(-22), calculs: calc(12000), items: scr(4, 2000), seller_principal: 'nicolas', acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-2) }] },
       { id: 'T-POSE', client: cli('École', 'Chantier', 'Bruxelles'), statut: 'signe', date_creation: T(-60), calculs: calc(30000), items: scr(5, 4000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-50) }] },
+      // Posé en DEUX fois (comme l'École du Bonheur) : PV de la première pose, la suite dans 3 jours.
+      { id: 'T-DEUX', client: cli('École', 'Deux-poses', 'Bruxelles'), statut: 'signe', date_creation: T(-180), calculs: calc(20000), items: scr(8, 2000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, reception: { date: J(-30) }, statut_history: [{ statut: 'signe', date: T(-150) }] },
       { id: 'T-RIEN', client: cli('Inès', 'Calme', 'Uccle'), statut: 'signe', date_creation: T(-40), calculs: calc(5000), items: scr(2, 2000), seller_principal: 'nicolas', chantier: { date_pose: J(30) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-30) }] },
       { id: 'T-TER', client: cli('Julie', 'Termine', 'Rixensart'), statut: 'termine', date_creation: T(-80), calculs: calc(9000), items: scr(3, 2000), seller_principal: 'yannick', chantier: { date_pose: J(-15) }, commande: { statut: 'pose' } },
       { id: 'T-DEP', client: cli('Thomas', 'Depannage', 'Braine'), statut: 'signe', type_document: 'depannage', depannage_mode: 'realise', date_creation: T(-1), calculs: calc(285), items: [], seller_principal: 'yannick' },
@@ -226,7 +228,13 @@
         check('O10 Les chiffres donnés à Claude = ceux du cockpit', [chi.reste_a_encaisser, chi.dont_en_retard],
           [w.SSUI.fmtEur(w.eval('ACT').chiffres().resteEncaisser), w.SSUI.fmtEur(w.eval('ACT').chiffres().enRetard)]);
         const pl = await O.planning.run({});
-        check('O11 Le planning des 14 jours : la pose dans 3 jours, pas celle dans 30', pl.prevu.map(x => x.client), ['École Chantier']);
+        check('O11 Le planning des 14 jours : les poses dans 3 jours, pas celle dans 30', pl.prevu.map(x => x.client), ['École Chantier', 'École Deux-poses']);
+        check('O11b …et la suite d’un chantier posé en plusieurs fois est dite comme telle', pl.prevu.map(x => x.quoi), ['Pose', 'Suite de pose (chantier en plusieurs fois)']);
+        const deux = await O.detail_devis.run({ id: 'T-DEUX' });
+        check('O11c Chantier en deux poses (PV + date à venir) : UNE phrase claire, jamais « pose faite » ET une date future en vrac (Claude y voyait une incohérence)',
+          [deux.pose, 'pose_faite' in deux], ['première pose faite (PV), la suite est prévue le ' + w.SSUI.fmtDate(J(3)) + ' : chantier posé en plusieurs fois', false]);
+        check('O11d Une pose simplement planifiée, et une pose faite', [(await O.detail_devis.run({ id: 'T-POSE' })).pose, (await O.detail_devis.run({ id: 'T-TER' })).pose],
+          ['prévue le ' + w.SSUI.fmtDate(J(3)), 'pose faite (le ' + w.SSUI.fmtDate(J(-15)) + ')']);
         const ech = await O.echanges.run({});
         check('O12 Les échanges ouverts, avec qui attend', ech.sujets.map(s => s.attend).sort(), ['Nicolas', 'Yannick']);
         check('O13 Un outil qui plante renvoie une erreur lisible au lieu de casser la conversation',
@@ -653,6 +661,7 @@
           [R.url, R.headers['anthropic-version'], R.headers['anthropic-beta'], P.fallbacks, P.stream], ['https://api.anthropic.com/v1/messages', '2026-10-21', 'server-side-fallback-2026-07-01', 'default', true]);
         check('S13 Claude Opus 5.5, effort moyen ; ni réflexion, ni température, ni choix d’outil forcé (chacun = 400 sur ce modèle)',
           [P.model, P.output_config.effort, 'thinking' in P, 'temperature' in P, 'top_p' in P, 'top_k' in P, 'tool_choice' in P], ['claude-opus-5-5', 'medium', false, false, false, false, false]);
+        check('S14b Les repères du métier disent qu’un chantier peut se poser en plusieurs fois', /plusieurs fois/.test(P.system[0].text), true);
         check('S14 Le prompt est mis en cache, et dit à qui Claude parle (identité venant d’Access)', [P.system[0].cache_control.type, /Yannick/.test(P.system[1].text), P.cache_control.type], ['ephemeral', true, 'ephemeral']);
         check('S15 Les 13 outils sont envoyés, dans un ordre fixe (cache)', P.tools.map(t => t.name).join(','), 'a_faire,chercher_devis,detail_devis,chercher_clients,factures,planning,demandes_rdv,echanges,chiffres,sav,proposer_mot,proposer_note,proposer_attente');
         check('S16 Aucun outil ne supprime, ne change un statut ni n’écrit au client', P.tools.some(t => /suppr|delete|statut|envoyer_client|mail/i.test(t.name)), false);

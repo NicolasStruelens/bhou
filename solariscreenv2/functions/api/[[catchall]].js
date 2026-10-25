@@ -2342,7 +2342,8 @@ Repères du métier :
 - Un dépannage est un devis sans ouvertures : jamais d'acompte, et un bon d'intervention (travaux déjà faits) ne se relance pas.
 - L'acompte habituel est de 30 % à la signature ; le solde après la pose.
 - Une mise en attente demande un motif et une date de reprise dans le futur ; tant qu'elle court, on ne relance pas.
-- On ne fixe une date de pose qu'une fois le matériel reçu.`;
+- On ne fixe une date de pose qu'une fois le matériel reçu.
+- Un chantier peut se poser en plusieurs fois : une pose faite (PV signé) avec une date de pose à venir, c'est la suite de la pose qui est prévue, pas une incohérence. Le client peut aussi avoir tout payé avant la dernière pose. Ne propose jamais de « corriger » ce que les outils décrivent ainsi.`;
 
 // Les outils sont DÉCRITS ici et EXÉCUTÉS dans le navigateur (assets/js/assistant.js, table OUTILS).
 // L'ordre est fixe : il fait partie du préfixe mis en cache.
