@@ -161,6 +161,29 @@ il reste orphelin (coût de stockage négligeable, R2 est gratuit jusqu'à 10 Go
 
 ---
 
+## 10) 🤖 L'assistant (Claude) — la clé API
+
+Le bouton **Assistant** du menu parle à Claude par `/api/assistant`. Tant que la clé manque, il répond
+« pas encore branché » : rien d'autre dans l'ERP n'en dépend.
+
+1. **Créer la clé** : console Anthropic (platform.claude.com) → *API Keys* → *Create Key*, nom
+   `solariscreen-erp`. Elle ne s'affiche qu'une fois : la copier tout de suite.
+2. **Limiter la dépense** sur la même console (*Limits*) : une limite mensuelle. C'est le vrai garde-fou ;
+   le plafond de l'ERP (150 échanges par personne et par jour) n'est qu'un frein de secours.
+3. **La donner à Cloudflare, CHIFFRÉE** : Pages → le projet → *Settings* → *Variables and Secrets* →
+   *Add* → type **Secret**, nom `ANTHROPIC_API_KEY`, environnement **Production**.
+   ⚠️ Jamais dans le dépôt (il est PUBLIC), jamais collée dans un message ou une conversation.
+4. **Redéployer** (*Deployments* → le dernier → *Retry deployment*) : un secret ne vaut que pour les
+   déploiements suivants.
+5. Facultatif : variable `ASSISTANT_PLAFOND_JOUR` pour changer le plafond quotidien.
+
+Rien à installer ni à compiler : la route appelle l'API d'Anthropic directement (pas de SDK,
+pas de `package.json` — voir CLAUDE.md, règle 41). L'assistant exige une identité Access (Nicolas ou
+Yannick) : sur l'aperçu d'une branche, qui n'est pas derrière Access, il répond 403 — c'est voulu.
+La table D1 `assistant_usage` (créée toute seule) compte les appels et les jetons par jour et par personne.
+
+---
+
 ## ✅ Vérifications finales
 
 - `https://<site>/api/devis` en navigation privée (non connecté) → **bloqué par Access** (page de login). ✔ faille fermée.

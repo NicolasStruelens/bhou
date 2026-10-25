@@ -82,6 +82,9 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 | `tests/nav.test.html` | Les 87 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, et de vraies pages en cadre à 1500, 1200 et 390 px. **Par le serveur de test.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
+| `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
+| `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
+| `tests/assistant.test.html` | Les 92 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -2045,6 +2048,41 @@ est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test
   qui est coupé, chevauchement des boîtes) — à 1560, 1250, 1100, 1000 et 375 px, sur des données
   qui ont la forme des vraies (motifs longs, chantiers en deux poses, liens jamais ouverts).
 
+**41. L'ASSISTANT (Claude) LIT AVEC LES RÈGLES DES ÉCRANS ET N'ÉCRIT QU'APRÈS UN CLIC** (25/10/2026 —
+choix de Nicolas : un panneau sur toutes les pages, lecture + actions confirmées, Claude Opus 5.5).
+Protégé par `tests/assistant.test.html`. Mise en service de la clé : DEPLOIEMENT.md, étape 10.
+• **Le serveur ne fait que parler à Claude** (`routeAssistant`, en bas de `[[catchall]].js`). Les
+  OUTILS tournent dans le navigateur avec `SS.*`, `SSActions`, `SSUI` : mêmes règles, mêmes routes
+  ciblées (règle 3), même identité Access. Un outil qui relirait la base côté serveur serait une
+  seconde implémentation des mêmes réponses (règle 10).
+• **« À faire », les chiffres et « actifs » viennent de `assets/js/actions.js`**, sorti du tableau de
+  bord pour ça. Il ne lit JAMAIS une variable de page : les listes lui sont passées en FONCTIONS —
+  une copie passée une fois garderait les factures du premier chargement (test M4).
+• **Trois écritures, toutes des CARTES à confirmer** : un mot à l'autre (sujet des Échanges), une
+  note interne sur un devis, une mise en attente. Ni suppression, ni changement de statut, ni envoi
+  au client (test S16). Ajouter une écriture = une carte + une route ciblée qui existe déjà + un test.
+• **La conversation ne se réécrit jamais.** Elle repart entière à chaque tour, et l'API refuse un
+  historique retouché (les blocs de réflexion sont liés à ce qui les précède). On AJOUTE : une carte
+  laissée sans réponse reçoit « annulée » en tête du message suivant, un tour échoué voit la question
+  suivante compléter le même message, un refus sans un mot reçoit un texte de remplacement — jamais
+  un message vide, jamais deux messages de suite du même côté (tests C).
+• **L'identité Access est exigée (403 sinon)** : l'aperçu d'une branche n'est pas derrière Access, et
+  n'importe qui y dépenserait le crédit. Plafond par personne et par jour (table `assistant_usage`,
+  150 appels, `ASSISTANT_PLAFOND_JOUR`) ; le vrai garde-fou reste la limite de dépense de la console.
+• **La clé `ANTHROPIC_API_KEY` vit dans les secrets chiffrés de Cloudflare Pages**, jamais dans le
+  dépôt (public), jamais dans une conversation.
+• **Un lien ne s'affiche que vers l'ERP** (`/app/…`), `tel:` ou `mailto:` : un lien inventé reste du
+  texte (test L2). Le texte de Claude est échappé AVANT sa mise en forme.
+• **Ce qui part chez Anthropic** : ce que renvoient les outils (noms, coordonnées, montants). Les
+  bénéfices des vendeurs en font partie — le prompt interdit de les reprendre dans un texte destiné
+  à un client.
+• **Pas de SDK : un appel HTTP direct** (`fetch` vers l'API Messages, `anthropic-version: 2026-10-21`,
+  flux SSE relu par `assistantLireFlux`). Le SDK officiel a été essayé le 25/10/2026 : il importe des
+  modules Node (`child_process`, `fs`, `os`…) que Cloudflare Pages ne compile pas sans `nodejs_compat`
+  — le build de l'aperçu a ÉCHOUÉ. Activer ce réglage changerait le moteur de TOUT le backend ;
+  Nicolas a choisi l'appel direct. Aucun `package.json` : le site se publie toujours sans étape de
+  build. Ne pas réintroduire le SDK sans ce réglage ET un aperçu vert.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2310,6 +2348,8 @@ est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
+   Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
+   exiger « 92/92 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
