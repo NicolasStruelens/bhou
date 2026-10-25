@@ -81,7 +81,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
 | `tests/nav.test.html` | Les 87 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, et de vraies pages en cadre à 1500, 1200 et 390 px. **Par le serveur de test.** |
-| `tests/dashboard.test.html` | Les 51 tests du tableau de bord (règle 40) : prochaine action (dépannage, commande), situations, étapes, relais, alignement au bureau, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
+| `tests/dashboard.test.html` | Les 75 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -1610,6 +1610,9 @@ entre elles selon qu'elles portaient un badge ou non.
 L'état de paiement a rejoint la pastille d'action : ils disent la même chose (où en est ce
 dossier). La colonne de droite ne porte plus qu'UNE ligne — `⋯` + montant — donc sa hauteur est
 la même pour toutes les lignes (mesuré : 30 px partout, montants alignés au pixel).
+⚠️ Depuis le 25/10/2026 (règle 40 bis), l'état de paiement vit SOUS le montant, en position
+absolue (`argentHtml`) : à côté d'une action de largeur fixe, il la faisait couper. La règle de
+fond ne change pas — rien dans la colonne de droite ne doit pouvoir la faire grandir.
 **La règle générale** : dans une rangée centrée verticalement, une colonne à hauteur variable
 désaligne ses voisines. Soit on fige sa hauteur, soit on l'aplatit sur une ligne.
 
@@ -2011,6 +2014,37 @@ maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barr
   pas compté le même mois). L'anneau n'existe que si `usage.objectif_mensuel` > 0 (Paramètres) :
   mieux vaut pas de cible qu'une cible inventée.
 
+**40 bis. LES BANDEAUX, AU DÉTAIL PRÈS** (retour de Nicolas sur la production, 25/10/2026, capture
+à l'appui : « il faut qu'ils soient impeccables, précis dans le détail »). Chaque point ci-dessous
+est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test.html` (cas L, T, M).
+• **Chaque chose dite UNE fois, à SA place.** La pastille d'action dit QUOI faire (et QUAND pour
+  une mise en attente : « En attente · revoir le 28/11 ») ; la légende de la frise dit DEPUIS
+  QUAND (« envoyé il y a 26 j · non ouvert ») ou POURQUOI (« « Le client revient vers moi » »,
+  en italique) ; les pastilles de gauche disent l'ÉTAT (statut, commande, pose) ; sous le montant,
+  l'ARGENT (« soldé ✓ », « en retard · reste … », « reste … » — `argentHtml`). Avant : la date
+  d'attente en double, le statut répété dans la colonne d'action (« Signé » à côté de SIGNÉ).
+• **Les libellés d'action tiennent en ~32 caractères** : c'est la colonne (« Accepté en ligne — à
+  faire signer », « Expiré — à relancer ou classer », « Posé et soldé — à clôturer »). Le détail
+  (vues, motif d'une attente échue) est dans l'infobulle, sous la frise, et sur la carte du cockpit
+  (qui a deux lignes et prend la phrase complète). ⚠️ Une pastille trop longue DÉBORDAIT VERS LA
+  GAUCHE par-dessus la frise : une case de grille calée à droite (`justify-self: end`) prend la
+  largeur de son contenu ; elle est désormais étirée (`stretch`), et c'est la pastille qui cède.
+• **Les largeurs se CALCULENT sur le texte le plus long** (190 px de légende, 260 px d'action à
+  ≤ 1250 px), elles ne s'estiment pas. Sous 1100 px la ligne passe sur deux rangées — identité +
+  montant, puis frise + action CÔTE À CÔTE (`.m-bas`, transparent au bureau) : empilées, elles
+  faisaient 178 px par devis. Sur téléphone, la légende passe SOUS la frise (pleine largeur).
+• **Une pose À VENIR n'est pas faite, même avec un PV** (`poseAVenir`) : un chantier en deux poses
+  (École du Bonheur) affichait « soldé ✓ » et rien ne prévenait de préparer la seconde. Et un
+  chantier posé n'est jamais « à commander » (l'ambre disait « à toi » sur du matériel au mur).
+• **« Rien à faire » se DIT** dans la colonne d'action ; un dossier posé, payé et toujours « signé »
+  reçoit « Posé et soldé — à clôturer » (poids FAIBLE : c'est du rangement, pas une urgence).
+• **Les relances sont des perles SUR le trait envoyé → signé** : collées au nœud, elles coupaient
+  la ligne et faisaient un amas. Une fois signé, seules celles réellement faites restent.
+• **Méthode** : on juge un bandeau à la LOUPE (une copie de la ligne agrandie par `transform`, la
+  capture d'écran étant réduite de moitié) ET par la mesure (`scrollWidth > clientWidth` pour ce
+  qui est coupé, chevauchement des boîtes) — à 1560, 1250, 1100, 1000 et 375 px, sur des données
+  qui ont la forme des vraies (motifs longs, chantiers en deux poses, liens jamais ouverts).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2275,7 +2309,7 @@ maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barr
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
-   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 51/51 », par le serveur.
+   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 75/75 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.

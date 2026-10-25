@@ -75,7 +75,14 @@
       { id: 'T-BRO', client: cli('Sophie', 'Brouillon', 'Waterloo'), statut: 'brouillon', date_creation: T(-2), calculs: calc(3000), items: scr(1, 2000), seller_principal: 'yannick' },
       { id: 'T-SIG', client: cli('Marc', 'Signe', 'Ottignies'), statut: 'signe', date_creation: T(-25), date_envoi: J(-22), calculs: calc(12000), items: scr(4, 2000), seller_principal: 'nicolas', acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-2) }] },
       { id: 'T-POSE', client: cli('École', 'Chantier', 'Bruxelles'), statut: 'signe', date_creation: T(-60), calculs: calc(30000), items: scr(5, 4000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-50) }] },
-      { id: 'T-ATT', client: cli('Claire', 'Attente', 'Genval'), statut: 'relance_1', date_creation: T(-30), date_envoi: J(-26), calculs: calc(7000), items: scr(3, 1500), seller_principal: 'nicolas', relances: [{ n: 1, date: J(-21) }], attentes: [{ id: 'a1', motif: 'Revient en novembre', revoir_le: J(21), par: 'nicolas', le: T(-11) }] },
+      // Un motif LONG, comme en vrai : c'est lui qui faisait déborder la pastille sur la frise.
+      { id: 'T-ATT', client: cli('Claire', 'Attente', 'Genval'), statut: 'relance_1', date_creation: T(-30), date_envoi: J(-26), calculs: calc(7000), items: scr(3, 1500), seller_principal: 'nicolas', relances: [{ n: 1, date: J(-21) }], attentes: [{ id: 'a1', motif: 'Le client revient vers moi après les vacances de Toussaint', revoir_le: J(21), par: 'nicolas', le: T(-11) }] },
+      // Posé en DEUX fois : PV de la première pose, seconde pose dans 3 jours, tout est payé.
+      { id: 'T-DEUX', client: cli('École', 'Deux-poses', 'Bruxelles'), statut: 'signe', date_creation: T(-180), calculs: calc(20000), items: scr(8, 2000), seller_principal: 'nicolas', chantier: { date_pose: J(3) }, reception: { date: J(-30) }, statut_history: [{ statut: 'signe', date: T(-150) }] },
+      // Posé, payé, plus rien à venir — mais toujours « signé » : à clôturer.
+      { id: 'T-CLOT', client: cli('Hugo', 'Fini', 'Ixelles'), statut: 'signe', date_creation: T(-90), calculs: calc(4000), items: scr(2, 1500), seller_principal: 'nicolas', chantier: { date_pose: J(-20) }, reception: { date: J(-20) }, statut_history: [{ statut: 'signe', date: T(-80) }] },
+      // Matériel reçu, pose calée dans un mois, acompte payé : rien à faire aujourd'hui.
+      { id: 'T-RIEN', client: cli('Inès', 'Calme', 'Uccle'), statut: 'signe', date_creation: T(-40), calculs: calc(5000), items: scr(2, 2000), seller_principal: 'nicolas', chantier: { date_pose: J(30) }, commande: { statut: 'recu' }, acompte_pct: 30, statut_history: [{ statut: 'signe', date: T(-30) }] },
       { id: 'T-TER', client: cli('Julie', 'Termine', 'Rixensart'), statut: 'termine', date_creation: T(-80), calculs: calc(9000), items: scr(3, 2000), seller_principal: 'yannick', chantier: { date_pose: J(-15) }, commande: { statut: 'pose' } },
       { id: 'T-DEP', client: cli('Thomas', 'Depannage', 'Braine'), statut: 'signe', type_document: 'depannage', depannage_mode: 'realise', date_creation: T(-1), calculs: calc(285), items: [], seller_principal: 'yannick' },
       { id: 'T-REF', client: cli('Paul', 'Refuse', 'Jodoigne'), statut: 'refuse', date_creation: T(-45), calculs: calc(4000), items: scr(2, 1500), seller_principal: 'nicolas' },
@@ -84,6 +91,9 @@
       { id: 'TF-1', devis_id: 'T-POSE', type: 'acompte', total_ttc: 9000, date: J(-50), echeance: J(-35), paiements: [{ montant: 9000, date: J(-45) }] },
       { id: 'TF-2', devis_id: 'T-SIG', type: 'acompte', total_ttc: 3600, date: J(-8), echeance: J(-1), paiements: [] },
       { id: 'TF-3', devis_id: 'T-TER', type: 'solde', total_ttc: 9000, date: J(-14), echeance: J(5), paiements: [{ montant: 4000, date: J(-3) }] },
+      { id: 'TF-4', devis_id: 'T-DEUX', type: 'solde', total_ttc: 20000, date: J(-10), echeance: J(5), paiements: [{ montant: 20000, date: J(-2) }] },
+      { id: 'TF-5', devis_id: 'T-CLOT', type: 'solde', total_ttc: 4000, date: J(-15), echeance: J(-1), paiements: [{ montant: 4000, date: J(-5) }] },
+      { id: 'TF-6', devis_id: 'T-RIEN', type: 'acompte', total_ttc: 1500, date: J(-25), echeance: J(-10), paiements: [{ montant: 1500, date: J(-20) }] },
     ];
     const SUJETS = [
       { id: 'SUJ-T1', kind: 'question', statut: 'ouvert', titre: 'Quel RAL pour Signe ?', awaiting: 'nicolas', pour: 'nicolas', auteur: 'yannick', date_creation: T(-2), date_modification: T(-2) },
@@ -151,6 +161,38 @@
         check('A6 commandé → la balle est chez le fournisseur', P({ commande: { statut: 'commande' } }), ['Chez le fournisseur — commandé', 'rien']);
         check('A7 matériel reçu → planifier la pose', P({ commande: { statut: 'recu' } }), ['Matériel reçu — pose à planifier', 'chantier']);
         await w.rafraichir(); await attendre(200);
+
+        titre('Les bandeaux, au détail près (retour de Nicolas sur la production, 25/10/2026)');
+        const ligne = (id) => d.querySelector('.mrow[data-id="' + id + '"]');
+        const signal = (id) => ligne(id).querySelector('.m-signal .m-sig').textContent.replace(/\s+/g, ' ').trim();
+        const legende = (id) => ligne(id).querySelector('.mf-cap').textContent;
+        /* ⚠️ UNE POSE À VENIR N'EST PAS FAITE, même avec le PV d'une première pose : la frise
+           affichait « soldé ✓ » et rien ne prévenait de préparer la seconde (École du Bonheur). */
+        check('L1 posé en deux fois, seconde pose dans 3 jours → chantier à préparer', /Chantier à préparer/.test(signal('T-DEUX')), true);
+        check('L2 …et sur la frise, « Posé » est l’étape EN COURS', !!ligne('T-DEUX').querySelectorAll('.mf-n')[3].classList.contains('ici'), true);
+        check('L3 posé, payé, rien à venir → à clôturer', signal('T-CLOT'), 'Posé et soldé — à clôturer');
+        /* L'état de paiement vit SOUS LE MONTANT : à côté de l'action il la faisait couper, à
+           gauche il faisait passer les pastilles d'état sur deux lignes. */
+        const argent = (id) => (ligne(id).querySelector('.m-right .m-reste') || { textContent: '' }).textContent;
+        check('L3b soldé : dit sous le montant', argent('T-CLOT'), 'soldé ✓');
+        check('L3c échéance dépassée : en retard, avec le reste', /^en retard · reste /.test(argent('T-SIG')), true);
+        check('L3d en partie payé : le reste', /^reste /.test(argent('T-POSE')), true);
+        check('L3e plus aucun badge de paiement ailleurs dans la ligne', d.querySelectorAll('.mrow .m-pay').length, 0);
+        const clot = w.SSUI.normDevis(DEVIS.find(x => x.id === 'T-CLOT'));
+        check('L4 …avec un poids de rangement, pas d’urgence', w.poidsAction(w.prochaineAction(clot), clot), 1);
+        check('L5 rien à faire : la colonne le DIT, au lieu de répéter le statut', signal('T-RIEN'), 'Rien à faire');
+        check('L6 un chantier posé n’est jamais « à commander »', /commander/i.test(ligne('T-DEUX').querySelector('.m-sub').textContent), false);
+        /* ⚠️ LA PASTILLE DÉBORDAIT SUR LA FRISE : calée à droite, la case prenait la largeur de son
+           contenu. Avec un motif de mise en attente long, elle recouvrait les nœuds. */
+        check('L7 aucune pastille ne chevauche la frise', [...d.querySelectorAll('.mrow')].filter(r => r.querySelector('.m-signal').getBoundingClientRect().left < r.querySelector('.m-fil').getBoundingClientRect().right - 1).length, 0);
+        check('L8 en attente : la pastille dit QUAND', /^En attente · revoir le \d\d\/\d\d$/.test(signal('T-ATT')), true);
+        check('L9 …et la frise dit POURQUOI', /Toussaint/.test(legende('T-ATT')), true);
+        check('L10 la légende dit depuis quand le devis est parti', legende('T-REL'), 'envoyé il y a 5 j · 1 vue');
+        check('L11 les relances sont SUR le trait envoyé → signé (trois perles)', ligne('T-REL').querySelectorAll('.mf-rel .mf-r').length, 3);
+        check('L12 la relance due est cerclée', ligne('T-REL').querySelectorAll('.mf-rel .mf-r.due').length, 1);
+        // Seul un MOTIF de mise en attente peut être plus long que la place (il est libre, saisi à la
+        // main) : il part en points de suspension, entier dans l'infobulle. Tout le reste doit tenir.
+        check('L13 aucune pastille ni légende coupée au bureau', [...d.querySelectorAll('.mf-cap:not(.pause), .m-sig')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim()), []);
 
         titre('« À traiter » : chaque compteur montre exactement ses dossiers');
         /* ⚠️ Trois situations comptaient une population et en filtraient une autre (« à relancer »
@@ -243,6 +285,26 @@
         check('T8 « voir les N » les montre toutes, sans quitter la page', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, d.querySelectorAll('.af-carte').length);
         w.ouvrirPlus({ stopPropagation() {}, currentTarget: d.getElementById('btnPlus') }); await attendre(60);
         check('T9 la sauvegarde n’est pas proposée au doigt', [...d.querySelectorAll('.actions-menu .am-bureau')].every(e => e.offsetHeight === 0), true);
+        check('T10 aucune légende de frise ni action coupée', [...d.querySelectorAll('.mf-cap:not(.pause), .m-sig')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent.trim()), []);
+        // Le tri : « Tri : à faire d'abord » s'y lisait « Tri : à ». On mesure le texte contre la place.
+        const sel = d.getElementById('sort'), cs = w.getComputedStyle(sel);
+        const ctx = d.createElement('canvas').getContext('2d'); ctx.font = cs.fontSize + ' ' + cs.fontFamily;
+        const place = sel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 18;
+        check('T11 chaque ordre de tri se lit en entier', [...sel.options].filter(o => ctx.measureText(o.text).width > place).map(o => o.text), []);
+        f.remove();
+
+        titre('Tablette (1000 px) : la frise et l’action sur une même rangée');
+        semer();
+        f = await ouvrir(1000, 900, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        /* Empilées l'une sous l'autre, la frise et l'action faisaient monter chaque devis à 178 px. */
+        check('M1 la frise et l’action partagent leur rangée', [...d.querySelectorAll('.mrow')].every(r => Math.abs(r.querySelector('.m-fil').getBoundingClientRect().top - r.querySelector('.m-signal').getBoundingClientRect().top) < 14), true);
+        check('M2 aucune ligne ne dépasse 160 px', Math.max(...[...d.querySelectorAll('.mrow')].map(r => Math.round(r.getBoundingClientRect().height))) <= 160, true);
+        check('M3 rien ne sort de sa ligne', [...d.querySelectorAll('.mrow *')].filter(e => { const b = e.getBoundingClientRect(), r = e.closest('.mrow').getBoundingClientRect(); return b.width && (b.right > r.right + 1 || b.left < r.left - 1); }).length, 0);
+        check('M4 aucune légende ni action coupée', [...d.querySelectorAll('.mf-cap:not(.pause), .m-sig')].filter(e => e.scrollWidth > e.clientWidth + 1).length, 0);
+        // Le palier est à 1100 px et non 960 : entre les deux, quatre colonnes fixes ne laissaient
+        // qu'environ 250 px au client, et ses pastilles s'empilaient.
+        check('M5 la colonne du client garde au moins 300 px', Math.min(...[...d.querySelectorAll('.m-main')].map(e => Math.round(e.getBoundingClientRect().width))) >= 300, true);
         f.remove();
 
         titre('Réglages de la SOCIÉTÉ : enfin lus (appareil → société → repli)');
