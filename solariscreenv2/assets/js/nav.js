@@ -147,6 +147,22 @@
          règle d'auteur l'emporte sur celle du navigateur. Sans cette ligne, la liste « Nouveau »
          serait toujours ouverte et la ligne d'identité visible, vide, même hors connexion. */
       .ssrail [hidden] { display: none !important; }
+
+      /* ── LE BAC À SABLE SE VOIT (DEPLOIEMENT.md, étape 12) ──────────────────────────────────
+         Rien ici ne change une taille : la bande pend SOUS le bandeau, en position absolue (une
+         bordure changerait sa hauteur, que nav.js mesure et dont toute la page dépend), et la
+         pastille vit DANS le libellé de la page, déjà tronqué proprement sur téléphone. La bande
+         était d'abord peinte AU FOND du bandeau : elle passait derrière la date du tableau de bord,
+         qui descend jusqu'au bord. Sous le bandeau, elle ne touche aucun texte et suit son décalage
+         quand le rail est là. Des hachures, pas une teinte : ici chaque couleur dit une ACTION
+         (règle 21 bis), un chantier balisé ne se confond avec aucune. */
+      html.ss-essai .app-header::after {
+        content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 4px; pointer-events: none;
+        background: repeating-linear-gradient(-45deg, #e8a400 0 7px, #1b1b1b 7px 14px); }
+      html.ss-essai .app-header .brand .module::before {
+        content: 'Essai'; display: inline-block; margin-right: 0.5em; padding: 0 0.45em; border-radius: 3px;
+        background: #e8a400; color: #1b1b1b; font-family: var(--font-mono, monospace); font-weight: 700;
+        letter-spacing: 0.08em; text-transform: uppercase; }
       .ssrail-group { font-family: var(--font-mono, monospace); font-size: var(--fs-3xs, 0.62rem);
         text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle, #8593bf);
         padding: 0.5rem 0.55rem 0.2rem; }
@@ -869,8 +885,22 @@
     return rail;
   }
 
+  /* ── LE BAC À SABLE SE VOIT ───────────────────────────────────────────────────────────────
+     Un aperçu de branche travaille sur une base d'ESSAI (DEPLOIEMENT.md, étape 12) : ce qu'on y
+     saisit n'existe pas en production. Sans marque, un aperçu ouvert par erreur recevrait un vrai
+     devis, qui ne serait jamais arrivé chez l'autre. La classe porte la bande et la pastille (feuille
+     ci-dessus) ; le titre de l'onglet le dit aussi, parce qu'un onglet se lit sans être affiché.
+     `hote` ne sert qu'aux tests. */
+  function marquerBacASable(hote) {
+    if (!window.SSUI.hoteBacASable(hote == null ? location.hostname : hote)) return false;
+    document.documentElement.classList.add('ss-essai');
+    if (document.title.indexOf('ESSAI · ') !== 0) document.title = 'ESSAI · ' + document.title;
+    return true;
+  }
+
   function mount(container) {
     logoCliquable();
+    marquerBacASable();
     if (!container) return;
     const icon = window.SSUI.icon;
     const cur = pageCourante();
@@ -991,7 +1021,16 @@
     btn.addEventListener('click', toggle);
     const searchItem = root.querySelector('.ssnav-search');
     if (searchItem) searchItem.addEventListener('click', function (e) { e.preventDefault(); close(); if (window.ssCommandPalette) window.ssCommandPalette(); });
-    document.addEventListener('click', function (e) { if (!root.contains(e.target)) close(); });
+    /* TOUCHER À CÔTÉ FERME LE MENU — ET RIEN D'AUTRE. Écouté en phase de CAPTURE, pour passer avant
+       la page : sur téléphone, le doigt posé à côté du volet pour le fermer ouvrait AUSSI ce qui était
+       dessous (une ligne du tableau de bord mène à sa fiche) — on fermait un menu et on se retrouvait
+       sur un autre dossier. Trouvé le 26/10/2026 : le cas T6 de nav.test.html cliquait sur une ligne, le
+       cadre partait sur vue.html, et T7 à T9 vérifiaient un document détaché sans s'en apercevoir.
+       Menu fermé, ce gestionnaire ne fait rien : les clics passent normalement. */
+    document.addEventListener('click', function (e) {
+      if (!menu.classList.contains('open') || root.contains(e.target)) return;
+      close(); e.preventDefault(); e.stopPropagation();
+    }, true);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
     mountWhoAmI(container);
     monterMascotte();
@@ -1153,6 +1192,7 @@
     mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant, mascotte: mascotte,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
+    _marquerBacASable: marquerBacASable,
     _NAV: { accueil: NAV_ACCUEIL, creer: NAV_CREER, groupes: NAV_GROUPS, reglages: NAV_REGLAGES, badges: BADGE_KEYS },
   };
 })();

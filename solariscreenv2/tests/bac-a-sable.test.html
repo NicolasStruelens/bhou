@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — bac à sable</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+    iframe.bac { position: absolute; left: -10000px; top: 0; border: 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du bac à sable</h1>
+  <p class="note">
+    Le bac à sable remplit la base d'ESSAI des aperçus de branche (DEPLOIEMENT.md, étape 12). Ces tests
+    le jouent contre le <strong>VRAI fichier du serveur</strong> (<code>functions/api/[[catchall]].js</code>)
+    branché sur une <strong>vraie base SQLite</strong> en mémoire (sql.js, chargé depuis cdnjs), par les
+    mêmes fonctions <code>SS.*</code> que les écrans : gardes, remplissage, rejouabilité, montants,
+    actions reconnues par le tableau de bord, page de remplissage, vidage.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle :
+    la base vit dans la page et disparaît avec elle ; les caches locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 700) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 700) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests bac à sable';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    const B = window.SSBacASable, U = window.SSUI;
+    const PREVIEW = 'amelioration-bac-a-sable.solariscreen-erp.pages.dev';
+    const NICOLAS = 'nicolas.struelens@me.com';
+
+    // ── Le banc : SQLite en mémoire + le vrai serveur + un faux réseau ───────────────────────────
+    const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/';
+    function charger(src) { return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('chargement ' + src)); document.head.appendChild(s); }); }
+    let SQL = null, SERVEUR = null, SCHEMA = '', DB = null, ENV = null, IDENT = NICOLAS, APPELS = 0;
+    /* La même surface que D1 (prepare/bind/first/all/run), sur sql.js. Un `undefined` lié lève une
+       erreur, exactement comme D1 (« Type 'undefined' not supported ») : le banc ne doit pas être
+       plus tolérant que la vraie base. */
+    function d1(db) {
+      const lignes = (sql, p) => { const st = db.prepare(sql); try { st.bind(p); const out = []; while (st.step()) out.push(st.getAsObject()); return out; } finally { st.free(); } };
+      const stmt = (sql, p) => ({
+        bind: (...a) => stmt(sql, a),
+        first: async (col) => { const r = lignes(sql, p)[0] || null; return col ? (r ? r[col] : null) : r; },
+        all: async () => ({ results: lignes(sql, p), success: true, meta: {} }),
+        run: async () => { const st = db.prepare(sql); try { st.bind(p); while (st.step()) {} } finally { st.free(); } return { success: true, meta: { changes: db.getRowsModified() } }; },
+      });
+      return { prepare: (sql) => stmt(sql, []), batch: async (l) => { const o = []; for (const s of l) o.push(await s.run()); return o; } };
+    }
+    function nouvelleBase(avecSchema) { DB = new SQL.Database(); if (avecSchema) DB.exec(SCHEMA); ENV = { DB: d1(DB) }; }
+    const sql1 = (q) => { const r = DB.exec(q); return r.length ? r[0].values[0][0] : null; };
+    const sqlL = (q) => { const r = DB.exec(q); return r.length ? r[0].values : []; };
+    const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const vraiFetch = window.fetch.bind(window);
+    async function fauxFetch(url, opts) {
+      const u = new URL(String(url), location.href);
+      if (u.origin === location.origin && u.pathname.indexOf('/api/') === 0) {
+        APPELS++;
+        const o = opts || {};
+        const h = new Headers(o.headers || {});
+        if (IDENT) h.set('Cf-Access-Jwt-Assertion', 'x.' + b64u(JSON.stringify({ email: IDENT })) + '.y');
+        const req = new Request(u.href, { method: o.method || 'GET', headers: h, body: o.body });
+        return SERVEUR.onRequest({ request: req, env: ENV, params: {}, waitUntil() {}, next() {} });
+      }
+      return vraiFetch(url, opts);
+    }
+    window.fetch = fauxFetch;
+
+    // Les caches locaux qu'api.js écrit : rendus tels quels à la fin (même origine que les autres tests).
+    const CLES = ['ss_devis_cache', 'ss_clients_cache', 'ss_factures_cache', 'ss_rdv_cache', 'ss_dispos_cache', 'ss_sujets_cache', 'ss_outbox', 'ss_identite'];
+    const SAUVE = {};
+    CLES.forEach((k) => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function remettre() { CLES.forEach((k) => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+    const viderCaches = () => CLES.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+
+    const donnee = (table, cle, id) => JSON.parse(sql1('SELECT data FROM ' + table + ' WHERE ' + cle + " = '" + id.replace(/'/g, "''") + "'") || 'null');
+
+    (async function () {
+      try {
+        await charger(CDN + 'sql-wasm.js');
+        SQL = await window.initSqlJs({ locateFile: (f) => CDN + f });
+        SCHEMA = await (await vraiFetch('../schema.sql?v=' + Date.now())).text();
+        SERVEUR = await import('../functions/api/%5B%5Bcatchall%5D%5D.js?v=' + Date.now());
+        viderCaches();
+
+        // ══════════ G — LES GARDES ══════════
+        titre('G — Les gardes : rien ne s’écrit hors d’une base d’essai');
+        nouvelleBase(true);
+        APPELS = 0;
+        let v = await B.verifier({ hote: 'solariscreen-erp.pages.dev' });
+        check('G1 La PRODUCTION est refusée avant même la première requête', [v.ok, APPELS, /aperçu de branche/.test(v.raisons[0])], [false, 0, true]);
+        v = await B.verifier({ hote: 'erp.solariscreen.be' });
+        check('G2 Un autre domaine (un domaine propre à la production, demain) aussi', v.ok, false);
+        nouvelleBase(false);
+        v = await B.verifier({ hote: PREVIEW });
+        check('G3 Une base d’essai sans tables : on dit d’exécuter schema.sql', [v.ok, /schema\.sql/.test(v.raisons.join(' '))], [false, true]);
+        nouvelleBase(true);
+        IDENT = null;
+        v = await B.verifier({ hote: PREVIEW });
+        check('G4 Un aperçu SANS identité Access est refusé : Access d’abord, la base ensuite', [v.ok, /Access/.test(v.raisons.join(' '))], [false, true]);
+        IDENT = NICOLAS;
+        await window.SS.saveDevis({ id: '202610261234', statut: 'signe', client: { prenom: 'Vrai', nom: 'Client' }, calculs: { total_ttc: 1000 }, date_creation: new Date().toISOString() });
+        v = await B.verifier({ hote: PREVIEW });
+        check('G5 Une base PLEINE sans aucun dossier d’essai (la production branchée par erreur) : refus, rien n’est écrit',
+          [v.ok, /vraie base/.test(v.raisons.join(' ')), sql1('SELECT COUNT(*) FROM devis')], [false, true, 1]);
+        nouvelleBase(true); viderCaches();
+        v = await B.verifier({ hote: PREVIEW });
+        check('G6 Un aperçu protégé, sur une base vide : feu vert', [v.ok, v.etat.vide, v.etat.identite], [true, true, NICOLAS]);
+
+        // ══════════ R — REMPLIR ══════════
+        titre('R — Remplir, par les mêmes routes que les écrans');
+        const b1 = await B.remplir(window.SS, {});
+        check('R1 Aucune écriture refusée par le serveur', b1.erreurs, []);
+        const compte = () => ({
+          devis: sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'"), rdv: sql1("SELECT COUNT(*) FROM rdv WHERE id LIKE 'ESSAI-RDV-%'"),
+          sujets: sql1("SELECT COUNT(*) FROM sujets WHERE id LIKE 'SUJ-ESSAI-%'"), dispos: sql1("SELECT COUNT(*) FROM dispos WHERE id LIKE 'DISPO-ESSAI-%'"),
+          fiches: sql1('SELECT COUNT(*) FROM clients'), factures: sql1('SELECT COUNT(*) FROM factures'),
+          encaissements: sqlL('SELECT data FROM factures').reduce((s, r) => s + (JSON.parse(r[0]).paiements || []).length, 0),
+        });
+        const attenduCompte = { devis: 20, rdv: 5, sujets: 3, dispos: 2, fiches: 26, factures: 9, encaissements: 7 };
+        check('R2 Vingt dossiers, cinq demandes, trois sujets, deux congés, 26 fiches (dont le quasi-doublon et la marque), neuf factures, sept encaissements',
+          compte(), attenduCompte);
+        const numeros = sqlL('SELECT id FROM factures ORDER BY id').map((r) => r[0]);
+        check('R3 Les factures sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
+          [numeros.length, new Set(numeros).size, numeros.every((n) => /^F\d{4}-\d{3}$/.test(n))], [9, 9, true]);
+        const b2 = await B.remplir(window.SS, {});
+        check('R4 REJOUABLE : relancer « Remplir » ne crée ni facture, ni note, ni ticket, ni attente en double',
+          [b2.erreurs, compte(), (donnee('devis', 'id', 'ESSAI-04').comments || []).length, (donnee('devis', 'id', 'ESSAI-17').sav_tickets || []).length,
+            (donnee('devis', 'id', 'ESSAI-05').attentes || []).filter((a) => !a.levee_le).length],
+          [[], attenduCompte, 1, 1, 1]);
+        check('R5 Les montants sortent du vrai moteur : 4 screens à 1 450 € + 4 poses à 280 €, TVA 6 % = 7 335,20 € ; l’école à 21 % = 16 746,40 €',
+          [sql1("SELECT total_ttc FROM devis WHERE id = 'ESSAI-07'"), sql1("SELECT total_ttc FROM devis WHERE id = 'ESSAI-10'")], [7335.2, 16746.4]);
+        const f12 = sqlL("SELECT data FROM factures WHERE devis_id = 'ESSAI-12'").map((r) => JSON.parse(r[0]));
+        const ttc12 = sql1("SELECT total_ttc FROM devis WHERE id = 'ESSAI-12'");
+        check('R6 Acompte + solde retombent EXACTEMENT sur le total du devis (chantier soldé)',
+          Math.round((f12.reduce((s, f) => s + f.total_ttc, 0) - ttc12) * 100) / 100, 0);
+        const d05 = donnee('devis', 'id', 'ESSAI-05'), d04 = donnee('devis', 'id', 'ESSAI-04');
+        check('R7 Les écritures CIBLÉES sont signées par le serveur (identité Access), pas par la page',
+          [d05.attentes[0].par, d04.comments[0].author, donnee('sujets', 'id', 'SUJ-ESSAI-1').auteur || null], ['nicolas', 'nicolas', 'nicolas']);
+        const blobs = sqlL('SELECT data FROM devis').map((r) => r[0]).join('');
+        check('R8 Rien de privé au module ne part en base (_role, _factures, _attente, _notes, _sav)', /"_(role|factures|attente|notes|sav)"/.test(blobs), false);
+        const fiches = sqlL('SELECT data FROM clients').map((r) => JSON.parse(r[0]));
+        check('R9 Faux PAR CONSTRUCTION : aucun e-mail joignable (.invalid), aucun numéro composable (0000…)',
+          [fiches.every((c) => !c.email || /@exemple\.invalid$/.test(c.email)), fiches.every((c) => !c.telephone || /^0000 /.test(c.telephone))], [true, true]);
+
+        // La règle du TABLEAU DE BORD, sur la liste telle que le serveur la projette (ce que l'écran lit).
+        const liste = (await window.SS.listDevis()).map(U.normDevis);
+        const factures = await window.SS.listFactures();
+        const ACT = window.SSActions.creer({ factures: () => factures, devis: () => liste });
+        const action = (id) => { const d = liste.find((x) => x.id === id); const a = d && ACT.prochaineAction(d); return a ? a.txt : null; };
+        const obtenu = {}, attendu = {
+          'ESSAI-01': 'À finaliser et envoyer', 'ESSAI-02': 'En attente de réponse client', 'ESSAI-03': 'Relance 1 à envoyer', 'ESSAI-04': 'Relance 2 à envoyer',
+          'ESSAI-05': 'En attente · revoir le', 'ESSAI-06': 'Accepté en ligne — à faire signer', 'ESSAI-07': 'Acompte à encaisser',
+          'ESSAI-08': 'Chez le fournisseur — fabrication', 'ESSAI-09': 'Matériel reçu — pose à planifier', 'ESSAI-10': 'Chantier à préparer',
+          'ESSAI-11': 'Solde à encaisser', 'ESSAI-12': null, 'ESSAI-13': null, 'ESSAI-14': 'Expiré — à relancer ou classer', 'ESSAI-15': null,
+          'ESSAI-16': 'En attente de réponse client', 'ESSAI-17': 'Posé et soldé — à clôturer', 'ESSAI-18': null, 'ESSAI-19': 'En attente de réponse client',
+          'ESSAI-20': 'À finaliser et envoyer',
+        };
+        Object.keys(attendu).forEach((id) => { const l = action(id); obtenu[id] = (l && id === 'ESSAI-05') ? l.slice(0, 22) : l; });
+        check('R10 Chaque dossier déclenche l’action pour laquelle il est écrit, selon la règle du tableau de bord (sur la liste projetée par le serveur)', obtenu, attendu);
+        check('R11 La relance du devis informatif suit SA cadence (5 jours), pas celle d’après visite',
+          [U.relanceDue(liste.find((x) => x.id === 'ESSAI-19')), !!liste.find((x) => x.id === 'ESSAI-19').informatif], [false, true]);
+
+        // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
+        titre('P — La page de remplissage (tests/bac-a-sable.html)');
+        nouvelleBase(true); viderCaches();
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = 1000; f.height = 900;
+        f.src = 'bac-a-sable.html?t=' + Date.now();
+        document.body.appendChild(f);
+        await new Promise((r) => f.addEventListener('load', r, { once: true }));
+        const w = f.contentWindow, d = w.document;
+        await attendre(300);
+        check('P1 Sur le poste local SANS banc, la page refuse d’elle-même (pas de base) et les boutons restent grisés',
+          [d.getElementById('btnRemplir').disabled, /ne répond pas/.test(d.getElementById('gardes').textContent)], [true, true]);
+        check('P2 Elle liste les 25 scénarios avec un lien vers chaque fiche', [d.querySelectorAll('#scenarios tr').length - 1, !!d.querySelector('#scenarios a[href="../app/vue.html?id=ESSAI-03"]')], [25, true]);
+        w.fetch = fauxFetch;   // le banc fournit la base : comme un aperçu protégé
+        await w.verifier();
+        check('P3 Avec une base et une identité : les gardes passent, les boutons s’allument', [d.getElementById('btnRemplir').disabled, d.querySelectorAll('#gardes .ko').length], [false, 0]);
+        const bp = await w.remplir();
+        check('P4 « Remplir » depuis la page : tout est écrit, le journal le dit', [bp.erreurs.length, /0 erreur/.test(d.getElementById('journal').textContent), sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'")], [0, true, 20]);
+
+        // ══════════ V — VIDER ══════════
+        titre('V — Vider : seulement ce que la page a posé');
+        await window.SS.saveDevis({ id: '202610269999', statut: 'brouillon', client: { prenom: 'Saisi', nom: 'À la main' }, date_creation: new Date().toISOString() });
+        w.confirm = () => true;
+        const bv = await w.vider();
+        check('V1 Les dossiers, demandes, sujets, congés, fiches et factures d’essai partent ; le devis saisi à la main et la marque restent',
+          [bv.erreurs, compte(), sql1("SELECT COUNT(*) FROM devis WHERE id = '202610269999'"), sql1("SELECT COUNT(*) FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'")],
+          [[], { devis: 0, rdv: 0, sujets: 0, dispos: 0, fiches: 1, factures: 0, encaissements: 0 }, 1, 1]);
+        v = await B.verifier({ hote: PREVIEW });
+        check('V2 Grâce à la marque, une base d’essai vidée qui garde un devis manuel se remplit toujours', [v.ok, v.etat.essai, v.etat.marque], [true, 0, true]);
+        DB.exec("DELETE FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'");
+        v = await B.verifier({ hote: PREVIEW });
+        check('V3 …et sans elle, la même base ressemble à une vraie : refus (c’est bien la marque qui décide)', v.ok, false);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        window.fetch = vraiFetch;
+        remettre();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

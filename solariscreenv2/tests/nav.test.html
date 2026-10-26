@@ -244,14 +244,49 @@
         if (!h || !(h === e || e.contains(h))) horsDePortee.push(e.textContent.trim());
       }
       check('T5 chaque entrée se touche (en faisant défiler le volet)', horsDePortee, []);
-      d.elementFromPoint(20, w.innerHeight - 20).click(); await attendre(120);
-      check('T6 toucher à côté le referme', voletOuvert(), false);
+      const urlAvant = w.location.href;
+      d.elementFromPoint(20, w.innerHeight - 20).click(); await attendre(400);
+      /* ⚠️ « À CÔTÉ », C'EST SOUVENT UNE LIGNE DE DOSSIER. Le clic qui ferme le volet ne doit pas
+         l'ouvrir aussi : avant le 26/10/2026 il partait sur sa fiche, et les cas suivants vérifiaient
+         alors un document détaché — ils passaient sans rien prouver. */
+      check('T6 toucher à côté le referme — et ne fait RIEN d\'autre (on reste sur la page)',
+        [voletOuvert(), f.contentDocument === d, w.location.href === urlAvant], [false, true, true]);
       vt.click(); await attendre(120); vt.click(); await attendre(120);
       check('T7 retoucher le bouton le referme', voletOuvert(), false);
       vt.click(); await attendre(120);
       d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(120);
       check('T8 Échap le referme', voletOuvert(), false);
       check('T9 et le bouton le dit (aria-expanded)', vt.getAttribute('aria-expanded'), 'false');
+
+      /* LE BAC À SABLE SE VOIT (DEPLOIEMENT.md, étape 12) : un aperçu de branche travaille sur une
+         base d'ESSAI. La marque ne doit RIEN décaler — le bandeau est en position fixe et toute la
+         page dépend de sa hauteur mesurée. */
+      titre('Bac à sable : un aperçu se reconnaît, et la marque ne décale rien');
+      const H = w.SSUI.hoteBacASable;
+      check('B1 aperçus reconnus ; production, poste local et domaines ressemblants refusés',
+        ['amelioration-bac-a-sable.solariscreen-erp.pages.dev', 'a1b2c3d4.solariscreen-erp.pages.dev', 'solariscreen-erp.pages.dev', '127.0.0.1',
+          'solariscreen-erp.pages.dev.pirate.be', 'x.y.solariscreen-erp.pages.dev', 'autre-projet.pages.dev', ''].map(H),
+        [true, true, false, false, false, false, false, false]);
+      const mod = d.querySelector('.app-header .brand .module'), hdr = d.querySelector('.app-header');
+      const avant = { h: Math.round(hdr.getBoundingClientRect().height), titre: d.title };
+      check('B2 sur le poste local, aucune marque', [d.documentElement.classList.contains('ss-essai'), w.getComputedStyle(mod, '::before').content], [false, 'none']);
+      w.SSNav._marquerBacASable('amelioration-bac-a-sable.solariscreen-erp.pages.dev');
+      w.SSNav._marquerBacASable('amelioration-bac-a-sable.solariscreen-erp.pages.dev');
+      await attendre(80);
+      check('B3 marqué (téléphone) : pastille « Essai », bande hachurée, titre préfixé UNE fois',
+        [w.getComputedStyle(mod, '::before').content, /repeating-linear-gradient/.test(w.getComputedStyle(hdr, '::after').backgroundImage), d.title === 'ESSAI · ' + avant.titre],
+        ['"Essai"', true, true]);
+      check('B4 et rien ne bouge : même hauteur de bandeau, pas de débordement',
+        [Math.round(hdr.getBoundingClientRect().height), d.documentElement.scrollWidth <= w.innerWidth], [avant.h, true]);
+      f.remove();
+
+      f = await cadre('../app/dashboard.html', 1500);
+      d = f.contentDocument; w = f.contentWindow;
+      const hdr2 = d.querySelector('.app-header'), h2 = Math.round(hdr2.getBoundingClientRect().height);
+      w.SSNav._marquerBacASable('a1b2c3d4.solariscreen-erp.pages.dev'); await attendre(80);
+      const mod2 = d.querySelector('.app-header .brand .module');
+      check('B5 au bureau (rail) aussi : la pastille est dans le libellé de la page, le bandeau garde sa hauteur',
+        [w.getComputedStyle(mod2, '::before').content, mod2.offsetHeight > 0, Math.round(hdr2.getBoundingClientRect().height)], ['"Essai"', true, h2]);
       f.remove();
 
       try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}

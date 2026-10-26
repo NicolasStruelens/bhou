@@ -53,8 +53,10 @@ git checkout -b amelioration/ce-que-je-fais
 git push -u origin amelioration/ce-que-je-fais
 ```
 
-L'aperçu **n'est pas derrière Cloudflare Access et n'a aucune base liée** : il affiche « 0 devis ».
-C'est normal, et c'est une sécurité — on ne peut pas abîmer les vraies données depuis un aperçu.
+Tant que le **bac à sable** n'est pas branché (DEPLOIEMENT.md, étape 12), l'aperçu **n'est pas derrière
+Cloudflare Access et n'a aucune base liée** : il affiche « 0 devis ». C'est normal, et c'est une sécurité —
+on ne peut pas abîmer les vraies données depuis un aperçu. Une fois branché, l'aperçu est derrière Access,
+travaille sur une base d'ESSAI séparée et le DIT à l'écran (règle 46) : jamais sur les vraies données.
 
 ## Architecture
 
@@ -92,7 +94,10 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 53 tests des notes de frais. |
-| `tests/nav.test.html` | Les 87 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, et de vraies pages en cadre à 1500, 1200 et 390 px. **Par le serveur de test.** |
+| `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
+| `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
+| `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
+| `tests/bac-a-sable.test.html` | Les 24 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -595,7 +600,7 @@ Affaires · Chantiers · Après-vente · Argent · Équipe · et Paramètres en 
 « qui ». Les groupes suivent la vie d'un dossier, de la demande à l'encaissement : on cherche
 une page par « où en est l'affaire », pas par ordre alphabétique. **Une seule description**
 (`NAV_ACCUEIL`, `NAV_CREER`, `NAV_GROUPS`, `NAV_REGLAGES`) rendue deux fois — rail et volet ne
-peuvent pas diverger. Protégé par `tests/nav.test.html` (87 tests, dont des cadres réels à
+peuvent pas diverger. Protégé par `tests/nav.test.html` (92 tests, dont des cadres réels à
 1500, 1200 et 390 px).
 ⚠️ **QUATRE DÉFAUTS TROUVÉS EN ENQUÊTANT, AUCUN NE SE VOYAIT EN RELISANT :**
 • **La page en cours ne s'allumait JAMAIS en production.** Le test comparait à `echanges.html`,
@@ -629,6 +634,13 @@ création puis RETIRE le paramètre de l'adresse — sinon un rechargement en ro
 dans l'écran à 375 et 390 px, défile seul (`overscroll-behavior: contain`), chaque entrée se
 touche, et l'on en sort par les trois gestes qu'un pouce essaie : toucher à côté, retoucher le
 bouton, Échap. Les cas T1 à T9 du test le rejouent au geste.
+⚠️ **TOUCHER À CÔTÉ FERME LE MENU, ET RIEN D'AUTRE** (26/10/2026). Le clic qui fermait le volet
+continuait jusqu'à ce qu'il y avait dessous : sur téléphone, une ligne du tableau de bord — on fermait
+le menu et on atterrissait sur un autre dossier. Le gestionnaire est désormais en phase de CAPTURE et
+n'avale QUE ce clic-là (menu ouvert, clic hors du menu) ; menu fermé, il ne fait rien. Le défaut était
+invisible parce que T6 cliquait justement sur une ligne : le cadre partait sur la fiche, et T7 à T9
+vérifiaient un document détaché — ils passaient sans rien prouver. **Un test qui rejoue un geste doit
+vérifier qu'il est resté sur la page** (T6 compare maintenant le document et l'adresse).
 
 **25. Une PHOTO sur un sujet suit la même discipline que les réponses.** Une photo est souvent LE
 message — une pièce cassée, un mail fournisseur, un repérage de façade — et la décrire coûte dix
@@ -2286,6 +2298,51 @@ dans `assets/js/vitrine.js` (`window.SSVitrine`, fonctions pures) ; protégé pa
 • **Téléphone** : la première réalisation commence dans le premier écran ; « Près de… » tient en trois
   rangées (prospect · commune · rayon) au lieu de se couper au hasard.
 
+**46. LE BAC À SABLE : on essaie sur une base d'ESSAI, jamais sur la vraie** (26/10/2026 — demande de
+Nicolas : « des tests avec un client fictif et des simulations tous azimuts »). Mise en place :
+DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par `tests/bac-a-sable.test.html`.
+• **Pourquoi pas en production** : une facture d'essai consomme un vrai numéro (règle 5) ; le CA, le
+  cockpit et les compteurs de l'autre comptent le faux client ; le journal d'activité en garde la trace.
+• **Les aperçus de branche ont leur base** (`solariscreen-essai`, liaisons de l'environnement Preview)
+  **et sont derrière Access — Access D'ABORD** : le dépôt est public et l'adresse d'un aperçu se devine,
+  une base branchée sur un aperçu ouvert serait une API ouverte.
+• **Un aperçu se VOIT** (`SSUI.hoteBacASable`, décidé sur le nom d'hôte, sans requête) : bande hachurée
+  PEINTE sous le bandeau, pastille « Essai » en `::before` du libellé de page (elle survit si la page
+  réécrit ce libellé), « ESSAI · » dans le titre de l'onglet. Rien ne change de taille : le bandeau est
+  fixe et sa hauteur mesurée (tests B3 à B5 de `nav.test.html`). Hachures et non une teinte : ici chaque
+  couleur dit une action (règle 21 bis).
+• **Trois gardes avant la première écriture** (`SSBacASable.verifier`) : l'hôte est un aperçu ; une
+  identité Access répond ; la base est vide, porte des dossiers `ESSAI-` ou la fiche-marqueur
+  « Bac à sable ESSAI ». La troisième ne dépend d'aucun réglage Cloudflare : la PRODUCTION branchée par
+  erreur sur Preview est refusée (test G5). Les gardes lisent la base SANS repli sur le cache du
+  navigateur — `SS.list*` y retombent, et un cache vide laisserait passer une base illisible.
+• **La fiche-marqueur** est posée en premier et jamais retirée par « Vider » : sans elle, une base d'essai
+  vidée qui garde un devis saisi à la main ressemble trait pour trait à une vraie, et serait refusée pour
+  toujours (tests V2 et V3).
+• **Vingt dossiers, un par situation que le tableau de bord reconnaît** — brouillon, relances 1 et 2, mise
+  en attente, accepté en ligne, acompte à encaisser, chez le fournisseur, pose à planifier, chantier à
+  préparer, solde en retard, soldé au portfolio, refusé, expiré, dépannage fait et à faire, SAV, archive,
+  devis informatif, données abîmées — plus cinq demandes de visite, trois sujets, deux exceptions de
+  planning et un quasi-doublon de fiche. Le test R10 vérifie CHAQUE dossier avec la vraie règle
+  (`SSActions`) sur la liste telle que le serveur la projette. Noms à apostrophe (L'Hoest,
+  Braine-l'Alleud), accents, TVA 21 %.
+• **Faux par construction** : e-mails en `@exemple.invalid` (ne peut rien recevoir, RFC 2606),
+  téléphones « 0000 … » (ne compose rien), « Rue de l'Essai », photos dessinées. Les communes et codes
+  postaux sont réels : carte, météo et portfolio s'en servent.
+• **Rien d'inventé** : montants du vrai moteur (`SSCalc.computeDevis`, réglages par défaut), factures
+  numérotées par le serveur de la base d'essai, encaissements, attentes, notes et tickets SAV par LEURS
+  routes ciblées (auteur signé par le serveur, règle 3).
+• **Rejouable** : « Remplir » réécrit devis, demandes, sujets et congés avec des dates RELATIVES au jour
+  même ; une facture, une note, un ticket ou une attente déjà posés ne sont pas recréés (test R4).
+  **« Vider » ne retire que ce que la page a posé** — ce qu'on saisit à la main pendant un essai reste.
+• **Le test joue le VRAI serveur** : `[[catchall]].js` importé dans la page, une vraie base SQLite en
+  mémoire (sql.js 1.10.3 depuis cdnjs, fonctions JSON comprises), une surface D1 réduite à
+  `prepare / bind / first / all / run` — aussi stricte que D1 (un `undefined` lié lève une erreur) — et un
+  faux réseau qui pose l'en-tête Access. C'est le seul banc qui rejoue des écritures de bout en bout sans
+  Cloudflare : **à réutiliser pour toute nouvelle route.** Vérifié par mutation (garde « vraie base »,
+  doublons de factures, champs privés envoyés).
+• ⚠️ **Jamais de clé SMTP2GO dans l'environnement Preview** : un essai ne doit pas pouvoir envoyer de mail.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2568,7 +2625,9 @@ dans `assets/js/vitrine.js` (`window.SSVitrine`, fonctions pures) ; protégé pa
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
-   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 87/87 », par le serveur.
+   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
+   Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`) ou à une route qu'il emprunte : `tests/bac-a-sable.test.html`,
+   exiger « 24/24 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
