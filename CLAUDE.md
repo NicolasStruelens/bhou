@@ -73,6 +73,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
+| `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
+| `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 93 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -2213,6 +2215,37 @@ DEPLOIEMENT.md, étape 11.
   qui arrivent bien dans Zoho) : un envoi groupé sur un circuit qui n'a jamais envoyé un seul mail
   réel, c'est multiplier une erreur qu'on n'a pas encore vue.
 
+**44. LA CARTE DIT OÙ ALLER ET QUOI Y FAIRE** (26/10/2026 — revue de la page, propositions A à G choisies
+par Nicolas sur maquette). Les calculs vivent dans `assets/js/carte.js` (`window.SSCarte`, fonctions
+pures) ; protégé par `tests/carte.test.html`.
+• **Quatre modes** : Tournée (par défaut — les rendez-vous de la semaine du Planning, numérotés dans
+  l'ordre de chaque jour, avec l'itinéraire du jour), À faire, Tous, Secteurs ; et « Autour de moi ».
+• **La couleur d'un point est celle de l'ACTION** (`SSActions.prochaineAction` sur `SSUI.normDevis`,
+  règle 21 bis) — la même que le tableau de bord, pas une table de statuts recopiée. Un ticket SAV
+  ouvert et une demande de visite pas encore fixée sont aussi des choses à faire sur place.
+• **Un point par client** (`SSCarte.grouper`) : ses dossiers réunis, l'action la plus lourde, l'adresse
+  du dossier le plus récent. Des points au même endroit s'écartent en spirale, TOUJOURS pareil
+  (`ecarter`) : l'ancien décalage au hasard faisait bouger la carte et dédoublait les clients.
+• **« Autour de… »** (10 km, `autourDe`) sur un client ou un arrêt de la tournée : une sortie, plusieurs
+  dossiers avancés. **Réalisations proches** (2 km, `realisationsProches`) sur un prospect : un NOMBRE
+  et la phrase à dire, jamais les noms des autres clients. **Secteurs** : tout l'historique, archives
+  comprises, taux = signés ÷ (signés + refusés). **Autour de moi** : la position ne quitte pas l'appareil.
+• **L'adresse exacte, mémorisée sur l'appareil** (`ss_geo_adresses`) : la commune tout de suite (code
+  postal), puis la rue chez OpenStreetMap (Nominatim) — ⚠️ choix de Nicolas : l'adresse sort de l'ERP,
+  c'est le prix de la précision. **Une requête par seconde au plus et une seule fois par adresse** (règles
+  d'usage de Nominatim) ; une adresse introuvable n'est redemandée qu'après 30 jours ; sans réseau, la file
+  s'arrête. Un point placé à la commune a un bord en pointillés et les distances le disent.
+• **La liste suffit** : l'ancienne carte rechargeait CHAQUE devis complet, photos comprises, pour en lire
+  l'adresse. Le résumé d'un dossier vient de `SSUI.resumeDevis` (la copie locale écrivait « 2 Tente
+  solaires » et comptait une quantité 0 pour 1).
+• **La carte n'enferme plus le défilement** : sur écran tactile, un doigt fait défiler la PAGE et deux
+  doigts déplacent la carte (`dragging` coupé, `touch-action: pan-x pan-y`) ; au bureau, la molette fait
+  défiler la page et Ctrl + molette zoome. Un mot l'explique au geste. Sans Leaflet (réseau), la page le
+  dit et les listes restent utilisables. Le cadrage ne suit que ce qui est affiché.
+• ⚠️ **Tester Leaflet dans un cadre hors écran** : ses animations de zoom ne se terminent jamais (même
+  piège que les transitions) — couper `map._zoomAnimated` avant de mesurer un zoom, sinon un test de
+  molette passe à tort (vérifié par mutation).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2499,6 +2532,7 @@ DEPLOIEMENT.md, étape 11.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :

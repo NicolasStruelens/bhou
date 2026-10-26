@@ -27,23 +27,38 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <style>
-    .cf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
-    .cf-chip { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.32rem 0.7rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: all var(--t-fast); user-select: none; }
-    .cf-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
-    .cf-chip.off { opacity: 0.4; }
-    .cf-chip:hover { border-color: var(--dot); }
-    #map { width: 100%; height: 62vh; min-height: 380px; border-radius: var(--r-md); border: 1px solid var(--border); overflow: hidden; position: relative; z-index: 1; }
+    /* ── Barre : le mode, et ce qui va avec ─────────────────────────────────────────────────── */
+    .cf-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+    .cf-seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; }
+    .cf-seg button { background: none; border: none; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-2xs);
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 0.4rem 0.75rem; cursor: pointer; }
+    .cf-seg button.active { background: var(--accent); color: var(--on-accent); }
+    .cf-sem { display: inline-flex; align-items: center; gap: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-sm); color: var(--text); }
+    .cf-fleche { width: 30px; height: 30px; display: grid; place-items: center; background: none; border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm); color: var(--text-muted); cursor: pointer; }
+    .cf-fleche:hover { border-color: var(--accent); color: var(--accent); }
+    .cf-jours { display: flex; flex-wrap: wrap; gap: 4px; }
+    .cf-jours button { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.25rem 0.55rem; border-radius: var(--r-sm);
+      border: 1px solid var(--border); background: none; color: var(--text-muted); cursor: pointer; }
+    .cf-jours button.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .cf-jours button:disabled { opacity: 0.35; cursor: default; }
+    .cf-case { display: inline-flex; align-items: center; gap: 0.4rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
+    .cf-espace { flex: 1 1 auto; }
+
+    /* Le résumé en UNE ligne : trois tuiles repoussaient la carte sous l'écran du téléphone. */
+    .cf-resume { display: flex; flex-wrap: wrap; gap: 4px var(--sp-4); align-items: center; padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+      border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); color: var(--text-muted); }
+    .cf-resume b { color: var(--text); }
+    .cf-resume .alerte { color: var(--danger); font-weight: 600; }
+
+    .cf-corps { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-3); align-items: start; }
+    #map { width: 100%; height: 68vh; min-height: 420px; border-radius: var(--r-md); border: 1px solid var(--border); overflow: hidden; position: relative; z-index: 1; }
     [data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
     [data-theme="dark"] .leaflet-control-attribution { background: rgba(10,14,30,0.75) !important; color: var(--text-subtle) !important; }
     [data-theme="dark"] .leaflet-control-attribution a { color: var(--accent) !important; }
     [data-theme="dark"] .leaflet-control-zoom a { background: var(--surface) !important; color: var(--text) !important; border-color: var(--border-strong) !important; }
-    .cf-popup .cf-p-client { font-weight: 700; margin-bottom: 0.15rem; }
-    .cf-popup .cf-p-addr { font-family: var(--font-mono); font-size: 0.72rem; color: #556; margin-bottom: 0.35rem; }
-    .cf-popup .cf-p-items { font-size: 0.78rem; color: #445; margin-bottom: 0.5rem; }
-    .cf-popup a.cf-p-link { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .cf-warn-list { margin-top: var(--sp-4); }
-    .cf-warn-row { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 0.5rem 0.9rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
-    .cf-warn-row .v { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
+    .cf-sans-carte { display: grid; place-items: center; height: 100%; padding: var(--sp-5); text-align: center; color: var(--text-muted); font-size: var(--fs-sm); }
+
     /* ── Balayage radar (thème sombre uniquement) : un faisceau conique très discret qui tourne
        au-dessus de la carte, façon écran sonar — l'ambiance « instrument » du Cadastre solaire. ── */
     .map-wrap { position: relative; overflow: hidden; border-radius: var(--r-md); }
@@ -60,6 +75,101 @@
     [data-theme="dark"] .radar-sweep { display: block; animation: radar-spin 9s linear infinite; }
     @keyframes radar-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .radar-sweep { display: none !important; } }
+    /* Le mot qui explique le geste (deux doigts, Ctrl + molette) : il apparaît au geste et s'efface. */
+    .cf-indice { position: absolute; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: var(--sp-4);
+      background: rgba(5, 10, 25, 0.55); color: #fff; font-family: var(--font-mono); font-size: var(--fs-sm); text-align: center;
+      opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+    .cf-indice.on { opacity: 1; }
+
+    /* ── Les points ──────────────────────────────────────────────────────────────────────────── */
+    /* La couleur est celle de l'ACTION (règle 21 bis) — la même que le liseré du tableau de bord.
+       Un point placé à la COMMUNE (adresse pas encore précisée) a un bord en pointillés. */
+    .cm-ic { background: none; border: none; }
+    .cm-pt { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: block; width: 16px; height: 16px; border-radius: 50%;
+      background: var(--c); border: 2px solid var(--surface); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 70%, #000); cursor: pointer; }
+    .cm-pt.approx { border-style: dashed; }
+    .cm-pt.sel, .cm-num.sel { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--c); z-index: 2; }
+    .cm-num { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px;
+      border-radius: 12px; background: var(--c); border: 2px solid var(--surface); color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.75);
+      font-family: var(--font-mono); font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+    .cm-moi { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); display: block; width: 14px; height: 14px; border-radius: 50%;
+      background: #2b7bff; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(43,123,255,0.25); }
+    path.cm-ligne { stroke: var(--accent); }
+    path.cm-sect { stroke-width: 2; }
+    path.cm-sect.haut { fill: var(--ok); stroke: var(--ok); }
+    path.cm-sect.moyen { fill: var(--warn); stroke: var(--warn); }
+    path.cm-sect.bas { fill: var(--danger); stroke: var(--danger); }
+    path.cm-sect.neutre { fill: var(--text-subtle); stroke: var(--text-subtle); }
+    path.cm-sect.sel { stroke-width: 4; }
+
+    /* ── Le panneau à côté de la carte (dessous sur téléphone) ───────────────────────────────── */
+    .cf-pan { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4);
+      max-height: 68vh; min-height: 200px; overflow: auto; overscroll-behavior: contain; }
+    .cf-t { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-3) 0 var(--sp-2); }
+    .cf-t:first-child { margin-top: 0; }
+    .cf-t .n { color: var(--text-muted); }
+    .cf-li { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: 0.45rem 0.5rem; margin: 0 0 3px; text-align: left;
+      background: none; border: 1px solid transparent; border-radius: var(--r-sm); color: inherit; cursor: pointer; font-size: var(--fs-sm); }
+    .cf-li:hover, .cf-li:focus-visible { border-color: var(--border-strong); background: var(--surface-2); }
+    .cf-li .num { flex: none; min-width: 22px; height: 22px; display: grid; place-items: center; border-radius: 11px; background: var(--c); color: #fff;
+      text-shadow: 0 0 2px rgba(0,0,0,0.75); font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+    .cf-li .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+    .cf-li .nm { flex: 1 1 auto; min-width: 0; }
+    .cf-li .nm b { display: block; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cf-li .nm small { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cf-li .km { flex: none; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-muted); }
+    .cf-act { display: inline-block; max-width: 100%; font-size: var(--fs-2xs); font-weight: 600; color: var(--c);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+    .cf-jh { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin: var(--sp-3) 0 var(--sp-1);
+      font-weight: 700; color: var(--text); font-size: var(--fs-sm); }
+    .cf-jh:first-child { margin-top: 0; }
+    .cf-retour { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: var(--fs-xs); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .cf-fiche h3 { margin: var(--sp-2) 0 2px; font-size: var(--fs-md); }
+    .cf-adr { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .cf-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-3) 0; }
+    .cf-dos { padding: var(--sp-2) 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); }
+    .cf-dos a { color: inherit; text-decoration: none; }
+    .cf-dos .meta { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .cf-arg { margin: var(--sp-3) 0; padding: var(--sp-3); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); border-radius: var(--r-sm);
+      background: color-mix(in srgb, var(--ok) 7%, transparent); font-size: var(--fs-sm); }
+    .cf-arg b { color: var(--ok); }
+    .cf-note { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; }
+    .cf-vide { font-size: var(--fs-sm); color: var(--text-subtle); font-style: italic; }
+    .cf-tab { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+    .cf-tab th { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); font-weight: 400; text-align: right; padding: 4px; }
+    .cf-tab th:first-child, .cf-tab td:first-child { text-align: left; }
+    .cf-tab td { padding: 5px 4px; border-top: 1px solid var(--border); text-align: right; font-family: var(--font-mono); }
+    .cf-tab tr { cursor: pointer; }
+    .cf-tab tr.sel td, .cf-tab tbody tr:hover td { background: var(--surface-2); }
+    .cf-tab .ville { font-family: var(--font-body); color: var(--text); }
+
+    .cf-warn-list { margin-top: var(--sp-4); }
+    .cf-warn-row { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); padding: 0.5rem 0.9rem; border: 1px solid var(--border);
+      border-radius: var(--r-sm); background: var(--surface); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
+    .cf-warn-row .v { color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-2xs); }
+
+    @media (max-width: 1000px) {
+      .cf-corps { grid-template-columns: minmax(0, 1fr); }
+      .cf-pan { max-height: none; }
+    }
+    @media (max-width: 900px) {
+      #map { height: 52vh; min-height: 300px; }
+    }
+    @media (max-width: 560px) {
+      .cf-resume { font-size: var(--fs-xs); }
+      .cf-espace { display: none; }
+      /* Les sept jours sur UNE rangée qu'on fait glisser : sur deux lignes, ils repoussaient la
+         carte sous le premier écran. La page, elle, ne déborde pas. */
+      .cf-jours { flex-wrap: nowrap; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+      .cf-jours::-webkit-scrollbar { display: none; }
+      .cf-jours button { flex: none; }
+    }
+    @media (pointer: coarse) {
+      .cf-seg button, .cf-jours button { min-height: 38px; }
+      .cf-fleche { width: 38px; height: 38px; }
+      .cf-li { min-height: 44px; }
+    }
   </style>
 </head>
 <body>
@@ -81,13 +191,17 @@
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
-    <div class="cf-toolbar" id="toolbar"></div>
-    <!-- Le balayage radar vit dans un cadre qui rogne (overflow hidden) AU-DESSUS des tuiles
-         Leaflet (z-index 800 < contrôles à 1000) — jamais dans #map, que Leaflet réorganise. -->
-    <div class="map-wrap">
-      <div id="map"></div>
-      <div class="radar-sweep" aria-hidden="true"></div>
+    <div class="cf-bar" id="barre"></div>
+    <div id="resume"></div>
+    <div class="cf-corps">
+      <!-- Le balayage radar vit dans un cadre qui rogne (overflow hidden) AU-DESSUS des tuiles
+           Leaflet (z-index 800 < contrôles à 1000) — jamais dans #map, que Leaflet réorganise. -->
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="radar-sweep" aria-hidden="true"></div>
+        <div class="cf-indice" id="cfIndice" aria-hidden="true"></div>
+      </div>
+      <aside class="cf-pan" id="panneau" aria-live="polite"></aside>
     </div>
     <div id="warnHost"></div>
   </main>
@@ -97,138 +211,488 @@
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="../assets/js/carte.js"></script>
   <script>
-    const SS = window.SS;
-    const { mountThemeToggle } = window.SSTheme;
-    const { el, icon, geocodeVille } = window.SSUI;
-    mountThemeToggle(document.getElementById('themeToggle'));
+    /* ══════════ LA CARTE DES CHANTIERS (revue du 26/10/2026, règle 44 de CLAUDE.md) ══════════
+       Elle ne disait que « où sont les devis ». Elle dit maintenant OÙ ALLER et QUOI Y FAIRE :
+       la tournée de la semaine (A), la couleur de l'action à faire (B), ce qui attend autour d'un
+       chantier (C), l'adresse exacte (D), autour de moi (E), les réalisations proches d'un
+       prospect (F) et les secteurs (G). Les calculs vivent dans assets/js/carte.js. */
+    const SS = window.SS, P = window.SSPlanning, C = window.SSCarte, U = window.SSUI;
+    const { el, icon, escHtml, fmtDate, jsAttr, toast } = U;
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const TYPE_LABEL = window.SSUI.TYPE_LABEL;   // source unique : assets/js/ui.js
-    function itemsSummary(items) {
-      const counts = {};
-      (items || []).forEach(it => { counts[it.type] = (counts[it.type] || 0) + (it.quantite || 1); });
-      return Object.entries(counts).map(([t, n]) => `${n} ${TYPE_LABEL[t] || t}${n > 1 ? 's' : ''}`).join(', ') || 'Aucune ouverture';
+    const MODES = [['tournee', 'Tournée'], ['afaire', 'À faire'], ['tous', 'Tous'], ['secteurs', 'Secteurs']];
+    const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const MOIS_COURT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    const lireLS = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const ecrireLS = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
+    const attendre = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+    let MODE = MODES.some(function (m) { return m[0] === lireLS('ss_carte_mode'); }) ? lireLS('ss_carte_mode') : 'tournee';
+    let SEMAINE = P.lundiDe(P.aujourdhui());
+    let JOUR = null;        // jour choisi dans la tournée ; null = « pas encore choisi » (on prend aujourd'hui s'il a des arrêts)
+    let PERDUS = false;     // « Tous » : afficher aussi les devis refusés et annulés
+    let SEL = '';           // point choisi (clé client) ou arrêt choisi ('ev:<id>')
+    let SEL_SECT = '';      // secteur choisi
+    let MOI = null;         // ma position (E) — jamais enregistrée, jamais envoyée
+    let VUE_MOI = false;
+    let DEVIS = [], RDVS = [], FACTURES = [], EVS = [], ACT = null;
+    let ENTREES = [], POINTS = [], POINTS_REF = [];
+    let map = null, couche = null;
+
+    function jourCourt(j) { const d = P.dateDe(j); return P.JOURS[P.indexJour(j)].court.toLowerCase() + ' ' + d.getDate(); }
+    function jourLong(j) { const d = P.dateDe(j); return P.JOURS[P.indexJour(j)].long + ' ' + d.getDate() + ' ' + MOIS[d.getMonth()]; }
+
+    // ── Où placer une adresse (D) ──────────────────────────────────────────────────────────────
+    /* Deux niveaux, mémorisés SUR L'APPAREIL (`ss_geo_adresses`) :
+       • la COMMUNE, tout de suite (code postal, sans ambiguïté d'orthographe) ;
+       • l'ADRESSE exacte, ensuite, chez OpenStreetMap (Nominatim), UNE requête par seconde au plus
+         — leurs règles d'usage — et une seule fois par adresse : la réponse est gardée.
+       Une adresse introuvable est notée, et redemandée seulement après trente jours.
+       Tant que l'adresse exacte n'est pas connue, le point est à la commune, bord en pointillés. */
+    const CLE_GEO = 'ss_geo_adresses';
+    const GEO = (function () { try { return JSON.parse(lireLS(CLE_GEO) || '{}') || {}; } catch (e) { return {}; } })();
+    function sauverGeo() { ecrireLS(CLE_GEO, JSON.stringify(GEO)); }
+    function positionCommune(adr) {
+      const c = GEO['c:' + C.cleCommune(adr)];
+      return c ? { lat: c.lat, lon: c.lon, precis: false } : null;
+    }
+    function position(adr) {
+      if (!C.localisable(adr)) return null;
+      const x = GEO['a:' + C.cleAdresse(adr)];
+      if (x && x.p === 'adresse') return { lat: x.lat, lon: x.lon, precis: true };
+      return positionCommune(adr);
+    }
+    async function preparerCommunes(adresses) {
+      const a_faire = new Map();
+      adresses.forEach(function (a) {
+        if (!C.localisable(a)) return;
+        const k = 'c:' + C.cleCommune(a);
+        if (!GEO[k] && !a_faire.has(k)) a_faire.set(k, a);
+      });
+      await Promise.all(Array.from(a_faire).map(async function (x) {
+        try { const loc = await U.geocodeVille(x[1].ville, x[1].code_postal); if (loc) GEO[x[0]] = { lat: loc.latitude, lon: loc.longitude, p: 'commune' }; } catch (e) {}
+      }));
+      if (a_faire.size) sauverGeo();
+    }
+    const FILE = [];
+    let FILE_ACTIVE = false;
+    function aPreciser(adresses) {
+      const auj = P.aujourdhui();
+      adresses.forEach(function (a) {
+        if (!C.aUneRue(a) || !C.localisable(a)) return;
+        const k = 'a:' + C.cleAdresse(a), x = GEO[k];
+        if (x && (x.p === 'adresse' || (x.p === 'introuvable' && P.ecartJours(x.t || auj, auj) < 30))) return;
+        if (FILE.some(function (f) { return f.k === k; })) return;
+        FILE.push({ k: k, a: a });
+      });
+      if (!FILE_ACTIVE && FILE.length) depiler();
+    }
+    async function depiler() {
+      FILE_ACTIVE = true;
+      majResume();
+      while (FILE.length) {
+        const f = FILE[0];
+        let r;
+        try { r = await C.nominatim(C.requete(f.a)); } catch (e) { r = undefined; }
+        FILE.shift();
+        if (r) GEO[f.k] = { lat: r.lat, lon: r.lon, p: 'adresse', t: P.aujourdhui() };
+        else if (r === null) GEO[f.k] = { p: 'introuvable', t: P.aujourdhui() };
+        else { FILE.length = 0; break; }      // pas de réseau : on s'arrête, on reprendra au prochain passage
+        sauverGeo();
+        rafraichirBientot();
+        if (FILE.length) await attendre(1100);
+      }
+      FILE_ACTIVE = false;
+      majResume();
+    }
+    let minuteur = 0;
+    function rafraichirBientot() { clearTimeout(minuteur); minuteur = setTimeout(function () { construirePoints(); rendre(false); }, 700); }
+
+    // ── Données ────────────────────────────────────────────────────────────────────────────────
+    /* ⚠️ LA LISTE SUFFIT : l'ancienne carte rechargeait CHAQUE devis complet, photos comprises, un
+       par un, pour n'en lire que l'adresse — lent en 4G et sans aucune utilité. La liste porte
+       déjà le client, son adresse, les ouvertures résumées et ce que la prochaine action lit. */
+    async function charger() {
+      const r = await Promise.all([P.charger().catch(function () { return null; }), SS.listFactures().catch(function () { return []; })]);
+      const plan = r[0];
+      FACTURES = r[1] || [];
+      DEVIS = (plan && plan.sources.devis) || [];
+      RDVS = (plan && plan.sources.rdvs) || [];
+      EVS = (plan && plan.evenements) || [];
+      const N = DEVIS.map(U.normDevis);
+      // La même règle que le tableau de bord et la page Clients : SSActions (règle 41).
+      ACT = window.SSActions.creer({ factures: function () { return FACTURES; }, devis: function () { return N; }, rdv: function () { return RDVS; }, sujets: function () { return []; } });
+      const sav = new Map();
+      if (window.SSAttente) window.SSAttente.depuisSav(DEVIS).forEach(function (i) { if (!sav.has(i.devis_id)) sav.set(i.devis_id, i); });
+      const cleDe = function (cl, repli) { const k = U.clientKeyOf((cl || {}).prenom, (cl || {}).nom); return k && k !== '|' ? k : repli; };
+      const nomDe = function (cl) { return (((cl || {}).prenom || '') + ' ' + ((cl || {}).nom || '')).trim() || 'Sans nom'; };
+      ENTREES = [];
+      DEVIS.forEach(function (d, i) {
+        if (!d || !d.statut || d.statut === 'brouillon') return;
+        const n = N[i], cl = d.client || {};
+        let action = ACT.prochaineAction(n), poids = action ? ACT.poidsAction(action, n) : 0;
+        // Un ticket SAV ouvert est une chose à faire SUR PLACE : il passe devant ce qui pèse moins.
+        const s = sav.get(d.id);
+        if (s && poids < 3) { action = { txt: s.quoi, fam: 'chantier', color: ACT.FAM.chantier.color, lib: ACT.FAM.chantier.lib, hash: '#sav' }; poids = 3; }
+        if (action && action.fam === 'rien') poids = 0;
+        ENTREES.push({
+          id: d.id, cle: cleDe(cl, 'devis:' + d.id), nom: nomDe(cl), adresse: cl.adresse || {}, tel: cl.telephone || '',
+          statut: d.statut, archive: !!d.archive, ttc: Number(n.ttc) || 0, date: d.date_modification || d.date_creation || '',
+          action: action, poids: poids, href: 'vue.html?id=' + encodeURIComponent(d.id) + ((action && action.hash) || ''), fiche: 'vue.html?id=' + encodeURIComponent(d.id),
+          // Le résumé COMMUN (règle 9) : l'ancienne copie écrivait « 2 Tente solaires » et comptait une quantité 0 pour 1.
+          resume: d.type_document === 'depannage' ? 'Dépannage' : (U.resumeDevis(d) || ''),
+          realise: d.statut === 'termine' || !!U.isPoseDone(d),
+          prospect: ['envoye_client', 'relance_1', 'relance_2'].indexOf(d.statut) >= 0,
+          perdu: ['refuse', 'annule'].indexOf(d.statut) >= 0,
+          statutLib: (U.STATUT_DEVIS_LABEL || {})[d.statut] || d.statut,
+        });
+      });
+      // Une demande de visite pas encore fixée est AUSSI quelque chose à faire, quelque part.
+      RDVS.forEach(function (rv) {
+        if (!rv || ['nouveau', 'a_contacter'].indexOf(rv.statut) < 0) return;
+        const cl = rv.client || {};
+        const action = { txt: 'Visite à fixer', fam: 'ecrire', color: ACT.FAM.ecrire.color, lib: ACT.FAM.ecrire.lib };
+        ENTREES.push({
+          id: 'rdv:' + rv.id, cle: cleDe(cl, 'rdv:' + rv.id), nom: nomDe(cl), adresse: cl.adresse || {}, tel: cl.telephone || '',
+          statut: 'demande', archive: false, ttc: 0, date: rv.date_modification || rv.date_creation || '',
+          action: action, poids: 2, href: 'rdv.html?open=' + encodeURIComponent(rv.id), fiche: 'rdv.html?open=' + encodeURIComponent(rv.id),
+          resume: String(rv.projet || '').slice(0, 80) || 'Demande de visite', realise: false, prospect: true, perdu: false, statutLib: 'Demande de RDV',
+        });
+      });
+      const adresses = ENTREES.map(function (e) { return e.adresse; }).concat(EVS.map(adresseEv).filter(Boolean));
+      await preparerCommunes(adresses);
+      construirePoints();
+      if (JOUR === null) {
+        const auj = P.aujourdhui();
+        JOUR = evsSemaine().some(function (e) { return e.date === auj; }) ? auj : '';
+      }
+      rendre(true);
+      aPreciser(adresses);
+    }
+    function adresseEv(e) {
+      if (!e) return null;
+      if (e.source === 'visite') { const r = RDVS.filter(function (x) { return String(x.id) === String(e.ref); })[0]; return (r && r.client && r.client.adresse) || null; }
+      const d = DEVIS.filter(function (x) { return String(x.id) === String(e.ref); })[0];
+      return (d && d.client && d.client.adresse) || null;
+    }
+    function evsSemaine() {
+      const au = P.plusJours(SEMAINE, 6);
+      return EVS.filter(function (e) { return e.source !== 'indispo' && e.date >= SEMAINE && e.date <= au; });
+    }
+    function construirePoints() {
+      POINTS = C.grouper(ENTREES.filter(function (e) { return !e.archive && (PERDUS || !e.perdu); }));
+      // Les RÉFÉRENCES (F) comptent aussi les chantiers archivés : un chantier fini il y a deux ans
+      // reste une maison équipée à deux rues de là.
+      POINTS_REF = C.grouper(ENTREES.filter(function (e) { return e.statut !== 'demande'; }));
+      POINTS.concat(POINTS_REF).forEach(function (p) { p.pos = position(p.adresse); });
+      C.ecarter(POINTS);
+    }
+    const aFaire = function (p) { return p.poids > 0; };
+
+    // ── Rendu ──────────────────────────────────────────────────────────────────────────────────
+    function rendre(recadrer) {
+      rendreBarre();
+      majResume();
+      rendrePanneau();
+      rendreCarte(recadrer);
+      rendreNonLocalises();
+    }
+    function rendreBarre() {
+      const seg = '<div class="cf-seg" role="tablist">' + MODES.map(function (m) {
+        return '<button type="button" role="tab" aria-selected="' + (MODE === m[0]) + '" class="' + (MODE === m[0] ? 'active' : '') + '" onclick="setMode(\'' + m[0] + '\')">' + m[1] + '</button>';
+      }).join('') + '</div>';
+      let html = seg;
+      if (MODE === 'tournee') {
+        const d = P.dateDe(SEMAINE);
+        const jours = P.jours(SEMAINE, P.plusJours(SEMAINE, 6));
+        const avec = evsSemaine().map(function (e) { return e.date; });
+        html += '<span class="cf-sem"><button type="button" class="cf-fleche" onclick="changerSemaine(-1)" aria-label="Semaine précédente" style="transform:rotate(180deg)">' + icon('chevronright', 14) + '</button>' +
+          'Semaine du ' + d.getDate() + ' ' + MOIS_COURT[d.getMonth()] +
+          '<button type="button" class="cf-fleche" onclick="changerSemaine(1)" aria-label="Semaine suivante">' + icon('chevronright', 14) + '</button></span>' +
+          '<div class="cf-jours"><button type="button" class="' + (!JOUR ? 'on' : '') + '" onclick="setJour(\'\')">Toute la semaine</button>' +
+          jours.map(function (j) {
+            return '<button type="button" class="' + (JOUR === j ? 'on' : '') + '"' + (avec.indexOf(j) < 0 ? ' disabled' : '') + ' onclick="setJour(\'' + j + '\')">' + jourCourt(j) + '</button>';
+          }).join('') + '</div>';
+      }
+      if (MODE === 'tous') html += '<label class="cf-case"><input type="checkbox" ' + (PERDUS ? 'checked' : '') + ' onchange="setPerdus(this.checked)"> Refusés et annulés aussi</label>';
+      html += '<span class="cf-espace"></span><button type="button" class="btn btn-ghost btn-sm" onclick="autourDeMoi()">' + icon('pin', 13) + ' Autour de moi</button>';
+      el('barre').innerHTML = html;
+    }
+    function majResume() {
+      const places = POINTS.filter(function (p) { return p.pos; });
+      const nonLoc = POINTS.filter(function (p) { return !p.pos; }).length;
+      const bouts = ['<span><b>' + places.length + '</b> client' + (places.length > 1 ? 's' : '') + ' sur la carte</span>',
+        '<span><b>' + POINTS.filter(aFaire).length + '</b> à faire</span>'];
+      if (nonLoc) bouts.push('<span class="alerte">' + nonLoc + ' non localisé' + (nonLoc > 1 ? 's' : '') + '</span>');
+      if (FILE.length) bouts.push('<span>' + icon('pin', 12) + ' ' + FILE.length + ' adresse' + (FILE.length > 1 ? 's' : '') + ' en cours de placement…</span>');
+      else if (places.length && places.some(function (p) { return !p.pos.precis; })) bouts.push('<span class="cf-note">pointillés = placé à la commune</span>');
+      el('resume').innerHTML = '<div class="cf-resume">' + bouts.join('') + '</div>';
     }
 
-    // Groupes de statuts affichés sur la carte (le brouillon n'a pas encore d'adresse engagée → exclu).
-    const GROUPS = {
-      attente: { label: 'En attente client', statuses: ['envoye_client', 'relance_1', 'relance_2'], colorVar: '--accent', defaultOn: true },
-      signe:   { label: 'Signé',             statuses: ['signe'],                                   colorVar: '--ok',     defaultOn: true },
-      termine: { label: 'Terminé',           statuses: ['termine'],                                 colorVar: '--accent-2', defaultOn: true },
-      refuse:  { label: 'Refusé',            statuses: ['refuse'],                                  colorVar: '--danger', defaultOn: false },
-      annule:  { label: 'Annulé',            statuses: ['annule'],                                  colorVar: '--text-subtle', defaultOn: false },
-    };
-    function groupOf(statut) { return Object.keys(GROUPS).find(k => GROUPS[k].statuses.includes(statut)) || null; }
-    function resolveColor(cssVarName) { return getComputedStyle(document.documentElement).getPropertyValue(cssVarName).trim() || '#5b8def'; }
-
-    let map, layerGroups = {};
-    function initMap() {
-      map = L.map('map', { scrollWheelZoom: true }).setView([50.5039, 4.4699], 8); // centre Belgique
+    // ── La carte ───────────────────────────────────────────────────────────────────────────────
+    function initCarte() {
+      if (!window.L) {
+        // Sans la bibliothèque de carte (réseau, bloqueur), la page reste UTILE : le panneau et la
+        // liste fonctionnent. Avant, on obtenait une page vide sans un mot.
+        el('map').innerHTML = '<div class="cf-sans-carte">La carte n’a pas pu se charger (réseau ?). Les listes à côté restent utilisables.</div>';
+        return;
+      }
+      /* ⚠️ LA CARTE N'ENFERME PLUS LE DÉFILEMENT.
+         • Téléphone : un doigt fait défiler la PAGE, deux doigts déplacent et zooment la carte.
+           Avant, un doigt déplaçait la carte, qui occupait 62 % de l'écran : pour atteindre la liste
+           du dessous, il fallait viser une marge de 16 px.
+         • Bureau : la molette fait défiler la page ; Ctrl + molette zoome la carte. Avant, passer
+           la souris sur la carte en faisant défiler la page… zoomait la carte. */
+      const tactile = window.matchMedia('(pointer: coarse)').matches;
+      map = L.map('map', { scrollWheelZoom: false, dragging: !tactile }).setView([50.62, 4.5], 9);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
         maxZoom: 18,
       }).addTo(map);
-      Object.keys(GROUPS).forEach(k => {
-        layerGroups[k] = L.layerGroup(GROUPS[k].defaultOn ? [] : []);
-        if (GROUPS[k].defaultOn) layerGroups[k].addTo(map);
-      });
+      couche = L.layerGroup().addTo(map);
+      let tIndice = 0;
+      const indice = function (txt) {
+        const n = el('cfIndice'); n.textContent = txt; n.classList.add('on');
+        clearTimeout(tIndice); tIndice = setTimeout(function () { n.classList.remove('on'); }, 1300);
+      };
+      el('map').addEventListener('wheel', function (e) {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          map.setZoomAround(map.mouseEventToContainerPoint(e), map.getZoom() + (e.deltaY < 0 ? 1 : -1));
+          return;
+        }
+        indice('Ctrl + molette pour zoomer la carte');
+      }, { passive: false });
+      if (tactile) el('map').addEventListener('touchmove', function (e) { if (e.touches.length === 1) indice('Deux doigts pour déplacer la carte'); }, { passive: true });
+    }
+    function marqueur(latlng, html, titre, clic) {
+      const m = L.marker(latlng, { icon: L.divIcon({ className: 'cm-ic', html: html, iconSize: [0, 0], iconAnchor: [0, 0] }), title: titre, riseOnHover: true, keyboard: true });
+      if (clic) m.on('click', clic);
+      m.addTo(couche);
+      return m;
+    }
+    function rendreCarte(recadrer) {
+      if (!map) return;
+      couche.clearLayers();
+      const bornes = [];
+      if (MODE === 'tournee') {
+        C.tournee(evsSemaine()).filter(function (j) { return !JOUR || j.date === JOUR; }).forEach(function (j) {
+          const ligne = [];
+          j.arrets.forEach(function (a) {
+            const pos = position(adresseEv(a.ev) || {});
+            if (!pos) return;
+            const ll = [pos.lat, pos.lon];
+            ligne.push(ll); bornes.push(ll);
+            const lib = JOUR ? String(a.n) : P.JOURS[P.indexJour(j.date)].court.slice(0, 2).toLowerCase() + a.n;
+            marqueur(ll, '<span class="cm-num' + (SEL === 'ev:' + a.ev.id ? ' sel' : '') + '" style="--c:' + (P.NATURES[a.ev.source] || {}).couleur + '">' + escHtml(lib) + '</span>',
+              jourLong(j.date) + ' · ' + a.n + ' — ' + a.ev.titre, function () { choisirEv(a.ev.id); });
+          });
+          if (ligne.length > 1) L.polyline(ligne, { className: 'cm-ligne', weight: 3, opacity: 0.75, dashArray: '6 7' }).addTo(couche);
+        });
+      } else if (MODE === 'secteurs') {
+        const S = secteursListe();
+        const max = Math.max.apply(null, [1].concat(S.map(function (s) { return s.caSigne; })));
+        S.forEach(function (s) {
+          const pos = positionCommune(s.adresse);
+          if (!pos) return;
+          const niv = s.taux == null ? 'neutre' : (s.taux >= 60 ? 'haut' : (s.taux >= 35 ? 'moyen' : 'bas'));
+          L.circleMarker([pos.lat, pos.lon], { radius: s.caSigne ? 7 + 22 * Math.sqrt(s.caSigne / max) : 6, className: 'cm-sect ' + niv + (SEL_SECT === s.cle ? ' sel' : ''), fillOpacity: 0.35 })
+            .bindTooltip(escHtml(s.ville) + ' — ' + s.signes + ' signé' + (s.signes > 1 ? 's' : '') + ', ' + s.refuses + ' refusé' + (s.refuses > 1 ? 's' : ''))
+            .on('click', function () { choisirSecteur(s.cle); }).addTo(couche);
+          bornes.push([pos.lat, pos.lon]);
+        });
+      } else {
+        POINTS.filter(function (p) { return p.vue && (MODE === 'tous' || aFaire(p)); }).forEach(function (p) {
+          const ll = [p.vue.lat, p.vue.lon];
+          bornes.push(ll);
+          const c = (p.action && aFaire(p)) ? p.action.color : 'var(--text-subtle)';
+          marqueur(ll, '<span class="cm-pt' + (SEL === p.cle ? ' sel' : '') + (p.pos.precis ? '' : ' approx') + '" style="--c:' + c + '"></span>',
+            p.nom + (p.action && aFaire(p) ? ' — ' + p.action.txt : ''), function () { choisir(p.cle); });
+        });
+      }
+      if (MOI) { marqueur([MOI.lat, MOI.lon], '<span class="cm-moi"></span>', 'Vous êtes ici'); bornes.push([MOI.lat, MOI.lon]); }
+      // Le cadrage ne suit que ce qu'on VOIT : il englobait les refusés et annulés masqués.
+      if (recadrer && bornes.length === 1) map.setView(bornes[0], 12);   // un seul point : on garde le quartier autour
+      else if (recadrer && bornes.length) map.fitBounds(bornes, { padding: [30, 30], maxZoom: 13 });
+    }
+    function secteursListe() { return C.secteurs(ENTREES.filter(function (e) { return e.statut !== 'demande'; })); }
+
+    // ── Le panneau ─────────────────────────────────────────────────────────────────────────────
+    function rendrePanneau() {
+      const h = el('panneau');
+      if (VUE_MOI && MOI) h.innerHTML = panneauMoi();
+      else if (MODE === 'tournee') h.innerHTML = panneauTournee();
+      else if (MODE === 'secteurs') h.innerHTML = panneauSecteurs();
+      else h.innerHTML = SEL ? panneauPoint(SEL) : panneauListe();
+    }
+    function ligneAction(p, km) {
+      const a = p.action && aFaire(p) ? p.action : null;
+      return '<button type="button" class="cf-li" style="--c:' + (a ? a.color : 'var(--text-subtle)') + '" onclick="choisir(' + jsAttr(p.cle) + ')">' +
+        '<span class="dot"></span><span class="nm"><b>' + escHtml(p.nom) + '</b><small>' + (a ? '<span class="cf-act">' + escHtml(a.txt) + '</span>' : escHtml(C.texteAdresse(p.adresse) || '')) + '</small></span>' +
+        (km != null ? '<span class="km">' + (km < 1 ? '< 1' : Math.round(km)) + ' km</span>' : '') + '</button>';
+    }
+    /** C — ce qui attend autour d'un lieu : une sortie, plusieurs dossiers avancés. */
+    function blocAutour(centre, exclure, titre) {
+      if (!centre) return '';
+      const l = C.autourDe(centre, POINTS, 10, aFaire, exclure).slice(0, 8);
+      return '<div class="cf-t">' + icon('pin', 12) + ' ' + escHtml(titre) + ' <span class="n">(' + l.length + ')</span></div>' +
+        (l.length ? l.map(function (x) { return ligneAction(x.p, x.km); }).join('')
+          : '<div class="cf-vide">Rien qui attende à moins de 10 km.</div>') +
+        (centre.precis === false ? '<div class="cf-note">Distances approchées : ce lieu est placé à la commune.</div>' : '');
+    }
+    function panneauTournee() {
+      const jours = C.tournee(evsSemaine()).filter(function (j) { return !JOUR || j.date === JOUR; });
+      if (!jours.length) return '<div class="cf-vide">Aucun rendez-vous ' + (JOUR ? 'ce jour-là' : 'cette semaine') + '.</div>' +
+        '<p class="cf-note" style="margin-top:var(--sp-3)">Les poses, visites et dépannages viennent du <a href="planning.html">Planning</a>.</p>';
+      let haut = '';
+      if (SEL.indexOf('ev:') === 0) {
+        const e = EVS.filter(function (x) { return 'ev:' + x.id === SEL; })[0];
+        if (e) {
+          const pos = position(adresseEv(e) || {});
+          haut = '<div class="cf-fiche"><button type="button" class="cf-retour" onclick="deselectionner()">← toute la tournée</button>' +
+            '<h3>' + escHtml(e.titre) + '</h3><div class="cf-adr">' + escHtml(e.adresse || 'Adresse non renseignée') + '</div>' +
+            '<div class="cf-actions">' + boutonsContact(e.tel, e.adresse) + (e.href ? '<a class="btn btn-ghost btn-sm" href="' + escHtml(e.href) + '">' + icon('window', 13) + ' Fiche</a>' : '') + '</div></div>' +
+            blocAutour(pos, '', 'Autour de ce rendez-vous') + '<div class="cf-t">' + icon('calendar', 12) + ' La tournée</div>';
+        }
+      }
+      return haut + jours.map(function (j) {
+        const route = P.itineraire(j.arrets.map(function (a) { return a.ev; }));
+        return '<div class="cf-jh"><span>' + escHtml(jourLong(j.date)) + '</span>' +
+          (route ? '<a class="btn btn-ghost btn-sm" href="' + escHtml(route) + '" target="_blank" rel="noopener">' + icon('route', 13) + ' Itinéraire</a>' : '') + '</div>' +
+          j.arrets.map(function (a) {
+            const e = a.ev, n = P.NATURES[e.source] || {};
+            const qui = e.qui.length ? e.qui.map(function (q) { return (U.SELLER_LABELS[q] || q).slice(0, 3); }).join('+') : 'à attribuer';
+            return '<button type="button" class="cf-li" style="--c:' + n.couleur + '" onclick="choisirEv(' + jsAttr(e.id) + ')">' +
+              '<span class="num">' + a.n + '</span><span class="nm"><b>' + escHtml(e.titre) + '</b><small>' +
+              escHtml([e.heure, n.label, qui, e.ville].filter(Boolean).join(' · ')) + '</small></span></button>';
+          }).join('');
+      }).join('');
+    }
+    function boutonsContact(tel, adresse) {
+      const t = String(tel || '').replace(/[^\d+]/g, '');
+      return (t ? '<a class="btn btn-ghost btn-sm" href="tel:' + escHtml(t) + '">' + icon('phone', 13) + ' Appeler</a>' : '') +
+        (adresse ? '<a class="btn btn-ghost btn-sm" href="' + escHtml('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(adresse)) + '" target="_blank" rel="noopener">' + icon('pin', 13) + ' Y aller</a>' : '');
+    }
+    function panneauListe() {
+      const l = POINTS.filter(function (p) { return MODE === 'tous' || aFaire(p); });
+      if (!l.length) return '<div class="cf-vide">' + (MODE === 'afaire' ? 'Rien à faire pour l’instant.' : 'Aucun client.') + '</div>';
+      return '<div class="cf-t">' + (MODE === 'afaire' ? 'Ce qu’il y a à faire' : 'Tous les clients') + ' <span class="n">(' + l.length + ')</span></div>' +
+        '<p class="cf-note" style="margin:0 0 var(--sp-2)">Un clic sur un point ou un nom : ce qui l’attend, et ce qui attend autour.</p>' +
+        l.slice(0, 60).map(function (p) { return ligneAction(p, null); }).join('');
+    }
+    function panneauPoint(cle) {
+      const p = POINTS.filter(function (x) { return x.cle === cle; })[0];
+      if (!p) { SEL = ''; return panneauListe(); }
+      const adr = C.texteAdresse(p.adresse);
+      let html = '<div class="cf-fiche"><button type="button" class="cf-retour" onclick="deselectionner()">← toute la liste</button>' +
+        '<h3>' + escHtml(p.nom) + '</h3><div class="cf-adr">' + escHtml(adr || 'Adresse non renseignée') + (p.pos && !p.pos.precis ? ' · placé à la commune' : '') + '</div>' +
+        '<div class="cf-actions">' + boutonsContact(p.tel, adr) + '</div>' +
+        p.entrees.map(function (e) {
+          const a = e.action && e.poids > 0 ? e.action : null;
+          return '<div class="cf-dos"><a href="' + escHtml(a ? e.href : e.fiche) + '"><b>' + escHtml(e.resume || e.statutLib) + '</b>' +
+            '<span class="meta">' + escHtml(e.statutLib) + (e.archive ? ' · archivé' : '') + '</span>' +
+            (a ? '<span class="cf-act" style="--c:' + a.color + '">' + escHtml(a.txt) + ' →</span>' : '') + '</a></div>';
+        }).join('') + '</div>';
+      // F — un prospect : combien de maisons déjà équipées près de chez lui. Un NOMBRE, jamais des noms.
+      if (p.prospect && p.pos) {
+        const nb = C.realisationsProches(p, POINTS_REF, 2);
+        html += nb ? '<div class="cf-arg"><b>' + nb + ' chantier' + (nb > 1 ? 's' : '') + ' réalisé' + (nb > 1 ? 's' : '') + '</b> à moins de 2 km.' +
+          '<div class="cf-note" style="margin-top:4px">À dire : « Nous avons déjà équipé ' + nb + ' maison' + (nb > 1 ? 's' : '') + ' près de chez vous. »' +
+          (p.pos.precis ? '' : ' (distance approchée : placé à la commune)') + '</div></div>'
+          : '<div class="cf-note" style="margin:var(--sp-3) 0">Aucune réalisation à moins de 2 km.</div>';
+      }
+      return html + blocAutour(p.pos, p.cle, 'Autour de ' + p.nom);
+    }
+    function panneauMoi() {
+      const l = C.autourDe(MOI, POINTS, 30, aFaire).slice(0, 15);
+      return '<div class="cf-fiche"><button type="button" class="cf-retour" onclick="fermerMoi()">← fermer « autour de moi »</button></div>' +
+        '<div class="cf-t">' + icon('pin', 12) + ' Autour de moi <span class="n">(' + l.length + ')</span></div>' +
+        (l.length ? l.map(function (x) { return ligneAction(x.p, x.km); }).join('') : '<div class="cf-vide">Rien qui attende à moins de 30 km.</div>') +
+        '<p class="cf-note" style="margin-top:var(--sp-3)">Ta position reste sur cet appareil : elle n’est ni enregistrée ni envoyée.</p>';
+    }
+    function panneauSecteurs() {
+      const S = secteursListe();
+      if (!S.length) return '<div class="cf-vide">Aucun dossier localisé.</div>';
+      const eur = function (v) { return U.fmtEur(v).replace(/,00\s*€$/, ' €'); };
+      return '<div class="cf-t">Par commune <span class="n">(' + S.length + ')</span></div>' +
+        '<p class="cf-note" style="margin:0 0 var(--sp-2)">Tout l’historique, archives comprises. Taux = signés ÷ (signés + refusés).</p>' +
+        '<table class="cf-tab"><thead><tr><th>Commune</th><th>Signés</th><th>Refusés</th><th>En jeu</th><th>Taux</th><th>Signé</th></tr></thead><tbody>' +
+        S.map(function (s) {
+          return '<tr class="' + (SEL_SECT === s.cle ? 'sel' : '') + '" onclick="choisirSecteur(' + jsAttr(s.cle) + ')"><td class="ville">' + escHtml(s.ville || s.cp) + '</td><td>' + s.signes + '</td><td>' + s.refuses + '</td><td>' + s.attente +
+            '</td><td>' + (s.taux == null ? '—' : s.taux + ' %') + '</td><td>' + escHtml(eur(s.caSigne)) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    function rendreNonLocalises() {
+      const l = POINTS.filter(function (p) { return !p.pos; });
+      const hote = el('warnHost');
+      if (!l.length) { hote.innerHTML = ''; return; }
+      hote.innerHTML = '<div class="cf-warn-list"><div class="cf-t">' + icon('warning', 14) + ' Non localisés <span class="n">(' + l.length + ')</span></div>' +
+        l.map(function (p) {
+          const a = p.adresse || {}, lieu = [a.code_postal, a.ville].filter(Boolean).join(' ');
+          const detail = lieu ? '— « ' + escHtml(lieu) + ' » introuvable' : '— aucune adresse renseignée';
+          return '<div class="cf-warn-row"><span>' + escHtml(p.nom) + ' <span class="v">' + detail + '</span></span>' +
+            '<a class="btn btn-ghost btn-sm" href="' + escHtml(p.entrees[0].fiche) + '">' + icon('window', 14) + ' Corriger</a></div>';
+        }).join('') + '</div>';
     }
 
-    function renderToolbar(counts) {
-      el('toolbar').innerHTML = Object.entries(GROUPS).map(([k, g]) => `
-        <button type="button" class="cf-chip ${g.defaultOn ? '' : 'off'}" id="chip-${k}" style="--dot:${resolveColor(g.colorVar)}" onclick="toggleGroup('${k}')">
-          <span class="dot"></span> ${g.label} <span style="color:var(--text-subtle)">(${counts[k] || 0})</span>
-        </button>`).join('');
+    // ── Gestes ─────────────────────────────────────────────────────────────────────────────────
+    /** Sur téléphone le panneau est SOUS la carte : un point touché doit montrer sa fiche, sinon
+     *  le toucher semble ne rien faire. */
+    function montrerPanneau() {
+      const r = el('panneau').getBoundingClientRect();
+      if (r.top > window.innerHeight - 80) el('panneau').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    window.toggleGroup = function (k) {
-      const chip = el('chip-' + k);
-      const on = chip.classList.toggle('off');
-      if (on) map.removeLayer(layerGroups[k]); else layerGroups[k].addTo(map);
+    window.setMode = function (m) { MODE = m; ecrireLS('ss_carte_mode', m); SEL = ''; SEL_SECT = ''; VUE_MOI = false; rendre(true); };
+    window.setJour = function (j) { JOUR = j; SEL = ''; rendre(true); };
+    window.changerSemaine = function (s) { SEMAINE = P.plusJours(SEMAINE, 7 * s); JOUR = ''; SEL = ''; rendre(true); };
+    window.setPerdus = function (v) { PERDUS = !!v; construirePoints(); rendre(true); };
+    window.choisir = function (cle) {
+      if (MODE === 'tournee' || MODE === 'secteurs') { MODE = 'afaire'; ecrireLS('ss_carte_mode', MODE); }
+      const p = POINTS.filter(function (x) { return x.cle === cle; })[0];
+      if (p && MODE === 'afaire' && !aFaire(p)) { MODE = 'tous'; ecrireLS('ss_carte_mode', MODE); }
+      SEL = cle; VUE_MOI = false;
+      rendre(false);
+      if (map && p && p.vue) map.panTo([p.vue.lat, p.vue.lon]);
+      montrerPanneau();
+    };
+    window.choisirEv = function (id) {
+      SEL = 'ev:' + id; VUE_MOI = false;
+      rendre(false);
+      const e = EVS.filter(function (x) { return x.id === id; })[0];
+      const pos = e && position(adresseEv(e) || {});
+      if (map && pos) map.panTo([pos.lat, pos.lon]);
+      montrerPanneau();
+    };
+    window.choisirSecteur = function (cle) {
+      SEL_SECT = cle;
+      rendre(false);
+      const s = secteursListe().filter(function (x) { return x.cle === cle; })[0];
+      const pos = s && positionCommune(s.adresse);
+      if (map && pos) map.setView([pos.lat, pos.lon], Math.max(map.getZoom(), 11));
+    };
+    window.deselectionner = function () { SEL = ''; rendre(false); };
+    window.fermerMoi = function () { VUE_MOI = false; rendre(false); };
+    window.autourDeMoi = async function () {
+      try {
+        MOI = await C.localiser();
+        VUE_MOI = true;
+        rendre(false);
+        if (map) map.setView([MOI.lat, MOI.lon], 11);
+        montrerPanneau();
+      } catch (e) {
+        toast('Position indisponible' + (e && e.code === 1 ? ' : autorise la localisation pour ce site.' : '.'), 'warn', 6000);
+      }
     };
 
-    async function load() {
-      el('map') && (el('map').style.opacity = '0.5');
-      const raw = await SS.listDevis();
-      const candidates = (raw || []).filter(d => d.statut && d.statut !== 'brouillon' && !d.archive && groupOf(d.statut));
-      const fulls = (await Promise.all(candidates.map(d => SS.getDevis(d.id)))).filter(Boolean);
-
-      const withAddr = [], noVille = [];
-      fulls.forEach(d => {
-        const adr = (d.client && d.client.adresse) || {};
-        if ((adr.ville || '').trim() || (adr.code_postal || '').toString().trim()) withAddr.push(d); else noVille.push(d);
-      });
-
-      const geocoded = [], notFound = [];
-      await Promise.all(withAddr.map(async d => {
-        const adr = d.client.adresse;
-        // Code postal d'abord : sans ambiguïté d'orthographe, contrairement au nom de ville (saisie
-        // libre — ex: "Chapelle-les-Herlaimont" ne matche pas le vrai "Chapelle-lez-Herlaimont").
-        const loc = await geocodeVille(adr.ville, adr.code_postal);
-        if (loc) geocoded.push({ d, loc }); else notFound.push(d);
-      }));
-
-      renderKpis(fulls.length, geocoded.length, noVille.length + notFound.length);
-      renderMarkers(geocoded);
-      renderWarnings([...noVille, ...notFound]);
-      if (el('map')) el('map').style.opacity = '1';
-    }
-
-    function renderKpis(total, localises, nonLocalises) {
-      el('kpis').innerHTML = `
-        <div class="kpi ticked accent"><div class="kpi-label">Chantiers</div><div class="kpi-value">${total}</div><div class="kpi-sub">envoyés, signés ou terminés</div></div>
-        <div class="kpi ticked ok"><div class="kpi-label">Localisés</div><div class="kpi-value">${localises}</div><div class="kpi-sub">affichés sur la carte</div></div>
-        <div class="kpi ticked ${nonLocalises ? 'danger' : ''}"><div class="kpi-label">Non localisés</div><div class="kpi-value">${nonLocalises}</div><div class="kpi-sub">ville manquante ou introuvable</div></div>`;
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
-    }
-
-    function renderMarkers(geocoded) {
-      const counts = {};
-      Object.keys(GROUPS).forEach(k => { layerGroups[k].clearLayers(); counts[k] = 0; });
-      const bounds = [];
-      geocoded.forEach(({ d, loc }) => {
-        const g = groupOf(d.statut);
-        if (!g) return;
-        counts[g]++;
-        const cl = d.client || {}, adr = cl.adresse || {};
-        const adresseTxt = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
-        const jitter = () => (Math.random() - 0.5) * 0.006; // évite que 2 clients de la même ville se superposent exactement
-        const marker = L.circleMarker([loc.latitude + jitter(), loc.longitude + jitter()], {
-          radius: 9, weight: 2, color: resolveColor(GROUPS[g].colorVar), fillColor: resolveColor(GROUPS[g].colorVar), fillOpacity: 0.55,
-        });
-        marker.bindPopup(`
-          <div class="cf-popup">
-            <div class="cf-p-client">${esc(cl.prenom)} ${esc(cl.nom) || '—'}</div>
-            <div class="cf-p-addr">${esc(adresseTxt) || 'Adresse incomplète'}</div>
-            <div class="cf-p-items">${esc(itemsSummary(d.items))}</div>
-            <a class="cf-p-link" href="vue.html?id=${encodeURIComponent(d.id)}">Voir la fiche →</a>
-          </div>`);
-        marker.addTo(layerGroups[g]);
-        bounds.push([loc.latitude, loc.longitude]);
-      });
-      renderToolbar(counts);
-      if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
-    }
-
-    function renderWarnings(list) {
-      const host = document.getElementById('warnHost');
-      if (!list.length) { host.innerHTML = ''; return; }
-      host.innerHTML = `
-        <div class="cf-warn-list">
-          <div class="sav-section-title" style="display:flex;align-items:center;gap:var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:0.08em;color:var(--text-subtle);margin-bottom:var(--sp-3);">
-            ${icon('warning', 14)} Non localisés (${list.length})
-          </div>
-          ${list.map(d => {
-            const cl = d.client || {}, adr = cl.adresse || {}, ville = adr.ville || '', cp = adr.code_postal || '';
-            const detail = (ville || cp) ? `— « ${esc([cp, ville].filter(Boolean).join(' '))} » introuvable` : '— aucune adresse renseignée';
-            return `<div class="cf-warn-row"><span>${esc(cl.prenom)} ${esc(cl.nom) || '—'} <span class="v">${detail}</span></span><a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(d.id)}">${icon('window', 14)} Corriger</a></div>`;
-          }).join('')}
-        </div>`;
-    }
-
-    initMap();
-    load();
+    initCarte();
+    charger();
   </script>
 </body>
 </html>
