@@ -50,6 +50,26 @@
     return [((a.rue || '') + ' ' + (a.numero || '')).trim(), ((a.code_postal || '') + ' ' + (a.ville || '')).trim()].filter(Boolean).join(', ');
   }
 
+  // ── La mémoire des positions (partagée par la Carte et le Portfolio) ──────────────────────
+  /* Une adresse placée l'est UNE fois, sur l'appareil : la commune (`c:`), puis la rue (`a:`) quand
+     OpenStreetMap l'a trouvée. Les clés vivent ICI pour que la Carte et le Portfolio lisent la même
+     mémoire — deux écritures de la même clé finiraient par ne plus se répondre (règle 10). */
+  const CLE_GEO = 'ss_geo_adresses';
+  function cleGeoAdresse(adr) { return 'a:' + cleAdresse(adr); }
+  function cleGeoCommune(adr) { return 'c:' + cleCommune(adr); }
+  function lireGeo() {
+    try { return JSON.parse(localStorage.getItem(CLE_GEO) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function ecrireGeo(geo) { try { localStorage.setItem(CLE_GEO, JSON.stringify(geo || {})); } catch (e) {} }
+  /** La meilleure position connue d'une adresse : la rue si elle a été trouvée, sinon la commune. */
+  function positionDans(geo, adr) {
+    if (!localisable(adr)) return null;
+    const x = (geo || {})[cleGeoAdresse(adr)];
+    if (x && x.p === 'adresse') return { lat: x.lat, lon: x.lon, precis: true };
+    const c = (geo || {})[cleGeoCommune(adr)];
+    return c ? { lat: c.lat, lon: c.lon, precis: false } : null;
+  }
+
   // ── Un point par client ───────────────────────────────────────────────────────────────────────
   /** Réunit les dossiers d'un même client en UN point (règle : un client à deux devis n'est pas
    *  deux clients). Son adresse est celle de son dossier le plus RÉCENT qui en porte une ; son
@@ -180,6 +200,7 @@
 
   window.SSCarte = {
     distanceKm: distanceKm,
+    CLE_GEO: CLE_GEO, cleGeoAdresse: cleGeoAdresse, cleGeoCommune: cleGeoCommune, lireGeo: lireGeo, ecrireGeo: ecrireGeo, positionDans: positionDans,
     cleAdresse: cleAdresse, cleCommune: cleCommune, aUneRue: aUneRue, localisable: localisable,
     requete: requete, texteAdresse: texteAdresse,
     grouper: grouper, ecarter: ecarter, autourDe: autourDe, realisationsProches: realisationsProches,

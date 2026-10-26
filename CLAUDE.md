@@ -75,6 +75,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
+| `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
+| `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 93 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -647,11 +649,12 @@ Partir sur un autre onglet fait perdre sa place dans la liste et oblige à reven
 continuer à lire. Fermeture par la croix, par Échap ou par le fond ; flèches clavier et boutons
 pour passer d’une photo à l’autre, masqués quand il n’y en a qu’une — elles ne mèneraient nulle part.
 Le défilement du fond est bloqué à l’ouverture, sinon on retrouve la liste ailleurs en fermant.
-⚠️ Quatre pages (`vue`, `portfolio`, `outillage`, `devis-review`) portent ENCORE leur propre
-visionneuse en copie locale — leur STYLE, lui, était déjà dédoublonné dans `base.css`. Le helper
+⚠️ Trois pages (`vue`, `outillage`, `devis-review`) portent ENCORE leur propre
+visionneuse en copie locale (le portfolio n'en a plus depuis le 26/10/2026 : son mode présentation
+l'a remplacée, règle 45) — leur STYLE, lui, était déjà dédoublonné dans `base.css`. Le helper
 partagé utilise donc l’identifiant `ssLightbox` et non `lightbox` : deux éléments de même id dans
 un document, c’est le genre de collision qu’on ne voit qu’un jour de malchance. Toute nouvelle page
-passe par le helper ; les quatre copies restent à ramener dessus, quand on y touchera pour autre chose.
+passe par le helper ; les trois copies restent à ramener dessus, quand on y touchera pour autre chose.
 Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
 
 **26 bis. UNE IMAGE QUI RATE UNE FOIS RESTE CASSÉE POUR TOUJOURS — une page web ne réessaie
@@ -675,7 +678,7 @@ resservir l'échec depuis le cache, et le réessai ne prouverait rien.
 ⚠️ **UN SEUL ÉCOUTEUR DÉLÉGUÉ, EN CAPTURE, ET C'EST LA CLÉ.** L'événement `error` d'une image
 **ne bouillonne pas** — mais il DESCEND en phase de capture. `document.addEventListener('error',
 …, true)` dans `ui.js` couvre donc toutes les photos de toutes les pages d'un coup, **y compris
-les quatre qui portent encore leur visionneuse en copie locale** (règle 26) et celles qu'on
+les trois qui portent encore leur visionneuse en copie locale** (règle 26) et celles qu'on
 écrira demain — sans une ligne à brancher sur aucun appel.
 ⚠️ **ET SEULEMENT NOS PHOTOS** : le filtre sur `/api/photos/` écarte logos, images partenaires
 et pictogrammes. Un réessai général masquerait de vraies erreurs de chemin derrière une seconde
@@ -2235,6 +2238,8 @@ pures) ; protégé par `tests/carte.test.html`.
   c'est le prix de la précision. **Une requête par seconde au plus et une seule fois par adresse** (règles
   d'usage de Nominatim) ; une adresse introuvable n'est redemandée qu'après 30 jours ; sans réseau, la file
   s'arrête. Un point placé à la commune a un bord en pointillés et les distances le disent.
+  Cette mémoire se lit par `SSCarte.lireGeo` / `ecrireGeo` / `positionDans` (clés `cleGeoAdresse`,
+  `cleGeoCommune`) : le portfolio s'en sert aussi (règle 45), sans jamais interroger Nominatim lui-même.
 • **La liste suffit** : l'ancienne carte rechargeait CHAQUE devis complet, photos comprises, pour en lire
   l'adresse. Le résumé d'un dossier vient de `SSUI.resumeDevis` (la copie locale écrivait « 2 Tente
   solaires » et comptait une quantité 0 pour 1).
@@ -2245,6 +2250,41 @@ pures) ; protégé par `tests/carte.test.html`.
 • ⚠️ **Tester Leaflet dans un cadre hors écran** : ses animations de zoom ne se terminent jamais (même
   piège que les transitions) — couper `map._zoomAnimated` avant de mesurer un zoom, sinon un test de
   molette passe à tort (vérifié par mutation).
+
+**45. LE PORTFOLIO EST CE QU'ON MONTRE : rien n'en sort qui trahisse un fournisseur ou un autre client**
+(26/10/2026 — revue de la page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent
+dans `assets/js/vitrine.js` (`window.SSVitrine`, fonctions pures) ; protégé par `tests/portfolio.test.html`.
+• **Des couleurs qu'un client lit** (`couleurLisible`, `toileLisible`) : « 7016 Gris anthracite », jamais
+  la référence de commande Harol que le nuancier écrit (« · réf. 7m16st (laque texturée) ») — même raison
+  que l'encadré du devis (règle 31). La TOILE d'un screen passe avant la couleur du caisson : c'est elle
+  qu'on voit, et elle n'apparaissait nulle part.
+• **Jamais le nom d'un autre client sur ce qu'on montre** : ni sur la carte d'une réalisation (« Voir la
+  fiche → » seul), ni en présentation, ni dans le PDF, ni dans « Autour de… », qui nomme la COMMUNE et
+  jamais le prospect. Le nom reste cherchable dans la barre de recherche : c'est un outil de bureau.
+• **A — Mode présentation** : plein écran, une photo à la fois, glisser / flèches / Échap ; légende =
+  produit, couleurs, ville, distance (ni nom ni prix). Sur téléphone, « retour » le ferme (une étape
+  d'historique, comme les fenêtres de la règle 13 bis). La photo suivante est préchargée.
+• **B — Près de chez le client** : un prospect (devis envoyé ou relancé, demande de visite ouverte) ou une
+  commune, et un rayon (2 à 20 km, ou toutes par distance). Les positions viennent de la mémoire de la
+  carte (règle 44) ou du code postal. **Le portfolio n'interroge jamais Nominatim** : une vitrine qu'on
+  ouvre devant un client n'envoie pas d'adresse à un service tiers.
+• **C — Avant / après** : la première photo « avant » et la première « terminé » du journal de chantier,
+  comparées au curseur, et seulement si les DEUX existent (une moitié vide ne compare rien). « Avant » ne
+  sort QUE là ; « problème » et « réserve », jamais (`PHASES_VITRINE`).
+• **D — Choisir les photos** : la couverture (`portfolio_couvertures`, par ouverture) et les photos
+  masquées (`portfolio_masquees`) sont écrites SUR LE DEVIS, donc communes à Nicolas et Yannick ; masquer
+  n'efface rien. Le devis est RELU avant d'être enregistré (`ecrireDevis`), jamais réécrit depuis la
+  liste. Clés au premier niveau du devis : la fusion d'`upsertDevis` les garde quand le simulateur
+  enregistre sans elles (même question que la règle 30 ter).
+• **E — PDF client** : couverture (logo, accroche, portée « près de … (moins de N km) »), deux photos par
+  réalisation, coordonnées de la société. Ni nom de client, ni référence fournisseur, ni prix.
+• **F — Filtre par teinte** (`teintes`) : les RAL de caisson présents, avec leur pastille, du plus fréquent
+  au plus rare. **G — Ce qui manque à la vitrine** (`manquants`) : les chantiers POSÉS qui n'y sont pas —
+  avec photos (« Ajouter », refusé si rien n'est montrable : `montrable`, même règle que le bouton de la
+  fiche devis) ou sans (lien vers le journal : une photo à prendre au prochain passage). Lu sur la LISTE
+  (`photos_count`, `chantier_photos_count`) : aucun devis rechargé pour ça.
+• **Téléphone** : la première réalisation commence dans le premier écran ; « Près de… » tient en trois
+  rangées (prospect · commune · rayon) au lieu de se couper au hasard.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2533,6 +2573,8 @@ pures) ; protégé par `tests/carte.test.html`.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
+   Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 46/46 »,
+   par le serveur — ET `carte.test.html`, puisque la mémoire des adresses est partagée.
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
