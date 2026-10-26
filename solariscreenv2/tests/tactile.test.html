@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — champs à 16 px sur écran tactile</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; } .saute { color:#93a8bf; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests des champs sur écran tactile</h1>
+  <p class="note">
+    Sous 16 px, Safari iOS <strong>zoome la page à chaque champ touché</strong>. La règle des 16 px
+    existait depuis juillet 2026, mais elle était écrasée par la règle générale des champs, déclarée
+    plus bas dans <code>base.css</code> avec la même spécificité : aucun champ de l'ERP n'avait ses
+    16 px sur iPhone (13,76 px mesurés partout le 26/10/2026), et rien ne le signalait.
+    <br><br>
+    Un navigateur de bureau ne déclenche jamais <code>@media (pointer: coarse)</code>. Ces tests
+    chargent donc les vraies pages en cadre et <strong>basculent eux-mêmes</strong> chaque bloc
+    <code>(pointer: coarse)</code> de leurs feuilles — toujours vrai pour simuler un téléphone,
+    toujours faux pour simuler le bureau —, quel que soit l'appareil qui les exécute. Sur un vrai écran
+    tactile (ou le préréglage « mobile » du panneau navigateur), une série de plus mesure sans rien basculer.
+    <br><br>
+    Un composant qui retaille ses propres champs doit lire <code>var(--fs-champ)</code> et
+    <strong>s'inscrire dans <code>COMPOSANTS</code></strong> ci-dessous : la plupart de ces champs
+    n'existent qu'une fois une fenêtre ouverte, donc aucune page ne les montre au chargement.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong>, pas en <code>file://</code> : les pages sont
+    chargées en cadre avec des données FICTIVES, et les données locales du navigateur sont remises en
+    état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    const ech = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + ech(nom) + '</td><td>' + ech(a) + '</td><td>' + ech(b) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function saute(nom, pourquoi) { rows.push('<tr><td>' + ech(nom) + '</td><td colspan="2" class="saute">' + ech(pourquoi) + '</td><td class="saute">sauté</td></tr>'); }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests tactile';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 390; f.height = hauteur || 844;
+        f.onload = function () { setTimeout(function () { resolve(f); }, 1800); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+
+    // ── Données d'essai FICTIVES : de quoi remplir la fiche devis, le simulateur et la facture ──
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const DEVIS = [
+      { id: 'TT-1', client: { prenom: 'Jean', nom: "L'Hoest", telephone: '0471 12 34 56', email: 'jean@exemple.be',
+          adresse: { rue: "Rue de l'Église", numero: '12', code_postal: '1340', ville: 'Ottignies' } },
+        statut: 'envoye_client', date_creation: T(-20), date_modification: T(-9), date_envoi: J(-9), seller_principal: 'nicolas',
+        calculs: { total_ttc: 5230.4 }, acompte_pct: 30,
+        items: [{ type: 'screen', largeur: 2400, hauteur: 1800, quantite: 2, prix: 1450 }] },
+    ];
+    const FACTURES = [{ id: 'TT-F1', numero: 'F2026-999', devis_id: 'TT-1', type: 'acompte', total_ttc: 1569.12, date: J(-2), echeance: J(12), paiements: [] }];
+
+    // La suite partage le localStorage de l'ERP (même origine) : tout est photographié avant, et
+    // remis À L'IDENTIQUE après — y compris ce que les pages chargées auraient écrit d'elles-mêmes.
+    const AVANT = {};
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); AVANT[k] = localStorage.getItem(k); }
+    function remettre() {
+      Object.keys(localStorage).forEach(k => { if (!(k in AVANT)) localStorage.removeItem(k); });
+      Object.keys(AVANT).forEach(k => { if (localStorage.getItem(k) !== AVANT[k]) localStorage.setItem(k, AVANT[k]); });
+    }
+
+    const PAGES = ['carte', 'clients', 'dashboard', 'depenses', 'devis?id=TT-1', 'echanges', 'facture?id=TT-F1', 'factures',
+      'outillage', 'parametres', 'picking', 'planning', 'portfolio', 'rdv', 'reception', 'sav', 'simulateur?id=TT-1',
+      'stats', 'terrain?id=TT-1', 'visite', 'vue?id=TT-1', '../devis-review'];
+
+    /* Les composants qui RETAILLENT leurs champs, chacun sur une page qui charge sa feuille. Leurs
+       champs n'existent qu'une fois une fenêtre ouverte : on pose donc le gabarit nous-mêmes.
+       Tout nouveau « .truc .input { font-size: … } » s'inscrit ici. */
+    const COMPOSANTS = {
+      'planning': ['planning · équipe d\'un chantier (.tr-table .select)', '<table class="tr-table"><tr><td><select class="select"><option>Journée</option></select></td></tr></table>', 'select'],
+      'rdv': ['rdv · créneau proposé (.creneau)', '<div class="creneau"><input class="input" type="date"><select class="select"><option>Matin (9h — 12h)</option></select></div>', 'input, select'],
+      'echanges': ['échanges · pied du message (.ec-fin)', '<div class="ec-poster"><div class="ec-fin"><input class="input"><select class="select"><option>—</option></select></div></div>', 'input, select'],
+      'vue?id=TT-1': ['fiche devis · édition d\'une note (.ss-cmt-edit)', '<div class="ss-cmt-edit"><textarea class="textarea"></textarea><div class="ss-cmt-edit-row"><select class="select"><option>Note</option></select></div></div>', 'textarea, select'],
+      'clients': ['clients · zone de collage d\'un mail (.ss-paste)', '<details class="ss-paste" open><textarea class="textarea"></textarea></details>', 'textarea'],
+    };
+
+    const NON_TEXTE = ['checkbox', 'radio', 'hidden', 'file', 'range', 'color', 'button', 'submit', 'reset', 'image'];
+    const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i;
+    const COARSE_TOUS = new RegExp(COARSE.source, 'gi');
+
+    /** Relève une fois le texte de chaque bloc @media tactile de la page, pour pouvoir le réécrire à volonté. */
+    function blocsMedia(doc) {
+      const blocs = [];
+      const parcourir = (regles) => {
+        for (const r of regles) {
+          if (r.type === 4 /* CSSRule.MEDIA_RULE */ && COARSE.test(r.media.mediaText)) blocs.push([r, r.media.mediaText]);
+          if (r.cssRules) parcourir(r.cssRules);
+        }
+      };
+      for (const s of doc.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
+      return blocs;
+    }
+    /** Chaque « (pointer: coarse) » devient toujours vrai (téléphone) ou toujours faux (bureau). */
+    function simuler(blocs, tactile) {
+      blocs.forEach(([r, texte]) => { r.media.mediaText = texte.replace(COARSE_TOUS, tactile ? '(min-width: 0px)' : '(max-width: 0px)'); });
+    }
+    /** ⚠️ Après une bascule, Chrome NE RECALCULE PAS la taille des champs déjà stylés : mesuré, la
+        variable « --fs-champ » passe bien à 16 px sur le champ, et sa taille reste à 13,76 px. Un
+        champ créé après coup, lui, est juste. On remplace donc le <body> par sa copie : que des
+        éléments neufs, stylés avec les règles du moment. Sans ça, toute la série T échoue alors
+        que la page est correcte. */
+    function rafraichir(d) { d.body.replaceWith(d.body.cloneNode(true)); }
+    const taille = (w, e) => w.getComputedStyle(e).fontSize;
+    const desc = (e) => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') +
+      (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
+    /** Les champs de saisie de la page sous 16 px, décrits pour qu'on les retrouve. */
+    function champsSous16(w) {
+      return [...w.document.querySelectorAll('input, select, textarea')]
+        .filter(e => NON_TEXTE.indexOf((e.type || '').toLowerCase()) === -1)
+        .filter(e => parseFloat(taille(w, e)) < 16)
+        .map(e => desc(e) + ' ' + taille(w, e));
+    }
+
+    (async function () {
+      try {
+        localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+        localStorage.setItem('ss_factures_cache', JSON.stringify(FACTURES));
+
+        const REEL = matchMedia('(pointer: coarse)').matches;
+        const T_ = [], B_ = [], R_ = [];   // lignes par série, rendues dans l'ordre à la fin
+        let regleGenerale = null;
+
+        for (const p of PAGES) {
+          const [nom, reste] = p.split('?');
+          const url = (nom.startsWith('../') ? nom : '../app/' + nom) + '.html' + (reste ? '?' + reste : '');
+          const f = await cadre(url, 390, 844);
+          const w = f.contentWindow, d = w.document;
+          const libelle = nom.replace('../', '');
+
+          // Témoins : un champ de chaque sorte, sans aucun parent qui les retaille.
+          const temoins = d.createElement('div');
+          temoins.innerHTML = '<input class="input" data-temoin="input"><select class="select" data-temoin="select"><option>x</option></select><textarea class="textarea" data-temoin="textarea"></textarea>';
+          d.body.appendChild(temoins);
+          const comp = COMPOSANTS[p];
+          if (comp) { const g = d.createElement('div'); g.setAttribute('data-gabarit', ''); g.innerHTML = comp[1]; d.body.appendChild(g); }
+          const tailleDe = (v) => { const x = d.createElement('div'); x.style.fontSize = v; d.body.appendChild(x); const t = taille(w, x); x.remove(); return t; };
+          const tailleSm = tailleDe('var(--fs-sm)');
+          // Toujours relus dans le document : rafraichir() remplace les éléments.
+          const tem = (k) => taille(w, d.querySelector('[data-temoin="' + k + '"]'));
+          const tailleGabarit = () => [...d.querySelectorAll('[data-gabarit] ' + comp[2].split(', ').join(', [data-gabarit] '))].map(e => taille(w, e));
+
+          if (regleGenerale === null) {
+            for (const s of d.styleSheets) {
+              if (!/\/assets\/css\/base\.css/.test(s.href || '')) continue;
+              for (const r of s.cssRules) if (r.selectorText === '.input, .select, .textarea' && r.style.fontSize) { regleGenerale = r.style.fontSize; break; }
+              break;
+            }
+          }
+
+          const blocs = blocsMedia(d);
+
+          // Série R — l'appareil est vraiment tactile : on mesure tel quel, sans rien toucher.
+          if (REEL) {
+            R_.push(['R · ' + libelle + ' — témoins .input / .select / .textarea', [tem('input'), tem('select'), tem('textarea')], ['16px', '16px', '16px']]);
+            R_.push(['R · ' + libelle + ' — aucun champ de la page sous 16 px', champsSous16(w), []]);
+          }
+
+          // Série T — téléphone simulé.
+          simuler(blocs, true);
+          rafraichir(d);
+          T_.push(['T · ' + libelle + ' — témoins .input / .select / .textarea', [tem('input'), tem('select'), tem('textarea')], ['16px', '16px', '16px']]);
+          T_.push(['T · ' + libelle + ' — aucun champ de la page sous 16 px', champsSous16(w), []]);
+          if (comp) T_.push(['T · ' + comp[0], tailleGabarit(), tailleGabarit().map(() => '16px')]);
+
+          // Série B — bureau simulé : rien ne doit avoir bougé.
+          simuler(blocs, false);
+          rafraichir(d);
+          B_.push(['B · ' + libelle + ' — témoins à --fs-sm (' + tailleSm + '), comme avant', [tem('input'), tem('select'), tem('textarea')], [tailleSm, tailleSm, tailleSm]]);
+          if (comp) {
+            // La zone de collage est volontairement plus petite au bureau (--fs-xs) : un mail se relit mieux serré.
+            const attendu = p === 'clients' ? tailleDe('var(--fs-xs)') : tailleSm;
+            B_.push(['B · ' + comp[0] + ' — inchangé au bureau', tailleGabarit(), tailleGabarit().map(() => attendu)]);
+          }
+          f.remove();
+        }
+
+        titre('G — La cause du défaut : la règle générale ne porte plus de taille écrite en dur');
+        /* Elle écrivait « var(--fs-sm) » 400 lignes SOUS le bloc tactile qui voulait 16 px : même
+           spécificité, la dernière gagne. Une variable ne dépend plus de l'ordre des règles. */
+        check('G1 « .input, .select, .textarea » de base.css lit la variable des champs', regleGenerale, 'var(--fs-champ)');
+
+        titre('T — Téléphone simulé : chaque bloc (pointer: coarse) forcé à vrai');
+        T_.forEach(c => check(c[0], c[1], c[2]));
+        titre('B — Bureau simulé : chaque bloc (pointer: coarse) forcé à faux — la densité ne bouge pas');
+        B_.forEach(c => check(c[0], c[1], c[2]));
+        titre('R — Mesure directe, sans rien basculer');
+        if (REEL) R_.forEach(c => check(c[0], c[1], c[2]));
+        else saute('R · toutes les pages', 'Ce navigateur a un pointeur fin : rouvrir cette page avec le préréglage « mobile » du panneau navigateur, ou sur le téléphone.');
+      } catch (e) {
+        check('Exécution sans erreur', String(e && e.stack || e), 'aucune erreur');
+      } finally {
+        remettre();
+        rendre();
+      }
+    })();
+  </script>
+</body>
+</html>

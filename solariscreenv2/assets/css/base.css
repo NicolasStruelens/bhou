@@ -70,10 +70,11 @@ a:hover { text-decoration: underline; }
 /* Le radio du sélecteur segmenté (TVA) est masqué : on porte le focus sur son libellé. */
 .segmented input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* ═══════════ TACTILE — cibles ≥ 44px + champs à 16px (anti-zoom iOS) ═══════════ */
-/* N'affecte QUE les écrans tactiles : la densité reste inchangée au bureau. */
+/* ═══════════ TACTILE — cibles ≥ 44px ═══════════ */
+/* N'affecte QUE les écrans tactiles : la densité reste inchangée au bureau.
+   ⚠️ Les champs à 16 px (anti-zoom iOS) ne sont PAS ici mais dans tokens.css (« --fs-champ ») :
+   écrits ici, ils étaient écrasés par la règle générale des champs, plus bas dans ce fichier. */
 @media (pointer: coarse) {
-  .input, .select, .textarea { font-size: 16px; }   /* < 16px = Safari iOS zoome à chaque focus */
   .btn, .btn-sm, .chip, .icon-btn, .ci-copy,
   .theme-toggle button, .segmented label,
   .wiz-step, .item-dot, .cc-step {
@@ -478,8 +479,11 @@ a:hover { text-decoration: underline; }
 }
 .label.required::after { content: ' *'; color: var(--danger); }
 
+/* « --fs-champ » et non une taille écrite ici : 13,76 px au bureau, 16 px sur écran tactile
+   (tokens.css). Un composant qui retaille ses champs doit reprendre la même variable, sinon il
+   refait zoomer l'iPhone sur ses propres champs. */
 .input, .select, .textarea {
-  width: 100%; font-family: var(--font-body); font-size: var(--fs-sm);
+  width: 100%; font-family: var(--font-body); font-size: var(--fs-champ);
   color: var(--text); background: var(--input-bg);
   border: 1px solid var(--input-border); border-radius: var(--r-sm);
   padding: 0.65rem 0.85rem; transition: all var(--t-fast); outline: none;
@@ -488,6 +492,13 @@ a:hover { text-decoration: underline; }
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--accent); box-shadow: var(--glow-accent);
 }
+/* Sur écran tactile, le texte des champs grossit de 16 % (« --fs-champ ») dans des boîtes qui,
+   elles, ne grandissent pas : un menu étroit se met à couper son libellé (« Tri : récents
+   d'abo » au portfolio, mesuré à 2 px près). La flèche d'un menu natif garde sa propre marge
+   (~20 px) : le padding de droite, posé après elle, est de la place morte — on la rend au texte.
+   ⚠️ JUSTE APRÈS la règle générale, exprès : écrit dans le bloc tactile du haut de la feuille, il
+   serait écrasé par elle — c'est exactement ce qui était arrivé aux 16 px. */
+@media (pointer: coarse) { .select { padding-right: 0.35rem; } }
 .textarea { resize: vertical; min-height: 80px; }
 .input-num { font-family: var(--font-mono); text-align: right; }
 
@@ -681,9 +692,12 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); }
 /* ── Correction sur place : la note se remplace par son propre champ, à la même position ──
    Ouvrir une fenêtre par-dessus ferait perdre le fil de la conversation qu'on est en train de lire. */
 .ss-cmt-edit { display: grid; gap: var(--sp-2); margin-top: 0.25rem; }
-.ss-cmt-edit textarea { min-height: 76px; font-size: var(--fs-sm); }
+.ss-cmt-edit textarea { min-height: 76px; font-size: var(--fs-champ); }
 .ss-cmt-edit-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.ss-cmt-edit-row .select { height: 30px; width: auto; min-width: 120px; }
+/* PAS de « height: 30px » : 30 px moins le padding de base (2 × 0,65 rem) laissaient 7 px au
+   texte, et « Échange client » sortait rogné à mi-hauteur — au bureau déjà, illisible une fois le
+   champ à 16 px sur téléphone. Padding resserré + line-height : la boîte garde ses 30 px. */
+.ss-cmt-edit-row .select { min-height: 30px; padding-top: 0.25rem; padding-bottom: 0.25rem; line-height: 1.25; width: auto; min-width: 120px; }
 .ss-cmt-edit-row .ss-cmt-edit-actions { margin-left: auto; display: flex; gap: var(--sp-2); }
 .ss-cmt-edit-hint { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
 .ss-cmt-reply { margin-top: 0.35rem; display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: var(--fs-2xs);
@@ -853,6 +867,9 @@ table.data tfoot td { font-weight: 700; background: var(--surface-2); }
 /* ── Zone de collage ── Un seul grand champ : on colle, l'outil déduit le reste. */
 .ss-paste { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface); }
 .ss-paste textarea { width: 100%; min-height: 96px; font-family: var(--font-mono); font-size: var(--fs-xs); }
+/* Plus petit que les autres champs au bureau (un mail entier se relit mieux serré), mais sur
+   écran tactile il faut toucher le champ pour coller : sous 16 px, l'iPhone zoome. */
+@media (pointer: coarse) { .ss-paste textarea { font-size: var(--fs-champ); } }
 .ss-paste-hint { font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: var(--sp-2); line-height: 1.5; }
 .ss-paste-lu { display: none; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-top: var(--sp-2);
   font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
