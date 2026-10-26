@@ -26,7 +26,6 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .print-header { display: none; }
     /* ══════════════════════════════════════════════════════════════════════════════════════
        EXPORT PDF — document d'impression DÉDIÉ (#printDoc), construit à la volée.
        Historique : l'export imprimait directement la page vivante de l'app, en neutralisant le
@@ -42,38 +41,119 @@
       html, body { background: #fff !important; }
       body > *:not(#printDoc) { display: none !important; }
       #printDoc { display: block !important; color: #111; font-family: Arial, Helvetica, sans-serif; }
-      #printDoc .pd-head { text-align: center; margin-bottom: 10mm; }
-      #printDoc .pd-logo { font-size: 20pt; font-weight: 800; letter-spacing: 0.03em; }
-      #printDoc .pd-sub { font-size: 9pt; color: #555; margin-top: 2mm; }
-      #printDoc .pd-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+      #printDoc .pd-couv { min-height: 250mm; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        page-break-after: always; break-after: page; }
+      #printDoc .pd-logo { font-size: 30pt; font-weight: 800; letter-spacing: 0.03em; }
+      #printDoc .pd-tag { font-size: 12pt; color: #555; margin-top: 3mm; font-style: italic; }
+      #printDoc .pd-titre { font-size: 20pt; margin-top: 18mm; font-weight: 700; color: #2e3b8f; }
+      #printDoc .pd-scope { font-size: 11pt; color: #333; margin-top: 4mm; }
+      #printDoc .pd-contact { margin-top: 22mm; font-size: 10.5pt; line-height: 1.7; color: #333; }
+      #printDoc .pd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7mm; }
       #printDoc .pd-item { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc; }
-      #printDoc .pd-item img { display: block; width: 100%; height: auto; }
-      #printDoc .pd-cap { padding: 2mm 2.5mm; font-size: 8.5pt; line-height: 1.35; color: #111; }
+      #printDoc .pd-ph { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm; }
+      #printDoc .pd-ph img { display: block; width: 100%; height: 42mm; object-fit: cover; }
+      #printDoc .pd-ph img:first-child:last-child, #printDoc .pd-ph img.une { grid-column: 1 / -1; height: 60mm; }
+      #printDoc .pd-cap { padding: 2.5mm 3mm; font-size: 9pt; line-height: 1.4; color: #111; }
       #printDoc .pd-cap .s { color: #555; }
+      #printDoc .pd-fin { margin-top: 10mm; padding-top: 4mm; border-top: 1px solid #ccc; text-align: center; font-size: 10pt; color: #333; break-inside: avoid; }
       #printDoc .pd-empty { font-size: 11pt; color: #111; text-align: center; padding: 20mm 0; }
     }
-    .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
-    .toolbar .search { flex: 1; min-width: 220px; position: relative; }
-    .toolbar .search input { padding-left: 2.2rem; }
-    .toolbar .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
-    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+
+    /* ── Barre d'outils ── */
+    .pf-bar { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-3); }
+    .pf-bar .search { flex: 1 1 240px; min-width: 0; position: relative; }
+    .pf-bar .search input { padding-left: 2.2rem; }
+    .pf-bar .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+    .pf-bar .select { width: auto; max-width: 100%; }
+    .pf-pres { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+      border: 1px dashed var(--border-strong); border-radius: var(--r-md); font-size: var(--fs-sm); color: var(--text-muted); }
+    .pf-pres.actif { border-style: solid; border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 7%, transparent); }
+    .pf-pres .select, .pf-pres .input { width: auto; max-width: 100%; min-width: 0; }
+    .pf-pres .input { flex: 0 1 180px; }
+    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: var(--sp-2); }
     .chip:hover { border-color: var(--accent-2); color: var(--accent-2); }
     .chip.active { background: var(--accent-2); color: var(--bg); border-color: var(--accent-2); }
-
+    .chip .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 0.35rem; vertical-align: -1px; border: 1px solid var(--border-strong); }
+    /* Le résumé en UNE ligne : trois tuiles repoussaient les réalisations sous l'écran du téléphone. */
+    .pf-resume { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-2) 0 var(--sp-3); }
+    .pf-resume b { color: var(--text); }
 
     /* ── Grille de réalisations ── */
     .pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: var(--sp-4); }
-    .pf-card { cursor: pointer; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); transition: all var(--t-fast); position: relative; --tick-color: var(--accent-2); }
-    .pf-card:hover { border-color: var(--accent-2); box-shadow: var(--glow-soft); transform: translateY(-2px); }
+    .pf-card { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); transition: all var(--t-fast); position: relative; --tick-color: var(--accent-2); }
+    .pf-card:hover { border-color: var(--accent-2); box-shadow: var(--glow-soft); }
+    .pf-card.cachee { opacity: 0.55; }
+    .pf-ouvrir { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
     .pf-cover { aspect-ratio: 4 / 3; overflow: hidden; background: var(--surface-3, var(--surface)); }
     .pf-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--t-base); }
-    .pf-card:hover .pf-cover img { transform: scale(1.06); }
-    .pf-count { position: absolute; top: 8px; right: 8px; background: rgba(4,8,20,0.65); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-pill); display: flex; align-items: center; gap: 0.3rem; }
+    .pf-ouvrir:hover .pf-cover img { transform: scale(1.06); }
+    .pf-badges { position: absolute; top: 8px; right: 8px; left: 8px; display: flex; justify-content: flex-end; gap: 4px; flex-wrap: wrap; pointer-events: none; }
+    .pf-badge { background: rgba(4,8,20,0.65); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.2rem 0.5rem; border-radius: var(--r-pill); display: inline-flex; align-items: center; gap: 0.3rem; }
+    .pf-badge.km { background: color-mix(in srgb, var(--ok) 85%, #000); }
+    .pf-badge.paire { background: color-mix(in srgb, var(--accent-2) 85%, #000); color: #111; }
     .pf-meta { padding: var(--sp-3); }
     .pf-type { font-weight: 700; font-size: var(--fs-sm); color: var(--text); }
-    .pf-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pf-sub { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pf-fiche { display: inline-block; margin-top: 0.35rem; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); text-decoration: none; }
+    .pf-fiche:hover { color: var(--accent); }
 
-    /* ── Lightbox (identique à la fiche devis) ── */
+    /* D — choisir les photos : chaque photo dit ce qu'elle est (couverture, masquée) et comment la changer. */
+    .pf-choix { padding: 0 var(--sp-3) var(--sp-3); border-top: 1px solid var(--border); }
+    .pf-vign { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: var(--sp-2); }
+    .pf-v { position: relative; border-radius: 6px; overflow: hidden; border: 2px solid transparent; }
+    .pf-v img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+    .pf-v.couv { border-color: var(--accent-2); }
+    .pf-v.masq img { opacity: 0.3; filter: grayscale(1); }
+    .pf-v .ac { display: flex; }
+    .pf-v .ac button { flex: 1 1 0; min-width: 0; padding: 2px 0; border: 0; background: var(--surface-3); color: var(--text-muted); font-size: 10px; cursor: pointer; }
+    .pf-v .ac button:hover { color: var(--accent); }
+    .pf-v .ac button[disabled] { color: var(--accent-2); cursor: default; }
+    .pf-retirer { margin-top: var(--sp-2); }
+
+    /* G — ce qui manque à la vitrine */
+    .pf-manque { margin-top: var(--sp-5); }
+    .pf-m-l { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 0.45rem 0.8rem; margin-bottom: 6px;
+      border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); font-size: var(--fs-sm); }
+    .pf-m-l .v { color: var(--text-subtle); font-size: var(--fs-2xs); font-family: var(--font-mono); }
+    .pf-m-t { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-3) 0 var(--sp-2); }
+
+    /* ── A — Mode présentation : plein écran, rien que les photos ── */
+    .pres { position: fixed; inset: 0; z-index: calc(var(--z-overlay, 1000) + 40); background: #05070d; color: #fff; display: flex; flex-direction: column; }
+    .pres[hidden] { display: none; }
+    .pres-scene { position: relative; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: pan-y; user-select: none; }
+    .pres-scene > img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .pres-bas { padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); text-align: center; }
+    .pres-cap { font-size: 15px; line-height: 1.4; }
+    .pres-cap .s { display: block; color: #aab; font-size: 13px; }
+    .pres-n { font-family: var(--font-mono); font-size: 12px; color: #889; margin-top: 4px; }
+    .pres-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(255,255,255,0.12);
+      color: #fff; font-size: 26px; cursor: pointer; z-index: 3; }
+    .pres-btn:hover { background: rgba(255,255,255,0.22); }
+    .pres-prev { left: 12px; } .pres-next { right: 12px; }
+    .pres-haut { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; z-index: 4; }
+    .pres-haut button { padding: 0.45rem 0.8rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.45); color: #fff; font-size: 13px; cursor: pointer; }
+    /* C — avant / après : la photo d'après est découpée à la position du curseur. */
+    .pa { position: relative; width: min(100%, 1100px); height: 100%; max-height: 100%; overflow: hidden; }
+    .pa img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .pa .pa-ligne { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,0.6); pointer-events: none; }
+    .pa .pa-ligne::after { content: '⇆'; position: absolute; top: 50%; left: -16px; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%; background: #fff; color: #111;
+      display: grid; place-items: center; font-size: 16px; }
+    .pa input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; z-index: 2; touch-action: none; }
+    /* En BAS : en haut à droite, « Après » passait sous les boutons Plein écran / Fermer. */
+    .pa .pa-l { position: absolute; bottom: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(0,0,0,0.55); font-size: 12px; pointer-events: none; }
+    .pa .pa-l.g { left: 12px; } .pa .pa-l.d { right: 12px; }
+    @media (max-width: 560px) {
+      .pres-btn { width: 40px; height: 40px; font-size: 22px; }
+      .pf-bar .select { flex: 1 1 140px; }
+      /* « Près de… » en trois rangées : le prospect, puis « ou » + commune + OK, puis le rayon.
+         Laissé au hasard du retour à la ligne, « ou » restait collé au menu et la commune tronquée. */
+      .pf-pres #presProspect { flex: 1 1 calc(100% - 30px); }
+      .pf-pres .input { flex: 1 1 0; }
+      .pf-pres #presRayon { flex: 1 1 100%; }
+    }
+    @media (pointer: coarse) {
+      .pf-v .ac button { min-height: 32px; }
+    }
   </style>
 </head>
 <body>
@@ -95,103 +175,427 @@
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
-
-    <div class="toolbar">
+    <div class="pf-bar">
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <label for="search" class="sr-only">Rechercher dans le portfolio</label>
-        <input class="input" id="search" placeholder="Rechercher une ville, un modèle, une couleur, un client…" oninput="render()">
+        <input class="input" id="search" placeholder="Une ville, un modèle, une couleur, un client…" oninput="render()">
       </div>
-      <select class="select" id="sort" style="max-width:200px;" onchange="render()" aria-label="Trier les réalisations">
-        <option value="recent">Tri : récents d'abord</option>
-        <option value="ville">Tri : ville A→Z</option>
+      <select class="select" id="sort" onchange="render()" aria-label="Trier les réalisations">
+        <option value="recent">Récents d'abord</option>
+        <option value="ville">Ville A→Z</option>
       </select>
-      <button class="btn btn-ghost btn-sm" onclick="printDoc()" title="Exporte les réalisations actuellement affichées ci-dessous — utilise la recherche et les filtres pour choisir lesquelles"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Exporter en PDF</button>
+      <button class="btn btn-primary btn-sm" id="btnPresenter" onclick="presenter(0)"></button>
+      <button class="btn btn-ghost btn-sm" id="btnChoisir" onclick="basculerChoix()"></button>
+      <button class="btn btn-ghost btn-sm" id="btnPdf" onclick="printDoc()" title="Exporte les réalisations affichées — filtre ou « près de » d'abord"></button>
     </div>
+    <!-- B — « près de chez le client » : un prospect ou une commune, et un rayon. -->
+    <div class="pf-pres" id="pres-bloc"></div>
     <div class="filters" id="typeFilters"></div>
-    <div class="no-print" style="font-size:var(--fs-2xs);color:var(--text-subtle);margin:0 0 var(--sp-4);">L'export PDF imprime exactement les réalisations affichées ci-dessous : filtre/recherche d'abord, exporte ensuite.</div>
-
-    <div class="print-header">
-      <div class="print-logo"><span class="blue">SOLARI</span><span class="gold">SCREEN</span></div>
-      <div class="print-sub">Portfolio de réalisations — imprimé le <span id="printDate"></span></div>
-      <div class="print-sub" id="printScope"></div>
-    </div>
+    <div class="filters" id="couleurFilters"></div>
+    <div class="pf-resume" id="resume"></div>
 
     <section class="section">
       <div class="section-head">
         <span class="section-title">Réalisations</span>
         <span class="section-code">SS // PORTFOLIO</span>
-        <span class="section-sub" id="resultCount">—</span>
       </div>
       <div class="section-body">
         <div id="grid"></div>
       </div>
     </section>
+    <div class="pf-manque" id="manque"></div>
   </main>
 
   <!-- Document d'impression dédié (rempli par printDoc()). DOIT rester un enfant DIRECT de <body> :
        la règle d'impression `body > *:not(#printDoc)` s'appuie dessus pour masquer tout le reste. -->
   <div id="printDoc" aria-hidden="true"></div>
 
-  <!-- ══════ LIGHTBOX ══════ -->
-  <div class="lightbox" id="lightbox" role="dialog" aria-label="Photo agrandie">
-    <div class="lb-count" id="lbCount"></div>
-    <button class="lb-btn lb-close" onclick="lbClose()" aria-label="Fermer">✕</button>
-    <button class="lb-btn lb-prev" onclick="lbNav(-1)" aria-label="Photo précédente">‹</button>
-    <img id="lbImg" src="" alt="Photo de la réalisation">
-    <div class="lb-cap" id="lbCap"></div>
-    <button class="lb-btn lb-next" onclick="lbNav(1)" aria-label="Photo suivante">›</button>
+  <!-- ══════ A — MODE PRÉSENTATION (montré au client : ni prix, ni nom) ══════ -->
+  <div class="pres" id="pres" role="dialog" aria-modal="true" aria-label="Présentation des réalisations" hidden>
+    <div class="pres-haut">
+      <button type="button" id="presPlein" onclick="pleinEcran()" hidden>Plein écran</button>
+      <button type="button" onclick="fermerPresentation()">✕ Fermer</button>
+    </div>
+    <div class="pres-scene" id="presScene"></div>
+    <button type="button" class="pres-btn pres-prev" onclick="diapo(-1)" aria-label="Précédente">‹</button>
+    <button type="button" class="pres-btn pres-next" onclick="diapo(1)" aria-label="Suivante">›</button>
+    <div class="pres-bas"><div class="pres-cap" id="presCap"></div><div class="pres-n" id="presN"></div></div>
   </div>
 
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/carte.js"></script>
+  <script src="../assets/js/vitrine.js"></script>
   <script>
-    const SS = window.SS;
-    const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, setText, normDevis, icon, toast } = window.SSUI;
-    mountThemeToggle(document.getElementById('themeToggle'));
+    /* ══════════ LE PORTFOLIO (revue du 26/10/2026, règle 45 de CLAUDE.md) ══════════
+       Une vitrine qu'on MONTRE : en visite (mode présentation), à côté de chez le prospect (« près
+       de »), en PDF. Rien de ce qui en sort ne porte une référence fournisseur ni le nom d'un autre
+       client. Les règles vivent dans assets/js/vitrine.js. */
+    const SS = window.SS, V = window.SSVitrine, C = window.SSCarte, U = window.SSUI;
+    const { fmtDate, el, setText, icon, toast, escHtml, jsAttr } = U;
+    window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
-    setText('printDate', fmtDate(new Date().toISOString()));
-    // Attend que la police web (Inter) soit chargée avant d'imprimer, sinon la mise en page
-    // peut être calculée avec la police de repli du système (métriques différentes → débordement).
-    // ── Export PDF : on CONSTRUIT un document d'impression autonome (#printDoc) ────────────
-    // On n'imprime plus la page vivante (thème sombre, overlays, grille responsive) : on génère
-    // un balisage simple, en couleurs écrites en dur, que le CSS de l'app ne peut pas casser.
-    function buildPrintDoc() {
-      const host = el('printDoc');
-      const scope = (el('printScope') || {}).textContent || '';
-      // Max 3 photos par réalisation : au-delà le PDF devient illisible et interminable.
-      const MAX_PH = 3;
-      const blocks = VISIBLE.map(e => {
-        const title = `${TYPE_LABEL[e.type] || e.type}${e.modele ? ' — ' + e.modele : ''}`;
-        const sub = [e.couleur, e.ville].filter(Boolean).join(' · ');
-        const shown = (e.photos || []).slice(0, MAX_PH);
-        return shown.map((src, i) => `
-          <div class="pd-item">
-            <img src="${esc(src)}" alt="">
-            <div class="pd-cap"><strong>${esc(title)}</strong>${sub ? `<br><span class="s">${esc(sub)}</span>` : ''}${shown.length > 1 ? `<br><span class="s">photo ${i + 1}/${shown.length}</span>` : ''}</div>
-          </div>`).join('');
+    const TYPE_LABEL = U.TYPE_LABEL;   // source unique : assets/js/ui.js
+    // La carte du journal de chantier n'est pas un type de produit : elle a SON libellé. Elle
+    // sortait « chantier » en minuscule brute, dans les filtres comme sur les cartes.
+    const libelleType = function (t) { return t === 'chantier' ? 'Chantier / pose' : (TYPE_LABEL[t] || t); };
+    const titreDe = function (e) { return libelleType(e.type) + (e.modele ? ' — ' + e.modele : ''); };
+    const couleursDe = function (e) { return [e.toile ? 'Toile ' + e.toile : '', e.couleur].filter(Boolean).join(' · '); };
+
+    let LISTE = [], RDVS = [], FULLS = new Map(), ENTRIES = [], VISIBLE = [];
+    let activeType = 'tous', activeTeinte = '', CHOIX = false;
+    let PRES = { cle: '', libelle: '', pos: null, rayon: 5 };   // B — près de chez le client
+    const GEO = C.lireGeo();
+
+    el('btnPresenter').innerHTML = icon('image', 14) + ' Présenter';
+    el('btnChoisir').innerHTML = icon('star', 14) + ' Choisir les photos';
+    el('btnPdf').innerHTML = icon('download', 14) + ' PDF client';
+
+    // ── Chargement ──────────────────────────────────────────────────────────────────────────────
+    async function charger() {
+      LISTE = (await SS.listDevis()) || [];
+      RDVS = (await SS.listRdv().catch(function () { return []; })) || [];
+      // Vitrine curée à la main : le drapeau `portfolio` (posé depuis la fiche ou ici), pas archivé.
+      // Les devis COMPLETS sont nécessaires ici : les photos ne sont pas dans la liste.
+      const elig = LISTE.filter(function (d) { return d && d.portfolio && !d.archive; });
+      const fulls = await Promise.all(elig.map(function (d) { return SS.getDevis(d.id).catch(function () { return null; }); }));
+      FULLS = new Map();
+      fulls.filter(Boolean).forEach(function (d) { FULLS.set(d.id, d); });
+      reconstruire();
+      rendrePres();
+      render();
+      rendreManque();
+    }
+    function reconstruire() {
+      ENTRIES = [];
+      FULLS.forEach(function (d) { if (d.portfolio && !d.archive) ENTRIES = ENTRIES.concat(V.entreesDe(d)); });
+      ENTRIES.forEach(function (e) { e.pos = C.positionDans(GEO, e.adresse); });
+    }
+
+    // ── B — Près de chez le client ──────────────────────────────────────────────────────────────
+    /* Les positions viennent de la mémoire de la Carte (la rue quand elle a été trouvée) ; à défaut,
+       la commune (code postal), mémorisée au même endroit. On ne demande JAMAIS la rue d'ici :
+       c'est la Carte qui le fait, une adresse par seconde. */
+    function prospects() {
+      const devis = LISTE.filter(function (d) { return d && !d.archive && ['envoye_client', 'relance_1', 'relance_2'].indexOf(d.statut) >= 0 && C.localisable((d.client || {}).adresse); })
+        .map(function (d) { const cl = d.client || {}; return { cle: 'devis:' + d.id, libelle: [cl.prenom, cl.nom].filter(Boolean).join(' ') || d.id, adresse: cl.adresse }; });
+      const rdv = RDVS.filter(function (r) { return r && ['nouveau', 'a_contacter', 'rdv_fixe'].indexOf(r.statut) >= 0 && C.localisable((r.client || {}).adresse); })
+        .map(function (r) { const cl = r.client || {}; return { cle: 'rdv:' + r.id, libelle: ([cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Demande') + ' (visite)', adresse: cl.adresse }; });
+      return devis.concat(rdv);
+    }
+    function rendrePres() {
+      const l = prospects();
+      const opts = '<option value="">Près de… (un prospect)</option>' + l.map(function (p) {
+        return '<option value="' + escHtml(p.cle) + '"' + (PRES.cle === p.cle ? ' selected' : '') + '>' + escHtml(p.libelle + ' — ' + ((p.adresse || {}).ville || '')) + '</option>';
       }).join('');
-      host.innerHTML = `
-        <div class="pd-head">
-          <div class="pd-logo"><span style="color:#2e3b8f">SOLARI</span><span style="color:#b8860b">SCREEN</span></div>
-          <div class="pd-sub">Portfolio de réalisations — imprimé le ${new Date().toLocaleDateString('fr-BE')}</div>
-          ${scope ? `<div class="pd-sub">${esc(scope)}</div>` : ''}
-        </div>
-        ${blocks ? `<div class="pd-grid">${blocks}</div>`
-                 : `<div class="pd-empty">Aucune réalisation à imprimer.<br>Ajoute des chantiers au portfolio depuis la fiche d'un devis, ou élargis ta recherche.</div>`}`;
+      el('pres-bloc').className = 'pf-pres' + (PRES.pos ? ' actif' : '');
+      el('pres-bloc').innerHTML = icon('pin', 14) +
+        '<select class="select" id="presProspect" onchange="presProspect(this.value)" aria-label="Près d’un prospect">' + opts + '</select>' +
+        '<span>ou</span><input class="input" id="presCommune" placeholder="commune ou code postal" aria-label="Près d’une commune" onkeydown="if(event.key===\'Enter\')presCommune()">' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="presCommune()">OK</button>' +
+        '<select class="select" id="presRayon" onchange="presRayon(this.value)" aria-label="Rayon">' +
+          [2, 5, 10, 20, 0].map(function (r) { return '<option value="' + r + '"' + (PRES.rayon === r ? ' selected' : '') + '>' + (r ? 'à moins de ' + r + ' km' : 'toutes, par distance') + '</option>'; }).join('') + '</select>' +
+        (PRES.pos ? '<span>' + escHtml('Autour de ' + PRES.libelle) + '</span><button type="button" class="btn btn-ghost btn-sm" onclick="presAucun()">' + icon('x', 13) + ' Retirer</button>' : '');
+    }
+    async function positionAdresse(adr) {
+      const p = C.positionDans(GEO, adr);
+      if (p) return p;
+      if (!C.localisable(adr)) return null;
+      try {
+        const loc = await U.geocodeVille(adr.ville, adr.code_postal);
+        if (!loc) return null;
+        GEO[C.cleGeoCommune(adr)] = { lat: loc.latitude, lon: loc.longitude, p: 'commune' };
+        C.ecrireGeo(GEO);
+        return { lat: loc.latitude, lon: loc.longitude, precis: false };
+      } catch (e) { return null; }
+    }
+    async function positionnerTout() {
+      await Promise.all(ENTRIES.filter(function (e) { return !e.pos; }).map(async function (e) { e.pos = await positionAdresse(e.adresse); }));
+    }
+    async function choisirCentre(cle, libelle, adresse) {
+      const pos = await positionAdresse(adresse);
+      if (!pos) { toast('Ce lieu n’a pas pu être situé — vérifie le code postal.', 'warn', 6000); return; }
+      PRES = { cle: cle, libelle: libelle, pos: pos, rayon: PRES.rayon || 5 };
+      await positionnerTout();
+      majTri();
+      el('sort').value = 'distance';
+      rendrePres(); render();
+    }
+    window.presProspect = function (cle) {
+      if (!cle) { window.presAucun(); return; }
+      const p = prospects().filter(function (x) { return x.cle === cle; })[0];
+      // Le libellé public est la COMMUNE : le nom du prospect ne part ni dans le PDF ni à l'écran de présentation.
+      // Sans ville, le code postal — jamais le nom en repli (`prospects()` ne retient que des adresses
+      // localisables, donc l'un des deux existe toujours).
+      const a = (p && p.adresse) || {};
+      if (p) choisirCentre(cle, String(a.ville || '').trim() || String(a.code_postal || '').trim(), a);
+    };
+    window.presCommune = function () {
+      const v = (el('presCommune').value || '').trim();
+      if (!v) return;
+      const cp = /^\d{4}$/.test(v) ? v : '';
+      choisirCentre('commune:' + v.toLowerCase(), v, { code_postal: cp, ville: cp ? '' : v });
+    };
+    window.presRayon = function (r) { PRES.rayon = Number(r) || 0; render(); };
+    window.presAucun = function () { PRES = { cle: '', libelle: '', pos: null, rayon: PRES.rayon || 5 }; if (el('sort').value === 'distance') el('sort').value = 'recent'; majTri(); rendrePres(); render(); };
+    /** « Les plus proches » n'a de sens qu'avec un lieu : l'option n'existe que pendant ce temps. */
+    function majTri() {
+      const so = el('sort'), opt = so.querySelector('option[value="distance"]');
+      if (PRES.pos && !opt) so.insertAdjacentHTML('beforeend', '<option value="distance">Les plus proches</option>');
+      if (!PRES.pos && opt) opt.remove();
+    }
+
+    // ── Filtres et grille ───────────────────────────────────────────────────────────────────────
+    function filtres() {
+      const present = Array.from(new Set(ENTRIES.map(function (e) { return e.type; })));
+      el('typeFilters').innerHTML = [['tous', 'Tous']].concat(present.map(function (t) { return [t, libelleType(t)]; })).map(function (x) {
+        return '<button type="button" class="chip ' + (activeType === x[0] ? 'active' : '') + '" onclick="setTypeFilter(' + jsAttr(x[0]) + ')">' + escHtml(x[1]) + '</button>';
+      }).join('');
+      // F — les teintes de caisson présentes : « les screens anthracite » en un clic.
+      const T = V.teintes(ENTRIES);
+      el('couleurFilters').innerHTML = T.length < 2 ? '' : T.slice(0, 10).map(function (t) {
+        return '<button type="button" class="chip ' + (activeTeinte === t.code ? 'active' : '') + '" onclick="setTeinte(' + jsAttr(t.code) + ')" title="' + escHtml('RAL ' + t.code) + '">' +
+          '<span class="sw" style="background:' + escHtml(t.hex || 'transparent') + '"></span>' + escHtml(t.nom) + ' <span style="opacity:.6">' + t.n + '</span></button>';
+      }).join('');
+    }
+    window.setTypeFilter = function (k) { activeType = k; render(); };
+    window.setTeinte = function (c) { activeTeinte = activeTeinte === c ? '' : c; render(); };
+
+    function render() {
+      const q = el('search').value || '';
+      const tri = el('sort').value;
+      VISIBLE = ENTRIES.filter(function (e) {
+        if (!CHOIX && !e.photos.length) return false;                  // tout masqué : plus rien à montrer
+        if (activeType !== 'tous' && e.type !== activeType) return false;
+        if (activeTeinte && e.ral !== activeTeinte) return false;
+        return V.correspond(e, q, libelleType);
+      });
+      VISIBLE.forEach(function (e) { e.km = (PRES.pos && e.pos) ? C.distanceKm(PRES.pos, e.pos) : null; });
+      if (PRES.pos && PRES.rayon) VISIBLE = VISIBLE.filter(function (e) { return e.km != null && e.km <= PRES.rayon; });
+      VISIBLE.sort(function (a, b) {
+        if (tri === 'distance' && PRES.pos) return (a.km == null ? 1e9 : a.km) - (b.km == null ? 1e9 : b.km);
+        if (tri === 'ville') return (a.ville || '').localeCompare(b.ville || '');
+        return String(b.date).localeCompare(String(a.date));
+      });
+      filtres();
+      const nbPhotos = VISIBLE.reduce(function (s, e) { return s + e.photos.length; }, 0);
+      const villes = new Set(VISIBLE.map(function (e) { return e.ville; }).filter(Boolean)).size;
+      el('resume').innerHTML = '<b>' + VISIBLE.length + '</b> réalisation' + (VISIBLE.length > 1 ? 's' : '') + ' · <b>' + nbPhotos + '</b> photo' + (nbPhotos > 1 ? 's' : '') +
+        ' · <b>' + villes + '</b> commune' + (villes > 1 ? 's' : '') + (VISIBLE.length < ENTRIES.length ? ' <span style="opacity:.7">(sur ' + ENTRIES.length + ')</span>' : '');
+      el('btnChoisir').classList.toggle('btn-primary', CHOIX);
+      el('btnChoisir').classList.toggle('btn-ghost', !CHOIX);
+      el('btnPresenter').disabled = !VISIBLE.some(function (e) { return e.photos.length; });
+
+      if (!VISIBLE.length) {
+        el('grid').innerHTML = '<div class="empty"><div class="big">' + icon('image', 40) + '</div>' +
+          (ENTRIES.length ? (PRES.pos ? 'Aucune réalisation dans ce rayon — élargis-le.' : 'Aucune réalisation ne correspond.')
+            : 'Aucune réalisation dans le portfolio pour l’instant.<br>Ajoute un chantier ci-dessous (« Ce qui manque à la vitrine ») ou depuis la fiche d’un devis.') + '</div>';
+        return;
+      }
+      el('grid').innerHTML = '<div class="pf-grid">' + VISIBLE.map(carte).join('') + '</div>';
+    }
+    function carte(e, i) {
+      const couv = e.photos[0] || e.photosToutes[0] || '';
+      const badges = [
+        e.km != null ? '<span class="pf-badge km">' + (e.km < 1 ? '< 1' : Math.round(e.km)) + ' km</span>' : '',
+        e.paire ? '<span class="pf-badge paire">avant / après</span>' : '',
+        e.photos.length > 1 ? '<span class="pf-badge">' + icon('image', 11) + ' ' + e.photos.length + '</span>' : '',
+      ].join('');
+      return '<div class="pf-card ticked' + (!e.photos.length ? ' cachee' : '') + '">' +
+        '<button type="button" class="pf-ouvrir" onclick="presenter(' + i + ')" aria-label="' + escHtml('Présenter : ' + titreDe(e)) + '">' +
+          '<div class="pf-cover">' + (couv ? '<img src="' + escHtml(couv) + '" alt="" loading="lazy" decoding="async">' : '') + '</div>' +
+          '<div class="pf-meta"><div class="pf-type">' + escHtml(titreDe(e)) + '</div>' +
+          '<div class="pf-sub">' + escHtml([couleursDe(e), e.ville].filter(Boolean).join(' · ') || '—') + '</div></div>' +
+        '</button>' +
+        '<div class="pf-badges">' + badges + '</div>' +
+        // Pas de nom de client sur la carte : la grille se montre aussi au prospect, par-dessus l'épaule.
+        '<div style="padding:0 var(--sp-3) var(--sp-2)"><a class="pf-fiche" href="vue.html?id=' + encodeURIComponent(e.devisId) + '">Voir la fiche →</a></div>' +
+        (CHOIX ? blocChoix(e) : '') +
+        '</div>';
+    }
+
+    // ── D — Choisir les photos ──────────────────────────────────────────────────────────────────
+    function blocChoix(e) {
+      const masquees = new Set((FULLS.get(e.devisId) || {}).portfolio_masquees || []);
+      return '<div class="pf-choix"><div class="pf-vign">' + e.photosToutes.map(function (u) {
+        const couv = e.photos[0] === u, masq = masquees.has(u);
+        return '<div class="pf-v' + (couv ? ' couv' : '') + (masq ? ' masq' : '') + '"><img src="' + escHtml(u) + '" alt="" loading="lazy">' +
+          '<div class="ac"><button type="button" ' + (couv || masq ? 'disabled' : '') + ' onclick="couverture(' + jsAttr(e.cle) + ',' + jsAttr(u) + ')" title="En faire la couverture">' + (couv ? '★ couv.' : '☆') + '</button>' +
+          '<button type="button" onclick="masquer(' + jsAttr(e.cle) + ',' + jsAttr(u) + ')" title="' + (masq ? 'Remontrer cette photo' : 'Masquer cette photo de la vitrine') + '">' + (masq ? 'montrer' : 'masquer') + '</button></div></div>';
+      }).join('') + '</div>' +
+        '<button type="button" class="btn btn-ghost btn-sm pf-retirer" onclick="retirerVitrine(' + jsAttr(e.devisId) + ')">' + icon('x', 13) + ' Retirer ce chantier de la vitrine</button></div>';
+    }
+    window.basculerChoix = function () { CHOIX = !CHOIX; render(); };
+    /** Écrit un devis : relu COMPLET, `modifier` n'y change que ce qui doit changer (règle 2). */
+    async function ecrireDevis(id, modifier, message) {
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable — recharge la page.', 'error'); return null; }
+      modifier(d);
+      d.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(d);
+      if (res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return null; }
+      if (res.conflict) { U.showSaveConflict(function () { location.reload(); }); return null; }
+      if (message) toast(res.offline ? 'Enregistré hors-ligne' : message, res.offline ? 'warn' : 'ok');
+      FULLS.set(id, d);
+      reconstruire();
+      render();
+      return d;
+    }
+    const entreeDe = function (cle) { return ENTRIES.filter(function (e) { return e.cle === cle; })[0]; };
+    window.couverture = function (cle, url) {
+      const e = entreeDe(cle); if (!e) return;
+      ecrireDevis(e.devisId, function (d) { d.portfolio_couvertures = Object.assign({}, d.portfolio_couvertures || {}, { [e.cleDevis]: url }); }, 'Couverture choisie ✓');
+    };
+    window.masquer = function (cle, url) {
+      const e = entreeDe(cle); if (!e) return;
+      ecrireDevis(e.devisId, function (d) {
+        const s = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees : []);
+        if (s.has(url)) s.delete(url); else s.add(url);
+        d.portfolio_masquees = Array.from(s);
+      }, 'Vitrine mise à jour ✓');
+    };
+    window.retirerVitrine = async function (id) {
+      const n = ENTRIES.filter(function (e) { return e.devisId === id; }).length;
+      if (!confirm('Retirer ce chantier de la vitrine' + (n > 1 ? ' (ses ' + n + ' réalisations)' : '') + ' ?\n\nLes photos restent sur la fiche du devis ; on peut le remettre à tout moment.')) return;
+      const d = await ecrireDevis(id, function (x) { x.portfolio = false; }, 'Retiré de la vitrine');
+      if (d) { FULLS.delete(id); LISTE.forEach(function (x) { if (x.id === id) x.portfolio = false; }); reconstruire(); render(); rendreManque(); }
+    };
+
+    // ── G — Ce qui manque à la vitrine ──────────────────────────────────────────────────────────
+    function rendreManque() {
+      const m = V.manquants(LISTE, U.isPoseDone);
+      if (!m.prets.length && !m.sansPhoto.length) { el('manque').innerHTML = ''; return; }
+      const nom = function (d) { const cl = d.client || {}; return [cl.prenom, cl.nom].filter(Boolean).join(' ') || d.id; };
+      const resume = function (d) { return [U.resumeDevis(d), ((d.client || {}).adresse || {}).ville].filter(Boolean).join(' · '); };
+      el('manque').innerHTML = '<section class="section"><div class="section-head"><span class="section-title">Ce qui manque à la vitrine</span>' +
+        '<span class="section-sub">chantiers posés qui n’y sont pas</span></div><div class="section-body">' +
+        (m.prets.length ? '<div class="pf-m-t">Avec des photos — prêts à entrer (' + m.prets.length + ')</div>' + m.prets.slice(0, 20).map(function (d) {
+          return '<div class="pf-m-l"><span>' + escHtml(nom(d)) + ' <span class="v">' + escHtml(resume(d)) + '</span></span>' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="ajouterVitrine(' + jsAttr(d.id) + ')">' + icon('star', 13) + ' Ajouter</button></div>';
+        }).join('') : '') +
+        (m.sansPhoto.length ? '<div class="pf-m-t">Sans photo — à photographier au prochain passage (' + m.sansPhoto.length + ')</div>' + m.sansPhoto.slice(0, 20).map(function (d) {
+          return '<div class="pf-m-l"><span>' + escHtml(nom(d)) + ' <span class="v">' + escHtml(resume(d)) + '</span></span>' +
+            '<a class="btn btn-ghost btn-sm" href="vue.html?id=' + encodeURIComponent(d.id) + '#journal">' + icon('camera', 13) + ' Journal</a></div>';
+        }).join('') : '') +
+        '</div></section>';
+    }
+    window.ajouterVitrine = async function (id) {
+      const plein = await SS.getDevis(id);
+      // Même règle que le bouton de la fiche : il faut des photos MONTRABLES (pas seulement « avant »).
+      if (!V.montrable(plein)) { toast('Ce chantier n’a pas encore de photo montrable (ouvertures, ou journal « en cours » / « terminé »).', 'warn', 6500); return; }
+      const d = await ecrireDevis(id, function (x) { x.portfolio = true; }, 'Ajouté à la vitrine ✓');
+      if (d) { LISTE.forEach(function (x) { if (x.id === id) x.portfolio = true; }); reconstruire(); render(); rendreManque(); }
+    };
+
+    // ── A — Mode présentation ───────────────────────────────────────────────────────────────────
+    /* Plein écran, rien que les photos : on le tend au client. La légende dit le PRODUIT, les
+       couleurs et la commune — jamais un prix, jamais le nom d'un autre client. On glisse du doigt,
+       les flèches marchent au clavier, et sur téléphone « retour » ferme (une étape d'historique). */
+    let DIAPOS = [], IDX = 0, ETAPE_PRES = false;
+    window.presenter = function (iEntree) {
+      DIAPOS = V.diapos(VISIBLE);
+      if (!DIAPOS.length) return;
+      IDX = Math.max(0, DIAPOS.findIndex(function (s) { return s.entree === iEntree; }));
+      el('pres').hidden = false;
+      document.body.style.overflow = 'hidden';
+      el('presPlein').hidden = !(document.documentElement.requestFullscreen && !window.matchMedia('(max-width: 560px)').matches);
+      if (window.matchMedia('(max-width: 900px)').matches && !ETAPE_PRES) { try { history.pushState({ pfPres: 1 }, ''); ETAPE_PRES = true; } catch (e) {} }
+      afficherDiapo();
+    };
+    window.fermerPresentation = function (o) {
+      if (el('pres').hidden) return;
+      el('pres').hidden = true;
+      document.body.style.overflow = '';
+      if (document.fullscreenElement && document.exitFullscreen) { try { document.exitFullscreen(); } catch (e) {} }
+      if (ETAPE_PRES) { ETAPE_PRES = false; if (!(o && o.retour)) { try { history.back(); } catch (e) {} } }
+    };
+    window.addEventListener('popstate', function () { if (ETAPE_PRES) { ETAPE_PRES = false; window.fermerPresentation({ retour: true }); } });
+    window.diapo = function (s) { if (!DIAPOS.length) return; IDX = (IDX + s + DIAPOS.length) % DIAPOS.length; afficherDiapo(); };
+    window.pleinEcran = function () { try { el('pres').requestFullscreen(); } catch (e) {} };
+    function afficherDiapo() {
+      const s = DIAPOS[IDX], e = VISIBLE[s.entree];
+      const scene = el('presScene');
+      if (s.type === 'paire') {
+        scene.innerHTML = '<div class="pa" id="pa"><img src="' + escHtml(s.avant) + '" alt="Avant"><img id="paApres" src="' + escHtml(s.apres) + '" alt="Après" style="clip-path:inset(0 0 0 50%)">' +
+          '<div class="pa-ligne" id="paLigne" style="left:50%"></div><span class="pa-l g">Avant</span><span class="pa-l d">Après</span>' +
+          '<input type="range" min="0" max="100" value="50" aria-label="Comparer avant et après" oninput="comparer(this.value)"></div>';
+      } else {
+        scene.innerHTML = '<img src="' + escHtml(s.src) + '" alt="' + escHtml(titreDe(e)) + '">';
+      }
+      el('presCap').innerHTML = escHtml(titreDe(e)) + '<span class="s">' + escHtml([couleursDe(e), e.ville, e.km != null ? (e.km < 1 ? 'à moins d’1 km' : 'à ' + Math.round(e.km) + ' km') : ''].filter(Boolean).join(' · ')) + '</span>';
+      el('presN').textContent = (IDX + 1) + ' / ' + DIAPOS.length + (s.type === 'paire' ? ' · avant / après' : '');
+      const multi = DIAPOS.length > 1 ? '' : 'none';
+      document.querySelector('.pres-prev').style.display = multi;
+      document.querySelector('.pres-next').style.display = multi;
+      // On précharge la suivante : glisser du doigt ne doit pas montrer un écran noir.
+      const n = DIAPOS[(IDX + 1) % DIAPOS.length];
+      if (n && n.type === 'photo') { const im = new Image(); im.src = n.src; }
+    }
+    window.comparer = function (v) {
+      const p = Math.max(0, Math.min(100, Number(v) || 0));
+      el('paApres').style.clipPath = 'inset(0 0 0 ' + p + '%)';
+      el('paLigne').style.left = p + '%';
+    };
+    // Glisser du doigt : une photo à gauche ou à droite. Pas sur le curseur avant / après, qui
+    // se tire lui aussi à l'horizontale.
+    let DEPART = null;
+    el('presScene').addEventListener('touchstart', function (ev) {
+      DEPART = (ev.touches.length === 1 && !(ev.target.closest && ev.target.closest('.pa input'))) ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null;
+    }, { passive: true });
+    el('presScene').addEventListener('touchend', function (ev) {
+      if (!DEPART) return;
+      const t = ev.changedTouches[0], dx = t.clientX - DEPART.x, dy = t.clientY - DEPART.y;
+      DEPART = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) window.diapo(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    document.addEventListener('keydown', function (ev) {
+      if (el('pres').hidden) return;
+      if (ev.key === 'Escape') window.fermerPresentation();
+      else if (ev.key === 'ArrowLeft' && !(ev.target.closest && ev.target.closest('.pa'))) window.diapo(-1);
+      else if (ev.key === 'ArrowRight' && !(ev.target.closest && ev.target.closest('.pa'))) window.diapo(1);
+    });
+
+    // ── E — Le PDF client ───────────────────────────────────────────────────────────────────────
+    /* Ce qu'on laisse au client : une couverture avec les coordonnées, les réalisations affichées
+       (deux photos chacune, couverture en tête), les couleurs LISIBLES, la commune — jamais le nom
+       d'un autre client, jamais une référence fournisseur. « Près de » se dit par la COMMUNE. */
+    function buildPrintDoc() {
+      const co = window.SS_COMPANY || {};
+      const portee = [];
+      if (activeType !== 'tous') portee.push(libelleType(activeType));
+      if (activeTeinte) portee.push((V.teintes(ENTRIES).filter(function (t) { return t.code === activeTeinte; })[0] || {}).nom || 'RAL ' + activeTeinte);
+      if (PRES.pos) portee.push('près de ' + PRES.libelle + (PRES.rayon ? ' (moins de ' + PRES.rayon + ' km)' : ''));
+      const contact = [co.web, co.email, co.phone, co.address].filter(Boolean).map(escHtml).join('<br>');
+      const blocs = VISIBLE.filter(function (e) { return e.photos.length; }).map(function (e) {
+        const ph = e.photos.slice(0, 2);
+        return '<div class="pd-item"><div class="pd-ph">' + ph.map(function (src) { return '<img src="' + escHtml(src) + '" alt="">'; }).join('') + '</div>' +
+          '<div class="pd-cap"><strong>' + escHtml(titreDe(e)) + '</strong>' +
+          (couleursDe(e) ? '<br><span class="s">' + escHtml(couleursDe(e)) + '</span>' : '') +
+          (e.ville ? '<br><span class="s">' + escHtml(e.ville + (e.km != null ? ' — ' + (e.km < 1 ? 'à moins d’1 km' : 'à ' + Math.round(e.km) + ' km') : '')) + '</span>' : '') + '</div></div>';
+      }).join('');
+      el('printDoc').innerHTML =
+        '<div class="pd-couv"><div class="pd-logo"><span style="color:#2e3b8f">SOLARI</span><span style="color:#b8860b">SCREEN</span></div>' +
+        (co.tagline ? '<div class="pd-tag">' + escHtml(co.tagline) + '</div>' : '') +
+        '<div class="pd-titre">Nos réalisations</div>' +
+        (portee.length ? '<div class="pd-scope">' + escHtml(portee.join(' · ')) + '</div>' : '') +
+        (contact ? '<div class="pd-contact">' + contact + '</div>' : '') + '</div>' +
+        (blocs ? '<div class="pd-grid">' + blocs + '</div>' : '<div class="pd-empty">Aucune réalisation à imprimer.</div>') +
+        (contact ? '<div class="pd-fin">' + escHtml(co.name || 'SolariScreen') + ' — ' + [co.web, co.email, co.phone].filter(Boolean).map(escHtml).join(' · ') + '</div>' : '');
       return VISIBLE.length;
     }
     // Attend que les images du document d'impression soient réellement décodées : sans ça,
     // Chrome/Edge peut lancer l'impression avant et sortir des cadres vides.
     function waitImages(root) {
       const imgs = [...root.querySelectorAll('img')];
-      return Promise.all(imgs.map(img => (img.complete && img.naturalWidth)
-        ? Promise.resolve()
-        : new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 4000); })));
+      return Promise.all(imgs.map(function (img) {
+        return (img.complete && img.naturalWidth) ? Promise.resolve()
+          : new Promise(function (res) { img.onload = res; img.onerror = res; setTimeout(res, 4000); });
+      }));
     }
     window.printDoc = async function () {
       const n = buildPrintDoc();
@@ -201,147 +605,7 @@
       window.print();
     };
 
-    const TYPE_LABEL = window.SSUI.TYPE_LABEL;   // source unique : assets/js/ui.js
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-    let ENTRIES = [], VISIBLE = [], activeType = 'tous';
-    let lbPhotos = [], lbIdx = 0;
-
-    async function loadEntries() {
-      const raw = await SS.listDevis();
-      // Vitrine curée manuellement : le seul critère est le flag `portfolio` (posé depuis la fiche),
-      // + pas archivé. Plus de restriction au statut « Terminé » : on peut montrer les ouvertures
-      // déjà posées d'un chantier encore en cours (seules celles avec photos apparaissent).
-      const eligible = (raw || []).map(normDevis).filter(d => d.portfolio && !d.archive);
-      const fulls = await Promise.all(eligible.map(d => SS.getDevis(d.id)));
-      const entries = [];
-      fulls.filter(Boolean).forEach(d => {
-        const cl = d.client || {}, adr = cl.adresse || {};
-        (d.items || []).forEach((it, i) => {
-          const photos = it.photos || [];
-          if (!photos.length) return;
-          entries.push({
-            devisId: d.id, itemIndex: i,
-            type: it.type, modele: it.modele, variante: it.variante,
-            couleur: it.couleur || it.couleur_lame || '', toile: it.toile || it.toile_couleur || '',
-            ville: adr.ville || '', client: [cl.prenom, cl.nom].filter(Boolean).join(' '),
-            date: d.date_modification || d.date_creation || '',
-            photos,
-          });
-        });
-        // Photos du JOURNAL DE CHANTIER : uniquement les phases « vitrine » (chantier en cours ou
-        // terminé) — on exclut volontairement « avant », « problème » et « réserve » (défauts /
-        // avant-travaux, jamais du beau à montrer). Regroupées en une seule carte « Chantier / pose ».
-        const journal = (d.chantier_photos || [])
-          .filter(e => ['apres', 'pendant'].includes(e.phase) && e.url)
-          .sort((a, b) => String((a.date || '') + (a.date_creation || '')).localeCompare(String((b.date || '') + (b.date_creation || ''))));
-        if (journal.length) {
-          entries.push({
-            devisId: d.id, itemIndex: -1,
-            type: 'chantier', modele: '', variante: '',
-            couleur: '', toile: '',
-            ville: adr.ville || '', client: [cl.prenom, cl.nom].filter(Boolean).join(' '),
-            date: d.date_modification || d.date_creation || '',
-            photos: journal.map(e => e.url),
-          });
-        }
-      });
-      return entries;
-    }
-
-    function kpis() {
-      const nbPhotos = ENTRIES.reduce((s, e) => s + e.photos.length, 0);
-      const villes = new Set(ENTRIES.map(e => e.ville).filter(Boolean));
-      el('kpis').innerHTML = `
-        <div class="kpi ticked gold"><div class="kpi-label">Réalisations</div><div class="kpi-value">${ENTRIES.length}</div><div class="kpi-sub">réalisations photographiées</div></div>
-        <div class="kpi ticked accent"><div class="kpi-label">Photos</div><div class="kpi-value">${nbPhotos}</div><div class="kpi-sub">dans le portfolio</div></div>
-        <div class="kpi ticked"><div class="kpi-label">Villes</div><div class="kpi-value">${villes.size}</div><div class="kpi-sub">chantiers différents</div></div>`;
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
-    }
-
-    function typeFilters() {
-      const present = Array.from(new Set(ENTRIES.map(e => e.type)));
-      const chips = [['tous', 'Tous']].concat(present.map(t => [t, TYPE_LABEL[t] || t]));
-      el('typeFilters').innerHTML = chips.map(([k, label]) =>
-        `<button class="chip ${activeType === k ? 'active' : ''}" onclick="setTypeFilter('${k}')">${esc(label)}</button>`
-      ).join('');
-    }
-    window.setTypeFilter = (k) => { activeType = k; render(); };
-
-    function render() {
-      const q = (el('search').value || '').trim().toLowerCase();
-      const sort = el('sort').value;
-      VISIBLE = ENTRIES.filter(e => {
-        if (activeType !== 'tous' && e.type !== activeType) return false;
-        if (!q) return true;
-        const hay = [TYPE_LABEL[e.type], e.modele, e.variante, e.couleur, e.toile, e.ville, e.client].join(' ').toLowerCase();
-        return hay.includes(q);
-      });
-      VISIBLE.sort((a, b) => sort === 'ville' ? (a.ville || '').localeCompare(b.ville || '') : String(b.date).localeCompare(String(a.date)));
-
-      setText('resultCount', VISIBLE.length + ' résultat(s)');
-      typeFilters();
-
-      // Le PDF exporté doit dire lui-même ce qu'il contient : si un filtre/recherche est actif,
-      // ce n'est pas tout le portfolio qui sort de l'imprimante, seulement ce sous-ensemble.
-      const scopeParts = [];
-      if (activeType !== 'tous') scopeParts.push(TYPE_LABEL[activeType] || activeType);
-      if (q) scopeParts.push(`recherche « ${q} »`);
-      setText('printScope', scopeParts.length ? `Filtré : ${scopeParts.join(' · ')} — ${VISIBLE.length} réalisation(s)` : `Portfolio complet — ${VISIBLE.length} réalisation(s)`);
-
-      if (!VISIBLE.length) {
-        el('grid').innerHTML = `<div class="empty"><div class="big">${icon('image', 40)}</div>
-          ${ENTRIES.length ? 'Aucune réalisation ne correspond à ta recherche.' : `Aucune réalisation dans le portfolio pour l'instant.<br>Sur la fiche d'un devis <strong>signé ou posé</strong> qui a des photos d'ouvertures, clique « <strong>Ajouter au portfolio</strong> » (colonne d'actions, à droite).`}</div>`;
-        return;
-      }
-      el('grid').innerHTML = `<div class="pf-grid">${VISIBLE.map((e, i) => `
-        <div class="pf-card ticked" onclick="openEntry(${i})">
-          <div class="pf-cover"><img src="${e.photos[0]}" alt=""></div>
-          ${e.photos.length > 1 ? `<span class="pf-count">${icon('image', 11)} ${e.photos.length}</span>` : ''}
-          <div class="pf-meta">
-            <div class="pf-type">${esc(TYPE_LABEL[e.type] || e.type)}${e.modele ? ' — ' + esc(e.modele) : ''}</div>
-            <div class="pf-sub">${esc([e.couleur, e.ville].filter(Boolean).join(' · ') || '—')}</div>
-          </div>
-        </div>`).join('')}</div>`;
-    }
-
-    // ── Lightbox : parcourt toutes les photos de l'entrée cliquée ──
-    window.openEntry = (i) => {
-      const e = VISIBLE[i];
-      lbPhotos = e.photos.map((src, pi) => ({
-        src,
-        cap: `${TYPE_LABEL[e.type] || e.type}${e.modele ? ' — ' + e.modele : ''} · photo ${pi + 1}/${e.photos.length}`,
-        devisId: e.devisId,
-      }));
-      lbIdx = 0;
-      lbShow();
-      el('lightbox').classList.add('open');
-      document.body.style.overflow = 'hidden';
-    };
-    window.lbClose = () => { el('lightbox').classList.remove('open'); document.body.style.overflow = ''; };
-    window.lbNav = (dir) => { lbIdx = (lbIdx + dir + lbPhotos.length) % lbPhotos.length; lbShow(); };
-    function lbShow() {
-      const p = lbPhotos[lbIdx];
-      el('lbImg').src = p.src;
-      el('lbCap').innerHTML = `${esc(p.cap)} <a class="lb-link" href="vue.html?id=${p.devisId}">Voir la fiche →</a>`;
-      setText('lbCount', (lbIdx + 1) + ' / ' + lbPhotos.length);
-      const multi = lbPhotos.length > 1 ? '' : 'none';
-      document.querySelector('.lb-prev').style.display = multi;
-      document.querySelector('.lb-next').style.display = multi;
-    }
-    el('lightbox').addEventListener('click', (e) => { if (e.target === el('lightbox')) lbClose(); });
-    document.addEventListener('keydown', (e) => {
-      if (!el('lightbox').classList.contains('open')) return;
-      if (e.key === 'Escape') lbClose();
-      if (e.key === 'ArrowLeft') lbNav(-1);
-      if (e.key === 'ArrowRight') lbNav(1);
-    });
-
-    (async () => {
-      ENTRIES = await loadEntries();
-      kpis();
-      render();
-    })();
+    charger();
   </script>
 </body>
 </html>

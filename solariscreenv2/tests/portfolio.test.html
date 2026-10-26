@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — portfolio</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du portfolio</h1>
+  <p class="note">
+    La revue du 26/10/2026 a trouvé huit défauts sur le portfolio — dont des références de commande
+    fournisseur sur ce qu'on montre aux prospects et la toile d'un screen absente — et Nicolas a choisi
+    sept améliorations (A à G). Ces tests les tiennent : le module pur <code>assets/js/vitrine.js</code>,
+    puis la vraie page.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : données FICTIVES, photos dessinées en ligne,
+    positions simulées (aucun appel réseau), écritures interceptées. Les données locales du navigateur
+    sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/carte.js"></script>
+  <script src="../assets/js/vitrine.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 600) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 600) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests portfolio';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    const texte = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const V = window.SSVitrine, PR = window.SSProducts;
+    const ph = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="' + c + '"/><text x="20" y="160" font-size="40" fill="#fff">' + t + '</text></svg>');
+    const P = { p1: ph('#345', 'p1'), p2: ph('#456', 'p2'), p3: ph('#567', 'p3'), p4: ph('#222', 'p4'), p5: ph('#a33', 'p5'), p6: ph('#3a3', 'p6'), p7: ph('#33a', 'p7'),
+      av: ph('#555', 'avant'), pe: ph('#686', 'pendant'), ap: ph('#6a6', 'apres'), pb: ph('#a00', 'probleme'), m1: ph('#884', 'm1') };
+    const R7016 = '7016 — Gris anthracite · réf. 7m16st (laque texturée)';
+    const adr = (ville, cp) => ({ rue: 'Rue Test', numero: '1', code_postal: cp, ville });
+    const cli = (prenom, nom, a) => ({ prenom, nom, adresse: a });
+    const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString(); };
+    const DEVIS = [
+      { id: 'V-1', portfolio: true, statut: 'termine', client: cli('Paul', "L'Hoest", adr('Wavre', '1300')), date_modification: iso(-1), photos_count: 3,
+        items: [{ type: 'screen', modele: 'SC 90', couleur: R7016, toile: 'Soltis 86 — Gris · réf. 86-2047', photos: [P.p1, P.p2, P.p3] }] },
+      { id: 'V-2', portfolio: true, statut: 'termine', client: cli('Marie', 'Volet', adr('Genval', '1332')), date_modification: iso(-2), photos_count: 1, chantier_photos_count: 4,
+        items: [{ type: 'volet_roulant', couleur: '9005 — Noir foncé', photos: [P.p4] }],
+        chantier_photos: [{ url: P.av, phase: 'avant', date: '2026-01-01' }, { url: P.pe, phase: 'pendant', date: '2026-01-02' }, { url: P.ap, phase: 'apres', date: '2026-01-03' }, { url: P.pb, phase: 'probleme', date: '2026-01-02' }] },
+      { id: 'V-3', portfolio: true, statut: 'signe', client: cli('Jean', 'Blanc', adr('Écaussinnes', '7190')), date_modification: iso(-3), photos_count: 3,
+        items: [{ type: 'screen', couleur: '9016 — Blanc signalisation', photos: [P.p5, P.p6, P.p7] }], portfolio_masquees: [P.p5], portfolio_couvertures: { 'item:0': P.p7 } },
+      { id: 'V-ARCH', portfolio: true, archive: true, statut: 'termine', client: cli('Vieux', 'Archive', adr('Wavre', '1300')), date_modification: iso(-300), photos_count: 1, items: [{ type: 'screen', photos: [P.p1] }] },
+      { id: 'M-1', statut: 'termine', client: cli('Prêt', 'Àentrer', adr('Wavre', '1300')), date_modification: iso(-4), photos_count: 1, items: [{ type: 'screen', couleur: R7016, photos: [P.m1] }] },
+      { id: 'M-2', statut: 'termine', client: cli('Sans', 'Photo', adr('Genval', '1332')), date_modification: iso(-5), photos_count: 0, chantier_photos_count: 0, items: [{ type: 'screen' }] },
+      { id: 'M-3', statut: 'termine', archive: true, client: cli('Archive', 'Pasla', adr('Wavre', '1300')), photos_count: 2, items: [{ type: 'screen', photos: [P.m1] }] },
+      { id: 'M-4', type_document: 'depannage', statut: 'termine', client: cli('Dep', 'Annage', adr('Wavre', '1300')), photos_count: 2 },
+      { id: 'M-AV', statut: 'termine', client: cli('Avant', 'Seulement', adr('Wavre', '1300')), date_modification: iso(-6), photos_count: 0, chantier_photos_count: 1, chantier_photos: [{ url: P.av, phase: 'avant' }] },
+      { id: 'P-1', statut: 'envoye_client', client: cli('Pierre', 'Prospect', adr('Rixensart', '1330')), date_modification: iso(-1) },
+      { id: 'P-2', statut: 'relance_1', client: cli('Nina', 'Discrete', adr('', '1340')), date_modification: iso(-2) },
+    ];
+    const RDV = [{ id: 'R-1', statut: 'nouveau', client: cli('Rita', 'Visite', adr('Ottignies', '1340')) }];
+    const COMMUNES = { '1300': [50.7170, 4.5850], '1332': [50.7250, 4.5130], '7190': [50.5670, 4.1780], '1330': [50.7120, 4.5310], '1340': [50.6680, 4.5650] };
+
+    // ══════════ P — LE MODULE PUR ══════════
+    titre('P — Le module pur (assets/js/vitrine.js)');
+    check('P1 La couleur sort LISIBLE : sans référence de commande fournisseur, code RAL et nom',
+      [V.couleurLisible(R7016), /réf/.test(V.couleurLisible(R7016))], ['7016 ' + PR.ralNom('7016'), false]);
+    check('P2 La toile aussi, sans sa référence', V.toileLisible('Soltis 86 — Gris · réf. 86-2047'), 'Soltis 86 Gris');
+    const E3 = V.entreesDe(DEVIS[2]);
+    check('P3 Une photo MASQUÉE sort de la vitrine, la COUVERTURE choisie passe en tête (et tout reste choisissable)',
+      [E3[0].photos.map(u => Object.keys(P).find(k => P[k] === u)), E3[0].photosToutes.length, E3[0].couverture === P.p7], [['p7', 'p6'], 3, true]);
+    const E2 = V.entreesDe(DEVIS[1]);
+    check('P4 Le journal : « en cours » et « terminé » seulement (jamais « avant » ni « problème »), et la paire avant / après',
+      [E2.length, E2[1].type, E2[1].photos.map(u => Object.keys(P).find(k => P[k] === u)), E2[1].paire && [E2[1].paire.avant === P.av, E2[1].paire.apres === P.ap]],
+      [2, 'chantier', ['pe', 'ap'], [true, true]]);
+    check('P5 Une moitié manquante, pas de comparaison', V.entreesDe({ id: 'x', chantier_photos: [{ url: P.pe, phase: 'pendant' }, { url: P.ap, phase: 'apres' }] })[0].paire, null);
+    const D = V.diapos(E2);
+    check('P6 Présentation : pour chaque réalisation, la comparaison d’abord, puis les photos', D.map(s => s.type + ':' + s.entree), ['photo:0', 'paire:1', 'photo:1', 'photo:1']);
+    const TT = V.teintes(V.entreesDe(DEVIS[0]).concat(V.entreesDe(DEVIS[1]), V.entreesDe(DEVIS[2]), V.entreesDe(DEVIS[4])));
+    check('P7 Les teintes présentes, de la plus fréquente à la plus rare, avec leur nom et leur échantillon',
+      [TT.map(t => t.code + ':' + t.n), TT[0].nom === PR.ralNom('7016'), !!TT[0].hex], [['7016:2', '9005:1', '9016:1'], true, true]);
+    check('P8 La recherche ignore les accents et prend chaque mot', [V.correspond(E3[0], 'ecaussinnes'), V.correspond(E3[0], 'blanc ecaus'), V.correspond(E3[0], 'wavre')], [true, true, false]);
+    const M = V.manquants(DEVIS, window.SSUI.isPoseDone);
+    check('P9 Ce qui manque : posés et absents de la vitrine — avec photos / sans photo ; ni archivés, ni dépannages, ni ceux déjà dedans',
+      [M.prets.map(d => d.id), M.sansPhoto.map(d => d.id)], [['M-1', 'M-AV'], ['M-2']]);
+    check('P10 « Montrable » : une photo « avant » seule ne suffit pas', [V.montrable(DEVIS[8]), V.montrable(DEVIS[4])], [false, true]);
+
+    // ══════════ LA PAGE ══════════
+    const CLES = ['ss_devis_cache', 'ss_rdv_cache', 'ss_geo_adresses', 'ss_outbox'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV));
+      localStorage.removeItem('ss_geo_adresses');
+    }
+    function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+    async function ouvrir(largeur, hauteur) {
+      const f = document.createElement('iframe');
+      f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+      f.src = '../app/portfolio.html?t=' + Date.now();
+      document.body.appendChild(f);
+      const E = { getDevis: 0, ecrits: [], confirmes: [], reponseConfirm: true };
+      const t0 = Date.now();
+      while (Date.now() - t0 < 8000) {
+        const w = f.contentWindow;
+        if (w && w.SS && w.SSUI && !w.__simule) {
+          w.SS.getDevis = async (id) => { E.getDevis++; return JSON.parse(JSON.stringify(DEVIS.find(d => d.id === id) || null)); };
+          w.SS.saveDevis = async (d) => { E.ecrits.push(JSON.parse(JSON.stringify(d))); const i = DEVIS.findIndex(x => x.id === d.id); if (i >= 0) DEVIS[i] = JSON.parse(JSON.stringify(d)); return { ok: true }; };
+          w.SSUI.geocodeVille = async (ville, cp) => { const c = COMMUNES[String(cp)] || COMMUNES[{ rixensart: '1330', ottignies: '1340' }[String(ville).toLowerCase()]]; return c ? { latitude: c[0], longitude: c[1] } : null; };
+          w.confirm = (m) => { E.confirmes.push(m); return E.reponseConfirm; };
+          w.print = () => { E.imprime = (E.imprime || 0) + 1; };
+          w.__simule = 1; break;
+        }
+        await attendre(1);
+      }
+      await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
+      const w = f.contentWindow;
+      while (Date.now() - t0 < 9000) { try { if (w.eval('ENTRIES.length') > 0) break; } catch (e) {} await attendre(50); }
+      await attendre(200);
+      return { f, w, d: w.document, E };
+    }
+
+    (async function () {
+      const ORIGINAL = JSON.parse(JSON.stringify(DEVIS));
+      try {
+        semer();
+        titre('L — La grille');
+        let { f, w, d, E } = await ouvrir(1500, 900);
+        const cartes = () => [...d.querySelectorAll('.pf-card')];
+        const parTitre = (t) => cartes().find(c => texte(c.querySelector('.pf-type')).indexOf(t) === 0);
+        check('L1 Quatre réalisations (une par ouverture photographiée + le chantier) ; l’archivé n’y est pas', [cartes().length, /4 réalisations/.test(texte(d.getElementById('resume')))], [4, true]);
+        check('L2 Plus de tuiles : le résumé tient en une ligne', d.querySelectorAll('.kpi').length, 0);
+        check('L3 Seuls les devis de la vitrine sont rechargés en entier (leurs photos ne sont pas dans la liste)', E.getDevis, 3);
+        const grilleTxt = texte(d.getElementById('grid'));
+        check('F1 Aucune référence fournisseur ni aucun nom de client sur les cartes', [/réf\./.test(grilleTxt), /L'Hoest|Marie|Jean|Paul/.test(grilleTxt)], [false, false]);
+        check('F2 Un screen dit sa TOILE, puis la couleur du caisson, puis la commune',
+          texte(parTitre('Screen — SC 90').querySelector('.pf-sub')), 'Toile Soltis 86 Gris · 7016 ' + PR.ralNom('7016') + ' · Wavre');
+        check('F3 La carte du journal a son libellé : « Chantier / pose » (et non « chantier »), dans les filtres aussi',
+          [!!parTitre('Chantier / pose'), [...d.querySelectorAll('#typeFilters .chip')].map(texte).indexOf('Chantier / pose') >= 0, [...d.querySelectorAll('#typeFilters .chip')].map(texte).indexOf('chantier')], [true, true, -1]);
+        check('F4 Les photos se chargent à la demande (pas toutes d’un coup)', [...d.querySelectorAll('#grid img')].every(i => i.getAttribute('loading') === 'lazy'), true);
+        d.getElementById('search').value = 'ecaussinnes'; w.render();
+        check('F5 La recherche sans accents : « ecaussinnes » trouve Écaussinnes', cartes().length, 1);
+        d.getElementById('search').value = ''; w.render();
+        check('C1 Le chantier qui a un « avant » et un « après » porte la pastille', texte(parTitre('Chantier / pose').querySelector('.pf-badge.paire')), 'avant / après');
+        const ch = [...d.querySelectorAll('#couleurFilters .chip')];
+        check('T1 Les teintes présentes en pastilles (avec échantillon)', [ch.length, ch.every(c => !!c.querySelector('.sw'))], [3, true]);
+        ch.find(c => /7016/.test(c.title)).click(); await attendre(50);
+        check('T2 « Anthracite » : seulement le screen anthracite', cartes().map(c => texte(c.querySelector('.pf-type'))), ['Screen — SC 90']);
+        w.setTeinte(w.eval('activeTeinte'));
+
+        titre('B — Près de chez le client');
+        const opts = [...d.querySelectorAll('#presProspect option')].map(o => o.value);
+        check('B1 On choisit un prospect (devis envoyé) ou une demande de visite', [opts.indexOf('devis:P-1') >= 0, opts.indexOf('rdv:R-1') >= 0], [true, true]);
+        await w.presProspect('devis:P-1'); await attendre(80);
+        const kms = cartes().map(c => texte(c.querySelector('.pf-badge.km')));
+        check('B2 Rixensart, 5 km : les plus proches d’abord, distance affichée ; Écaussinnes (loin) est écarté',
+          [cartes().length, kms.every(Boolean), d.getElementById('sort').value, cartes().some(c => /Blanc|Écaussinnes/.test(texte(c)))], [3, true, 'distance', false]);
+        check('B3 Le lieu se dit par la COMMUNE — jamais par le nom du prospect', [/Rixensart/.test(texte(d.getElementById('pres-bloc'))), /Prospect/.test(texte(d.getElementById('pres-bloc')).replace(/Pierre Prospect — Rixensart/, ''))], [true, false]);
+        w.buildPrintDoc ? null : null;
+        w.eval('buildPrintDoc()');
+        const pdf = texte(d.getElementById('printDoc'));
+        check('E1 Le PDF client : couverture avec coordonnées, « près de Rixensart », ni nom de client ni référence fournisseur',
+          [/Nos réalisations/.test(pdf), /www\.solariscreen\.be/.test(pdf), /près de Rixensart \(moins de 5 km\)/.test(pdf), /L'Hoest|Prospect|Volet Marie|réf\./.test(pdf)], [true, true, true, false]);
+        await w.presProspect('devis:P-2'); await attendre(80);
+        w.eval('buildPrintDoc()');
+        check('B7 Un prospect sans ville se dit par son CODE POSTAL — son nom ne sert jamais de repli (ni à l’écran, ni dans le PDF)',
+          [/Autour de 1340/.test(texte(d.getElementById('pres-bloc'))), /Discrete/.test(texte(d.getElementById('pres-bloc')).replace(/Nina Discrete — /, '')), /Discrete|Nina/.test(texte(d.getElementById('printDoc')))],
+          [true, false, false]);
+        w.presRayon(0); await attendre(30);
+        check('B4 « Toutes, par distance » : tout revient, trié', cartes().length, 4);
+        d.getElementById('presCommune').value = '1340'; await w.presCommune(); await attendre(50);
+        check('B5 Ou une commune tapée (code postal)', /Autour de 1340/.test(texte(d.getElementById('pres-bloc'))), true);
+        w.presAucun();
+        check('B6 « Retirer » : plus de distance, l’option de tri disparaît', [cartes().some(c => !!c.querySelector('.pf-badge.km')), !!d.querySelector('#sort option[value="distance"]')], [false, false]);
+
+        titre('A — Le mode présentation');
+        const iCh = w.eval('VISIBLE').findIndex(e => e.type === 'chantier');
+        w.presenter(iCh); await attendre(50);
+        const pres = d.getElementById('pres');
+        check('A1 Il s’ouvre sur la réalisation choisie, et commence par la comparaison avant / après',
+          [pres.hidden, !!d.querySelector('#presScene .pa input[type="range"]'), texte(d.getElementById('presCap')).indexOf('Chantier / pose') === 0, /avant \/ après/.test(texte(d.getElementById('presN')))], [false, true, true, true]);
+        w.comparer(20);
+        check('A2 Le curseur découpe la photo d’après', [d.getElementById('paApres').style.clipPath, d.getElementById('paLigne').style.left], ['inset(0px 0px 0px 20%)', '20%']);
+        w.diapo(1);
+        check('A3 Suivante : la photo, avec une légende sans nom ni prix', [!!d.querySelector('#presScene > img'), /L'Hoest|Volet|€/.test(texte(d.getElementById('presCap')))], [true, false]);
+        d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('A4 Échap ferme', pres.hidden, true);
+
+        titre('D — Choisir les photos');
+        w.basculerChoix(); await attendre(30);
+        const blanc = cartes().find(c => /9016/.test(texte(c)));
+        const vign = [...blanc.querySelectorAll('.pf-v')];
+        check('D1 Chaque photo dit si elle est la couverture ou masquée', vign.map(v => (v.classList.contains('couv') ? 'couv' : '') + (v.classList.contains('masq') ? 'masq' : '')), ['masq', '', 'couv']);
+        await w.couverture(w.eval('VISIBLE').find(e => e.devisId === 'V-3').cle, P.p6); await attendre(50);
+        const ec1 = E.ecrits[E.ecrits.length - 1];
+        check('D2 Choisir une couverture l’écrit sur le devis, sans rien perdre d’autre', [ec1.id, ec1.portfolio_couvertures['item:0'] === P.p6, ec1.portfolio_masquees.length, ec1.items[0].photos.length], ['V-3', true, 1, 3]);
+        await w.masquer(w.eval('VISIBLE').find(e => e.devisId === 'V-3').cle, P.p7); await attendre(50);
+        check('D3 Masquer une photo l’ajoute à la liste des masquées', E.ecrits[E.ecrits.length - 1].portfolio_masquees.length, 2);
+        await w.retirerVitrine('V-1'); await attendre(80);
+        check('D4 Retirer un chantier de la vitrine : confirmation, puis il sort — et passe dans « ce qui manque »',
+          [/Retirer ce chantier de la vitrine/.test(E.confirmes[E.confirmes.length - 1] || ''), E.ecrits[E.ecrits.length - 1].portfolio, cartes().some(c => /SC 90/.test(texte(c))), /L'Hoest/.test(texte(d.getElementById('manque')))], [true, false, false, true]);
+        w.basculerChoix();
+
+        titre('G — Ce qui manque à la vitrine');
+        const man = d.getElementById('manque');
+        check('G1 Prêts à entrer (avec photos) et sans photo (avec le chemin vers le journal) ; ni archivé ni dépannage',
+          [/Prêt Àentrer/.test(texte(man)), !!man.querySelector('a[href="vue.html?id=M-2#journal"]'), /Archive Pasla|Dep Annage/.test(texte(man))], [true, true, false]);
+        const nAvant = E.ecrits.length;
+        await w.ajouterVitrine('M-AV'); await attendre(50);
+        check('G2 Un chantier qui n’a qu’une photo « avant » n’entre pas (et on le dit)', [E.ecrits.length - nAvant, [...d.querySelectorAll('#toasts .toast')].some(t => /pas encore de photo montrable/.test(t.textContent))], [0, true]);
+        await w.ajouterVitrine('M-1'); await attendre(80);
+        check('G3 « Ajouter » : il entre dans la vitrine', [E.ecrits[E.ecrits.length - 1].portfolio, cartes().some(c => /Screen/.test(texte(c)) && /Wavre/.test(texte(c)))], [true, true]);
+        const casses = [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2)
+          .map(a => { try { new Function(a.value); return null; } catch (err) { return e.tagName + ':' + err.message; } }).filter(Boolean));
+        check('X1 Tous les gestionnaires compilent (client « L’Hoest », photos en ligne)', casses, []);
+        f.remove();
+
+        titre('Téléphone (390 × 800)');
+        DEVIS.splice(0, DEVIS.length, ...JSON.parse(JSON.stringify(ORIGINAL)));
+        semer();
+        let fuites = 0;
+        const garde = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', garde);
+        ({ f, w, d, E } = await ouvrir(390, 800));
+        check('M1 Rien ne déborde, et la première réalisation est dans le premier écran',
+          [d.documentElement.scrollWidth <= d.documentElement.clientWidth, d.querySelector('.pf-card').getBoundingClientRect().top < 800], [true, true]);
+        w.presenter(0); await attendre(50);
+        check('M2 La présentation pose une étape d’historique', (w.history.state || {}).pfPres, 1);
+        w.history.back(); await attendre(400);
+        check('M3 « Retour » FERME la présentation, sans quitter la page', [d.getElementById('pres').hidden, /portfolio/.test(w.location.pathname)], [true, true]);
+        w.presenter(0); await attendre(50);
+        w.fermerPresentation(); await attendre(400);
+        check('M4 « Fermer » retire l’étape (pas de « retour » qui ne fait rien)', (w.history.state || {}).pfPres, undefined);
+        f.remove();
+        await attendre(200);
+        window.removeEventListener('popstate', garde);
+        check('M5 Aucun « retour » de trop', fuites, 0);
+      } catch (e) {
+        check('Exécution sans exception', String(e && e.stack || e), 'aucune');
+      } finally {
+        remettre();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

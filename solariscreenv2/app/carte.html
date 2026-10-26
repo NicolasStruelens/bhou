@@ -256,24 +256,18 @@
          — leurs règles d'usage — et une seule fois par adresse : la réponse est gardée.
        Une adresse introuvable est notée, et redemandée seulement après trente jours.
        Tant que l'adresse exacte n'est pas connue, le point est à la commune, bord en pointillés. */
-    const CLE_GEO = 'ss_geo_adresses';
-    const GEO = (function () { try { return JSON.parse(lireLS(CLE_GEO) || '{}') || {}; } catch (e) { return {}; } })();
-    function sauverGeo() { ecrireLS(CLE_GEO, JSON.stringify(GEO)); }
+    const GEO = C.lireGeo();
+    function sauverGeo() { C.ecrireGeo(GEO); }
     function positionCommune(adr) {
-      const c = GEO['c:' + C.cleCommune(adr)];
+      const c = GEO[C.cleGeoCommune(adr)];
       return c ? { lat: c.lat, lon: c.lon, precis: false } : null;
     }
-    function position(adr) {
-      if (!C.localisable(adr)) return null;
-      const x = GEO['a:' + C.cleAdresse(adr)];
-      if (x && x.p === 'adresse') return { lat: x.lat, lon: x.lon, precis: true };
-      return positionCommune(adr);
-    }
+    function position(adr) { return C.positionDans(GEO, adr); }
     async function preparerCommunes(adresses) {
       const a_faire = new Map();
       adresses.forEach(function (a) {
         if (!C.localisable(a)) return;
-        const k = 'c:' + C.cleCommune(a);
+        const k = C.cleGeoCommune(a);
         if (!GEO[k] && !a_faire.has(k)) a_faire.set(k, a);
       });
       await Promise.all(Array.from(a_faire).map(async function (x) {
@@ -287,7 +281,7 @@
       const auj = P.aujourdhui();
       adresses.forEach(function (a) {
         if (!C.aUneRue(a) || !C.localisable(a)) return;
-        const k = 'a:' + C.cleAdresse(a), x = GEO[k];
+        const k = C.cleGeoAdresse(a), x = GEO[k];
         if (x && (x.p === 'adresse' || (x.p === 'introuvable' && P.ecartJours(x.t || auj, auj) < 30))) return;
         if (FILE.some(function (f) { return f.k === k; })) return;
         FILE.push({ k: k, a: a });
