@@ -50,53 +50,100 @@
     .pl-alerte.warn svg { color: var(--warn); }
     .pl-alerte b { color: var(--text); }
 
-    /* ── Vue SEMAINE ────────────────────────────────────────────────────────────────────────── */
-    .pl-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-2); align-items: start; }
-    .pl-col { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-2);
-      display: flex; flex-direction: column; gap: var(--sp-2); min-height: 120px; }
-    .pl-col.is-we { background: var(--surface-2); }
-    .pl-col.is-today { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
-    .pl-col.is-passe { opacity: 0.55; }
-    .pl-colh { display: flex; align-items: baseline; gap: 0.4rem; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border); }
-    .pl-colh .j { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
-    .pl-colh .n { font-family: var(--font-display); font-size: var(--fs-md); color: var(--text); }
-    .pl-col.is-today .pl-colh .n { color: var(--accent); }
-    .pl-colh .mois { font-size: var(--fs-3xs); color: var(--text-subtle); margin-left: auto; }
+    /* ── Résumé de la période et charge à six semaines ──────────────────────────────────────── */
+    /* UNE LIGNE au lieu de cinq tuiles (26/10/2026). Sur téléphone, les tuiles empilées
+       repoussaient la journée à 954 px : sous le bas d'un écran de 812, on ouvrait le planning
+       sans voir sa journée. Les mêmes chiffres tiennent dans une phrase et deux barres. */
+    .pl-resume { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4);
+      padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); border: 1px solid var(--border);
+      border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); color: var(--text-muted); }
+    .pl-resume b { color: var(--text); font-weight: 700; }
+    .pl-ch { display: inline-flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+    .pl-ch .nom { color: var(--text); font-weight: 600; }
+    .pl-ch small { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .pl-barre { display: inline-block; width: 64px; height: 6px; flex: none; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+    .pl-barre i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+    .pl-barre.plein i { background: var(--warn); }
+    .pl-resume .attention { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--danger); font-weight: 600; }
+    .pl-6s { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .pl-6s button { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0.4rem 0.5rem; text-align: left;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); color: inherit; cursor: pointer; }
+    .pl-6s button:hover { border-color: var(--accent); }
+    .pl-6s button.on { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .pl-6s .sem { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-6s .lg { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-muted); white-space: nowrap; }
+    .pl-6s .lg .pl-barre { width: auto; flex: 1 1 auto; min-width: 12px; height: 5px; }
+    .pl-alertes:empty { display: none; }
+    .pl-plus { display: none; }
+    .pl-lien { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline;
+      text-underline-offset: 2px; cursor: pointer; }
 
-    /* Barre d'occupation : la journée vue de 8 h à 17 h. Le gris = hors trame, le vert = libre,
-       les segments colorés = ce qui est déjà pris. C'est le coup d'œil « reste-t-il de la place ». */
-    .pl-jauge { display: flex; align-items: center; gap: 0.4rem; }
-    .pl-jauge .qui { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); width: 2ch; flex: none; }
-    .pl-piste { position: relative; height: 9px; flex: 1 1 auto; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
-    .pl-piste span { position: absolute; top: 0; bottom: 0; }
-    /* 32 % de vert passait pour du gris en thème clair : la barre ne se distinguait plus du fond
-       et ne racontait plus rien. Il faut que « libre » se voie d'un coup d'œil, c'est son seul rôle. */
-    .pl-piste .libre { background: color-mix(in srgb, var(--ok) 60%, transparent); }
-    .pl-piste .pris { background: var(--c, var(--accent)); }
+    /* ── Vue SEMAINE : une ligne par personne ─────────────────────────────────────────────────── */
+    /* (26/10/2026, variante A choisie par Nicolas sur maquette.) Sept cartes empilées disaient
+       « qu'y a-t-il ce jour-là » ; pour savoir QUI était pris QUAND, il fallait les lire une à une.
+       Une ligne par personne, coupée en matin et après-midi, le dit d'un coup d'œil.
+       ⚠️ Les colonnes s'alignent par « subgrid » : chaque jour est une colonne qui PARTAGE les
+       lignes de la grille, donc le couloir de Nicolas est à la même hauteur les sept jours, même
+       quand un jour est plus chargé. Sous 900 px, la même structure se replie jour par jour — la
+       feuille de style seule en décide, aucune branche JavaScript sur la largeur (règle 24). */
+    .pl-sem { display: grid; grid-template-columns: 70px repeat(7, minmax(0, 1fr)); column-gap: 6px; row-gap: 5px; }
+    .pl-labels, .pl-jc { display: grid; grid-template-rows: subgrid; grid-row: 1 / -1; min-width: 0; }
+    .pl-l { display: flex; align-items: center; min-width: 0; font-size: var(--fs-2xs); font-weight: 600; color: var(--text-muted); }
+    .pl-l.mini { font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 400; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-subtle); }
+    .pl-l.orph { color: var(--danger); }
+    .pl-jh { display: flex; align-items: baseline; gap: 0.35rem; padding: 0 2px 4px; border-bottom: 2px solid var(--border); }
+    .pl-jh .j { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    .pl-jh .n { font-family: var(--font-display); font-size: var(--fs-md); color: var(--text); }
+    /* Le mois suit le numéro : poussé à droite, il se lisait comme celui du jour SUIVANT. */
+    .pl-jh .mois { font-size: var(--fs-3xs); color: var(--text-subtle); }
+    .pl-jc.is-today .pl-jh { border-bottom-color: var(--accent); }
+    .pl-jc.is-today .pl-jh .n { color: var(--accent); }
+    .pl-jc.is-passe { opacity: 0.55; }
+    /* La météo du jour : vide tant que la prévision n'est pas arrivée, et alors elle ne dit rien. */
+    .pl-mj { display: flex; align-items: center; gap: 4px; min-height: 18px; min-width: 0; overflow: hidden;
+      font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); white-space: nowrap; }
+    .pl-mj > span { overflow: hidden; text-overflow: ellipsis; }
+    .pl-mj.ko { color: var(--danger); font-weight: 700; }
+    .pl-cell { display: flex; gap: 4px; min-width: 0; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+    .pl-jc.is-we .pl-cell { background: var(--surface-2); }
+    .pl-cell .lane-l { display: none; }
+    .pl-ccorps { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+    .pl-demis { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3px; flex: 1 1 auto; }
+    .pl-demi { display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 34px; border-radius: 4px; }
+    /* Hachuré = ne travaille pas. Le MOTIF dit « fermé » : la couleur, ici, dit la nature du
+       rendez-vous (règle 21 bis), elle ne peut pas porter un second sens. */
+    .pl-demi.hors { background: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--border-strong) 55%, transparent) 7px 8px); }
+    .pl-cell.orph { border-style: dashed; border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+      background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+    .pl-cell.orph.vide { border-color: transparent; background: none; }
+    .pl-dispo { flex: 1 1 auto; min-height: 24px; min-width: 0; padding: 2px; border: 1px dashed color-mix(in srgb, var(--ok) 55%, transparent);
+      border-radius: 4px; background: none; color: var(--ok); font-family: var(--font-mono); font-size: var(--fs-3xs); cursor: pointer;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-dispo:hover, .pl-dispo:focus-visible { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+    .pl-chip { display: block; width: 100%; min-width: 0; padding: 3px 5px; text-align: left; cursor: pointer; color: inherit;
+      font-size: var(--fs-3xs); line-height: 1.3; border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 35%, var(--border));
+      border-left: 3px solid var(--c, var(--accent)); border-radius: 4px; background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--surface)); }
+    .pl-chip:hover { border-color: var(--c, var(--accent)); }
+    /* Le NOM identifie le rendez-vous : dans une demi-journée de 70 px il sortait en « Bernade… ».
+       Il passe sur deux lignes avant de se couper. */
+    .pl-chip .t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+      font-size: var(--fs-2xs); font-weight: 700; color: var(--text); overflow-wrap: break-word; hyphens: auto; }
+    .pl-chip .h { font-family: var(--font-mono); font-weight: 400; color: var(--c, var(--accent)); }
+    .pl-chip .s { display: block; font-family: var(--font-mono); color: var(--text-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-chip .ko-t { display: block; font-family: var(--font-mono); font-weight: 700; color: var(--danger); }
+    .pl-chip .ko-t:empty { display: none; }
+    .pl-chip.ko { border-color: var(--danger); border-style: dashed; border-left-style: solid; }
+    .pl-chip.is-indispo { --c: var(--text-subtle); background: repeating-linear-gradient(45deg, var(--surface-2) 0 5px, var(--surface-3) 5px 10px); }
+    .pl-leg { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .pl-leg .sw { display: inline-block; width: 14px; height: 10px; margin-right: 5px; vertical-align: -1px; border-radius: 2px; }
+    .pl-leg .sw.libre { border: 1px dashed color-mix(in srgb, var(--ok) 55%, transparent); }
+    .pl-leg .sw.hors { border: 1px solid var(--border); background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--border-strong) 55%, transparent) 3px 4px); }
 
-    .pl-evs { display: flex; flex-direction: column; gap: 0.3rem; }
-    .pl-ev { display: block; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border);
-      border-left: 3px solid var(--c, var(--accent)); border-radius: var(--r-sm); padding: 0.35rem 0.5rem; cursor: pointer; color: inherit; }
-    .pl-ev:hover { border-color: var(--border-strong); background: var(--surface-3); }
-    .pl-ev .l1 { display: flex; align-items: baseline; gap: 0.35rem; }
-    .pl-ev .h { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--c, var(--accent)); flex: 0 0 auto; }
-    /* Le nom du client IDENTIFIE la carte : on lui donne un plancher et on interdit au reste de
-       l'écraser — un nom réduit à une lettre ne sert plus à rien (piège déjà payé sur le CRM). */
-    .pl-ev .t { font-size: var(--fs-xs); font-weight: 600; color: var(--text); min-width: 5ch;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* `display: block` est indispensable : en inline, le résumé et la ligne de nature se suivaient
-       sur la même ligne et se lisaient « Screens pour la vérandaVisite · 1 h · Yan ». */
-    .pl-ev .s { display: block; font-size: var(--fs-3xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pl-ev .w { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
-    .pl-ev.is-indispo { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 5px, var(--surface-3) 5px, var(--surface-3) 10px); }
-    /* Météo prévue : vide tant que la réponse n'est pas là, et alors elle ne prend aucune place. */
+    /* Météo prévue d'un rendez-vous (vue Jour) : vide tant que la réponse n'est pas là. */
     .pl-meteo { display: block; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
     .pl-meteo:empty { display: none; }
-
-    .pl-libres { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-    .pl-libre { font-family: var(--font-mono); font-size: var(--fs-3xs); padding: 0.15rem 0.4rem; border-radius: var(--r-sm);
-      border: 1px dashed color-mix(in srgb, var(--ok) 50%, transparent); color: var(--ok); background: none; cursor: pointer; }
-    .pl-libre:hover { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+    .pl-meteo.ko { color: var(--danger); font-weight: 700; }
     .pl-vide { font-size: var(--fs-3xs); color: var(--text-subtle); font-style: italic; }
 
     /* ── Vue MOIS ───────────────────────────────────────────────────────────────────────────── */
@@ -130,6 +177,8 @@
     .pl-bloc .lieu { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
     .pl-bloc .lieu a { color: var(--accent-2); }
     .pl-bloc .libtxt { color: var(--ok); font-size: var(--fs-sm); }
+    .pl-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .pl-route { margin-bottom: var(--sp-3); }
 
     /* ── À planifier ────────────────────────────────────────────────────────────────────────── */
     .pl-titre { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs);
@@ -147,6 +196,14 @@
     .pl-carte .champs .field { margin: 0; }
     .pl-carte .champs .plein { grid-column: 1 / -1; }
     .pl-carte .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); flex-wrap: wrap; }
+    /* Les dates proposées : l'équipe est libre assez longtemps et la météo ne s'y oppose pas. */
+    .pl-prop { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px dashed var(--border); }
+    .pl-prop-t { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-family: var(--font-mono); font-size: var(--fs-3xs);
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
+    .pl-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+    .pl-pill { padding: 0.3rem 0.6rem; border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); border-radius: var(--r-sm);
+      background: none; color: var(--ok); font-family: var(--font-mono); font-size: var(--fs-2xs); cursor: pointer; }
+    .pl-pill:hover, .pl-pill:focus-visible { background: color-mix(in srgb, var(--ok) 12%, transparent); }
 
     /* ── Fenêtres ───────────────────────────────────────────────────────────────────────────── */
     .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
@@ -191,14 +248,38 @@
       border: 1px solid var(--border-strong); border-radius: var(--r-sm); color: var(--text-muted); cursor: pointer; }
     .ex-ligne .sup:hover { border-color: var(--danger); color: var(--danger); }
 
+    /* « Caler ici » : ce qui attend une date, en options ; le détail apparaît sous le choix. */
+    .cl-plage { font-size: var(--fs-sm); color: var(--ok); }
+    .cl-grp { margin: var(--sp-4) 0 var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-subtle); }
+    .cl-opt { display: block; width: 100%; margin-bottom: 6px; padding: 0.5rem 0.7rem; text-align: left; cursor: pointer; color: inherit;
+      border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: none; }
+    .cl-opt:hover { border-color: var(--accent); }
+    .cl-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .cl-opt .t { display: flex; align-items: center; gap: 0.35rem; font-weight: 600; color: var(--text); }
+    .cl-opt .s { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--text-muted); }
+    .cl-detail { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+    .cl-bloquer { margin-top: var(--sp-4); }
+    .ev-avert { margin-top: var(--sp-3); font-size: var(--fs-sm); font-weight: 600; color: var(--danger); }
+
     /* ── Téléphone ──────────────────────────────────────────────────────────────────────────── */
     /* Une grille de 7 colonnes sur 375 px donne des colonnes de 45 px : illisible. La semaine
        s'empile donc en 7 blocs. Le mois, lui, tient : ses cases ne portent que des pastilles. */
     @media (max-width: 900px) {
-      .pl-sem { grid-template-columns: 1fr; }
-      .pl-col { min-height: 0; }
-      .pl-colh .mois { margin-left: 0; }
-      .pl-col.is-passe { display: none; }   /* la semaine en cours se lit à partir d'aujourd'hui */
+      /* Jour par jour : chaque jour devient une carte, et chaque couloir y porte son nom. */
+      .pl-sem { display: flex; flex-direction: column; gap: var(--sp-3); }
+      .pl-labels { display: none; }
+      .pl-jc { display: flex; flex-direction: column; gap: 5px; padding: var(--sp-2); border: 1px solid var(--border);
+        border-radius: var(--r-md); background: var(--surface); }
+      .pl-jc.is-today { border-color: var(--accent); }
+      .pl-jc.is-passe { display: none; }   /* la semaine en cours se lit à partir d'aujourd'hui */
+      .pl-jh .mois { margin-left: 0; }
+      .pl-cell { padding: 0; border: none; background: none; }
+      .pl-jc.is-we .pl-cell { background: none; }
+      .pl-cell .lane-l { display: flex; align-items: center; width: 54px; flex: none; font-size: var(--fs-2xs); font-weight: 600; color: var(--text-muted); }
+      .pl-cell.orph { padding: 3px; }
+      .pl-cell.orph .lane-l { color: var(--danger); }
+      .pl-cell.orph.vide { display: none; }
     }
     @media (max-width: 560px) {
       .pl-bar { gap: var(--sp-2); }
@@ -206,6 +287,24 @@
       .pl-spacer { display: none; }
       .pl-case { min-height: 58px; }
       .pl-case .mini { display: none; }
+      /* LA JOURNÉE DOIT ÊTRE DANS LE PREMIER ÉCRAN. Mesuré à 375 × 812 : barre d'outils, résumé,
+         six semaines et alertes la poussaient à 780 px. Les six semaines tiennent sur UNE rangée
+         qu'on fait glisser du doigt (la page, elle, ne déborde pas) ; le résumé laisse aux alertes
+         ce qu'elles disent déjà (« à attribuer », « hors des jours ») ; les alertes se resserrent
+         sans rien cacher. */
+      .pl-6s { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; gap: 6px; }
+      .pl-6s::-webkit-scrollbar { display: none; }
+      .pl-6s button { flex: 0 0 104px; }
+      .pl-resume { padding: var(--sp-2) var(--sp-3); gap: 4px var(--sp-3); font-size: var(--fs-xs); }
+      .pl-resume .attention, .pl-ch small { display: none; }
+      .pl-alerte { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); line-height: 1.4; }
+      /* Deux alertes, puis un bouton qui DIT combien il en reste : quatre alertes repoussaient la
+         journée sous l'écran. Rien n'est caché sans le dire (même principe que « voir les N » du
+         tableau de bord). La feuille de style décide de la largeur ; le script ne fait que compter. */
+      #alertes:not(.tout) > .pl-alerte:nth-child(n+3) { display: none; }
+      .pl-plus:not([hidden]) { display: block; width: 100%; margin: calc(-1 * var(--sp-2)) 0 var(--sp-4); padding: 0.45rem;
+        border: 1px dashed var(--border-strong); border-radius: var(--r-sm); background: none; color: var(--text-muted);
+        font-family: var(--font-mono); font-size: var(--fs-2xs); cursor: pointer; }
       .m2 { grid-template-columns: 1fr; }
       .pl-carte .champs { grid-template-columns: 1fr; }
       .pl-carte .champs .plein { grid-column: auto; }   /* span dans une grille à 1 colonne = colonne fantôme */
@@ -221,7 +320,9 @@
     @media (pointer: coarse) {
       .pl-seg button { min-height: 38px; }
       .pl-fleche { width: 38px; height: 38px; }
-      .pl-libre { min-height: 30px; padding: 0.3rem 0.5rem; }
+      .pl-dispo { min-height: 32px; }
+      .pl-chip { min-height: 32px; }
+      .pl-6s button, .cl-opt, .pl-pill { min-height: 40px; }
       .ex-ligne .sup { width: 38px; height: 38px; }
     }
   </style>
@@ -259,8 +360,10 @@
       <button class="btn btn-primary btn-sm" onclick="ouvrirIndispo()" id="btnIndispo">Bloquer du temps</button>
     </div>
 
-    <div class="kpis" id="kpis"></div>
+    <div id="resume"></div>
+    <div class="pl-6s" id="sixSem" aria-label="Charge des six prochaines semaines"></div>
     <div class="pl-alertes" id="alertes"></div>
+    <button type="button" class="pl-plus" id="alertesPlus" hidden onclick="basculerAlertes()"></button>
     <div id="vueHost"><div class="pl-sem" aria-busy="true"><div class="skl" style="height:150px"></div><div class="skl" style="height:150px"></div><div class="skl" style="height:150px"></div></div></div>
     <div id="basHost"></div>
   </main>
@@ -287,6 +390,7 @@
       <div class="mhead"><span id="mEvIc"></span><span id="mEvTitre">Rendez-vous</span><span class="mid" id="mEvRef"></span></div>
       <div class="mbody" id="mEvBody"></div>
       <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" id="btnEvIcs" onclick="agendaEv()">Ajouter à mon agenda</button>
         <button class="btn btn-ghost btn-sm" id="btnEvFiche" onclick="ouvrirFicheEv()">Ouvrir la fiche</button>
         <button class="btn btn-ghost btn-sm" onclick="fermerEvenement()">Annuler</button>
         <button class="btn btn-primary btn-sm" onclick="enregistrerEvenement()" id="btnSaveEv">Enregistrer</button>
@@ -306,11 +410,25 @@
     </div>
   </div>
 
+  <!-- ══════════ Caler quelque chose dans un créneau libre ══════════ -->
+  <div class="modal-bg" id="mCalerBg">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mCalerTitre">
+      <div class="mhead"><span id="mCalerIc"></span><span id="mCalerTitre">Caler ici</span></div>
+      <div class="mbody" id="mCalerBody"></div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerCaler()">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="validerCaler()" id="btnCaler" disabled>Caler</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <!-- company.js : l'adresse du siège, lieu de la météo d'un jour sans rendez-vous. -->
+  <script src="../assets/js/company.js"></script>
   <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/attente.js"></script>
   <script>
@@ -339,6 +457,8 @@
     let REGLAGES = null;
     let A_PLANIFIER = [], A_COMMANDER = [];
     let IDENTITE = { key: '' };
+    let SOURCES = { devis: [], rdvs: [], dispos: [] };   // la matière brute : « Caler ici » y cherche ce qui attend une date
+    const jsAttr = window.SSUI.jsAttr;
 
     if (['semaine', 'mois', 'jour'].indexOf(VUE) < 0) VUE = 'semaine';
 
@@ -377,6 +497,7 @@
       REGLAGES = r.reglages;
       A_PLANIFIER = r.aPlanifier;
       A_COMMANDER = r.aCommander || [];
+      SOURCES = r.sources || SOURCES;
       try { IDENTITE = await window.SSNav.getIdentity(); } catch (e) { IDENTITE = { key: '' }; }
       rendre();
     }
@@ -398,32 +519,98 @@
       EVS = evsPeriode();
       el('periode').textContent = titrePeriode();
       rendreSegments();
-      rendreKpis();
+      rendreResume();
       rendreAlertes();
       if (VUE === 'semaine') el('vueHost').innerHTML = vueSemaine();
       else if (VUE === 'mois') el('vueHost').innerHTML = vueMois();
       else el('vueHost').innerHTML = vueJour();
       el('basHost').innerHTML = sectionAPlanifier();
       chargerMeteo();
+      chargerPropositions();
     }
 
-    // ── Météo prévue chez le client (Open-Meteo, 16 jours) ───────────────────────────────
-    // Reprise de l'ancien agenda : poser des screens par grand vent, ça ne se fait pas, et c'est
-    // une décision qu'on veut prendre en regardant la semaine — pas la veille au soir. Chargée en
-    // tâche de fond, silencieuse si indisponible, et coupée si le réglage d'affichage la masque.
+    /** « samedi 31 octobre » et « sam 31 oct. » : les deux formes qu'on lit sur un planning. */
+    function jourLong(j) { const d = P.dateDe(j); return P.JOURS[P.indexJour(j)].long.toLowerCase() + ' ' + d.getDate() + ' ' + MOIS[d.getMonth()]; }
+    function jourCourt(j) { const d = P.dateDe(j); return P.JOURS[P.indexJour(j)].court.toLowerCase() + ' ' + d.getDate() + ' ' + MOIS_COURT[d.getMonth()]; }
+    function nomDe(c) { return (((c && c.prenom) || '') + ' ' + ((c && c.nom) || '')).trim() || 'Sans nom'; }
+
+    // ── Météo prévue (Open-Meteo, 16 jours) ──────────────────────────────────────────────────
+    /* Trois usages, UNE prévision par ville (SSUI.previsionJours la garde en mémoire) :
+       • l'en-tête de chaque jour de la semaine — c'est là que se décide « on pose samedi ? » ;
+       • la ligne météo de chaque rendez-vous de la vue Jour ;
+       • l'ALERTE quand une pose prévue tombe sous la pluie ou le grand vent (SSPlanning.meteoPose).
+         Elle ne se voyait qu'en ouvrant le bon jour, c'est-à-dire trop tard.
+       Silencieuse si le réseau ne répond pas, coupée si le réglage d'affichage la masque. */
+    function lieuSociete() {
+      // « Avenue de la Gare 60, 1401 Baulers » → code postal et ville, lus dans company.js.
+      const m = /(\d{4})\s+([^,]+)$/.exec(String((window.SS_COMPANY || {}).address || '').trim());
+      return m ? { cp: m[1], ville: m[2].trim() } : null;
+    }
+    function meteoCourte(w) {
+      return (Number(w.pluie) >= 0.5 ? Math.round(Number(w.pluie)) + ' mm' : 'sec') + ' ' + Math.round(w.tmax) + '°';
+    }
+    function prevision(lieu) {
+      return (lieu && window.SSUI.previsionJours) ? window.SSUI.previsionJours(lieu.ville, lieu.cp) : Promise.resolve(null);
+    }
     function chargerMeteo() {
-      if (VUE === 'mois') return;   // les cases du mois ne portent pas cette ligne
       const aff = (REGLAGES && REGLAGES.affichage) || {};
       if (aff.meteo === false) return;
-      const auj = P.aujourdhui(), limite = P.plusJours(auj, 16);
-      EVS.filter(function (e) {
-        return e.source !== 'indispo' && e.ville && e.date >= auj && e.date <= limite;
-      }).forEach(function (e) {
-        window.SSUI.fetchWeather(e.ville, e.date, e.cp).then(function (w) {
-          const box = el('meteo-' + e.id);
-          if (w && box) box.textContent = w.label + ' ' + Math.round(w.tmin) + '° / ' + Math.round(w.tmax) + '°';
-        }).catch(function () { /* la météo ne fait jamais échouer un planning */ });
+      const auj = P.aujourdhui(), limite = P.plusJours(auj, 15);
+      const dansHorizon = function (j) { return j >= auj && j <= limite; };
+      if (VUE === 'semaine') {
+        const base = lieuSociete(), b = bornes();
+        P.jours(b.du, b.au).filter(dansHorizon).forEach(function (j) {
+          // Le lieu du jour : celui de la POSE (c'est elle que la météo menace), sinon du premier
+          // rendez-vous, sinon le siège.
+          const du = TOUS_EVS.filter(function (e) { return e.date === j && e.ville && e.source !== 'indispo'; })
+            .sort(function (a, c) { return (a.source === 'pose' ? 0 : 1) - (c.source === 'pose' ? 0 : 1); })[0];
+          const lieu = du ? { ville: du.ville, cp: du.cp } : base;
+          // Le ROUGE n'existe que les jours où une pose est prévue : c'est elle que la pluie menace.
+          // Un autre jour, la pluie reste une information — l'alarme crierait pour rien.
+          const pose = TOUS_EVS.some(function (e) { return e.date === j && e.source === 'pose'; });
+          prevision(lieu).then(function (jours) {
+            const w = jours && jours[j], box = el('mj-' + j);
+            if (!w || !box) return;
+            const mp = P.meteoPose(w);
+            const alerte = pose && !mp.ok;
+            box.classList.toggle('ko', alerte);
+            box.title = 'Prévision à ' + lieu.ville + ' : ' + w.label + (mp.ok ? '' : ' — ' + mp.raison) + (alerte ? ' — pose prévue ce jour-là' : '');
+            const detail = alerte ? ' · ' + mp.raison : (Number(w.pluie) >= 0.5 ? ' · ' + Math.round(Number(w.pluie)) + ' mm' : '');
+            box.innerHTML = icon(window.SSUI.weatherIconName(w.code), 12) + '<span>' + Math.round(w.tmax) + '°' + escHtml(detail) + '</span>';
+          }).catch(function () { /* la météo ne fait jamais échouer un planning */ });
+        });
+      }
+      EVS.filter(function (e) { return e.source !== 'indispo' && e.ville && dansHorizon(e.date) && el('meteo-' + e.id); }).forEach(function (e) {
+        prevision({ ville: e.ville, cp: e.cp }).then(function (jours) {
+          const w = jours && jours[e.date], box = el('meteo-' + e.id);
+          if (!w || !box) return;
+          const mp = P.meteoPose(w);
+          box.textContent = w.label + ' ' + Math.round(w.tmin) + '° / ' + Math.round(w.tmax) + '°' + (mp.ok ? '' : ' — ' + mp.raison);
+          box.classList.toggle('ko', !mp.ok && e.source === 'pose');
+        }).catch(function () {});
       });
+      // Les POSES des seize prochains jours, quelle que soit la vue : l'alerte ne dépend pas de la
+      // période qu'on regarde.
+      TOUS_EVS.filter(function (e) { return e.source === 'pose' && e.ville && dansHorizon(e.date); }).forEach(function (e) {
+        prevision({ ville: e.ville, cp: e.cp }).then(function (jours) {
+          const mp = P.meteoPose(jours && jours[e.date]);
+          if (mp.ok) return;
+          document.querySelectorAll('[data-meteo="' + e.id + '"]').forEach(function (n) { n.textContent = mp.raison; });
+          alerteMeteo(e, mp);
+        }).catch(function () {});
+      });
+    }
+    function alerteMeteo(e, mp) {
+      const hote = el('alertes');
+      if (!hote || hote.querySelector('[data-id="' + e.id + '"]')) return;
+      const d = document.createElement('div');
+      d.className = 'pl-alerte warn';
+      d.setAttribute('data-id', e.id);
+      d.innerHTML = icon('rain', 15) + '<div><b>Pose prévue sous ' + escHtml(mp.raison) + ' — ' + escHtml(e.titre) + '</b><br>' +
+        escHtml(jourLong(e.date) + (e.ville ? ' · ' + e.ville : '')) +
+        ' · <button type="button" class="pl-lien" onclick="ouvrirEvenement(' + jsAttr(e.id) + ')">déplacer</button></div>';
+      hote.appendChild(d);
+      majPlusAlertes();
     }
 
     function rendreSegments() {
@@ -442,24 +629,45 @@
       }).join('');
     }
 
-    function rendreKpis() {
-      const b = bornes();
-      const compte = function (src) { return EVS.filter(function (e) { return e.source === src; }).length; };
-      const cartes = [
-        '<div class="kpi ticked accent"><div class="kpi-label">Visites</div><div class="kpi-value">' + compte('visite') + '</div><div class="kpi-sub">sur la période</div></div>',
-        '<div class="kpi ticked gold"><div class="kpi-label">Poses</div><div class="kpi-value">' + compte('pose') + '</div><div class="kpi-sub">sur la période</div></div>',
-        '<div class="kpi ticked danger"><div class="kpi-label">Dépannages</div><div class="kpi-value">' + compte('depannage') + '</div><div class="kpi-sub">sur la période</div></div>',
-      ];
-      // Taux de remplissage : la seule façon de répondre « est-ce qu'on peut encore prendre
-      // un chantier cette semaine ? » sans ouvrir chaque dossier.
+    /** Le résumé de la période en UNE ligne, et la charge des six prochaines semaines (G). */
+    function rendreResume() {
+      const b = bornes(), auj = P.aujourdhui();
+      const nb = function (src) { return EVS.filter(function (e) { return e.source === src; }).length; };
+      const mot = function (src) { const n = nb(src), x = P.NATURES[src]; return '<b>' + n + '</b> ' + (n > 1 ? x.pluriel : x.label).toLowerCase(); };
+      const bouts = ['<span>' + [mot('pose'), mot('visite'), mot('depannage')].join(' · ') + '</span>'];
+      // Taux de remplissage : « peut-on encore prendre un chantier ? » sans ouvrir chaque dossier.
       personnesVues().forEach(function (p) {
         const c = P.charge(p, b.du, b.au, TOUS_EVS, DISPOS, REGLAGES);
-        const sousTitre = c.capacite ? (c.occupe + ' h sur ' + c.capacite + ' h') : 'aucune disponibilité déclarée';
-        cartes.push('<div class="kpi ticked"><div class="kpi-label">Charge ' + escHtml(SELLER_LABELS[p] || p) + '</div>' +
-          '<div class="kpi-value">' + (c.capacite ? c.pct + '%' : '—') + '</div><div class="kpi-sub">' + escHtml(sousTitre) + '</div></div>');
+        bouts.push('<span class="pl-ch"><span class="nom">' + escHtml(SELLER_LABELS[p] || p) + '</span>' + barre(c) +
+          '<span>' + (c.capacite ? c.pct + ' %' : '—') + '</span><small>' +
+          escHtml(c.capacite ? c.occupe + ' h / ' + c.capacite + ' h' : 'pas de disponibilité') + '</small></span>');
       });
-      el('kpis').innerHTML = cartes.join('');
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));
+      const futurs = EVS.filter(function (e) { return e.date >= auj && e.source !== 'indispo'; });
+      const orph = futurs.filter(function (e) { return !e.qui.length; }).length;
+      const hors = futurs.filter(function (e) { return P.horsTrame(e, DISPOS, REGLAGES).length; }).length;
+      if (orph) bouts.push('<span class="attention">' + icon('warning', 13) + ' ' + orph + ' à attribuer</span>');
+      if (hors) bouts.push('<span class="attention">' + icon('warning', 13) + ' ' + hors + ' hors des jours de travail</span>');
+      el('resume').innerHTML = '<div class="pl-resume">' + bouts.join('') + '</div>';
+
+      // G — « quand a-t-on de la place ? » sans feuilleter semaine par semaine.
+      const lundi = P.lundiDe(auj), courante = VUE === 'semaine' ? P.lundiDe(ANCRE) : '';
+      const parP = {};
+      personnesVues().forEach(function (p) { parP[p] = P.chargeSemaines(p, lundi, 6, TOUS_EVS, DISPOS, REGLAGES); });
+      el('sixSem').innerHTML = [0, 1, 2, 3, 4, 5].map(function (i) {
+        const du = P.plusJours(lundi, 7 * i), d = P.dateDe(du);
+        return '<button type="button" class="' + (du === courante ? 'on' : '') + '" onclick="allerSemaine(\'' + du + '\')" title="' +
+          escHtml('Semaine du ' + d.getDate() + ' ' + MOIS[d.getMonth()] + ' — cliquer pour l’afficher') + '">' +
+          '<span class="sem">' + (i === 0 ? 'Cette semaine' : 'Sem. du ' + d.getDate() + ' ' + MOIS_COURT[d.getMonth()]) + '</span>' +
+          personnesVues().map(function (p) {
+            const c = parP[p][i];
+            return '<span class="lg"><span>' + escHtml((SELLER_LABELS[p] || p).slice(0, 3)) + '</span>' + barre(c) +
+              '<span>' + (c.capacite ? c.pct + '%' : '—') + '</span></span>';
+          }).join('') + '</button>';
+      }).join('');
+    }
+    function barre(c) {
+      const pct = c.capacite ? Math.min(100, c.pct) : 0;
+      return '<span class="pl-barre' + (c.pct >= 85 ? ' plein' : '') + '"><i style="width:' + pct + '%"></i></span>';
     }
 
     // Les alertes ne recalculent plus leurs propres règles : elles lisent SSAttente, la source
@@ -471,122 +679,144 @@
     // parce que les demandes de RDV les signalent déjà.
     function rendreAlertes() {
       const A = window.SSAttente;
-      if (!A) { el('alertes').innerHTML = ''; return; }
-      const items = A.depuisPlanning(TOUS_EVS, A_PLANIFIER, REGLAGES, { inclureVisites: true }, A_COMMANDER)
-        .filter(function (i) { return i.quoi.indexOf('sans date de pose') < 0; });   // déjà listé plus bas
-      el('alertes').innerHTML = items.slice(0, 6).map(function (i) {
-        const grave = i.urgence >= A.URGENCE.CRITIQUE;
-        const qui = i.qui ? (SELLER_LABELS[i.qui] || i.qui) : 'Personne';
-        return '<div class="pl-alerte ' + (grave ? '' : 'warn') + '">' + icon(grave ? 'warning' : 'clock', 15) +
-          '<div><b>' + escHtml(i.quoi) + ' — ' + escHtml(i.titre) + '</b><br>' +
-          escHtml([qui, i.detail, A.delai(i.depuis)].filter(Boolean).join(' · ')) + '</div></div>';
-      }).join('');
+      let html = '';
+      if (A) {
+        const items = A.depuisPlanning(TOUS_EVS, A_PLANIFIER, REGLAGES, { inclureVisites: true }, A_COMMANDER)
+          .filter(function (i) { return i.quoi.indexOf('sans date de pose') < 0; });   // déjà listé plus bas
+        html = items.slice(0, 6).map(function (i) {
+          const grave = i.urgence >= A.URGENCE.CRITIQUE;
+          const qui = i.qui ? (SELLER_LABELS[i.qui] || i.qui) : 'Personne';
+          return '<div class="pl-alerte ' + (grave ? '' : 'warn') + '">' + icon(grave ? 'warning' : 'clock', 15) +
+            '<div><b>' + escHtml(i.quoi) + ' — ' + escHtml(i.titre) + '</b><br>' +
+            escHtml([qui, i.detail, A.delai(i.depuis)].filter(Boolean).join(' · ')) + '</div></div>';
+        }).join('');
+      }
+      /* « HORS DE SES JOURS » se calcule ICI et pas dans attente.js : il a besoin des exceptions de
+         disponibilité (congés, « ce samedi-là je peux »), que ni le tableau de bord ni le menu ne
+         chargent. C'est un garde-fou du PLANNING, comme l'était l'avertissement de conflit avant
+         qu'attente.js ne le reprenne. */
+      const auj = P.aujourdhui();
+      html += TOUS_EVS.filter(function (e) { return e.date >= auj && e.source !== 'indispo'; })
+        .map(function (e) { return { e: e, h: P.horsTrame(e, DISPOS, REGLAGES) }; })
+        .filter(function (x) { return x.h.length; }).slice(0, 4)
+        .map(function (x) {
+          const qui = x.h.map(function (h) { return (SELLER_LABELS[h.qui] || h.qui) + (h.raison === 'jour' ? ' ne travaille pas ce jour-là' : ' déborde de sa journée'); }).join(' · ');
+          return '<div class="pl-alerte warn">' + icon('warning', 15) + '<div><b>' + escHtml(qui) + ' — ' + escHtml(x.e.titre) + '</b><br>' +
+            escHtml(nature(x.e) + ' · ' + jourLong(x.e.date)) +
+            ' · <button type="button" class="pl-lien" onclick="ouvrirEvenement(' + jsAttr(x.e.id) + ')">réattribuer</button></div></div>';
+        }).join('');
+      el('alertes').classList.remove('tout');
+      el('alertes').innerHTML = html;     // la météo y ajoute les siennes en arrivant
+      majPlusAlertes();
     }
+    function majPlusAlertes() {
+      const zone = el('alertes'), btn = el('alertesPlus');
+      const reste = zone.querySelectorAll('.pl-alerte').length - 2;
+      btn.hidden = reste <= 0;
+      btn.textContent = zone.classList.contains('tout') ? 'Réduire les alertes'
+        : (reste > 1 ? 'Voir les ' + reste + ' autres alertes' : 'Voir l’autre alerte');
+    }
+    window.basculerAlertes = function () { el('alertes').classList.toggle('tout'); majPlusAlertes(); };
     function nature(e) { return (P.NATURES[e.source] || {}).label || e.source; }
 
-    // ── Vue SEMAINE ──────────────────────────────────────────────────────────────────────────
+    // ── Vue SEMAINE : une ligne par personne ─────────────────────────────────────────────────
     function vueSemaine() {
-      const b = bornes();
-      const auj = P.aujourdhui();
-      return '<div class="pl-sem">' + P.jours(b.du, b.au).map(function (j) {
+      const b = bornes(), auj = P.aujourdhui();
+      // Ce que personne n'a pris a SON couloir : le ranger chez quelqu'un par défaut, c'était
+      // mentir sur sa charge et sur sa fenêtre « Qui s'en occupe ».
+      const orph = EVS.filter(function (e) { return !e.qui.length && e.source !== 'indispo'; });
+      const couloirs = personnesVues().map(function (p) { return { k: p, l: SELLER_LABELS[p] || p }; });
+      if (orph.length) couloirs.push({ k: '', l: 'À attribuer', orph: true });
+      const etiquettes = '<div class="pl-labels" aria-hidden="true"><div></div><div class="pl-l mini">Météo</div>' +
+        couloirs.map(function (c) { return '<div class="pl-l' + (c.orph ? ' orph' : '') + '">' + escHtml(c.l) + '</div>'; }).join('') + '</div>';
+      const colonnes = P.jours(b.du, b.au).map(function (j) {
         const d = P.dateDe(j);
-        const cls = [
-          P.estWeekend(j) ? 'is-we' : '',
-          j === auj ? 'is-today' : '',
-          j < auj ? 'is-passe' : '',
-        ].filter(Boolean).join(' ');
-        const evs = EVS.filter(function (e) { return e.date === j; });
-        return '<div class="pl-col ' + cls + '">' +
-          '<div class="pl-colh"><span class="j">' + P.JOURS[P.indexJour(j)].court + '</span>' +
-            '<span class="n">' + d.getDate() + '</span><span class="mois">' + MOIS_COURT[d.getMonth()] + '</span></div>' +
-          personnesVues().map(function (p) { return jauge(p, j); }).join('') +
-          (evs.length ? '<div class="pl-evs">' + evs.map(carteEv).join('') + '</div>' : '') +
-          creneauxLibres(j) +
+        const cls = [P.estWeekend(j) ? 'is-we' : '', j === auj ? 'is-today' : '', j < auj ? 'is-passe' : ''].filter(Boolean).join(' ');
+        return '<div class="pl-jc ' + cls + '">' +
+          '<div class="pl-jh"><span class="j">' + P.JOURS[P.indexJour(j)].court + '</span><span class="n">' + d.getDate() + '</span>' +
+            '<span class="mois">' + MOIS_COURT[d.getMonth()] + '</span></div>' +
+          '<div class="pl-mj" id="mj-' + j + '"></div>' +
+          couloirs.map(function (c) { return c.orph ? celluleOrphelins(j, orph) : cellule(c.k, j); }).join('') +
           '</div>';
-      }).join('') + '</div>';
+      }).join('');
+      return '<div class="pl-sem" style="grid-template-rows:auto auto repeat(' + couloirs.length + ', minmax(48px, auto))">' +
+        etiquettes + colonnes + '</div>' + legende();
     }
-
-    /** Barre d'occupation d'une personne sur une journée, en pourcentage de l'amplitude de travail. */
-    function jauge(qui, date) {
-      const c = P.conf(REGLAGES).heures || {};
-      const h0 = P.hhmmMin(c.debut, 480), h1 = P.hhmmMin(c.fin, 1020);
-      const span = Math.max(1, h1 - h0);
-      const pos = function (min) { return Math.max(0, Math.min(100, ((min - h0) / span) * 100)); };
-      const blocs = P.blocsTheoriques(qui, date, DISPOS, REGLAGES);
-      if (!blocs.length) return '';   // pas de trame ce jour-là : aucune barre, pas de fausse promesse
-      const pris = TOUS_EVS.filter(function (e) { return e.date === date && e.qui.indexOf(qui) >= 0; });
-      const seg = [];
-      blocs.forEach(function (bl) {
-        seg.push('<span class="libre" style="left:' + pos(bl.debut) + '%;right:' + (100 - pos(bl.fin)) + '%"></span>');
-      });
-      pris.forEach(function (e) {
+    function legende() {
+      return '<div class="pl-leg">' + ['pose', 'visite', 'depannage'].map(function (k) {
+        return '<span><i class="sw" style="background:' + P.NATURES[k].couleur + '"></i>' + P.NATURES[k].label + '</span>';
+      }).join('') + '<span><i class="sw libre"></i>libre — cliquer pour y caler quelque chose</span>' +
+        '<span><i class="sw hors"></i>ne travaille pas</span></div>';
+    }
+    /** Les morceaux de `blocs` qui tombent dans la demi-journée `h`. */
+    function recoupe(blocs, h) {
+      return (blocs || []).map(function (b) { return { debut: Math.max(b.debut, h.debut), fin: Math.min(b.fin, h.fin) }; })
+        .filter(function (b) { return b.fin > b.debut; });
+    }
+    const minutes = function (l) { return l.reduce(function (s, b) { return s + (b.fin - b.debut); }, 0); };
+    /** « 13–17 h », « 10:30–12 h » : l'heure ronde s'écrit sans ses minutes. */
+    function plage(b) {
+      const h = function (m) { const s = P.minHhmm(m); return s.slice(3) === '00' ? String(parseInt(s, 10)) : s; };
+      return h(b.debut) + '–' + h(b.fin) + ' h';
+    }
+    /** Une personne, un jour : ce qui est pris, ce qui est libre, ce qui n'est pas travaillé. */
+    function cellule(p, j) {
+      const passe = j < P.aujourdhui();
+      const dj = P.demiJournees(REGLAGES);
+      const theo = P.blocsTheoriques(p, j, DISPOS, REGLAGES);
+      const libres = passe ? [] : P.libres(p, j, TOUS_EVS, DISPOS, 0, REGLAGES);
+      const touche = function (o, h) { return o.debut < h.fin && o.fin > h.debut; };
+      const enTravers = [], parDemi = { matin: [], apresmidi: [] };
+      TOUS_EVS.filter(function (e) { return e.date === j && e.qui.indexOf(p) >= 0; }).forEach(function (e) {
         const o = P.occupation(e, REGLAGES);
-        seg.push('<span class="pris" style="left:' + pos(o.debut) + '%;right:' + (100 - pos(o.fin)) + '%;--c:' + (P.NATURES[e.source] || {}).couleur + '"></span>');
+        const m = touche(o, dj.matin), a = touche(o, dj.apresmidi);
+        if (m && a) enTravers.push(e); else if (a) parDemi.apresmidi.push(e); else parDemi.matin.push(e);
       });
-      return '<div class="pl-jauge" title="' + escHtml((SELLER_LABELS[qui] || qui) + ' — ' + fmtDate(date)) + '">' +
-        '<span class="qui">' + escHtml((SELLER_LABELS[qui] || qui).slice(0, 1)) + '</span>' +
-        '<span class="pl-piste">' + seg.join('') + '</span></div>';
-    }
-
-    function carteEv(e) {
-      const n = P.NATURES[e.source] || {};
-      const heure = e.heure || '';
-      const duree = P.fmtDuree(e.duree_h);
-      const qui = e.qui.map(function (q) { return (SELLER_LABELS[q] || q).slice(0, 3); }).join('+');
-      // Un clic ouvre le rendez-vous : c'est là qu'on change qui s'en occupe, la date et la durée.
-      // Avant, il envoyait sur la fiche du devis — utile pour consulter, inutile pour réattribuer.
-      const clic = e.source === 'indispo'
-        ? 'modifierIndispo(' + window.SSUI.jsAttr(String(e.ref)) + ')'
-        : 'ouvrirEvenement(' + window.SSUI.jsAttr(e.id) + ')';
-      return '<button class="pl-ev ' + (e.source === 'indispo' ? 'is-indispo' : '') + '" style="--c:' + n.couleur + '" onclick="' + clic + '" ' +
-        'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '') + ' · cliquer pour attribuer ou replanifier') + '">' +
-        '<span class="l1">' + (heure ? '<span class="h">' + escHtml(heure) + '</span>' : '') +
-        '<span class="t">' + escHtml(e.titre) + '</span></span>' +
-        (e.detail ? '<span class="s">' + escHtml(e.detail) + '</span>' : '') +
-        '<span class="w">' + escHtml([nature(e), duree, qui].filter(Boolean).join(' · ')) + '</span>' +
-        (e.alerte ? '<span class="s" style="color:var(--warn)">' + escHtml(e.alerte) + '</span>' : '') +
-        '<span class="pl-meteo" id="meteo-' + escHtml(e.id) + '"></span>' +
-        '</button>';
-    }
-
-    /** Ce qui reste libre après soustraction — c'est l'information qui n'existait nulle part. */
-    function creneauxLibres(date) {
-      if (date < P.aujourdhui()) return '';
-      const parts = [];
-      const pastille = function (p, debut, fin, texte) {
-        return '<button class="pl-libre" onclick="ouvrirIndispo({qui:\'' + p + '\',du:\'' + date + '\',debut:\'' + P.minHhmm(debut) + '\',fin:\'' + P.minHhmm(fin) + '\'})" ' +
-          'title="' + escHtml((SELLER_LABELS[p] || p) + ' libre de ' + P.minHhmm(debut) + ' à ' + P.minHhmm(fin) + ' — cliquer pour bloquer') + '">' +
-          escHtml(texte) + '</button>';
-      };
-      const duree = function (l) { return l.reduce(function (s, b) { return s + (b.fin - b.debut); }, 0); };
-      personnesVues().forEach(function (p) {
-        const theoriques = P.blocsTheoriques(p, date, DISPOS, REGLAGES);
-        if (!theoriques.length) return;
-        const libres = P.libres(p, date, TOUS_EVS, DISPOS, 1, REGLAGES);
-        if (!libres.length) return;
-        const court = (SELLER_LABELS[p] || p).slice(0, 3);
-        // Journée intacte : une seule pastille qui dit la FORME du jour. Détailler
-        // « 08:00–12:00 » puis « 13:00–17:00 » pour chacun donnait quatre lignes identiques par
-        // colonne — vingt-huit sur une semaine vide, qui n'apprenaient rien à personne.
-        if (duree(libres) === duree(theoriques)) {
-          const forme = P.trameDe(p, REGLAGES)[P.cleJour(date)] || '';
-          const mot = forme === 'matin' ? 'matin' : (forme === 'apresmidi' ? 'après-midi' : 'journée');
-          parts.push(pastille(p, theoriques[0].debut, theoriques[theoriques.length - 1].fin, court + ' · ' + mot));
-          return;
+      const nom = SELLER_LABELS[p] || p;
+      const demi = function (k) {
+        const h = dj[k];
+        const contenu = parDemi[k].map(chip).join('');
+        const theoH = recoupe(theo, h);
+        if (!theoH.length) {
+          return '<div class="pl-demi hors" title="' + escHtml(nom + ' ne travaille pas ' + (k === 'matin' ? 'le matin' : 'l’après-midi')) + '">' + contenu + '</div>';
         }
-        // Journée entamée : là, l'horaire exact est justement ce qu'on cherche.
-        libres.forEach(function (bl) {
-          parts.push(pastille(p, bl.debut, bl.fin, court + ' ' + P.minHhmm(bl.debut) + '–' + P.minHhmm(bl.fin)));
-        });
-      });
-      if (!parts.length) {
-        // « Complet » et « personne ne travaille ce jour-là » sont deux situations opposées : la
-        // première invite à déplacer un rendez-vous, la seconde à ouvrir une disponibilité.
-        // Les confondre ferait croire à une journée chargée un dimanche vide.
-        const ouvert = personnesVues().some(function (p) { return P.blocsTheoriques(p, date, DISPOS, REGLAGES).length > 0; });
-        return '<div class="pl-vide">' + (ouvert ? 'Complet' : 'Non travaillé') + '</div>';
-      }
-      return '<div class="pl-libres">' + parts.join('') + '</div>';
+        // Un trou de moins d'une heure n'est pas une place : on ne le propose pas.
+        const libH = recoupe(libres, h).filter(function (x) { return x.fin - x.debut >= 60; });
+        const entier = libH.length === 1 && minutes(libH) === minutes(theoH);
+        return '<div class="pl-demi">' + contenu + libH.map(function (x) {
+          return boutonLibre(p, j, x, entier ? 'libre' : plage(x));
+        }).join('') + '</div>';
+      };
+      return '<div class="pl-cell"><span class="lane-l">' + escHtml(nom.slice(0, 3)) + '</span><div class="pl-ccorps">' +
+        enTravers.map(chip).join('') + '<div class="pl-demis">' + demi('matin') + demi('apresmidi') + '</div></div></div>';
+    }
+    function celluleOrphelins(j, orph) {
+      const l = orph.filter(function (e) { return e.date === j; });
+      return '<div class="pl-cell orph' + (l.length ? '' : ' vide') + '"><span class="lane-l">À attribuer</span>' +
+        '<div class="pl-ccorps">' + l.map(chip).join('') + '</div></div>';
+    }
+    function boutonLibre(p, j, b, texte) {
+      const de = P.minHhmm(b.debut), a = P.minHhmm(b.fin);
+      return '<button type="button" class="pl-dispo" onclick="ouvrirCaler({qui:\'' + p + '\',date:\'' + j + '\',debut:\'' + de + '\',fin:\'' + a + '\'})" ' +
+        'title="' + escHtml((SELLER_LABELS[p] || p) + ' libre de ' + de + ' à ' + a + ' — cliquer pour y caler quelque chose') + '">' + escHtml(texte) + '</button>';
+    }
+    /** Un rendez-vous dans la grille. Un clic l'ouvre : c'est là qu'on change qui, quand, combien. */
+    function chip(e) {
+      const n = P.NATURES[e.source] || {};
+      const indispo = e.source === 'indispo';
+      const hors = P.horsTrame(e, DISPOS, REGLAGES).map(function (h) {
+        return (SELLER_LABELS[h.qui] || h.qui) + (h.raison === 'jour' ? ' ne travaille pas ce jour-là' : ' : hors de ses heures');
+      }).join(' · ');
+      const qui = e.qui.length ? e.qui.map(function (q) { return (SELLER_LABELS[q] || q).slice(0, 3); }).join('+')
+        : (e.source === 'pose' ? 'équipe ?' : 'personne');
+      const clic = indispo ? 'modifierIndispo(' + jsAttr(String(e.ref)) + ')' : 'ouvrirEvenement(' + jsAttr(e.id) + ')';
+      return '<button type="button" class="pl-chip' + (hors ? ' ko' : '') + (indispo ? ' is-indispo' : '') + '" style="--c:' + n.couleur + '" onclick="' + clic + '" ' +
+        'title="' + escHtml(nature(e) + ' — ' + e.titre + (e.adresse ? ' — ' + e.adresse : '') + (hors ? ' — ' + hors : '') + ' · cliquer pour modifier') + '">' +
+        '<span class="t">' + (e.heure ? '<span class="h">' + escHtml(e.heure) + '</span> ' : '') + escHtml(e.titre) + '</span>' +
+        '<span class="s">' + escHtml(indispo ? (e.detail || 'Indisponible') : [n.label, P.fmtDuree(e.duree_h), qui].filter(Boolean).join(' · ')) + '</span>' +
+        (hors ? '<span class="ko-t">' + escHtml(hors) + '</span>' : '') +
+        (e.source === 'pose' ? '<span class="ko-t" data-meteo="' + escHtml(e.id) + '"></span>' : '') +
+        '</button>';
     }
 
     // ── Vue MOIS ─────────────────────────────────────────────────────────────────────────────
@@ -618,19 +848,24 @@
 
     // ── Vue JOUR ─────────────────────────────────────────────────────────────────────────────
     // La suite chronologique de la journée, personne par personne : ce qui est pris et, entre les
-    // deux, ce qui est libre. C'est la vue du matin, avant de partir.
+    // deux, ce qui est libre. C'est la vue du matin, avant de partir — d'où l'itinéraire de la
+    // journée, et Appeler / Y aller sur chaque rendez-vous (E) : sur la route, c'est UN appui.
     function vueJour() {
       const b = bornes();
       return '<div class="pl-jour">' + personnesVues().map(function (p) {
         const c = P.charge(p, b.du, b.au, TOUS_EVS, DISPOS, REGLAGES);
-        const pris = TOUS_EVS.filter(function (e) { return e.date === ANCRE && e.qui.indexOf(p) >= 0; })
-          .map(function (e) { return { ev: e, o: P.occupation(e, REGLAGES) }; });
+        const sesEvs = TOUS_EVS.filter(function (e) { return e.date === ANCRE && e.qui.indexOf(p) >= 0; });
+        const pris = sesEvs.map(function (e) { return { ev: e, o: P.occupation(e, REGLAGES) }; });
         const libres = P.libres(p, ANCRE, TOUS_EVS, DISPOS, 0.5, REGLAGES)
           .map(function (bl) { return { ev: null, o: bl }; });
         const suite = pris.concat(libres).sort(function (x, y) { return x.o.debut - y.o.debut; });
+        const arrets = sesEvs.filter(function (e) { return e.source !== 'indispo' && e.adresse; });
+        const route = P.itineraire(arrets);
         return '<div class="pl-pers">' +
           '<div class="pl-persh">' + icon('user', 15) + '<span class="nom">' + escHtml(SELLER_LABELS[p] || p) + '</span>' +
             '<span class="taux">' + (c.capacite ? c.occupe + ' h / ' + c.capacite + ' h' : 'non disponible') + '</span></div>' +
+          (route ? '<a class="btn btn-ghost btn-sm pl-route" href="' + escHtml(route) + '" target="_blank" rel="noopener">' + icon('route', 13) +
+            ' Itinéraire du jour · ' + arrets.length + ' arrêt' + (arrets.length > 1 ? 's' : '') + '</a>' : '') +
           (suite.length ? '<div class="pl-suite">' + suite.map(function (s) { return blocJour(p, s); }).join('') + '</div>'
                         : '<div class="pl-vide">Rien de prévu, et aucune disponibilité déclarée ce jour-là.</div>') +
           '</div>';
@@ -640,31 +875,42 @@
     function blocJour(qui, s) {
       const heures = P.minHhmm(s.o.debut) + ' → ' + P.minHhmm(s.o.fin);
       if (!s.ev) {
+        const passe = ANCRE < P.aujourdhui();
         return '<div class="pl-bloc libre"><div class="heures">' + heures + '</div>' +
           '<div class="corps"><span class="libtxt">Libre — ' + escHtml(P.fmtDuree((s.o.fin - s.o.debut) / 60)) + '</span>' +
-          '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirIndispo({qui:\'' + qui + '\',du:\'' + ANCRE + '\',debut:\'' + P.minHhmm(s.o.debut) + '\',fin:\'' + P.minHhmm(s.o.fin) + '\'})">Bloquer</button></div></div></div>';
+          (passe ? '' : '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirCaler({qui:\'' + qui + '\',date:\'' + ANCRE + '\',debut:\'' + P.minHhmm(s.o.debut) + '\',fin:\'' + P.minHhmm(s.o.fin) + '\'})">' + icon('calendar', 13) + ' Caler ici</button></div>') +
+          '</div></div>';
       }
       const e = s.ev, n = P.NATURES[e.source] || {};
+      const hors = P.horsTrame(e, DISPOS, REGLAGES).map(function (h) { return (SELLER_LABELS[h.qui] || h.qui) + (h.raison === 'jour' ? ' ne travaille pas ce jour-là' : ' : hors de ses heures'); }).join(' · ');
       const maps = e.adresse ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(e.adresse) : '';
+      const yAller = e.adresse ? 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(e.adresse) : '';
+      const tel = String(e.tel || '').replace(/[^\d+]/g, '');
       return '<div class="pl-bloc" style="--c:' + n.couleur + '"><div class="heures">' + heures + '</div>' +
         '<div class="corps">' +
         '<div class="nomc">' + escHtml(e.titre) + ' <span class="w" style="color:' + n.couleur + ';font-family:var(--font-mono);font-size:var(--fs-3xs)">' + escHtml(nature(e)) + '</span></div>' +
         (e.detail ? '<div class="detail">' + escHtml(e.detail) + '</div>' : '') +
         (e.adresse ? '<div class="lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
+        (hors ? '<div class="lieu" style="color:var(--danger);font-weight:700">' + escHtml(hors) + '</div>' : '') +
         '<div class="lieu pl-meteo" id="meteo-' + escHtml(e.id) + '"></div>' +
         (e.source === 'indispo'
-          ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="modifierIndispo(' + window.SSUI.jsAttr(String(e.ref)) + ')">Modifier</button></div>'
-          : '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="ouvrirEvenement(' + window.SSUI.jsAttr(e.id) + ')">' + icon('users', 13) + ' Qui s’en occupe</button></div>') +
+          ? '<div class="detail"><button class="btn btn-ghost btn-sm" onclick="modifierIndispo(' + jsAttr(String(e.ref)) + ')">Modifier</button></div>'
+          : '<div class="pl-actions">' +
+              '<button class="btn btn-ghost btn-sm" onclick="ouvrirEvenement(' + jsAttr(e.id) + ')">' + icon('users', 13) + ' Qui s’en occupe</button>' +
+              (tel ? '<a class="btn btn-ghost btn-sm" href="tel:' + escHtml(tel) + '">' + icon('phone', 13) + ' Appeler</a>' : '') +
+              (yAller ? '<a class="btn btn-ghost btn-sm" href="' + escHtml(yAller) + '" target="_blank" rel="noopener">' + icon('pin', 13) + ' Y aller</a>' : '') +
+              '<button class="btn btn-ghost btn-sm" onclick="agenda(' + jsAttr(e.id) + ')">' + icon('calendar', 13) + ' Agenda</button>' +
+            '</div>') +
         '</div></div>';
     }
 
     /** Les rendez-vous du jour que personne n'a pris : ils n'apparaissent dans aucune colonne. */
     function rendreOrphelinsDuJour() {
-      const orph = EVS.filter(function (e) { return e.date === ANCRE && !e.qui.length; });
+      const orph = EVS.filter(function (e) { return e.date === ANCRE && !e.qui.length && e.source !== 'indispo'; });
       if (!orph.length) return '';
       return '<div class="pl-pers">' +
-        '<div class="pl-persh">' + icon('warning', 15) + '<span class="nom">Sans personne attribuée</span></div>' +
-        '<div class="pl-evs">' + orph.map(carteEv).join('') + '</div></div>';
+        '<div class="pl-persh">' + icon('warning', 15) + '<span class="nom">À attribuer</span></div>' +
+        '<div class="pl-suite">' + orph.map(chip).join('') + '</div></div>';
     }
 
     // ── À planifier (chantiers signés qui n'ont pas encore de date) ──────────────────────────
@@ -687,6 +933,8 @@
         (d.statut === 'termine' ? '<span class="badge badge-warn" title="Marqué « Terminé » alors qu\'aucune pose n\'est enregistrée.">Terminé sans pose</span>' : '<span class="badge">Sans date</span>') +
         '</div>' +
         (resume ? '<div class="res">' + escHtml(resume) + '</div>' : '') +
+        '<div class="pl-prop" id="prop-' + escHtml(d.id) + '"><span class="pl-prop-t">' + icon('calendar', 12) + ' Dates possibles</span>' +
+          '<span class="pl-vide">recherche…</span></div>' +
         '<div class="champs">' +
         '<div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="" onchange="fixerPose(' + id + ', this.value)"></div>' +
         '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (ch.duree_h != null ? ch.duree_h : '') + '" onchange="setChantier(' + id + ',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
@@ -702,24 +950,44 @@
         '</div>';
     }
 
-    /** Écrit un champ du chantier. Le devis complet n'est chargé QU'ICI, au moment de modifier :
-     *  la liste suffit à tout afficher, inutile de rapatrier les photos de trente dossiers. */
+    /** Écrit un devis : on le relit COMPLET, `modifier` n'y change que ce qui doit changer, et on
+     *  le renvoie. Le devis complet n'est chargé QU'ICI, au moment d'écrire : la liste suffit à
+     *  tout afficher, inutile de rapatrier les photos de trente dossiers. */
+    async function ecrireDevis(id, modifier, message) {
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable — recharge la page.', 'error'); return null; }
+      modifier(d);
+      d.date_modification = new Date().toISOString();
+      const res = await SS.saveDevis(d);
+      if (res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return null; }
+      if (res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return null; }
+      toast(res.offline ? 'Enregistré hors-ligne' : (message || 'Planification mise à jour'), res.offline ? 'warn' : 'ok');
+      return d;
+    }
     // Nom DISTINCT de window.setChantier : une fonction declaree au premier niveau d'un script
     // classique devient deja une propriete de window. Reassigner window.setChantier ensuite
     // faisait que l'appel interne se rappelait lui-meme -- recursion infinie, et aucune
     // planification n'etait enregistree.
     async function ecrireChantier(id, champ, valeur) {
-      const d = await SS.getDevis(id);
-      if (!d) { toast('Devis introuvable — recharge la page.', 'error'); return null; }
-      // On étale le devis et on ne surcharge que ce qui change : une énumération de champs perdrait
-      // silencieusement tout ce qu'elle ne connaît pas (règle 2 du guide).
-      d.chantier = Object.assign({}, d.chantier || {}, { [champ]: valeur });
-      d.date_modification = new Date().toISOString();
-      const res = await SS.saveDevis(d);
-      if (res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return null; }
-      if (res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return null; }
-      toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour', res.offline ? 'warn' : 'ok');
-      return d;
+      // On étale le chantier et on ne surcharge que ce qui change : une énumération de champs
+      // perdrait silencieusement tout ce qu'elle ne connaît pas (règle 2 du guide).
+      return ecrireDevis(id, function (d) { d.chantier = Object.assign({}, d.chantier || {}, { [champ]: valeur }); });
+    }
+    /** Ce qui cloche AVANT d'écrire : chevauchements ET personne hors de ses jours de travail.
+     *  Un avertissement, jamais un blocage (règle 13 : deux petites poses le même jour, ça se fait,
+     *  et un samedi exceptionnel aussi). */
+    function avertissements(candidat) {
+      const l = P.conflitsDe(candidat, TOUS_EVS, REGLAGES).map(function (c) {
+        return (SELLER_LABELS[c.qui] || c.qui) + ' a déjà : ' + nature(c.autre) + ' ' + c.autre.titre;
+      });
+      P.horsTrame(candidat, DISPOS, REGLAGES).forEach(function (h) {
+        l.push((SELLER_LABELS[h.qui] || h.qui) + (h.raison === 'jour' ? ' ne travaille pas ce jour-là' : ' : c’est hors de ses heures'));
+      });
+      return l;
+    }
+    function confirmerMalgre(candidat, verbe) {
+      const l = avertissements(candidat);
+      return !l.length || confirm('Attention, le ' + fmtDate(candidat.date) + ' :\n\n' + l.join('\n') + '\n\n' + verbe + ' quand même ?');
     }
     window.setChantier = async function (id, champ, valeur) {
       const d = await ecrireChantier(id, champ, valeur);
@@ -735,19 +1003,17 @@
       const candidat = {
         id: 'pose:' + id, source: 'pose', date: date, heure: '',
         duree_h: Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4,
-        qui: P.quiDeEquipe(ch.equipe), titre: 'ce chantier',
+        // Sans équipe, personne n'est mobilisé : on ne vérifie pas Nicolas « par défaut ».
+        qui: ch.equipe ? P.quiDeEquipe(ch.equipe) : [], titre: 'ce chantier',
       };
-      const cs = P.conflitsDe(candidat, TOUS_EVS, REGLAGES);
-      if (cs.length) {
-        const l = cs.map(function (c) { return (SELLER_LABELS[c.qui] || c.qui) + ' : ' + nature(c.autre) + ' ' + c.autre.titre; }).join('\n');
-        if (!confirm('Attention, ce créneau est déjà occupé le ' + fmtDate(date) + ' :\n\n' + l + '\n\nPlanifier quand même ?')) return;
-      }
+      if (!confirmerMalgre(candidat, 'Planifier')) return;
       const res = await ecrireChantier(id, 'date_pose', date);
       if (res) charger();
     };
 
     // ── Navigation ───────────────────────────────────────────────────────────────────────────
     window.setVue = function (v) { VUE = v; localStorage.setItem('ss_planning_vue', v); rendre(); };
+    window.allerSemaine = function (du) { ANCRE = du; VUE = 'semaine'; localStorage.setItem('ss_planning_vue', 'semaine'); rendre(); };
     window.setQui = function (q) { QUI = q; localStorage.setItem('ss_planning_qui', q); rendre(); };
     window.allerAujourdhui = function () { ANCRE = P.aujourdhui(); rendre(); };
     window.ouvrirJour = function (j) { ANCRE = j; VUE = 'jour'; localStorage.setItem('ss_planning_vue', 'jour'); rendre(); };
@@ -771,21 +1037,16 @@
     let EV = null;        // événement affiché
     let EV_EDIT = null;   // ce qu'on est en train de lui faire dire
 
-    /** Équipe d'une pose reconstituée depuis les personnes mobilisées (l'inverse de quiDeEquipe). */
-    function equipeDeQui(qui) {
-      const n = qui.indexOf('nicolas') >= 0, y = qui.indexOf('yannick') >= 0;
-      if (n && y) return 'nicolas_yannick';
-      if (y) return 'yannick';
-      if (n) return 'nicolas';
-      return 'sous_traitant';
-    }
-
     window.ouvrirEvenement = function (id) {
       const e = TOUS_EVS.filter(function (x) { return x.id === id; })[0];
       if (!e) return;
       EV = e;
       EV_EDIT = {
-        equipe: e.source === 'pose' ? equipeDeQui(e.qui) : '',
+        /* ⚠️ L'équipe ENREGISTRÉE, jamais déduite des personnes affichées. Elle se reconstituait
+           depuis la grille, qui rangeait une pose sans équipe chez Nicolas : la fenêtre cochait
+           donc « Nicolas » et l'enregistrait au premier changement de date, sans que personne
+           l'ait choisi (piège « un formulaire qui affiche un défaut non enregistré ment »). */
+        equipe: e.source === 'pose' ? (e.equipe || '') : '',
         assigned: e.source === 'visite' ? (e.qui[0] || '') : '',
         techs: e.qui.slice(),
       };
@@ -795,10 +1056,11 @@
       el('mEvRef').textContent = e.ref || '';
       el('btnEvFiche').style.display = e.href ? '' : 'none';
       remplirEvenement();
-      el('mEvBg').classList.add('open');
+      ouvrirFenetre('mEvBg');
     };
-    window.fermerEvenement = function () { el('mEvBg').classList.remove('open'); EV = null; EV_EDIT = null; };
-    window.ouvrirFicheEv = function () { if (EV && EV.href) location.href = EV.href; };
+    window.fermerEvenement = function (o) { fermerFenetre('mEvBg', o); EV = null; EV_EDIT = null; };
+    window.ouvrirFicheEv = function () { if (EV && EV.href) allerVers(EV.href); };
+    window.agendaEv = function () { if (EV) agenda(EV.id); };
     window.basculerTech = function (p) {
       const i = EV_EDIT.techs.indexOf(p);
       if (i >= 0) EV_EDIT.techs.splice(i, 1); else EV_EDIT.techs.push(p);
@@ -814,7 +1076,7 @@
         return '<button type="button" class="qui-opt ' + (actif ? 'on' : '') + '" onclick="' + onclick + '">' +
           (actif ? icon('check', 13) : '') + escHtml(texte) + '</button>';
       };
-      let quiHtml = '', note = '';
+      let quiHtml = '', note = '', avert = '';
       if (e.source === 'depannage') {
         // Un dépannage peut mobiliser les deux : cases à cocher, pas un choix unique.
         quiHtml = PERSONNES.map(function (p) {
@@ -826,6 +1088,7 @@
           return opt(EV_EDIT.equipe === k, 'choisirEquipe(\'' + k + '\')', EQUIPES[k]);
         }).join('');
         note = 'Un chantier confié à un sous-traitant n’occupe ni Nicolas ni Yannick : c’est voulu.';
+        if (!EV_EDIT.equipe) avert = 'Personne n’est encore désigné pour cette pose : choisis qui la fait.';
       } else {
         quiHtml = PERSONNES.map(function (p) {
           return opt(EV_EDIT.assigned === p, 'choisirAssigne(\'' + p + '\')', SELLER_LABELS[p] || p);
@@ -834,6 +1097,7 @@
       el('mEvBody').innerHTML =
         (e.adresse ? '<div class="ev-lieu">' + (maps ? '<a href="' + maps + '" target="_blank" rel="noopener">' + escHtml(e.adresse) + '</a>' : escHtml(e.adresse)) + '</div>' : '') +
         (e.detail ? '<div class="ev-note">' + escHtml(e.detail) + '</div>' : '') +
+        (avert ? '<div class="ev-avert">' + escHtml(avert) + '</div>' : '') +
         '<div class="field" style="margin-top:var(--sp-4)"><label class="label">Qui s’en occupe</label><div class="qui-box">' + quiHtml + '</div></div>' +
         '<div class="m2" style="margin-top:var(--sp-3)">' +
         '<div class="field"><label class="label">Date</label><input class="input" type="date" id="ev_date" value="' + escHtml(e.date) + '"></div>' +
@@ -859,13 +1123,13 @@
       const heure = el('ev_heure').value || '';
       const duree = parseFloat(el('ev_duree').value) || 0;
       if (!date) { toast('Il faut une date.', 'error'); return; }
+      if (e.source === 'pose' && !EV_EDIT.equipe) { toast('Choisis qui pose ce chantier.', 'error'); return; }
+      // Une visite est un rendez-vous CHEZ LE CLIENT : sans heure, elle était enregistrée à 09:00
+      // sans un mot — une heure que personne n'avait annoncée au client.
+      if (e.source === 'visite' && !heure) { toast('Une visite a besoin d’une heure : c’est un rendez-vous chez le client.', 'error'); el('ev_heure').focus(); return; }
       const qui = quiDeEdit(e.source);
       const candidat = { id: e.id, source: e.source, date: date, heure: heure, duree_h: duree, qui: qui, titre: e.titre };
-      const cs = P.conflitsDe(candidat, TOUS_EVS, REGLAGES);
-      if (cs.length) {
-        const l = cs.map(function (c) { return (SELLER_LABELS[c.qui] || c.qui) + ' : ' + nature(c.autre) + ' ' + c.autre.titre; }).join('\n');
-        if (!confirm('Ce créneau est déjà occupé le ' + fmtDate(date) + ' :\n\n' + l + '\n\nEnregistrer quand même ?')) return;
-      }
+      if (!confirmerMalgre(candidat, 'Enregistrer')) return;
       const btn = el('btnSaveEv'); btn.disabled = true;
       let res = null;
       try {
@@ -874,7 +1138,7 @@
           if (!r || !r.id) { toast('Demande introuvable — recharge la page.', 'error'); btn.disabled = false; return; }
           // On étale l'objet et on ne surcharge que ce qui change : une énumération de champs
           // perdrait silencieusement tout ce qu'elle ne connaît pas (règle 2 du guide).
-          r.date_rdv = date + 'T' + (heure || '09:00');
+          r.date_rdv = date + 'T' + heure;
           r.assigned_to = EV_EDIT.assigned;
           r.duree_h = duree || undefined;
           r.date_modification = new Date().toISOString();
@@ -887,13 +1151,8 @@
           } else {
             // Les intervenants sont stockés en clair (« Nicolas », « Jean ») : on ne remplace que
             // les deux identités de l'ERP et on garde les tiers exactement comme ils sont saisis.
-            const anciens = (d.depannage && d.depannage.techniciens) || [];
-            const tiers = anciens.filter(function (t) {
-              const k = String(t || '').trim().toLowerCase();
-              return k !== 'nicolas' && k !== 'yannick';
-            });
-            const techs = EV_EDIT.techs.map(function (p) { return SELLER_LABELS[p] || p; }).concat(tiers);
-            d.depannage = Object.assign({}, d.depannage || {}, { date_intervention: date, heure: heure, duree_h: duree, techniciens: techs });
+            d.depannage = Object.assign({}, d.depannage || {}, { date_intervention: date, heure: heure, duree_h: duree,
+              techniciens: techniciensAvec(d, EV_EDIT.techs) });
           }
           d.date_modification = new Date().toISOString();
           res = await SS.saveDevis(d);
@@ -908,6 +1167,17 @@
       fermerEvenement();
       charger();
     };
+
+    /** Les intervenants d'un dépannage sont stockés en clair (« Nicolas », « Jean ») : on ne
+     *  remplace que les deux identités de l'ERP et on garde les tiers exactement comme saisis. */
+    function techniciensAvec(d, personnes) {
+      const anciens = (d.depannage && d.depannage.techniciens) || [];
+      const tiers = anciens.filter(function (t) {
+        const k = String(t || '').trim().toLowerCase();
+        return k !== 'nicolas' && k !== 'yannick';
+      });
+      return personnes.map(function (p) { return SELLER_LABELS[p] || p; }).concat(tiers);
+    }
 
     // ── Fenêtre « Bloquer du temps » ─────────────────────────────────────────────────────────
     let INDISPO = null;
@@ -924,16 +1194,16 @@
         nouveau: true,
       };
       remplirIndispo();
-      el('mIndispoBg').classList.add('open');
+      ouvrirFenetre('mIndispoBg');
     };
     window.modifierIndispo = function (id) {
       const x = DISPOS.filter(function (d) { return String(d.id) === String(id); })[0];
       if (!x) return;
       INDISPO = Object.assign({}, x, { nouveau: false });
       remplirIndispo();
-      el('mIndispoBg').classList.add('open');
+      ouvrirFenetre('mIndispoBg');
     };
-    window.fermerIndispo = function () { el('mIndispoBg').classList.remove('open'); INDISPO = null; };
+    window.fermerIndispo = function (o) { fermerFenetre('mIndispoBg', o); INDISPO = null; };
 
     function remplirIndispo() {
       const x = INDISPO;
@@ -1041,9 +1311,12 @@
         '<div class="pl-titre">' + icon('lock', 13) + ' Exceptions à venir <span class="n">(' + exceptionsAVenir().length + ')</span></div>' +
         (exceptionsAVenir().length ? exceptionsAVenir().map(ligneException).join('')
           : '<div class="pl-vide">Aucune. Le bouton « Bloquer du temps » en ajoute une.</div>');
-      el('mTrameBg').classList.add('open');
+      ouvrirFenetre('mTrameBg');
     };
-    window.fermerTrame = function () { el('mTrameBg').classList.remove('open'); };
+    window.fermerTrame = function (o) { fermerFenetre('mTrameBg', o); };
+    // Corriger une exception depuis la trame : une fenêtre RELAIE l'autre, sans toucher à
+    // l'historique — un « retour » puis une nouvelle étape se croiseraient (voir « Les fenêtres »).
+    window.modifierDepuisTrame = function (id) { relaisFenetre('mTrameBg'); modifierIndispo(id); };
 
     function exceptionsAVenir() {
       const auj = P.aujourdhui();
@@ -1057,7 +1330,7 @@
         '<span class="qui">' + escHtml((SELLER_LABELS[x.qui] || x.qui).slice(0, 3)) + '</span>' +
         '<span class="quand">' + escHtml(quand) + heures + '</span>' +
         (x.motif ? '<span class="motif">' + escHtml(x.motif) + '</span>' : '') +
-        '<button class="sup" onclick="fermerTrame();modifierIndispo(' + window.SSUI.jsAttr(String(x.id)) + ')" title="Modifier">' + icon('edit', 13) + '</button>' +
+        '<button class="sup" onclick="modifierDepuisTrame(' + window.SSUI.jsAttr(String(x.id)) + ')" title="Modifier">' + icon('edit', 13) + '</button>' +
         '</div>';
     }
 
@@ -1091,14 +1364,310 @@
       charger();
     };
 
-    // Fermer les fenêtres au clic sur le fond ou avec Échap : partout ailleurs dans l'ERP c'est
-    // le comportement attendu, une fenêtre qui ne se ferme qu'au bouton surprend.
-    ['mIndispoBg', 'mTrameBg', 'mEvBg'].forEach(function (id) {
-      el(id).addEventListener('click', function (ev) { if (ev.target === el(id)) el(id).classList.remove('open'); });
+    // ── « Caler ici » : un créneau libre, et ce qui attend une date (B) ──────────────────────
+    /* (26/10/2026) Cliquer un créneau libre ouvrait « Bloquer du temps » : le seul geste proposé
+       RETIRAIT de la disponibilité, alors qu'on clique un trou pour le REMPLIR. La fenêtre propose
+       maintenant ce qui attend une date — poses dont le matériel est reçu, dépannages sans date,
+       visites à fixer — et « Bloquer ce temps » reste là, en dernier.
+       ⚠️ UNE VISITE NE SE FIXE PAS D'ICI : elle se convient avec le client. Le créneau rejoint les
+       PROPOSITIONS de la demande (rdv.html?open=…&creneau=…), et c'est l'écran des RDV, avec ses
+       messages tout prêts, qui le lui soumet. */
+    let CALER = null;
+    function listesACaler() {
+      return {
+        poses: A_PLANIFIER.slice(),
+        deps: (SOURCES.devis || []).filter(depannageSansDate),
+        visites: (SOURCES.rdvs || []).filter(function (r) { return r && ['nouveau', 'a_contacter'].indexOf(r.statut) >= 0; }),
+      };
+    }
+    function depannageSansDate(d) {
+      if (!d || d.archive || String(d.type_document || '') !== 'depannage') return false;
+      if (String(d.depannage_mode || '') === 'realise') return false;   // un bon d'intervention est déjà fait
+      if (['refuse', 'annule', 'termine'].indexOf(d.statut) >= 0) return false;
+      // La liste ne porte que `depannage_plan`, et seulement quand une date existe.
+      return !((d.depannage_plan || d.depannage || {}).date_intervention);
+    }
+    window.ouvrirCaler = function (c) {
+      CALER = { qui: c.qui, date: c.date, debut: c.debut, fin: c.fin, choix: null, equipe: '', techs: [], heure: c.debut, duree: '' };
+      remplirCaler();
+      ouvrirFenetre('mCalerBg');
+    };
+    window.fermerCaler = function (o) { fermerFenetre('mCalerBg', o); CALER = null; };
+    window.choisirCaler = function (type, id) {
+      const c = CALER; if (!c) return;
+      lireCaler();
+      c.choix = { type: type, id: id };
+      const conf = P.conf(REGLAGES);
+      if (type === 'pose') {
+        const ch = ((A_PLANIFIER.filter(function (x) { return x.id === id; })[0]) || {}).chantier || {};
+        // L'équipe ENREGISTRÉE si elle existe ; sinon la personne du couloir qu'on vient de
+        // cliquer — un geste explicite, visible et modifiable avant de valider.
+        c.equipe = ch.equipe || c.qui;
+        c.duree = Number(ch.duree_h) || Number(conf.duree_pose_h) || 4;
+      } else if (type === 'depannage') {
+        c.techs = [c.qui];
+        c.duree = Number(conf.duree_depannage_h) || 2;
+      }
+      remplirCaler();
+    };
+    window.calerEquipe = function (k) { if (!CALER) return; lireCaler(); CALER.equipe = k; remplirCaler(); };
+    window.calerTech = function (p) {
+      if (!CALER) return;
+      lireCaler();
+      const i = CALER.techs.indexOf(p);
+      if (i >= 0) CALER.techs.splice(i, 1); else CALER.techs.push(p);
+      remplirCaler();
+    };
+    /** Garde l'heure et la durée tapées avant de redessiner la fenêtre (sinon un clic sur
+     *  « Yannick » effacerait « 14:00 »). */
+    function lireCaler() {
+      if (!CALER) return;
+      if (el('cl_heure')) CALER.heure = el('cl_heure').value;
+      if (el('cl_duree')) CALER.duree = el('cl_duree').value;
+    }
+    function remplirCaler() {
+      const c = CALER; if (!c) return;
+      const nom = SELLER_LABELS[c.qui] || c.qui;
+      const conf = P.conf(REGLAGES);
+      const L = listesACaler();
+      el('mCalerIc').innerHTML = icon('calendar', 16);
+      el('mCalerTitre').textContent = 'Libre — ' + nom + ', ' + jourLong(c.date);
+      const opt = function (type, id, titre, sous) {
+        const on = !!c.choix && c.choix.type === type && c.choix.id === id;
+        return '<button type="button" class="cl-opt' + (on ? ' on' : '') + '" onclick="choisirCaler(' + jsAttr(type) + ',' + jsAttr(id) + ')">' +
+          '<span class="t">' + (on ? icon('check', 13) : '') + escHtml(titre) + '</span>' + (sous ? '<span class="s">' + escHtml(sous) + '</span>' : '') + '</button>';
+      };
+      const groupe = function (titre, l) { return l.length ? '<div class="cl-grp">' + escHtml(titre) + '</div>' + l.join('') : ''; };
+      let html = '<div class="cl-plage">' + escHtml(nom + ' est libre de ' + c.debut + ' à ' + c.fin + '.') + '</div>' +
+        groupe('Poses à planifier — matériel reçu', L.poses.map(function (d) {
+          const ch = d.chantier || {};
+          return opt('pose', d.id, nomDe(d.client), [(window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || '',
+            P.fmtDuree(Number(ch.duree_h) || Number(conf.duree_pose_h) || 4), ch.equipe ? EQUIPES[ch.equipe] : 'équipe à choisir'].filter(Boolean).join(' · '));
+        })) +
+        groupe('Dépannages sans date', L.deps.map(function (d) {
+          return opt('depannage', d.id, nomDe(d.client), (window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || 'Dépannage');
+        })) +
+        groupe('Visites à fixer avec le client', L.visites.map(function (r) {
+          return opt('visite', r.id, nomDe(r.client), [String(r.projet || '').slice(0, 60), 'ce créneau lui sera proposé'].filter(Boolean).join(' · '));
+        }));
+      if (!L.poses.length && !L.deps.length && !L.visites.length) {
+        html += '<div class="pl-vide" style="margin-top:var(--sp-3)">Rien n’attend de date pour l’instant.</div>';
+      }
+      if (c.choix && c.choix.type !== 'visite') {
+        const pose = c.choix.type === 'pose';
+        const quiHtml = pose
+          ? Object.keys(EQUIPES).map(function (k) {
+              return '<button type="button" class="qui-opt ' + (c.equipe === k ? 'on' : '') + '" onclick="calerEquipe(\'' + k + '\')">' + (c.equipe === k ? icon('check', 13) : '') + escHtml(EQUIPES[k]) + '</button>';
+            }).join('')
+          : PERSONNES.map(function (p) {
+              const on = c.techs.indexOf(p) >= 0;
+              return '<button type="button" class="qui-opt ' + (on ? 'on' : '') + '" onclick="calerTech(\'' + p + '\')">' + (on ? icon('check', 13) : '') + escHtml(SELLER_LABELS[p] || p) + '</button>';
+            }).join('');
+        html += '<div class="cl-detail">' +
+          '<div class="field"><label class="label">' + (pose ? 'Qui pose' : 'Qui intervient') + '</label><div class="qui-box">' + quiHtml + '</div></div>' +
+          '<div class="m2" style="margin-top:var(--sp-3)">' +
+          '<div class="field"><label class="label" for="cl_heure">Heure</label><input class="input" type="time" id="cl_heure" value="' + escHtml(c.heure || '') + '"></div>' +
+          '<div class="field"><label class="label" for="cl_duree">Durée (h)</label><input class="input input-num" type="number" min="0.5" step="0.5" id="cl_duree" value="' + escHtml(String(c.duree || '')) + '"></div>' +
+          '</div></div>';
+      }
+      html += '<div class="cl-bloquer"><button type="button" class="btn btn-ghost btn-sm" onclick="calerBloquer()">' + icon('lock', 13) + ' Plutôt bloquer ce temps</button></div>';
+      el('mCalerBody').innerHTML = html;
+      const btn = el('btnCaler');
+      btn.disabled = !c.choix;
+      btn.textContent = !c.choix ? 'Choisis ce que tu cales'
+        : (c.choix.type === 'visite' ? 'Proposer ce créneau au client' : (c.choix.type === 'pose' ? 'Caler la pose' : 'Caler le dépannage'));
+    }
+    window.calerBloquer = function () {
+      const c = CALER; if (!c) return;
+      relaisFenetre('mCalerBg');
+      CALER = null;
+      ouvrirIndispo({ qui: c.qui, du: c.date, debut: c.debut, fin: c.fin });
+    };
+    window.validerCaler = async function () {
+      const c = CALER; if (!c || !c.choix) return;
+      lireCaler();
+      if (c.choix.type === 'visite') {
+        const dj = P.demiJournees(REGLAGES);
+        const moment = P.hhmmMin(c.debut, dj.matin.debut) < dj.matin.fin ? 'matin' : 'aprem';
+        SALE.mCalerBg = false;
+        allerVers('rdv.html?open=' + encodeURIComponent(c.choix.id) + '&creneau=' + c.date + '&moment=' + moment);
+        return;
+      }
+      const pose = c.choix.type === 'pose', id = c.choix.id;
+      const duree = parseFloat(c.duree) || 0;
+      if (!duree) { toast('Indique une durée.', 'error'); if (el('cl_duree')) el('cl_duree').focus(); return; }
+      if (!pose && !c.techs.length) { toast('Choisis qui intervient.', 'error'); return; }
+      const src = ((pose ? A_PLANIFIER : (SOURCES.devis || [])).filter(function (x) { return x.id === id; })[0]) || {};
+      const candidat = { id: (pose ? 'pose:' : 'dep:') + id, source: pose ? 'pose' : 'depannage', date: c.date, heure: c.heure || '',
+        duree_h: duree, qui: pose ? P.quiDeEquipe(c.equipe) : c.techs.slice(), titre: nomDe(src.client) };
+      if (!confirmerMalgre(candidat, 'Caler')) return;
+      const btn = el('btnCaler'); btn.disabled = true;
+      const fait = await ecrireDevis(id, function (d) {
+        if (pose) d.chantier = Object.assign({}, d.chantier || {}, { date_pose: c.date, heure_pose: c.heure || '', duree_h: duree, equipe: c.equipe });
+        else d.depannage = Object.assign({}, d.depannage || {}, { date_intervention: c.date, heure: c.heure || '', duree_h: duree, techniciens: techniciensAvec(d, c.techs) });
+      }, (pose ? 'Pose calée' : 'Dépannage calé') + ' — ' + jourLong(c.date));
+      btn.disabled = false;
+      if (!fait) return;
+      fermerCaler();
+      charger();
+    };
+
+    // ── Dates proposées pour chaque chantier à planifier (C) ─────────────────────────────────
+    /* Les trois prochaines journées où l'équipe est libre assez longtemps d'une traite
+       (SSPlanning.datesPossibles), en écartant celles où la prévision annonce pluie ou grand vent
+       chez le client. Au-delà de seize jours la météo est inconnue : la date reste proposée.
+       Une équipe pas encore choisie = « à deux » : c'est le cas courant d'une pose, et le
+       message de confirmation le dit avant d'écrire quoi que ce soit. */
+    function chargerPropositions() {
+      A_PLANIFIER.forEach(function (d) {
+        const hote = el('prop-' + d.id);
+        if (!hote) return;
+        const ch = d.chantier || {};
+        const qui = ch.equipe ? P.quiDeEquipe(ch.equipe) : PERSONNES.slice();
+        const titre = '<span class="pl-prop-t">' + icon('calendar', 12) + ' Dates possibles · ' +
+          escHtml(ch.equipe ? EQUIPES[ch.equipe] || ch.equipe : 'à deux, équipe à confirmer') + '</span>';
+        if (!qui.length) { hote.innerHTML = titre + '<span class="pl-vide">Sous-traitant : la date se convient avec lui.</span>'; return; }
+        const duree = Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4;
+        const cands = P.datesPossibles(qui, duree, TOUS_EVS, DISPOS, REGLAGES, { limite: 10, horizon_jours: 60 });
+        if (!cands.length) { hote.innerHTML = titre + '<span class="pl-vide">Aucune journée assez libre dans les 60 prochains jours.</span>'; return; }
+        const adr = (d.client || {}).adresse || {};
+        const montrer = function (jours) {
+          if (!document.body.contains(hote)) return;   // la page a été redessinée entre-temps
+          let ecartees = 0;
+          const bons = [];
+          cands.forEach(function (c) {
+            if (bons.length >= 3) return;
+            const w = jours && jours[c.date];
+            if (!P.meteoPose(w).ok) { ecartees++; return; }
+            bons.push({ c: c, w: w });
+          });
+          hote.innerHTML = titre + '<div class="pl-pills">' + bons.map(function (b) {
+            return '<button type="button" class="pl-pill" onclick="calerProposition(' + jsAttr(d.id) + ',' + jsAttr(b.c.date) + ',' + jsAttr(b.c.debut) + ')" ' +
+              'title="' + escHtml('Caler la pose le ' + jourLong(b.c.date) + ' — ' + b.c.libre_h + ' h libres') + '">' +
+              escHtml(jourCourt(b.c.date) + (b.c.moment === 'apresmidi' ? ' · après-midi' : '') + (b.w ? ' · ' + meteoCourte(b.w) : '')) + '</button>';
+          }).join('') + '</div>' +
+            (ecartees ? '<span class="pl-vide">' + ecartees + ' date' + (ecartees > 1 ? 's' : '') + ' écartée' + (ecartees > 1 ? 's' : '') + ' : pluie ou vent annoncés</span>' : '') +
+            (!bons.length ? '<span class="pl-vide">Les prochaines dates libres sont toutes annoncées sous la pluie ou le vent.</span>' : '');
+        };
+        prevision(adr.ville || adr.code_postal ? { ville: adr.ville, cp: adr.code_postal } : null).then(montrer).catch(function () { montrer(null); });
+      });
+    }
+    window.calerProposition = async function (id, date, debut) {
+      const d = A_PLANIFIER.filter(function (x) { return x.id === id; })[0];
+      if (!d) return;
+      const ch = d.chantier || {};
+      const equipe = ch.equipe || 'nicolas_yannick';
+      const duree = Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4;
+      // Une pose qui commence en début de journée reste « sans heure » : c'est la convention
+      // (SSPlanning.occupation la cale au début de journée).
+      const heure = debut === P.minHhmm(P.demiJournees(REGLAGES).matin.debut) ? '' : debut;
+      if (!confirm('Caler la pose de ' + nomDe(d.client) + ' le ' + jourLong(date) + (heure ? ' à ' + heure : '') + ' ?\n\n' +
+        'Équipe : ' + EQUIPES[equipe] + (ch.equipe ? '' : ' (aucune n’était choisie : la pose est calée à deux)') + '\nDurée : ' + P.fmtDuree(duree))) return;
+      const candidat = { id: 'pose:' + id, source: 'pose', date: date, heure: heure, duree_h: duree, qui: P.quiDeEquipe(equipe), titre: nomDe(d.client) };
+      if (!confirmerMalgre(candidat, 'Caler')) return;
+      const fait = await ecrireDevis(id, function (x) {
+        x.chantier = Object.assign({}, x.chantier || {}, { date_pose: date, heure_pose: heure, duree_h: duree, equipe: equipe });
+      }, 'Pose calée — ' + jourLong(date));
+      if (fait) charger();
+    };
+
+    // ── Ajouter à mon agenda (F) ─────────────────────────────────────────────────────────────
+    /* Un fichier .ics par rendez-vous : l'agenda du téléphone l'importe. Pour Nicolas, c'est ce qui
+       évite de se caler un chantier sur une journée Multimedian. Rien ne sort de l'ERP : le fichier
+       est fabriqué ici et donné à l'appareil, aucun service tiers n'est appelé. */
+    function telechargerIcs(texte, nom) {
+      const url = URL.createObjectURL(new Blob([texte], { type: 'text/calendar;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = nom;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    }
+    function nomFichier(e) {
+      const net = String(e.titre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+      return 'solariscreen-' + e.date + '-' + (net || 'rendez-vous') + '.ics';
+    }
+    window.agenda = function (id) {
+      const e = TOUS_EVS.filter(function (x) { return x.id === id; })[0];
+      if (!e) return;
+      telechargerIcs(P.icsDe([e], REGLAGES, { base: new URL('./', location.href).href }), nomFichier(e));
+      toast('Fichier agenda prêt — ouvre-le pour l’ajouter à ton agenda', 'ok', 5000);
+    };
+
+    // ── Les fenêtres : se fermer sans rien perdre, et « retour » sur téléphone ───────────────
+    /* Trois défauts, déjà corrigés ailleurs dans l'ERP et restés ici :
+       • un clic sur le fond fermait la fenêtre même quand le geste avait COMMENCÉ dans un champ
+         (sélectionner du texte puis relâcher à côté) — la saisie partait avec ;
+       • Échap pour refermer le petit calendrier d'un champ date fermait la fenêtre entière ;
+       • sur téléphone, « retour » quittait le planning au lieu de fermer la fenêtre ouverte.
+       Une fenêtre où l'on a tapé quelque chose demande confirmation avant de se fermer sans
+       enregistrer ; les boutons « Annuler », eux, sont un choix et ferment sans rien demander. */
+    const FERMER = {
+      mIndispoBg: function (o) { window.fermerIndispo(o); },
+      mTrameBg: function (o) { window.fermerTrame(o); },
+      mEvBg: function (o) { window.fermerEvenement(o); },
+      mCalerBg: function (o) { window.fermerCaler(o); },
+    };
+    const SALE = {};
+    const RELAIS = '·relais·';
+    let ETAPE = null;     // la fenêtre qui a posé une étape d'historique (téléphone seulement)
+    const TEL = function () { return window.matchMedia('(max-width: 900px)').matches; };
+    function ouvrirFenetre(id) {
+      el(id).classList.add('open');
+      SALE[id] = false;
+      if (ETAPE === RELAIS) { ETAPE = id; return; }   // une fenêtre en relaie une autre : même étape
+      if (TEL() && !ETAPE) { try { history.pushState({ plFenetre: id }, ''); ETAPE = id; } catch (e) {} }
+    }
+    function fermerFenetre(id, o) {
+      el(id).classList.remove('open');
+      SALE[id] = false;
+      if (ETAPE === id) { ETAPE = null; if (!(o && o.retour)) { try { history.back(); } catch (e) {} } }
+    }
+    function relaisFenetre(id) {
+      el(id).classList.remove('open');
+      SALE[id] = false;
+      if (ETAPE === id) ETAPE = RELAIS;
+    }
+    function fermerSiPropre(id) {
+      if (SALE[id] && !confirm('Fermer sans enregistrer ?')) return;
+      FERMER[id]();
+    }
+    /** Quitter la page depuis une fenêtre ouverte : l'étape d'historique part AVANT, sinon
+     *  « retour » depuis la page suivante ramènerait ici, sur une fenêtre fermée. */
+    function allerVers(url) {
+      if (ETAPE && ETAPE !== RELAIS) {
+        ETAPE = null;
+        let parti = false;
+        const partir = function () { if (!parti) { parti = true; location.href = url; } };
+        window.addEventListener('popstate', partir, { once: true });
+        setTimeout(partir, 600);   // filet : un navigateur qui ne renverrait pas l'événement
+        try { history.back(); return; } catch (e) {}
+      }
+      location.href = url;
+    }
+    window.addEventListener('popstate', function () {
+      if (!ETAPE || ETAPE === RELAIS) return;
+      const id = ETAPE;
+      if (SALE[id] && !confirm('Fermer sans enregistrer ?')) {
+        try { history.pushState({ plFenetre: id }, ''); } catch (e) {}
+        return;
+      }
+      ETAPE = null;
+      FERMER[id]({ retour: true });
+    });
+    let FOND = null;
+    Object.keys(FERMER).forEach(function (id) {
+      // Le fond ne ferme que si le geste y a COMMENCÉ.
+      el(id).addEventListener('mousedown', function (ev) { FOND = ev.target === el(id) ? id : null; });
+      el(id).addEventListener('click', function (ev) { if (ev.target === el(id) && FOND === id) fermerSiPropre(id); FOND = null; });
+      el(id).addEventListener('input', function () { SALE[id] = true; });
     });
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'Escape') return;
-      ['mIndispoBg', 'mTrameBg', 'mEvBg'].forEach(function (id) { el(id).classList.remove('open'); });
+      const t = ev.target || {};
+      // Échap referme d'abord le calendrier ou la liste du champ : on ne ferme pas la fenêtre avec.
+      if (t.tagName === 'SELECT' || /^(date|time|datetime-local|month|week)$/.test(t.type || '')) return;
+      const ouverte = Object.keys(FERMER).filter(function (id) { return el(id).classList.contains('open'); }).pop();
+      if (ouverte) fermerSiPropre(ouverte);
     });
 
     charger();

@@ -165,6 +165,8 @@
       cp: a.code_postal || '',
     };
   }
+  /** Téléphone du client, tel quel : la vue Jour en fait un bouton « Appeler ». */
+  function telDe(client) { return String((client && client.telephone) || '').trim(); }
   function nomClient(client) {
     const c = client || {};
     return ((c.prenom || '') + ' ' + (c.nom || '')).trim() || 'Sans nom';
@@ -188,7 +190,17 @@
         date: String(ch.date_pose).slice(0, 10),
         heure: String(ch.heure_pose || '').slice(0, 5),
         duree_h: Number(ch.duree_h) || Number(c.duree_pose_h) || 4,
-        qui: quiDeEquipe(ch.equipe),
+        /* ⚠️ UNE POSE SANS ÉQUIPE N'EST RANGÉE CHEZ PERSONNE (26/10/2026). Elle retombait sur
+           Nicolas par « quiDeEquipe('') » : la grille l'affichait « Nic », sa charge montait (25 %
+           → 44 % sur un jeudi où il ne travaille pas), et la fenêtre « Qui s'en occupe » cochait
+           Nicolas d'office — un enregistrement pour autre chose l'écrivait sans que personne l'ait
+           choisi, alors que c'est l'équipe qui décide de la paie de pose. Sans personne, elle
+           tombe dans le couloir « À attribuer » du planning et attente.js la signale comme
+           « Rendez-vous sans personne attribuée » : une case visible, pas un mensonge.
+           « quiDeEquipe » garde son repli pour les autres appelants : on ne le change pas ici. */
+        qui: ch.equipe ? quiDeEquipe(ch.equipe) : [],
+        equipe: String(ch.equipe || ''),
+        tel: telDe(d.client),
         titre: nomClient(d.client),
         detail: (SSUI.resumeDevis && SSUI.resumeDevis(d)) || '',
         adresse: adr.texte, ville: adr.ville, cp: adr.cp,
@@ -225,6 +237,7 @@
         heure: String(p.heure || '').slice(0, 5),
         duree_h: Number(p.duree_h) || Number(c.duree_depannage_h) || 2,
         qui: quiDeTechniciens(p.techniciens),
+        tel: telDe(d.client),
         titre: nomClient(d.client),
         detail: String(p.motif || '').slice(0, 120),
         adresse: adr.texte, ville: adr.ville, cp: adr.cp,
@@ -250,6 +263,7 @@
         heure: String(r.date_rdv).slice(11, 16),
         duree_h: Number(r.duree_h) || Number(c.duree_visite_h) || 1,
         qui: r.assigned_to ? [r.assigned_to] : [],
+        tel: telDe(r.client),
         titre: nomClient(r.client),
         detail: String(r.projet || '').slice(0, 120),
         adresse: adr.texte, ville: adr.ville, cp: adr.cp,
@@ -463,6 +477,161 @@
       .map(function (c) { return { qui: c.qui, date: c.date, autre: c.a.id === candidat.id ? c.b : c.a }; });
   }
 
+  // ── Hors de ses jours ─────────────────────────────────────────────────────────────────────────
+  /** Les personnes d'un rendez-vous pour qui il tombe HORS de leur disponibilité (trame +
+   *  exceptions) : 'jour' = elle ne travaille pas ce jour-là, 'heures' = il déborde de sa journée.
+   *  ⚠️ C'était le trou des conflits : seuls deux rendez-vous qui se chevauchent étaient signalés.
+   *  On pouvait donner un jeudi à Nicolas, qui ne travaille que le week-end, sans un mot.
+   *  La pause de midi n'est pas un débordement : une pose de 6 h la traverse, c'est normal — on
+   *  compare donc à l'ENVELOPPE de la journée (premier début, dernière fin). */
+  function horsTrame(ev, dispos, reglages) {
+    if (!ev || ev.source === 'indispo') return [];
+    const o = occupation(ev, reglages);
+    const out = [];
+    (ev.qui || []).forEach(function (p) {
+      const theo = blocsTheoriques(p, ev.date, dispos, reglages);
+      if (!theo.length) { out.push({ qui: p, raison: 'jour' }); return; }
+      if (o.debut < theo[0].debut || o.fin > theo[theo.length - 1].fin) out.push({ qui: p, raison: 'heures' });
+    });
+    return out;
+  }
+
+  // ── Demi-journées et dates possibles ──────────────────────────────────────────────────────────
+  /** Les deux moitiés d'une journée de travail, en minutes : la grille de la semaine les dessine. */
+  function demiJournees(reglages) {
+    const h = conf(reglages).heures || {};
+    return {
+      matin: { debut: hhmmMin(h.debut, 8 * 60), fin: hhmmMin(h.midi, 12 * 60) },
+      apresmidi: { debut: hhmmMin(h.reprise, 13 * 60), fin: hhmmMin(h.fin, 17 * 60) },
+    };
+  }
+  /** Intersection de deux listes de blocs triés. */
+  function intersecter(a, b) {
+    const out = [];
+    (a || []).forEach(function (x) {
+      (b || []).forEach(function (y) {
+        const d = Math.max(x.debut, y.debut), f = Math.min(x.fin, y.fin);
+        if (f > d) out.push({ debut: d, fin: f });
+      });
+    });
+    return fusionnerBlocs(out);
+  }
+  /** Ce qui est libre pour TOUTES les personnes données, un jour donné. Une pose à deux ne se
+   *  cale que là où les deux sont libres en même temps. */
+  function creneauxCommuns(quiListe, date, evs, dispos, reglages) {
+    const qui = (quiListe || []).filter(Boolean);
+    if (!qui.length) return [];
+    return qui.reduce(function (acc, p, i) {
+      const l = libres(p, date, evs, dispos, 0, reglages);
+      return i === 0 ? fusionnerBlocs(l) : intersecter(acc, l);
+    }, []);
+  }
+  /** Les prochaines journées où un chantier de `duree_h` heures tient, pour toute l'équipe.
+   *  Le chantier doit tenir d'une traite : deux trous séparés par un autre rendez-vous ne font pas
+   *  une place, mais la pause de midi, si — un chantier de 6 h la traverse.
+   *  ⚠️ JAMAIS aujourd'hui (on ne propose pas « dans 2 h »), et la météo n'est PAS ici : elle
+   *  arrive du réseau, la page la superpose (`meteoPose`). Ce qui est ici reste pur et testable.
+   *  @return [{ date, debut, moment, libre_h, qui }] */
+  function datesPossibles(quiListe, duree_h, evs, dispos, reglages, options) {
+    const o = options || {};
+    const qui = (quiListe || []).filter(Boolean);
+    if (!qui.length) return [];
+    const besoin = Math.max(30, Math.round((Number(duree_h) || Number(conf(reglages).duree_pose_h) || 4) * 60));
+    const dj = demiJournees(reglages);
+    const depuis = o.depuis || plusJours(aujourdhui(), 1);
+    const horizon = Number(o.horizon_jours) || 42;
+    const limite = Number(o.limite) || 3;
+    const out = [];
+    for (let i = 0; i < horizon && out.length < limite; i++) {
+      const date = plusJours(depuis, i);
+      const blocs = creneauxCommuns(qui, date, evs, dispos, reglages);
+      // Des « traites » : blocs consécutifs, la seule coupure tolérée étant la pause de midi.
+      const traites = [];
+      blocs.forEach(function (b) {
+        const t = traites[traites.length - 1];
+        if (t && t.fin === dj.matin.fin && b.debut === dj.apresmidi.debut) { t.fin = b.fin; t.libre += b.fin - b.debut; }
+        else traites.push({ debut: b.debut, fin: b.fin, libre: b.fin - b.debut });
+      });
+      const t = traites.filter(function (x) { return x.libre >= besoin; })[0];
+      if (!t) continue;
+      out.push({ date: date, debut: minHhmm(t.debut), moment: t.debut < dj.matin.fin ? 'matin' : 'apresmidi',
+        libre_h: Math.round(t.libre / 6) / 10, qui: qui.slice() });
+    }
+    return out;
+  }
+
+  // ── Météo de pose ─────────────────────────────────────────────────────────────────────────────
+  /* Des seuils de PRUDENCE, pas une science : on ne monte pas une toile ni un caisson sous la
+     pluie, et un screen se pose mal par grand vent. Ils servent à AVERTIR et à écarter une date
+     proposée — jamais à interdire une date choisie à la main (règle 13 : un conflit s'avertit). */
+  const METEO_POSE = { pluie_mm: 2, vent_kmh: 40, rafales_kmh: 60 };
+  /** @param j  un jour de prévision { pluie, vent, rafales } (SSUI.previsionJours), ou null */
+  function meteoPose(j) {
+    if (!j) return { connue: false, ok: true, raison: '' };
+    const r = [];
+    if (Number(j.pluie) >= METEO_POSE.pluie_mm) r.push('pluie ' + Math.round(Number(j.pluie)) + ' mm');
+    if (Number(j.vent) >= METEO_POSE.vent_kmh) r.push('vent ' + Math.round(Number(j.vent)) + ' km/h');
+    else if (Number(j.rafales) >= METEO_POSE.rafales_kmh) r.push('rafales ' + Math.round(Number(j.rafales)) + ' km/h');
+    return { connue: true, ok: !r.length, raison: r.join(' · ') };
+  }
+
+  // ── Agenda personnel et itinéraire ────────────────────────────────────────────────────────────
+  /** Un fichier agenda (.ics) pour l'agenda du téléphone. Heures « flottantes » (sans fuseau) :
+   *  elles se lisent dans l'heure de l'appareil, qui est celle de la Belgique — un fuseau écrit
+   *  exigerait de joindre sa définition, que plusieurs agendas refusent.
+   *  ⚠️ L'identifiant est STABLE (celui de l'événement) : réimporter le même rendez-vous le met à
+   *  jour au lieu de le dédoubler dans l'agenda. */
+  function icsDe(evs, reglages, options) {
+    const o = options || {};
+    const enc = (typeof TextEncoder !== 'undefined') ? new TextEncoder() : null;
+    const octets = function (ch) { return enc ? enc.encode(ch).length : unescape(encodeURIComponent(ch)).length; };
+    // Une ligne d'agenda ne dépasse pas 75 OCTETS (un « é » en vaut deux) : on la plie.
+    const plier = function (ligne) {
+      const out = []; let cur = '', n = 0;
+      Array.from(ligne).forEach(function (ch) {
+        const b = octets(ch);
+        if (n + b > 75) { out.push(cur); cur = ' '; n = 1; }
+        cur += ch; n += b;
+      });
+      out.push(cur);
+      return out.join('\r\n');
+    };
+    const txt = function (s) { return String(s || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;'); };
+    const deux = function (n) { return (n < 10 ? '0' : '') + n; };
+    const quand = function (date, min) { return String(date).replace(/-/g, '') + 'T' + deux(Math.floor(min / 60)) + deux(min % 60) + '00'; };
+    const tampon = (o.maintenant || new Date()).toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+    const lignes = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SolariScreen//ERP//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    (evs || []).forEach(function (e) {
+      const oc = occupation(e, reglages);
+      const nat = (NATURES[e.source] || {}).label || e.source;
+      const desc = [e.detail, e.tel ? 'Tél. ' + e.tel : '', (o.base && e.href) ? o.base + e.href : ''].filter(Boolean).join('\n');
+      lignes.push('BEGIN:VEVENT',
+        'UID:' + String(e.id).replace(/[^A-Za-z0-9:._-]/g, '-') + '@solariscreen-erp',
+        'DTSTAMP:' + tampon,
+        'DTSTART:' + quand(e.date, oc.debut),
+        'DTEND:' + quand(e.date, Math.min(1439, Math.max(oc.fin, oc.debut + 30))),
+        'SUMMARY:' + txt(nat + ' — ' + e.titre));
+      if (e.adresse) lignes.push('LOCATION:' + txt(e.adresse));
+      if (desc) lignes.push('DESCRIPTION:' + txt(desc));
+      lignes.push('END:VEVENT');
+    });
+    lignes.push('END:VCALENDAR');
+    return lignes.map(plier).join('\r\n') + '\r\n';
+  }
+  /** L'itinéraire d'une journée, arrêts dans l'ordre : départ de là où l'on est (Maps le prend
+   *  quand l'origine est absente), dernier arrêt en destination, les autres en étapes. */
+  function itineraire(evs) {
+    const arrets = [];
+    (evs || []).forEach(function (e) {
+      const a = String((e && e.adresse) || '').trim();
+      if (a && arrets[arrets.length - 1] !== a) arrets.push(a);
+    });
+    if (!arrets.length) return '';
+    const dest = arrets[arrets.length - 1], via = arrets.slice(0, -1).slice(0, 8);
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest)
+      + (via.length ? '&waypoints=' + encodeURIComponent(via.join('|')) : '');
+  }
+
   // ── Charge ────────────────────────────────────────────────────────────────────────────────────
   /** Heures occupées / heures disponibles sur une période. Le taux de remplissage dit d'un coup
    *  d'œil si une semaine peut encore accueillir un chantier. */
@@ -480,6 +649,16 @@
       capacite: Math.round(capacite * 10) / 10,
       pct: capacite > 0 ? Math.min(999, Math.round((occupe / capacite) * 100)) : 0,
     };
+  }
+
+  /** La charge de plusieurs semaines d'affilée — « quand a-t-on de la place ? » sans feuilleter. */
+  function chargeSemaines(qui, lundi, n, evs, dispos, reglages) {
+    const out = [];
+    for (let i = 0; i < (Number(n) || 6); i++) {
+      const du = plusJours(lundiDe(lundi), 7 * i), au = plusJours(du, 6);
+      out.push(Object.assign({ du: du, au: au }, charge(qui, du, au, evs, dispos, reglages)));
+    }
+    return out;
   }
 
   /* ── CE QUI DEMANDE UNE DÉCISION, et dans quel ORDRE ────────────────────────────────
@@ -555,7 +734,10 @@
     construire: construire, trier: trier, occupation: occupation,
     blocsTheoriques: blocsTheoriques, fusionnerBlocs: fusionnerBlocs, soustraire: soustraire,
     libres: libres, prochainsCreneaux: prochainsCreneaux,
-    conflits: conflits, conflitsDe: conflitsDe, charge: charge,
+    conflits: conflits, conflitsDe: conflitsDe, charge: charge, chargeSemaines: chargeSemaines,
+    horsTrame: horsTrame, demiJournees: demiJournees, creneauxCommuns: creneauxCommuns,
+    datesPossibles: datesPossibles, METEO_POSE: METEO_POSE, meteoPose: meteoPose,
+    icsDe: icsDe, itineraire: itineraire,
     charger: charger,
   };
 })();
