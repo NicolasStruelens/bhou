@@ -49,6 +49,13 @@
     return ymd + Math.floor(1000 + Math.random() * 9000);
   }
 
+  /** LE BAC À SABLE (DEPLOIEMENT.md, étape 12) : un APERÇU de branche
+   *  (« <branche>.solariscreen-erp.pages.dev ») travaille sur une base d'ESSAI, la production
+   *  (« solariscreen-erp.pages.dev », rien devant) sur la vraie. Décidé sur le NOM D'HÔTE et pas
+   *  sur une réponse du serveur : le bandeau le sait au premier rendu, sans requête, et une
+   *  production servie sous un autre domaine ne se croira jamais en essai. */
+  function hoteBacASable(h) { return /^[a-z0-9-]+\.solariscreen-erp\.pages\.dev$/i.test(String(h || '')); }
+
   const qp = (key) => new URLSearchParams(location.search).get(key);
 
   // ── Copier-coller rapide (nom/tél/email/adresse/prix depuis les fiches) ──
@@ -2060,7 +2067,7 @@
     memo: memo, remplirDatalist: remplirDatalist,
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
-    toast: toast, generateDevisId: generateDevisId, qp: qp,
+    toast: toast, generateDevisId: generateDevisId, qp: qp, hoteBacASable: hoteBacASable,
     normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
     TYPE_LABEL: TYPE_LABEL, TYPE_FORMES: TYPE_FORMES,

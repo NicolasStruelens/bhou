@@ -219,6 +219,71 @@ serveur, jamais fourni par le navigateur. Chaque envoi (réussi ou non) est not�
 
 ---
 
+## 12) 🧪 Le bac à sable : une base d'ESSAI pour les aperçus de branche
+
+**Pourquoi.** Essayer l'ERP avec un client fictif en PRODUCTION n'est pas inoffensif : chaque facture
+d'essai consomme un vrai numéro F2026-xxx (jamais réutilisé), le CA, le cockpit et les compteurs de
+l'autre le comptent, et le journal d'activité en garde la trace. Le bac à sable donne aux **aperçus
+de branche** (`<branche>.solariscreen-erp.pages.dev`) leur PROPRE base et leur propre stockage photos.
+La production (`solariscreen-erp.pages.dev`) ne change pas : mêmes liaisons, mêmes données.
+Dans l'ERP, un aperçu se reconnaît : bande hachurée sous le bandeau, pastille **ESSAI** devant le
+nom de la page, et « ESSAI · » dans le titre de l'onglet (CLAUDE.md, règle 46).
+
+**⚠️ L'ORDRE EST IMPORTANT : Access d'abord, la base ensuite.** Le dépôt est public et les adresses
+d'aperçu se devinent (le nom de la branche) : une base branchée sur un aperçu NON protégé serait une
+API ouverte à tous. La page de remplissage refuse d'ailleurs d'écrire tant qu'aucune identité Access
+ne répond.
+
+**1. Protéger les aperçus par Access**
+1. Workers & Pages → `solariscreen-erp` → **Settings** → **General** → **Enable access policy**.
+2. Zero Trust → **Access** → **Applications** : ouvrir l'application que Cloudflare vient de créer pour
+   les aperçus. Vérifier que son domaine est bien le joker **`*.solariscreen-erp.pages.dev`** (il doit
+   couvrir les aperçus à adresse aléatoire ET les adresses de branche ; la doc Cloudflare ne cite que
+   les premières). Ne PAS mettre le domaine de production (sans rien devant) : il a déjà son application.
+3. Dans sa **policy** : Allow → emails `nicolas.struelens@me.com` et `info@solariscreen.be` (par défaut,
+   elle n'autorise que les membres du compte Cloudflare — Yannick n'en fait peut-être pas partie).
+4. **Vérifier en navigation privée** : `https://amelioration-bac-a-sable.solariscreen-erp.pages.dev/api/health`
+   (ou l'adresse de n'importe quelle branche) doit afficher l'écran de connexion Cloudflare, **pas** du
+   JSON. Si du JSON s'affiche, l'adresse de branche n'est pas couverte : revoir le point 2.
+
+**2. Créer la base d'essai et ses tables**
+1. Workers & Pages → **D1 SQL Database** → **Create** → nom `solariscreen-essai`.
+2. Ouvrir la base → onglet **Console** → coller TOUT le contenu de `solariscreenv2/schema.sql` → **Execute**.
+   (Sans danger : tout est en `CREATE TABLE IF NOT EXISTS`. Les autres tables se créent toutes seules.)
+
+**3. Créer le stockage photos et documents d'essai**
+1. **R2** → **Create bucket** → nom `solariscreen-essai`, emplacement Automatic, pas d'accès public.
+   Un seul bucket suffit pour les deux liaisons : photos et documents ont des chemins distincts.
+
+**4. Brancher le tout sur l'environnement PREVIEW seulement**
+Workers & Pages → `solariscreen-erp` → **Settings** → choisir l'environnement **Preview** (sélecteur
+en haut de l'onglet) → **Bindings** → **Add** :
+| Type | Variable name | Valeur |
+|---|---|---|
+| D1 database | `DB` | `solariscreen-essai` |
+| R2 bucket | `PHOTOS` | `solariscreen-essai` |
+| R2 bucket | `DOCS` | `solariscreen-essai` |
+
+⚠️ **Repasser sur l'environnement Production et vérifier que RIEN n'y a bougé** : ses trois liaisons
+pointent toujours sur les vraies ressources (`DB` → `solariscreen-db`, et les buckets photos et documents
+des étapes 8 et 9). Le piège serait l'inverse : choisir `solariscreen-db` dans Preview — la page de
+remplissage le détecterait et refuserait d'écrire, mais l'aperçu travaillerait alors sur les vrais devis.
+⚠️ **Ne pas** ajouter `SMTP2GO_API_KEY` à l'environnement Preview : un essai ne doit jamais pouvoir
+envoyer un mail (les adresses d'essai sont de toute façon en `.invalid`). `ANTHROPIC_API_KEY` non plus,
+sauf décision contraire : l'assistant y dirait simplement « pas encore branché ».
+
+**5. Redéployer un aperçu** : pousser n'importe quel commit sur une branche (ou *Retry deployment* sur le
+dernier aperçu). Une liaison ne vaut que pour les déploiements qui suivent.
+
+**6. Remplir** : ouvrir `https://<branche>.solariscreen-erp.pages.dev/tests/bac-a-sable.html`, se connecter
+(Access), vérifier que les trois gardes sont vertes, cliquer **Remplir**. Vingt dossiers fictifs (un par
+situation que l'ERP sait reconnaître), cinq demandes de visite, trois sujets, deux exceptions de planning,
+les fiches clients et neuf factures. Relancer « Remplir » remet les scénarios à zéro ; « Vider » ne retire
+que ce que la page a posé. La page REFUSE d'écrire hors d'un aperçu, sans identité Access, ou dans une base
+qui contient de vraies données — c'est-à-dire si la production a été branchée par erreur sur Preview.
+
+---
+
 ## ✅ Vérifications finales
 
 - `https://<site>/api/devis` en navigation privée (non connecté) → **bloqué par Access** (page de login). ✔ faille fermée.

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bac à sable — remplir la base d'essai</title>
+  <style>
+    :root { --bg: #0b1020; --surface: #121a33; --text: #e9eefb; --muted: #97a4cc; --ok: #26c281; --ko: #ff5e7a; --essai: #e8a400; --accent: #4d8bff; }
+    @media (prefers-color-scheme: light) { :root { --bg: #f5f7fb; --surface: #ffffff; --text: #182039; --muted: #5a6585; --ok: #138a55; --ko: #c8243f; --accent: #2457c5; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+    .bande { height: 6px; background: repeating-linear-gradient(-45deg, var(--essai) 0 7px, #1b1b1b 7px 14px); }
+    main { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
+    h1 { font-size: 22px; margin: 8px 0 4px; }
+    .pill { display: inline-block; padding: 0 0.5em; border-radius: 3px; background: var(--essai); color: #1b1b1b; font: 700 12px/1.6 ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 3px; margin-right: 0.4em; }
+    p.note { color: var(--muted); max-width: 760px; }
+    .carte { background: var(--surface); border: 1px solid color-mix(in srgb, var(--muted) 30%, transparent); border-radius: 8px; padding: 14px 16px; margin: 14px 0; }
+    .gardes li { margin: 4px 0; }
+    .gardes .ok::marker { content: '✓  '; color: var(--ok); }
+    .gardes .ko::marker { content: '✗  '; color: var(--ko); }
+    .ko-txt { color: var(--ko); font-weight: 600; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    button { font: inherit; padding: 0.55rem 1rem; min-height: 44px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+    button.sec { background: transparent; color: var(--accent); }
+    button.danger { border-color: var(--ko); background: transparent; color: var(--ko); }
+    button[disabled] { opacity: 0.45; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--muted) 20%, transparent); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td a { color: var(--accent); }
+    .tbl { overflow-x: auto; }
+    #journal { max-height: 320px; overflow: auto; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; color: var(--muted); margin: 0; }
+    @media (max-width: 560px) { .col-client { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="bande"></div>
+  <main>
+    <h1><span class="pill">Essai</span>Bac à sable — la base d'essai des aperçus</h1>
+    <p class="note">
+      Cette page remplit la base d'<strong>ESSAI</strong> d'un aperçu de branche avec des dossiers
+      <strong>fictifs</strong> : un par situation que l'ERP sait reconnaître (brouillon, relances, mise en
+      attente, signé, commande, pose, paiement en retard, dépannages, SAV, archive, données abîmées).
+      Elle refuse d'écrire ailleurs que sur un aperçu, sans identité Access, ou dans une base qui
+      contient de vraies données. Mise en place : <code>DEPLOIEMENT.md</code>, étape 12.
+    </p>
+
+    <div class="carte">
+      <strong>Les gardes</strong>
+      <ul class="gardes" id="gardes"><li>Vérification…</li></ul>
+      <div class="actions">
+        <button type="button" class="sec" id="btnVerifier" onclick="verifier()">Vérifier</button>
+        <button type="button" id="btnRemplir" onclick="remplir()" disabled>Remplir (ou remettre les scénarios à zéro)</button>
+        <button type="button" class="danger" id="btnVider" onclick="vider()" disabled>Vider ce que cette page a posé</button>
+      </div>
+    </div>
+
+    <div class="carte">
+      <strong>Les scénarios</strong>
+      <p class="note" style="margin:4px 0 8px;">Dates relatives au jour du remplissage. « Remplir » à nouveau remet chaque dossier
+        dans son état de départ ; les notes, tickets SAV, attentes et factures déjà posés ne sont pas recréés.
+        Ce que tu saisis à la main pendant un essai n'est jamais touché par « Vider ».</p>
+      <div class="tbl"><table id="scenarios"></table></div>
+    </div>
+
+    <div class="carte">
+      <strong>Journal</strong>
+      <pre id="journal"></pre>
+    </div>
+  </main>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script>
+    const B = window.SSBacASable, U = window.SSUI;
+    const el = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Le serveur de test local n'a AUCUNE base : la garde « la base répond » y refuse d'elle-même.
+    // Seul un banc de test qui fournit sa propre base (tests/bac-a-sable.test.html) peut aller plus loin.
+    const LOCAL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+    let PRET = false, OCCUPE = false;
+
+    function journal(t) { const j = el('journal'); j.textContent += t + '\n'; j.scrollTop = j.scrollHeight; }
+    function boutons() {
+      el('btnRemplir').disabled = !PRET || OCCUPE;
+      el('btnVider').disabled = !PRET || OCCUPE;
+      el('btnVerifier').disabled = OCCUPE;
+    }
+
+    function rendreScenarios() {
+      const jeu = B.construire();
+      const nom = (c) => [c.prenom, c.nom].filter(Boolean).join(' ');
+      el('scenarios').innerHTML = '<tr><th>Dossier</th><th class="col-client">Client</th><th>Ce qu’il doit montrer</th></tr>'
+        + jeu.devis.map((d) => '<tr><td><a href="../app/vue.html?id=' + encodeURIComponent(d.id) + '">' + esc(d.id) + '</a></td><td class="col-client">'
+          + esc(nom(d.client)) + '</td><td>' + esc(d._role) + '</td></tr>').join('')
+        + jeu.rdv.map((r) => '<tr><td><a href="../app/rdv.html?open=' + encodeURIComponent(r.id) + '">' + esc(r.id) + '</a></td><td class="col-client">'
+          + esc(nom(r.client)) + '</td><td>' + esc(r._role) + '</td></tr>').join('');
+    }
+
+    window.verifier = async function () {
+      OCCUPE = true; PRET = false; boutons();
+      el('gardes').innerHTML = '<li>Vérification…</li>';
+      const v = await B.verifier({ hoteLocalPermis: LOCAL });
+      const e = v.etat || {};
+      const lignes = [];
+      lignes.push('<li class="' + (U.hoteBacASable(e.hote) || LOCAL ? 'ok' : 'ko') + '">Hôte : <strong>' + esc(e.hote) + '</strong>'
+        + (LOCAL ? ' (poste local : il faut une base fournie par un banc de test)' : '') + '</li>');
+      if (e.devis_count != null) lignes.push('<li class="ok">La base répond</li>');
+      if ('identite' in e) lignes.push('<li class="' + (e.identite ? 'ok' : 'ko') + '">Identité Access : ' + esc(e.identite || 'aucune') + '</li>');
+      if (e.devis != null) lignes.push('<li class="' + (e.vide || e.essai || e.marque ? 'ok' : 'ko') + '">Contenu : ' + e.devis + ' devis (dont ' + e.essai + ' d’essai), '
+        + e.factures + ' factures, ' + e.clients + ' fiches, ' + e.rdv + ' demandes'
+        + (e.vide ? ' — base vide' : e.marque ? ' — base d’essai marquée' : '') + '</li>');
+      v.raisons.forEach((r) => lignes.push('<li class="ko"><span class="ko-txt">' + esc(r) + '</span></li>'));
+      el('gardes').innerHTML = lignes.join('');
+      PRET = v.ok; OCCUPE = false; boutons();
+      journal(v.ok ? 'Gardes : OK.' : 'Gardes : REFUS — ' + v.raisons.join(' | '));
+      return v;
+    };
+
+    window.remplir = async function () {
+      const v = await window.verifier();   // on revérifie juste avant d'écrire : la base a pu changer
+      if (!v.ok) return;
+      OCCUPE = true; boutons();
+      journal('— Remplissage du ' + U.aujourdhui() + ' —');
+      const b = await B.remplir(window.SS, { journal: journal });
+      journal('Fini : ' + b.crees + ' écritures, ' + b.ignores + ' déjà présentes, ' + b.erreurs.length + ' erreur(s).');
+      OCCUPE = false; boutons();
+      await window.verifier();
+      return b;
+    };
+
+    window.vider = async function () {
+      if (!confirm('Retirer tous les dossiers, demandes, sujets, congés, fiches et factures d’ESSAI posés par cette page ?\n\nCe que tu as saisi à la main reste. La fiche qui marque la base d’essai reste aussi.')) return;
+      const v = await window.verifier();
+      if (!v.ok) return;
+      OCCUPE = true; boutons();
+      journal('— Vidage —');
+      const b = await B.vider(window.SS, { journal: journal });
+      journal('Fini : ' + b.retires + ' retraits, ' + b.erreurs.length + ' erreur(s).');
+      OCCUPE = false; boutons();
+      await window.verifier();
+      return b;
+    };
+
+    rendreScenarios();
+    window.verifier();
+  </script>
+</body>
+</html>
