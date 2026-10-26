@@ -93,6 +93,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 128 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/clients.test.html` | Les 51 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger », nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
+| `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
 photos et documents dans **R2**.
@@ -2376,6 +2377,24 @@ par Nicolas). Protégé par `tests/clients.test.html`.
   écrase le champ voisin (mesuré à 7 px de large, impossible à remplir).
 - **Une règle CSS ajoutée en fin de feuille passe devant les media queries** écrites plus haut.
   Passer par une variable plutôt que réécrire une valeur responsive.
+- **LES CHAMPS À 16 px SUR ÉCRAN TACTILE N'ONT JAMAIS MARCHÉ, de juillet au 26/10/2026** — le piège
+  juste au-dessus, payé pour de vrai. `base.css` déclarait `.input { font-size: 16px }` dans son bloc
+  `@media (pointer: coarse)` en HAUT de la feuille ; la règle générale des champs, 400 lignes plus
+  bas, la redéclarait à `var(--fs-sm)` avec la même spécificité. Mesuré en émulation tactile :
+  13,76 px sur TOUS les champs de l'ERP (sauf le Mode Terrain, qui avait sa propre règle), donc
+  Safari iOS zoomait la page à chaque champ touché. Rien ne le signalait : un navigateur de bureau
+  ne déclenche jamais `pointer: coarse`.
+  La taille vit maintenant dans un jeton, **`--fs-champ`** (`tokens.css`), surchargé à 16 px dans la
+  même feuille, juste sous sa valeur par défaut. **Un composant qui retaille ses champs écrit
+  `font-size: var(--fs-champ)`, jamais `var(--fs-sm)`** — le planning, les RDV, les échanges et
+  l'édition d'une note le faisaient, et refaisaient zoomer l'iPhone sur leurs propres champs — puis
+  s'inscrit dans `COMPOSANTS` de `tests/tactile.test.html`.
+  ⚠️ 16 px, c'est 16 % de texte en plus dans des boîtes qui ne grandissent pas : sur téléphone, un
+  menu étroit se met à couper son libellé (« Journé », « Tri : récents d'abo »). Rien ne DÉBORDE,
+  donc aucune mesure de débordement ne le voit. Comparer la largeur du libellé à
+  `clientWidth − padding − 20 px` (la flèche du menu natif) — avec un canevas créé DANS la page
+  mesurée, sinon il mesure avec la police de repli et se trompe de 10 %. La flèche garde sa propre
+  marge : c'est le `padding-right` d'un menu qu'on rend au texte en premier.
 - **Sur mobile, mesurer `element.scrollWidth > element.clientWidth`**, pas seulement le débordement
   de la page : `body { overflow-x: hidden }` masque le symptôme.
 - **Les photos** partent vers R2 ; si l'envoi échoue elles restent en clair dans le devis. Ce repli
@@ -2408,6 +2427,9 @@ par Nicolas). Protégé par `tests/clients.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
+   Et dès qu'on touche à la taille d'un champ (`--fs-champ`, `.input`/`.select`/`.textarea`, un
+   composant qui retaille les siens) ou à un bloc `pointer: coarse` : `tests/tactile.test.html`,
+   exiger « 77/77 » au bureau, « 121/121 » en émulation tactile, par le serveur.
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.
    Charger la page AVEC des données dont le nom de client porte une apostrophe (« L'Hoest »), puis
    coller ceci dans la console : il compile chaque attribut `on*` réellement présent dans le DOM et
