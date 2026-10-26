@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — carte des chantiers</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la carte des chantiers</h1>
+  <p class="note">
+    La revue du 26/10/2026 a trouvé neuf défauts sur la carte (chaque devis rechargé en entier,
+    points qui bougeaient au hasard, placement à la commune, carte qui enfermait le défilement,
+    molette qui zoomait, résumé recopié, cadrage sur des points masqués, page vide sans Leaflet,
+    tuiles qui poussaient la carte) et Nicolas a choisi sept améliorations (A à G). Ces tests les
+    tiennent : d'abord le module pur <code>assets/js/carte.js</code>, puis la vraie page.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : la page est chargée dans des cadres avec des
+    données FICTIVES, un géocodage SIMULÉ (aucun appel à OpenStreetMap ni au service des codes
+    postaux) et une position simulée. Les données locales du navigateur sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/carte.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;') + '</td><td>' + String(b).replace(/</g, '&lt;') + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests carte';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    const texte = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const C = window.SSCarte;
+
+    // ══════════ P — LE MODULE PUR ══════════
+    titre('P — Le module pur (assets/js/carte.js)');
+    const BXL = { lat: 50.8467, lon: 4.3525 }, NAM = { lat: 50.4674, lon: 4.8720 };
+    const d = C.distanceKm(BXL, NAM);
+    check('P1 Bruxelles–Namur à vol d’oiseau : entre 52 et 58 km', d > 52 && d < 58, true);
+    check('P2 Une même adresse écrite autrement a la même clé (accents, casse, apostrophe, espaces)',
+      C.cleAdresse({ rue: 'Rue de l’Église', numero: '3', code_postal: '1300', ville: 'Wavre' }) === C.cleAdresse({ rue: ' rue  de l\'eglise', numero: '3 ', code_postal: '1300', ville: 'WAVRE' }), true);
+    check('P3 La phrase envoyée au géocodeur', C.requete({ rue: 'Rue Haute', numero: '3', code_postal: '1180', ville: 'Uccle' }), 'Rue Haute 3, 1180 Uccle, Belgique');
+    const E1 = { id: 'a', cle: 'x|y', nom: 'Y X', adresse: { ville: 'Wavre', code_postal: '1300' }, date: '2026-01-01', action: { txt: 'rien' }, poids: 0, realise: true };
+    const E2 = { id: 'b', cle: 'x|y', nom: 'Y X', adresse: { rue: 'Rue Neuve', ville: 'Namur', code_postal: '5000' }, date: '2026-05-01', action: { txt: 'Relance 1' }, poids: 3, prospect: true };
+    const E3 = { id: 'c', cle: 'z|w', nom: 'W Z', adresse: {}, date: '2026-06-01', action: null, poids: 0 };
+    const G = C.grouper([E1, E2, E3]);
+    check('P4 Un client à deux devis = UN point ; l’action la plus lourde, l’adresse la plus récente, et les deux drapeaux',
+      [G.length, G[0].cle, G[0].entrees.length, G[0].action.txt, G[0].adresse.ville, G[0].realise, G[0].prospect], [2, 'x|y', 2, 'Relance 1', 'Namur', true, true]);
+    const pts = () => [{ cle: 'b', pos: { lat: 50.7, lon: 4.6 } }, { cle: 'a', pos: { lat: 50.7, lon: 4.6 } }, { cle: 'c', pos: { lat: 50.8, lon: 4.6 } }];
+    const e1 = C.ecarter(pts()), e2 = C.ecarter(pts());
+    check('P5 Deux points au même endroit s’écartent, TOUJOURS de la même façon (plus de hasard), le premier reste en place',
+      [e1[1].vue.lat === e1[1].pos.lat, JSON.stringify(e1.map(p => p.vue)) === JSON.stringify(e2.map(p => p.vue)), e1.find(p => p.cle === 'b').vue.lat !== 50.7, e1[2].vue.lat], [true, true, true, 50.8]);
+    const V = [{ cle: 'loin', pos: NAM, poids: 3 }, { cle: 'pres', pos: { lat: 50.85, lon: 4.36 }, poids: 3 }, { cle: 'rien', pos: { lat: 50.848, lon: 4.353 }, poids: 0 }, { cle: 'moi', pos: BXL, poids: 3 }];
+    check('P6 Autour de : dans le rayon, du plus proche au plus loin, filtré, sans le point de départ',
+      C.autourDe(BXL, V, 10, p => p.poids > 0, 'moi').map(x => x.p.cle), ['pres']);
+    const R = [{ cle: 'p', pos: BXL }, { cle: 'r1', pos: { lat: 50.85, lon: 4.355 }, realise: true }, { cle: 'r2', pos: { lat: 50.86, lon: 4.36 }, realise: true }, { cle: 'r3', pos: NAM, realise: true }, { cle: 'n', pos: { lat: 50.847, lon: 4.353 } }];
+    check('P7 Réalisations proches : les seuls chantiers RÉALISÉS d’autres clients à moins de 2 km', C.realisationsProches(R[0], R, 2), 2);
+    const S = C.secteurs([
+      { statut: 'signe', ttc: 1000, adresse: { code_postal: '1300', ville: 'Wavre' } },
+      { statut: 'termine', ttc: 2000, adresse: { code_postal: '1300', ville: 'wavre' } },
+      { statut: 'refuse', ttc: 500, adresse: { code_postal: '1300', ville: 'Wavre' } },
+      { statut: 'relance_1', ttc: 700, adresse: { code_postal: '1300', ville: 'Wavre' } },
+      { statut: 'brouillon', ttc: 9999, adresse: { code_postal: '1300', ville: 'Wavre' } },
+      { statut: 'refuse', ttc: 900, adresse: { code_postal: '5000', ville: 'Namur' } },
+    ]);
+    check('P8 Secteurs : par commune, signés / refusés / en jeu, chiffre signé, taux — les brouillons n’y sont pas',
+      S.map(s => [s.ville, s.signes, s.refuses, s.attente, s.caSigne, s.taux]), [['Wavre', 2, 1, 1, 3000, 67], ['Namur', 0, 1, 0, 0, 0]]);
+    const TO = C.tournee([{ id: '1', date: '2026-03-02', source: 'pose' }, { id: 'x', date: '2026-03-02', source: 'indispo' }, { id: '2', date: '2026-03-02', source: 'visite' }, { id: '3', date: '2026-03-03', source: 'depannage' }]);
+    check('P9 Tournée : par jour, numérotée dans l’ordre, sans les blocages de temps', TO.map(j => [j.date, j.arrets.map(a => a.n + ':' + a.ev.id)]), [['2026-03-02', ['1:1', '2:2']], ['2026-03-03', ['1:3']]]);
+
+    // ══════════ LA PAGE ══════════
+    const ymd = (x) => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+    const AUJ = new Date(); AUJ.setHours(12, 0, 0, 0);
+    const aujIso = ymd(AUJ);
+    const plus = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
+    const LUN = plus(aujIso, -((AUJ.getDay() + 6) % 7));
+    const J = (n) => plus(LUN, n);
+    const T = (iso) => iso + 'T10:00:00.000Z';
+    const adr = (rue, numero, cp, ville) => ({ rue, numero, code_postal: cp, ville });
+    const cli = (prenom, nom, a, tel) => ({ prenom, nom, adresse: a, telephone: tel || '' });
+    const A = {
+      bw: adr('Rue Test', '1', '1300', 'Wavre'), pros: adr('Rue Prospect', '5', '1300', 'Wavre'), v2: adr('Rue Voisin', '2', '1300', 'Wavre'),
+      v9: adr('Rue Voisin', '9', '1300', 'Wavre'), vieille: adr('Rue Vieille', '3', '1300', 'Wavre'), genval: adr('Rue du Lac', '2', '1332', 'Genval'),
+      ott: adr('Rue de la Gare', '4', '1340', 'Ottignies'), rix: adr('Rue Haute', '8', '1330', 'Rixensart'), basse: adr('Rue Basse', '1', '1330', 'Rixensart'),
+      limal: adr('Rue du Moulin', '7', '1300', 'Limal'), namur: adr('Rue du Refus', '1', '5000', 'Namur'),
+    };
+    const DEVIS = [
+      { id: 'P-BW', client: cli('Bernadette', 'Windey', A.bw, '0470 11 22 33'), statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: J(5), equipe: 'nicolas_yannick', duree_h: 4 }, items_min: [{ type: 'screen', quantite: 2 }], date_creation: T(plus(aujIso, -40)), date_modification: T(plus(aujIso, -9)), seller_principal: 'nicolas' },
+      { id: 'P-AUJ', client: cli('Hugo', 'Aujourdhui', A.rix), statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: aujIso, equipe: 'yannick', duree_h: 3 }, items_min: [{ type: 'volet_roulant', quantite: 2 }], date_creation: T(plus(aujIso, -40)), date_modification: T(plus(aujIso, -9)), seller_principal: 'yannick' },
+      { id: 'Z-PROS', client: cli('Pierre', 'Prospect', A.pros, '0471 22 33 44'), statut: 'envoye_client', date_envoi: plus(aujIso, -10), statut_history: [{ statut: 'envoye_client', date: T(plus(aujIso, -10)) }], items_min: [{ type: 'screen', quantite: 3 }], date_creation: T(plus(aujIso, -12)), date_modification: T(plus(aujIso, -10)), seller_principal: 'nicolas' },
+      { id: 'T-1', client: cli('Paul', "L'Hoest", A.v2), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -60), pv: { signe: true } }, items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -120)), date_modification: T(plus(aujIso, -50)), seller_principal: 'nicolas' },
+      { id: 'T-1B', client: cli('Paul', "L'Hoest", A.v2), statut: 'envoye_client', date_envoi: plus(aujIso, -2), statut_history: [{ statut: 'envoye_client', date: T(plus(aujIso, -2)) }], items_min: [{ type: 'tente_solaire', quantite: 2 }], date_creation: T(plus(aujIso, -3)), date_modification: T(plus(aujIso, -2)), seller_principal: 'nicolas' },
+      { id: 'T-2', client: cli('Marie', 'Voisine', A.v9), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -90) }, items_min: [{ type: 'screen', quantite: 2 }], date_creation: T(plus(aujIso, -150)), date_modification: T(plus(aujIso, -80)), seller_principal: 'yannick' },
+      { id: 'T-ARCH', client: cli('Jean', 'Ancien', A.vieille), statut: 'termine', archive: true, commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -400) }, items_min: [{ type: 'screen', quantite: 4 }], date_creation: T(plus(aujIso, -420)), date_modification: T(plus(aujIso, -390)), seller_principal: 'nicolas' },
+      { id: 'D-DEP', type_document: 'depannage', depannage_mode: 'a_realiser', client: cli('Marc', 'Panne', A.ott), statut: 'signe', depannage_plan: { date_intervention: J(2), heure: '14:00', duree_h: 2, techniciens: ['Yannick'], motif: 'Moteur bloqué' }, date_creation: T(plus(aujIso, -5)), date_modification: T(plus(aujIso, -5)) },
+      { id: 'S-SAV', client: cli('Sophie', 'Garantie', A.limal), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -200) }, sav_tickets: [{ id: 't1', statut: 'ouvert', pour: '', date_creation: T(plus(aujIso, -3)), description: 'Toile qui frotte' }], items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -230)), date_modification: T(plus(aujIso, -3)), seller_principal: 'nicolas' },
+      { id: 'Z-REF', client: cli('Rémi', 'Refus', A.namur), statut: 'refuse', items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -60)), date_modification: T(plus(aujIso, -40)), calculs: { total_ttc: 900 }, seller_principal: 'nicolas' },
+      { id: 'Z-SANS', client: cli('Sans', 'Adresse', {}), statut: 'envoye_client', date_envoi: plus(aujIso, -1), items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -2)), date_modification: T(plus(aujIso, -1)), seller_principal: 'nicolas' },
+      { id: 'Z-BROU', client: cli('Brouillon', 'Pasla', A.genval), statut: 'brouillon', date_creation: T(plus(aujIso, -1)), date_modification: T(plus(aujIso, -1)) },
+    ];
+    const RDV = [
+      { id: 'R-1', statut: 'rdv_fixe', date_rdv: J(1) + 'T10:00', assigned_to: 'yannick', client: cli('Marie', 'Visite', A.genval, '0472 00 00 00'), projet: 'Screens véranda' },
+      { id: 'R-2', statut: 'nouveau', client: cli('Jean', 'Demande', A.basse), projet: 'Volets' },
+    ];
+    const REG = { planning: { heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
+      trame: { nicolas: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'journee', dim: 'non' },
+               yannick: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'journee', dim: 'non' } } } };
+    // Géocodage SIMULÉ. Les communes : par code postal. Les adresses : la plupart déjà mémorisées
+    // sur l'appareil (cache), deux restent à placer — une trouvée, une introuvable.
+    const COMMUNES = { '1300': [50.7170, 4.6010], '1332': [50.7250, 4.5130], '1340': [50.6680, 4.5650], '1330': [50.7120, 4.5310], '5000': [50.4674, 4.8720] };
+    const EXACT = { bw: [50.7180, 4.6050], pros: [50.7160, 4.6100], v2: [50.7200, 4.6000], v9: [50.7140, 4.6150], vieille: [50.7100, 4.5950],
+      genval: [50.7220, 4.5150], ott: [50.6650, 4.5690], rix: [50.7110, 4.5320], namur: [50.4660, 4.8670] };
+    const NOMINATIM = { basse: [50.7130, 4.5400], limal: null };
+    const geoCache = () => { const g = {}; Object.keys(EXACT).forEach(k => { g['a:' + C.cleAdresse(A[k])] = { lat: EXACT[k][0], lon: EXACT[k][1], p: 'adresse', t: aujIso }; }); return g; };
+
+    const CLES = ['ss_devis_cache', 'ss_rdv_cache', 'ss_dispos_cache', 'ss_reglages', 'ss_factures_cache', 'ss_geo_adresses', 'ss_carte_mode', 'ss_outbox'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer(avecCache) {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV));
+      localStorage.setItem('ss_dispos_cache', '[]');
+      localStorage.setItem('ss_reglages', JSON.stringify(REG));
+      localStorage.setItem('ss_factures_cache', '[]');
+      localStorage.removeItem('ss_carte_mode');
+      if (avecCache) localStorage.setItem('ss_geo_adresses', JSON.stringify(geoCache())); else localStorage.removeItem('ss_geo_adresses');
+    }
+    function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+
+    async function ouvrir(largeur, hauteur) {
+      const f = document.createElement('iframe');
+      f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+      f.src = '../app/carte.html?t=' + Date.now();
+      document.body.appendChild(f);
+      const S = { nominatim: [], getDevis: 0, communes: 0 };
+      const t0 = Date.now();
+      // Le géocodage et la position sont SIMULÉS avant le premier chargement des données.
+      while (Date.now() - t0 < 8000) {
+        const w = f.contentWindow;
+        if (w && w.SSCarte && w.SSUI && w.SS && !w.__simule) {
+          w.SSCarte.nominatim = async (q) => { S.nominatim.push({ q, t: Date.now() }); const k = Object.keys(NOMINATIM).find(x => C.requete(A[x]) === q); const r = k ? NOMINATIM[k] : null; return r ? { lat: r[0], lon: r[1] } : null; };
+          w.SSUI.geocodeVille = async (ville, cp) => { S.communes++; const c = COMMUNES[String(cp)]; return c ? { latitude: c[0], longitude: c[1] } : null; };
+          w.SSCarte.localiser = async () => ({ lat: 50.7125, lon: 4.5350 });
+          const vrai = w.SS.getDevis; w.SS.getDevis = async (id) => { S.getDevis++; return vrai(id); };
+          w.__simule = 1; break;
+        }
+        await attendre(1);
+      }
+      await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
+      const w = f.contentWindow;
+      while (Date.now() - t0 < 10000) { try { if (w.eval('POINTS.length') > 0) break; } catch (e) {} await attendre(50); }
+      await attendre(300);
+      return { f, w, d: w.document, S };
+    }
+
+    (async function () {
+      try {
+        semer(true);
+        titre('L — Le chargement ne recharge plus chaque devis');
+        let { f, w, d, S } = await ouvrir(1500, 900);
+        check('L1 Aucun devis rechargé en entier (la liste suffit) — l’ancienne carte les rechargeait tous, photos comprises', S.getDevis, 0);
+        check('L2 Le résumé tient en une ligne (plus de tuiles)', [!!d.querySelector('.cf-resume'), d.querySelectorAll('.kpi').length], [true, 0]);
+
+        titre('A — La tournée de la semaine (vue par défaut)');
+        const segActif = () => texte(d.querySelector('.cf-seg button.active'));
+        check('A1 La carte s’ouvre sur la tournée, sur AUJOURD’HUI puisqu’il y a une pose aujourd’hui', [segActif(), texte(d.querySelector('.cf-jours button.on'))], ['Tournée', texte([...d.querySelectorAll('.cf-jours button')].find(b => b.getAttribute('onclick').indexOf(aujIso) >= 0))]);
+        check('A2 Aujourd’hui : la pose d’Hugo, numérotée 1', [...d.querySelectorAll('.cm-num')].map(texte), ['1']);
+        w.setJour('');
+        await attendre(100);
+        const nums = [...d.querySelectorAll('.cm-num')].map(texte);
+        check('A3 Toute la semaine : quatre arrêts, chacun préfixé de son jour (les numéros recommencent chaque jour)',
+          [nums.length, nums.every(t => /^[a-zé]{2}\d$/.test(t))], [4, true]);
+        const jh = [...d.querySelectorAll('#panneau .cf-jh')];
+        check('A4 Le panneau range la tournée par jour, chaque jour avec son itinéraire', [jh.length, jh.every(j => !!j.querySelector('a[href*="maps/dir"]'))], [4, true]);
+        w.choisirEv('pose:P-BW'); await attendre(100);
+        const autourBW = [...d.querySelectorAll('#panneau .cf-li .nm b')].map(texte);
+        check('C1 Un arrêt choisi : « Autour de ce rendez-vous » — les clients à moins de 10 km qui attendent quelque chose',
+          [/Autour de ce rendez-vous/.test(texte(d.getElementById('panneau'))), autourBW.indexOf('Pierre Prospect') >= 0, autourBW.indexOf('Sophie Garantie') >= 0, autourBW.indexOf('Marie Voisine') >= 0],
+          [true, true, true, false]);
+
+        titre('B — La couleur dit l’action à faire (la règle du tableau de bord)');
+        w.setMode('afaire'); await attendre(150);
+        const ACT = w.eval('ACT'), N = w.eval('DEVIS').map(w.SSUI.normDevis);
+        const couleurDe = (id) => { const n = N.find(x => x.id === id); const a = ACT.prochaineAction(n); return a ? a.color : null; };
+        const pts = () => [...d.querySelectorAll('.cm-pt')].map(n => n.style.getPropertyValue('--c'));
+        const mk = (nom) => [...w.eval('POINTS')].find(p => p.nom === nom);
+        check('B1 Le point de Pierre Prospect a la couleur de SA prochaine action (SSActions, comme le tableau de bord)', mk('Pierre Prospect').action.color, couleurDe('Z-PROS'));
+        check('B2 « À faire » : seulement ce qui attend quelque chose — et le refusé de Namur n’y est pas', [pts().length, w.eval('POINTS').filter(p => p.poids > 0).filter(p => p.pos).length, w.eval('POINTS').some(p => p.nom === 'Rémi Refus')], [pts().length, pts().length, false]);
+        check('B3 Un client à DEUX devis = UN point (Paul L’Hoest : un chantier fini et un devis envoyé)',
+          [w.eval('POINTS').filter(p => p.nom === "Paul L'Hoest").length, mk("Paul L'Hoest").entrees.length], [1, 2]);
+        check('B4 Un ticket SAV ouvert est une chose à faire sur place', mk('Sophie Garantie').action.txt, 'Ticket SAV sans responsable');
+        check('B5 Une demande de visite pas encore fixée aussi', [mk('Jean Demande').action.txt, mk('Jean Demande').href], ['Visite à fixer', 'rdv.html?open=R-2']);
+        check('B6 Le résumé d’un dossier vient de la règle commune (SSUI.resumeDevis) — plus de « Tente solaires »',
+          mk("Paul L'Hoest").entrees.map(e => e.resume).sort(), [w.SSUI.resumeDevis(DEVIS.find(x => x.id === 'T-1')), w.SSUI.resumeDevis(DEVIS.find(x => x.id === 'T-1B'))].sort());
+
+        titre('C / F — Un client choisi : ses dossiers, l’argument de vente, ce qui attend autour');
+        w.choisir('prospect|pierre'); await attendre(120);
+        const pan = d.getElementById('panneau');
+        check('F1 Un prospect : « 4 chantiers réalisés à moins de 2 km » (un archivé et un placé à la commune compris) et la phrase à dire — jamais de noms',
+          [/4 chantiers réalisés/.test(texte(pan.querySelector('.cf-arg'))), /Nous avons déjà équipé 4 maisons près de chez vous/.test(texte(pan.querySelector('.cf-arg'))), /Voisine|Ancien|L'Hoest/.test(texte(pan.querySelector('.cf-arg')))], [true, true, false]);
+        check('C2 « Autour de Pierre Prospect » ne le liste pas lui-même, et donne les distances',
+          [[...pan.querySelectorAll('.cf-li .nm b')].map(texte).indexOf('Pierre Prospect'), [...pan.querySelectorAll('.cf-li .km')].length > 0], [-1, true]);
+        check('C3 Appeler et Y aller depuis la fiche', [!!pan.querySelector('a[href="tel:0471223344"]'), !!pan.querySelector('a[href*="maps/dir"]')], [true, true]);
+
+        titre('D — L’adresse exacte, mémorisée sur l’appareil');
+        const t1 = Date.now();
+        while (Date.now() - t1 < 5000 && w.eval('FILE.length') + (w.eval('FILE_ACTIVE') ? 1 : 0) > 0) await attendre(100);
+        await attendre(900);
+        check('D1 Seules les deux adresses inconnues partent au géocodeur (les autres sont en mémoire)', S.nominatim.map(x => x.q).sort(), [C.requete(A.basse), C.requete(A.limal)].sort());
+        check('D2 Une requête par seconde au plus (règle d’usage d’OpenStreetMap)', S.nominatim.length === 2 && S.nominatim[1].t - S.nominatim[0].t >= 1000, true);
+        const geo = JSON.parse(w.localStorage.getItem('ss_geo_adresses'));
+        check('D3 La réponse est mémorisée, l’adresse introuvable aussi (pas redemandée avant 30 jours)',
+          [geo['a:' + C.cleAdresse(A.basse)].p, geo['a:' + C.cleAdresse(A.limal)].p], ['adresse', 'introuvable']);
+        check('D4 Placée à la rue : point plein ; introuvable : à la commune, bord en pointillés',
+          [mk('Jean Demande').pos.precis, mk('Sophie Garantie').pos.precis], [true, false]);
+        f.remove();
+        ({ f, w, d, S } = await ouvrir(1500, 900));
+        await attendre(1500);
+        check('D5 Au chargement suivant, plus AUCUNE requête : tout vient de la mémoire de l’appareil', S.nominatim.length, 0);
+        check('D6 Les points ne bougent plus d’un chargement à l’autre (fini le décalage au hasard)',
+          JSON.stringify(w.eval('POINTS').map(p => p.vue)), JSON.stringify(w.eval('POINTS').map(p => p.vue)));
+
+        titre('E — Autour de moi');
+        await w.autourDeMoi(); await attendre(150);
+        const pm = d.getElementById('panneau');
+        const kms = [...pm.querySelectorAll('.cf-li .km')].map(n => parseFloat(texte(n).replace('< 1', '0')));
+        check('E1 Ma position (simulée à Rixensart) : la liste des plus proches, triée, et un point « vous êtes ici »',
+          [/Autour de moi/.test(texte(pm)), kms.length > 0, kms.every((k, i) => !i || k >= kms[i - 1]), !!d.querySelector('.cm-moi')], [true, true, true, true]);
+        check('E2 …et la page dit que la position ne sort pas de l’appareil', /ni enregistrée ni envoyée/.test(texte(pm)), true);
+        w.fermerMoi();
+
+        titre('G — Les secteurs');
+        w.setMode('secteurs'); await attendre(150);
+        const lignes = [...d.querySelectorAll('.cf-tab tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(texte));
+        check('G1 Par commune, tout l’historique (archives comprises) : Wavre en tête, 4 signés (dont l’archivé)', lignes[0].slice(0, 5), ['Wavre', '4', '0', '2', '100 %']);
+        check('G2 Namur : un refus, 0 %', (lignes.find(l => l[0] === 'Namur') || []).slice(1, 5), ['0', '1', '0', '0 %']);
+        check('G3 Les cercles sont colorés par taux de signature', [d.querySelectorAll('path.cm-sect.haut').length > 0, d.querySelectorAll('path.cm-sect.bas').length > 0], [true, true]);
+
+        titre('N — Ce qui ne peut pas se placer se DIT');
+        w.setMode('tous'); await attendre(150);
+        check('N1 Le devis sans adresse est listé « non localisé », avec le chemin pour corriger', [/Sans Adresse/.test(texte(d.getElementById('warnHost'))), !!d.querySelector('#warnHost a[href="vue.html?id=Z-SANS"]')], [true, true]);
+        check('N2 Le brouillon n’est nulle part sur la carte', w.eval('POINTS').some(p => p.nom === 'Brouillon Pasla'), false);
+        check('N3 « Tous » masque les refusés ; la case les montre', [w.eval('POINTS').some(p => p.nom === 'Rémi Refus'), (w.setPerdus(true), w.eval('POINTS').some(p => p.nom === 'Rémi Refus'))], [false, true]);
+        w.setPerdus(false);
+
+        titre('M — La carte n’enferme plus le défilement');
+        // Un cadre hors écran ne termine jamais l'animation de zoom de Leaflet : on la coupe, sinon un
+        // zoom par la molette resterait invisible et M1 passerait à tort (vérifié par mutation).
+        w.eval('map._zoomAnimated = false');
+        const z0 = w.eval('map.getZoom()');
+        d.getElementById('map').dispatchEvent(new w.WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true, clientX: 300, clientY: 300 }));
+        await attendre(250);
+        check('M1 La molette seule ne zoome PAS la carte (la page défile) — un mot explique Ctrl + molette',
+          [w.eval('map.getZoom()'), d.getElementById('cfIndice').classList.contains('on'), texte(d.getElementById('cfIndice'))], [z0, true, 'Ctrl + molette pour zoomer la carte']);
+        const ev = new w.WheelEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true, clientX: 300, clientY: 300 });
+        d.getElementById('map').dispatchEvent(ev);
+        await attendre(400);
+        check('M2 Ctrl + molette zoome, et n’agrandit pas la page', [w.eval('map.getZoom()'), ev.defaultPrevented], [z0 + 1, true]);
+        const casses = [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2)
+          .map(a => { try { new Function(a.value); return null; } catch (err) { return e.tagName + ':' + err.message; } }).filter(Boolean));
+        check('M3 Tous les gestionnaires compilent (client « L’Hoest »)', casses, []);
+        f.remove();
+
+        titre('T — Téléphone (390 × 800)');
+        ({ f, w, d, S } = await ouvrir(390, 800));
+        const carte = d.getElementById('map').getBoundingClientRect(), panR = d.getElementById('panneau').getBoundingClientRect();
+        check('T1 La carte commence dans le premier écran et laisse voir la page autour (au plus 52 % de la hauteur)',
+          [carte.top < 400, carte.height <= 800 * 0.52 + 1], [true, true]);
+        check('T2 Le panneau passe SOUS la carte, pleine largeur ; rien ne déborde à l’horizontale',
+          [panR.top >= carte.bottom, d.documentElement.scrollWidth <= d.documentElement.clientWidth], [true, true]);
+        f.remove();
+      } catch (e) {
+        check('Exécution sans exception', String(e && e.stack || e), 'aucune');
+      } finally {
+        remettre();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>
