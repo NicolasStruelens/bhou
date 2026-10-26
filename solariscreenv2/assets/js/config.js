@@ -71,6 +71,17 @@
       mantra: true,              // pensée du jour dans le bandeau
       meteo: true,               // météo chez le client
     },
+    // ── E-MAILS ENVOYÉS PAR L'ERP (SMTP2GO, règle 43) ────────────────────────────────────────
+    // ⚠️ VIDES PAR DÉFAUT, et c'est voulu : ce sont des DÉCISIONS (qui envoie, où arrivent les
+    // réponses), pas des préférences. Une adresse proposée ici partirait chez les clients sans que
+    // personne l'ait choisie. Paramètres les PROPOSE en grisé ; tant que l'expédition est vide, le
+    // serveur répond « pas branché » et les boutons restent « En construction ».
+    // ⚠️ Et elles doivent exister ICI pour être enregistrables : `fusionner` est une liste blanche.
+    mail: {
+      expediteur: '',     // adresse qui envoie, sur un domaine vérifié chez SMTP2GO
+      reponse: '',        // où arrivent les réponses (Reply-To) ; vide = l'adresse qui envoie
+      nom: 'vendeur',     // nom affiché : 'vendeur' (« Nicolas | SolariScreen ») | 'societe'
+    },
     // ── PLANNING ──────────────────────────────────────────────────────────────────────────────
     // La TRAME décrit une semaine ORDINAIRE : ce que chacun peut prendre, en temps normal.
     // On ne saisit jamais ses créneaux libres — un planning qu'il faut nourrir chaque semaine est

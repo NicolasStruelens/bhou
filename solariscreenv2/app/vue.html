@@ -662,6 +662,18 @@
     .rl-lien { background: none; border: 0; padding: 0; font: inherit; color: var(--accent);
       text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
     .rl-lien:hover, .rl-lien:focus-visible { color: var(--accent-ink, var(--accent)); }
+    /* L'ENVOI DIRECT (règle 43). EN CONSTRUCTION, il garde un cadre en pointillés et un bouton
+       grisé : on voit ce qui arrive sans pouvoir le prendre pour un bouton cassé. Branché, le
+       cadre tombe — un seul niveau d'encadré dans cette fenêtre (règle 38 bis). */
+    .rl-direct { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .rl-direct-l { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+    .rl-direct-b { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+    .rl-direct-b .rl-hint { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+    .rl-direct.en-construction { padding: var(--sp-3); border: 1px dashed var(--border-strong); border-radius: var(--r-md); }
+    .rl-chantier { font-family: var(--font-mono); font-size: var(--fs-3xs); letter-spacing: .06em; text-transform: uppercase;
+      padding: 0 6px; line-height: 1.8; border-radius: var(--r-sm); color: var(--warn);
+      border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); }
+    .rl-chantier[hidden] { display: none; }
 
     /* LE PIED : le réglage dont tout dépend, mais qu'on touche une fois. */
     .rl-pied { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
@@ -1110,7 +1122,19 @@
               <option value="libre">Message libre</option>
             </select>
           </div>
+          <!-- L'OBJET sert aux deux envois par e-mail (« Email » et l'envoi direct). Il était écrit en
+               dur dans le lien mailto : on ne pouvait pas le changer, et l'envoi direct en a besoin. -->
+          <div class="field"><label class="label" for="relanceObjet">Objet (e-mail)</label><input class="input" id="relanceObjet" maxlength="200" autocomplete="off"></div>
           <div class="field"><label class="label" for="relanceText">Message (modifiable)</label><textarea class="textarea" id="relanceText" style="min-height:140px;"></textarea></div>
+          <!-- ENVOI DIRECT DEPUIS L'ERP (règle 43) : construit avant d'être branché. Il s'allume tout
+               seul le jour où /api/mail/etat répond « prêt » (clé SMTP2GO + adresse d'expédition). -->
+          <div class="rl-direct en-construction" id="relanceDirect">
+            <div class="rl-direct-l"><span class="rl-k">Envoyer depuis l’ERP</span><span class="rl-chantier" id="relanceDirectBadge">En construction</span></div>
+            <div class="rl-direct-b">
+              <button type="button" class="btn btn-primary btn-sm" id="btnRelanceDirect" disabled onclick="envoyerRelanceDirecte()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg> Envoyer le mail</button>
+              <span class="rl-hint" id="relanceDirectAide">Vérification de l’envoi…</span>
+            </div>
+          </div>
           <!-- ⚠️ LES QUATRE CANAUX SONT UN GROUPE, et le cinquième bouton n'en faisait pas partie :
                aligné avec eux, il laissait croire à un cinquième moyen d'envoi. Les quatre
                ENREGISTRENT déjà la relance ; celui-là sert quand on a relancé AUTREMENT (au
@@ -2770,7 +2794,7 @@
       };
       el('btnRelanceEmail').onclick = () => {
         if (!cl.email) { toast("Pas d'email pour ce client", 'warn'); return; }
-        location.href = 'mailto:' + mailtoList(cl.email) + '?subject=' + encodeURIComponent('SolariScreen — devis ' + DEVIS.id) + '&body=' + encodeURIComponent(getText());
+        location.href = 'mailto:' + mailtoList(cl.email) + '?subject=' + encodeURIComponent(objetRelance()) + '&body=' + encodeURIComponent(getText());
         autoMark();
       };
       el('btnRelanceSms').onclick = () => {
@@ -2784,6 +2808,93 @@
         autoMark();
       };
     }
+    function objetRelance() {
+      const v = el('relanceObjet') ? el('relanceObjet').value.trim() : '';
+      return v || ('SolariScreen — devis ' + DEVIS.id);
+    }
+
+    /* ── ENVOI DIRECT DEPUIS L'ERP (SMTP2GO, règle 43) ──────────────────────────────────────────
+       Construit le 26/10/2026 AVANT d'être branché, à la demande de Nicolas : le bouton est là,
+       grisé et marqué « En construction », et il s'allume tout seul le jour où le serveur répond
+       « prêt ». L'état est redemandé à CHAQUE ouverture : une fois la clé posée, pas besoin de
+       recharger la page pour s'en servir.
+       Envoyer = les mêmes conséquences que les quatre autres canaux (la relance est notée, la
+       mise en attente levée), PLUS l'archive dans la fiche client — faite par le serveur, dans la
+       même requête que l'envoi. */
+    let ETAT_MAIL = null;
+    async function chargerEtatMail() {
+      ETAT_MAIL = await SS.mailEtat();
+      renderRelanceDirect();
+    }
+    const MANQUE_MAIL = {
+      cle: 'la clé SMTP2GO (secrets Cloudflare)',
+      expediteur: 'l’adresse d’expédition (Paramètres → E-mails)',
+      reseau: 'la connexion (état inconnu hors ligne)',
+    };
+    function renderRelanceDirect() {
+      const bloc = el('relanceDirect'), btn = el('btnRelanceDirect'), aide = el('relanceDirectAide');
+      if (!bloc || !btn || !aide || !DEVIS) return;
+      const e = ETAT_MAIL, pret = !!(e && e.pret);
+      const a = mailtoList((DEVIS.client || {}).email);
+      bloc.classList.toggle('en-construction', !pret);
+      el('relanceDirectBadge').hidden = pret;
+      if (btn.dataset.envoi) return;   // un envoi est en cours : on ne réactive rien sous les doigts
+      btn.disabled = !(pret && a);
+      if (!e) { aide.textContent = 'Vérification de l’envoi…'; return; }
+      if (!pret) {
+        aide.textContent = 'Bientôt : l’ERP enverra ce message lui-même, l’archivera dans la fiche client et notera la relance. Il manque encore '
+          + (e.manque || []).map(m => MANQUE_MAIL[m] || m).join(' et ') + '. En attendant : Copier ou Email, ci-dessous.';
+        return;
+      }
+      if (!a) { aide.textContent = 'Pas d’adresse e-mail sur ce devis — ajoute-la sur la fiche client.'; return; }
+      const n = ({ r1: 1, r2: 2, r3: 3 })[el('relanceType').value];
+      aide.textContent = 'À ' + a.split(',').join(', ') + ' — archivé dans la fiche client' + (n ? ', relance ' + n + ' notée.' : '.');
+    }
+    window.envoyerRelanceDirecte = async () => {
+      const btn = el('btnRelanceDirect');
+      if (!ETAT_MAIL || !ETAT_MAIL.pret || btn.dataset.envoi) return;
+      const cl = DEVIS.client || {};
+      const a = mailtoList(cl.email);
+      const objet = el('relanceObjet').value.trim();
+      const texte = el('relanceText').value.trim();
+      if (!a) { toast('Pas d’email pour ce client', 'warn'); return; }
+      if (!objet) { toast('Écris un objet avant d’envoyer.', 'warn'); el('relanceObjet').focus(); return; }
+      if (!texte) { toast('Le message est vide.', 'warn'); el('relanceText').focus(); return; }
+      // Un mail au client ne se rattrape pas : on dit à qui il part avant qu'il parte.
+      if (!confirm('Envoyer ce mail à ' + a.split(',').join(', ') + ' ?\n\nObjet : ' + objet + '\n\nIl part tout de suite, au nom de SolariScreen.')) return;
+      btn.dataset.envoi = '1'; btn.disabled = true;
+      const libelle = btn.innerHTML;
+      btn.textContent = 'Envoi…';
+      try {
+        // La fiche CRM doit exister pour RECEVOIR l'archive (écriture ciblée sur sa ligne).
+        if (!CLIENT_FICHE) await window.createClientFiche();
+        const key = clientKeyOf(cl.prenom, cl.nom);
+        const res = await SS.envoyerMail({ a, objet, texte, devis_id: DEVIS.id, client_key: key });
+        if (!res || res.ok === false) {
+          // « Pas branché » entre deux ouvertures (clé retirée) : l'écran le reflète tout de suite.
+          if (res && res.code === 'pas_branche') ETAT_MAIL = { ok: true, pret: false, manque: res.manque || [] };
+          toast((res && res.error) || 'Le mail n’est PAS parti.', 'error', 9000);
+          return;
+        }
+        if (res.archive && res.mail && CLIENT_FICHE) {
+          CLIENT_FICHE.mails = (CLIENT_FICHE.mails || []).concat([res.mail]);
+          renderMailsCard();
+        }
+        SS.logActivity && SS.logActivity({ action: 'client.mail', entity_type: 'client', entity_id: key, label: `Mail envoyé depuis l’ERP — devis #${DEVIS.id} · ${objet}` });
+        toast(res.archive ? 'Mail envoyé ✓ — archivé dans la fiche client'
+          : 'Mail envoyé ✓ — mais PAS archivé dans la fiche client : archive-le à la main (Copier, puis la fiche client).',
+          res.archive ? 'ok' : 'warn', 8000);
+        // Deux adresses sur la fiche, une refusée : le mail est parti, mais pas chez tout le monde.
+        if (res.refuses && res.refuses.length) toast('Adresse refusée par le serveur d’envoi : ' + res.refuses.join(' · ') + ' — vérifie-la sur la fiche client.', 'warn', 10000);
+        // Mêmes conséquences que les quatre autres canaux : relance notée, attente levée.
+        await window.markRelanceSent({ auto: true });
+      } finally {
+        delete btn.dataset.envoi;
+        btn.innerHTML = libelle;
+        renderRelanceDirect();
+      }
+    };
+
     // Complète la cadence jusqu'à la n-ième relance SANS réécrire celles déjà enregistrées : leur date
     // réelle est une information de suivi (« relancé le 12 »), on ne la remplace jamais par aujourd'hui.
     function relancesUpTo(d, n, by) {
@@ -3215,6 +3326,7 @@
         btn.disabled = st.epuise;
       }
       updateRelanceLinks();
+      renderRelanceDirect();
     };
     // Le LIEN DANS L'AUTRE SENS : ce qui a ete demande ou decide sur ce dossier se lit ICI.
     // Sans ca, la decision existait mais restait introuvable depuis le dossier qu'elle concerne.
@@ -3262,7 +3374,9 @@
       if (msg) delete msg.dataset.ouvert;
       renderRelanceSuivi();
       window.fillRelanceText();
+      el('relanceObjet').value = 'SolariScreen — devis ' + DEVIS.id;
       el('relanceModal').classList.add('open');
+      chargerEtatMail();
     };
     window.closeRelance = () => el('relanceModal').classList.remove('open');
     // Ne ferme que si le geste a COMMENCÉ sur le fond : sélectionner du texte dans un champ et

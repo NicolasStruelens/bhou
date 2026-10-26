@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — e-mails envoyés par l'ERP</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests des e-mails envoyés par l'ERP (règle 43)</h1>
+  <p class="note">
+    L'envoi direct des relances (SMTP2GO) a été construit AVANT d'être branché : la route serveur,
+    la fenêtre de relance de la fiche devis et la section « E-mails » des Paramètres. Ces tests
+    vérifient les deux états — « en construction » (rien ne peut partir) et « branché » — avec le
+    VRAI fichier du serveur et un FAUX SMTP2GO : <strong>aucun mail réel n'est envoyé</strong>.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : les vraies pages sont chargées dans des
+    cadres avec des données FICTIVES, les écritures sont interceptées, et les données locales du
+    navigateur sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;') + '</td><td>' + String(b).replace(/</g, '&lt;') + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendre() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests e-mails';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    function cadre(url, largeur, hauteur) {
+      return new Promise(function (resolve) {
+        const f = document.createElement('iframe');
+        f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+        f.onload = function () { resolve(f); };
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const texte = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+
+    // ── Données d'essai FICTIVES ── (l'apostrophe de « L'Hoest » éprouve les gestionnaires générés)
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const adr = { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' };
+    const DEVIS = [
+      { id: 'M-ENV', client: { prenom: 'Lise', nom: "L'Hoest", email: 'lise@exemple.be', telephone: '0470 12 34 56', adresse: adr },
+        statut: 'envoye_client', date_creation: T(-8), date_modification: T(-8), date_envoi: J(-8),
+        statut_history: [{ statut: 'envoye_client', date: T(-8) }], seller_principal: 'nicolas',
+        items: [{ _id: 'i1', type: 'screen', modele: 'SC 90', largeur: 1200, hauteur: 1500, quantite: 1, prix: 900 }],
+        calculs: { total_ttc: 1500 } },
+      { id: 'M-SANS', client: { prenom: 'Paul', nom: 'Sansmail', email: '', telephone: '0470 99 99 99', adresse: adr },
+        statut: 'envoye_client', date_creation: T(-8), date_modification: T(-8), date_envoi: J(-8),
+        statut_history: [{ statut: 'envoye_client', date: T(-8) }], seller_principal: 'nicolas',
+        items: [{ _id: 'i2', type: 'screen', modele: 'SC 90', largeur: 1200, hauteur: 1500, quantite: 1, prix: 900 }],
+        calculs: { total_ttc: 1500 } },
+    ];
+    const CLIENTS = [{ key: "l'hoest|lise", prenom: 'Lise', nom: "L'Hoest", email: 'lise@exemple.be', tags: [], notes: '', mails: [] }];
+    const CLES = ['ss_devis_cache', 'ss_clients_cache', 'ss_factures_cache', 'ss_outbox', 'ss_reglages'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_clients_cache', JSON.stringify(CLIENTS));
+      localStorage.setItem('ss_factures_cache', '[]');
+      localStorage.removeItem('ss_reglages');
+    }
+    function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+
+    async function ouvrirDevis(id, largeur, hauteur) {
+      const f = await cadre('../app/vue.html?id=' + encodeURIComponent(id) + '&t=' + Date.now(), largeur, hauteur);
+      const w = f.contentWindow;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 8000) { try { if (w.eval('DEVIS && DEVIS.id') === id) break; } catch (e) {} await attendre(100); }
+      await attendre(400);
+      return f;
+    }
+    /** Les écritures de la page, interceptées : rien ne part, tout est gardé pour vérification. */
+    function brancher(w, etat) {
+      const T = { devis: [], fiches: [], envois: [], etat, reponse: null, confirme: true, lent: 0 };
+      w.SS.saveDevis = async (dv) => { T.devis.push(JSON.parse(JSON.stringify(dv))); return { ok: true }; };
+      w.SS.saveClient = async (c) => { T.fiches.push(c); return { ok: true }; };
+      w.SS.leverDevisAttente = async () => ({ ok: true, attentes: [] });
+      w.SS.logActivity = () => {};
+      w.confirm = () => T.confirme;
+      w.SS.mailEtat = async () => T.etat;
+      w.SS.envoyerMail = async (m) => {
+        T.envois.push(m);
+        if (T.lent) await attendre(T.lent);
+        return typeof T.reponse === 'function' ? T.reponse(m) : T.reponse;
+      };
+      return T;
+    }
+    const toasts = (w) => [...w.document.querySelectorAll('#toasts .toast')].map(t => [t.className.replace('toast ', ''), t.textContent]);
+    const viderToasts = (w) => w.document.querySelectorAll('#toasts .toast').forEach(t => t.remove());
+
+    (async function () {
+      try {
+        /* ══════════ S — LA ROUTE SERVEUR ══════════
+           Le VRAI fichier du backend, avec un faux SMTP2GO et une fausse base. */
+        titre('S — La route serveur : ce qu’elle exige, ce qui part chez SMTP2GO, ce qu’elle archive');
+        let src = await (await fetch('../functions/api/%5B%5Bcatchall%5D%5D.js?t=' + Date.now())).text();
+        check('S1 L’archivage à la main et l’envoi passent par la MÊME écriture ciblée (une seule façon d’écrire un mail)',
+          [/const ar = await archiverMailClient\(env, key, mail\)/.test(src), (src.match(/'\$\.mails\[#\]'/g) || []).length], [true, 1]);
+        src += '\nexport { routeMailEtat, routeMailEnvoyer, archiverMailClient, MAIL_RE };\n';
+        const S = await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+
+        const FS = { requetes: [], reponses: [] };
+        const vraiFetch = window.fetch;
+        window.fetch = async (url, o) => {
+          if (String(url).indexOf('smtp2go.com') < 0) return vraiFetch(url, o);
+          FS.requetes.push({ url: String(url), headers: o.headers, corps: JSON.parse(o.body) });
+          const r = FS.reponses.shift();
+          if (r instanceof Error) throw r;
+          return new Response(JSON.stringify(r.json), { status: r.status || 200, headers: { 'content-type': 'application/json' } });
+        };
+        const OK_SMTP = () => ({ json: { request_id: 'r1', data: { succeeded: 1, failed: 0, failures: [], email_id: 'E-123' } } });
+        function fausseBase(o) {
+          o = o || {};
+          const b = { sql: [], binds: [] };
+          b.prepare = (sql) => {
+            const q = { args: [], bind(...a) { q.args = a; return q; },
+              async run() { b.sql.push(sql); b.binds.push(q.args); return { meta: { changes: /UPDATE clients/.test(sql) ? (o.changes === undefined ? 1 : o.changes) : 1 } }; },
+              async first() {
+                b.sql.push(sql); b.binds.push(q.args);
+                if (/FROM settings/.test(sql)) return o.reglages === undefined ? null : { data: JSON.stringify(o.reglages) };
+                if (/FROM mail_journal/.test(sql)) return { n: o.envoyes || 0 };
+                if (/json_array_length/.test(sql)) return { n: 4 };
+                return null;
+              } };
+            return q;
+          };
+          return b;
+        }
+        const REG = { mail: { expediteur: 'info@solariscreen.be', reponse: 'service@solariscreen.be', nom: 'vendeur' } };
+        const envT = (o) => Object.assign({ SMTP2GO_API_KEY: 'cle-de-test', DB: fausseBase({ reglages: REG }) }, o || {});
+        const jeton = (email) => 'x.' + btoa(JSON.stringify({ email })).replace(/=+$/, '') + '.y';
+        const requete = (corps, email) => new Request('https://x/api/mail/envoyer', { method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, email ? { 'Cf-Access-Jwt-Assertion': jeton(email) } : {}),
+          body: JSON.stringify(corps) });
+        const NIC = 'nicolas.struelens@me.com', YAN = 'info@solariscreen.be';
+        const MSG = { a: 'Lise@Exemple.be', objet: 'SolariScreen — devis M-ENV', texte: 'Bonjour,\n\nPetit rappel <devis> & suite.\n\nNicolas', devis_id: 'M-ENV', client_key: "l'hoest|lise" };
+
+        let res = await S.routeMailEtat({ DB: fausseBase() });
+        check('S2 État, rien de branché : pas prêt, il manque la clé ET l’adresse d’expédition', await res.json(), { ok: true, pret: false, manque: ['cle', 'expediteur'] });
+        res = await S.routeMailEtat({ SMTP2GO_API_KEY: 'k', DB: fausseBase({ reglages: { mail: { expediteur: 'pas une adresse' } } }) });
+        check('S3 Une adresse d’expédition illisible ne compte pas comme choisie', (await res.json()).manque, ['expediteur']);
+        res = await S.routeMailEtat(envT());
+        check('S4 Clé + adresse enregistrée : prêt', (await res.json()).pret, true);
+        res = await S.routeMailEtat({ SMTP2GO_API_KEY: 'k' });
+        check('S5 L’aperçu d’une branche (aucune base) : jamais prêt — il n’a pas de réglages', (await res.json()).manque, ['expediteur']);
+
+        res = await S.routeMailEnvoyer(requete(MSG, null), envT());
+        check('S6 Sans identité Access : 403, et AUCUN appel à SMTP2GO', [res.status, FS.requetes.length], [403, 0]);
+        res = await S.routeMailEnvoyer(requete(MSG, 'inconnu@exemple.be'), envT());
+        check('S7 Une identité qui n’est ni Nicolas ni Yannick : 403', res.status, 403);
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ SMTP2GO_API_KEY: '' }));
+        let j = await res.json();
+        check('S8 Sans clé : 503 « pas branché », ce qui manque est dit, rien n’est parti', [res.status, j.code, j.manque, /Rien n’est parti/.test(j.error), FS.requetes.length], [503, 'pas_branche', ['cle'], true, 0]);
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: fausseBase({ reglages: { mail: { expediteur: '' } } }) }));
+        check('S9 Sans adresse d’expédition choisie : 503, rien n’est parti', [res.status, (await res.json()).manque, FS.requetes.length], [503, ['expediteur'], 0]);
+        for (const [cas, a, attendu] of [['aucune adresse', '', /Aucune adresse/], ['illisible', 'lise@exemple', /illisible/], ['six adresses', 'a@b.be b@b.be c@b.be d@b.be e@b.be f@b.be', /Trop de destinataires/], ['un second destinataire glissé', 'lise@exemple.be<pirate@x.be>', /illisible/]]) {
+          res = await S.routeMailEnvoyer(requete(Object.assign({}, MSG, { a }), NIC), envT());
+          j = await res.json();
+          check('S10 Destinataire refusé (' + cas + ') : 400, rien n’est parti', [res.status, attendu.test(j.error), FS.requetes.length], [400, true, 0]);
+        }
+        res = await S.routeMailEnvoyer(requete(Object.assign({}, MSG, { objet: '  ' }), NIC), envT());
+        check('S11 Objet vide : 400', res.status, 400);
+        res = await S.routeMailEnvoyer(requete(Object.assign({}, MSG, { texte: '\n ' }), NIC), envT());
+        check('S12 Message vide : 400', res.status, 400);
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: fausseBase({ reglages: REG, envoyes: 60 }) }));
+        check('S13 Plafond du jour atteint (60) : 429, rien n’est parti', [res.status, (await res.json()).code, FS.requetes.length], [429, 'plafond', 0]);
+
+        let base = fausseBase({ reglages: REG });
+        FS.reponses.push(OK_SMTP());
+        res = await S.routeMailEnvoyer(requete(Object.assign({}, MSG, { a: 'Lise@Exemple.be, lise@exemple.be; marc@exemple.be', objet: 'Objet\r\nBcc: pirate@x.be' }), NIC), envT({ DB: base }));
+        j = await res.json();
+        const R = FS.requetes[0], P = R.corps;
+        check('S14 Un envoi part vers l’API SMTP2GO, clé dans l’en-tête (jamais dans le corps)',
+          [R.url, R.headers['X-Smtp2go-Api-Key'], 'api_key' in P], ['https://api.smtp2go.com/v3/email/send', 'cle-de-test', false]);
+        check('S15 Expéditeur choisi par le SERVEUR, au nom de celui qui envoie ; réponses vers Zoho (Reply-To)',
+          [P.sender, P.custom_headers], ['Nicolas | SolariScreen <info@solariscreen.be>', [{ header: 'Reply-To', value: 'service@solariscreen.be' }]]);
+        check('S16 Destinataires : en minuscules, sans doublon', P.to, ['lise@exemple.be', 'marc@exemple.be']);
+        check('S17 Un retour à la ligne dans l’objet est aplati (pas d’en-tête glissé)', P.subject, 'Objet Bcc: pirate@x.be');
+        check('S18 Texte tel quel, et la version HTML ÉCHAPPÉE', [P.text_body, /&lt;devis&gt; &amp; suite/.test(P.html_body), /<devis>/.test(P.html_body)], [MSG.texte, true, false]);
+        check('S19 Réponse : envoyé, archivé dans la fiche, avec l’identifiant SMTP2GO, aucune adresse refusée',
+          [res.status, j.ok, j.archive, j.email_id, j.mail.sens, j.mail.via, j.mail.par, j.mail.devis_id, j.refuses], [200, true, true, 'E-123', 'envoye', 'erp', 'nicolas', 'M-ENV', []]);
+        const iArch = base.sql.findIndex(s => /UPDATE clients/.test(s));
+        check('S20 L’archive est une écriture CIBLÉE sur la bonne fiche, et l’envoi est noté au journal',
+          [iArch >= 0, base.binds[iArch][2], JSON.parse(base.binds[iArch][0]).objet, base.sql.some(s => /INSERT INTO mail_journal/.test(s)), base.binds[base.sql.findIndex(s => /INSERT INTO mail_journal/.test(s))][8]],
+          [true, "l'hoest|lise", 'Objet Bcc: pirate@x.be', true, 'envoye']);
+
+        FS.reponses.push(OK_SMTP());
+        res = await S.routeMailEnvoyer(requete(MSG, YAN), envT({ SMTP2GO_REGION: 'EU', DB: fausseBase({ reglages: { mail: { expediteur: 'info@solariscreen.be', reponse: 'INFO@solariscreen.be', nom: 'vendeur' } } }) }));
+        const R2 = FS.requetes[1];
+        check('S21 Yannick envoie en son nom ; région UE ; réponse = expéditeur → pas de Reply-To inutile',
+          [R2.corps.sender, R2.url, 'custom_headers' in R2.corps], ['Yannick | SolariScreen <info@solariscreen.be>', 'https://eu-api.smtp2go.com/v3/email/send', false]);
+        FS.reponses.push(OK_SMTP());
+        await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: fausseBase({ reglages: { mail: { expediteur: 'info@solariscreen.be', nom: 'societe' } } }) }));
+        check('S22 Nom affiché « SolariScreen » si c’est le choix de la société', FS.requetes[2].corps.sender, 'SolariScreen <info@solariscreen.be>');
+
+        base = fausseBase({ reglages: REG });
+        FS.reponses.push({ status: 200, json: { request_id: 'r', data: { succeeded: 0, failed: 1, failures: ['lise@exemple.be: rejected'] } } });
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: base }));
+        j = await res.json();
+        check('S23 SMTP2GO répond 200 MAIS « failed: 1 » : c’est un échec, dit comme tel, rien d’archivé',
+          [res.status, j.ok, /PAS parti/.test(j.error) && /rejected/.test(j.error), base.sql.some(s => /UPDATE clients/.test(s))], [502, false, true, false]);
+        base = fausseBase({ reglages: REG });
+        FS.reponses.push({ status: 200, json: { request_id: 'r', data: { succeeded: 1, failed: 1, failures: ['marc@exemple.be: mailbox unavailable'], email_id: 'E-9' } } });
+        res = await S.routeMailEnvoyer(requete(Object.assign({}, MSG, { a: 'lise@exemple.be, marc@exemple.be' }), NIC), envT({ DB: base }));
+        j = await res.json();
+        check('S23b Envoi PARTIEL (une adresse acceptée, une refusée) : le mail EST parti — on ne dit pas le contraire, on rend l’adresse refusée',
+          [j.ok, j.archive, j.refuses], [true, true, ['marc@exemple.be: mailbox unavailable']]);
+        FS.reponses.push({ status: 400, json: { request_id: 'r', data: { error: 'Sender address is not verified', error_code: 'E_ApiResponseCodes.NON_VALIDATING_IN_PAYLOAD' } } });
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT());
+        check('S24 Une erreur de SMTP2GO (adresse non vérifiée) est rapportée telle quelle', /not verified/.test((await res.json()).error), true);
+        FS.reponses.push(new TypeError('Failed to fetch'));
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT());
+        j = await res.json();
+        check('S25 SMTP2GO ne répond pas : on ne PRÉTEND pas savoir — « impossible de savoir », regarder avant de réessayer',
+          [res.status, j.code, /impossible de savoir/.test(j.error)], [502, 'reseau', true]);
+        FS.reponses.push(OK_SMTP());
+        res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: fausseBase({ reglages: REG, changes: 0 }) }));
+        j = await res.json();
+        check('S26 Mail parti mais fiche introuvable : ok (il EST parti), archive: false — l’écran le signalera', [j.ok, j.archive], [true, false]);
+        window.fetch = vraiFetch;
+
+        /* ══════════ U — LA FENÊTRE DE RELANCE (fiche devis) ══════════ */
+        semer();
+        titre('U — La fenêtre de relance : « En construction » tant que ce n’est pas branché');
+        const f1 = await ouvrirDevis('M-ENV', 1500, 900);
+        const w = f1.contentWindow, d = w.document;
+        let Tw = brancher(w, { ok: true, pret: false, manque: ['cle', 'expediteur'] });
+        w.openRelance(); await attendre(200);
+        const bloc = d.getElementById('relanceDirect'), btn = d.getElementById('btnRelanceDirect'), aide = d.getElementById('relanceDirectAide');
+        check('U1 Pas branché : cadre « en construction », pastille visible, bouton grisé',
+          [bloc.classList.contains('en-construction'), !d.getElementById('relanceDirectBadge').hidden, texte(d.getElementById('relanceDirectBadge')), btn.disabled], [true, true, 'En construction', true]);
+        check('U2 …et l’aide dit ce qui manque, et quoi faire en attendant',
+          [/clé SMTP2GO/.test(aide.textContent), /adresse d’expédition/.test(aide.textContent), /Copier ou Email/.test(aide.textContent)], [true, true, true]);
+        check('U3 L’objet est prérempli (le même que l’ancien lien Email)', d.getElementById('relanceObjet').value, 'SolariScreen — devis M-ENV');
+        d.getElementById('relanceObjet').value = 'Votre projet de screens';
+        check('U4 Le bouton « Email » prend l’objet du champ ; vide, il retombe sur l’objet par défaut',
+          [w.eval('objetRelance()'), (d.getElementById('relanceObjet').value = '  ', w.eval('objetRelance()'))], ['Votre projet de screens', 'SolariScreen — devis M-ENV']);
+        w.envoyerRelanceDirecte(); await attendre(50);
+        check('U5 Même en appelant la fonction, rien ne part tant que ce n’est pas branché', Tw.envois.length, 0);
+        Tw.etat = { ok: false, pret: false, manque: ['reseau'] };
+        w.closeRelance(); w.openRelance(); await attendre(200);
+        check('U6 Hors ligne : l’état est dit « inconnu », pas « en construction » à tort', /connexion/.test(aide.textContent), true);
+
+        titre('U — Branché : un clic envoie, archive, et note la relance');
+        Tw.etat = { ok: true, pret: true, manque: [] };
+        w.closeRelance(); w.openRelance(); await attendre(200);
+        check('U7 Branché : plus de cadre ni de pastille, bouton actif, l’aide dit à qui et ce qui sera noté',
+          [bloc.classList.contains('en-construction'), d.getElementById('relanceDirectBadge').hidden, btn.disabled, texte(aide)],
+          [false, true, false, 'À lise@exemple.be — archivé dans la fiche client, relance 1 notée.']);
+        d.getElementById('relanceType').value = 'acompte'; w.fillRelanceText();
+        check('U8 Un rappel d’acompte n’est pas une relance : l’aide ne promet pas de la noter', texte(aide), 'À lise@exemple.be — archivé dans la fiche client.');
+        d.getElementById('relanceType').value = 'r1'; w.fillRelanceText();
+        Tw.confirme = false; btn.click(); await attendre(100);
+        check('U9 « Annuler » à la confirmation : rien ne part', Tw.envois.length, 0);
+        Tw.confirme = true;
+        const mailArchive = { id: 'm-1', sens: 'envoye', objet: 'SolariScreen — devis M-ENV', de: 'Nicolas | SolariScreen <info@solariscreen.be>', texte: 'x', devis_id: 'M-ENV', date: new Date().toISOString(), via: 'erp' };
+        Tw.reponse = { ok: true, email_id: 'E-1', archive: true, mail: mailArchive };
+        Tw.lent = 250;
+        viderToasts(w);
+        const texteEnvoye = d.getElementById('relanceText').value;
+        btn.click(); btn.click(); await attendre(60);
+        check('U10 Pendant l’envoi : le bouton dit « Envoi… », et un double clic n’envoie pas deux fois', [texte(btn), btn.disabled, Tw.envois.length], ['Envoi…', true, 1]);
+        await attendre(700);
+        check('U11 Ce qui part : l’adresse du devis, l’objet, le message affiché, le dossier, la clé de la fiche',
+          Tw.envois[0], { a: 'lise@exemple.be', objet: 'SolariScreen — devis M-ENV', texte: texteEnvoye.trim(), devis_id: 'M-ENV', client_key: "l'hoest|lise" });
+        const dernier = Tw.devis[Tw.devis.length - 1] || {};
+        check('U12 La relance 1 est NOTÉE (même règle que les quatre autres canaux) et le statut avance',
+          [(dernier.relances || []).map(r => r.n), dernier.statut], [[1], 'relance_1']);
+        check('U13 Le mail rejoint la fiche client et la carte « E-mails » de la fiche devis l’affiche',
+          [w.eval('CLIENT_FICHE.mails.length'), !d.getElementById('mailsCard').classList.contains('hidden')], [1, true]);
+        check('U14 Le message dit ce qui s’est passé', toasts(w).some(t => t[0] === 'ok' && /Mail envoyé ✓ — archivé/.test(t[1])), true);
+        check('U15 Après l’envoi, le bouton redevient « Envoyer le mail »', [texte(btn), btn.disabled], ['Envoyer le mail', false]);
+
+        titre('U — Les échecs ne font rien avancer');
+        const nDevis = Tw.devis.length;
+        Tw.lent = 0; viderToasts(w);
+        Tw.reponse = { ok: false, code: 'smtp2go', error: 'Le mail n’est PAS parti — SMTP2GO répond : Sender address is not verified' };
+        d.getElementById('relanceType').value = 'r2'; w.fillRelanceText();
+        btn.click(); await attendre(200);
+        check('U16 SMTP2GO refuse : le message d’erreur est affiché, AUCUNE relance notée, bouton réutilisable',
+          [toasts(w).some(t => t[0] === 'error' && /not verified/.test(t[1])), Tw.devis.length, btn.disabled], [true, nDevis, false]);
+        Tw.reponse = { ok: false, code: 'pas_branche', manque: ['cle'], error: 'L’envoi depuis l’ERP n’est pas encore branché : il manque la clé.' };
+        btn.click(); await attendre(200);
+        check('U17 Débranché entre-temps : la fenêtre repasse « en construction » sans recharger', [bloc.classList.contains('en-construction'), btn.disabled, Tw.devis.length], [true, true, nDevis]);
+        Tw.etat = { ok: true, pret: true, manque: [] };
+        w.closeRelance(); w.openRelance(); await attendre(200);
+        Tw.reponse = { ok: true, email_id: 'E-2', archive: false, mail: null };
+        viderToasts(w);
+        btn.click(); await attendre(300);
+        check('U18 Parti mais pas archivé : on le DIT (et la relance est notée, puisqu’elle est partie)',
+          [toasts(w).some(t => t[0] === 'warn' && /PAS archivé/.test(t[1])), (Tw.devis[Tw.devis.length - 1].relances || []).map(r => r.n)], [true, [1, 2]]);
+        Tw.reponse = { ok: true, email_id: 'E-4', archive: true, mail: mailArchive, refuses: ['marc@exemple.be: mailbox unavailable'] };
+        viderToasts(w);
+        d.getElementById('relanceType').value = 'r3'; w.fillRelanceText();
+        btn.click(); await attendre(300);
+        check('U18b Une adresse refusée sur deux : « envoyé », et l’adresse refusée est nommée',
+          [toasts(w).some(t => t[0] === 'ok' && /Mail envoyé/.test(t[1])), toasts(w).some(t => t[0] === 'warn' && /marc@exemple\.be/.test(t[1]))], [true, true]);
+
+        titre('U — Client sans fiche CRM, devis sans e-mail');
+        w.eval('CLIENT_FICHE = null');
+        Tw.reponse = { ok: true, email_id: 'E-3', archive: true, mail: mailArchive };
+        const nFiches = Tw.fiches.length;
+        d.getElementById('relanceType').value = 'libre'; d.getElementById('relanceText').value = 'Message libre';
+        btn.click(); await attendre(300);
+        check('U19 Pas encore de fiche : elle est créée AVANT l’envoi, pour pouvoir recevoir l’archive',
+          [Tw.fiches.length - nFiches, (Tw.fiches[Tw.fiches.length - 1] || {}).key, Tw.envois[Tw.envois.length - 1].texte], [1, "l'hoest|lise", 'Message libre']);
+        const casses = [...d.querySelectorAll('*')].flatMap(e => [...e.attributes]
+          .filter(a => a.name.startsWith('on') && a.name.length > 2)
+          .map(a => { try { new Function(a.value); return null; } catch (err) { return e.tagName + ':' + err.message; } })
+          .filter(Boolean));
+        check('U20 Tous les gestionnaires de la page compilent (client « L’Hoest »)', casses, []);
+        f1.remove();
+
+        const f2 = await ouvrirDevis('M-SANS', 1500, 900);
+        const w2 = f2.contentWindow;
+        const T2 = brancher(w2, { ok: true, pret: true, manque: [] });
+        w2.openRelance(); await attendre(200);
+        check('U21 Branché mais pas d’e-mail sur le devis : bouton grisé, et l’aide dit où l’ajouter',
+          [w2.document.getElementById('btnRelanceDirect').disabled, /Pas d’adresse e-mail/.test(w2.document.getElementById('relanceDirectAide').textContent)], [true, true]);
+        f2.remove();
+
+        titre('T — Téléphone (390 px) : rien ne déborde, rien n’enferme');
+        const f3 = await ouvrirDevis('M-ENV', 390, 800);
+        const w3 = f3.contentWindow, d3 = w3.document;
+        brancher(w3, { ok: true, pret: false, manque: ['cle', 'expediteur'] });
+        w3.openRelance(); await attendre(250);
+        const panel = d3.querySelector('#relanceModal .viz-panel');
+        const deborde = [...d3.querySelectorAll('#relanceDirect, #relanceDirect *, #relanceObjet')].filter(n => n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflow !== 'visible').map(n => n.id || n.className);
+        const bR = d3.getElementById('relanceDirect').getBoundingClientRect(), pR = panel.getBoundingClientRect();
+        check('T1 Le bloc tient dans la fenêtre (aucun débordement, aucun élément coupé)', [deborde, bR.left >= pR.left - 0.5, bR.right <= pR.right + 0.5], [[], true, true]);
+        // Le 16 px anti-zoom d'iOS est posé par base.css sous « pointer: coarse », qu'un navigateur de
+        // bureau ne déclenche pas : on vérifie donc que le champ porte bien la classe que la règle vise.
+        check('T2 Le champ Objet est un « .input » : sur un vrai téléphone il passe à 16 px (sinon iOS zoome)', d3.getElementById('relanceObjet').matches('.input'), true);
+        f3.remove();
+
+        /* ══════════ P — PARAMÈTRES ══════════ */
+        titre('P — Paramètres : les trois décisions, et l’état du branchement');
+        const fp = await cadre('../app/parametres.html?t=' + Date.now(), 1500, 900);
+        const wp = fp.contentWindow, dp = wp.document;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 6000) { try { if (wp.eval('ENREGISTRES')) break; } catch (e) {} await attendre(100); }
+        await attendre(300);
+        check('P1 Les trois réglages existent, VIDES par défaut (ce sont des décisions), avec la proposition en grisé',
+          [dp.getElementById('mail_expediteur').value, dp.getElementById('mail_reponse').value, dp.getElementById('mail_nom').value,
+           dp.getElementById('mail_expediteur').placeholder, dp.getElementById('mail_reponse').placeholder],
+          ['', '', 'vendeur', 'ex. info@solariscreen.be', 'ex. service@solariscreen.be']);
+        check('P2 config.js les porte (sinon la liste blanche de fusionner les jetterait à l’enregistrement)',
+          wp.SSConf.DEFAUTS.mail, { expediteur: '', reponse: '', nom: 'vendeur' });
+        wp.SS.mailEtat = async () => ({ ok: true, pret: false, manque: ['cle', 'expediteur'] });
+        await wp.eval('chargerEtatMails()');
+        const etatP = dp.getElementById('mailEtat');
+        check('P3 Pas branché : « En construction », ce qui manque, et que rien ne change en attendant',
+          [texte(etatP.querySelector('.mail-chantier')), /clé SMTP2GO/.test(etatP.textContent), /adresse d’expédition/.test(etatP.textContent), /comme avant/.test(etatP.textContent)], ['En construction', true, true, true]);
+        const champ = dp.getElementById('mail_expediteur');
+        champ.value = 'info@'; champ.dispatchEvent(new wp.Event('input', { bubbles: true }));
+        check('P4 Une adresse mal tapée est signalée tout de suite', texte(etatP.querySelector('.mail-chantier')), 'À corriger');
+        champ.value = '  Info@SolariScreen.be '; champ.dispatchEvent(new wp.Event('input', { bubbles: true }));
+        check('P5 Une adresse tapée se nettoie (espaces, majuscules) et la ligne est marquée « modifiée »',
+          [wp.eval('formulaire().mail.expediteur'), champ.closest('.reg').classList.contains('modifie'), dp.getElementById('btnSave').disabled], ['info@solariscreen.be', true, false]);
+        wp.SS.mailEtat = async () => ({ ok: true, pret: true, manque: [] });
+        await wp.eval('chargerEtatMails()');
+        check('P6 Branché : l’état le dit', [texte(etatP.querySelector('.mail-chantier')), etatP.classList.contains('pret')], ['Branché', true]);
+        fp.remove();
+        const fp2 = await cadre('../app/parametres.html?t=' + Date.now(), 390, 800);
+        await attendre(1200);
+        const dp2 = fp2.contentWindow.document;
+        const sec = dp2.getElementById('sectionMails');
+        const debP = [...sec.querySelectorAll('*')].filter(n => n.scrollWidth > n.clientWidth + 1 && /^(INPUT|SELECT|DIV|SPAN)$/.test(n.tagName) && getComputedStyle(n).overflowX !== 'visible').map(n => n.id || n.className);
+        check('P7 Téléphone : la section tient dans l’écran (champs pleine largeur, rien de coupé)',
+          [debP, sec.getBoundingClientRect().right <= 390 + 0.5, dp2.getElementById('mail_expediteur').getBoundingClientRect().width > 200], [[], true, true]);
+        fp2.remove();
+      } catch (e) {
+        check('Exécution sans exception', String(e && e.stack || e), 'aucune');
+      } finally {
+        remettre();
+        rendre();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1034,20 +1034,9 @@ export async function onRequest(context) {
         par: String(body.par || 'nicolas').slice(0, 40),
         date: new Date().toISOString(),                        // date d'archivage
       };
-      const now = mail.date;
-      const r = await env.DB.prepare(
-        `UPDATE clients SET
-           data = json_set(
-                    json_insert(
-                      json_set(data, '$.mails', json(COALESCE(json_extract(data, '$.mails'), '[]'))),
-                      '$.mails[#]', json(?1)),
-                    '$.date_modification', ?2),
-           date_modification = ?2
-         WHERE key = ?3`
-      ).bind(JSON.stringify(mail), now, key).run();
-      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
-      const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.mails'), 0) AS n FROM clients WHERE key = ?").bind(key).first();
-      return json({ ok: true, mail, mails_count: row ? row.n : null });
+      const ar = await archiverMailClient(env, key, mail);
+      if (!ar.ok) return json({ ok: false, error: 'Fiche client introuvable' }, 404);
+      return json({ ok: true, mail, mails_count: ar.mails_count });
     }
     /* ── ÉCHANGES E-MAIL : CORRECTION CIBLÉE ────────────────────────────────────
        Demande de Nicolas, 10/10/2026 : « dans échanges mail je sais pas modifier un échange ? ».
@@ -2042,6 +2031,9 @@ export async function onRequest(context) {
 
     // ══════════ ASSISTANT (Claude) — voir routeAssistant, en bas du fichier ══════════
     if (path === '/api/assistant' && method === 'POST') return await routeAssistant(request, env);
+    // ══════════ E-MAILS ENVOYÉS PAR L'ERP (SMTP2GO) — voir routeMailEnvoyer, en bas du fichier ══════════
+    if (path === '/api/mail/etat' && method === 'GET') return await routeMailEtat(env);
+    if (path === '/api/mail/envoyer' && method === 'POST') return await routeMailEnvoyer(request, env);
 
     // ══════════ HEALTH ══════════
     if (path === '/api/health') {
@@ -2587,4 +2579,180 @@ async function routeAssistant(request, env) {
   })();
 
   return new Response(readable, { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   E-MAILS ENVOYÉS PAR L'ERP (SMTP2GO) — règle 43 de CLAUDE.md, mise en service : DEPLOIEMENT.md
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Pourquoi : une relance copiée puis collée dans Zoho n'est archivée nulle part. Envoyée d'ici,
+   elle part, s'archive dans la fiche client et fait avancer la cadence, en un seul geste.
+   ⚠️ CONSTRUIT AVANT D'ÊTRE BRANCHÉ (26/10/2026, demande de Nicolas) : tant que la clé
+   SMTP2GO_API_KEY n'est pas dans les secrets Cloudflare ET que l'adresse d'expédition n'est pas
+   choisie (Paramètres → E-mails), `/api/mail/etat` répond « pas prêt » et l'écran garde le
+   bouton grisé « En construction ». Le jour où l'on branche, il n'y a rien d'autre à faire.
+   ⚠️ LE SERVEUR CHOISIT L'EXPÉDITEUR, jamais le navigateur : il le relit dans les réglages
+   enregistrés. Et l'identité Access est exigée (403 sinon) : l'aperçu d'une branche n'est pas
+   derrière Access, n'importe qui pourrait y envoyer des mails au nom de la société. */
+const MAIL_PLAFOND_JOUR = 60;           // par personne et par jour (env MAIL_PLAFOND_JOUR)
+const MAIL_MAX_DESTINATAIRES = 5;
+const MAIL_MAX_TEXTE = 20000;
+// Volontairement simple : on écarte les fautes de frappe (espace, « @ » manquant, pas de point) et
+// SMTP2GO tranche le reste. < > " , ; : sont refusés parce qu'ils permettraient de glisser un
+// second destinataire dans un seul champ.
+const MAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[^\s@<>()",;:]{2,}$/;
+
+async function mailReglages(env) {
+  if (!env.DB) return {};
+  try {
+    const row = await env.DB.prepare('SELECT data FROM settings WHERE id = ?').bind('global').first();
+    const m = ((row && safeParse(row.data)) || {}).mail;
+    return (m && typeof m === 'object') ? m : {};
+  } catch (e) { return {}; }   // table encore absente : rien n'a été réglé
+}
+/** Ce qui manque pour envoyer : 'cle' (secret Cloudflare), 'expediteur' (Paramètres). */
+function mailManque(env, r) {
+  const manque = [];
+  if (!env.SMTP2GO_API_KEY) manque.push('cle');
+  if (!MAIL_RE.test(String(r.expediteur || '').trim())) manque.push('expediteur');
+  return manque;
+}
+function mailPasBranche(manque) {
+  const quoi = manque.map(m => m === 'cle' ? 'la clé SMTP2GO_API_KEY dans les secrets Cloudflare Pages' : 'l’adresse d’expédition (Paramètres → E-mails)');
+  return 'L’envoi depuis l’ERP n’est pas encore branché : il manque ' + quoi.join(' et ') + '. Rien n’est parti.';
+}
+/** « Nicolas | SolariScreen » ou « SolariScreen ». En ASCII seulement : un nom affiché hors ASCII
+ *  doit être encodé dans l'en-tête, et un encodage raté s'affiche « =?utf-8?… » chez le client —
+ *  exactement ce qu'on ne veut pas sur une relance. */
+function mailNomAffiche(r, qui) {
+  if (r.nom === 'societe') return 'SolariScreen';
+  return (qui === 'yannick' ? 'Yannick' : 'Nicolas') + ' | SolariScreen';
+}
+function mailDestinataires(brut) {
+  const liste = [...new Set(String(brut || '').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean))];
+  if (!liste.length) return { ok: false, error: 'Aucune adresse e-mail pour ce client — rien n’est parti.' };
+  if (liste.length > MAIL_MAX_DESTINATAIRES) return { ok: false, error: `Trop de destinataires (${MAIL_MAX_DESTINATAIRES} au plus) — rien n’est parti.` };
+  const fausse = liste.find(x => !MAIL_RE.test(x));
+  if (fausse) return { ok: false, error: `Adresse e-mail illisible : « ${fausse.slice(0, 80)} ». Corrige-la sur la fiche client — rien n’est parti.` };
+  return { ok: true, liste };
+}
+/** La partie HTML : le même texte, échappé, sans rien ajouter. Un mail en texte seul passe très
+ *  bien, mais certains filtres anti-spam préfèrent trouver les deux versions. */
+function mailHtml(texte) {
+  const e = texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222;">' + e.replace(/\n/g, '<br>') + '</div>';
+}
+/** Écriture CIBLÉE d'un mail sur la fiche client (règle 3), partagée par l'archivage à la main
+ *  (POST /api/clients/:key/mail) et par l'envoi depuis l'ERP : une seule façon d'écrire un mail. */
+async function archiverMailClient(env, key, mail) {
+  const r = await env.DB.prepare(
+    `UPDATE clients SET
+       data = json_set(
+                json_insert(
+                  json_set(data, '$.mails', json(COALESCE(json_extract(data, '$.mails'), '[]'))),
+                  '$.mails[#]', json(?1)),
+                '$.date_modification', ?2),
+       date_modification = ?2
+     WHERE key = ?3`
+  ).bind(JSON.stringify(mail), mail.date, key).run();
+  if (!r.meta || r.meta.changes === 0) return { ok: false };
+  const row = await env.DB.prepare("SELECT COALESCE(json_array_length(data, '$.mails'), 0) AS n FROM clients WHERE key = ?").bind(key).first();
+  return { ok: true, mails_count: row ? row.n : null };
+}
+
+async function routeMailEtat(env) {
+  const manque = mailManque(env, await mailReglages(env));
+  return json({ ok: true, pret: manque.length === 0, manque });
+}
+
+async function routeMailEnvoyer(request, env) {
+  const email = parseAccessEmail(request);
+  const qui = (email && IDENTITIES[email.toLowerCase()]) || null;
+  if (!qui) return json({ ok: false, code: 'identite', error: 'L’envoi de mails est réservé à Nicolas et Yannick, connectés par Cloudflare Access.' }, 403);
+  const r = await mailReglages(env);
+  const manque = mailManque(env, r);
+  if (manque.length) return json({ ok: false, code: 'pas_branche', manque, error: mailPasBranche(manque) }, 503);
+  const corps = (await request.json().catch(() => null)) || {};
+  const dest = mailDestinataires(corps.a);
+  if (!dest.ok) return json({ ok: false, code: 'destinataire', error: dest.error }, 400);
+  // Un retour à la ligne dans l'objet est la porte d'une injection d'en-tête : on l'aplatit.
+  const objet = String(corps.objet || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 200);
+  const texte = String(corps.texte || '').replace(/\r\n?/g, '\n').trim();
+  if (!objet) return json({ ok: false, code: 'objet', error: 'Objet vide — rien n’est parti.' }, 400);
+  if (!texte) return json({ ok: false, code: 'texte', error: 'Message vide — rien n’est parti.' }, 400);
+  if (texte.length > MAIL_MAX_TEXTE) return json({ ok: false, code: 'long', error: 'Message trop long — rien n’est parti.' }, 413);
+  const devisId = String(corps.devis_id || '').slice(0, 40);
+  const cleClient = String(corps.client_key || '').slice(0, 200);
+
+  const maintenant = new Date().toISOString();
+  const jour = maintenant.slice(0, 10);
+  const plafond = Number(env.MAIL_PLAFOND_JOUR) > 0 ? Number(env.MAIL_PLAFOND_JOUR) : MAIL_PLAFOND_JOUR;
+  if (env.DB) {
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS mail_journal (id TEXT PRIMARY KEY, date TEXT NOT NULL, jour TEXT NOT NULL, qui TEXT, a TEXT, objet TEXT, devis_id TEXT, client_key TEXT, statut TEXT, email_id TEXT, erreur TEXT)').run();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_journal WHERE jour = ? AND qui = ? AND statut = 'envoye'").bind(jour, qui).first();
+    // Une boucle de clics (ou un défaut de code) ne doit jamais inonder les clients ni vider le quota.
+    if (row && row.n >= plafond) return json({ ok: false, code: 'plafond', error: `Plafond du jour atteint (${plafond} mails). Rien n’est parti — il revient demain.` }, 429);
+  }
+
+  const expediteur = String(r.expediteur).trim();
+  const reponse = String(r.reponse || '').trim();
+  const envoi = {
+    sender: `${mailNomAffiche(r, qui)} <${expediteur}>`,
+    to: dest.liste,
+    subject: objet,
+    text_body: texte,
+    html_body: mailHtml(texte),
+  };
+  // Les réponses du client vont là où l'on lit ses mails (Zoho), pas forcément à l'adresse qui envoie.
+  if (MAIL_RE.test(reponse) && reponse.toLowerCase() !== expediteur.toLowerCase()) envoi.custom_headers = [{ header: 'Reply-To', value: reponse }];
+  // Région du compte SMTP2GO, si l'adresse sans région ne lui convient pas (DEPLOIEMENT.md).
+  const hote = ({ eu: 'eu-api', us: 'us-api', au: 'au-api' })[String(env.SMTP2GO_REGION || '').trim().toLowerCase()] || 'api';
+
+  const journal = async (statut, emailId, erreur) => {
+    if (!env.DB) return;
+    try {
+      await env.DB.prepare('INSERT INTO mail_journal (id, date, jour, qui, a, objet, devis_id, client_key, statut, email_id, erreur) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(crypto.randomUUID(), maintenant, jour, qui, dest.liste.join(', '), objet, devisId, cleClient, statut, emailId || '', String(erreur || '').slice(0, 500)).run();
+    } catch (e) { /* le journal ne bloque jamais un envoi */ }
+  };
+
+  let rep, j;
+  try {
+    rep = await fetch(`https://${hote}.smtp2go.com/v3/email/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Smtp2go-Api-Key': env.SMTP2GO_API_KEY },
+      body: JSON.stringify(envoi),
+    });
+    j = await rep.json().catch(() => null);
+  } catch (e) {
+    // ⚠️ On ne PEUT PAS savoir si le mail est parti : la requête a pu arriver et la réponse se
+    //    perdre. Le dire, plutôt que d'inviter à recliquer — le client le recevrait deux fois.
+    await journal('inconnu', '', 'pas de réponse');
+    return json({ ok: false, code: 'reseau', error: 'SMTP2GO n’a pas répondu : impossible de savoir si le mail est parti. Regarde l’activité SMTP2GO avant de réessayer, sinon le client le recevra deux fois.' }, 502);
+  }
+  const d = (j && j.data) || {};
+  // ⚠️ SMTP2GO peut répondre 200 alors que l'envoi a échoué (c'est documenté chez eux) : on lit
+  //    `succeeded`, `failed` et `failures`, pas seulement le code HTTP.
+  // ⚠️ ET UN ENVOI PEUT ÊTRE PARTIEL : deux adresses sur la fiche, l'une acceptée, l'autre
+  //    refusée. Le mail EST parti — dire « PAS parti » ferait renvoyer une relance déjà reçue.
+  //    On le traite comme un envoi, et l'adresse refusée est rendue pour être signalée.
+  const refuses = Array.isArray(d.failures) ? d.failures.map(String) : [];
+  const reussi = rep.ok && !d.error && (Number(d.succeeded) > 0 || (!!d.email_id && !(Number(d.failed) > 0)));
+  if (!reussi) {
+    const pourquoi = d.error || (Array.isArray(d.failures) && d.failures.length && d.failures.join(' · ')) || ('HTTP ' + rep.status);
+    await journal('echec', '', pourquoi);
+    return json({ ok: false, code: 'smtp2go', error: 'Le mail n’est PAS parti — SMTP2GO répond : ' + String(pourquoi).slice(0, 240) }, 502);
+  }
+  const emailId = String(d.email_id || '');
+  await journal('envoye', emailId, '');
+  const mail = {
+    id: crypto.randomUUID(), sens: 'envoye', objet, de: envoi.sender, a: dest.liste.join(', '),
+    date_mail: new Date(maintenant).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    texte: texte.slice(0, 40000), devis_id: devisId, par: qui, date: maintenant, via: 'erp', email_id: emailId,
+  };
+  // L'archive est une SUITE de l'envoi, pas sa condition : le mail est parti, on le dit, et si la
+  // fiche n'a pas pu le recevoir l'écran le signale — sans faire croire à un échec d'envoi.
+  let archive = false;
+  if (cleClient && env.DB) { try { archive = (await archiverMailClient(env, cleClient, mail)).ok; } catch (e) { archive = false; } }
+  return json({ ok: true, email_id: emailId, mail, archive, refuses: Number(d.failed) > 0 ? refuses : [] });
 }

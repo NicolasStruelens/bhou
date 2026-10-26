@@ -92,6 +92,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 128 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
+| `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
 | `tests/clients.test.html` | Les 51 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger », nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
@@ -2136,6 +2137,41 @@ par Nicolas). Protégé par `tests/clients.test.html`.
 • **Téléphone : « retour » revient à la liste** (étape d'historique à l'ouverture d'une fiche ; pas
   d'étape quand on ARRIVE sur une fiche par `?key=`, pour que « retour » ramène d'où l'on vient).
 
+**43. LES MAILS DE RELANCE PARTENT DE L'ERP — CONSTRUIT AVANT D'ÊTRE BRANCHÉ** (26/10/2026, demande
+de Nicolas : « mettre les boutons inaccessibles pour l'instant, en construction, comme ça le jour où on
+se décide on n'a plus qu'à brancher »). Protégé par `tests/mails.test.html`. Mise en service :
+DEPLOIEMENT.md, étape 11.
+• **Ce qui manque se lit à UN endroit** : `GET /api/mail/etat` répond `pret` et `manque` (`cle` = le
+  secret `SMTP2GO_API_KEY`, `expediteur` = l'adresse d'expédition des Paramètres). Tant que quelque
+  chose manque, la fenêtre de relance montre « Envoyer le mail » GRISÉ, dans un cadre en pointillés
+  marqué « En construction », avec ce qui manque — et la section E-mails des Paramètres dit pareil.
+  L'état est redemandé à chaque ouverture : la clé posée, le bouton s'allume sans recharger.
+• **Les trois réglages (`mail.expediteur`, `mail.reponse`, `mail.nom`) sont VIDES par défaut** : ce
+  sont des décisions, pas des préférences. Une adresse proposée par défaut partirait chez les clients
+  sans que personne l'ait choisie. Paramètres les propose en grisé (placeholder).
+• **Le SERVEUR choisit l'expéditeur** (relu dans `settings`), jamais le navigateur ; l'identité Access
+  est exigée (403). Le nom affiché est en ASCII (« Nicolas | SolariScreen ») : un nom mal encodé
+  s'afficherait « =?utf-8?… » chez le client.
+• **Envoyer = les mêmes conséquences que les quatre autres canaux** (`markRelanceSent({ auto: true })` :
+  relance notée, attente levée) **+ l'archive dans la fiche client**, faite par le SERVEUR dans la même
+  requête (`archiverMailClient`, la même écriture ciblée que l'archivage à la main — règle 3). La fiche
+  CRM est créée avant l'envoi si elle n'existe pas. L'archive est une SUITE de l'envoi : un mail parti
+  mais pas archivé est dit comme tel (« Mail envoyé ✓ — mais PAS archivé »), jamais comme un échec.
+• **Ne jamais dire « pas parti » quand on ne sait pas** : SMTP2GO peut répondre 200 avec `failed > 0`
+  (échec), ou accepter une adresse sur deux (le mail EST parti, l'adresse refusée est nommée), ou ne pas
+  répondre du tout (« impossible de savoir — regarde l'activité SMTP2GO avant de réessayer », sinon le
+  client le recevrait deux fois).
+• **Aucune file d'attente hors-ligne** : un mail mis en file partirait des heures plus tard, peut-être
+  après une relance faite autrement. Un retour à la ligne dans l'objet est aplati (injection d'en-tête),
+  5 destinataires au plus, 60 envois par personne et par jour (`MAIL_PLAFOND_JOUR`), journal D1
+  `mail_journal`.
+• **L'objet est un champ** de la fenêtre (« Objet (e-mail) »), utilisé aussi par le bouton Email : il était
+  écrit en dur dans le lien `mailto:`.
+• **Pas encore fait, et c'est volontaire** : l'envoi groupé des « relances du jour » et le rappel de
+  paiement de la Facturation. On les construit APRÈS les premiers vrais envois (mail-tester, réponses
+  qui arrivent bien dans Zoho) : un envoi groupé sur un circuit qui n'a jamais envoyé un seul mail
+  réel, c'est multiplier une erreur qu'on n'a pas encore vue.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2403,6 +2439,8 @@ par Nicolas). Protégé par `tests/clients.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
+   `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 51/51 », par le serveur.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y

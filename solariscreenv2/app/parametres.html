@@ -106,6 +106,23 @@
       padding: var(--sp-3) 0 var(--sp-2); }
     .reg-note strong { color: var(--text); }
     .reg-champ .select { width: 100%; }
+    /* Une adresse e-mail ne tient pas dans 168 px en chasse fixe (« service@solariscreen.be » en
+       fait près de 200) : la ligne élargit sa colonne, et l'adresse se lit de gauche à droite. */
+    .reg--adresse { grid-template-columns: minmax(0, 1fr) 260px; }
+    .reg--adresse .reg-champ .input { text-align: left; }
+    /* La proposition ne doit JAMAIS passer pour une adresse choisie : maigre, en italique, « ex. ». */
+    .reg--adresse .reg-champ .input::placeholder { font-weight: 400; font-style: italic; }
+    /* L'état du branchement : une phrase, colorée seulement quand c'est prêt. */
+    .mail-etat { display: flex; gap: var(--sp-2); align-items: flex-start; margin: var(--sp-3) 0 var(--sp-2);
+      padding: var(--sp-3); border: 1px dashed var(--border-strong); border-radius: var(--r-md);
+      font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.6; }
+    .mail-etat strong { color: var(--text); }
+    .mail-etat.pret { border-style: solid; border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+      background: color-mix(in srgb, var(--ok) 6%, transparent); }
+    .mail-chantier { flex: none; font-family: var(--font-mono); font-size: var(--fs-3xs); letter-spacing: .06em;
+      text-transform: uppercase; padding: 1px 6px; border-radius: var(--r-sm); line-height: 1.7;
+      color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); }
+    .mail-etat.pret .mail-chantier { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
     /* Unité longue (« vues ») : on élargit la réserve à droite du champ plutôt que de la rogner. */
     .input-unit.large .input { padding-right: 3.4rem; }
     /* Seule la cadence de relance garde son unité HORS champ : elle porte trois cases pour un
@@ -443,6 +460,31 @@
         </div>
         </section>
 
+        <!-- ══════════ E-MAILS (règle 43) ══════════
+             Construit avant d'être branché : les trois réglages sont là, l'état dit ce qui manque,
+             et le bouton « Envoyer » de la fiche devis s'allume tout seul le jour où rien ne manque. -->
+        <section class="section" id="sectionMails">
+          <div class="section-head"><span class="section-title">E-mails envoyés par l’ERP</span><span class="section-code">SS // MAIL</span></div>
+          <div class="par-corps">
+          <div class="mail-etat" id="mailEtat"><span class="mail-chantier">En construction</span><span>Vérification de l’état de l’envoi…</span></div>
+          <div class="reg reg--adresse" data-reg="mail.expediteur">
+            <div class="reg-txt"><div class="reg-nom">Adresse d’expédition <span class="reg-societe">société</span></div>
+              <div class="reg-aide">L’adresse qui envoie les relances. Elle doit être sur un domaine vérifié chez SMTP2GO. Tant qu’elle est vide, rien ne part.</div></div>
+            <div class="reg-champ"><input class="input" type="email" id="mail_expediteur" placeholder="ex. info@solariscreen.be" autocomplete="off" spellcheck="false"></div>
+          </div>
+          <div class="reg reg--adresse" data-reg="mail.reponse">
+            <div class="reg-txt"><div class="reg-nom">Adresse de réponse <span class="reg-societe">société</span></div>
+              <div class="reg-aide">Là où arrivent les réponses du client (par exemple la boîte lue dans Zoho). Vide : elles reviennent à l’adresse d’expédition.</div></div>
+            <div class="reg-champ"><input class="input" type="email" id="mail_reponse" placeholder="ex. service@solariscreen.be" autocomplete="off" spellcheck="false"></div>
+          </div>
+          <div class="reg" data-reg="mail.nom">
+            <div class="reg-txt"><div class="reg-nom">Nom affiché chez le client <span class="reg-societe">société</span></div>
+              <div class="reg-aide">Une relance passe mieux quand elle vient d’une personne : « Nicolas | SolariScreen » ou « Yannick | SolariScreen » selon qui l’envoie.</div></div>
+            <div class="reg-champ"><select class="select" id="mail_nom"><option value="vendeur">Celui qui envoie</option><option value="societe">SolariScreen</option></select></div>
+          </div>
+          </div>
+        </section>
+
         <!-- ══════════ AFFICHAGE ══════════ -->
         <section class="section">
           <div class="section-head"><span class="section-title">Affichage</span><span class="section-code">SS // VUE</span></div>
@@ -703,6 +745,9 @@
       { id: 'signal_couleur', chemin: ['affichage', 'signal_couleur'], texte: true },
       { id: 'mantra', chemin: ['affichage', 'mantra'], booleen: true },
       { id: 'meteo', chemin: ['affichage', 'meteo'], booleen: true },
+      { id: 'mail_expediteur', chemin: ['mail', 'expediteur'], texte: true },
+      { id: 'mail_reponse', chemin: ['mail', 'reponse'], texte: true },
+      { id: 'mail_nom', chemin: ['mail', 'nom'], texte: true },
     ];
     const CADENCES = [
       { prefixe: 'relance_visite', chemin: ['usage', 'relance_visite'] },
@@ -737,6 +782,7 @@
         const cle = c.chemin[c.chemin.length - 1];
         const defaut = lire(window.SSConf.DEFAUTS, c.chemin);
         if (c.booleen) cible[cle] = champ.value === 'oui';
+        else if (c.texte && champ.type === 'email') cible[cle] = champ.value.trim().toLowerCase();
         else if (c.texte) cible[cle] = champ.value;
         else cible[cle] = c.pourcent ? nb(champ.value, defaut * 100) / 100 : nb(champ.value, defaut);
       });
@@ -845,6 +891,41 @@
         : 'Tout est enregistré.';
       document.querySelector('.barre').classList.toggle('sale', !!modifies);
       el('btnSave').disabled = !modifies;
+      etatMails(conf);
+    }
+
+    /* ── L'ÉTAT DE L'ENVOI DEPUIS L'ERP ──
+       Le serveur dit ce qui manque (la clé vit dans les secrets Cloudflare, il est le seul à la
+       voir) ; l'adresse, elle, se juge sur ce qui est ENREGISTRÉ — une adresse tapée mais pas
+       encore enregistrée ne fait rien partir, et l'écran ne doit pas laisser croire le contraire. */
+    let ETAT_MAIL = null;
+    const ADRESSE_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[^\s@<>()",;:]{2,}$/;
+    function etatMails(conf) {
+      const hote = el('mailEtat'); if (!hote) return;
+      const e = ETAT_MAIL;
+      const tape = (conf.mail || {}).expediteur || '';
+      if (tape && !ADRESSE_RE.test(tape)) {
+        hote.className = 'mail-etat';
+        hote.innerHTML = '<span class="mail-chantier">À corriger</span><span>« ' + window.SSUI.escHtml(tape) + ' » n’est pas une adresse e-mail.</span>';
+        return;
+      }
+      if (!e) return;
+      if (e.pret) {
+        hote.className = 'mail-etat pret';
+        hote.innerHTML = '<span class="mail-chantier">Branché</span><span>Les relances partent depuis la fiche devis (bouton « Envoyer »), s’archivent dans la fiche client et notent la relance.</span>';
+        return;
+      }
+      const manque = (e.manque || []).map(m => m === 'cle'
+        ? '<strong>la clé SMTP2GO</strong> dans les secrets Cloudflare (DEPLOIEMENT.md, étape 11)'
+        : m === 'expediteur' ? '<strong>l’adresse d’expédition</strong> ci-dessous, enregistrée'
+        : '<strong>la connexion</strong> (état inconnu hors ligne)');
+      hote.className = 'mail-etat';
+      hote.innerHTML = '<span class="mail-chantier">En construction</span><span>L’envoi direct des relances est prêt côté ERP mais pas encore branché. Il manque : '
+        + manque.join(' · ') + '. En attendant, les relances partent comme avant (Copier, Email, SMS, WhatsApp).</span>';
+    }
+    async function chargerEtatMails() {
+      ETAT_MAIL = await SS.mailEtat();
+      etatMails(formulaire());
     }
 
     window.restaurerDefauts = () => { peupler(window.SSConf.DEFAUTS); toast('Valeurs d’origine réaffichées — clique sur Enregistrer pour les appliquer.', 'warn', 6000); };
@@ -885,6 +966,7 @@
          du sélecteur d'appareil, qui annoncerait encore l'ancien thème. */
       if (window.SSTheme) window.SSTheme.rafraichirSelecteur(el('themeAppareil'));
       toast('Réglages enregistrés ✓ — ils s’appliquent aux devis à venir', 'ok', 5000);
+      chargerEtatMails();
     };
 
     // Toute modification met l'aperçu et les contrôles à jour immédiatement.
@@ -898,6 +980,7 @@
       // Sans ce recalage, la page afficherait « modifié » sur un réglage que personne n'a touché.
       ENREGISTRES.prix.supplier_rate = Math.round((1 - ENREGISTRES.prix.material_margin) * 10000) / 10000;
       peupler(ENREGISTRES);
+      chargerEtatMails();
     })();
   </script>
 </body>
