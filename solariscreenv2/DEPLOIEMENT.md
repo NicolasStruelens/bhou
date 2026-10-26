@@ -184,6 +184,41 @@ La table D1 `assistant_usage` (créée toute seule) compte les appels et les jet
 
 ---
 
+## 11) ✉️ Les mails de relance envoyés par l'ERP (SMTP2GO)
+
+Le côté ERP est **déjà construit** (CLAUDE.md, règle 43) : dans la fenêtre de relance d'une fiche devis,
+le bouton « Envoyer le mail » est grisé et marqué **En construction** tant que les deux pièces ci-dessous
+manquent. Il s'allume tout seul quand elles sont là — rien à redéployer côté code.
+
+**Ce que fait Yannick (ou celui qui a l'accès) chez SMTP2GO :**
+1. **Créer le compte** (formule gratuite, serveurs en Europe), avec une adresse de la société.
+2. *Sending* → *Verified Senders* → ajouter le **domaine** `solariscreen.be`.
+3. **Max ajoute les 3 CNAME** que SMTP2GO affiche, dans le DNS du domaine. On ne touche **ni au SPF ni
+   aux MX** : les mails reçus continuent d'arriver dans Zoho.
+4. Revenir sur SMTP2GO → *Verify*.
+5. *Sending* → *API Keys* → *Add* : nom `ERP SolariScreen - production`, droit d'**envoi seulement**.
+   Dans les réglages du compte : suivi des ouvertures et des clics **désactivé**, pied de page de
+   désinscription **désactivé** (une relance n'est pas une newsletter).
+
+**Ce que fait Nicolas :**
+6. **La clé dans Cloudflare, CHIFFRÉE** : Pages → le projet → *Settings* → *Variables and Secrets* →
+   *Add* → type **Secret**, nom `SMTP2GO_API_KEY`, environnement **Production** uniquement.
+   ⚠️ Jamais dans le dépôt (il est PUBLIC), jamais collée dans un message ou une conversation.
+7. **Redéployer** (*Deployments* → le dernier → *Retry deployment*).
+8. **ERP → Paramètres → E-mails** : l'adresse d'expédition (sur `solariscreen.be`), l'adresse de
+   réponse (celle qu'on lit dans Zoho) et le nom affiché → *Enregistrer*. L'encadré passe à **Branché**.
+9. **Premier essai sur soi** : un devis de test à sa propre adresse, puis un envoi vers
+   [mail-tester.com](https://www.mail-tester.com) — viser 9/10 ou plus avant le premier vrai client.
+
+Facultatif : `SMTP2GO_REGION` = `eu` si SMTP2GO répond que la région du compte ne correspond pas ;
+`MAIL_PLAFOND_JOUR` pour changer le plafond (60 mails par personne et par jour).
+
+L'envoi exige une identité Access (403 sinon) et l'expéditeur est relu dans les réglages par le
+serveur, jamais fourni par le navigateur. Chaque envoi (réussi ou non) est noté dans la table D1
+`mail_journal` (créée toute seule), et le mail parti est archivé dans la fiche du client.
+
+---
+
 ## ✅ Vérifications finales
 
 - `https://<site>/api/devis` en navigation privée (non connecté) → **bloqué par Access** (page de login). ✔ faille fermée.

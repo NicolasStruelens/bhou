@@ -81,7 +81,7 @@
     let data;
     try { data = await r.json(); }
     catch (e) { const err = new Error('HTTP ' + r.status + ' — réponse non-JSON'); err.status = r.status; err.serverRejected = true; throw err; }
-    if (!data.ok) { const err = new Error(data.error || ('HTTP ' + r.status)); err.status = r.status; err.serverRejected = true; throw err; }
+    if (!data.ok) { const err = new Error(data.error || ('HTTP ' + r.status)); err.status = r.status; err.serverRejected = true; err.data = data; throw err; }
     return data;
   }
 
@@ -596,6 +596,27 @@
           return { ok: true, mail: m, offline: true };
         }
         return { ok: false, error: MSG_SESSION };
+      }
+    },
+    /* ── E-MAIL ENVOYÉ PAR L'ERP (SMTP2GO, règle 43) ──────────────────────────
+       ⚠️ AUCUNE FILE D'ATTENTE HORS-LIGNE, et c'est structurel : un mail est un geste vers le
+       CLIENT. Mis en file, il partirait des heures plus tard — peut-être après une relance faite
+       autrement entre-temps, donc deux mails pour une relance. Sans réseau, on le DIT. */
+    async mailEtat() {
+      try { return await req('/mail/etat'); }
+      catch (e) { return { ok: false, pret: false, manque: ['reseau'], error: e && e.message }; }
+    },
+    async envoyerMail(m) {
+      const corps = { a: m.a || '', objet: m.objet || '', texte: m.texte || '', devis_id: m.devis_id || '', client_key: m.client_key || '' };
+      try {
+        const res = await req('/mail/envoyer', { method: 'POST', body: JSON.stringify(corps) });
+        // Le mail archivé par le serveur rejoint la fiche en cache : la carte « E-mails » le montre
+        // tout de suite, sans relire la fiche (écriture ciblée côté serveur, déjà faite).
+        try { if (res.archive && res.mail) { const c = localClients.get(corps.client_key); if (c) { c.mails = c.mails || []; c.mails.push(res.mail); localClients.save(c); } } } catch (e) {}
+        return res;   // { ok:true, email_id, mail, archive }
+      } catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message, code: e.data && e.data.code, manque: e.data && e.data.manque };
+        return { ok: false, code: 'reseau', error: 'Pas de réseau : rien n’est parti. Réessaie une fois connecté.' };
       }
     },
     async deleteClientMail(key, mailId) {
