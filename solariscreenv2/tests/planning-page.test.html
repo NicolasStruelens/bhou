@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — page Planning</title>
+  <style>
+    body { font-family: ui-monospace, monospace; background:#0a0e14; color:#e8f0f9; padding:24px; line-height:1.6; }
+    h1 { color:#00ff9c; }
+    .pass { color:#00e08a; } .fail { color:#ff5470; font-weight:700; }
+    table { border-collapse: collapse; margin-top:12px; width:100%; max-width:1100px; }
+    td, th { border:1px solid #233347; padding:6px 10px; text-align:left; font-size:13px; vertical-align:top; }
+    th { color:#93a8bf; }
+    #summary { font-size:18px; margin-top:16px; }
+    .note { max-width:1100px; color:#93a8bf; font-size:13px; border-left:3px solid #233347; padding-left:14px; }
+    .note strong { color:#ffb020; }
+    .bac { position:absolute; left:-10000px; top:0; border:0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Planning</h1>
+  <p class="note">
+    La revue du 26/10/2026 a trouvé sept défauts sur le Planning — une pose sans équipe rangée chez
+    Nicolas (et cochée d'office dans sa fenêtre), personne n'avertissait d'un rendez-vous hors des
+    jours de travail, une charge faussée, la journée hors du premier écran du téléphone, des fenêtres
+    qui perdaient la saisie, « retour » qui quittait la page, une visite enregistrée à 09:00 sans le
+    dire — et Nicolas a choisi sept améliorations (A à G). Ces tests tiennent les deux.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> : la vraie page est chargée dans des cadres
+    avec des données FICTIVES placées la semaine PROCHAINE (calculée d'après aujourd'hui), une météo
+    simulée (aucun appel réseau), et des écritures interceptées. Les données locales du navigateur
+    sont remises en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;') + '</td><td>' + String(b).replace(/</g, '&lt;') + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests page planning';
+    }
+    const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    const texte = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+
+    // ── Dates : la semaine PROCHAINE (lundi L), pour que rien ne soit « passé » ──
+    const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const AUJ = new Date(); AUJ.setHours(12, 0, 0, 0);
+    const plus = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+    const aujIso = ymd(AUJ);
+    const L = plus(aujIso, 7 - ((AUJ.getDay() + 6) % 7));
+    const J = (n) => plus(L, n);
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+
+    const adr = (ville, cp) => ({ rue: 'Rue Test', numero: '1', code_postal: cp, ville });
+    const DEVIS = [
+      { id: 'P-BW', client: { prenom: 'Bernadette', nom: 'Windey', adresse: adr('Wavre', '1300'), telephone: '0470 11 22 33' }, statut: 'signe', commande: { statut: 'recu' },
+        chantier: { date_pose: J(5), equipe: 'nicolas_yannick', duree_h: 4 }, items: [{ type: 'screen', quantite: 2 }], date_creation: T(-40), date_modification: T(-10), seller_principal: 'nicolas' },
+      { id: 'P-SANS', client: { prenom: 'Luc', nom: "D'Hondt", adresse: adr('Namur', '5000'), telephone: '0471 00 11 22' }, statut: 'signe', commande: { statut: 'recu' },
+        chantier: { date_pose: J(3), duree_h: 3 }, items: [{ type: 'volet_roulant', quantite: 3 }], date_creation: T(-40), date_modification: T(-10), seller_principal: 'yannick' },
+      { id: 'P-NIC', client: { prenom: 'Paul', nom: 'Mercredi', adresse: adr('Ottignies', '1340') }, statut: 'signe', commande: { statut: 'recu' },
+        chantier: { date_pose: J(2), equipe: 'nicolas', duree_h: 3 }, items: [{ type: 'screen', quantite: 1 }], date_creation: T(-40), date_modification: T(-10), seller_principal: 'nicolas' },
+      { id: 'P-PLAN', client: { prenom: 'Anne', nom: 'Planifier', adresse: adr('Nivelles', '1400') }, statut: 'signe', commande: { statut: 'recu' },
+        chantier: { remarque: 'garder' }, items: [{ type: 'screen', quantite: 5 }], date_creation: T(-40), date_modification: T(-10), seller_principal: 'nicolas' },
+      { id: 'D-DEP', type_document: 'depannage', depannage_mode: 'a_realiser', client: { prenom: 'Marc', nom: 'Panne', adresse: adr('Genval', '1332') }, statut: 'signe',
+        depannage: { date_intervention: J(2), heure: '14:00', duree_h: 2, techniciens: ['Yannick'], motif: 'Moteur bloqué' },
+        depannage_plan: { date_intervention: J(2), heure: '14:00', duree_h: 2, techniciens: ['Yannick'], motif: 'Moteur bloqué' }, date_creation: T(-5), date_modification: T(-5) },
+      { id: 'D-SANSDATE', type_document: 'depannage', depannage_mode: 'a_realiser', client: { prenom: 'Zoé', nom: 'Attente', adresse: adr('Wavre', '1300') }, statut: 'signe',
+        depannage: { motif: 'Volet bloqué', techniciens: ['Jean'] }, date_creation: T(-5), date_modification: T(-5) },
+    ];
+    const RDV = [
+      { id: 'R-1', statut: 'rdv_fixe', date_rdv: J(1) + 'T10:00', assigned_to: 'yannick', client: { prenom: 'Marie', nom: 'Visite', adresse: adr('Genval', '1332'), telephone: '0472 00 00 00' }, projet: 'Screens véranda' },
+      { id: 'R-2', statut: 'nouveau', client: { prenom: 'Jean', nom: 'Demande', adresse: adr('Rixensart', '1330') }, projet: 'Volets', creneaux: [] },
+    ];
+    // Nicolas pris ailleurs jusqu'à la fin de CETTE semaine : les dates proposées partent de la suivante.
+    const DISPOS = [{ id: 'X-CONGE', kind: 'indispo', qui: 'nicolas', du: aujIso, au: plus(L, -1), journee: true, motif: 'Multimedian' }];
+    const REG = { planning: { heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
+      trame: { nicolas: { lun: 'non', mar: 'non', mer: 'non', jeu: 'non', ven: 'non', sam: 'journee', dim: 'journee' },
+               yannick: { lun: 'journee', mar: 'journee', mer: 'journee', jeu: 'journee', ven: 'journee', sam: 'journee', dim: 'journee' } },
+      duree_visite_h: 1, duree_pose_h: 4, duree_depannage_h: 2 } };
+
+    // ── Météo SIMULÉE : sec partout, sauf la pluie de jeudi à Namur (sous la pose sans équipe),
+    //    une bruine sans pose mardi à Genval, et le dimanche pluvieux à Nivelles (date écartée). ──
+    function meteoDe(pluies) {
+      const out = {};
+      for (let i = 0; i <= 15; i++) {
+        const j = plus(aujIso, i), p = pluies[j] || 0;
+        out[j] = { code: p ? 61 : 1, tmin: 6, tmax: 13, pluie: p, vent: 12, rafales: 25, label: p ? 'Pluie' : 'Ensoleillé' };
+      }
+      return out;
+    }
+    const METEO = {
+      Namur: meteoDe({ [J(3)]: 9 }), Genval: meteoDe({ [J(1)]: 3 }), Nivelles: meteoDe({ [J(6)]: 6 }),
+      Wavre: meteoDe({}), Ottignies: meteoDe({}), Baulers: meteoDe({}),
+    };
+
+    const CLES = ['ss_devis_cache', 'ss_rdv_cache', 'ss_dispos_cache', 'ss_reglages', 'ss_planning_vue', 'ss_planning_qui', 'ss_clients_cache', 'ss_outbox'];
+    const SAUVE = {};
+    CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    function semer() {
+      localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS));
+      localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV));
+      localStorage.setItem('ss_dispos_cache', JSON.stringify(DISPOS));
+      localStorage.setItem('ss_reglages', JSON.stringify(REG));
+      localStorage.removeItem('ss_planning_vue'); localStorage.removeItem('ss_planning_qui');
+    }
+    function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+
+    /** La vraie page, avec la météo simulée posée AVANT le premier rendu, et les écritures gardées. */
+    async function ouvrir(requete, largeur, hauteur) {
+      const f = document.createElement('iframe');
+      f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
+      f.src = '../app/planning.html?' + requete + '&t=' + Date.now();
+      document.body.appendChild(f);
+      const t0 = Date.now();
+      // ui.js est chargé avant le script de la page, et le premier rendu attend les données :
+      // la météo simulée est en place bien avant qu'on la demande.
+      while (Date.now() - t0 < 8000) {
+        const w = f.contentWindow;
+        if (w && w.SSUI && w.SSUI.previsionJours && !w.__simule) { w.SSUI.previsionJours = async (ville) => METEO[ville] || null; w.__simule = 1; break; }
+        await attendre(1);
+      }
+      await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
+      const w = f.contentWindow;
+      while (Date.now() - t0 < 9000) { try { if (w.eval('TOUS_EVS.length') > 0 && w.document.querySelector('#vueHost .pl-sem, #vueHost .pl-jour, #vueHost .pl-mois')) break; } catch (e) {} await attendre(50); }
+      await attendre(400);
+      const E = { devis: [], rdv: [], dispos: [], confirmes: [], reponseConfirm: true };
+      w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(d => d.id === id) || null));
+      w.SS.saveDevis = async (d) => { E.devis.push(JSON.parse(JSON.stringify(d))); return { ok: true }; };
+      w.SS.getRdv = async (id) => JSON.parse(JSON.stringify(RDV.find(r => r.id === id) || null));
+      w.SS.saveRdv = async (r) => { E.rdv.push(JSON.parse(JSON.stringify(r))); return { ok: true }; };
+      w.SS.saveDispo = async (x) => { E.dispos.push(x); return { ok: true }; };
+      w.confirm = (m) => { E.confirmes.push(m); return E.reponseConfirm; };
+      return { f, w, d: w.document, E };
+    }
+    const toasts = (w) => [...w.document.querySelectorAll('#toasts .toast')].map(t => t.textContent);
+
+    (async function () {
+      try {
+        semer();
+        titre('A — La semaine en couloirs : qui est pris, quand, d’un coup d’œil');
+        let { f, w, d, E } = await ouvrir('vue=semaine&date=' + L, 1500, 900);
+        const lab = [...d.querySelectorAll('.pl-labels .pl-l')].map(texte);
+        check('A1 Une ligne par personne, et une ligne « À attribuer » puisqu’une pose n’a pas d’équipe', lab, ['Météo', 'Nicolas', 'Yannick', 'À attribuer']);
+        const cols = [...d.querySelectorAll('.pl-jc')];
+        const cellules = (i) => cols.map(c => c.querySelectorAll('.pl-cell')[i]);
+        check('A2 Les sept jours, et chaque couloir à la MÊME hauteur d’un jour à l’autre (subgrid)',
+          [cols.length, new Set(cellules(0).map(c => Math.round(c.getBoundingClientRect().top))).size, new Set(cellules(1).map(c => Math.round(c.getBoundingClientRect().top))).size], [7, 1, 1]);
+        check('A3 Nicolas ne travaille pas en semaine : ses dix demi-journées du lundi au vendredi sont hachurées, pas le week-end',
+          cellules(0).map(c => c.querySelectorAll('.pl-demi.hors').length), [2, 2, 2, 2, 2, 0, 0]);
+        const sam = cols[5];
+        check('A4 La pose à deux du samedi est dans les DEUX couloirs', [texte(cellules(0)[5]).indexOf('Bernadette') >= 0, texte(cellules(1)[5]).indexOf('Bernadette') >= 0], [true, true]);
+        const orph = cellules(2);
+        check('A5 La pose sans équipe est « À attribuer » le jeudi, marquée « équipe ? » — et plus chez Nicolas',
+          [texte(orph[3]).indexOf("Luc D'Hondt") >= 0, /équipe \?/.test(texte(orph[3])), cellules(0).some(c => /Hondt/.test(texte(c)))], [true, true, false]);
+        const nic = [...cellules(0)[2].querySelectorAll('.pl-chip')][0];
+        check('A6 Nicolas un mercredi (il n’y travaille pas) : le rendez-vous est marqué et le DIT', [nic && nic.classList.contains('ko'), /Nicolas ne travaille pas ce jour-là/.test(texte(nic))], [true, true]);
+        check('A7 Les créneaux libres : une demi-journée entière dit « libre », une entamée dit ses heures',
+          [[...cellules(1)[0].querySelectorAll('.pl-dispo')].map(texte), [...cellules(1)[1].querySelectorAll('.pl-dispo')].map(texte)], [['libre', 'libre'], ['8–10 h', '11–12 h', 'libre']]);
+        check('A8 Le résumé tient en une ligne, et dit ce qui cloche',
+          [/3 poses · 1 visite · 1 dépannage/.test(texte(d.getElementById('resume'))), /1 à attribuer/.test(texte(d.getElementById('resume'))), /1 hors des jours de travail/.test(texte(d.getElementById('resume')))], [true, true, true]);
+        const six = [...d.querySelectorAll('#sixSem button')];
+        check('A9 La charge des six prochaines semaines ; celle qu’on regarde est marquée', [six.length, six.findIndex(b => b.classList.contains('on'))], [6, 1]);
+        const al = texte(d.getElementById('alertes'));
+        check('A10 Les alertes : la pose sans personne (attente.js) et le jour non travaillé (le planning)',
+          [/Rendez-vous sans personne attribuée — Luc D'Hondt/.test(al), /Nicolas ne travaille pas ce jour-là — Paul Mercredi/.test(al)], [true, true]);
+        await attendre(200);
+        const mjJeu = d.getElementById('mj-' + J(3)), mjMar = d.getElementById('mj-' + J(1));
+        check('A11 Météo de pose : la pluie sous la pose de jeudi est en rouge, dans l’en-tête et sur la pose',
+          [mjJeu.classList.contains('ko'), /pluie 9 mm/.test(texte(mjJeu)), texte(d.querySelector('[data-meteo="pose:P-SANS"]'))], [true, true, 'pluie 9 mm']);
+        check('A12 …et une alerte la nomme', /Pose prévue sous pluie 9 mm — Luc D'Hondt/.test(texte(d.getElementById('alertes'))), true);
+        check('A13 La bruine de mardi (une visite, pas de pose) reste une information, pas une alarme', [mjMar.classList.contains('ko'), /3 mm/.test(texte(mjMar))], [false, true]);
+        const casses = [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2)
+          .map(a => { try { new Function(a.value); return null; } catch (err) { return e.tagName + ':' + err.message; } }).filter(Boolean));
+        check('A14 Tous les gestionnaires de la page compilent (client « D’Hondt »)', casses, []);
+
+        titre('B — « Caler ici » : un créneau libre propose ce qui attend une date');
+        const dimMatin = cellules(0)[6].querySelector('.pl-dispo');
+        dimMatin.click(); await attendre(120);
+        const mc = d.getElementById('mCalerBg');
+        check('B1 Un clic sur un créneau libre ouvre « Caler ici » (et non plus « Bloquer du temps »)',
+          [mc.classList.contains('open'), texte(d.getElementById('mCalerTitre')).indexOf('Libre — Nicolas, dimanche') === 0, d.getElementById('btnCaler').disabled], [true, true, true]);
+        check('B2 Il propose la pose à planifier, le dépannage sans date et la visite à fixer — puis « bloquer »',
+          [...d.querySelectorAll('#mCalerBody .cl-opt .t')].map(texte).concat([texte(d.querySelector('.cl-bloquer'))]),
+          ['Anne Planifier', 'Zoé Attente', 'Jean Demande', 'Plutôt bloquer ce temps']);
+        d.querySelectorAll('#mCalerBody .cl-opt')[0].click(); await attendre(60);
+        check('B3 Pose choisie : l’équipe part de la personne cliquée (aucune n’était enregistrée), heure et durée remplies',
+          [[...d.querySelectorAll('#mCalerBody .qui-opt.on')].map(texte), d.getElementById('cl_heure').value, d.getElementById('cl_duree').value, texte(d.getElementById('btnCaler'))],
+          [['Nicolas'], '08:00', '4', 'Caler la pose']);
+        d.getElementById('cl_heure').value = '09:00';
+        [...d.querySelectorAll('#mCalerBody .qui-opt')].find(b => /Nicolas \+ Yannick/.test(b.textContent)).click(); await attendre(60);
+        check('B4 Changer l’équipe ne perd pas l’heure qu’on vient de taper', d.getElementById('cl_heure').value, '09:00');
+        await w.validerCaler(); await attendre(150);
+        const ec = E.devis[E.devis.length - 1] || {};
+        check('B5 « Caler la pose » écrit date, heure, durée et équipe — et garde le reste du chantier',
+          [ec.id, ec.chantier], ['P-PLAN', { remarque: 'garder', date_pose: J(6), heure_pose: '09:00', duree_h: 4, equipe: 'nicolas_yannick' }]);
+        check('B6 …et la fenêtre se ferme', mc.classList.contains('open'), false);
+        cellules(1)[0].querySelector('.pl-dispo').click(); await attendre(80);
+        [...d.querySelectorAll('#mCalerBody .cl-opt')].find(b => /Zoé/.test(b.textContent)).click(); await attendre(60);
+        await w.validerCaler(); await attendre(150);
+        const dep = (E.devis[E.devis.length - 1] || {}).depannage || {};
+        check('B7 Un dépannage calé chez Yannick garde l’intervenant extérieur déjà saisi', [dep.date_intervention, dep.heure, dep.duree_h, dep.techniciens], [J(0), '08:00', 2, ['Yannick', 'Jean']]);
+        cellules(1)[3].querySelector('.pl-dispo').click(); await attendre(80);
+        w.eval('allerVers = function (u) { window.__vers = u; }');
+        [...d.querySelectorAll('#mCalerBody .cl-opt')].find(b => /Jean Demande/.test(b.textContent)).click(); await attendre(60);
+        check('B8 Une visite ne se fixe pas d’ici : le bouton dit « proposer au client »', texte(d.getElementById('btnCaler')), 'Proposer ce créneau au client');
+        await w.validerCaler();
+        check('B9 …et ouvre la demande avec ce créneau ajouté à ses propositions', w.__vers, 'rdv.html?open=R-2&creneau=' + J(3) + '&moment=matin');
+        w.fermerCaler();
+        const merAprem = [...cellules(1)[2].querySelectorAll('.pl-dispo')].find(b => /16–17/.test(b.textContent));
+        merAprem.click(); await attendre(80);
+        d.querySelectorAll('#mCalerBody .cl-opt')[0].click(); await attendre(60);
+        [...d.querySelectorAll('#mCalerBody .qui-opt')].find(b => b.textContent.trim() === 'Yannick').click(); await attendre(60);
+        E.reponseConfirm = false; const nAvant = E.devis.length;
+        await w.validerCaler();
+        check('B10 Une pose de 4 h à 16:00 déborde de la journée : on l’AVERTIT (et « non » n’écrit rien)',
+          [/Yannick : c’est hors de ses heures/.test(E.confirmes[E.confirmes.length - 1] || ''), E.devis.length - nAvant], [true, 0]);
+        E.reponseConfirm = true;
+        w.calerBloquer(); await attendre(80);
+        check('B11 « Plutôt bloquer ce temps » ouvre le blocage pré-rempli, et « Caler ici » se ferme',
+          [mc.classList.contains('open'), d.getElementById('mIndispoBg').classList.contains('open'), d.getElementById('i_qui').value, d.getElementById('i_du').value, d.getElementById('i_debut').value, d.getElementById('i_journee').checked],
+          [false, true, 'yannick', J(2), '16:00', false]);
+        w.fermerIndispo();
+
+        titre('C — Les dates proposées pour un chantier à planifier');
+        await attendre(150);
+        const prop = d.getElementById('prop-P-PLAN');
+        check('C1 Trois dates où les DEUX sont libres assez longtemps, la date pluvieuse écartée, et l’équipe dite « à confirmer »',
+          [[...prop.querySelectorAll('.pl-pill')].map(p => (p.getAttribute('onclick').match(/'(\d{4}-\d{2}-\d{2})'/) || [])[1] || p.getAttribute('onclick').match(/"(\d{4}-\d{2}-\d{2})"/)[1]),
+           /à deux, équipe à confirmer/.test(texte(prop)), /1 date écartée : pluie ou vent/.test(texte(prop)), /après-midi/.test(texte(prop.querySelector('.pl-pill')))],
+          [[J(5), J(12), J(13)], true, true, true]);
+        E.confirmes = [];
+        prop.querySelector('.pl-pill').click(); await attendre(200);
+        const cp = E.devis[E.devis.length - 1] || {};
+        check('C2 Un clic cale la pose — après avoir DIT qu’elle est calée à deux faute d’équipe choisie',
+          [/aucune n’était choisie : la pose est calée à deux/.test(E.confirmes[0] || ''), cp.chantier],
+          [true, { remarque: 'garder', date_pose: J(5), heure_pose: '13:00', duree_h: 4, equipe: 'nicolas_yannick' }]);
+
+        titre('D — La fenêtre « Rendez-vous »');
+        w.ouvrirEvenement('pose:P-SANS'); await attendre(60);
+        check('D1 Pose sans équipe : RIEN n’est coché, et la fenêtre le dit', [d.querySelectorAll('#mEvBody .qui-opt.on').length, texte(d.querySelector('#mEvBody .ev-avert'))],
+          [0, 'Personne n’est encore désigné pour cette pose : choisis qui la fait.']);
+        let nDev = E.devis.length;
+        await w.enregistrerEvenement();
+        check('D2 Enregistrer sans choisir est refusé (rien n’est écrit)', [toasts(w).some(t => /Choisis qui pose ce chantier/.test(t)), E.devis.length - nDev], [true, 0]);
+        w.choisirEquipe('nicolas'); E.reponseConfirm = false; E.confirmes = [];
+        await w.enregistrerEvenement();
+        check('D3 Choisir Nicolas pour un jeudi : l’avertissement « il ne travaille pas ce jour-là » arrive AVANT d’écrire',
+          [/Nicolas ne travaille pas ce jour-là/.test(E.confirmes[0] || ''), E.devis.length - nDev], [true, 0]);
+        E.reponseConfirm = true; w.fermerEvenement();
+        w.ouvrirEvenement('rdv:R-1'); await attendre(60);
+        d.getElementById('ev_heure').value = '';
+        const nRdv = E.rdv.length;
+        await w.enregistrerEvenement();
+        check('D4 Une visite sans heure n’est plus enregistrée à 09:00 en silence', [toasts(w).some(t => /Une visite a besoin d’une heure/.test(t)), E.rdv.length - nRdv], [true, 0]);
+        w.fermerEvenement();
+        w.eval('telechargerIcs = function (t, n) { window.__ics = [t, n]; }');
+        w.ouvrirEvenement('pose:P-BW'); await attendre(60);
+        d.getElementById('btnEvIcs').click();
+        check('D5 « Ajouter à mon agenda » : un fichier .ics nommé d’après le jour et le client',
+          [w.__ics && w.__ics[1], /SUMMARY:Pose — Bernadette Windey/.test(w.__ics && w.__ics[0]), /DTSTART:\d{8}T080000/.test(w.__ics && w.__ics[0])],
+          ['solariscreen-' + J(5) + '-bernadette-windey.ics', true, true]);
+        w.fermerEvenement();
+
+        titre('E — Les fenêtres ne perdent plus la saisie');
+        w.ouvrirIndispo(); await attendre(60);
+        const mi = d.getElementById('mIndispoBg');
+        const motif = d.getElementById('i_motif');
+        motif.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true }));
+        mi.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+        check('E1 Sélectionner du texte puis relâcher sur le fond NE ferme PAS la fenêtre', mi.classList.contains('open'), true);
+        const du = d.getElementById('i_du'); du.focus();
+        du.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('E2 Échap dans un champ date (refermer le calendrier) ne ferme pas la fenêtre', mi.classList.contains('open'), true);
+        motif.value = 'Rendez-vous perso'; motif.dispatchEvent(new w.Event('input', { bubbles: true }));
+        E.reponseConfirm = false; E.confirmes = [];
+        d.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('E3 Échap sur une fenêtre où l’on a tapé : « Fermer sans enregistrer ? » — et « non » la garde ouverte',
+          [E.confirmes[0], mi.classList.contains('open')], ['Fermer sans enregistrer ?', true]);
+        E.reponseConfirm = true;
+        mi.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true })); mi.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+        check('E4 Un clic qui COMMENCE sur le fond ferme (après confirmation, puisqu’on a tapé)', mi.classList.contains('open'), false);
+        f.remove();
+
+        titre('F — La vue Jour : appeler, y aller, l’itinéraire');
+        ({ f, w, d, E } = await ouvrir('vue=jour&date=' + J(5), 1500, 900));
+        const pers = [...d.querySelectorAll('.pl-pers')];
+        const blocBW = [...pers[0].querySelectorAll('.pl-bloc')].find(b => /Bernadette/.test(b.textContent));
+        check('F1 Chaque rendez-vous : Qui s’en occupe · Appeler · Y aller · Agenda', [...blocBW.querySelectorAll('.pl-actions .btn')].map(texte),
+          ['Qui s’en occupe', 'Appeler', 'Y aller', 'Agenda']);
+        check('F2 « Appeler » compose le numéro du client, « Y aller » lance l’itinéraire vers son adresse',
+          [blocBW.querySelector('a[href^="tel:"]').getAttribute('href'), /maps\/dir\/.*destination=Rue%20Test%201%2C%201300%20Wavre/.test(blocBW.querySelector('a[target="_blank"].btn').getAttribute('href'))], ['tel:0470112233', true]);
+        const route = pers[0].querySelector('.pl-route');
+        check('F3 L’itinéraire du jour, en tête de la journée', [texte(route), /destination=Rue%20Test%201%2C%201300%20Wavre/.test(route.getAttribute('href'))], ['Itinéraire du jour · 1 arrêt', true]);
+        check('F4 Un créneau libre propose « Caler ici »', [...pers[0].querySelectorAll('.pl-bloc.libre .btn')].map(texte), ['Caler ici']);
+        f.remove();
+
+        titre('T — Téléphone (390 × 800) : la journée dans le premier écran, et « retour » ferme la fenêtre');
+        let fuites = 0;
+        const garde = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', garde);
+        ({ f, w, d, E } = await ouvrir('vue=semaine&date=' + L, 390, 800));
+        const premier = d.querySelector('.pl-jc:not(.is-passe)');
+        const cel = premier.querySelector('.pl-cell');
+        check('T1 Le premier jour commence dans le premier écran', premier.getBoundingClientRect().top < w.innerHeight - 160, true);
+        const plusA = d.getElementById('alertesPlus');
+        check('T1b Quatre alertes : deux visibles, et un bouton qui DIT combien il en reste',
+          [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, plusA.hidden, texte(plusA)], [2, false, 'Voir les 2 autres alertes']);
+        plusA.click();
+        check('T1c …un toucher les montre toutes, sans quitter la page', [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, texte(plusA)], [4, 'Réduire les alertes']);
+        plusA.click();
+        check('T2 Rien ne déborde à l’horizontale ; les six semaines glissent dans leur bande',
+          [d.documentElement.scrollWidth <= d.documentElement.clientWidth, d.getElementById('sixSem').scrollWidth > d.getElementById('sixSem').clientWidth], [true, true]);
+        check('T3 Jour par jour, chaque couloir porte son nom (la colonne d’étiquettes du bureau disparaît)',
+          [w.getComputedStyle(d.querySelector('.pl-labels')).display, w.getComputedStyle(cel.querySelector('.lane-l')).display, texte(cel.querySelector('.lane-l'))], ['none', 'flex', 'Nic']);
+        cel.closest('.pl-jc').querySelectorAll('.pl-cell')[1].querySelector('.pl-dispo').click(); await attendre(120);
+        check('T4 Ouvrir une fenêtre pose une étape d’historique', [d.getElementById('mCalerBg').classList.contains('open'), (w.history.state || {}).plFenetre], [true, 'mCalerBg']);
+        w.history.back(); await attendre(500);
+        check('T5 « Retour » FERME la fenêtre, sans quitter le planning', [d.getElementById('mCalerBg').classList.contains('open'), /planning/.test(w.location.pathname)], [false, true]);
+        cel.closest('.pl-jc').querySelectorAll('.pl-cell')[1].querySelector('.pl-dispo').click(); await attendre(120);
+        d.querySelector('#mCalerBg .mfoot .btn-ghost').click(); await attendre(500);
+        check('T6 « Annuler » ferme ET retire l’étape (pas de « retour » qui ne ferait rien)', [d.getElementById('mCalerBg').classList.contains('open'), (w.history.state || {}).plFenetre], [false, undefined]);
+        w.ouvrirTrame(); await attendre(80);
+        w.modifierDepuisTrame('X-CONGE'); await attendre(120);
+        check('T7 De la trame à une exception : une fenêtre RELAIE l’autre, sur la même étape',
+          [d.getElementById('mTrameBg').classList.contains('open'), d.getElementById('mIndispoBg').classList.contains('open'), (w.history.state || {}).plFenetre], [false, true, 'mTrameBg']);
+        w.history.back(); await attendre(500);
+        check('T8 …et « retour » la ferme, toujours sur le planning', [d.getElementById('mIndispoBg').classList.contains('open'), /planning/.test(w.location.pathname), (w.history.state || {}).plFenetre], [false, true, undefined]);
+        f.remove();
+        await attendre(300);
+        window.removeEventListener('popstate', garde);
+        check('T9 Aucun « retour » de trop', fuites, 0);
+
+        titre('R — La demande de RDV reçoit le créneau proposé depuis le planning');
+        const fr = document.createElement('iframe');
+        fr.className = 'bac'; fr.width = 1500; fr.height = 900;
+        fr.src = '../app/rdv.html?open=R-2&creneau=' + J(3) + '&moment=aprem&t=' + Date.now();
+        document.body.appendChild(fr);
+        await new Promise(r => fr.addEventListener('load', r, { once: true }));
+        const wr = fr.contentWindow;
+        const t1 = Date.now();
+        while (Date.now() - t1 < 6000) { try { if (wr.eval('CURRENT && CURRENT.id') === 'R-2' && (wr.eval('CURRENT.creneaux') || []).length) break; } catch (e) {} await attendre(80); }
+        check('R1 Le créneau rejoint les PROPOSITIONS (statut « proposé », pas une visite fixée)',
+          [wr.eval('CURRENT.creneaux'), wr.eval('CURRENT.statut')], [[{ date: J(3), moment: 'aprem', statut: 'propose' }], 'nouveau']);
+        check('R2 Le paramètre quitte l’adresse : recharger ne l’ajouterait pas deux fois', wr.location.search, '?open=R-2');
+        fr.remove();
+      } catch (e) {
+        check('Exécution sans exception', String(e && e.stack || e), 'aucune');
+      } finally {
+        remettre();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -747,18 +747,41 @@
     if ([95, 96, 99].includes(code)) return 'Orage';
     return 'Météo incertaine';
   }
+  /* LA PRÉVISION D'UNE VILLE, 16 jours, UNE requête par ville et par page (26/10/2026).
+     Chaque appel de « fetchWeather » retéléchargeait les 16 jours entiers pour n'en lire qu'un :
+     le planning en faisait un par rendez-vous, et la météo de pose en aurait fait des dizaines.
+     La promesse est gardée (pas le résultat) : deux demandes simultanées partagent la même
+     requête. Pluie, vent et rafales servent à la météo de POSE (SSPlanning.meteoPose).
+     ⚠️ Un échec n'est PAS gardé : la ville est redemandée à la prochaine occasion. */
+  const _previsions = new Map();
+  function previsionJours(ville, codePostal) {
+    if (!ville && !codePostal) return Promise.resolve(null);
+    const cle = (codePostal ? 'cp:' + String(codePostal).trim() : 'v:' + String(ville).trim().toLowerCase());
+    if (_previsions.has(cle)) return _previsions.get(cle);
+    const p = (async () => {
+      const loc = await geocodeVille(ville, codePostal);
+      if (!loc) return null;
+      const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max&timezone=Europe%2FBrussels&forecast_days=16`).then(r => r.json());
+      const d = fc && fc.daily;
+      if (!d || !d.time) return null;
+      const jours = {};
+      d.time.forEach((t, i) => {
+        if (d.weathercode[i] == null) return;   // la fin de l'horizon arrive parfois vide
+        jours[t] = { code: d.weathercode[i], tmax: d.temperature_2m_max[i], tmin: d.temperature_2m_min[i],
+          pluie: (d.precipitation_sum || [])[i] || 0, vent: (d.wind_speed_10m_max || [])[i] || 0,
+          rafales: (d.wind_gusts_10m_max || [])[i] || 0, label: weatherLabel(d.weathercode[i]) };
+      });
+      return jours;
+    })().catch(() => null).then((r) => { if (!r) _previsions.delete(cle); return r; });
+    _previsions.set(cle, p);
+    return p;
+  }
   async function fetchWeather(ville, dateStr, codePostal) {
     if ((!ville && !codePostal) || !dateStr) return null;
     const days = Math.round((new Date(dateStr) - new Date(aujourdhui())) / 86400000);
     if (days < 0 || days > 15) return null; // hors couverture de la prévision gratuite (16 jours)
-    try {
-      const loc = await geocodeVille(ville, codePostal);
-      if (!loc) return null;
-      const fc = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBrussels&forecast_days=16`).then(r => r.json());
-      const idx = (fc.daily && fc.daily.time || []).indexOf(dateStr);
-      if (idx < 0) return null;
-      return { code: fc.daily.weathercode[idx], tmax: fc.daily.temperature_2m_max[idx], tmin: fc.daily.temperature_2m_min[idx], label: weatherLabel(fc.daily.weathercode[idx]) };
-    } catch (e) { return null; }
+    const jours = await previsionJours(ville, codePostal);
+    return (jours && jours[dateStr]) || null;
   }
   // Nom d'icône SVG (voir ICONS) correspondant à un code météo WMO.
   function weatherIconName(code) {
@@ -2054,7 +2077,7 @@
     clientKeyOf: clientKeyOf, avatarClient: avatarClient, avatarsClients: avatarsClients,
     ouvrirPhotos: ouvrirPhotos, fermerPhotos: fermerPhotos, isoDate: isoDate, aujourdhui: aujourdhui,
     plusMois: plusMois, garantieDe: garantieDe,
-    fetchWeather: fetchWeather,
+    fetchWeather: fetchWeather, previsionJours: previsionJours,
     fetchCurrentWeather: fetchCurrentWeather,
     fetchCurrentWeatherByCoords: fetchCurrentWeatherByCoords,
     reverseGeocodeCity: reverseGeocodeCity,

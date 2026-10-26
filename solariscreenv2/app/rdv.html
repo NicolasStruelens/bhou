@@ -355,7 +355,24 @@
       buildClientDirectory().then(dir => { CLIENT_DIRECTORY = dir; }).catch(() => {});
       // Ouverture directe d'une fiche (ex. depuis la recherche globale Ctrl+K : rdv.html?open=ID).
       const openId = qp('open');
-      if (openId) setTimeout(() => window.openEdit(openId), 120);
+      /* DEPUIS LE PLANNING (« Caler ici », 26/10/2026) : le créneau choisi rejoint les PROPOSITIONS
+         de la demande. Une visite se convient avec le client — on ne la fixe pas dans son dos ; les
+         messages tout prêts de cette fenêtre le lui soumettent. Le paramètre est retiré de
+         l'adresse aussitôt : un rechargement ne doit pas rajouter le créneau une seconde fois. */
+      const creneauDate = /^\d{4}-\d{2}-\d{2}$/.test(qp('creneau') || '') ? qp('creneau') : '';
+      const creneauMoment = MOMENTS.some(m => m.k === qp('moment')) ? qp('moment') : 'matin';
+      if (openId && creneauDate) {
+        try { history.replaceState(null, '', location.pathname + '?open=' + encodeURIComponent(openId)); } catch (e) {}
+      }
+      if (openId) setTimeout(async () => {
+        await window.openEdit(openId);
+        if (!creneauDate || !CURRENT || String(CURRENT.id) !== String(openId)) return;
+        CURRENT.creneaux = CURRENT.creneaux || [];
+        const deja = CURRENT.creneaux.some(c => c.date === creneauDate && c.moment === creneauMoment);
+        if (!deja && CURRENT.creneaux.length >= 5) { toast('5 créneaux sont déjà proposés : retire-en un avant d’ajouter celui du planning.', 'warn', 7000); return; }
+        if (!deja) { CURRENT.creneaux.push({ date: creneauDate, moment: creneauMoment, statut: 'propose' }); renderCreneaux(); fillMsg(); }
+        toast('Créneau du ' + fmtDate(creneauDate) + ' ajouté aux propositions — envoie-le au client, puis enregistre.', 'ok', 7000);
+      }, 120);
       /* « + Nouveau › Demande de RDV » depuis le menu, de n'importe quelle page.
          ⚠️ Le paramètre est RETIRÉ de l'adresse aussitôt : une création ne se rejoue pas. Sans
          ça, recharger la page ou y revenir par « précédent » rouvrait une demande vierge. */

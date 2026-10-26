@@ -68,11 +68,12 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
-| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 89 tests (`window.SSPlanning`) |
+| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 121 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 des 93 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
-| `tests/planning.test.html` | Les 89 tests du planning. Même principe. |
+| `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
+| `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 93 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
@@ -220,6 +221,45 @@ rendez-vous, et ne prend pas de place dans le futur ; une personne sans trame n'
 ne se bloque pas (deux petites poses dans la journée, ça se fait). Les dispos ne s'écrivent pas
 hors-ligne : une indisponibilité visible du seul téléphone qui l'a saisie est pire que pas
 d'indisponibilité, l'autre planifie dessus en croyant la place libre.
+
+**13 bis. LE PLANNING SE LIT EN COULOIRS ET SE REMPLIT PAR SES TROUS** (26/10/2026 — revue de la
+page, propositions A à G choisies par Nicolas sur maquette). Protégé par `tests/planning-page.test.html`.
+• **Une ligne par personne, coupée en matin / après-midi** : hachuré = ne travaille pas, pointillé
+  vert = libre, le reste = pris. Les colonnes s'alignent par `subgrid` ; sous 900 px la même
+  structure se replie jour par jour, et c'est la feuille de style seule qui décide (règle 24).
+• **Une pose sans équipe n'est rangée chez PERSONNE** (`qui: []`, `equipe: ''`) : elle va dans le
+  couloir « À attribuer » et attente.js la signale. Avant, `quiDeEquipe('')` la rangeait chez Nicolas :
+  « Nic » à l'écran, sa charge gonflée (25 → 44 % sur un jeudi où il ne travaille pas) et « Nicolas »
+  coché d'office dans « Qui s'en occupe », donc écrit au premier enregistrement — c'est l'équipe qui
+  décide de la paie de pose. La fenêtre lit l'équipe ENREGISTRÉE et refuse d'enregistrer sans choix.
+  `quiDeEquipe` garde son repli pour ses autres lecteurs.
+• **« Hors de ses jours » s'avertit comme un conflit** (`SSPlanning.horsTrame`) : jour non travaillé,
+  ou rendez-vous qui déborde de la journée (la pause de midi n'est pas un débordement). Calculé dans
+  le planning et pas dans attente.js, parce qu'il a besoin des exceptions (dispos) que les autres
+  écrans ne chargent pas. Un avertissement, jamais un blocage (règle 13).
+• **Cliquer un trou propose de le REMPLIR** (« Caler ici ») : poses dont le matériel est reçu,
+  dépannages sans date, visites à fixer — « Bloquer ce temps » en dernier. ⚠️ **Une visite ne se fixe
+  pas d'ici** : le créneau rejoint les PROPOSITIONS de la demande (`rdv.html?open=…&creneau=…&moment=…`),
+  c'est l'écran des RDV, avec ses messages, qui le soumet au client.
+• **Dates proposées** (`SSPlanning.datesPossibles`) : les journées où toute l'équipe est libre assez
+  longtemps D'UNE TRAITE (deux trous séparés par un rendez-vous ne font pas une place ; midi, si),
+  jamais aujourd'hui, et sans les dates de pluie ou de grand vent chez le client. Sans équipe choisie,
+  on propose « à deux » — et la confirmation le dit avant d'écrire.
+• **Météo de pose** (`SSPlanning.meteoPose`, seuils `METEO_POSE` : 2 mm, 40 km/h, rafales 60) : en tête
+  de chaque jour, et ROUGE seulement les jours où une pose est prévue — ailleurs la pluie reste une
+  information. Une pose prévue sous la pluie a son alerte. Une seule prévision par ville et par page
+  (`SSUI.previsionJours`, promesse gardée ; un échec n'est pas gardé).
+• **Vue Jour** : Appeler, Y aller, Agenda sur chaque rendez-vous ; « Itinéraire du jour » (Maps, arrêts
+  dans l'ordre). **Agenda** = un fichier `.ics` (`SSPlanning.icsDe`) : heures locales sans fuseau,
+  identifiant STABLE (réimporter met à jour), lignes pliées à 75 OCTETS. Rien ne part vers un service tiers.
+• **Le haut de page tient en une ligne** (résumé + charge) et une bande « six semaines »
+  (`SSPlanning.chargeSemaines`). Sur téléphone, les cinq tuiles empilées poussaient la journée à 954 px ;
+  au-delà de deux alertes, un bouton dit combien il en reste (« Voir les 2 autres alertes »).
+• **Les fenêtres** suivent les règles déjà payées ailleurs : le fond ne ferme que si le geste y a
+  COMMENCÉ, Échap dans un champ date ne ferme rien, une saisie entamée demande « Fermer sans
+  enregistrer ? », et sur téléphone « retour » ferme la fenêtre (une étape d'historique ; une fenêtre
+  qui en ouvre une autre la RELAIE sans toucher à l'historique ; quitter la page depuis une fenêtre
+  retire l'étape AVANT de partir). Une visite exige une heure : elle partait à 09:00 sans un mot.
 
 **14. Ce qui attend quelqu'un se lit à UN endroit** (`app/echanges.html`, table `sujets`). Les
 échanges existaient déjà — notes de devis, « échange interne » d'une demande de RDV — mais
@@ -1122,9 +1162,9 @@ silence**, parce que la fusion serveur d'`upsertDevis` est PEU PROFONDE
 (`Object.assign({}, existant, payload)`) et que le simulateur reconstruit `pricing_v2` de zéro.
 Toute nouvelle donnée sur un devis doit se demander : « quel écran renvoie l'objet parent sans ma
 clé ? »
-⚠️ **`quiDeEquipe('')` retombe sur Nicolas.** Excellent défaut pour un planning (mieux vaut une
-case occupée qu'un trou), désastreux pour de l'argent : il lui attribuerait la paie de TOUS les
-chantiers non renseignés. `SSRemu.poseurs` garde donc sa propre garde avant l'appel, et un test
+⚠️ **`quiDeEquipe('')` retombe sur Nicolas.** Désastreux pour de l'argent : il lui attribuerait la paie
+de TOUS les chantiers non renseignés. (Le planning ne s'en sert plus pour les poses depuis le
+26/10/2026 : une pose sans équipe y est « À attribuer », voir règle 13 bis.) `SSRemu.poseurs` garde donc sa propre garde avant l'appel, et un test
 vérifie les deux comportements côte à côte pour que la différence reste visible.
 
 **30 quater. LA PAIE SUPPOSE QUE LA POSE A EU LIEU — et l'inconnue se SIGNALE, jamais ne s'ignore.**
@@ -2200,9 +2240,9 @@ DEPLOIEMENT.md, étape 11.
   **Un champ vide se montre VIDE** (`<option value="">— à renseigner —</option>`), et il dit ce que
   le vide coûte, là où il se corrige. Corrigé dans `vue.html` ET `planning.html`, qui portaient le
   même repli.
-  ⚠️ À ne pas confondre avec `SSPlanning.quiDeEquipe('')`, qui retombe délibérément sur Nicolas :
-  dans une GRILLE, mieux vaut une case occupée qu'un trou. Ce n'est pas le même besoin qu'un
-  FORMULAIRE, qui doit montrer l'état réel de la base. Les deux coexistent, et c'est voulu.
+  ⚠️ `SSPlanning.quiDeEquipe('')` retombe encore sur Nicolas, mais la GRILLE du planning ne s'en sert
+  plus pour les poses : rangée chez Nicolas, une pose sans équipe se retrouvait cochée « Nicolas »
+  dans la fenêtre « Qui s'en occupe » — exactement ce piège-ci, par un autre chemin (règle 13 bis).
   La règle générale : **un `|| valeurParDéfaut` au moment d'AFFICHER un champ éditable est
   toujours suspect.** Il est légitime au moment de LIRE pour calculer, jamais au moment de peupler
   un formulaire — sinon l'utilisateur valide de tête quelque chose qui n'existe pas.
@@ -2423,7 +2463,8 @@ DEPLOIEMENT.md, étape 11.
 
 1. **Les 58 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
-   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 89/89 », et pour `attente.js` :
+   Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
+   `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
    `tests/attente.test.html`, exiger « 93/93 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :

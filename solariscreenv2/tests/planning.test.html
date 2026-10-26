@@ -284,6 +284,68 @@
       SSUI.livraisonEstimee({ commande: { date_commande: '2026-08-26', delai_semaines: 6 } }), '2026-10-07');
     check('C15 sans date de commande, on ne devine pas', SSUI.livraisonEstimee({ commande: { delai_semaines: 6 } }), null);
 
+    // ══════════ N. Le planning revu du 26/10/2026 ══════════
+    // Une pose SANS équipe n'est plus rangée chez Nicolas : elle était affichée « Nic », gonflait sa
+    // charge et faisait cocher « Nicolas » d'office dans la fenêtre « Qui s'en occupe ».
+    const SANS = P.construire({ devis: [{ id: 'S1', statut: 'signe', client: { nom: 'Hondt', prenom: 'Luc', telephone: '0470 12 34 56' },
+      chantier: { date_pose: MAR, duree_h: 3 }, items: [] }], rdvs: [], dispos: [] }, null, REG)[0];
+    check('N1 pose sans équipe : personne n’est mobilisé, et l’équipe enregistrée est dite vide', [SANS.qui, SANS.equipe], [[], '']);
+    check('N2 …le téléphone du client voyage avec l’événement (bouton « Appeler »)', SANS.tel, '0470 12 34 56');
+    check('N3 …elle ne crée aucun conflit « par défaut » chez Nicolas', P.conflitsDe(SANS, EVS.concat([{ id: 'v', source: 'visite', date: MAR, heure: '09:00', duree_h: 1, qui: ['nicolas'] }]), REG).length, 0);
+    check('N4 …et ne pèse dans la charge de personne', P.charge('nicolas', MAR, MAR, [SANS], [], REG).occupe, 0);
+    check('N5 une pose AVEC équipe garde ses personnes et son équipe', [posLun.qui, posLun.equipe], [['nicolas'], 'nicolas']);
+    check('N6 « quiDeEquipe » garde son repli pour ses autres lecteurs (la rémunération a sa propre garde)', P.quiDeEquipe(''), ['nicolas']);
+
+    // Hors de ses jours : le trou des conflits (seuls deux rendez-vous qui se chevauchent étaient vus).
+    const ev = (o) => Object.assign({ id: 'h', source: 'pose', heure: '', duree_h: 4, qui: ['nicolas'] }, o);
+    check('N7 Nicolas un samedi (il ne travaille pas le samedi) : « jour »', P.horsTrame(ev({ date: SAM }), [], REG), [{ qui: 'nicolas', raison: 'jour' }]);
+    check('N8 Yannick le mardi (matin seulement) à 14:00 : « heures »', P.horsTrame(ev({ date: MAR, source: 'visite', heure: '14:00', duree_h: 1, qui: ['yannick'] }), [], REG), [{ qui: 'yannick', raison: 'heures' }]);
+    check('N9 une pose de 6 h traverse midi : ce n’est PAS un débordement', P.horsTrame(ev({ date: LUN, duree_h: 6 }), [], REG), []);
+    check('N10 un samedi ouvert par une dispo exceptionnelle : rien à signaler', P.horsTrame(ev({ date: SAM }), DISPO_SAM, REG), []);
+    check('N11 un blocage de temps et un sous-traitant ne sont jamais « hors trame »',
+      [P.horsTrame(ev({ date: SAM, source: 'indispo' }), [], REG), P.horsTrame(ev({ date: SAM, qui: [] }), [], REG)], [[], []]);
+    check('N12 à deux : seul celui qui ne travaille pas est nommé', P.horsTrame(ev({ date: SAM, qui: ['nicolas', 'yannick'] }), [], REG), [{ qui: 'nicolas', raison: 'jour' }]);
+
+    // Demi-journées, créneaux communs, dates possibles.
+    check('N13 les deux demi-journées viennent des horaires', blocs([P.demiJournees(REG).matin, P.demiJournees(REG).apresmidi]), ['08:00-12:00', '13:00-17:00']);
+    check('N14 libre pour les DEUX le lundi : entre la pose de Nicolas (8-12) et la visite de Yannick (14-15)',
+      blocs(P.creneauxCommuns(['nicolas', 'yannick'], LUN, EVS, [], REG)), ['13:00-14:00', '15:00-17:00']);
+    check('N15 4 h pour Nicolas à partir du lundi : l’après-midi du lundi',
+      P.datesPossibles(['nicolas'], 4, EVS, [], REG, { depuis: LUN, limite: 1 }), [{ date: LUN, debut: '13:00', moment: 'apresmidi', libre_h: 4, qui: ['nicolas'] }]);
+    check('N16 6 h d’une traite : le lundi ne suffit plus, le mardi (midi traversé) oui',
+      P.datesPossibles(['nicolas'], 6, EVS, [], REG, { depuis: LUN, limite: 1 }).map(d => [d.date, d.debut]), [[MAR, '08:00']]);
+    const TROU = [{ id: 'v1', source: 'visite', date: MAR, heure: '10:00', duree_h: 1, qui: ['nicolas'] }];
+    check('N17 deux trous séparés par un rendez-vous ne font pas une place : 4 h partent à 11:00 (midi traversé)',
+      P.datesPossibles(['nicolas'], 4, TROU, [], REG, { depuis: MAR, limite: 1 }).map(d => [d.date, d.debut, d.libre_h]), [[MAR, '11:00', 5]]);
+    check('N18 à deux, on ne propose que des jours où les DEUX travaillent (Yannick : pas le mercredi)',
+      P.datesPossibles(['nicolas', 'yannick'], 4, [], [], REG, { depuis: MER, limite: 2 }).map(d => d.date), ['2026-03-05', '2026-03-06']);
+    check('N19 personne à mobiliser : aucune date (un sous-traitant se convient avec lui)', P.datesPossibles([], 4, [], [], REG, { depuis: LUN }), []);
+    check('N20 jamais aujourd’hui : par défaut on part de demain', (P.datesPossibles(['nicolas', 'yannick'], 1, [], [], REG, { limite: 1, horizon_jours: 14 })[0] || {}).date > P.aujourdhui(), true);
+
+    // Météo de pose : des seuils de prudence, jamais une interdiction.
+    check('N21 prévision inconnue : on ne sait pas, on n’écarte pas', P.meteoPose(null), { connue: false, ok: true, raison: '' });
+    check('N22 pluie 3 mm : déconseillé', P.meteoPose({ pluie: 3, vent: 10, rafales: 20 }), { connue: true, ok: false, raison: 'pluie 3 mm' });
+    check('N23 vent 45 km/h : déconseillé', P.meteoPose({ pluie: 0, vent: 45, rafales: 70 }).raison, 'vent 45 km/h');
+    check('N24 rafales 65 sous un vent moyen : déconseillé', P.meteoPose({ pluie: 0, vent: 20, rafales: 65 }).raison, 'rafales 65 km/h');
+    check('N25 sec et calme : ok', P.meteoPose({ pluie: 0.4, vent: 15, rafales: 30 }).ok, true);
+
+    // Agenda (.ics) et itinéraire.
+    const ICS = P.icsDe([posLun], REG, { base: 'https://erp.exemple/app/', maintenant: new Date('2026-03-01T09:00:00Z') });
+    const L_ICS = ICS.split('\r\n');
+    check('N26 un fichier d’agenda valide : lignes CRLF, un événement, identifiant STABLE (réimporter met à jour)',
+      [L_ICS[0], L_ICS.filter(l => l === 'BEGIN:VEVENT').length, L_ICS.filter(l => /^UID:/.test(l))[0], /\r\n$/.test(ICS)], ['BEGIN:VCALENDAR', 1, 'UID:pose:D1@solariscreen-erp', true]);
+    check('N27 heures LOCALES (sans fuseau), de 08:00 à 12:00', L_ICS.filter(l => /^DT(START|END):/.test(l)), ['DTSTART:20260302T080000', 'DTEND:20260302T120000']);
+    check('N28 titre, lieu échappé (la virgule), lien vers la fiche', [L_ICS.filter(l => /^SUMMARY:/.test(l))[0], L_ICS.filter(l => /^LOCATION:/.test(l))[0], /erp\.exemple\/app\/vue\.html\?id=D1/.test(ICS.replace(/\r\n /g, ''))],
+      ['SUMMARY:Pose — Marc Depaepe', 'LOCATION:Rue Haute 3\\, 1180 Uccle', true]);
+    const LONG = P.icsDe([Object.assign({}, posLun, { detail: 'é'.repeat(120) })], REG, {});
+    check('N29 une ligne ne dépasse jamais 75 octets (un « é » en vaut deux) : elle se plie', LONG.split('\r\n').every(l => new TextEncoder().encode(l).length <= 75), true);
+    const A1 = { adresse: 'Rue A 1, 1300 Wavre' }, A2 = { adresse: 'Rue B 2, 1400 Nivelles' };
+    check('N30 itinéraire : dernier arrêt en destination, les autres en étapes, dans l’ordre',
+      P.itineraire([A1, A1, { adresse: '' }, A2]), 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(A2.adresse) + '&waypoints=' + encodeURIComponent(A1.adresse));
+    check('N31 sans adresse, pas d’itinéraire', P.itineraire([{ adresse: '' }]), '');
+    const SIX = P.chargeSemaines('nicolas', MER, 6, EVS, [], REG);
+    check('N32 charge à six semaines : six semaines, à partir du LUNDI', [SIX.length, SIX[0].du, SIX[1].du, SIX[0].capacite], [6, LUN, '2026-03-09', 40]);
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
