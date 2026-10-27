@@ -32,6 +32,7 @@
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/actions.js"></script>
   <script src="bac-a-sable.js"></script>
@@ -186,6 +187,24 @@
         check('R10 Chaque dossier déclenche l’action pour laquelle il est écrit, selon la règle du tableau de bord (sur la liste projetée par le serveur)', obtenu, attendu);
         check('R11 La relance du devis informatif suit SA cadence (5 jours), pas celle d’après visite',
           [U.relanceDue(liste.find((x) => x.id === 'ESSAI-19')), !!liste.find((x) => x.id === 'ESSAI-19').informatif], [false, true]);
+        /* Le badge « à compléter » se lit sur la LISTE (projection items_min du serveur), comme le
+           tableau de bord. Les ouvertures fictives sont complètes : seul le dossier abîmé le porte.
+           Avant ce test, presque tous les dossiers d'essai affichaient « 4 à compléter ». */
+        check('R12 « À compléter » : seul le dossier ABÎMÉ (ESSAI-20) le porte — les autres ouvertures sont complètes, valeurs du catalogue',
+          liste.filter((d) => /^ESSAI-/.test(d.id) && U.nbManquants(d) > 0).map((d) => d.id), ['ESSAI-20']);
+        const P = window.SSProducts;
+        const horsListe = [];
+        (await Promise.all(B.construire().devis.map((d) => window.SS.getDevis(d.id)))).forEach((d) => (d.items || []).forEach((it) => {
+          if (it.type === 'screen' && it.variante && P.CS8_VARIANTES.indexOf(it.variante) < 0) horsListe.push(d.id + ' variante');
+          if (it.type === 'screen' && it.collection && P.CS8_COLLECTIONS.indexOf(it.collection) < 0) horsListe.push(d.id + ' collection');
+          if (it.type === 'screen' && it.moteur_ref && P.CS8_MOTEURS.indexOf(it.moteur_ref) < 0) horsListe.push(d.id + ' moteur');
+          if (it.type === 'volet_roulant' && P.VR_LAMES.indexOf(it.lame_type) < 0) horsListe.push(d.id + ' lame');
+          if (it.type === 'volet_roulant' && P.VR_COULEURS_LAMES.indexOf(it.couleur_lame) < 0) horsListe.push(d.id + ' couleur lame');
+          if (it.type === 'volet_roulant' && !P.VR_CAISSONS.some((c) => c.taille === it.caisson_mesure && c.courant)) horsListe.push(d.id + ' caisson');
+          if (it.type === 'tente_solaire' && !P.TS_SPECS[it.modele]) horsListe.push(d.id + ' modèle de tente');
+          if (it.type === 'tente_solaire' && P.TS_COLLECTIONS.indexOf(it.collection) < 0) horsListe.push(d.id + ' toile');
+        }));
+        check('R13 Aucune valeur hors catalogue (elle s’afficherait « valeur enregistrée » dans les menus, règle 31 bis)', horsListe, []);
 
         // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
         titre('P — La page de remplissage (tests/bac-a-sable.html)');

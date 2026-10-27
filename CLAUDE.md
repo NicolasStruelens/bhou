@@ -97,7 +97,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 24 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 26 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -2342,6 +2342,18 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   Cloudflare : **à réutiliser pour toute nouvelle route.** Vérifié par mutation (garde « vraie base »,
   doublons de factures, champs privés envoyés).
 • ⚠️ **Jamais de clé SMTP2GO dans l'environnement Preview** : un essai ne doit pas pouvoir envoyer de mail.
+• **BRANCHÉ le 27/10/2026.** Adresse fixe : `essai-bac-a-sable.solariscreen-erp.pages.dev` (branche
+  `essai/bac-a-sable`, la production telle quelle plus un commit vide — jamais fusionnée). Access :
+  application « solariscreen-erp - Cloudflare Pages » sur `*.solariscreen-erp.pages.dev`, stratégies
+  « Allow Members » + « Equipe SolariScreen ». Tous les aperçus partagent la MÊME base d'essai.
+• ⚠️ **Ce que seul le vrai Cloudflare montre** (trouvé en jouant le bac à sable, invisible en local) :
+  - l'adresse d'une branche est **tronquée à 28 caractères** (`amelioration/bac-a-sable-scenarios` →
+    `amelioration-bac-a-sable-sce.…`) : lire l'adresse dans le rapport de build, ne pas la deviner ;
+  - **une adresse inexistante ne répond PAS 404** : faute de `404.html`, Pages sert une autre page sans
+    rien dire — un lien cassé dans l'ERP passe inaperçu en ligne, alors que le serveur de test, lui,
+    répond 404 ;
+  - le traceur Web Analytics de Cloudflare (`cloudflareinsights.com`) remplit la console d'erreurs CORS
+    sur les aperçus : c'est du bruit côté Cloudflare, sans effet sur l'ERP.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2627,7 +2639,7 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`) ou à une route qu'il emprunte : `tests/bac-a-sable.test.html`,
-   exiger « 24/24 », par le serveur (il charge sql.js depuis cdnjs).
+   exiger « 26/26 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
