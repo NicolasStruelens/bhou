@@ -82,6 +82,8 @@
     ['c23', 'Hélène', 'Charlier', 'Louvain-la-Neuve', '1348'],
     ['c24', 'Damien', 'Leroy', 'Genval', '1332'],
     ['c25', 'Robert', 'Delvaux', 'La Hulpe', '1310'],
+    ['c26', 'Nadia', 'Benali', 'Wavre', '1300'],
+    ['c27', 'Hugo', 'Lemoine', 'Nivelles', '1400'],
   ];
   function client(code) {
     const i = CLIENTS.findIndex(function (c) { return c[0] === code; });
@@ -196,7 +198,7 @@
       devis(base, { n: '08', client: 'c08', vendeur: 'nicolas', cree: -30, modifie: -12, statut: 'signe', items: [volets(6)],
         role: 'Commandé, en fabrication chez Harol — rien à faire de notre côté',
         champs: { date_envoi: J(-27), statut_history: [{ statut: 'signe', date: T(-20) }], commande: { statut: 'fabrication', date_commande: J(-12), delai_semaines: 5 } },
-        _factures: [{ type: 'acompte', pct: 50, date: J(-19), echeance: J(-4), paiements: [{ date: J(-15), moyen: 'Virement' }] }] }),
+        _factures: [{ type: 'acompte', pct: 50, date: J(-19), echeance: J(-4), ref: '2600020', paiements: [{ date: J(-15), moyen: 'Virement' }] }] }),
       devis(base, { n: '09', client: 'c09', vendeur: 'yannick', cree: -50, modifie: -5, statut: 'signe', items: [volets(3)],
         role: 'Matériel reçu, pas de date de pose — à planifier',
         champs: { date_envoi: J(-45), statut_history: [{ statut: 'signe', date: T(-40) }], commande: { statut: 'recu', date_commande: J(-35), delai_semaines: 4 } },
@@ -211,7 +213,7 @@
         champs: { date_envoi: J(-70), statut_history: [{ statut: 'signe', date: T(-65) }], commande: { statut: 'pose', date_commande: J(-60), delai_semaines: 5 },
           chantier: { date_pose: J(-20), equipe: 'nicolas' }, reception_date: J(-20) },
         _factures: [{ type: 'acompte', pct: 50, date: J(-64), echeance: J(-49), paiements: [{ date: J(-58), moyen: 'Virement' }] },
-          { type: 'solde', date: J(-19), echeance: J(-4) }],
+          { type: 'solde', date: J(-19), echeance: J(-4), relance: 'email' }],
         // SAV : la balle est chez le fournisseur, avec la date où s'inquiéter (page SAV, étape « Pièce »).
         _sav: [{ probleme: 'moteur', description: 'Le moteur du screen du salon fait un bruit de crécelle à la descente.', pour: 'yannick', echeance: J(6),
           statut: 'attente_piece', piece_prevue: J(4), piece_note: 'Moteur Sunea 40 RTS, commandé chez Harol' }] }),
@@ -225,8 +227,8 @@
             { id: 'essai-cp1', url: photo('Avant', '#6b6b6b'), phase: 'avant', date: J(-41) },
             { id: 'essai-cp2', url: photo('Pendant', '#55705a'), phase: 'pendant', date: J(-40) },
             { id: 'essai-cp3', url: photo('Après', '#3f7a4c'), phase: 'apres', date: J(-40) }] },
-        _factures: [{ type: 'acompte', pct: 50, date: J(-109), echeance: J(-94), paiements: [{ date: J(-100), moyen: 'Virement' }] },
-          { type: 'solde', date: J(-39), echeance: J(-24), paiements: [{ date: J(-33), moyen: 'Virement' }] }],
+        _factures: [{ type: 'acompte', pct: 50, date: J(-109), echeance: J(-94), ref: '2600012', paiements: [{ date: J(-100), moyen: 'Virement' }] },
+          { type: 'solde', date: J(-39), echeance: J(-24), ref: '2600031', paiements: [{ date: J(-33), moyen: 'Virement' }] }],
         _sav: [{ probleme: 'reglage', description: 'Le volet de la chambre ne descend pas jusqu’en bas.', statut: 'resolu',
           resolution: 'Fin de course basse réglée (deux tours), essai fait devant la cliente.', cause: 'Fin de course réglée trop court à la pose.' }] }),
       devis(base, { n: '13', client: 'c13', vendeur: 'yannick', cree: -40, modifie: -20, statut: 'refuse', items: [volets(2)],
@@ -275,6 +277,18 @@
             statut: 'ouvert', photos: [photo('Moteur, constat', '#6b4a3b')], photos_apres: [], pour: '', echeance: '', date_creation: T(-9),
             date_resolution: null, cause: '', resolution: '', resolu_par: null, passages: [], piece_prevue: '', piece_note: '', notes: [] }] },
         _factures: [{ type: 'totale', date: J(-484), echeance: J(-469), paiements: [{ date: J(-475), moyen: 'Virement' }] }] }),
+      /* LA FACTURATION (règle 49) : un chantier signé hier dont l'acompte n'est pas encore FACTURÉ, et
+         un chantier posé dont l'acompte a été ramené de 100 € par une note de crédit (geste
+         commercial) puis payé pour le reste — il ne doit plus rien, et son solde reste à facturer. */
+      devis(base, { n: '22', client: 'c26', vendeur: 'yannick', cree: -6, modifie: -1, statut: 'signe', items: [volets(3, { emplacement: 'Séjour' })],
+        role: 'Signé hier — acompte pas encore facturé',
+        champs: { date_envoi: J(-5), statut_history: [{ statut: 'envoye_client', date: T(-5) }, { statut: 'signe', date: T(-1) }], commande: { statut: 'a_commander' } } }),
+      devis(base, { n: '23', client: 'c27', vendeur: 'nicolas', cree: -60, modifie: -6, statut: 'signe', items: [screens(2, { emplacement: 'Bureau' })],
+        role: 'Posé : acompte réduit par une note de crédit et payé — solde à facturer',
+        champs: { date_envoi: J(-58), statut_history: [{ statut: 'signe', date: T(-50) }], commande: { statut: 'pose', date_commande: J(-45), delai_semaines: 4 },
+          chantier: { date_pose: J(-6), equipe: 'nicolas' }, reception_date: J(-6) },
+        _factures: [{ type: 'acompte', pct: 30, date: J(-49), echeance: J(-34), paiements: [{ date: J(-40), moyen: 'Virement', moins: 100 }] },
+          { type: 'avoir', de: 'acompte', montant: 100, date: J(-45), motif: 'Geste commercial (essai)' }] }),
     ];
     // Le dossier abîmé n'a PAS de calculs : c'est précisément le cas à rejouer (règle 6 de « vérifier son travail »).
     delete D[19].calculs;
@@ -470,24 +484,60 @@
     for (const d of jeu.devis) {
       if (!d._factures) continue;
       let deja = facturesEx.filter(function (f) { return f.devis_id === d.id; }).reduce(function (s, f) { return s + (Number(f.total_ttc) || 0); }, 0);
+      const ids = {};   // type → numéro, pour qu'une note de crédit désigne la facture qu'elle annule
+      facturesEx.filter(function (f) { return f.devis_id === d.id; }).forEach(function (f) { ids[f.type] = f.id; });
       for (const spec of d._factures) {
-        if (facturesEx.some(function (f) { return f.devis_id === d.id && f.type === spec.type; })) { bilan.ignores++; continue; }
+        const existante = facturesEx.filter(function (f) { return f.devis_id === d.id && f.type === spec.type; })[0];
+        if (existante) {
+          /* Déjà posée : jamais refaite, jamais réencaissée. Mais une base remplie AVANT que le jeu ne porte
+             la pièce Falco et la relance (la base d'essai en ligne, partagée) ne les recevait jamais : on
+             complète ce qui manque, par les routes ciblées. Une référence saisie à la main n'est pas écrasée. */
+          let complete = false;
+          if (spec.ref && !String(existante.ref_externe || '').trim()) {
+            const rf = await SS.setRefFacture(existante.id, spec.ref);
+            note(!echec(rf), existante.id + ' : pièce Falco ' + spec.ref, rf && rf.error); complete = true;
+          }
+          if (spec.relance && !(existante.relances || []).length) {
+            const rr = await SS.relancerFacture(existante.id, spec.relance);
+            note(!echec(rr), existante.id + ' : relance de paiement', rr && rr.error); complete = true;
+          }
+          if (!complete) bilan.ignores++;
+          continue;
+        }
         const c = d.calculs || {}, ttc = c.total_ttc || 0;
-        const montant = spec.type === 'acompte' ? Math.min(ttc * spec.pct / 100, ttc - deja) : Math.max(0, ttc - deja);
-        const facteur = ttc > 0 ? montant / ttc : 0;
-        const fac = {
-          type: spec.type, devis_id: d.id, source_type: d.type_document || 'devis', date: spec.date, echeance: spec.echeance, ref_externe: '',
-          client: d.client, lines: lignesFacture(d, spec.type, spec.pct, r2((c.total_ht || 0) * facteur)),
-          total_ht: r2((c.total_ht || 0) * facteur), total_tva: r2((c.total_tva || 0) * facteur), total_ttc: r2(montant), tva_pct: c.tva_pct || 6,
-          devis_ttc: ttc, paiements: [], date_creation: horo(spec.date, 0, '11:00'), essai: true,
-        };
-        const res = await SS.saveFacture(fac, 'F');
-        note(!echec(res) && !!(res && res.id), d.id + ' : facture ' + spec.type + (res && res.id ? ' ' + res.id : ''), res && res.error);
+        let fac, montant;
+        if (spec.type === 'avoir') {
+          // Une NOTE DE CRÉDIT partielle (règle 49) : total négatif, au même taux que la facture annulée.
+          if (!ids[spec.de]) { note(false, d.id + ' : note de crédit', 'la facture à annuler n’existe pas'); continue; }
+          montant = -r2(spec.montant);
+          const ht = r2(spec.montant / (1 + (c.tva_pct || 6) / 100));
+          fac = { type: 'avoir', avoir_de: ids[spec.de], devis_id: d.id, source_type: d.type_document || 'devis', date: spec.date, echeance: spec.date, ref_externe: '',
+            client: d.client, lines: [{ desc: 'Annulation de la facture N° ' + ids[spec.de], sub: spec.motif || '', qty: 1, pu: -ht, total: -ht }],
+            total_ht: -ht, total_tva: -r2(spec.montant - ht), total_ttc: montant, tva_pct: c.tva_pct || 6, motif: spec.motif || '', paiements: [],
+            date_creation: horo(spec.date, 0, '11:00'), essai: true };
+        } else {
+          montant = spec.type === 'acompte' ? Math.min(ttc * spec.pct / 100, ttc - deja) : Math.max(0, ttc - deja);
+          const facteur = ttc > 0 ? montant / ttc : 0;
+          fac = {
+            type: spec.type, devis_id: d.id, source_type: d.type_document || 'devis', date: spec.date, echeance: spec.echeance, ref_externe: spec.ref || '',
+            client: d.client, lines: lignesFacture(d, spec.type, spec.pct, r2((c.total_ht || 0) * facteur)),
+            total_ht: r2((c.total_ht || 0) * facteur), total_tva: r2((c.total_tva || 0) * facteur), total_ttc: r2(montant), tva_pct: c.tva_pct || 6,
+            devis_ttc: ttc, paiements: [], date_creation: horo(spec.date, 0, '11:00'), essai: true,
+          };
+        }
+        const res = await SS.saveFacture(fac, spec.type === 'avoir' ? 'NC' : 'F');
+        note(!echec(res) && !!(res && res.id), d.id + ' : ' + (spec.type === 'avoir' ? 'note de crédit' : 'facture ' + spec.type) + (res && res.id ? ' ' + res.id : ''), res && res.error);
         if (echec(res) || !res.id) continue;
+        ids[spec.type] = res.id;
         deja += montant;
         for (const p of (spec.paiements || [])) {
-          const rp = await SS.addPaiement(res.id, { date: p.date, montant: r2(montant), moyen: p.moyen });
+          const rp = await SS.addPaiement(res.id, { date: p.date, montant: r2(montant - (p.moins || 0)), moyen: p.moyen });
           note(!echec(rp), res.id + ' : encaissement', rp && rp.error);
+        }
+        // Une relance de paiement déjà faite, par sa route (signée par le serveur).
+        if (spec.relance) {
+          const rr = await SS.relancerFacture(res.id, spec.relance);
+          note(!echec(rr), res.id + ' : relance de paiement', rr && rr.error);
         }
       }
     }
@@ -531,7 +581,13 @@
     const bilan = { retires: 0, erreurs: [] };
     const note = function (ok, quoi, err) { if (ok) { bilan.retires++; log('− ' + quoi); } else { bilan.erreurs.push(quoi + ' : ' + (err || 'refusé')); log('✗ ' + quoi + ' — ' + (err || 'refusé')); } };
     const essai = function (id) { return String(id || '').indexOf(PREFIXE) === 0; };
-    for (const f of ((await SS.listFactures()) || []).filter(function (f) { return essai(f.devis_id); })) {
+    // Une facture encaissée, reprise dans Falco ou annulée ne se supprime plus (règle 49) : on défait
+    // d'abord, dans l'ordre — encaissements, référence, puis les notes de crédit avant leurs factures.
+    const facsEssai = ((await SS.listFactures()) || []).filter(function (f) { return essai(f.devis_id); })
+      .sort(function (a, b) { return (b.type === 'avoir') - (a.type === 'avoir'); });
+    for (const f of facsEssai) {
+      for (const p of (f.paiements || []).slice().reverse()) { await SS.deletePaiement(f.id, p.id != null ? p.id : '0'); }
+      if (f.ref_externe) await SS.setRefFacture(f.id, '');
       const res = await SS.deleteFacture(f.id); note(!echec(res), 'facture ' + f.id, res && res.error);
     }
     for (const d of ((await SS.listDevis()) || []).filter(function (d) { return essai(d.id); })) {

@@ -26,54 +26,128 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .toolbar2 { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
-    .toolbar2 .search { flex: 1; min-width: 200px; position: relative; }
-    .toolbar2 .search input { padding-left: 2.2rem; }
-    .toolbar2 .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
-    td .actions { display: flex; gap: 0.3rem; justify-content: flex-end; }
-    .icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); cursor: pointer; }
-    /* Place RESERVEE de la relance : elle n existe que sur une facture en retard, mais si sa
-       colonne disparaissait, toutes les icones de la ligne se decaleraient et on ne pourrait
-       jamais apprendre laquelle est ou. */
-    .icon-btn-vide { width: 30px; height: 30px; display: inline-block; }
-    .act-encaisser { white-space: nowrap; }
-    .icon-btn:hover { border-color: var(--accent); color: var(--accent); } .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+    /* A — UNE ligne de résumé (les quatre tuiles prenaient 342 px sur téléphone). Chaque chiffre
+       est un bouton : il MÈNE à ce qu'il compte (règle 15 quater). */
+    .fa-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.9rem; margin-bottom: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .fa-resume b { color: var(--text); font-size: var(--fs-md); }
+    .fa-resume button { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+    .fa-resume .danger { color: var(--danger); font-weight: 600; }
+    .fa-resume .warn { color: var(--warn); font-weight: 600; }
+    .fa-afact { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); }
+    .fa-afact h2 { font-size: var(--fs-md); margin: 0 0 var(--sp-1); }
+    .fa-afact .aide { font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: var(--sp-2); }
+    .fa-al { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem var(--sp-3); padding: 0.45rem 0; border-top: 1px solid var(--border); }
+    .fa-al .txt { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+    .fa-al .txt small { display: block; color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .fa-al .mt { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
+    .fa-barre { display: flex; gap: var(--sp-2) var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
+    .fa-barre .search { flex: 1 1 16rem; min-width: 0; position: relative; }
+    .fa-barre .search input { padding-left: 2.2rem; }
+    .fa-barre .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+    .fa-barre .select { flex: 0 1 13rem; min-width: 0; }
+    .fa-vue { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; flex: 0 0 auto; }
+    .fa-vue button { background: none; border: 0; padding: 0.35rem 0.7rem; font: inherit; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
+    .fa-vue button.on { background: var(--accent); color: var(--bg); }
 
-    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
-    .modal-bg.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 480px; max-width: 100%; max-height: 90vh; overflow: auto; }
-    .modal h3 { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); }
-    .modal .mbody { padding: var(--sp-5); }
-    .modal .mfoot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: var(--sp-2); }
+    /* ── Une facture : un tableau au bureau, une CARTE sous 1 100 px — la feuille de style seule
+       décide (règle 24). Sur téléphone, le tableau faisait 993 px dans un écran de 331 :
+       « Encaisser » était à trois écrans de défilement vers la droite. ── */
+    .fa-tete, .fa-ligne { display: grid; grid-template-columns: 8.5rem minmax(9rem, 1.5fr) 7.5rem 7.5rem 7.5rem minmax(7.5rem, 1fr) auto;
+      gap: var(--sp-3); align-items: center; padding: 0.55rem var(--sp-4); }
+    .fa-tete { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); border-bottom: 1px solid var(--border); }
+    .fa-tete .num, .fa-ligne .fl-mt, .fa-ligne .fl-du { text-align: right; }
+    .fa-ligne { border-bottom: 1px solid var(--border); min-width: 0; }
+    .fa-ligne > * { min-width: 0; }
+    .fa-ligne.retard { box-shadow: inset 3px 0 0 var(--danger); }
+    .fl-num .id { font-family: var(--font-mono); font-size: var(--fs-sm); }
+    .fl-client a { font-weight: 600; color: inherit; overflow-wrap: anywhere; }
+    .fl-client small, .fl-dates small, .fl-st small { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); overflow-wrap: anywhere; }
+    .fl-dates { font-size: var(--fs-xs); color: var(--text-muted); }
+    .fl-dates .retard { color: var(--danger); font-weight: 600; }
+    .fl-mt, .fl-du { font-family: var(--font-mono); font-size: var(--fs-sm); white-space: nowrap; }
+    .fl-du.du { color: var(--accent-2-ink); font-weight: 700; }
+    .fl-st .arel { color: var(--warn); font-weight: 600; }
+    .fl-act { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+    .fl-plus { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; padding-top: var(--sp-2); border-top: 1px dashed var(--border); }
+    .fl-plus .note { font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .lab { display: none; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); }
+    /* F — La référence Falco, saisie DANS la ligne (plus de boîte de dialogue) */
+    .falco { display: block; margin-top: 0.15rem; background: none; border: none; padding: 0; font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent-2); cursor: pointer; text-align: left; }
+    .falco.vide { color: var(--warn); }
+    .falco-edit { display: flex; gap: 0.25rem; margin-top: 0.2rem; }
+    .falco-edit .input { padding: 0.2rem 0.4rem; min-width: 0; width: 100%; }
+    /* C — Par chantier */
+    .fa-chantiers { display: grid; gap: var(--sp-3); }
+    .fa-chantier { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); min-width: 0; }
+    .fa-chantier.retard { border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
+    .fc-tete { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-1) var(--sp-3); padding: var(--sp-3) var(--sp-4) var(--sp-2); }
+    .fc-tete .nom { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+    .fc-tete .nom small { display: block; font-weight: 400; font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .fc-chiffres { display: flex; flex-wrap: wrap; gap: 0.2rem var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted); padding: 0 var(--sp-4) var(--sp-2); }
+    .fc-chiffres b { font-family: var(--font-mono); color: var(--text); }
+    .fc-chiffres .du b { color: var(--accent-2-ink); }
+    .fc-chiffres .retard b { color: var(--danger); }
+    .fc-suite { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4) var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted); }
+    /* En mono comme les autres montants : en Inter, l'espace des milliers (U+202F) fait 1,5 px et « 3 667,60 » se lisait « 3667,60 ». */
+    .fc-suite b { font-family: var(--font-mono); color: var(--text); }
+    .fa-chantier .fa-ligne { grid-template-columns: 8.5rem 7.5rem 7.5rem 7.5rem minmax(7.5rem, 1fr) auto; }
+    .fa-chantier .fl-client { display: none; }
 
-    /* ── Facture partielle : une ligne par ouverture, avec le nombre réellement posé ── */
+    @media (max-width: 1100px) {
+      .fa-tete { display: none; }
+      .fa-liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: var(--sp-3); }
+      .fa-ligne, .fa-chantier .fa-ligne { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "num st" "client client" "dates dates" "mt du" "act act" "plus plus";
+        gap: 0.35rem var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3); }
+      .fa-chantier .fa-ligne { grid-template-areas: "num st" "dates dates" "mt du" "act act" "plus plus"; border-width: 1px 0 0; border-radius: 0; background: none; }
+      .fl-num { grid-area: num; } .fl-st { grid-area: st; text-align: right; } .fl-client { grid-area: client; } .fl-dates { grid-area: dates; }
+      .fl-mt { grid-area: mt; text-align: left !important; } .fl-du { grid-area: du; text-align: right; } .fl-act { grid-area: act; justify-content: stretch; } .fl-plus { grid-area: plus; }
+      .fl-act .btn { flex: 1 1 auto; justify-content: center; }
+      .fl-act .btn.plus { flex: 0 0 auto; }
+      .lab { display: block; }
+      .fa-ligne.retard { box-shadow: none; border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+    }
+    @media (max-width: 560px) {
+      .fa-barre .select { flex: 1 1 10rem; }
+    }
+
+    /* ── Les fenêtres : même gabarit et mêmes règles que le reste de l'ERP (règle 13 bis) ── */
+    .fa-overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); z-index: var(--z-overlay, 1000); display: none; align-items: flex-start; justify-content: center; padding: var(--sp-5) var(--sp-3); overflow-y: auto; }
+    .fa-overlay.open { display: flex; }
+    .fa-dialog { width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lg, var(--shadow)); }
+    .fa-dhead { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--border); }
+    .fa-dhead h2 { font-family: var(--font-display); font-size: var(--fs-lg); min-width: 0; overflow-wrap: anywhere; }
+    .fa-dbody { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+    .fa-dfoot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); }
+    .fa-info { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.6; }
+    .fa-info.warn { color: var(--warn); }
+    .fa-row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); }
     .poses-help { font-size: var(--fs-2xs); color: var(--text-subtle); line-height: 1.5; margin-bottom: var(--sp-2); }
-    .pose-row { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0;
-      border-bottom: 1px dashed var(--border); }
+    .pose-row { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0; border-bottom: 1px dashed var(--border); }
     .pose-row:last-child { border-bottom: none; }
-    .pose-nom { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; }
+    .pose-nom { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
     .pose-lieu { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); }
     .pose-qty { flex: none; display: flex; align-items: center; gap: 0.35rem; }
     .pose-qty .input { width: 72px; text-align: center; }
     .pose-tot { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
-
-    /* ── Encaissements déjà saisis, chacun retirable ── */
-    .pay-hist-t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: 0.3rem; }
-    .pay-hist { display: flex; align-items: center; gap: var(--sp-3); padding: 0.35rem 0;
-      border-bottom: 1px dashed var(--border); font-size: var(--fs-xs); }
-    .pay-hist:last-child { border-bottom: none; margin-bottom: var(--sp-4); }
+    .pay-hist-t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: 0.3rem; }
+    .pay-hist { display: flex; align-items: center; gap: var(--sp-3); padding: 0.35rem 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-xs); flex-wrap: wrap; }
     .pay-hist .ph-d { font-family: var(--font-mono); color: var(--text-muted); flex: none; }
     .pay-hist .ph-m { font-family: var(--font-mono); font-weight: 700; color: var(--ok); flex: none; }
-    .pay-hist .ph-y { flex: 1; min-width: 0; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pay-hist .ph-x { flex: none; background: none; border: none; color: var(--text-subtle); cursor: pointer; display: inline-flex; padding: 3px; border-radius: var(--r-sm); }
-    .pay-hist .ph-x:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
-    /* Référence de la pièce officielle (SysCore / Falco) : discrète quand elle existe,
-       invitante quand elle manque — c'est elle qui relie ce suivi à la comptabilité réelle. */
-    .ref-ext { display: block; margin-top: 0.15rem; background: none; border: none; padding: 0;
-      font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent-2); cursor: pointer; text-align: left; }
-    .ref-ext.vide { color: var(--text-subtle); opacity: 0.6; }
-    .ref-ext:hover { text-decoration: underline; }
+    .pay-hist .ph-y { flex: 1 1 6rem; min-width: 0; color: var(--text-subtle); overflow-wrap: anywhere; }
+    .fa-repart { border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
+    .fa-repart .l { display: flex; justify-content: space-between; gap: var(--sp-2); padding: 0.15rem 0; font-family: var(--font-mono); font-size: var(--fs-xs); }
+    .fa-texte { font-family: var(--font-body, inherit); min-height: 220px; }
+    .fa-seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 0.4rem; }
+    .fa-seg button { background: none; border: 0; padding: 0.3rem 0.7rem; font: inherit; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
+    .fa-seg button.on { background: var(--accent); color: var(--bg); }
+    @media (max-width: 560px) { .fa-row2 { grid-template-columns: minmax(0, 1fr); } }
+    /* Sur écran tactile, ces boutons maison n'ont pas la taille que base.css donne aux .btn (piège
+       « pointer: coarse ») : mesuré sur l'aperçu, « + pièce Falco » faisait 13 px de haut, les chiffres
+       du résumé 21. 36 px se touchent sans viser, sans faire descendre la page d'un écran. */
+    @media (pointer: coarse) {
+      .falco { min-height: 36px; }   /* reste un bloc : en ligne, il se collait au numéro (« F2026-006+ pièce Falco ») */
+      .fa-resume button, .fa-vue button, .fa-seg button { min-height: 36px; }
+    }
   </style>
 </head>
 <body>
@@ -85,741 +159,668 @@
       <div><h1><a href="dashboard.html">SOLARISCREEN</a></h1><div class="module">Facturation</div></div>
     </div>
     <div class="header-actions">
-      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> Dashboard</a>
+      <button class="btn btn-primary btn-sm" onclick="ouvrirNouvelle()" title="Nouvelle facture"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle facture</button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
-      <button class="btn btn-primary btn-sm" onclick="openNew()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle facture</button>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html" title="Tableau de bord"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
     </div>
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
-    <div class="toolbar2">
+    <div class="fa-resume" id="resume"></div>
+    <div id="aFacturer"></div>
+    <div class="fa-barre">
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <label for="search" class="sr-only">Rechercher une facture</label>
-        <input class="input" id="search" placeholder="Rechercher (n°, réf. SysCore, client)…" oninput="render()">
+        <input class="input" id="search" placeholder="N°, réf. Falco, client, n° de devis…" oninput="render()" autocomplete="off">
       </div>
-      <select class="select" id="filter" style="max-width:200px;" onchange="render()" aria-label="Filtrer les factures">
+      <label for="filtre" class="sr-only">Filtrer les factures</label>
+      <select class="select" id="filtre" onchange="render()">
         <option value="tous">Toutes</option>
-        <option value="impayee">À payer</option>
-        <option value="partielle">Partielles</option>
-        <option value="payee">Payées</option>
+        <option value="du">À encaisser</option>
         <option value="retard">En retard</option>
+        <option value="arelancer">À relancer</option>
+        <option value="payee">Payées</option>
+        <option value="sansfalco">Sans pièce Falco</option>
+        <option value="avoir">Notes de crédit</option>
       </select>
+      <div class="fa-vue" role="group" aria-label="Vue">
+        <button type="button" data-vue="chantier" onclick="setVue('chantier')">Par chantier</button>
+        <button type="button" data-vue="facture" onclick="setVue('facture')">Par facture</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="ouvrirExport()">Export comptable</button>
     </div>
-    <section class="section">
-      <div class="section-head"><span class="section-title">Factures</span><span class="section-code">SS // FACT</span><span class="section-sub" id="count">—</span></div>
-      <div id="tableHost"></div>
-    </section>
+    <div id="liste"><div aria-busy="true"><div class="skl" style="height:90px;margin-bottom:var(--sp-3)"></div><div class="skl" style="height:90px"></div></div></div>
   </main>
 
-  <!-- Modal nouvelle facture -->
-  <div class="modal-bg" id="modalNew">
-    <div class="modal">
-      <h3>Nouvelle facture</h3>
-      <div class="mbody">
-        <div class="field"><label class="label" for="mDevis">Devis source</label><select class="select" id="mDevis" onchange="onDevisPick()"></select></div>
-        <div class="field mt-4"><label class="label" for="mType">Type de facture</label>
-          <select class="select" id="mType" onchange="onTypePick()">
+  <!-- ══════ NOUVELLE FACTURE ══════ -->
+  <div class="fa-overlay" id="fenNouv">
+    <div class="fa-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="nvTitre">
+      <div class="fa-dhead"><h2 id="nvTitre">Nouvelle facture</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="fa-dbody">
+        <div class="field"><label class="label" for="mDevis">Devis à facturer</label><select class="select" id="mDevis" onchange="choixDevis()"></select></div>
+        <div class="field"><label class="label" for="mType">Type de facture</label>
+          <select class="select" id="mType" onchange="choixType()">
             <option value="acompte">Facture d'acompte</option>
             <option value="partielle">Facture partielle — ce qui est posé</option>
             <option value="solde">Facture de solde</option>
             <option value="totale">Facture totale</option>
-          </select>
-        </div>
-        <!-- Deux unites possibles mais UN SEUL champ : deux champs qui definissent la meme chose,
-             on ne sait plus lequel fait foi. Le bouton change l'unite, pas le nombre de saisies. -->
-        <div class="field mt-4" id="mPctField">
+          </select></div>
+        <!-- Deux unités, UN seul champ : deux champs qui définissent la même chose, on ne sait plus lequel fait foi. -->
+        <div class="field" id="mPctField">
           <label class="label" for="mPct">Acompte</label>
-          <div class="salut-seg" id="mAcompteUnite" style="margin-bottom:0.4rem;">
-            <button type="button" data-unite="pct" class="active" onclick="setUniteAcompte('pct')">En %</button>
-            <button type="button" data-unite="eur" onclick="setUniteAcompte('eur')">En €</button>
-          </div>
-          <div class="input-unit"><input class="input input-num" id="mPct" type="number" min="1" max="100" value="30" oninput="updatePreview()"><span class="unit" id="mPctUnite">%</span></div>
+          <div class="fa-seg" id="mUnite"><button type="button" data-unite="pct" class="on" onclick="setUnite('pct')">En %</button><button type="button" data-unite="eur" onclick="setUnite('eur')">En €</button></div>
+          <div class="input-unit"><input class="input input-num" id="mPct" type="number" min="0" max="100" value="30" oninput="apercu()"><span class="unit" id="mPctUnite">%</span></div>
         </div>
-        <div class="field mt-4 hidden" id="mPosesField">
-          <label class="label">Ouvertures réellement posées</label>
+        <div class="field hidden" id="mPosesField">
+          <span class="label">Ouvertures réellement posées</span>
           <div class="poses-help">Laisse le compte complet pour ce qui est terminé, réduis-le pour ce qui reste à poser. Le montant se recalcule tout seul.</div>
           <div id="mPoses"></div>
         </div>
-        <!-- La piece officielle est etablie dans Falco, sous SysCore : ce champ relie la ligne
-             d'ici a cette piece-la. Facultatif, car le numero n'est souvent connu qu'apres. -->
-        <div class="field mt-4"><label class="label" for="mRefExterne">Référence SysCore / Falco <span class="text-muted" style="font-weight:400">(facultatif)</span></label><input class="input" id="mRefExterne" placeholder="ex. 2600001" autocomplete="off"></div>
-        <div class="field mt-4"><label class="label" for="mEcheance">Échéance (jours)</label><input class="input input-num" id="mEcheance" type="number" min="0" value="15"></div>
-        <div class="mt-4" id="mPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
+        <div class="fa-row2">
+          <div class="field"><label class="label" for="mRefExterne">Référence SysCore / Falco <span class="text-muted" style="font-weight:400">(facultatif)</span></label><input class="input" id="mRefExterne" placeholder="Ex : 2600001" autocomplete="off"></div>
+          <div class="field"><label class="label" for="mEcheance">Échéance (jours)</label><input class="input input-num" id="mEcheance" type="number" min="0" value="15"></div>
+        </div>
+        <div id="mApercu" class="fa-info"></div>
       </div>
-      <div class="mfoot">
-        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalNew')">Annuler</button>
-        <button class="btn btn-primary btn-sm" onclick="createFacture()">Générer</button>
-      </div>
+      <div class="fa-dfoot"><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button><button class="btn btn-primary btn-sm" id="mCreer" onclick="creerFacture()">Générer</button></div>
     </div>
   </div>
 
-  <!-- Modal note de crédit -->
-  <div class="modal-bg" id="modalAvoir">
-    <div class="modal">
-      <h3>Établir une note de crédit</h3>
-      <div class="mbody">
-        <div id="avInfo" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-4);"></div>
-        <div class="field"><label class="label" for="avMontant">Montant à annuler (TVAC)</label>
-          <div class="input-unit"><input class="input input-num" id="avMontant" type="number" step="0.01" oninput="updateAvoirPreview()"><span class="unit">€</span></div>
-        </div>
-        <div class="field mt-4"><label class="label" for="avMotif">Motif (apparaît sur le document)</label>
-          <input class="input" id="avMotif" placeholder="Ex. : 5 ouvertures non posées, reportées">
-        </div>
-        <div class="mt-4" id="avPreview" style="font-size:var(--fs-sm);color:var(--text-muted);"></div>
-      </div>
-      <div class="mfoot">
-        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalAvoir')">Annuler</button>
-        <button class="btn btn-primary btn-sm" onclick="createAvoir()">Établir la note de crédit</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal paiement -->
-  <div class="modal-bg" id="modalPay">
-    <div class="modal">
-      <h3>Enregistrer un paiement</h3>
-      <div class="mbody">
-        <div id="payInfo" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--sp-4);"></div>
+  <!-- ══════ ENCAISSER (E — répartir un virement) ══════ -->
+  <div class="fa-overlay" id="fenPay">
+    <div class="fa-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="payTitre">
+      <div class="fa-dhead"><h2 id="payTitre">Encaisser</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="fa-dbody">
+        <div id="payInfo" class="fa-info"></div>
         <div id="payList"></div>
-        <div class="grid grid-2">
-          <div class="field"><label class="label" for="payMontant">Montant</label><div class="input-unit"><input class="input input-num" id="payMontant" type="number" step="0.01"><span class="unit">€</span></div></div>
+        <div class="fa-row2">
+          <div class="field"><label class="label" for="payMontant">Montant reçu</label><div class="input-unit"><input class="input input-num" id="payMontant" type="number" step="0.01" inputmode="decimal" oninput="apercuPay()"><span class="unit">€</span></div></div>
           <div class="field"><label class="label" for="payDate">Date</label><input class="input" id="payDate" type="date"></div>
-          <div class="field col-full"><label class="label" for="payMoyen">Moyen</label>
-            <select class="select" id="payMoyen"><option>Virement</option><option>Bancontact</option><option>Espèces</option><option>Autre</option></select>
-          </div>
         </div>
+        <div class="field"><label class="label" for="payMoyen">Moyen</label>
+          <select class="select" id="payMoyen"><option>Virement</option><option>Bancontact</option><option>Espèces</option><option>Autre</option></select></div>
+        <div id="payRepart"></div>
       </div>
-      <div class="mfoot">
-        <button class="btn btn-ghost btn-sm" onclick="closeModal('modalPay')">Annuler</button>
-        <button class="btn btn-primary btn-sm" onclick="savePayment()">Enregistrer</button>
+      <div class="fa-dfoot"><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button><button class="btn btn-primary btn-sm" id="paySave" onclick="enregistrerPaiement()">Enregistrer</button></div>
+    </div>
+  </div>
+
+  <!-- ══════ NOTE DE CRÉDIT ══════ -->
+  <div class="fa-overlay" id="fenAvoir">
+    <div class="fa-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="avTitre">
+      <div class="fa-dhead"><h2 id="avTitre">Établir une note de crédit</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="fa-dbody">
+        <div id="avInfo" class="fa-info"></div>
+        <div class="field"><label class="label" for="avMontant">Montant à annuler (TVAC)</label>
+          <div class="input-unit"><input class="input input-num" id="avMontant" type="number" step="0.01" inputmode="decimal" oninput="apercuAvoir()"><span class="unit">€</span></div></div>
+        <div class="field"><label class="label" for="avMotif">Motif (apparaît sur le document)</label><input class="input" id="avMotif" placeholder="Ex : 5 ouvertures non posées, reportées"></div>
+        <div id="avApercu" class="fa-info"></div>
+      </div>
+      <div class="fa-dfoot"><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button><button class="btn btn-primary btn-sm" onclick="creerAvoir()">Établir la note de crédit</button></div>
+    </div>
+  </div>
+
+  <!-- ══════ D — RELANCER ══════ -->
+  <div class="fa-overlay" id="fenRelance">
+    <div class="fa-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="relTitre">
+      <div class="fa-dhead"><h2 id="relTitre">Rappel de paiement</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="fa-dbody">
+        <div id="relInfo" class="fa-info"></div>
+        <div class="field"><label class="label" for="relSujet">Objet</label><input class="input" id="relSujet"></div>
+        <div class="field"><label class="label" for="relCorps">Message</label><textarea class="textarea fa-texte" id="relCorps"></textarea></div>
+      </div>
+      <div class="fa-dfoot">
+        <button class="btn btn-ghost btn-sm" onclick="relanceNotee('autre')">Relancé autrement — noter</button>
+        <button class="btn btn-ghost btn-sm" onclick="relanceNotee('copie')">Copier le texte</button>
+        <button class="btn btn-primary btn-sm" id="relMail" onclick="relanceNotee('email')">Ouvrir dans le mail</button>
       </div>
     </div>
   </div>
 
+  <!-- ══════ G — EXPORT COMPTABLE ══════ -->
+  <div class="fa-overlay" id="fenExport">
+    <div class="fa-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="exTitre">
+      <div class="fa-dhead"><h2 id="exTitre">Export pour le comptable</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="fa-dbody">
+        <div class="field"><label class="label" for="exPeriode">Période</label>
+          <select class="select" id="exPeriode" onchange="periodeExport()">
+            <option value="mois">Ce mois-ci</option><option value="moisprec">Le mois dernier</option><option value="trimestre">Ce trimestre</option>
+            <option value="annee">Cette année</option><option value="tout">Tout</option><option value="perso">Autre période…</option>
+          </select></div>
+        <div class="fa-row2">
+          <div class="field"><label class="label" for="exDu">Du</label><input class="input" id="exDu" type="date" onchange="apercuExport()"></div>
+          <div class="field"><label class="label" for="exAu">Au</label><input class="input" id="exAu" type="date" onchange="apercuExport()"></div>
+        </div>
+        <div id="exApercu" class="fa-info"></div>
+      </div>
+      <div class="fa-dfoot"><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button><button class="btn btn-primary btn-sm" onclick="telechargerExport()">Télécharger le CSV</button></div>
+    </div>
+  </div>
+
+  <script src="../assets/js/company.js"></script>
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/facturation.js"></script>
   <script>
-    const SS = window.SS;
+    const SS = window.SS, U = window.SSUI, F = window.SSFact;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, toast, normDevis, icon, qp } = window.SSUI;
+    const { fmtEur, fmtDate, el, toast, normDevis, icon, qp, jsAttr } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const today = () => SSUI.aujourdhui();
-    const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return SSUI.isoDate(d); };
+    const r2 = (x) => Math.round((Number(x) || 0) * 100) / 100;
+    const paye = (f) => ((f && f.paiements) || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    const jourCourt = (iso) => { const d = String(iso || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; };
+    const plusJours = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const TYPE_FAC = U.TYPE_FACTURE_LABEL;
 
-    let FACTURES = [], DEVIS = [], payTarget = null;
-
-    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
-    // Une NOTE DE CRÉDIT n'est ni payée ni impayée : elle annule, elle ne s'encaisse pas. Sans ce
-    // cas à part, son total NÉGATIF passait le test « payé ≥ total » et elle s'affichait « Payée ».
-    const estAvoir = f => f && f.type === 'avoir';
-    // Reste dû : définition PARTAGÉE (assets/js/ui.js), la même qu'aux statistiques — sinon les
-    // deux écrans annonceraient deux créances différentes.
-    const duDe = f => window.SSUI.duFacture(f, FACTURES);
-    // Statut, retard, pastille et libellés : SOURCE UNIQUE dans ui.js, partagée avec la fiche
-    // client — sa copie locale ignorait les notes de crédit (25/10/2026).
-    const statutOf = f => window.SSUI.statutFacture(f, FACTURES);
-    const isOverdue = f => window.SSUI.factureEnRetard(f, FACTURES);
-    const badgeFor = f => window.SSUI.badgeFacture(f, FACTURES);
-    const TYPE_LABEL_FAC = window.SSUI.TYPE_FACTURE_LABEL;
+    let FACTURES = [], DEVIS = [];
+    let VUE = 'chantier';
+    try { VUE = localStorage.getItem('ss_fact_vue') === 'facture' ? 'facture' : 'chantier'; } catch (e) {}
+    let PLUS = '';        // la facture dont la rangée « ⋯ » est ouverte
+    let FALCO = '';       // la facture dont la référence Falco est en cours de saisie
+    const devisDe = (id) => DEVIS.filter(d => d.id === id)[0] || null;
+    const factureDe = (id) => FACTURES.filter(f => f.id === id)[0] || null;
 
     async function load() {
-      FACTURES = (await SS.listFactures()) || [];
-      DEVIS = ((await SS.listDevis()) || []).map(normDevis);
-      renderKPIs(); render();
+      const r = await Promise.all([SS.listFactures(), SS.listDevis()]);
+      FACTURES = r[0] || [];
+      DEVIS = (r[1] || []).map(normDevis);
+      renderTout();
+    }
+    function renderTout() { renderResume(); renderAFacturer(); render(); }
+
+    // ── A — Le résumé et « À facturer maintenant » ─────────────────────────────────────────────
+    function renderResume() {
+      const du = r2(FACTURES.reduce((s, f) => s + U.duFacture(f, FACTURES), 0));
+      const retard = FACTURES.filter(f => U.factureEnRetard(f, FACTURES));
+      const af = F.aFacturer(DEVIS, FACTURES);
+      const sf = F.sansFalco(FACTURES).length;
+      el('resume').innerHTML = `<span><b>${fmtEur(du)}</b> à encaisser</span>`
+        + (retard.length ? ` <button class="danger" onclick="filtrer('retard')">${retard.length} en retard (${fmtEur(r2(retard.reduce((s, f) => s + U.duFacture(f, FACTURES), 0)))})</button>` : '')
+        + (af.length ? ` <button class="warn" onclick="document.getElementById('aFacturer').scrollIntoView({ behavior: 'smooth', block: 'start' })">${af.length} à facturer</button>` : '')
+        + (sf ? ` <button onclick="filtrer('sansfalco')">${sf} sans pièce Falco</button>` : '');
+    }
+    window.filtrer = (v) => { el('filtre').value = v; render(); el('liste').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    function renderAFacturer() {
+      const af = F.aFacturer(DEVIS, FACTURES);
+      el('aFacturer').innerHTML = af.length ? `<section class="fa-afact" aria-label="À facturer maintenant"><h2>À facturer maintenant</h2>
+        <div class="aide">Ce que le tableau de bord réclame, et qui n'est pas encore facturé.</div>
+        ${af.map(x => { const d = x.devis; const res = U.resumeDevis(d);
+          return `<div class="fa-al"><span class="txt"><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(`${d.prenom} ${d.nom}`.trim() || '—')}</a>
+            <small>${res ? esc(res) + ' · ' : ''}#${esc(d.id)}${d.ville ? ' · ' + esc(d.ville) : ''}</small></span>
+            ${x.montant != null ? `<span class="mt">${fmtEur(x.montant)}</span>` : ''}
+            <button class="btn btn-primary btn-sm" onclick="ouvrirNouvelle(${jsAttr(d.id)}, ${jsAttr(x.type)}, ${x.pct != null ? x.pct : 'null'})">${esc(x.libelle)}</button></div>`; }).join('')}
+      </section>` : '';
     }
 
-    function renderKPIs() {
-      const totalTTC = FACTURES.reduce((s, f) => s + (f.total_ttc || 0), 0);
-      const encaisse = FACTURES.reduce((s, f) => s + paidSum(f), 0);
-      // Reste dû = somme des restes POSITIFS, facture par facture. Un trop-perçu sur une facture
-      // (client qui règle tout d'un coup sur la facture d'acompte) ne doit PAS venir effacer la
-      // dette d'une autre facture : la simple soustraction totalTTC − encaissé sous-évaluait la
-      // créance réelle (constaté sur les données réelles : 12 784 € affichés au lieu de 22 258 €).
-      // Une facture éteinte par une note de crédit ne se réclame plus : `duFacture` en tient
-      // compte. Sans ça, un montant annulé restait affiché comme créance (constaté en test :
-      // 17 440,07 € encore réclamés sur une facture pourtant annulée).
-      const reste = FACTURES.reduce((s, f) => s + duDe(f), 0);
-      const retard = FACTURES.filter(isOverdue);
-      const resteRetard = retard.reduce((s, f) => s + duDe(f), 0);
-      el('kpis').innerHTML = `
-        <div class="kpi gold"><div class="kpi-label">Total facturé</div><div class="kpi-value">${fmtEur(totalTTC)}</div></div>
-        <div class="kpi ok"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(encaisse)}</div></div>
-        <div class="kpi"><div class="kpi-label">Restant dû</div><div class="kpi-value">${fmtEur(reste)}</div></div>
-        <div class="kpi danger"><div class="kpi-label">En retard (${retard.length})</div><div class="kpi-value">${fmtEur(resteRetard)}</div></div>`;
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
+    // ── Les listes ─────────────────────────────────────────────────────────────────────────────
+    window.setVue = (v) => { VUE = v === 'facture' ? 'facture' : 'chantier'; try { localStorage.setItem('ss_fact_vue', VUE); } catch (e) {} render(); };
+    function filtre(f) {
+      const v = el('filtre').value;
+      if (v === 'du') return U.duFacture(f, FACTURES) > 0.005;
+      if (v === 'retard') return U.factureEnRetard(f, FACTURES);
+      if (v === 'arelancer') return F.aRelancer(f, FACTURES);
+      if (v === 'payee') return U.statutFacture(f, FACTURES) === 'payee';
+      if (v === 'sansfalco') return !String(f.ref_externe || '').trim();
+      if (v === 'avoir') return f.type === 'avoir';
+      return true;
     }
-
     function render() {
-      const q = el('search').value.trim().toLowerCase();
-      const filter = el('filter').value;
-      let rows = FACTURES.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-      if (filter === 'retard') rows = rows.filter(isOverdue);
-      else if (filter !== 'tous') rows = rows.filter(f => statutOf(f) === filter);
-      if (q) rows = rows.filter(f => (`${f.id} ${f.ref_externe || ''} ${f.client && f.client.prenom} ${f.client && f.client.nom}`).toLowerCase().includes(q));
-      el('count').textContent = `${rows.length} facture(s)`;
-
-      if (!rows.length) {
-        el('tableHost').innerHTML = `<div class="empty">${icon('filetext', 34)}${FACTURES.length ? 'Aucune facture ne correspond.' : `Aucune facture pour l'instant.<br><button class="btn btn-ghost btn-sm" onclick="openNew()">${icon('plus', 13)} Créer une facture</button>`}</div>`;
+      [...document.querySelectorAll('.fa-vue button')].forEach(b => b.classList.toggle('on', b.dataset.vue === VUE));
+      const q = el('search').value || '';
+      const rows = FACTURES.filter(f => filtre(f) && F.correspond(f, q)).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.id).localeCompare(String(a.id)));
+      if (!FACTURES.length) {
+        el('liste').innerHTML = `<div class="empty">${icon('filetext', 34)}<div>Aucune facture pour l'instant.</div><button class="btn btn-ghost btn-sm mt-4" onclick="ouvrirNouvelle()">${icon('plus', 13)} Créer une facture</button></div>`;
         return;
       }
-
-      el('tableHost').innerHTML = `
-        <div class="table-wrap" style="border:none;border-radius:0;">
-          <table class="data">
-            <thead><tr><th>N°</th><th>Client</th><th>Type</th><th>Date</th><th>Échéance</th><th class="num">Montant</th><th class="num">Payé</th><th>Statut</th><th style="text-align:right;">Actions</th></tr></thead>
-            <tbody>${rows.map(f => `
-              <tr>
-                <td class="text-mono">${esc(f.id)}
-                  <button class="ref-ext ${f.ref_externe ? '' : 'vide'}" title="Référence de la pièce officielle (SysCore / Falco)"
-                    onclick="editerRef(${SSUI.jsAttr(f.id)})">${f.ref_externe ? esc(f.ref_externe) : '+ réf.'}</button>
-                </td>
-                <td>${esc((f.client && f.client.prenom) || '')} ${esc((f.client && f.client.nom) || '')}</td>
-                <td class="text-muted" style="font-size:var(--fs-2xs)">${esc(TYPE_LABEL_FAC[f.type] || f.type)}${f.avoir_de ? ' <span class="text-mono" style="opacity:.7">de ' + esc(f.avoir_de) + '</span>' : ''}</td>
-                <td class="text-muted">${fmtDate(f.date)}</td>
-                <td class="${isOverdue(f) ? 'text-mono' : 'text-muted'}" ${isOverdue(f) ? 'style="color:var(--danger)"' : ''}>${fmtDate(f.echeance)}</td>
-                <td class="num text-accent">${fmtEur(f.total_ttc)}</td>
-                <td class="num text-muted">${fmtEur(paidSum(f))}</td>
-                <td>${badgeFor(f)}</td>
-                <td><div class="actions">
-                  <!-- La relance n'existe que sur une facture en retard, mais sa PLACE est toujours
-                       là : sans ça le nombre d'icônes change d'une ligne à l'autre, donc leur position
-                       aussi, et on ne peut jamais apprendre où se trouve laquelle. -->
-                  ${!isOverdue(f) ? '<span class="icon-btn-vide" aria-hidden="true"></span>' : ''}
-                  ${isOverdue(f) ? `<button class="icon-btn" title="Relancer le client par email (texte prêt)" aria-label="Relancer la facture ${f.id}" onclick="relancerFacture('${encodeURIComponent(f.id)}')" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);">${icon('clock', 15)}</button>` : ''}
-                  <button class="icon-btn" title="Ouvrir la facture en PDF (pour l'imprimer ou l'envoyer)" aria-label="Voir la facture ${f.id} en PDF" onclick="location.href='facture.html?id=${encodeURIComponent(f.id)}'">${icon('filetext', 15)}</button>
-                  ${estAvoir(f) ? '' : (statutOf(f) === 'payee'
-                    ? `<button class="icon-btn" title="Voir ou corriger les encaissements déjà saisis" aria-label="Encaissements de ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 15)}</button>`
-                    : `<button class="btn btn-primary btn-sm act-encaisser" title="Enregistrer le paiement reçu — le montant restant est pré-rempli" aria-label="Encaisser la facture ${f.id}" onclick="openPay('${encodeURIComponent(f.id)}')">${icon('coin', 14)} Encaisser</button>`)}
-                  ${estAvoir(f) || avoirExistantPour(f.id) ? '' : `<button class="icon-btn" title="Établir une note de crédit (annule tout ou partie de cette facture)" aria-label="Note de crédit pour ${f.id}" onclick="openAvoir('${encodeURIComponent(f.id)}')" style="color:var(--accent-3);border-color:color-mix(in srgb,var(--accent-3) 45%,transparent);">${icon('arrowleft', 15)}</button>`}
-                  <button class="icon-btn danger" title="Supprimer cette facture définitivement" aria-label="Supprimer la facture ${f.id}" onclick="delFacture('${encodeURIComponent(f.id)}')">${icon('trash', 15)}</button>
-                </div></td>
-              </tr>`).join('')}</tbody>
-          </table>
-        </div>`;
+      if (!rows.length) { el('liste').innerHTML = `<div class="empty">${icon('search', 30)}<div>Aucune facture ne correspond.</div></div>`; return; }
+      if (VUE === 'facture') {
+        el('liste').innerHTML = `<section class="section"><div class="fa-tete" aria-hidden="true"><span>N°</span><span>Client</span><span>Dates</span><span class="num">Montant</span><span class="num">Reste dû</span><span>Statut</span><span></span></div>
+          <div class="fa-liste">${rows.map(f => ligne(f)).join('')}</div></section>`;
+        return;
+      }
+      // C — Par chantier : les dossiers qui ont au moins une facture retenue par le filtre et la recherche.
+      const ids = {}; rows.forEach(f => { ids[f.devis_id || ('sans-devis:' + f.id)] = true; });
+      const groupes = F.parChantier(FACTURES, DEVIS).filter(g => ids[g.devisId] || ids['sans-devis:' + g.factures[0].id]);
+      el('liste').innerHTML = `<div class="fa-chantiers">${groupes.map(chantier).join('')}</div>`;
     }
-
-    // ── Modal commun ──
-    window.closeModal = id => el(id).classList.remove('open');
-
-    // ── Nouvelle facture ──
-    window.openNew = (preselectId, preselectType) => {
-      // On ne facture qu'un devis SIGNÉ ou TERMINÉ (jamais un brouillon, un refusé ou un annulé).
-      const billable = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut));
-      if (!billable.length) { toast('Aucun devis signé ou terminé à facturer.', 'warn'); return; }
-      // Le résumé dans la liste : avec trois devis pour le même client, choisir « celui du
-      // milieu » à l'aveugle revient à facturer le mauvais chantier.
-      const opts = billable.map(d => {
-        const r = window.SSUI.resumeDevis(d);
-        return `<option value="${esc(d.id)}">#${esc(d.id)} — ${esc(d.prenom)} ${esc(d.nom)}`
-          + (r ? ` · ${esc(r)}` : '')
-          + ` (${fmtEur(d.ttc)})${d.type_document === 'depannage' ? ' · dépannage' : ''}</option>`;
-      }).join('');
-      el('mDevis').innerHTML = opts;
-      // Échéance et acompte : valeurs par défaut réglables (Paramètres). Le % d'acompte est
-      // ensuite écrasé par celui du devis choisi (onDevisPick) — c'est lui qui fait foi.
-      const CONF_F = (window.SSConf && window.SSConf.get()) || null;
-      el('mEcheance').value = CONF_F ? CONF_F.usage.echeance_facture : 15;
-      el('mRefExterne').value = '';
-      // Toute ouverture de la modale repart en POURCENTAGE : c'est le cas courant, et hériter
-      // silencieusement de l'unité précédente ferait lire « 30 » comme 30 €.
-      UNITE_ACOMPTE = 'pct';
-      if (document.getElementById('mAcompteUnite')) {
-        [...document.querySelectorAll('#mAcompteUnite button')].forEach(function (b) {
-          b.classList.toggle('active', b.dataset.unite === 'pct');
-        });
-        el('mPctUnite').textContent = '%';
-        el('mPct').max = '100'; el('mPct').step = '1'; el('mPct').removeAttribute('placeholder');
-      }
-      el('mPct').value = CONF_F ? CONF_F.prix.acompte_pct : 30;
-      el('mType').value = 'acompte';
-      if (preselectId && DEVIS.some(d => d.id === preselectId)) el('mDevis').value = preselectId;
-      if (preselectType) el('mType').value = preselectType;
-      else if ((DEVIS.find(d => d.id === el('mDevis').value) || {}).type_document === 'depannage') el('mType').value = 'totale';
-      onTypePick(); onDevisPick();
-      el('modalNew').classList.add('open');
-    };
-    window.onTypePick = () => {
-      const t = el('mType').value;
-      el('mPctField').style.display = t === 'acompte' ? 'block' : 'none';
-      el('mPosesField').classList.toggle('hidden', t !== 'partielle');
-      onDevisPick();
-    };
-    // Une ligne par ouverture du devis, avec le nombre posé (pré-rempli au total : le cas normal
-    // reste « tout est posé »). L'utilisateur ne diminue que ce qui manque.
-    async function renderPoses(devis) {
-      const host = el('mPoses');
-      const items = (devis && devis.items) || [];
-      if (!items.length) { host.innerHTML = '<div class="poses-help">Ce devis n’a aucune ouverture détaillée.</div>'; return; }
-      host.innerHTML = items.map((it, i) => {
-        const q = Number(it.quantite) || 1;
-        const nom = (TYPE_ITEM[it.type] || it.type || 'Ouverture') + (it.modele ? ' — ' + it.modele : '');
-        const lieu = [it.emplacement, it.etage].filter(Boolean).join(' · ');
-        return `<div class="pose-row">
-          <div class="pose-nom">${esc(nom)}${lieu ? `<span class="pose-lieu">${esc(lieu)}</span>` : ''}</div>
-          <div class="pose-qty">
-            <input class="input input-num" type="number" min="0" max="${q}" step="1" value="${q}"
-                   id="pose_${i}" aria-label="Nombre posé pour ${esc(nom)}" oninput="updatePreview()">
-            <span class="pose-tot">/ ${q}</span>
-          </div>
-        </div>`;
-      }).join('');
+    function chantier(g) {
+      const d = g.devis, cl = g.client || {};
+      const nom = `${(d && d.prenom) || cl.prenom || ''} ${(d && d.nom) || cl.nom || ''}`.trim() || '—';
+      const res = d ? U.resumeDevis(d) : '';
+      const suite = d && g.resteAFacturer > 0.005 ? F.aFacturer([d], FACTURES)[0] : null;
+      return `<article class="fa-chantier ${g.enRetard ? 'retard' : ''}" data-devis="${esc(g.devisId)}">
+        <div class="fc-tete"><div class="nom">${d ? `<a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a>` : esc(nom)}
+          <small>${res ? esc(res) + ' · ' : ''}${g.devisId ? '#' + esc(g.devisId) : 'sans devis'}${d && d.ville ? ' · ' + esc(d.ville) : ''}</small></div></div>
+        <div class="fc-chiffres">${g.devisTtc != null ? `<span>Devis <b>${fmtEur(g.devisTtc)}</b></span>` : ''}<span>Facturé <b>${fmtEur(g.facture)}</b></span>
+          <span>Encaissé <b>${fmtEur(g.encaisse)}</b></span><span class="${g.enRetard ? 'retard' : (g.du > 0.005 ? 'du' : '')}">Dû <b>${fmtEur(g.du)}</b></span></div>
+        ${g.factures.map(f => ligne(f)).join('')}
+        ${g.resteAFacturer > 0.005 ? `<div class="fc-suite">Reste à facturer : <b>${fmtEur(g.resteAFacturer)}</b>${
+          suite ? ` <button class="btn btn-ghost btn-sm" onclick="ouvrirNouvelle(${jsAttr(d.id)}, ${jsAttr(suite.type)}, ${suite.pct != null ? suite.pct : 'null'})">${esc(suite.libelle)}</button>`
+                : (d ? ` <button class="btn btn-ghost btn-sm" onclick="ouvrirNouvelle(${jsAttr(d.id)})">Facturer…</button>` : '')}</div>` : ''}
+      </article>`;
     }
-    const TYPE_ITEM = { screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' };
-    // Relit les compteurs saisis. Renvoie null hors mode partiel (computeAmounts facture alors tout).
-    function posesSaisies(devis) {
-      if (el('mType').value !== 'partielle') return null;
-      return ((devis && devis.items) || []).map((it, i) => {
-        const champ = el('pose_' + i);
-        return champ ? Number(champ.value) : (Number(it.quantite) || 1);
-      });
+    /** Une facture peut-elle être SUPPRIMÉE ? Même règle que le serveur (qui la tient de toute façon) :
+     *  ni encaissement, ni pièce Falco, ni note de crédit qui l'annule. */
+    const supprimable = (f) => !(f.paiements || []).length && !String(f.ref_externe || '').trim() && !FACTURES.some(x => x.type === 'avoir' && x.avoir_de === f.id);
+    function falco(f) {
+      const id = jsAttr(f.id);
+      /* ✕ : un clavier de téléphone n'a pas d'Échap, et ✓ veut dire « enregistrer » — sans lui, une saisie
+         commencée ne s'abandonnait qu'en l'effaçant à la main. */
+      if (FALCO === f.id) return `<span class="falco-edit"><input class="input" id="falco-${esc(f.id)}" value="${esc(f.ref_externe || '')}" placeholder="N° Falco" aria-label="Référence SysCore / Falco de ${esc(f.id)}"
+          onkeydown="if (event.key === 'Enter') { event.preventDefault(); falcoOk(${id}); } else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); falcoEdit(''); }">
+        <button class="btn btn-primary btn-sm" onclick="falcoOk(${id})" aria-label="Enregistrer la référence">${icon('check', 12)}</button>
+        <button class="btn btn-ghost btn-sm falco-annuler" onclick="falcoEdit('')" aria-label="Annuler" title="Annuler">${icon('x', 12)}</button></span>`;
+      return `<button class="falco ${f.ref_externe ? '' : 'vide'}" onclick="falcoEdit(${id})" title="Référence de la pièce officielle (SysCore / Falco)">${f.ref_externe ? 'Falco ' + esc(f.ref_externe) : '+ pièce Falco'}</button>`;
     }
-    // Pré-remplit le % d'acompte avec la valeur réelle déjà validée sur le devis
-    // (au lieu du 30% par défaut du formulaire) — évite un montant de facture qui ne
-    // correspond pas à celui affiché sur le devis du client.
-    let dernierDevisChoisi = null;
-    window.onDevisPick = async () => {
-      const id = el('mDevis').value;
-      const dep = (DEVIS.find(x => x.id === id) || {}).type_document === 'depannage';
-      // Un dépannage se règle en une fois : ni acompte à la commande, ni solde. On propose donc
-      // « totale » dès qu'on le sélectionne — libre à l'utilisateur d'en changer ensuite.
-      if (dep && id !== dernierDevisChoisi) {
-        el('mType').value = 'totale';
-        el('mPctField').style.display = 'none';
-        el('mPosesField').classList.add('hidden');
-      }
-      dernierDevisChoisi = id;
-      const optPart = el('mType').querySelector('option[value="partielle"]');
-      if (optPart) { optPart.disabled = dep; optPart.hidden = dep; }
-      // Bascule sans repasser par onTypePick(), qui rappellerait cette fonction en boucle.
-      if (dep && el('mType').value === 'partielle') {
-        el('mType').value = 'totale';
-        el('mPctField').style.display = 'none';
-        el('mPosesField').classList.add('hidden');
-      }
-      const type = el('mType').value;
-      if (id && (type === 'acompte' || type === 'partielle')) {
-        const d = await SS.getDevis(id);
-        // En euro, on NE touche pas au champ : le pourcentage du devis ecraserait le montant
-        // que Nicolas vient de taper, et 2000 deviendrait 30 sans un mot.
-        if (d && type === 'acompte' && UNITE_ACOMPTE !== 'eur') {
-          const p = d.pricing_v2 || {}, c = d.calculs || {};
-          el('mPct').value = p.acompte_pct != null ? p.acompte_pct : (c.acompte_pct != null ? c.acompte_pct : 30);
-        }
-        if (d && type === 'partielle') await renderPoses(d);
-      }
-      updatePreview();
-    };
-
-    // Une note de crédit porte un total NÉGATIF : elle vient donc naturellement en déduction du
-    // « déjà facturé », ce qui rouvre le devis à la facturation. C'est exactement son rôle.
-    const dejaFacture = (devisId) => FACTURES.filter(f => f.devis_id === devisId)
-      .reduce((s, f) => s + (Number(f.total_ttc) || 0), 0);
-    const avoirExistantPour = (facId) => FACTURES.some(f => f.type === 'avoir' && f.avoir_de === facId);
-
-    // Part du devis réellement posée, exprimée en fraction de sa VALEUR (et non en nombre
-    // d'ouvertures) : sur un chantier où toutes les ouvertures n'ont pas le même prix, compter
-    // « 28 sur 33 » facturerait de travers. Avec des ouvertures identiques — le cas de l'école —
-    // les deux reviennent au même : 28/33 exactement.
-    function partPosee(devis, poses) {
-      const items = (devis && devis.items) || [];
-      let total = 0, retenu = 0;
-      items.forEach((it, i) => {
-        const q = Number(it.quantite) || 1, pu = Number(it.prix_catalogue_ht) || 0;
-        const n = Math.max(0, Math.min(q, poses && poses[i] != null ? Number(poses[i]) : q));
-        total += q * pu; retenu += n * pu;
-      });
-      // Devis sans prix unitaire renseigné : on retombe sur le simple comptage d'ouvertures,
-      // sinon la fraction vaudrait 0/0 et la facture serait nulle sans explication.
-      if (total <= 0) {
-        let qTot = 0, qRet = 0;
-        items.forEach((it, i) => {
-          const q = Number(it.quantite) || 1;
-          qTot += q; qRet += Math.max(0, Math.min(q, poses && poses[i] != null ? Number(poses[i]) : q));
-        });
-        return qTot > 0 ? qRet / qTot : 1;
-      }
-      return retenu / total;
+    function ligne(f) {
+      const id = jsAttr(f.id), cl = f.client || {}, d = devisDe(f.devis_id);
+      const st = U.statutFacture(f, FACTURES), du = U.duFacture(f, FACTURES), retard = U.factureEnRetard(f, FACTURES);
+      const rel = F.relancesDe(f), arel = F.aRelancer(f, FACTURES);
+      const nom = `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—';
+      const avoir = f.type === 'avoir';
+      const nc = U.avoirsSur(FACTURES, f.id);
+      const plus = PLUS === f.id;
+      return `<div class="fa-ligne ${retard ? 'retard' : ''}" data-id="${esc(f.id)}">
+        <div class="fl-num"><span class="id">${esc(f.id)}</span>${falco(f)}</div>
+        <div class="fl-client">${d ? `<a href="vue.html?id=${encodeURIComponent(f.devis_id)}">${esc(nom)}</a>` : `<span style="font-weight:600">${esc(nom)}</span>`}
+          <small>${esc(TYPE_FAC[f.type] || f.type)}${f.avoir_de ? ' de ' + esc(f.avoir_de) : ''}${f.devis_id ? ' · #' + esc(f.devis_id) : ''}</small></div>
+        <div class="fl-dates">Émise le ${fmtDate(f.date)}${avoir ? '' : `<small class="${retard ? 'retard' : ''}">Échéance ${fmtDate(f.echeance)}</small>`}</div>
+        <div class="fl-mt"><span class="lab">Montant</span>${fmtEur(f.total_ttc)}${nc > 0.005 ? `<small style="display:block;font-size:var(--fs-3xs);color:var(--text-subtle)">− NC ${fmtEur(nc)}</small>` : ''}</div>
+        <div class="fl-du ${du > 0.005 ? 'du' : ''}"><span class="lab">Reste dû</span>${avoir ? '—' : fmtEur(du)}</div>
+        <div class="fl-st">${U.badgeFacture(f, FACTURES)}${rel.n ? `<small>relancée ${rel.n}× · ${jourCourt(rel.derniere)}</small>` : ''}${arel ? '<small class="arel">à relancer</small>' : ''}</div>
+        <div class="fl-act">
+          ${avoir ? '' : (du > 0.005 ? `<button class="btn btn-primary btn-sm" onclick="ouvrirPaiement(${id})">${icon('coin', 13)} Encaisser</button>`
+            : ((f.paiements || []).length ? `<button class="btn btn-ghost btn-sm" onclick="ouvrirPaiement(${id})">${icon('coin', 13)} Encaissements</button>` : ''))}
+          <a class="btn btn-ghost btn-sm" href="facture.html?id=${encodeURIComponent(f.id)}" title="Le document, pour l'imprimer ou l'envoyer">${icon('filetext', 13)} PDF</a>
+          <button class="btn btn-ghost btn-sm plus" onclick="basculerPlus(${id})" aria-expanded="${plus}" aria-label="Plus d’actions sur ${esc(f.id)}" title="Plus d’actions">⋯</button>
+        </div>
+        ${plus ? `<div class="fl-plus">
+          ${!avoir && du > 0.005 ? `<button class="btn btn-ghost btn-sm" onclick="ouvrirRelance(${id})">${icon('clock', 13)} Relancer</button>` : ''}
+          ${!avoir && !FACTURES.some(x => x.type === 'avoir' && x.avoir_de === f.id) ? `<button class="btn btn-ghost btn-sm" onclick="ouvrirAvoir(${id})">${icon('arrowleft', 13)} Note de crédit</button>` : ''}
+          ${f.devis_id && d ? `<a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(f.devis_id)}">${icon('window', 13)} Le dossier</a>` : ''}
+          ${supprimable(f) ? `<button class="btn btn-ghost btn-sm" onclick="supprimer(${id})">${icon('trash', 13)} Supprimer</button>`
+                           : `<span class="note">${avoir ? 'Une note de crédit émise reste dans les livres.' : 'Émise et suivie : elle s’annule par une note de crédit, elle ne se supprime pas.'}</span>`}
+        </div>` : ''}
+      </div>`;
     }
+    window.basculerPlus = (id) => { PLUS = PLUS === id ? '' : id; render(); };
 
-    async function computeAmounts(devisId, type, pct, poses) {
-      const d = await SS.getDevis(devisId);
-      const c = (d && d.calculs) || {};
-      const ttc = c.total_ttc || 0, ht = c.total_ht || 0, tva = c.total_tva || 0, tvaPct = c.tva_pct || 6;
-      // Déjà facturé pour ce devis (toutes factures) → on ne dépasse JAMAIS le total du devis.
-      const already = dejaFacture(devisId);
-      const remaining = Math.max(0, ttc - already);
-      let factor = 1;
-      if (type === 'acompte') {
-        // En euro, le montant saisi est le montant TVAC voulu ; en pourcentage, on le déduit du
-        // total. Dans les deux cas on retombe sur un `factor`, donc HT et TVA suivent tout seuls
-        // et le solde reste « tout le restant ».
-        const wanted = (UNITE_ACOMPTE === 'eur') ? (Number(pct) || 0) : ttc * ((Number(pct) || 0) / 100);
-        factor = ttc > 0 ? Math.min(wanted, remaining) / ttc : 0;   // acompte plafonné au restant
-      } else if (type === 'solde') {
-        factor = ttc > 0 ? remaining / ttc : 0;                     // solde = tout le restant
-      } else if (type === 'partielle') {
-        // On facture la part POSÉE, moins ce qui a déjà été facturé (l'acompte, typiquement).
-        // Exemple école : 28 des 33 screens posés → 84,85 % de 31 796,82 = 26 979,12 €, moins
-        // l'acompte de 9 539,05 € déjà facturé = 17 440,07 € à réclamer aujourd'hui. Le solde des
-        // 5 restants (4 817,70 €) se facturera à la fin — les trois montants se recomposent
-        // exactement, aucun euro ne se perd en route.
-        const cible = ttc * partPosee(d, poses);
-        factor = ttc > 0 ? Math.max(0, Math.min(cible - already, remaining)) / ttc : 0;
-      } else { // totale : facture unique à 100 %, uniquement si RIEN n'a encore été facturé
-        factor = already > 0.005 ? 0 : 1;
-      }
-      return { devis: d, total_ht: ht * factor, total_tva: tva * factor, total_ttc: ttc * factor,
-               tva_pct: tvaPct, factor, already, ttc, part: type === 'partielle' ? partPosee(d, poses) : 1 };
-    }
-
-    // 'pct' (defaut, inchange) ou 'eur' : montant TVAC saisi librement.
-    let UNITE_ACOMPTE = 'pct';
-    window.setUniteAcompte = function (u) {
-      UNITE_ACOMPTE = (u === 'eur') ? 'eur' : 'pct';
-      [...document.querySelectorAll('#mAcompteUnite button')].forEach(function (b) {
-        b.classList.toggle('active', b.dataset.unite === UNITE_ACOMPTE);
-      });
-      const champ = el('mPct');
-      el('mPctUnite').textContent = UNITE_ACOMPTE === 'eur' ? '\u20ac' : '%';
-      if (UNITE_ACOMPTE === 'eur') {
-        champ.removeAttribute('max');          // un montant n'est pas borne a 100
-        champ.step = '0.01';
-        champ.value = '';                      // on ne convertit PAS : un 30 qui devient 30 EUR
-        champ.placeholder = 'ex. 2000';        // serait un piege silencieux sur de l'argent
-      } else {
-        champ.max = '100'; champ.step = '1';
-        // CONF_F est LOCALE a la fonction qui ouvre la modale : on relit la configuration ici
-        // plutot que d'esperer la voir depuis une autre portee.
-        const conf = (window.SSConf && window.SSConf.get()) || null;
-        champ.value = conf ? conf.prix.acompte_pct : 30;
-        champ.removeAttribute('placeholder');
-      }
-      updatePreview();
-    };
-
-    async function updatePreview() {
-      const id = el('mDevis').value, type = el('mType').value, pct = el('mPct').value;
-      if (!id) return;
-      const d = type === 'partielle' ? await SS.getDevis(id) : null;
-      const a = await computeAmounts(id, type, pct, posesSaisies(d));
-      let detail = `Montant de la facture : <strong style="color:var(--accent-2)">${fmtEur(a.total_ttc)}</strong> TVAC (HT ${fmtEur(a.total_ht)} + TVA ${fmtEur(a.total_tva)})`;
-      // Le plafonnement au restant était SILENCIEUX : on demandait 2 000 €, on en obtenait 800 sans
-      // un mot. Sur de l'argent, un écart qu'on ne s'explique pas passe pour une erreur du logiciel.
-      if (type === 'acompte') {
-        const voulu = UNITE_ACOMPTE === 'eur' ? (Number(pct) || 0) : a.ttc * ((Number(pct) || 0) / 100);
-        if (voulu - a.total_ttc > 0.005) {
-          detail += `<div class="mt-2" style="font-size:var(--fs-2xs);line-height:1.6;color:var(--warn);">`
-            + `Ramené de ${fmtEur(voulu)} à ${fmtEur(a.total_ttc)} : c'est tout ce qui reste à facturer sur ce devis`
-            + (a.already > 0.005 ? ` (déjà facturé : ${fmtEur(a.already)})` : '')
-            + `.</div>`;
-        }
-      }
-      if (type === 'partielle') {
-        // On montre le raisonnement complet : sans lui, un montant qui n'est ni la part posée ni
-        // le total ressemble à une erreur. Avec, il se vérifie de tête.
-        const posee = a.ttc * a.part, reste = Math.max(0, a.ttc - posee);
-        detail += `<div class="mt-2" style="font-size:var(--fs-2xs);line-height:1.6;">`
-          + `Part posée : <strong>${(a.part * 100).toFixed(2).replace('.', ',')} %</strong> du devis = ${fmtEur(posee)}<br>`
-          + `− déjà facturé : ${fmtEur(a.already)}<br>`
-          + `Restera à facturer après celle-ci : <strong>${fmtEur(reste)}</strong> (les ouvertures pas encore posées)`
-          + `</div>`;
-      }
-      el('mPreview').innerHTML = detail;
-    }
-
-    /* La numérotation vivait ICI, en `max + 1` sur la liste chargée dans le navigateur. Deux
-       défauts confirmés à l'audit : deux personnes créant une facture au même moment obtenaient
-       le même numéro (et la seconde écrasait la première), et supprimer la dernière facture
-       permettait de réutiliser son numéro.
-       Elle est désormais attribuée par le serveur, en une instruction SQL atomique, via un
-       compteur qui ne redescend jamais (voir `allouerNumeroFacture` dans le Worker).
-       Rien ne reste ici : une numérotation en double dans le code finirait forcément par
-       ressortir un jour dans un écran oublié. */
-
-    function buildLines(devis, type, amounts, pct) {
-      if (type === 'totale') {
-        const lines = (devis.items || []).map(it => ({
-          // volet_roulant manquait dans cette table : une facture de volets imprimait « volet_roulant ».
-          desc: ({ screen: 'Screen', volet_roulant: 'Volet', tente_solaire: 'Tente solaire', tablier_volet: 'Tablier volet', pergola: 'Pergola', store_banne: 'Store banne' }[it.type] || it.type) + (it.modele ? ' — ' + it.modele : ''),
-          sub: [it.moteur, it.emplacement].filter(Boolean).join(' · '),
-          dims: window.SSUI.dimsOf(it) || '—',
-          qty: it.quantite || 1, pu: it.prix_catalogue_ht || 0, total: (it.prix_catalogue_ht || 0) * (it.quantite || 1),
-        }));
-        const c = devis.calculs || {};
-        // Même structure que le devis (app/devis.html) pour que facture et devis correspondent
-        // ligne à ligne : fournitures BRUTES + ligne de remise, installation BRUTE + ligne de remise.
-        // Sans ces lignes de remise, la facture affichait des lignes qui ne totalisaient pas le
-        // montant réellement dû (écart = remise catalogue + remise outillage).
-        const rc = (c.remise_catalogue && c.remise_catalogue.amount) || 0;
-        if (rc > 0) lines.push({ desc: 'Remise commerciale', qty: 1, pu: -rc, total: -rc });
-        if (c.install_total_brut > 0) lines.push({ desc: 'Installation et pose', qty: 1, pu: c.install_total_brut, total: c.install_total_brut });
-        // La remise installation ET la remise outillage réduisent toutes deux le forfait de pose.
-        const ri = ((c.remise_installation && c.remise_installation.amount) || 0) + ((c.remise_outillage && c.remise_outillage.amount) || 0);
-        if (ri > 0) lines.push({ desc: 'Remise commerciale', qty: 1, pu: -ri, total: -ri });
-        (c.extra_lines || []).forEach(e => lines.push({ desc: e.label, qty: e.qty, pu: e.unit_price_ht, total: e.total_ht }));
-        const surplus = devis.pricing_v2 && devis.pricing_v2.surplus_difficulte;
-        if (surplus > 0) lines.push({ desc: 'Supplément accès difficile', qty: 1, pu: surplus, total: surplus });
-        return lines;
-      }
-      if (type === 'partielle') {
-        // La ligne DIT ce qui est facturé : « 28 ouvertures posées sur 33 ». Une facture partielle
-        // muette sur son périmètre serait incompréhensible pour le client comme pour le comptable.
-        const items = devis.items || [];
-        const poses = amounts.poses || [];
-        let nPose = 0, nTot = 0;
-        items.forEach((it, i) => {
-          const q = Number(it.quantite) || 1;
-          nTot += q;
-          nPose += (poses[i] != null ? Math.max(0, Math.min(q, Number(poses[i]))) : q);
-        });
-        const sub = `Ouvertures posées à ce jour — le solde sera facturé après la pose des ${Math.max(0, nTot - nPose)} restantes`;
-        return [{ desc: `Travaux exécutés sur devis N° ${devis.id} — ${nPose} ouverture${nPose > 1 ? 's' : ''} posée${nPose > 1 ? 's' : ''} sur ${nTot}`,
-                  sub: nTot > nPose ? sub : '', qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
-      }
-      const quoi = devis.type_document === 'depannage' ? 'dépannage' : 'devis';
-      const label = type === 'acompte' ? `Acompte de ${pct} % sur ${quoi} N° ${devis.id}` : `Solde sur ${quoi} N° ${devis.id}`;
-      return [{ desc: label, qty: 1, pu: amounts.total_ht, total: amounts.total_ht }];
-    }
-
-    window.createFacture = async () => {
-      const id = el('mDevis').value, type = el('mType').value, pct = Number(el('mPct').value) || 30;
-      // Rafraîchit la liste avant de numéroter (évite une collision de numéro si Yannick a créé une
-      // facture entre-temps) et pour recalculer le « déjà facturé » à jour.
-      FACTURES = (await SS.listFactures()) || FACTURES;
-      const dSel = type === 'partielle' ? await SS.getDevis(id) : null;
-      const poses = posesSaisies(dSel);
-      const a = await computeAmounts(id, type, pct, poses);
-      a.poses = poses;
-      if (!a.devis) { toast('Devis introuvable', 'error'); return; }
-      if (!['signe', 'termine'].includes(a.devis.statut)) { toast('On ne facture qu\'un devis signé ou terminé (statut actuel : ' + (a.devis.statut || '?') + ').', 'warn', 4000); return; }
-      if (type === 'totale' && a.already > 0.005) { toast('Des factures existent déjà pour ce devis — utilise « Solde » pour le restant.', 'warn', 4000); return; }
-      if (a.total_ttc <= 0) { toast('Montant nul (devis déjà entièrement facturé ?)', 'warn'); return; }
-      // Le numéro est attribué par le SERVEUR (séquence atomique) : deux créations simultanées
-      // ne peuvent plus produire le même, et un numéro supprimé n'est jamais réutilisé.
-      const facture = {
-        type, devis_id: id,
-        // Nature du document facturé, RECOPIÉE ici : la facture doit savoir se présenter seule,
-        // même si le devis source venait à disparaître, et sans une lecture de plus à l'affichage.
-        source_type: a.devis.type_document || 'devis',
-        date: today(), echeance: addDays(Number(el('mEcheance').value) || 15),
-        ref_externe: (el('mRefExterne').value || '').trim(),
-        client: a.devis.client || {},
-        lines: buildLines(a.devis, type, a, pct),
-        total_ht: Math.round(a.total_ht * 100) / 100, total_tva: Math.round(a.total_tva * 100) / 100,
-        total_ttc: Math.round(a.total_ttc * 100) / 100, tva_pct: a.tva_pct, devis_ttc: a.devis.calculs && a.devis.calculs.total_ttc,
-        paiements: [], date_creation: new Date().toISOString(),
-      };
-      const resFac = await SS.saveFacture(facture, 'F');
-      const num = resFac && resFac.id;
-      // Si la facture n'a pas atteint le serveur, aucun numéro n'a été consommé : on s'arrête là
-      // et rien n'est écrit. C'est le serveur qui numérote, donc pas de pièce fantôme possible.
-      if (resFac.ok === false || !num) { toast((resFac && resFac.error) || 'Facture NON créée — réessaie.', 'error', 7000); return; }
-      closeModal('modalNew');
-      toast(resFac.offline ? 'Facture ' + num + ' créée (hors-ligne)' : 'Facture ' + num + ' créée ✓', resFac.offline ? 'warn' : 'ok');
-      await load();
-      location.href = 'facture.html?id=' + encodeURIComponent(num);
-    };
-
-    // ── Paiement ──
-    // ── NOTE DE CRÉDIT ─────────────────────────────────────────────────────────────────────────
-    // Une facture partie chez le client ne se modifie pas et ne se supprime pas : on l'annule par
-    // une pièce en sens inverse, qui reste elle aussi dans les livres. C'est la règle comptable,
-    // et c'est aussi ce qui permet de refacturer le devis proprement ensuite : le total négatif
-    // vient en déduction du « déjà facturé » et rouvre le montant disponible.
-    let avoirTarget = null;
-    /** La piece officielle est etablie dans Falco, souvent APRES la ligne d'ici : on doit pouvoir
-     *  rattacher le numero a tout moment, sans rouvrir ni reecrire la facture. */
-    window.editerRef = async (id) => {
-      const f = FACTURES.filter(x => String(x.id) === String(id))[0];
-      if (!f) { toast('Facture introuvable — recharge la page.', 'error'); return; }
-      const saisi = prompt('Référence de la pièce SysCore / Falco pour ' + id + ' :', f.ref_externe || '');
-      if (saisi === null) return;                       // annulé
-      const ref = saisi.trim();
-      if (ref === (f.ref_externe || '')) return;        // rien n'a changé
+    // ── F — La référence Falco, dans la ligne ──────────────────────────────────────────────────
+    window.falcoEdit = (id) => { FALCO = id; render(); if (id) { const c = el('falco-' + id); if (c) { c.focus(); c.select(); } } };
+    window.falcoOk = async (id) => {
+      const f = factureDe(id); const c = el('falco-' + id);
+      if (!f || !c) return;
+      const ref = c.value.trim();
+      if (ref === (f.ref_externe || '')) { FALCO = ''; render(); return; }
       const res = await SS.setRefFacture(id, ref);
-      if (res.ok === false) { toast(res.error || 'Référence non enregistrée.', 'error', 6000); return; }
-      f.ref_externe = ref;
-      toast(ref ? 'Référence enregistrée' : 'Référence retirée', 'ok');
-      render();
+      if (!res || res.ok === false) { toast((res && res.error) || 'Référence non enregistrée.', 'error', 6000); return; }
+      f.ref_externe = ref; FALCO = '';
+      toast(ref ? 'Pièce Falco notée' : 'Référence retirée', 'ok');
+      renderResume(); render();
     };
 
-    window.openAvoir = (encId) => {
-      const id = decodeURIComponent(encId);
-      avoirTarget = FACTURES.find(f => f.id === id);
-      if (!avoirTarget) return;
-      const paye = paidSum(avoirTarget);
-      el('avInfo').innerHTML = `Annulation de la facture <strong>${esc(id)}</strong> de ${fmtEur(avoirTarget.total_ttc)} TVAC.`
-        + (paye > 0 ? `<br><span style="color:var(--warn)">Attention : ${fmtEur(paye)} ont déjà été encaissés sur cette facture — prévois le remboursement ou l'imputation sur la prochaine.</span>` : '');
-      el('avMontant').value = Math.round((avoirTarget.total_ttc || 0) * 100) / 100;
+    window.supprimer = async (id) => {
+      if (!confirm('Supprimer la facture ' + id + ' ? Elle n’a ni encaissement, ni pièce Falco, ni note de crédit — mais son numéro ne sera pas réutilisé.')) return;
+      const res = await SS.deleteFacture(id);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Suppression refusée.', 'error', 8000); return; }
+      PLUS = '';
+      toast('Facture supprimée', 'ok');
+      await load();
+    };
+
+    /* ── Les fenêtres (règle 13 bis) : le fond ne ferme que si le geste y a COMMENCÉ ; Échap dans un
+       menu ou un champ date ne ferme rien ; une saisie entamée demande « Fermer sans enregistrer ? » ;
+       sur téléphone, « retour » ferme la fenêtre (une étape d'historique). ── */
+    const ETAPE = { faFenetre: true };
+    let FEN = null;
+    const telephone = () => { try { return matchMedia('(max-width: 900px)').matches; } catch (e) { return false; } };
+    function ouvrirFenetre(id, estSale) {
+      const relais = !!FEN;
+      if (FEN) el(FEN.id).classList.remove('open');
+      FEN = { id: id, estSale: estSale || null };
+      el(id).classList.add('open');
+      if (!relais && telephone()) { try { history.pushState(ETAPE, ''); } catch (e) {} }
+    }
+    function fermerSansHistorique(force) {
+      if (!FEN) return true;
+      if (!force && FEN.estSale && FEN.estSale() && !confirm('Fermer sans enregistrer ?')) return false;
+      el(FEN.id).classList.remove('open');
+      FEN = null;
+      return true;
+    }
+    window.fermerFenetre = (force) => {
+      if (!fermerSansHistorique(force)) return false;
+      try { if (history.state && history.state.faFenetre) history.back(); } catch (e) {}
+      return true;
+    };
+    /** Quitter la page depuis une fenêtre : l'étape d'historique est REMPLACÉE par la destination,
+     *  sinon « retour » ramènerait sur une étape vide de cette page. */
+    function partirVers(url) {
+      fermerSansHistorique(true);
+      try { if (history.state && history.state.faFenetre) { location.replace(url); return; } } catch (e) {}
+      location.href = url;
+    }
+    window.addEventListener('popstate', () => { if (FEN && !fermerSansHistorique(false)) { try { history.pushState(ETAPE, ''); } catch (e) {} } });
+    let downSurFond = null;
+    document.querySelectorAll('.fa-overlay').forEach((fond) => {
+      fond.addEventListener('mousedown', (e) => { downSurFond = e.target === fond ? fond : null; });
+      fond.addEventListener('click', (e) => { if (e.target === fond && downSurFond === fond) window.fermerFenetre(); downSurFond = null; });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !FEN) return;
+      const t = e.target;
+      if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(date|time|datetime-local)$/.test(t.type)))) return;
+      window.fermerFenetre();
+    });
+
+    // ── Nouvelle facture ───────────────────────────────────────────────────────────────────────
+    let UNITE = 'pct', NV_AVANT = '';
+    const instantaneNv = () => JSON.stringify(['mDevis', 'mType', 'mPct', 'mRefExterne', 'mEcheance'].map(k => el(k).value).concat([UNITE, [...document.querySelectorAll('#mPoses input')].map(i => i.value)]));
+    window.ouvrirNouvelle = (devisId, type, pct) => {
+      // Les devis signés ou terminés qui ont ENCORE quelque chose à facturer — un devis déjà
+      // entièrement facturé finissait sur « Montant nul ». Le reste à facturer s'affiche.
+      const liste = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut) && (Number(d.ttc) || 0) - F.dejaFacture(d.id, FACTURES) > 0.005);
+      if (!liste.length) { toast('Aucun devis signé avec un montant restant à facturer.', 'warn'); return; }
+      el('mDevis').innerHTML = liste.map(d => {
+        const res = U.resumeDevis(d), reste = r2((Number(d.ttc) || 0) - F.dejaFacture(d.id, FACTURES));
+        return `<option value="${esc(d.id)}">${esc(`${d.prenom} ${d.nom}`.trim())}${res ? ' · ' + esc(res) : ''} — reste ${fmtEur(reste)} sur ${fmtEur(d.ttc)}${d.type_document === 'depannage' ? ' · dépannage' : ''} (#${esc(d.id)})</option>`;
+      }).join('');
+      const conf = (window.SSConf && window.SSConf.get()) || null;
+      el('mEcheance').value = conf ? conf.usage.echeance_facture : 15;
+      el('mRefExterne').value = '';
+      if (devisId && liste.some(d => d.id === devisId)) el('mDevis').value = devisId;
+      const d = devisDe(el('mDevis').value) || {};
+      el('mType').value = type || (d.type_document === 'depannage' ? 'totale' : 'acompte');
+      setUnite('pct', true);
+      el('mPct').value = pct != null ? pct : (d.acompte_pct != null ? d.acompte_pct : (conf ? conf.prix.acompte_pct : 30));
+      choixType(true).then(() => { NV_AVANT = instantaneNv(); });
+      ouvrirFenetre('fenNouv', () => NV_AVANT && instantaneNv() !== NV_AVANT);
+    };
+    window.setUnite = (u, sansApercu) => {
+      UNITE = u === 'eur' ? 'eur' : 'pct';
+      [...document.querySelectorAll('#mUnite button')].forEach(b => b.classList.toggle('on', b.dataset.unite === UNITE));
+      const c = el('mPct');
+      el('mPctUnite').textContent = UNITE === 'eur' ? '€' : '%';
+      if (UNITE === 'eur') { c.removeAttribute('max'); c.step = '0.01'; c.value = ''; c.placeholder = 'Ex : 2000'; }
+      else { c.max = '100'; c.step = '1'; c.removeAttribute('placeholder'); const d = devisDe(el('mDevis').value) || {}; if (!sansApercu) c.value = d.acompte_pct != null ? d.acompte_pct : 30; }
+      if (!sansApercu) apercu();
+    };
+    let DEV_COMPLET = null;   // le devis choisi, chargé en entier (ses ouvertures, ses calculs)
+    window.choixDevis = async () => {
+      const d = devisDe(el('mDevis').value) || {};
+      // Un dépannage se règle en une fois : ni acompte, ni facture partielle (règle 7).
+      if (d.type_document === 'depannage' && ['acompte', 'partielle'].includes(el('mType').value)) el('mType').value = 'totale';
+      if (UNITE === 'pct') el('mPct').value = d.acompte_pct != null ? d.acompte_pct : 30;
+      await choixType();
+    };
+    window.choixType = async (silencieux) => {
+      const id = el('mDevis').value, type = el('mType').value;
+      const d = devisDe(id) || {};
+      const dep = d.type_document === 'depannage';
+      [...el('mType').options].forEach(o => { if (['acompte', 'partielle'].includes(o.value)) { o.disabled = dep; o.hidden = dep; } });
+      el('mPctField').style.display = type === 'acompte' ? '' : 'none';
+      el('mPosesField').classList.toggle('hidden', type !== 'partielle');
+      DEV_COMPLET = id ? await SS.getDevis(id) : null;
+      if (type === 'partielle') renderPoses(DEV_COMPLET);
+      await apercu();
+    };
+    function renderPoses(devis) {
+      const items = (devis && devis.items) || [];
+      if (!items.length) { el('mPoses').innerHTML = '<div class="poses-help">Ce devis n’a aucune ouverture détaillée.</div>'; return; }
+      el('mPoses').innerHTML = items.map((it, i) => {
+        const q = window.SSRemu.quantiteDe(it);
+        const nom = (U.TYPE_LABEL[it.type] || it.type || 'Ouverture') + (it.modele ? ' — ' + it.modele : '');
+        const lieu = [it.emplacement, it.etage].filter(Boolean).join(' · ');
+        return `<div class="pose-row"><div class="pose-nom">${esc(nom)}${lieu ? `<span class="pose-lieu">${esc(lieu)}</span>` : ''}</div>
+          <div class="pose-qty"><input class="input input-num" type="number" min="0" max="${q}" step="1" value="${q}" id="pose_${i}" aria-label="Nombre posé pour ${esc(nom)}" oninput="apercu()">
+          <span class="pose-tot">/ ${q}</span></div></div>`;
+      }).join('');
+    }
+    const saisie = () => ({ unite: UNITE, valeur: el('mPct').value, poses: [...document.querySelectorAll('#mPoses input')].map(i => Number(i.value)) });
+    window.apercu = async () => {
+      const type = el('mType').value;
+      if (!DEV_COMPLET) { el('mApercu').innerHTML = ''; return; }
+      const a = F.montants(DEV_COMPLET, FACTURES, type, saisie());
+      let h = `Montant de la facture : <strong style="color:var(--accent-2-ink)">${fmtEur(r2(a.total_ttc))}</strong> TVAC (HT ${fmtEur(r2(a.total_ht))} + TVA ${fmtEur(r2(a.total_tva))})`;
+      if (type === 'acompte') h += `<br>Sur la facture : « ${esc(F.libelleAcompte(DEV_COMPLET, a, saisie()))} »`;
+      if (a.plafonne) h += `<div class="fa-info warn">Ramené de ${fmtEur(r2(a.voulu))} à ${fmtEur(r2(a.total_ttc))} : c'est tout ce qui reste à facturer sur ce devis${a.already > 0.005 ? ` (déjà facturé : ${fmtEur(a.already)})` : ''}.</div>`;
+      if (type === 'partielle') {
+        const posee = a.ttc * a.part;
+        h += `<div style="font-size:var(--fs-2xs)">Part posée : <strong>${(a.part * 100).toFixed(2).replace('.', ',')} %</strong> du devis = ${fmtEur(r2(posee))}<br>− déjà facturé : ${fmtEur(a.already)}<br>Restera à facturer après celle-ci : <strong>${fmtEur(r2(Math.max(0, a.ttc - Math.max(posee, a.already))))}</strong></div>`;
+      }
+      el('mApercu').innerHTML = h;
+    };
+    window.creerFacture = async () => {
+      const id = el('mDevis').value, type = el('mType').value;
+      FACTURES = (await SS.listFactures()) || FACTURES;   // ce que l'autre a facturé entre-temps compte
+      const d = await SS.getDevis(id);
+      if (!d) { toast('Devis introuvable', 'error'); return; }
+      if (!['signe', 'termine'].includes(d.statut)) { toast('On ne facture qu’un devis signé ou terminé (statut : ' + (d.statut || '?') + ').', 'warn', 5000); return; }
+      const s = saisie();
+      const a = F.montants(d, FACTURES, type, s);
+      if (type === 'totale' && a.already > 0.005) { toast('Des factures existent déjà pour ce devis — utilise « Solde » pour le restant.', 'warn', 5000); return; }
+      if (a.total_ttc <= 0.005) { toast('Montant nul : rien à facturer avec ces valeurs.', 'warn'); return; }
+      const facture = {
+        type: type, devis_id: id, source_type: d.type_document || 'devis',
+        date: U.aujourdhui(), echeance: plusJours(Number(el('mEcheance').value) || 15),
+        ref_externe: el('mRefExterne').value.trim(), client: d.client || {},
+        lines: F.lignes(d, type, a, s),
+        total_ht: r2(a.total_ht), total_tva: r2(a.total_tva), total_ttc: r2(a.total_ttc), tva_pct: a.tva_pct,
+        devis_ttc: d.calculs && d.calculs.total_ttc, paiements: [], date_creation: new Date().toISOString(),
+      };
+      el('mCreer').disabled = true;
+      const res = await SS.saveFacture(facture, 'F');
+      el('mCreer').disabled = false;
+      if (!res || res.ok === false || !res.id) { toast((res && res.error) || 'Facture NON créée — réessaie.', 'error', 7000); return; }
+      toast('Facture ' + res.id + ' créée ✓', 'ok');
+      partirVers('facture.html?id=' + encodeURIComponent(res.id));
+    };
+
+    // ── Encaisser — E : répartir un virement sur le dossier ────────────────────────────────────
+    let PAY = null, PAY_PROPOSE = '';
+    window.ouvrirPaiement = (id) => {
+      PAY = factureDe(id); if (!PAY) return;
+      const du = U.duFacture(PAY, FACTURES), nc = U.avoirsSur(FACTURES, PAY.id);
+      el('payTitre').textContent = 'Encaisser ' + PAY.id;
+      el('payInfo').innerHTML = `${esc(TYPE_FAC[PAY.type] || PAY.type)} de ${fmtEur(PAY.total_ttc)}${nc > 0.005 ? `, note de crédit de ${fmtEur(nc)} déduite` : ''}${paye(PAY) > 0.005 ? `, ${fmtEur(r2(paye(PAY)))} déjà reçus` : ''}.
+        <br>Reste dû : <strong style="color:var(--accent-2-ink)">${fmtEur(du)}</strong>`;
+      renderEncaissements();
+      PAY_PROPOSE = du > 0.005 ? String(du) : '';
+      el('payMontant').value = PAY_PROPOSE;
+      el('payDate').value = U.aujourdhui();
+      el('payMoyen').value = 'Virement';
+      apercuPay();
+      ouvrirFenetre('fenPay', () => PAY && el('payMontant').value !== PAY_PROPOSE);
+    };
+    function renderEncaissements() {
+      const arr = (PAY && PAY.paiements) || [];
+      el('payList').innerHTML = arr.length ? `<div class="pay-hist-t">Encaissements déjà enregistrés</div>` + arr.map((p, i) => `<div class="pay-hist">
+          <span class="ph-d">${fmtDate(p.date)}</span><span class="ph-m">${fmtEur(p.montant)}</span><span class="ph-y">${esc(p.moyen || '')}${p.lot ? ' · ' + esc(p.lot) : ''}</span>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="retirerEncaissement(${i})" aria-label="Retirer l'encaissement du ${fmtDate(p.date)}">${icon('trash', 12)} Retirer</button></div>`).join('') : '';
+    }
+    function repartition() {
+      const m = r2(Number(el('payMontant').value) || 0);
+      return F.repartir(m, PAY, FACTURES);
+    }
+    window.apercuPay = () => {
+      const m = r2(Number(el('payMontant').value) || 0);
+      const du = U.duFacture(PAY, FACTURES);
+      el('paySave').textContent = 'Enregistrer';
+      if (m <= du + 0.01) { el('payRepart').innerHTML = ''; return; }
+      const rp = repartition();
+      const autres = rp.lignes.filter(l => l.id !== PAY.id);
+      el('paySave').textContent = autres.length ? 'Répartir et enregistrer' : 'Enregistrer';
+      el('payRepart').innerHTML = `<div class="fa-repart">${autres.length ? `<div style="margin-bottom:0.3rem">Ce montant dépasse ce que doit ${esc(PAY.id)} : il couvre aussi ${autres.length > 1 ? 'les autres factures' : 'l’autre facture'} du dossier.</div>`
+        + rp.lignes.map(l => `<div class="l"><span>${esc(l.id)} · ${esc(TYPE_FAC[l.type] || l.type)}</span> <span>${fmtEur(l.montant)}</span></div>`).join('') : ''}
+        ${rp.excedent > 0.01 ? `<div class="fa-info warn">${fmtEur(rp.excedent)} de plus que tout ce que le dossier doit : ce serait un trop-perçu${
+          autres.length ? '' : ' sur ' + esc(PAY.id)}. Si le client a réglé le solde d'avance, crée d'abord la facture de solde.</div>` : ''}</div>`;
+    };
+    window.enregistrerPaiement = async () => {
+      if (!PAY) return;
+      const m = r2(Number(el('payMontant').value) || 0);
+      if (m <= 0) { toast('Montant invalide', 'warn'); return; }
+      const date = el('payDate').value || U.aujourdhui(), moyen = el('payMoyen').value;
+      const rp = m > U.duFacture(PAY, FACTURES) + 0.01 ? repartition() : { lignes: [{ id: PAY.id, montant: m }], excedent: 0 };
+      if (rp.excedent > 0.01 && !confirm(`${fmtEur(rp.excedent)} dépassent tout ce que le dossier doit.\n\nIls seront notés sur ${PAY.id} comme trop-perçu (son « reste dû » deviendra négatif).\n\nOK = enregistrer quand même · Annuler = corriger`)) return;
+      // L'excédent accepté reste sur la facture choisie : on ne l'invente pas ailleurs.
+      const parts = rp.lignes.map(l => ({ id: l.id, montant: l.id === PAY.id ? r2(l.montant + rp.excedent) : l.montant }));
+      if (!parts.some(p => p.id === PAY.id) && rp.excedent > 0.01) parts.unshift({ id: PAY.id, montant: rp.excedent });
+      const lot = parts.length > 1 ? `${moyen} de ${fmtEur(m)} réparti (${parts.map(p => p.id).join(', ')})` : '';
+      el('paySave').disabled = true;
+      const faits = [];
+      for (const p of parts) {
+        const res = await SS.addPaiement(p.id, { date: date, montant: p.montant, moyen: moyen, lot: lot || undefined });
+        if (!res || res.ok === false) {
+          el('paySave').disabled = false;
+          toast((res && res.error) || 'Encaissement NON enregistré sur ' + p.id, 'error', 8000);
+          if (faits.length) toast('Déjà enregistré : ' + faits.join(', ') + ' — corrige depuis ces factures.', 'warn', 9000);
+          await load();
+          return;
+        }
+        faits.push(p.id + ' ' + fmtEur(p.montant));
+      }
+      el('paySave').disabled = false;
+      SS.logActivity && SS.logActivity({ action: 'facture.paiement', entity_type: 'facture', entity_id: PAY.id, label: `Encaissement de ${fmtEur(m)}${parts.length > 1 ? ' réparti sur ' + parts.length + ' factures' : ' sur ' + PAY.id}` });
+      toast(parts.length > 1 ? 'Réparti : ' + faits.join(' · ') + ' ✓' : 'Paiement enregistré ✓', 'ok', 6000);
+      window.fermerFenetre(true);
+      await load();
+    };
+    window.retirerEncaissement = async (i) => {
+      const p = PAY && (PAY.paiements || [])[i];
+      if (!p) return;
+      if (!confirm(`Retirer l'encaissement de ${fmtEur(p.montant)} du ${fmtDate(p.date)} ?\n\nLa facture ${PAY.id} redeviendra due de ce montant.`)) return;
+      // Par son IDENTIFIANT, pas sa position : un autre encaissement a pu décaler la liste.
+      const res = await SS.deletePaiement(PAY.id, p.id != null ? p.id : String(i));
+      if (!res || res.ok === false) { toast((res && res.error) || 'Encaissement NON retiré — réessaie.', 'error', 7000); return; }
+      PAY.paiements = res.paiements || [];
+      toast('Encaissement retiré', 'ok');
+      await load();
+      PAY = factureDe(PAY.id);
+      window.fermerFenetre(true);
+      if (PAY) window.ouvrirPaiement(PAY.id);
+    };
+
+    // ── Note de crédit ─────────────────────────────────────────────────────────────────────────
+    let AV = null, AV_AVANT = '';
+    window.ouvrirAvoir = (id) => {
+      AV = factureDe(id); if (!AV) return;
+      const p = paye(AV);
+      el('avInfo').innerHTML = `Annulation de la facture <strong>${esc(AV.id)}</strong> de ${fmtEur(AV.total_ttc)} TVAC.`
+        + (p > 0 ? `<br><span style="color:var(--warn)">${fmtEur(r2(p))} ont déjà été encaissés sur cette facture — prévois le remboursement ou l'imputation sur la prochaine.</span>` : '');
+      el('avMontant').value = r2(AV.total_ttc);
       el('avMotif').value = '';
-      updateAvoirPreview();
-      el('modalAvoir').classList.add('open');
+      AV_AVANT = el('avMontant').value + '|';
+      apercuAvoir();
+      ouvrirFenetre('fenAvoir', () => AV && (el('avMontant').value + '|' + el('avMotif').value) !== AV_AVANT);
     };
-    window.updateAvoirPreview = () => {
-      if (!avoirTarget) return;
-      const m = Number(el('avMontant').value) || 0;
-      const total = avoirTarget.total_ttc || 0;
-      const restant = Math.round((total - m) * 100) / 100;
-      el('avPreview').innerHTML = m >= total - 0.005
-        ? 'La facture sera <strong>entièrement annulée</strong>. Le devis redeviendra facturable en totalité.'
-        : `Annulation partielle : il restera <strong>${fmtEur(restant)}</strong> dû sur cette facture.`;
+    window.apercuAvoir = () => {
+      if (!AV) return;
+      const m = Number(el('avMontant').value) || 0, t = Number(AV.total_ttc) || 0;
+      el('avApercu').innerHTML = m >= t - 0.005 ? 'La facture sera <strong>entièrement annulée</strong>. Le devis redeviendra facturable en totalité.'
+        : `Annulation partielle : il restera <strong>${fmtEur(r2(t - m))}</strong> sur cette facture (moins ce qui est déjà payé).`;
     };
-    window.createAvoir = async () => {
-      if (!avoirTarget) return;
-      const montant = Number(el('avMontant').value) || 0;
-      const total = avoirTarget.total_ttc || 0;
+    window.creerAvoir = async () => {
+      if (!AV) return;
+      const montant = r2(Number(el('avMontant').value) || 0), total = Number(AV.total_ttc) || 0;
       if (montant <= 0) { toast('Montant invalide', 'warn'); return; }
       if (montant > total + 0.005) { toast('Une note de crédit ne peut pas dépasser le montant de la facture.', 'warn', 5000); return; }
-      // Relit la liste avant de numéroter : Yannick a pu créer une pièce entre-temps.
-      FACTURES = (await SS.listFactures()) || FACTURES;
-      const tvaPct = avoirTarget.tva_pct || 6;
-      const ht = Math.round((montant / (1 + tvaPct / 100)) * 100) / 100;
-      const motif = (el('avMotif').value || '').trim();
+      const tvaPct = AV.tva_pct || 6, ht = r2(montant / (1 + tvaPct / 100)), motif = el('avMotif').value.trim();
       const avoir = {
-        type: 'avoir', avoir_de: avoirTarget.id, devis_id: avoirTarget.devis_id,
-        // La note de credit herite de la nature de la piece qu'elle annule : elle doit se
-        // presenter comme elle (« Ref. intervention », pas « Ref. devis »).
-        source_type: avoirTarget.source_type || 'devis',
-        date: today(), echeance: today(),        // une note de crédit n'a pas d'échéance à courir
-        client: avoirTarget.client || {},
-        lines: [{ desc: `Annulation de la facture N° ${avoirTarget.id}`, sub: motif, qty: 1, pu: -ht, total: -ht }],
-        total_ht: -ht, total_tva: -(Math.round((montant - ht) * 100) / 100), total_ttc: -Math.round(montant * 100) / 100,
-        tva_pct: tvaPct, motif: motif, paiements: [], date_creation: new Date().toISOString(),
+        type: 'avoir', avoir_de: AV.id, devis_id: AV.devis_id, source_type: AV.source_type || 'devis',
+        date: U.aujourdhui(), echeance: U.aujourdhui(), client: AV.client || {},
+        lines: [{ desc: `Annulation de la facture N° ${AV.id}`, sub: motif, qty: 1, pu: -ht, total: -ht }],
+        total_ht: -ht, total_tva: -r2(montant - ht), total_ttc: -montant, tva_pct: tvaPct, motif: motif, paiements: [], date_creation: new Date().toISOString(),
       };
       const res = await SS.saveFacture(avoir, 'NC');
-      const num = res && res.id;
-      if (res.ok === false) { toast(res.error || 'Note de crédit NON créée — réessaie.', 'error', 7000); return; }
-      closeModal('modalAvoir');
-      toast(res.offline ? 'Note de crédit ' + num + ' créée (hors-ligne)' : 'Note de crédit ' + num + ' créée ✓', res.offline ? 'warn' : 'ok');
-      SS.logActivity && SS.logActivity({ action: 'facture.avoir', entity_type: 'facture', entity_id: num,
-        label: `Note de crédit ${num} de ${fmtEur(montant)} sur la facture ${avoirTarget.id}` });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Note de crédit NON créée — réessaie.', 'error', 7000); return; }
+      SS.logActivity && SS.logActivity({ action: 'facture.avoir', entity_type: 'facture', entity_id: res.id, label: `Note de crédit ${res.id} de ${fmtEur(montant)} sur la facture ${AV.id}` });
+      toast('Note de crédit ' + res.id + ' créée ✓', 'ok');
+      window.fermerFenetre(true);
+      PLUS = '';
       await load();
     };
 
-    window.openPay = async (encId) => {
-      const id = decodeURIComponent(encId);
-      payTarget = FACTURES.find(f => f.id === id);
-      if (!payTarget) return;
-      const reste = (payTarget.total_ttc || 0) - paidSum(payTarget);
-      el('payInfo').innerHTML = `Facture <strong>${esc(id)}</strong> — total ${fmtEur(payTarget.total_ttc)}, déjà payé ${fmtEur(paidSum(payTarget))}.<br>Reste dû : <strong style="color:var(--accent-2)">${fmtEur(reste)}</strong>`;
-      renderPaiements();
-      el('payMontant').value = (Math.round(reste * 100) / 100) || '';
-      el('payDate').value = today();
-      el('modalPay').classList.add('open');
+    // ── D — Relancer, et le noter ──────────────────────────────────────────────────────────────
+    let REL = null;
+    window.ouvrirRelance = (id) => {
+      REL = factureDe(id); if (!REL) return;
+      const t = F.texteRelance(REL, FACTURES, window.SS_COMPANY || {});
+      const r = F.relancesDe(REL);
+      const email = String((REL.client && REL.client.email) || '').split(',')[0].trim();
+      el('relTitre').textContent = 'Rappel de paiement — ' + REL.id;
+      el('relInfo').innerHTML = (r.n ? `Déjà relancée ${r.n}× : ${(REL.relances || []).map(x => fmtDate(x.le) + (x.par ? ' (' + esc(U.SELLER_LABELS[x.par] || x.par) + ')' : '')).join(', ')}.` : 'Première relance de cette facture.')
+        + `<br>Reste dû : <strong>${fmtEur(t.du)}</strong>${email ? ' · ' + esc(email) : ' · <span style="color:var(--warn)">pas d’e-mail : copie le texte dans un SMS ou WhatsApp</span>'}`;
+      el('relSujet').value = t.sujet; el('relCorps').value = t.corps;
+      el('relMail').style.display = email ? '' : 'none';
+      ouvrirFenetre('fenRelance', null);
     };
-    // Liste des encaissements déjà saisis, chacun retirable. Il n'existait AUCUN moyen de corriger
-    // une saisie : un montant tapé sur la mauvaise facture — le cas des règlements pointés sur la
-    // facture d'acompte — restait à vie et faussait le « reste à encaisser ».
-    function renderPaiements() {
-      const host = el('payList');
-      const arr = (payTarget && payTarget.paiements) || [];
-      if (!arr.length) { host.innerHTML = ''; return; }
-      host.innerHTML = `<div class="pay-hist-t">Encaissements déjà enregistrés</div>`
-        + arr.map((p, i) => `<div class="pay-hist">
-             <span class="ph-d">${fmtDate(p.date)}</span>
-             <span class="ph-m">${fmtEur(p.montant)}</span>
-             <span class="ph-y">${esc(p.moyen || '')}</span>
-             <button type="button" class="ph-x" title="Retirer cet encaissement" aria-label="Retirer l'encaissement du ${fmtDate(p.date)}" onclick="removePaiement(${i})">${icon('trash', 13)}</button>
-           </div>`).join('');
-    }
-    window.removePaiement = async (i) => {
-      if (!payTarget) return;
-      const p = (payTarget.paiements || [])[i];
-      if (!p) return;
-      if (!confirm(`Retirer l'encaissement de ${fmtEur(p.montant)} du ${fmtDate(p.date)} ?\n\nLa facture ${payTarget.id} redeviendra due de ce montant.`)) return;
-      // On désigne l'encaissement par son IDENTIFIANT, pas par sa position : entre l'affichage
-      // et le clic, un autre encaissement a pu être ajouté et décaler la liste. Les paiements
-      // saisis avant cette évolution n'en ont pas — le serveur accepte alors la position.
-      const res = await SS.deletePaiement(payTarget.id, p.id != null ? p.id : String(i));
-      if (res.ok === false) { toast(res.error || 'Encaissement NON retiré — réessaie.', 'error', 7000); return; }
-      payTarget.paiements = res.paiements || [];
-      SS.logActivity && SS.logActivity({ action: 'facture.paiement.retire', entity_type: 'facture', entity_id: payTarget.id,
-        label: `Encaissement de ${fmtEur(p.montant)} retiré de la facture ${payTarget.id}` });
-      toast('Encaissement retiré', 'ok');
-      const reste = (payTarget.total_ttc || 0) - paidSum(payTarget);
-      el('payInfo').innerHTML = `Facture <strong>${esc(payTarget.id)}</strong> — total ${fmtEur(payTarget.total_ttc)}, déjà payé ${fmtEur(paidSum(payTarget))}.<br>Reste dû : <strong style="color:var(--accent-2)">${fmtEur(reste)}</strong>`;
-      renderPaiements();
-      el('payMontant').value = (Math.round(reste * 100) / 100) || '';
-      await load();
-    };
-    window.savePayment = async () => {
-      if (!payTarget) return;
-      const montant = Number(el('payMontant').value) || 0;
-      if (montant <= 0) { toast('Montant invalide', 'warn'); return; }
-      // Garde-fou comptable : encaisser PLUS que le montant facturé rend le « reste dû » négatif et
-      // gonfle le CA encaissé. Cas réel rencontré : le client règle tout d'un coup et la somme est
-      // saisie sur la facture d'acompte. On ne bloque pas (ça arrive), on demande confirmation et on
-      // rappelle la bonne pratique : créer la facture de solde pour le complément.
-      const resteDu = Math.round(((payTarget.total_ttc || 0) - paidSum(payTarget)) * 100) / 100;
-      if (montant > resteDu + 0.01) {
-        const ok = confirm(
-          `Ce paiement (${fmtEur(montant)}) dépasse le reste dû de cette facture (${fmtEur(resteDu)}).\n\n` +
-          `Le trop-perçu apparaîtra comme un solde négatif et faussera le CA encaissé.\n\n` +
-          `OK = enregistrer quand même · Annuler = corriger (et facturer le solde à part)`
-        );
-        if (!ok) return;
-      }
-      // Écriture CIBLÉE : le serveur ajoute le paiement à la valeur actuelle de la facture, sans
-      // que nous réécrivions l'ensemble. Deux encaissements saisis en même temps ne peuvent plus
-      // s'écraser — c'est lui qui renvoie la liste faisant foi.
-      const resPay = await SS.addPaiement(payTarget.id, {
-        date: el('payDate').value || today(), montant, moyen: el('payMoyen').value,
-      });
-      if (resPay.ok === false) { toast(resPay.error || 'Paiement NON enregistré — réessaie.', 'error', 7000); return; }
-      payTarget.paiements = resPay.paiements || payTarget.paiements || [];
-      closeModal('modalPay');
-      toast('Paiement enregistré ✓', 'ok');
-      await load();
+    /** Les trois gestes NOTENT la relance (même règle que les relances de devis) : le mail, la copie
+     *  (SMS, WhatsApp) ou « autrement » (téléphone, de vive voix). */
+    window.relanceNotee = async (canal) => {
+      if (!REL) return;
+      const corps = el('relCorps').value, sujet = el('relSujet').value;
+      if (canal === 'copie') U.copyText(corps, 'Texte du rappel');
+      const res = await SS.relancerFacture(REL.id, canal);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Relance non notée.', 'error', 6000); return; }
+      REL.relances = res.relances || [];
+      const email = String((REL.client && REL.client.email) || '').split(',')[0].trim();
+      window.fermerFenetre(true);
+      toast('Relance notée ✓', 'ok');
+      PLUS = '';
+      renderTout();
+      if (canal === 'email' && email) location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(sujet) + '&body=' + encodeURIComponent(corps);
     };
 
-    // ── Relance d'une facture en retard : email prêt à envoyer ──────────────────────────────
-    // Pendant financier des relances de devis : texte poli généré depuis la facture (montant,
-    // échéance, reste dû, IBAN, communication), copié dans le presse-papier ET ouvert dans le
-    // client mail. Sans email sur la fiche, le texte copié se colle dans un SMS/WhatsApp.
-    window.relancerFacture = (encId) => {
-      const f = FACTURES.find(x => x.id === decodeURIComponent(encId));
-      if (!f) return;
-      const cl = f.client || {};
-      const paye = paidSum(f);
-      const reste = Math.max(0, (f.total_ttc || 0) - paye);
-      const co = window.SS_COMPANY || {};
-      const body = `Bonjour ${[cl.prenom, cl.nom].filter(Boolean).join(' ')},\n\n`
-        + `Sauf erreur de notre part, la facture n°${f.id} d'un montant de ${fmtEur(f.total_ttc || 0)} (échéance le ${fmtDate(f.echeance)}) reste en attente de paiement`
-        + (paye > 0 ? ` — il reste ${fmtEur(reste)} à percevoir` : '') + `.\n\n`
-        + `Le règlement peut être effectué sur le compte ${co.iban || 'BE82 7320 7855 2368'} avec la communication « ${f.id} ».\n\n`
-        + `Si le paiement a été effectué ces derniers jours, merci de ne pas tenir compte de ce message.\n\nBien à vous,\n${co.name || 'SolariScreen'}`;
-      try { navigator.clipboard.writeText(body); } catch (e) {}
-      const email = String(cl.email || '').split(',')[0].trim();
-      if (email) {
-        location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Rappel de paiement — facture ' + f.id + ' (SolariScreen)') + '&body=' + encodeURIComponent(body);
-        toast('Email de rappel préparé — le texte est aussi copié ✓', 'ok', 3500);
-      } else {
-        toast('Pas d\'email sur cette facture — texte de rappel copié : colle-le dans un SMS ou WhatsApp.', 'warn', 6000);
-      }
+    // ── G — Export comptable ───────────────────────────────────────────────────────────────────
+    window.ouvrirExport = () => { el('exPeriode').value = 'moisprec'; periodeExport(); ouvrirFenetre('fenExport', null); };
+    window.periodeExport = () => {
+      const v = el('exPeriode').value, auj = U.aujourdhui(), a = Number(auj.slice(0, 4)), m = Number(auj.slice(5, 7));
+      const deb = (y, mo) => y + '-' + String(mo).padStart(2, '0') + '-01';
+      const fin = (y, mo) => U.isoDate(new Date(y, mo, 0));
+      let du = '', au = '';
+      if (v === 'mois') { du = deb(a, m); au = fin(a, m); }
+      else if (v === 'moisprec') { const y = m === 1 ? a - 1 : a, mo = m === 1 ? 12 : m - 1; du = deb(y, mo); au = fin(y, mo); }
+      else if (v === 'trimestre') { const t0 = Math.floor((m - 1) / 3) * 3 + 1; du = deb(a, t0); au = fin(a, t0 + 2); }
+      else if (v === 'annee') { du = a + '-01-01'; au = a + '-12-31'; }
+      if (v !== 'perso') { el('exDu').value = du; el('exAu').value = au; }
+      apercuExport();
+    };
+    const pieces = () => { const du = el('exDu').value, au = el('exAu').value; return FACTURES.filter(f => { const d = String(f.date || ''); return (!du || d >= du) && (!au || d <= au); }); };
+    window.apercuExport = () => {
+      const l = pieces();
+      el('exApercu').innerHTML = `${l.length} pièce${l.length > 1 ? 's' : ''} : ${fmtEur(r2(l.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0)))} TVAC, `
+        + `${F.sansFalco(l).length} sans pièce Falco. Un fichier qu'Excel ouvre tel quel (« ; », virgule décimale).`;
+    };
+    window.telechargerExport = () => {
+      const du = el('exDu').value, au = el('exAu').value;
+      const blob = new Blob([F.csv(FACTURES, du, au)], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'factures' + (du ? '-' + du : '') + (au ? '_' + au : '') + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('Export téléchargé', 'ok');
+      window.fermerFenetre(true);
     };
 
-    window.delFacture = async (encId) => {
-      if (!confirm('Supprimer cette facture ?')) return;
-      const resDel = await SS.deleteFacture(decodeURIComponent(encId));
-      if (resDel.ok === false) { toast(resDel.error || 'Suppression refusée.', 'error', 6000); return; }
-      toast('Facture supprimée', 'warn');
-      await load();
-    };
-
-    (async () => {
-      await load();
+    // Arrivée depuis la fiche devis (?devis=…&type=…) : la fenêtre s'ouvre, puis les paramètres
+    // quittent l'adresse — sinon un rechargement en rouvrirait une.
+    load().then(() => {
       const devisId = qp('devis');
-      if (devisId) openNew(devisId, qp('type'));
-    })();
+      if (devisId) {
+        window.ouvrirNouvelle(devisId, qp('type'));
+        try { history.replaceState(history.state, '', location.pathname); } catch (e) {}
+      }
+    });
   </script>
 </body>
 </html>

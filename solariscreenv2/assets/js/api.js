@@ -707,6 +707,11 @@
       }
     },
     /** Retire un encaissement (par son identifiant, ou par sa position pour les anciens). */
+    /** Note une relance de paiement (règle 49) : écriture ciblée, signée par le serveur. */
+    async relancerFacture(factureId, canal) {
+      try { return await req('/factures/' + encodeURIComponent(factureId) + '/relance', { method: 'POST', body: JSON.stringify({ canal: canal || 'autre' }) }); }
+      catch (e) { return { ok: false, error: (e && e.serverRejected) ? e.message : ((await isReallyOffline()) ? 'Hors-ligne : la relance n’est pas notée. Réessaie une fois connecté.' : MSG_SESSION) }; }
+    },
     async deletePaiement(factureId, paiementRef) {
       try {
         const res = await req('/factures/' + encodeURIComponent(factureId) + '/paiement/' + encodeURIComponent(paiementRef),
@@ -723,15 +728,16 @@
     },
     async deleteFacture(id) {
       try {
-        const r = await req('/factures/' + id, { method: 'DELETE' });
+        const r = await req('/factures/' + encodeURIComponent(id), { method: 'DELETE' });
         localFactures.delete(id);   // suppression locale seulement APRÈS confirmation du serveur
         return r;
       } catch (e) {
         if (e && e.serverRejected) return { ok: false, error: e.message };
-        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
-        localFactures.delete(id);
-        outbox.ajouter('facture', id, 'delete');
-        return { ok: true, offline: true };
+        // ⚠️ Plus de suppression hors-ligne (règle 49) : c'est le SERVEUR qui vérifie qu'une facture
+        // n'a encore aucune suite (encaissement, pièce Falco, note de crédit). Supprimée ici puis
+        // refusée là-bas au retour du réseau, elle aurait disparu d'un écran sans disparaître.
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
       }
     },
 
