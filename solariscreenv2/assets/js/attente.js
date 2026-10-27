@@ -351,13 +351,28 @@
     idee:     'À faire',          // une idée n'arrive ici que si quelqu'un s'en est chargé
     attente:  'En attente d’un tiers',
   };
+  /** Depuis quand la balle est chez celui qu'on attend. Le serveur l'écrit (« balle_le ») depuis le
+   *  27/10/2026 ; avant, on le retrouve dans le fil : la dernière réponse qui a passé la balle (écrite
+   *  par quelqu'un d'autre que celui qu'on attend, et qui n'est pas un simple rappel), sinon la
+   *  création. */
+  function depuisBalle(s) {
+    if (!s) return '';
+    if (s.balle_le) return s.balle_le;
+    const passes = (s.reponses || []).filter(function (r) { return r && r.date && !r.rappel && r.auteur !== s.awaiting; })
+      .map(function (r) { return r.date; }).sort();
+    return passes.length ? passes[passes.length - 1] : (s.date_creation || s.date_modification || '');
+  }
   function depuisSujets(sujets) {
     const out = [];
     const auj = aujourdhui();
     (sujets || []).forEach(function (s) {
       if (!s || s.statut === 'fait') return;
       const enRetard = s.echeance && s.echeance < auj;
-      const j = joursDepuis(s.date_modification);
+      /* ⚠️ L'ANCIENNETÉ D'UN ÉCHANGE PART DU MOMENT OÙ LA BALLE EST ARRIVÉE (règle 52), pas de
+         « date_modification » : une photo, une correction du titre ou un rappel la faisaient
+         repartir de zéro, et une question qui dormait depuis neuf jours redevenait « à l'instant ». */
+      const depuis = depuisBalle(s);
+      const j = joursDepuis(depuis);
       // Un sujet que personne n'attend ET qui n'a pas d'échéance n'est pas une attente : c'est une
       // idée en réserve. Elle a sa place dans les Échanges, pas dans la liste de ce qui bloque.
       if (!s.awaiting && !enRetard) return;
@@ -372,7 +387,7 @@
         // est faux, et ça se voyait dès qu'une idée de la réserve devenait une tâche.
         quoi: enRetard ? 'En retard sur l’échéance' : (QUOI_SUJET[s.kind] || 'Attend une réponse'),
         detail: [s.client_nom, s.corps].filter(Boolean).join(' — ').slice(0, 140),
-        depuis: s.date_modification, href: 'echanges.html#suj-' + encodeURIComponent(s.id),
+        depuis: depuis, href: 'echanges.html#suj-' + encodeURIComponent(s.id),
         peutPrendre: !s.awaiting, urgence: urg,
       }));
     });
@@ -449,7 +464,7 @@
     SEUILS: SEUILS, URGENCE: URGENCE, URGENCE_LABEL: URGENCE_LABEL, SOURCES: SOURCES,
     aujourdhui: aujourdhui, demain: demain,
     heuresDepuis: heuresDepuis, joursDepuis: joursDepuis, age: age, delai: delai,
-    depuisRdv: depuisRdv, depuisSav: depuisSav, depuisPlanning: depuisPlanning, depuisSujets: depuisSujets,
+    depuisRdv: depuisRdv, depuisSav: depuisSav, depuisPlanning: depuisPlanning, depuisSujets: depuisSujets, depuisBalle: depuisBalle,
     devisDeRdv: devisDeRdv, cleClient: cleClient,
     construire: construire, trier: trier,
     pourQui: pourQui, sansPersonne: sansPersonne, concerne: concerne, compter: compter,

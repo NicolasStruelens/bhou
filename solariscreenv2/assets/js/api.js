@@ -1012,6 +1012,8 @@
     async saveSujet(s) {
       try { return await req('/sujets', { method: 'POST', body: JSON.stringify(s) }); }
       catch (e) {
+        // Un CONFLIT (règle 52) rend la version de l'autre : l'écran la montre au lieu d'écraser.
+        if (e && e.serverRejected && e.data && e.data.conflict) return { ok: false, conflict: true, actuel: e.data.actuel, error: e.message };
         if (e && e.serverRejected) return { ok: false, error: e.message };
         if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : à renvoyer une fois la connexion revenue, sinon l’autre ne le verra jamais.' };
         return { ok: false, error: MSG_SESSION };

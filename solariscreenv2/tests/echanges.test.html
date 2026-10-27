@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Échanges</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Échanges</h1>
+  <p class="note">
+    La page Échanges (règle 52, revue du 27/10/2026) : les règles PURES de <code>assets/js/echanges.js</code>, les ROUTES du
+    vrai serveur (<code>tests/banc-serveur.js</code>) — la balle qui ne revient pas chez celui qui a répondu, le conflit entre
+    deux écrans, la suppression gardée, le rappel — puis la VRAIE page cliquée : les trois onglets, l'écriture en une ligne, le
+    dossier du client, les cartes repliées, le brouillon qui ne se perd plus, le conflit dit dans la carte, la réponse sur place,
+    « Lui rappeler », le registre des décisions, la recherche sans accents, le téléphone et « retour ».
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/echanges.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 800) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 800) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests échanges';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const EC = window.SSEchanges, U = window.SSUI, SS = window.SS, BANC = window.SSBanc, A = window.SSAttente;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const ilYaJ = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const CLE_ONGLET = 'ss_echanges_onglet';
+    let SAUVE_ONGLET = null; try { SAUVE_ONGLET = localStorage.getItem(CLE_ONGLET); } catch (e) {}
+    const suj = (id) => BANC.donnee('sujets', 'id', id) || {};
+    async function comme(qui, fn) { const avant = BANC.ident; BANC.ident = qui === 'yannick' ? BANC.YANNICK : BANC.NICOLAS; try { return await fn(); } finally { BANC.ident = avant; } }
+    /** Un sujet, écrit par `auteur` (identité Access), puis relu en base. */
+    async function poser(auteur, o) {
+      const s = Object.assign(U.nouveauSujet(o.texte || 'Sujet', { kind: o.kind || 'question', pour: o.pour === undefined ? 'yannick' : o.pour, client_nom: o.client_nom || '', devis_id: o.devis_id || '' }), { id: o.id });
+      await comme(auteur, () => SS.saveSujet(s));
+      return suj(o.id);
+    }
+    const vieillir = (id, jours) => BANC.sql1("UPDATE sujets SET data = json_set(data, '$.balle_le', '" + ilYaJ(jours) + "', '$.date_creation', '" + ilYaJ(jours) + "') WHERE id = '" + id + "'");
+    async function ouvrirPage(largeur, hauteur, suffixe) {
+      const f = await BANC.cadre('../app/echanges.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      await attendreQue(() => f.contentDocument.querySelector('#host .ec-suj, #host .empty') && !f.contentDocument.querySelector('#attenteHost .skl'), 9000);
+      // La liste des clients et des dossiers arrive APRÈS le premier rendu (le dossier d'un client, E).
+      await attendreQue(() => f.contentDocument.getElementById('dlClients').options.length > 0, 6000);
+      await attendre(150);
+      return f;
+    }
+    const tape = (c, v) => { c.value = v; c.dispatchEvent(new Event('input', { bubbles: true })); };
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures (echanges.js)');
+        const s1 = { titre: 'Accès au parking de l’École', corps: 'Demander au concierge', client_nom: 'Saint-Exemple', auteur: 'nicolas', reponses: [{ texte: 'Coulisses OK', auteur: 'yannick', date: ilYaJ(1) }] };
+        check('S1 La recherche ignore les accents et la casse, cherche mot à mot (titre, détail, client, réponses, auteur)',
+          [EC.correspond(s1, 'ecole parking'), EC.correspond(s1, 'COULISSES'), EC.correspond(s1, 'nicolas', (k) => k), EC.correspond(s1, 'ecole volet'), EC.correspond(s1, '')],
+          [true, true, true, false, true]);
+        const s2 = { statut: 'ouvert', awaiting: 'yannick', reponses: [{ auteur: 'nicolas', texte: 'a', date: ilYaJ(3) }, { auteur: 'yannick', texte: 'b', date: ilYaJ(1) }] };
+        check('S2 A — La carte repliée sait qui a la balle et ce qui s’est dit en dernier',
+          [EC.resume(s2, 'nicolas').balle, EC.resume(s2, 'yannick').balle, EC.resume({ statut: 'fait', awaiting: 'x' }, 'nicolas').balle, EC.resume({ statut: 'ouvert', awaiting: '' }, 'nicolas').balle, EC.resume(s2, 'nicolas').derniere.texte, EC.resume(s2, 'x').nbReponses],
+          ['autre', 'moi', 'fait', 'personne', 'b', 2]);
+        const vieux = { statut: 'ouvert', awaiting: 'yannick', balle_le: ilYaJ(4), reponses: [] };
+        check('S3 F — « Lui rappeler » : la balle chez L’AUTRE depuis 3 jours, pas deux fois le même jour, jamais quand c’est à moi ou classé',
+          [EC.peutRappeler(vieux, 'nicolas'), EC.peutRappeler(Object.assign({}, vieux, { balle_le: ilYaJ(1) }), 'nicolas'), EC.peutRappeler(vieux, 'yannick'),
+            EC.peutRappeler(Object.assign({}, vieux, { reponses: [{ auteur: 'nicolas', rappel: true, date: new Date().toISOString() }] }), 'nicolas'),
+            EC.peutRappeler(Object.assign({}, vieux, { reponses: [{ auteur: 'nicolas', rappel: true, date: ilYaJ(2) }] }), 'nicolas'), EC.peutRappeler(Object.assign({}, vieux, { statut: 'fait' }), 'nicolas')],
+          [true, false, false, false, true, false]);
+        check('S4 Ce qu’on peut supprimer : ce qui n’engage que soi (le sujet de l’autre, sa réponse ou sa décision se CLASSENT)',
+          [EC.peutSupprimer({ auteur: 'nicolas', reponses: [{ auteur: 'nicolas' }] }, 'nicolas'), EC.peutSupprimer({ auteur: 'yannick' }, 'nicolas'),
+            EC.peutSupprimer({ auteur: 'nicolas', reponses: [{ auteur: 'yannick' }] }, 'nicolas'), EC.peutSupprimer({ auteur: 'nicolas', decision: 'x', decision_par: 'yannick' }, 'nicolas'), EC.peutSupprimer({ auteur: 'yannick' }, '')],
+          [true, false, false, false, true]);
+        const SD = [{ id: 'a', titre: 'Coulisses Meunier', decision: 'En 7016', decision_par: 'yannick', decision_le: ilYaJ(5), client_nom: 'Pierre Meunier' },
+          { id: 'b', titre: 'Entretien', decision: 'Contrat à 90 € / an', decision_par: 'nicolas', decision_le: ilYaJ(1) }, { id: 'c', titre: 'Rien', decision: '' }];
+        check('S5 G — Le registre des décisions : la plus récente d’abord, cherchable sans accents, par client',
+          [EC.decisions(SD, '').map((x) => x.id), EC.decisions(SD, 'meunier').map((x) => x.id), EC.decisions(SD, 'CONTRAT').map((x) => x.id)], [['b', 'a'], ['a'], ['b']]);
+        const DV = [{ id: 'D1', statut: 'signe', client: { prenom: 'Anne', nom: 'L’Hoest' }, date_modification: ilYaJ(3), items_min: [{ type: 'screen', quantite: 2 }] },
+          { id: 'D2', statut: 'brouillon', client: { prenom: 'Anne', nom: 'L’Hoest' }, date_modification: ilYaJ(1), archive: true },
+          { id: 'D3', statut: 'signe', client: { prenom: 'Jo', nom: 'Autre' } }];
+        check('S6 E — Les dossiers d’un client : par la clé du CRM ou par le nom, archivés en dernier, avec leur résumé et leur statut',
+          [EC.dossiersDuClient(DV, U.clientKeyOf('Anne', 'L’Hoest'), '').map((d) => d.id), EC.dossiersDuClient(DV, '', 'anne l’hoest').length, /Screen.*Signé/.test(EC.dossiersDuClient(DV, '', 'Anne L’Hoest')[0].libelle), EC.dossiersDuClient(DV, '', '').length],
+          [['D1', 'D2'], 2, true, 0]);
+        check('S7 B — Les nombres des onglets : ce qui m’attend ou n’attend personne, les échanges ouverts, les décisions',
+          EC.compteurs([{ statut: 'ouvert' }, { statut: 'fait', decision: 'x' }], [{ qui: '' }, { qui: 'nicolas' }, { qui: 'yannick' }], 'nicolas'), { attente: 2, echanges: 1, decisions: 1 });
+
+        // ══════════ R — LES ROUTES ══════════
+        titre('R — Les routes du serveur (vrai fichier, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        let s = await poser('nicolas', { id: 'Q1', texte: 'Coulisses en 7016 ou 7021 ?', pour: 'yannick' });
+        const balle0 = s.balle_le;
+        await attendre(15);
+        await comme('yannick', () => SS.repondreSujet('Q1', { texte: '7016, comme le caisson' }));
+        const apresRep = suj('Q1');
+        await attendre(15);
+        let r = await SS.saveSujet(Object.assign({}, apresRep, { titre: 'Coulisses en 7016 ou en 7021 ?', _attendu: apresRep.edite_le }));
+        check('R1 La balle NE REVIENT PAS chez celui qui a répondu : Yannick répond (à Nicolas de jouer), Nicolas corrige le titre — c’est toujours à Nicolas',
+          [s.awaiting, apresRep.awaiting, apresRep.balle_le > balle0, r.ok, suj('Q1').awaiting, suj('Q1').titre, suj('Q1').balle_le === apresRep.balle_le],
+          ['yannick', 'nicolas', true, true, 'nicolas', 'Coulisses en 7016 ou en 7021 ?', true]);
+        r = await SS.saveSujet(Object.assign({}, suj('Q1'), { pour: 'nicolas', _attendu: suj('Q1').edite_le }));
+        const p1 = suj('Q1').awaiting;
+        r = await SS.saveSujet(Object.assign({}, suj('Q1'), { pour: 'yannick', _attendu: suj('Q1').edite_le }));
+        const p2 = suj('Q1').awaiting;
+        await SS.saveSujet(Object.assign({}, suj('Q1'), { statut: 'fait', _attendu: suj('Q1').edite_le }));
+        const p3 = suj('Q1').awaiting;
+        await SS.saveSujet(Object.assign({}, suj('Q1'), { statut: 'ouvert', _attendu: suj('Q1').edite_le }));
+        check('R2 Le destinataire ne se remet QUE quand il change, quand on classe (personne) ou quand on rouvre (le destinataire)',
+          [p1, p2, p3, suj('Q1').awaiting], ['nicolas', 'yannick', '', 'yannick']);
+        const lue = suj('Q1');
+        await comme('yannick', () => SS.saveSujet(Object.assign({}, lue, { statut: 'fait', decision: 'En 7016', _attendu: lue.edite_le })));
+        r = await SS.saveSujet(Object.assign({}, lue, { echeance: J(3), _attendu: lue.edite_le }));
+        check('R3 CONFLIT : une page restée ouverte ne ROUVRE plus en silence un sujet que l’autre vient de classer — refus, on dit qui, on rend sa version',
+          [r.ok, r.conflict, /Yannick vient de modifier/.test(r.error || ''), r.actuel && r.actuel.statut, suj('Q1').statut, suj('Q1').decision, suj('Q1').echeance || ''],
+          [false, true, true, 'fait', 'fait', 'En 7016', '']);
+        await poser('nicolas', { id: 'Q2', texte: 'Photo du chantier ?', pour: 'yannick' });
+        const lue2 = suj('Q2');
+        await comme('yannick', () => SS.repondreSujet('Q2', { texte: 'Je la prends demain' }));
+        await comme('yannick', () => SS.addSujetPhoto('Q2', { url: 'data:image/png;base64,AA' }));
+        r = await SS.saveSujet(Object.assign({}, lue2, { titre: 'Photo du chantier ? (façade)', _attendu: lue2.edite_le }));
+        check('R4 Une réponse ou une photo de l’autre (routes ciblées) ne provoquent AUCUN faux conflit, et ne sont pas écrasées',
+          [r.ok, suj('Q2').titre, (suj('Q2').reponses || []).length, (suj('Q2').photos || []).length], [true, 'Photo du chantier ? (façade)', 1, 1]);
+        await poser('yannick', { id: 'Y1', texte: 'Idée de Yannick', pour: '' });
+        await poser('nicolas', { id: 'N1', texte: 'Mon idée', pour: '' });
+        await poser('nicolas', { id: 'N2', texte: 'Ma question', pour: 'yannick' });
+        await comme('yannick', () => SS.repondreSujet('N2', { texte: 'Réponse de Yannick' }));
+        await poser('nicolas', { id: 'N3', texte: 'Classée par Yannick', pour: 'yannick' });
+        await comme('yannick', async () => { const x = suj('N3'); return SS.saveSujet(Object.assign({}, x, { statut: 'fait', decision: 'Fait par Yannick', _attendu: x.edite_le })); });
+        const d1 = await SS.deleteSujet('Y1'), d2 = await SS.deleteSujet('N2'), d3 = await SS.deleteSujet('N3'), d4 = await SS.deleteSujet('N1');
+        check('R5 On ne supprime pas ce que l’autre a écrit (son sujet, sa réponse, sa décision) — on le classe ; son propre sujet, oui',
+          [d1.ok, /on le classe/.test(d1.error || ''), !!suj('Y1').id, d2.ok, !!suj('N2').id, d3.ok, d4.ok, !!suj('N1').id], [false, true, true, false, true, false, true, false]);
+        await poser('nicolas', { id: 'R1', texte: 'Tu as le n° du concierge ?', pour: 'yannick' });
+        vieillir('R1', 4);
+        const avantR = suj('R1');
+        await SS.repondreSujet('R1', { texte: EC.TEXTE_RAPPEL, rappel: true });
+        const apresR = suj('R1');
+        check('R6 F — Un rappel s’ajoute au fil (signé, marqué « rappel »), la balle RESTE chez l’autre et son ancienneté continue de courir',
+          [(apresR.reponses || []).map((x) => [x.auteur, !!x.rappel]), apresR.awaiting, apresR.balle_le === avantR.balle_le, A.joursDepuis(A.depuisBalle(apresR)) >= 4, apresR.date_modification > avantR.date_modification],
+          [[['nicolas', true]], 'yannick', true, true, true]);
+
+        // ══════════ P — LA PAGE, AU BUREAU ══════════
+        titre('P — La vraie page (1500 px)');
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        try { localStorage.removeItem(CLE_ONGLET); } catch (e) {}
+        const rem = await window.SSBacASable.remplir(SS, {});
+        // Le jeu de la page : une question de Yannick qui m'attend, une de moi chez Yannick depuis 4 jours,
+        // une classée avec sa décision, une à moi sans la parole de l'autre.
+        await poser('yannick', { id: 'P-MOI', texte: 'On commande les coulisses en 7016 ?', pour: 'nicolas', client_nom: 'Pierre Meunier' });
+        await poser('nicolas', { id: 'P-YAN', texte: 'Demander l’accès au parking de l’École', pour: 'yannick' });
+        vieillir('P-YAN', 4);
+        await poser('nicolas', { id: 'P-DEC', texte: 'Contrat d’entretien annuel', pour: 'yannick', kind: 'idee' });
+        await comme('yannick', async () => { const x = suj('P-DEC'); return SS.saveSujet(Object.assign({}, x, { statut: 'fait', decision: 'Contrat à 90 € par an, à proposer au printemps', _attendu: x.edite_le })); });
+        await comme('yannick', () => SS.repondreSujet('P-MOI', { texte: 'Le client hésite encore, rappelle-le.' }));
+        BANC.viderCaches();
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        let rafraichi = 0; const vraiRafr = w.SSNav.rafraichirCompteurs; w.SSNav.rafraichirCompteurs = function () { rafraichi++; return vraiRafr.apply(this, arguments); };
+        check('P0 Le cadre parle au banc ; le bac à sable est rempli sans erreur', [f.branche, rem.erreurs], [true, []]);
+        check('P1 B — Trois onglets, chacun avec son nombre ; on arrive sur « Ce qui attend », les deux autres sont cachés',
+          [[...d.querySelectorAll('.ec-onglets [role=tab] .ll')].map(txt), /· \d+/.test(txt(d.getElementById('nEchanges'))), txt(d.getElementById('nDecisions')),
+            d.getElementById('panAttente').hidden, d.getElementById('panEchanges').hidden, d.getElementById('panDecisions').hidden],
+          [['Ce qui attend', 'Les échanges', 'Décisions'], true, '· 1', false, true, true]);
+        const poster = d.getElementById('poster'), hFerme = Math.round(poster.getBoundingClientRect().height);
+        d.getElementById('pTitre').focus(); d.getElementById('pTitre').dispatchEvent(new Event('focus'));
+        await attendre(30);
+        const hOuvert = Math.round(poster.getBoundingClientRect().height), optVisibles = !!d.getElementById('pNatures').offsetHeight;
+        d.getElementById('pTitre').blur(); d.body.focus(); poster.dispatchEvent(new FocusEvent('focusout')); await attendre(250);
+        check('C1 C — La zone d’écriture tient en UNE ligne ; ses options s’ouvrent au focus et se referment quand elle est vide et qu’on la quitte',
+          [hFerme < 80, optVisibles, hOuvert > 150, poster.classList.contains('ouvert'), d.getElementById('pNatures').offsetHeight], [true, true, true, false, 0]);
+        // E — un client qui a des dossiers
+        const DEV = (await SS.listDevis()).find((x) => x.id === 'ESSAI-07');
+        const nomCli = [DEV.client.prenom, DEV.client.nom].join(' ');
+        tape(d.getElementById('pTitre'), 'Coulisses à recommander');
+        tape(d.getElementById('pClient'), nomCli);
+        await attendre(30);
+        const sel = d.getElementById('pDossier');
+        const opts = [...sel.options].map((o) => o.value);
+        const libelle07 = ([...sel.options].find((o) => o.value === 'ESSAI-07') || {}).textContent || '';
+        const selCache = sel.hidden;
+        sel.value = 'ESSAI-07'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+        d.getElementById('btnPublier').click();
+        await attendreQue(() => BANC.sqlL("SELECT data FROM sujets WHERE json_extract(data, '$.titre') = 'Coulisses à recommander'").length, 4000);
+        const pub = BANC.sqlL("SELECT data FROM sujets WHERE json_extract(data, '$.titre') = 'Coulisses à recommander'").map((x) => JSON.parse(x[0]))[0] || {};
+        check('E1 E — En tapant le client, ses DOSSIERS sont proposés (reconnaissables : résumé et statut) ; le sujet publié est rattaché au bon',
+          [selCache, opts.indexOf('ESSAI-07') > 0, /Screen.*Signé/.test(libelle07), pub.devis_id, pub.client_nom, sel.hidden], [false, true, true, 'ESSAI-07', nomCli, true]);
+        await attendreQue(() => d.querySelector('#suj-' + pub.id) || true, 2000);
+        // A — les cartes repliées
+        w.choisirOnglet('echanges'); await attendre(40);
+        const cMoi = d.getElementById('suj-P-MOI');
+        check('A1 A — Une carte REPLIÉE dit qui a la balle et la dernière parole, sans aucun bouton ; toucher la tête la déplie',
+          [cMoi.classList.contains('repliee'), /À toi de jouer/.test(txt(cMoi)), /Yannick : « Le client hésite encore, rappelle-le\. »/.test(txt(cMoi.querySelector('.ec-dernier'))), cMoi.querySelectorAll('.ec-actions button').length, localStorage.getItem(CLE_ONGLET)],
+          [true, true, true, 0, 'echanges']);
+        cMoi.querySelector('.ec-tete').click(); await attendre(30);
+        const cMoi2 = d.getElementById('suj-P-MOI');
+        const prim = [...cMoi2.querySelectorAll('.ec-actions button')].map(txt);
+        check('A2 Dépliée : le fil, et les gestes du quotidien (Répondre, C’est fait) ; Modifier et Supprimer attendent derrière « Plus »',
+          [cMoi2.classList.contains('ouverte'), cMoi2.querySelectorAll('.ec-rep').length, prim.slice(0, 2), prim.some((t) => /Modifier|Supprimer/.test(t))], [true, 1, ['Répondre', 'C’est fait'], false]);
+        // Le brouillon qui ne se perd plus
+        w.ouvrirEdition('P-YAN'); await attendre(30);
+        tape(d.getElementById('et-P-YAN'), 'Demander l’accès au parking de l’école (badge)');
+        tape(d.getElementById('ee-P-YAN'), J(5));
+        w.choisirPourEdition('P-YAN', ''); await attendre(30);
+        const garde = d.getElementById('et-P-YAN').value, gardeDate = d.getElementById('ee-P-YAN').value;
+        tape(d.getElementById('rech'), 'zzz'); tape(d.getElementById('rech'), ''); await attendre(30);
+        const garde2 = d.getElementById('et-P-YAN') && d.getElementById('et-P-YAN').value;
+        [...d.querySelectorAll('#suj-P-YAN .ec-repbox .btn-primary')].find((b) => txt(b) === 'Enregistrer').click();
+        await attendreQue(() => suj('P-YAN').titre === 'Demander l’accès au parking de l’école (badge)', 4000);
+        check('B1 La correction en cours NE SE PERD PLUS en choisissant « Pour nous deux » ni en touchant à la recherche ; elle s’enregistre entière',
+          [garde, gardeDate, garde2, suj('P-YAN').titre, suj('P-YAN').pour, suj('P-YAN').echeance], ['Demander l’accès au parking de l’école (badge)', J(5), 'Demander l’accès au parking de l’école (badge)', 'Demander l’accès au parking de l’école (badge)', '', J(5)]);
+        await attendre(300);
+        // Le conflit, vu de la page
+        await comme('yannick', async () => { const x = suj('P-MOI'); return SS.saveSujet(Object.assign({}, x, { statut: 'fait', decision: 'En 7016', _attendu: x.edite_le })); });
+        w.ouvrirDecision('P-MOI'); await attendre(30);
+        tape(d.getElementById('dt-P-MOI'), 'On part sur 7021');
+        [...d.querySelectorAll('#suj-P-MOI .ec-repbox .btn-primary')].find((b) => txt(b) === 'Classer').click();
+        await attendreQue(() => d.querySelector('#suj-P-MOI .ec-avert'), 4000);
+        check('B2 CONFLIT dans la page : Yannick vient de classer ; mon geste est REFUSÉ, la carte le dit, sa décision reste en base et à l’écran',
+          [/Yannick vient de modifier/.test(txt(d.querySelector('#suj-P-MOI .ec-avert'))), suj('P-MOI').decision, /Décidé : En 7016/.test(txt(d.getElementById('suj-P-MOI')))], [true, 'En 7016', true]);
+        // G — le registre des décisions
+        w.choisirOnglet('decisions'); await attendre(30);
+        tape(d.getElementById('rechDec'), 'contrat PRINTEMPS');
+        const decs = [...d.querySelectorAll('#decHost .ec-dec')].map((x) => x.getAttribute('data-id'));
+        d.querySelector('#decHost .ec-dec .ec-lien-bouton').click(); await attendre(60);
+        check('G1 G — Le registre des décisions se cherche sans accents ; son lien ouvre le sujet (classé, donc « voir ce qui est fait »), déplié',
+          [decs, d.getElementById('panEchanges').hidden, d.getElementById('voirFaits').checked, d.getElementById('suj-P-DEC').classList.contains('ouverte')], [['P-DEC'], false, true, true]);
+        tape(d.getElementById('rech'), 'ECOLE badge');
+        check('G2 La recherche des échanges ignore les accents (« ecole » trouve « école »)', [...d.querySelectorAll('#host .ec-suj')].map((x) => x.getAttribute('data-id')), ['P-YAN']);
+        tape(d.getElementById('rech'), '');
+        // D — répondre sur place
+        await poser('yannick', { id: 'P-D', texte: 'Tu valides le devis de Mme L’Hoest ?', pour: 'nicolas' });
+        await w.eval('recharger()'); await attendre(200);
+        w.choisirOnglet('attente'); await attendre(30);
+        const ligneD = d.querySelector('#attenteHost .at-item[data-sujet="P-D"]');
+        const actD = [...ligneD.querySelectorAll('.at-actions button')].map(txt);
+        [...ligneD.querySelectorAll('button')].find((b) => txt(b) === 'Répondre').click(); await attendre(30);
+        tape(d.getElementById('art-P-D'), 'Oui, envoie-le.');
+        [...d.querySelectorAll('#attenteHost .at-item[data-sujet="P-D"] .at-boite button')].find((b) => txt(b) === 'Envoyer').click();
+        await attendreQue(() => (suj('P-D').reponses || []).length === 1, 4000);
+        check('D1 D — Une ligne « Échange » qui m’attend se répond SUR PLACE : la réponse part, la balle repart chez Yannick',
+          [actD.slice(0, 2), (suj('P-D').reponses || [])[0].texte, suj('P-D').awaiting], [['Répondre', 'C’est fait'], 'Oui, envoie-le.', 'yannick']);
+        await attendre(300);
+        // F — Lui rappeler (P-YAN est chez… personne depuis la correction ; on en pose un chez Yannick depuis 4 jours)
+        await poser('nicolas', { id: 'P-F', texte: 'Le numéro du concierge ?', pour: 'yannick' });
+        vieillir('P-F', 4);
+        await w.eval('recharger()'); await attendre(200);
+        w.basculerAutre(); await attendre(30);
+        const ligneF = d.querySelector('#attenteHost .at-item[data-sujet="P-F"]');
+        const ageAvant = txt(ligneF.querySelector('.at-age'));
+        [...ligneF.querySelectorAll('button')].find((b) => /Lui rappeler/.test(txt(b))).click();
+        await attendreQue(() => (suj('P-F').reponses || []).length === 1, 4000);
+        await attendre(300);
+        const ligneF2 = d.querySelector('#attenteHost .at-item[data-sujet="P-F"]');
+        check('F1 F — « Lui rappeler » (chez Yannick depuis 4 jours) : un rappel signé dans le fil ; la balle reste chez lui, l’ancienneté ne repart pas de zéro, et le bouton ne revient pas le même jour',
+          [!!(suj('P-F').reponses || [])[0].rappel, suj('P-F').awaiting, ageAvant, txt(ligneF2.querySelector('.at-age')) === ageAvant, [...ligneF2.querySelectorAll('button')].some((b) => /Lui rappeler/.test(txt(b)))], [true, 'yannick', 'depuis 4 j', true, false]);
+        // Supprimer
+        w.choisirOnglet('echanges'); await attendre(20);
+        w.basculerCarte('P-F'); w.basculerPlus('P-F'); w.basculerCarte('P-D'); w.basculerPlus('P-D'); await attendre(30);
+        check('X1 « Supprimer » n’est proposé que sur ce qui n’engage que soi (mon sujet, avec mon seul rappel : oui) ; sur le sujet de Yannick, la carte dit qu’il se classe',
+          [!![...d.querySelectorAll('#suj-P-F .ec-plusl button')].find((b) => txt(b) === 'Supprimer'), !![...d.querySelectorAll('#suj-P-D .ec-plusl button')].find((b) => txt(b) === 'Supprimer'), /se classe/.test(txt(d.querySelector('#suj-P-D .ec-plusl')))],
+          [true, false, true]);
+        check('X2 Le menu est rafraîchi après chaque geste (il gardait son chiffre deux minutes)', rafraichi >= 4, true);
+        check('P13 Tous les gestionnaires de la page compilent (apostrophes : L’Hoest, l’école)', compiles(d), []);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        try { localStorage.setItem(CLE_ONGLET, 'echanges'); } catch (e) {}
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const L = d.documentElement.clientWidth;
+        const deborde = () => [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.className || e.tagName).slice(0, 6);
+        const cartes = [...d.querySelectorAll('#host .ec-suj')];
+        check('T1 Les échanges : rien ne dépasse, la zone d’écriture fait une ligne, le PREMIER sujet est dans le premier écran (il était à 2 149 px), une carte repliée reste courte (moins de 170 px, titre long compris ; dépliée avec ses boutons, elle en faisait plus de 300)',
+          [deborde(), Math.round(d.getElementById('poster').getBoundingClientRect().height) < 80, Math.round(cartes[0].getBoundingClientRect().top) < 812, Math.max(...cartes.map((c) => Math.round(c.getBoundingClientRect().height))) < 170],
+          [[], true, true, true]);
+        w.basculerCarte(cartes[0].getAttribute('data-id')); await attendre(30);
+        const act = d.querySelector('#host .ec-suj.ouverte .ec-actions');
+        check('T2 Dépliée, une carte a ses gestes sur deux rangées au plus (148 px de boutons avant)', [Math.round(act.getBoundingClientRect().height) <= 100, deborde()], [true, []]);
+        w.choisirOnglet('attente'); await attendre(30);
+        const onglets = [...d.querySelectorAll('.ec-onglets [role=tab]')];
+        const zone = d.getElementById('pTitre');
+        check('T3 « Ce qui attend » sur téléphone : rien ne dépasse ; les onglets tiennent sur UNE ligne (libellés courts) ; la zone fermée n’affiche pas de barre de défilement',
+          [deborde(), onglets.every((b) => Math.round(b.getBoundingClientRect().height) < 50 && b.scrollWidth <= b.clientWidth && w.getComputedStyle(b.querySelector('.ll')).display === 'none'), onglets.map((b) => txt(b.querySelector('.lc'))), w.getComputedStyle(zone).overflowY, zone.scrollHeight <= zone.clientHeight + 2],
+          [[], true, ['Attend', 'Échanges', 'Décisions'], 'hidden', true]);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parc = (l) => { for (const r of l) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parc(r.cssRules); } };
+        for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); }
+        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        d.getElementById('panEchanges').hidden = false;   // les deux panneaux visibles pour mesurer
+        const h = (sel) => { const e = d.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
+        const apres = (sel) => { const e = d.querySelector(sel); return e ? w.getComputedStyle(e, '::after').height : 'absent'; };
+        check('T4 Écran tactile (blocs « pointer: coarse » forcés) : les onglets et « voir ce qui est fait » se touchent ; « voir » (14 px) et les liens de méta ont une cible de 44 px',
+          [h('#ongAttente') >= 44, h('.ec-voirfaits') >= 44, apres('.at-plie'), apres('.ec-meta a')], [true, true, '44px', '44px']);
+        f.remove();
+        f = await cadreNavigue('../app/echanges.html?t=' + Date.now() + '#suj-P-YAN', 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#host .ec-suj') && d.getElementById('suj-P-YAN'), 10000);
+        await attendreQue(() => d.getElementById('suj-P-YAN').classList.contains('ouverte'), 4000);
+        let poussees = 0;
+        const pousser = w.history.pushState.bind(w.history);
+        w.history.pushState = function () { poussees++; return pousser.apply(null, arguments); };
+        d.getElementById('ongAttente').click(); d.getElementById('ongDecisions').click(); d.getElementById('ongEchanges').click(); await attendre(40);
+        check('T5 Un lien « #suj-… » (le bouton « Ouvrir » des autres écrans) ouvre les échanges sur la carte dépliée ; changer d’onglet ne pose AUCUNE étape d’historique',
+          [d.getElementById('panEchanges').hidden, d.getElementById('suj-P-YAN').classList.contains('ouverte'), poussees], [false, true, 0]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        try { if (SAUVE_ONGLET == null) localStorage.removeItem(CLE_ONGLET); else localStorage.setItem(CLE_ONGLET, SAUVE_ONGLET); } catch (e) {}
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>
