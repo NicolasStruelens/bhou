@@ -139,6 +139,13 @@
     .fa-seg button { background: none; border: 0; padding: 0.3rem 0.7rem; font: inherit; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
     .fa-seg button.on { background: var(--accent); color: var(--bg); }
     @media (max-width: 560px) { .fa-row2 { grid-template-columns: minmax(0, 1fr); } }
+    /* Sur écran tactile, ces boutons maison n'ont pas la taille que base.css donne aux .btn (piège
+       « pointer: coarse ») : mesuré sur l'aperçu, « + pièce Falco » faisait 13 px de haut, les chiffres
+       du résumé 21. 36 px se touchent sans viser, sans faire descendre la page d'un écran. */
+    @media (pointer: coarse) {
+      .falco { display: inline-flex; align-items: center; min-height: 36px; }
+      .fa-resume button, .fa-vue button, .fa-seg button { min-height: 36px; }
+    }
   </style>
 </head>
 <body>
@@ -404,9 +411,12 @@
     const supprimable = (f) => !(f.paiements || []).length && !String(f.ref_externe || '').trim() && !FACTURES.some(x => x.type === 'avoir' && x.avoir_de === f.id);
     function falco(f) {
       const id = jsAttr(f.id);
+      /* ✕ : un clavier de téléphone n'a pas d'Échap, et ✓ veut dire « enregistrer » — sans lui, une saisie
+         commencée ne s'abandonnait qu'en l'effaçant à la main. */
       if (FALCO === f.id) return `<span class="falco-edit"><input class="input" id="falco-${esc(f.id)}" value="${esc(f.ref_externe || '')}" placeholder="N° Falco" aria-label="Référence SysCore / Falco de ${esc(f.id)}"
           onkeydown="if (event.key === 'Enter') { event.preventDefault(); falcoOk(${id}); } else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); falcoEdit(''); }">
-        <button class="btn btn-primary btn-sm" onclick="falcoOk(${id})" aria-label="Enregistrer la référence">${icon('check', 12)}</button></span>`;
+        <button class="btn btn-primary btn-sm" onclick="falcoOk(${id})" aria-label="Enregistrer la référence">${icon('check', 12)}</button>
+        <button class="btn btn-ghost btn-sm falco-annuler" onclick="falcoEdit('')" aria-label="Annuler" title="Annuler">${icon('x', 12)}</button></span>`;
       return `<button class="falco ${f.ref_externe ? '' : 'vide'}" onclick="falcoEdit(${id})" title="Référence de la pièce officielle (SysCore / Falco)">${f.ref_externe ? 'Falco ' + esc(f.ref_externe) : '+ pièce Falco'}</button>`;
     }
     function ligne(f) {

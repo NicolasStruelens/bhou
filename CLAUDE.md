@@ -101,7 +101,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
 | `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
 | `assets/js/facturation.js` | **La facturation** (règle 49) : montants d'une nouvelle facture et leur libellé, à facturer maintenant, par chantier, relances, répartition d'un virement, export comptable. Fonctions pures (`window.SSFact`) ; ce qui est DÛ reste dans `ui.js` (règle 4). |
-| `tests/facturation.test.html` | Les 45 tests de la facturation : règles pures et statut partagé (notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone et « retour ». Vérifié par 16 mutations. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
+| `tests/facturation.test.html` | Les 47 tests de la facturation : règles pures et statut partagé (notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone (tactile simulé) et « retour ». Vérifié par 18 mutations. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
@@ -2536,7 +2536,9 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
   5 000,00 € réparti (…) ») ; un excédent est DIT et, accepté, reste sur la facture choisie. Ce sont plusieurs
   écritures ciblées : un échec en route dit ce qui est déjà passé.
 • **F — Le suivi Falco** : « N sans pièce Falco » et son filtre ; la référence se saisit DANS la ligne
-  (Entrée enregistre, Échap annule) — plus de boîte de dialogue.
+  (Entrée enregistre, Échap ou ✕ annule — un clavier de téléphone n'a pas d'Échap) — plus de boîte de dialogue.
+  ⚠️ Vu sur l'aperçu en tactile : « + pièce Falco » faisait 13 px de haut, les chiffres du résumé 21. Le bloc
+  `pointer: coarse` de la page les porte à 36 px (piège des composants maison) ; T6 le mesure en forçant ce bloc.
 • **G — L'export comptable** (`csv`) : UTF-8 avec BOM, « ; », virgule décimale, guillemets quand il le faut,
   une ligne par pièce de la période avec sa référence Falco. ⚠️ `blob.text()` retire le BOM en décodant :
   un test qui le cherche ainsi ne le trouve jamais — lire les trois premiers OCTETS.
@@ -2830,7 +2832,7 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 32/32 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
-   des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 45/45 », par le serveur —
+   des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 47/47 », par le serveur —
    ET `clients.test.html`, `dashboard.test.html` et `bac-a-sable.test.html`. C'est de l'argent.
    Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.

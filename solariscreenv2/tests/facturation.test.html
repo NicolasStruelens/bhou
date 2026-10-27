@@ -312,7 +312,13 @@
         lSo11().querySelector('.falco-edit input').value = 'NON';
         lSo11().querySelector('.falco-edit input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         await attendre(40);
-        check('P17 Échap annule la saisie, sans rien écrire', [!!lSo11().querySelector('.falco-edit'), fac(so11.id).ref_externe || ''], [false, '']);
+        const apresEchap = !!lSo11().querySelector('.falco-edit');
+        lSo11().querySelector('.falco').click(); await attendre(30);
+        lSo11().querySelector('.falco-edit input').value = 'NON2';
+        lSo11().querySelector('.falco-annuler').click();
+        await attendre(40);
+        check('P17 Échap — ou ✕, un clavier de téléphone n’ayant pas d’Échap — annule la saisie, sans rien écrire',
+          [apresEchap, !!lSo11().querySelector('.falco-edit'), fac(so11.id).ref_externe || ''], [false, false, '']);
         // G — L'export.
         let blobLu = null; w.URL.createObjectURL = (b) => { blobLu = b; return 'blob:essai'; }; w.URL.revokeObjectURL = () => {};
         bouton(d.querySelector('.fa-barre'), 'Export comptable').click(); await attendre(40);
@@ -375,6 +381,23 @@
           [w.getComputedStyle(d.querySelector('.fa-ligne')).gridTemplateAreas.indexOf('"num st"') >= 0, [...d.querySelectorAll('.fl-act .btn')].filter((b) => b.getBoundingClientRect().right > larg + 1).length, deb, d.documentElement.scrollWidth <= 375],
           [true, 0, [], true]);
         check('T2 Le premier chantier — celui en retard — commence dans le premier écran', [d.querySelector('.fa-chantier').getAttribute('data-devis'), Math.round(d.querySelector('.fa-chantier').getBoundingClientRect().top) < 812], ['ESSAI-11', true]);
+        const lF = d.querySelector('.fa-ligne'); lF.querySelector('.falco').click(); await attendre(40);
+        const lF2 = d.querySelector('.fa-ligne[data-id="' + lF.getAttribute('data-id') + '"]');
+        const boite = lF2.getBoundingClientRect(), x = lF2.querySelector('.falco-annuler').getBoundingClientRect(), chF = lF2.querySelector('.falco-edit input').getBoundingClientRect();
+        check('T5 La saisie Falco tient dans la carte : champ, ✓ et ✕ visibles', [x.right <= boite.right + 1, x.width > 0, chF.width >= 60, d.documentElement.scrollWidth <= 375], [true, true, true, true]);
+        lF2.querySelector('.falco-annuler').click(); await attendre(40);
+        /* Les boutons maison sur écran TACTILE : un navigateur de bureau ne déclenche jamais « pointer: coarse »,
+           on force donc chaque bloc de la page à vrai (même technique que tactile.test.html). */
+        const hFalcoBureau = Math.round(d.querySelector('.falco').getBoundingClientRect().height);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
+        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const touche = (sel) => { const h = [...d.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().height); return h.length > 0 && Math.min(...h) >= 36; };
+        check('T6 Écran tactile : « + pièce Falco » (13 px), les chiffres du résumé (21) et Par chantier / Par facture se touchent sans viser — le bureau ne bouge pas',
+          [hFalcoBureau < 20, touche('.falco'), touche('.fa-resume button'), touche('.fa-vue button'), w.getComputedStyle(d.querySelector('.fa-seg button')).minHeight],
+          [true, true, true, true, '36px']);
         f.remove();
         f = await cadreNavigue('../app/factures.html?t=' + Date.now(), 375, 812);
         w = f.contentWindow; d = f.contentDocument;
