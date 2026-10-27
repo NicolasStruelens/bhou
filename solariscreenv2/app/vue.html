@@ -1178,11 +1178,8 @@
     const { computeDevis, totalSurface } = window.SSCalc;
     const { mountThemeToggle } = window.SSTheme;
     const { fmtEur, fmtDate, el, setText, toast, qp, icon, clientKeyOf, fetchWeather, fetchCurrentWeather, weatherIconName, compressImage } = window.SSUI;
-    /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». */
-    function fmtQte(q) {
-      const n = Number(q) || 0;
-      return (n % 1 === 0) ? String(n) : n.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
-    }
+    /** Quantité lisible : « 1,5 » et non « 1.5 » — la règle vit dans ui.js (SSUI.fmtQte). */
+    function fmtQte(q) { return window.SSUI.fmtQte(q); }
     /** Durée en heures décimales → « 1 h 30 ». Personne ne lit « 1.5 h » sur un rapport. */
     function fmtDuree(h) {
       const t = Math.round((Number(h) || 0) * 60);
@@ -1830,6 +1827,12 @@
       DEVIS.commande = DEVIS.commande || {};
       DEVIS.commande.statut = stage;
       if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = SSUI.aujourdhui();
+      /* Le jour où le matériel arrive. Sans lui, « pose à planifier » comptait son ancienneté depuis
+         la dernière MODIFICATION du devis : une note ou une photo la remettait à zéro, et un chantier
+         en attente depuis trois semaines s'affichait « depuis à l'instant » (bac à sable, 27/10/2026).
+         Revenir à une étape antérieure efface la date : le matériel n'est plus là. */
+      if (stage === 'recu' && !DEVIS.commande.recu_le) DEVIS.commande.recu_le = SSUI.aujourdhui();
+      if (['a_commander', 'commande', 'fabrication'].includes(stage)) delete DEVIS.commande.recu_le;
       await persistCommande();
     };
     window.saveCommande = async () => {

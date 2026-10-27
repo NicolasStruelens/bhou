@@ -392,6 +392,7 @@ export async function onRequest(context) {
                json_extract(data, '$.statut_history') AS statut_history_json,
                json_extract(data, '$.chantier') AS chantier_json,
                json_extract(data, '$.commande.statut') AS commande_statut,
+               json_extract(data, '$.commande.recu_le') AS commande_recu_le,
                json_extract(data, '$.reception.date') AS reception_date,
                json_extract(data, '$.checklist') AS checklist_json,
                json_extract(data, '$.raison_refus') AS raison_refus,
