@@ -28,25 +28,29 @@
   <style>
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: var(--sp-4); align-items: start; }
     .stats-grid .section { margin: 0; }
+    .mt { font-family: var(--font-mono); }
 
-    /* ── Podium du mois (Nicolas vs Yannick) ── */
-    .podium { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
-    @media (max-width: 560px) { .podium { grid-template-columns: 1fr; } }
-    .podium-card { position: relative; border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: var(--sp-4); text-align: center; background: var(--surface); }
-    .podium-card.lead { border-color: color-mix(in srgb, var(--accent-2) 55%, transparent); box-shadow: var(--glow-soft); }
-    .podium-crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 1.4rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,.3)); }
-    .podium-ava { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto var(--sp-2); display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: var(--fs-md); }
-    .podium-ava.nicolas { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
-    .podium-ava.yannick { background: color-mix(in srgb, var(--accent-2) 18%, transparent); color: var(--accent-2); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); }
-    .podium-name { font-weight: 700; font-size: var(--fs-md); }
-    .podium-count { font-family: var(--font-display); font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin: var(--sp-2) 0 0; }
-    .podium-card.nicolas .podium-count { color: var(--accent); }
-    .podium-card.yannick .podium-count { color: var(--accent-2); }
-    .podium-sub { font-size: var(--fs-2xs); color: var(--text-subtle); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
-    .podium-ca { margin-top: var(--sp-3); font-family: var(--font-mono); font-weight: 700; color: var(--text); }
-    .podium-foot { text-align: center; margin-top: var(--sp-3); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    /* ── B — Deux onglets : la paie, l'activité ──
+       Deux contenus qui ne répondent pas à la même question, et qui faisaient sur téléphone un seul
+       rouleau de 10 205 px (les chiffres de l'activité n'arrivaient qu'à 1 513 px). Les onglets ne
+       posent AUCUNE étape d'historique : « retour » quitte la page, il ne promène pas d'un onglet à
+       l'autre (on ne doit jamais se sentir enfermé). */
+    .st-tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-4); }
+    .st-onglets { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+    .st-onglets button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-weight: 600; font-size: var(--fs-sm);
+      padding: 0.55rem 1.1rem; cursor: pointer; }
+    .st-onglets button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+    .st-onglets button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    /* ── A — Une période pour toute l'activité ── */
+    .st-per { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+    .st-per button { min-height: 32px; }
+    .st-comp { font-size: var(--fs-xs); color: var(--text-subtle); }
+    .st-evo { font-size: var(--fs-2xs); font-family: var(--font-mono); margin-top: 0.3rem; color: var(--text-subtle); }
+    .st-evo.up { color: var(--ok); }
+    .st-avert { margin: 0 0 var(--sp-4); }
+    .st-avert:empty { display: none; }
 
-    /* ── Ma rémunération ── */
+    /* ── Ma paie ── */
     .remu-haut { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
     @media (max-width: 720px) { .remu-haut { grid-template-columns: 1fr; } }
     .remu-card { border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: var(--sp-4); background: var(--surface); }
@@ -71,6 +75,7 @@
       background: color-mix(in srgb, var(--warn) 9%, transparent); }
     .remu-warn svg { flex: none; color: var(--warn); margin-top: 1px; }
     .remu-warn strong { color: var(--warn); }
+    .st-avert .remu-warn { margin-top: 0; }
     /* Le bandeau sur le déclencheur non acté : ce n'est pas une alerte, c'est un cadre de
        lecture — il dit ce que le chiffre signifie. D'où la teinte neutre. */
     .remu-info { display: flex; gap: var(--sp-3); align-items: flex-start; margin-top: var(--sp-4);
@@ -78,6 +83,8 @@
       border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-muted); }
     .remu-info svg { flex: none; color: var(--accent); margin-top: 1px; }
     .remu-info strong { color: var(--text); }
+    .remu-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin-top: var(--sp-4); }
+    .remu-actions .msg { font-size: var(--fs-xs); }
     /* Les badges « équipe ? » et « posé ? » sont des LIENS, et ils font 25 px de haut : trop
        petit pour un doigt. On élargit la cible à 44 px par un pseudo-élément, pas par du padding
        — le padding ferait grandir toutes les lignes du tableau sur téléphone.
@@ -89,6 +96,25 @@
         content: ''; position: absolute; left: 0; right: 0; top: 50%;
         height: 44px; transform: translateY(-50%);
       }
+      .st-onglets button { min-height: 44px; }
+      .st-per button { min-height: 40px; }
+      .st-perte { min-height: 44px; }
+    }
+
+    /* F — Le détail, dossier par dossier : un TABLEAU au bureau, des CARTES sur téléphone. Le tableau
+       faisait 735 px dans un écran de 291 : le total et la part payée sortaient de l'écran. Les deux
+       rendus existent, c'est la feuille de style seule qui choisit (règle 24). */
+    .st-cartes { display: none; }
+    .st-carte { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-2); background: var(--surface); }
+    .st-carte .l1 { display: flex; justify-content: space-between; gap: var(--sp-3); align-items: baseline; }
+    .st-carte .l1 a { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+    .st-carte .l1 .mt { flex: none; font-weight: 700; }
+    .st-carte .l2 { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.15rem; overflow-wrap: anywhere; }
+    .st-carte .l3 { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.25rem 0.7rem; align-items: center; }
+    .st-carte.total { border-style: dashed; font-weight: 700; }
+    @media (max-width: 700px) {
+      .st-tableau { display: none; }
+      .st-cartes { display: block; }
     }
 
     .remu-prel { display: flex; align-items: center; gap: var(--sp-3); padding: 0.4rem 0;
@@ -98,36 +124,79 @@
     .remu-prel .q { flex: 1; min-width: 6ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .remu-prel .m { font-family: var(--font-mono); font-weight: 700; flex: 0 0 auto; white-space: nowrap; }
 
-    /* ── Barres horizontales (répartition) ── */
-    .bar-row { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+    /* ── Barres horizontales (répartition) ──
+       Sur DEUX niveaux partout : le libellé et sa valeur, puis la barre sur toute la largeur. Les
+       valeurs disent maintenant ce qu'elles comptent (« 2 envoyés · 1 signé · 5 501,40 € ») : sur une
+       ligne, à 800 px, elles écrasaient la barre à 10 px et sortaient de la carte (vu à l'écran). */
+    .bar-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem var(--sp-3); margin-bottom: var(--sp-3); }
     .bar-row:last-child { margin-bottom: 0; }
-    .bar-label { width: 130px; flex: none; font-size: var(--fs-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bar-track { flex: 1; height: 10px; background: var(--surface-2); border-radius: var(--r-pill); overflow: hidden; border: 1px solid var(--border); }
+    .bar-label { flex: 1 1 auto; min-width: 8ch; font-size: var(--fs-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { flex: 1 1 100%; order: 3; height: 8px; background: var(--surface-2); border-radius: var(--r-pill); overflow: hidden; border: 1px solid var(--border); }
     .bar-fill { height: 100%; border-radius: var(--r-pill); background: var(--accent); transition: width var(--t-base); }
-    .bar-value { min-width: 118px; flex: none; text-align: right; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); white-space: nowrap; }
-    /* Sur téléphone, un libellé de 130 px + une valeur en nowrap ne tiennent plus à côté de la
-       barre : la ligne passe sur deux niveaux plutôt que de déborder de l'écran. */
+    .bar-value { flex: 0 1 auto; min-width: 0; text-align: right; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); }
+    .st-note { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-3); line-height: 1.5; }
+
+    /* ── C — Ventes par vendeur ── */
+    .st-vend { margin-bottom: var(--sp-3); }
+    .st-vend:last-child { margin-bottom: 0; }
+    .st-vend .l1 { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); align-items: baseline; }
+    .st-vend .l1 .mt { flex: none; }
+    .st-vend .tete { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-2xs); color: var(--accent-2); margin-left: 0.4rem; }
+    .st-vend .sous { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .st-vend .bar-track { margin-top: 0.35rem; }
+
+    /* ── D — Du premier contact à la signature ── */
+    .st-ent { display: flex; align-items: flex-end; gap: var(--sp-2); }
+    .st-ent .et { flex: 1; text-align: center; min-width: 0; }
+    .st-ent .et .n { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+    .st-ent .et .k { font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .st-ent .fl { color: var(--text-subtle); padding-bottom: 0.9rem; flex: none; }
+    .st-ent-txt { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-3); line-height: 1.55; }
+    .st-ent-txt strong { color: var(--text); }
+
+    /* ── E — Les graphes : la valeur ÉCRITE au-dessus de la barre ──
+       Elle ne vivait qu'au survol (`title`) : sur téléphone, il n'y a pas de survol, donc aucun montant
+       n'était lisible. L'an passé est un contour en pointillés derrière la barre. */
+    /* Une colonne ne descend jamais sous 34 px (un mois et sa valeur s'y lisent) : au-delà, le graphe
+       DÉFILE et s'ouvre sur le mois en cours. Vingt-quatre mois (« Tout ») dans une carte de 360 px
+       faisaient des colonnes de 15 px, libellés les uns sur les autres. */
+    .st-graphe { display: flex; gap: 0.35rem; align-items: stretch; padding-top: var(--sp-2); overflow-x: auto; scrollbar-width: thin; }
+    .st-col { flex: 1 0 34px; min-width: 34px; display: flex; flex-direction: column; align-items: stretch; }
+    .st-zone { position: relative; height: 128px; }
+    .st-bar, .st-avant { position: absolute; bottom: 0; left: 14%; right: 14%; border-radius: 3px 3px 0 0; }
+    .st-bar { background: var(--accent); min-height: 2px; }
+    .st-graphe.or .st-bar { background: var(--accent-2); }
+    .st-avant { border: 1px dashed var(--text-subtle); border-bottom: 0; background: transparent; }
+    .st-val { position: absolute; left: -6px; right: -6px; text-align: center; font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); white-space: nowrap; }
+    .st-col.courant .st-val { color: var(--text); font-weight: 700; }
+    /* Le mois seul (« SEPT »), l'année dessous quand elle change : « JANV 26 FÉVR 26 … » se chevauchaient
+       dès 10 colonnes dans une carte de 330 px (vu à l'écran). */
+    .st-mois { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); text-align: center; margin-top: 0.3rem; white-space: nowrap; text-transform: uppercase; line-height: 1.25; min-height: 2.5em; }
+    .st-mois small { display: block; font-size: inherit; opacity: 0.75; }
+    .st-col.courant .st-mois { color: var(--text); font-weight: 700; }
+    .st-leg { display: flex; flex-wrap: wrap; gap: var(--sp-4); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-2); }
+    .st-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 0.3rem; }
+    /* Téléphone : douze mois dans 300 px ne se lisent pas. Le graphe défile, à colonnes fixes, et
+       s'ouvre sur le MOIS EN COURS (il s'ouvrait sur le plus ancien, le récent caché à droite). */
     @media (max-width: 560px) {
-      .bar-row { flex-wrap: wrap; row-gap: 0.25rem; }
-      .bar-label { width: auto; flex: 1 1 auto; min-width: 0; }
-      .bar-track { flex: 1 1 100%; order: 3; }
-      .bar-value { min-width: 0; }
+      .st-graphe { scrollbar-width: none; }
+      .st-graphe::-webkit-scrollbar { display: none; }
+      .st-col { flex: 0 0 46px; }
     }
 
-    /* ── Graphe mensuel (barres verticales) ── */
-    .month-chart { display: flex; align-items: flex-end; gap: 0.4rem; height: 140px; padding-top: var(--sp-3); }
-    .month-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 0.35rem; min-width: 0; }
-    .month-bar { width: 100%; max-width: 28px; border-radius: 3px 3px 0 0; background: var(--accent); min-height: 2px; transition: height var(--t-base); cursor: default; }
-    .month-bar.gold { background: var(--accent-2); }
-    .month-lbl { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); text-transform: uppercase; white-space: nowrap; }
-    /* Téléphone : douze mois dans 330 px donnent 27 px par colonne — les libellés (« JUIL. 26 »)
-       ne rentrent pas et étaient rognés. Le graphe défile horizontalement, avec une largeur de
-       colonne fixe : tous les mois restent lisibles et atteignables au doigt. */
-    @media (max-width: 560px) {
-      .month-chart { overflow-x: auto; scrollbar-width: none; }
-      .month-chart::-webkit-scrollbar { display: none; }
-      .month-col { flex: 0 0 46px; }
-    }
+    /* ── G — Ce qui se perd sans un mot ── */
+    .st-perte { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: var(--sp-3);
+      background: transparent; border: 0; border-bottom: 1px dashed var(--border); color: var(--text); font: inherit;
+      font-size: var(--fs-sm); text-align: left; padding: 0.45rem 0; cursor: pointer; }
+    .st-perte .k { min-width: 0; }
+    .st-perte .k small { display: block; font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .st-perte .mt { flex: none; font-weight: 600; }
+    .st-perte[aria-expanded="true"] .chev { transform: rotate(90deg); }
+    .st-perte .chev { flex: none; color: var(--text-subtle); transition: transform var(--t-fast); display: inline-flex; }
+    .st-perte-l { padding: 0.2rem 0 0.5rem 0.8rem; }
+    .st-perte-l a { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-xs); padding: 0.2rem 0; }
+    .st-perte-l a .i { color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .st-perte-sous { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-top: var(--sp-3); }
 
     .rank-row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px dashed var(--border); }
     .rank-row:last-child { border-bottom: none; }
@@ -186,6 +255,8 @@
     .cx-legende { display: flex; gap: var(--sp-4); justify-content: center; margin-top: var(--sp-3); font-size: var(--fs-2xs); color: var(--text-muted); }
     .cx-legende span { display: inline-flex; align-items: center; gap: 0.35rem; }
     .cx-puce { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+    /* E — ce que les colonnes ne disent qu'au survol, une phrase le dit à tout le monde. */
+    .cx-resume { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-2); }
 
     /* Historique groupé par jour */
     .cx-jour { border-top: 1px solid var(--border); padding-top: var(--sp-2); margin-top: var(--sp-3); }
@@ -198,6 +269,36 @@
     .cx-seance.y .q { color: var(--accent-2); }
     .cx-seance .h { flex: 1; font-family: var(--font-mono); color: var(--text-muted); }
     .cx-seance .d { flex: none; font-family: var(--font-mono); }
+
+    /* Téléphone : un titre de section tenait sur 3 ou 4 lignes (88 à 144 px) — le code « SS // … »
+       passait sous le titre. Il ne dit rien qui serve à un pouce. */
+    @media (max-width: 560px) {
+      .section-head .section-code { display: none; }
+      .st-tete { gap: var(--sp-2); }
+      /* Quatre tuiles empilées poussaient la première section à 750 px : deux par rangée. */
+      #kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+      #kpis .kpi { padding: var(--sp-3); min-width: 0; }
+      #kpis .kpi-value { font-size: 1.15rem; overflow-wrap: anywhere; }
+    }
+
+    /* ── F — Le relevé imprimable : à l'impression, la page disparaît, il ne reste que lui. ── */
+    #releve { display: none; }
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      body > *:not(#releve) { display: none !important; }
+      #releve { display: block !important; color: #000; background: #fff; font-family: Inter, system-ui, sans-serif; font-size: 10.5pt; }
+      #releve h1 { font-size: 16pt; margin: 0 0 3pt; }
+      #releve h2 { font-size: 11.5pt; margin: 12pt 0 4pt; }
+      #releve .sous { color: #444; margin-bottom: 8pt; }
+      #releve table { width: 100%; border-collapse: collapse; }
+      #releve th, #releve td { border-bottom: 1px solid #bbb; padding: 3pt 5pt; text-align: left; vertical-align: top; }
+      #releve .m { text-align: right; white-space: nowrap; }
+      #releve tr.fort td { font-weight: 700; border-top: 1.5px solid #000; }
+      #releve .alerte { border: 1px solid #b45309; padding: 5pt 7pt; margin: 6pt 0; color: #7c2d12; }
+      #releve .pied { color: #444; font-size: 9pt; margin-top: 10pt; }
+      #releve thead { display: table-header-group; }
+      #releve tr { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
@@ -219,108 +320,108 @@
   </header>
 
   <main class="container">
-    <!-- ⚠️ EN PREMIER, VOLONTAIREMENT. C'est le seul bloc de cette page sur lequel on AGIT
-         (se payer) ; tout le reste est de l'information. Depuis le début de SolariScreen
-         personne n'avait rien prélevé, faute d'un écran qui dise combien. -->
-    <section class="section ticked" style="--tick-color:var(--ok);">
-      <div class="section-head">
-        <span class="section-title" style="color:var(--ok);">Ma rémunération</span>
-        <span class="section-code">SS // CE QUI M'EST DÛ</span>
+    <div class="st-tete">
+      <div class="st-onglets" role="tablist" aria-label="Statistiques">
+        <button type="button" role="tab" id="ongPaie" aria-controls="panPaie" aria-selected="true" onclick="choisirOnglet('paie')">Ma paie</button>
+        <button type="button" role="tab" id="ongActivite" aria-controls="panActivite" aria-selected="false" tabindex="-1" onclick="choisirOnglet('activite')">L’activité</button>
       </div>
-      <div class="section-body" id="remu"></div>
-    </section>
+    </div>
+    <!-- Un dossier illisible ou un registre illisible se DIT, au-dessus des deux onglets : les
+         chiffres des deux en dépendent. -->
+    <div class="st-avert" id="avertLecture"></div>
 
-    <div class="kpis" id="kpis"></div>
-
-    <div class="stats-grid">
-      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-2);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-2);" id="podiumTitle">Podium du mois</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
-        <div class="section-body" id="podium"></div>
+    <div id="panPaie" role="tabpanel" aria-labelledby="ongPaie">
+      <!-- ⚠️ EN PREMIER, VOLONTAIREMENT. C'est le seul bloc de cette page sur lequel on AGIT
+           (se payer) ; tout le reste est de l'information. Depuis le début de SolariScreen
+           personne n'avait rien prélevé, faute d'un écran qui dise combien. -->
+      <section class="section ticked" style="--tick-color:var(--ok);">
+        <div class="section-head">
+          <span class="section-title" style="color:var(--ok);" id="remuTitre">Ma rémunération</span>
+          <span class="section-code" id="remuCode">SS // CE QUI M'EST DÛ</span>
+        </div>
+        <div class="section-body" id="remu"><div class="empty-mini">Chargement…</div></div>
       </section>
 
-      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--ok);">
+      <section class="section ticked" style="--tick-color:var(--ok);">
         <div class="section-head"><span class="section-title" style="color:var(--ok);">Le détail, dossier par dossier</span><span class="section-code">SS // PAR DEVIS</span></div>
         <div class="section-body" id="remuDossiers"></div>
       </section>
 
-      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-3);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Ce que j'ai déjà reçu</span><span class="section-code">SS // REGISTRE</span></div>
+      <section class="section ticked" style="--tick-color:var(--accent-3);">
+        <div class="section-head"><span class="section-title" style="color:var(--accent-3);" id="prelTitre">Ce que j'ai déjà reçu</span><span class="section-code">SS // REGISTRE</span></div>
         <div class="section-body" id="remuPrel"></div>
       </section>
+    </div>
 
-      <section class="section ticked" style="grid-column:1 / -1;">
-        <div class="section-head"><span class="section-title">D'où viennent les clients qui signent</span><span class="section-code">SS // SOURCE RDV</span></div>
-        <div class="section-body" id="bySource"></div>
-      </section>
+    <div id="panActivite" role="tabpanel" aria-labelledby="ongActivite" hidden>
+      <div class="st-tete">
+        <div class="st-per" role="group" aria-label="Période">
+          <button type="button" class="chip" data-per="mois" onclick="choisirPeriode('mois')">Ce mois</button>
+          <button type="button" class="chip" data-per="annee" onclick="choisirPeriode('annee')">Cette année</button>
+          <button type="button" class="chip" data-per="12m" onclick="choisirPeriode('12m')">12 mois</button>
+          <button type="button" class="chip" data-per="tout" onclick="choisirPeriode('tout')">Tout</button>
+        </div>
+        <span class="st-comp" id="perComp"></span>
+      </div>
 
-      <section class="section ticked">
-        <div class="section-head"><span class="section-title">Répartition par statut</span><span class="section-code">SS // FUNNEL</span></div>
-        <div class="section-body" id="byStatus"></div>
-      </section>
+      <div class="kpis" id="kpis"><div class="empty-mini">Chargement…</div></div>
 
-      <section class="section ticked" style="--tick-color:var(--accent-2);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Paiements</span><span class="section-code">SS // ENCAISSEMENT</span></div>
-        <div class="section-body" id="payments"></div>
-      </section>
+      <div class="stats-grid">
+        <section class="section ticked" style="--tick-color:var(--accent-3);">
+          <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Ventes par vendeur</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
+          <div class="section-body" id="vendeurs"></div>
+        </section>
 
-      <section class="section ticked" style="grid-column:1 / -1;">
-        <div class="section-head"><span class="section-title">Devis créés par mois</span>
-          <span style="display:inline-flex;gap:0.35rem;margin-left:auto;margin-right:var(--sp-3);">
-            <button class="chip" data-p="3" onclick="setPeriod(3)">3 mois</button>
-            <button class="chip" data-p="6" onclick="setPeriod(6)">6 mois</button>
-            <button class="chip active" data-p="12" onclick="setPeriod(12)">12 mois</button>
-          </span>
-          <span class="section-code" id="mcCode1">SS // 12 MOIS</span></div>
-        <div class="section-body" id="monthlyCreated"></div>
-      </section>
+        <section class="section ticked">
+          <div class="section-head"><span class="section-title">Du premier contact à la signature</span><span class="section-code">SS // ENTONNOIR</span></div>
+          <div class="section-body" id="entonnoir"></div>
+        </section>
 
-      <section class="section ticked" style="grid-column:1 / -1; --tick-color:var(--accent-2);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Encaissé par mois (paiements reçus)</span><span class="section-code" id="mcCode2">SS // 12 MOIS</span></div>
-        <div class="section-body" id="monthlyPaid"></div>
-      </section>
+        <section class="section ticked" style="grid-column:1 / -1;">
+          <div class="section-head"><span class="section-title">D'où viennent les clients qui signent</span><span class="section-code">SS // SOURCE RDV</span></div>
+          <div class="section-body" id="bySource"></div>
+        </section>
 
-      <section class="section ticked">
-        <div class="section-head"><span class="section-title">Répartition par type de produit</span><span class="section-code">SS // CATALOGUE</span></div>
-        <div class="section-body" id="byType"></div>
-      </section>
+        <section class="section ticked">
+          <div class="section-head"><span class="section-title">Signé par mois</span><span class="section-code" id="gCode1">SS // MOIS</span></div>
+          <div class="section-body" id="graphSigne"></div>
+        </section>
 
-      <section class="section ticked" style="--tick-color:var(--accent-3);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Marge interne par type de produit</span><span class="section-code">SS // ESTIMATION</span></div>
-        <div class="section-body" id="margeByType"></div>
-      </section>
+        <section class="section ticked" style="--tick-color:var(--accent-2);">
+          <div class="section-head"><span class="section-title" style="color:var(--accent-2);">Encaissé par mois</span><span class="section-code" id="gCode2">SS // MOIS</span></div>
+          <div class="section-body" id="graphEnc"></div>
+        </section>
 
-      <section class="section ticked" style="--tick-color:var(--accent-3);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Performance par vendeur</span><span class="section-code">SS // NICOLAS · YANNICK</span></div>
-        <div class="section-body" id="bySeller"></div>
-      </section>
+        <section class="section ticked">
+          <div class="section-head"><span class="section-title">Ce qu'on vend</span><span class="section-code">SS // DEVIS SIGNÉS</span></div>
+          <div class="section-body" id="byType"></div>
+        </section>
 
-      <section class="section ticked" style="--tick-color:var(--danger);">
-        <div class="section-head"><span class="section-title" style="color:var(--danger);">Raisons de refus</span><span class="section-code">SS // DEVIS REFUSÉS</span></div>
-        <div class="section-body" id="byRaisonRefus"></div>
-      </section>
+        <section class="section ticked" style="--tick-color:var(--danger);">
+          <div class="section-head"><span class="section-title" style="color:var(--danger);">Ce qui se perd sans un mot</span><span class="section-code">SS // À RATTRAPER</span></div>
+          <div class="section-body" id="pertes"></div>
+        </section>
 
-      <section class="section ticked">
-        <div class="section-head"><span class="section-title">Top clients</span><span class="section-code">SS // CA</span></div>
-        <div class="section-body" id="topClients"></div>
-      </section>
+        <section class="section ticked">
+          <div class="section-head"><span class="section-title">Top clients</span><span class="section-code">SS // SIGNÉ</span></div>
+          <div class="section-body" id="topClients"></div>
+        </section>
 
-      <section class="section ticked">
-        <div class="section-head"><span class="section-title">Répartition géographique</span><span class="section-code">SS // VILLES</span></div>
-        <div class="section-body" id="byCity"></div>
-      </section>
+        <section class="section ticked">
+          <div class="section-head"><span class="section-title">Répartition géographique</span><span class="section-code">SS // VILLES</span></div>
+          <div class="section-body" id="byCity"></div>
+        </section>
 
-      <section class="section ticked" id="connexions" style="grid-column:1 / -1; --tick-color:var(--accent-3);">
-        <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Temps de connexion</span>
-          <span style="display:inline-flex;gap:0.35rem;margin-left:auto;margin-right:var(--sp-3);">
-            <button class="chip" data-cx="7" onclick="setCxPeriode(7)">7 jours</button>
-            <button class="chip active" data-cx="30" onclick="setCxPeriode(30)">30 jours</button>
-            <button class="chip" data-cx="0" onclick="setCxPeriode(0)">Tout</button>
-          </span>
-          <span class="section-code" id="cxCode">SS // 30 JOURS</span></div>
-        <div class="section-body" id="connTime"></div>
-      </section>
+        <section class="section ticked" id="connexions" style="grid-column:1 / -1; --tick-color:var(--accent-3);">
+          <div class="section-head"><span class="section-title" style="color:var(--accent-3);">Temps de connexion</span><span class="section-code" id="cxCode">SS // PÉRIODE</span></div>
+          <div class="section-body" id="connTime"></div>
+        </section>
+      </div>
     </div>
   </main>
+
+  <!-- F — Le relevé : construit au clic, invisible à l'écran, seul à l'impression. -->
+  <div id="releve" aria-hidden="true"></div>
 
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
@@ -331,242 +432,277 @@
        le consomme : sans lui, aucun dossier n'est attribue et tout sort « equipe inconnue ». -->
   <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/remuneration.js"></script>
+  <!-- attente.js porte le lien demande → devis (règle 17) que les sources réutilisent. -->
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/stats.js"></script>
   <script>
     const SS = window.SS;
+    const ST = window.SSStats;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, fmtDate, el, setText, normDevis, icon } = window.SSUI;
+    const { fmtEur, fmtDate, el, icon } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
-    // Libelle ET couleur viennent de ui.js : la couleur raconte la progression, et deux
-    // statuts differents ne doivent jamais porter la meme (voir STATUT_DEVIS_COULEUR).
-    const LIB_STATUT = window.SSUI.STATUT_DEVIS_LABEL;
-    const COUL_STATUT = window.SSUI.STATUT_DEVIS_COULEUR;
-    const STATUSES = {
-      brouillon: { label: LIB_STATUT.brouillon, color: COUL_STATUT.brouillon },
-      envoye_client: { label: LIB_STATUT.envoye_client, color: COUL_STATUT.envoye_client },
-      relance_1: { label: LIB_STATUT.relance_1, color: COUL_STATUT.relance_1 },
-      relance_2: { label: LIB_STATUT.relance_2, color: COUL_STATUT.relance_2 },
-      signe: { label: LIB_STATUT.signe, color: COUL_STATUT.signe },
-      termine: { label: LIB_STATUT.termine, color: COUL_STATUT.termine },
-      refuse: { label: LIB_STATUT.refuse, color: COUL_STATUT.refuse },
-      annule: { label: LIB_STATUT.annule, color: COUL_STATUT.annule },
-    };
     const TYPE_LABEL = window.SSUI.TYPE_LABEL;   // source unique : assets/js/ui.js
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
-    const monthKey = iso => { const d = new Date(iso); return isNaN(d) ? null : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
-    const monthLabel = key => { const [y, m] = key.split('-'); return new Date(y, m - 1, 1).toLocaleDateString('fr-BE', { month: 'short' }).replace('.', '') + ' ' + y.slice(2); };
-    function last12MonthKeys() {
-      const out = []; const now = new Date();
-      for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); }
-      return out;
-    }
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const lireLocal = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const ecrireLocal = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
-    function barRow(label, value, max, valueText, colorVar) {
+    function barRow(label, value, max, valueText, colorVar, titre) {
       const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
-      return `<div class="bar-row">
+      return `<div class="bar-row"${titre ? ` title="${esc(titre)}"` : ''}>
         <div class="bar-label" title="${esc(label)}">${esc(label)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%;${colorVar ? 'background:' + colorVar + ';' : ''}"></div></div>
         <div class="bar-value">${esc(valueText)}</div>
       </div>`;
     }
 
-    function renderByStatus(devisFull) {
-      const visible = devisFull.filter(d => !d.archive);
-      const counts = {};
-      visible.forEach(d => { counts[d.statut] = (counts[d.statut] || 0) + 1; });
-      const max = Math.max(1, ...Object.values(counts));
-      const rows = Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
-        barRow(s.label, counts[k], max, `${counts[k]} devis`, s.color)).join('');
-      el('byStatus').innerHTML = rows || '<div class="empty-mini">Aucun devis.</div>';
-    }
+    /* ── LE LECTEUR ──────────────────────────────────────────────────────────────────────────
+       La paie est écrite du point de vue de Nicolas (règle 30, on ne la « symétrise » pas). Mais
+       quand YANNICK ouvre la page, il lisait « Ce que SolariScreen me doit », « tu es dans l'équipe » :
+       un patron qui lit que la société lui doit 3 016 €. Le CONTENU ne change pas, seule la voix :
+       « toi » devient « Nicolas ». Une identité inconnue (aperçu local) garde la voix de Nicolas. */
+    let LECTEUR = '';
+    const V = (tu, il) => (LECTEUR === 'yannick' ? il : tu);
 
-    function renderPayments(factures) {
-      const totalFacture = factures.reduce((s, f) => s + (f.total_ttc || 0), 0);
-      const totalPaid = factures.reduce((s, f) => s + paidSum(f), 0);
-      // ⚠️ Le reste dû se calcule facture PAR facture, jamais en soustrayant deux totaux : un client
-      // qui règle tout d'un coup sur la facture d'acompte crée un TROP-PERÇU qui, dans une simple
-      // soustraction, vient effacer la dette d'un AUTRE client. Constaté sur les données réelles :
-      // 12 784,65 € annoncés ici contre 22 257,77 € réellement dus (page Factures et dashboard).
-      // Et une facture annulée par une note de crédit ne se réclame plus : `duFacture` (ui.js)
-      // applique EXACTEMENT la même règle qu'à l'écran Facturation — deux calculs séparés
-      // finiraient tôt ou tard par annoncer deux créances différentes.
-      const du = f => window.SSUI.duFacture(f, factures);
-      const reste = factures.reduce((s, f) => s + du(f), 0);
-      const today = SSUI.aujourdhui();
-      const retard = factures.filter(f => du(f) > 0.005 && f.echeance && f.echeance < today);
-      const retardMontant = retard.reduce((s, f) => s + du(f), 0);
-      el('payments').innerHTML = `
-        <div class="bar-row"><div class="bar-label">Total facturé</div><div class="bar-track"><div class="bar-fill" style="width:100%;"></div></div><div class="bar-value">${fmtEur(totalFacture)}</div></div>
-        ${barRow('Encaissé', totalPaid, totalFacture || 1, fmtEur(totalPaid), 'var(--ok)')}
-        ${barRow('Reste à encaisser', reste, totalFacture || 1, fmtEur(reste), 'var(--warn)')}
-        ${retard.length ? barRow('En retard', retardMontant, totalFacture || 1, `${fmtEur(retardMontant)} (${retard.length})`, 'var(--danger)') : ''}
-      `;
-    }
-
-    // Période affichée sur les graphiques mensuels (3 / 6 / 12 mois). Les données restent en
-    // mémoire (_DF/_FA) : changer de période ne recharge rien, on ne fait que re-trancher.
-    let PERIOD = 12, _DF = [], _FA = [];
-    window.setPeriod = (n) => {
-      PERIOD = n;
-      document.querySelectorAll('[data-p]').forEach(c => c.classList.toggle('active', Number(c.dataset.p) === n));
-      const code = 'SS // ' + n + ' MOIS';
-      if (el('mcCode1')) el('mcCode1').textContent = code;
-      if (el('mcCode2')) el('mcCode2').textContent = code;
-      renderMonthly(_DF, _FA);
-    };
-    function renderMonthly(devisFull, factures) {
-      const keys = last12MonthKeys().slice(-PERIOD);
-      const createdCounts = {}; keys.forEach(k => createdCounts[k] = 0);
-      devisFull.forEach(d => { const k = monthKey(d.date_creation); if (k && createdCounts[k] != null) createdCounts[k]++; });
-      const maxCreated = Math.max(1, ...keys.map(k => createdCounts[k]));
-      el('monthlyCreated').innerHTML = `<div class="month-chart">${keys.map(k => `
-        <div class="month-col" title="${monthLabel(k)} : ${createdCounts[k]} devis">
-          <div class="month-bar" style="height:${Math.max(2, Math.round((createdCounts[k] / maxCreated) * 100))}%;"></div>
-          <div class="month-lbl">${monthLabel(k)}</div>
-        </div>`).join('')}</div>`;
-
-      const paidByMonth = {}; keys.forEach(k => paidByMonth[k] = 0);
-      factures.forEach(f => (f.paiements || []).forEach(p => { const k = monthKey(p.date); if (k && paidByMonth[k] != null) paidByMonth[k] += Number(p.montant) || 0; }));
-      const maxPaid = Math.max(1, ...keys.map(k => paidByMonth[k]));
-      el('monthlyPaid').innerHTML = `<div class="month-chart">${keys.map(k => `
-        <div class="month-col" title="${monthLabel(k)} : ${fmtEur(paidByMonth[k])}">
-          <div class="month-bar gold" style="height:${Math.max(2, Math.round((paidByMonth[k] / maxPaid) * 100))}%;"></div>
-          <div class="month-lbl">${monthLabel(k)}</div>
-        </div>`).join('')}</div>`;
-    }
-
-    function renderByType(devisFull) {
-      const byType = {};
-      devisFull.filter(d => !d.archive).forEach(d => (d.items || []).forEach(it => {
-        const t = it.type || 'autre';
-        byType[t] = byType[t] || { count: 0, ca: 0 };
-        const q = SSRemu.quantiteDe(it);
-        byType[t].count += q;
-        byType[t].ca += (it.prix_catalogue_ht || 0) * q;
-      }));
-      const entries = Object.entries(byType).sort((a, b) => b[1].ca - a[1].ca);
-      const max = Math.max(1, ...entries.map(([, v]) => v.ca));
-      el('byType').innerHTML = entries.length
-        ? entries.map(([t, v]) => barRow(TYPE_LABEL[t] || t, v.ca, max, `${fmtEur(v.ca)} · ${v.count} unité(s)`)).join('')
-        : '<div class="empty-mini">Aucune ouverture chiffrée.</div>';
-    }
-
-    function renderBySeller(devisFull) {
-      const signes = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
-      const nicolasNet = signes.reduce((s, d) => s + (d.calculs?.nicolas_net || 0), 0);
-      const yannickNet = signes.reduce((s, d) => s + (d.calculs?.yannick_net || 0), 0);
-      // Attribution : on ne compte QUE les vendeurs explicitement renseignés (même règle que le podium) —
-      // les devis sans vendeur vont dans « Autre », pas par défaut chez Nicolas.
-      const nicolasCount = signes.filter(d => d.pricing_v2?.material?.sellers?.principal === 'nicolas').length;
-      const yannickCount = signes.filter(d => d.pricing_v2?.material?.sellers?.principal === 'yannick').length;
-      const autreCount = signes.length - nicolasCount - yannickCount;
-      const max = Math.max(1, nicolasNet, yannickNet);
-      el('bySeller').innerHTML = signes.length ? `
-        ${barRow('Nicolas', nicolasNet, max, fmtEur(nicolasNet), 'var(--accent)')}
-        ${barRow('Yannick', yannickNet, max, fmtEur(yannickNet), 'var(--accent-2)')}
-        <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Nicolas vendeur principal sur ${nicolasCount} devis · Yannick sur ${yannickCount} devis${autreCount > 0 ? ` · Autre sur ${autreCount} devis` : ''} (${signes.length} signés/terminés, archives comprises — un dossier archivé a quand même rapporté sa commission).</div>
-      ` : "<div class=\"empty-mini\">Aucun devis signé pour l'instant.</div>";
-    }
-
-    function renderTopClients(devisFull) {
-      const byClient = {};
-      devisFull.filter(d => !d.archive).forEach(d => {
-        const cl = d.client || {};
-        const name = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
-        const key = name.toLowerCase();
-        byClient[key] = byClient[key] || { name, ca: 0, count: 0 };
-        // CA = uniquement l'argent qui s'est concrétisé (signé/terminé) — un devis refusé/brouillon
-        // ne doit pas propulser un client en tête du classement.
-        byClient[key].ca += ['signe', 'termine'].includes(d.statut) ? (d.calculs?.total_ttc || 0) : 0;
-        byClient[key].count++;
+    /* ── B — LES ONGLETS ─────────────────────────────────────────────────────────────────────
+       Retenus par appareil. Par défaut : la paie pour Nicolas (c'est le seul bloc sur lequel il
+       agit), l'activité pour Yannick (la paie n'est pas la sienne). L'adresse `#connexions` (lien
+       du menu) et `#paie` ouvrent le bon onglet. Aucune étape d'historique (voir la feuille). */
+    let ONGLET = 'paie';
+    window.choisirOnglet = function (o, sansMemoire) {
+      ONGLET = o === 'activite' ? 'activite' : 'paie';
+      [['paie', 'ongPaie', 'panPaie'], ['activite', 'ongActivite', 'panActivite']].forEach(([k, b, p]) => {
+        const actif = k === ONGLET;
+        el(b).setAttribute('aria-selected', actif ? 'true' : 'false');
+        el(b).tabIndex = actif ? 0 : -1;
+        el(p).hidden = !actif;
       });
-      const top = Object.values(byClient).sort((a, b) => b.ca - a.ca).slice(0, 8);
-      el('topClients').innerHTML = top.length ? top.map((c, i) => `
+      if (!sansMemoire) ecrireLocal('ss_stats_onglet', ONGLET);
+      // Un graphe rendu dans un onglet caché n'a pas de largeur : on le recale à l'affichage.
+      if (ONGLET === 'activite') calerGraphes();
+    };
+    // Flèches gauche / droite entre les onglets (le motif « tablist » des lecteurs d'écran).
+    document.querySelector('.st-onglets').addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      choisirOnglet(ONGLET === 'paie' ? 'activite' : 'paie');
+      el(ONGLET === 'paie' ? 'ongPaie' : 'ongActivite').focus();
+    });
+    function ongletDeLAdresse() {
+      const h = String(location.hash || '').replace('#', '');
+      if (h === 'paie') return 'paie';
+      if (h === 'connexions' || h === 'activite') return 'activite';
+      return null;
+    }
+    window.addEventListener('hashchange', () => {
+      const o = ongletDeLAdresse();
+      if (!o) return;
+      choisirOnglet(o, true);
+      if (location.hash === '#connexions') setTimeout(() => el('connexions').scrollIntoView(), 50);
+    });
+
+    // ── A — LA PÉRIODE ───────────────────────────────────────────────────────────────────────
+    let PERIODE = ['mois', 'annee', '12m', 'tout'].indexOf(lireLocal('ss_stats_periode')) >= 0 ? lireLocal('ss_stats_periode') : 'annee';
+    let DONNEES = null;   // { devis, factures, rdv, connexions } — changer de période ne recharge rien
+    window.choisirPeriode = function (p) {
+      PERIODE = p;
+      ecrireLocal('ss_stats_periode', p);
+      renderActivite(false);
+    };
+
+    /* ═══════════════════════════════════════════════════════════════════════════════════════
+       L'ACTIVITÉ — tout se lit sur la période choisie, comparée à la même période l'an passé.
+       Les règles vivent dans `assets/js/stats.js` (règle 51) : cette page ne fait que mettre en
+       forme. Chaque section est rendue dans son propre `bloc()` (voir plus bas).
+       ═══════════════════════════════════════════════════════════════════════════════════════ */
+    function evoHtml(cur, avant, per, enPoints) {
+      if (!per.avant) return '';
+      const e = ST.evolution(cur, avant, enPoints);
+      const vs = 'vs ' + esc(per.avant.libelle);
+      if (!e) return `<div class="st-evo">${vs} : rien à comparer</div>`;
+      if (e.nouveau) return `<div class="st-evo up">${vs} : 0</div>`;
+      const n = enPoints ? e.points : e.pct;
+      const signe = n > 0 ? '+' : (n < 0 ? '−' : '±');
+      return `<div class="st-evo ${n > 0 ? 'up' : ''}">${signe}${Math.abs(n)}${enPoints ? ' pt' + (Math.abs(n) > 1 ? 's' : '') : ' %'} ${vs}</div>`;
+    }
+    function renderKPIs(per, anime) {
+      const c = ST.chiffres(DONNEES.devis, DONNEES.factures, per);
+      const a = per.avant ? ST.chiffres(DONNEES.devis, DONNEES.factures, per.avant) : null;
+      const pl = (n, mot) => n + ' ' + mot + (n > 1 ? 's' : '');
+      el('kpis').innerHTML = `
+        <div class="kpi ok ticked" id="kSigne"><div class="kpi-label">Signé · ${esc(per.libelle)}</div><div class="kpi-value">${fmtEur(c.signe)}</div>
+          <div class="kpi-sub">${pl(c.nbSignes, 'devis signé')}${c.interventions.nb ? ` · + ${pl(c.interventions.nb, 'intervention')} (<span class="mt">${fmtEur(c.interventions.montant)}</span>)` : ''}</div>${evoHtml(c.signe, a && a.signe, per)}</div>
+        <div class="kpi accent ticked" id="kEnvoyes"><div class="kpi-label">Devis envoyés</div><div class="kpi-value">${c.envoyes}</div>
+          <div class="kpi-sub">${c.enAttente ? `dont ${c.enAttente} encore en attente de réponse` : 'tous ont reçu une réponse'}</div>${evoHtml(c.envoyes, a && a.envoyes, per)}</div>
+        <div class="kpi ticked" id="kTaux"><div class="kpi-label">Taux de signature</div><div class="kpi-value">${c.taux === null ? '—' : c.taux + ' %'}</div>
+          <div class="kpi-sub" title="Sur les dossiers TRANCHÉS de la période (signés + refusés). Un dossier pas encore décidé n'est pas un échec. Les bons d'intervention et les devis informatifs n'y sont pas : ils ne se gagnent ni ne se perdent.">${c.nbSignes} signé${c.nbSignes > 1 ? 's' : ''} / ${c.tranches} tranché${c.tranches > 1 ? 's' : ''} · hors interventions</div>${c.taux === null || !a || a.taux === null ? (per.avant ? `<div class="st-evo">vs ${esc(per.avant.libelle)} : rien à comparer</div>` : '') : evoHtml(c.taux, a.taux, per, true)}</div>
+        <div class="kpi gold ticked" id="kEncaisse"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(c.encaisse)}</div>
+          <div class="kpi-sub">facturé <span class="mt">${fmtEur(c.facture)}</span> · <a href="factures.html">reste dû <span class="mt">${fmtEur(c.du)}</span></a>${c.nbRetard ? ` dont <span class="mt">${fmtEur(c.retard)}</span> en retard` : ''}</div>${evoHtml(c.encaisse, a && a.encaisse, per)}</div>`;
+      if (anime && window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odomètre partagé, au premier rendu seulement
+    }
+
+    const NOM_VENDEUR = { nicolas: 'Nicolas', yannick: 'Yannick', '': 'Sans vendeur' };
+    function renderVendeurs(per) {
+      const l = ST.vendeurs(DONNEES.devis, per);
+      const max = Math.max(1, ...l.map(v => v.montant));
+      const coul = { nicolas: 'var(--accent)', yannick: 'var(--accent-2)', '': 'var(--text-subtle)' };
+      el('vendeurs').innerHTML = l.map(v => `
+        <div class="st-vend" data-qui="${v.qui || 'aucun'}"${v.qui ? '' : ' title="Devis signés dont le vendeur principal n\'est pas renseigné : rouvre-les au simulateur pour le choisir."'}>
+          <div class="l1"><span>${NOM_VENDEUR[v.qui]}${v.enTete ? ` <span class="tete">${icon('star', 12)} en tête</span>` : ''}</span> <span class="mt">${v.nb} signé${v.nb > 1 ? 's' : ''} · ${fmtEur(v.montant)}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${v.montant ? Math.max(2, Math.round(v.montant / max * 100)) : 0}%;background:${coul[v.qui]};"></div></div>
+          <div class="sous">${v.taux === null ? 'aucun devis tranché sur la période' : 'taux de signature ' + v.taux + ' %' + (v.refuses ? ` · ${v.refuses} refusé${v.refuses > 1 ? 's' : ''}` : '')}</div>
+        </div>`).join('') +
+        `<div class="st-note">Ce que chacun a VENDU (vendeur principal du devis), interventions non comprises. Les commissions sont dans « ${esc(V('Ma paie', 'La paie de Nicolas'))} ».</div>`;
+    }
+
+    function renderEntonnoir(per) {
+      const e = ST.entonnoir(DONNEES.devis, DONNEES.rdv, per);
+      const fl = `<span class="fl">${icon('chevronright', 16)}</span>`;
+      const ec = e.enCours;
+      const enCoursTxt = [ec.envoye_client ? ec.envoye_client + ' envoyé' + (ec.envoye_client > 1 ? 's' : '') : '', ec.relance_1 ? ec.relance_1 + ' en relance 1' : '', ec.relance_2 ? ec.relance_2 + ' en relance 2' : ''].filter(Boolean).join(', ');
+      el('entonnoir').innerHTML = `
+        <div class="st-ent">
+          <div class="et"><div class="n">${e.demandes}</div><div class="k">demande${e.demandes > 1 ? 's' : ''} de visite</div></div>${fl}
+          <div class="et"><div class="n">${e.envoyes}</div><div class="k">devis envoyé${e.envoyes > 1 ? 's' : ''}</div></div>${fl}
+          <div class="et"><div class="n" style="color:var(--ok);">${e.signes}</div><div class="k">signé${e.signes > 1 ? 's' : ''}</div></div>
+        </div>
+        <div class="st-ent-txt">
+          ${e.delai === null ? 'Pas encore de signature mesurable sur la période.' : `Un devis se signe en général <strong>${e.delai} jour${e.delai > 1 ? 's' : ''}</strong> après l'envoi <span title="La médiane : la moitié des devis signés l'ont été plus vite. Un dossier signé après six mois ne fausse pas le chiffre.">(sur ${e.mesures} devis)</span>.`}
+          ${e.signes ? ` <strong>${e.sansRelance} sur ${e.signes}</strong> ont signé sans relance.` : ''}
+          <br>${enCoursTxt ? `En ce moment : ${esc(enCoursTxt)} — <a href="dashboard.html">voir le tableau de bord</a>.` : 'En ce moment, aucun devis n\'attend de réponse.'}
+        </div>`;
+    }
+
+    function renderBySource(per) {
+      const l = ST.sources(DONNEES.devis, DONNEES.rdv, per);
+      if (!l.length) {
+        el('bySource').innerHTML = `<div class="empty-mini">Aucune demande de visite sur la période. Les demandes (avec leur source) diront quelle origine amène le plus de clients qui signent.</div>`;
+        return;
+      }
+      const max = Math.max(1, ...l.map(s => s.demandes));
+      el('bySource').innerHTML = l.map(s => {
+        const bouts = [`${s.signes} signé${s.signes > 1 ? 's' : ''}`];
+        if (s.perdus) bouts.push(`${s.perdus} perdu${s.perdus > 1 ? 's' : ''}`);
+        if (s.enCours) bouts.push(`${s.enCours} en cours`);
+        const coul = s.taux === null ? 'var(--text-subtle)' : (s.taux >= 50 ? 'var(--ok)' : 'var(--accent)');
+        return barRow(s.source, s.demandes, max,
+          `${s.demandes} demande${s.demandes > 1 ? 's' : ''} · ${bouts.join(' · ')}${s.taux === null ? '' : ' · ' + s.taux + ' %'}${s.montant ? ' · ' + fmtEur(s.montant) : ''}`,
+          coul, 'Le taux ne compte que les demandes TRANCHÉES (signées ou perdues) : une demande encore en cours n\'est pas un échec.');
+      }).join('') + `<div class="st-note">Les demandes de visite de la période, rattachées à leur devis — y compris un devis fait au simulateur après la visite. Le taux ne compte que ce qui est tranché.</div>`;
+    }
+
+    /* E — un graphe : la valeur écrite au-dessus de chaque barre, l'an passé en pointillés. */
+    function grapheHtml(serie, cle, or) {
+      const auj = SSUI.aujourdhui().slice(0, 7);
+      const max = Math.max(1, ...serie.map(m => Math.max(m[cle], m[cle + 'Avant'] || 0)));
+      // 85 % au plus : la valeur écrite au-dessus de la plus haute barre doit rester dans la zone.
+      const h = v => Math.round(v / max * 85);
+      return `<div class="st-graphe${or ? ' or' : ''}">${serie.map((m, i) => {
+        const v = m[cle], av = m[cle + 'Avant'] || 0;
+        const hv = v ? Math.max(2, h(v)) : 0;
+        const [moisCourt, an] = ST.libelleMois(m.mois).split(' ');
+        /* La valeur se pose au-dessus de la plus haute des deux barres : posée DANS le contour de l'an
+           passé, elle avait l'air de lui appartenir. Un mois à zéro ne dit rien : la barre absente suffit. */
+        return `<div class="st-col${m.mois === auj ? ' courant' : ''}" data-mois="${m.mois}" title="${esc(ST.libelleMois(m.mois))} : ${fmtEur(v)} (un an plus tôt : ${fmtEur(av)})">
+          <div class="st-zone">
+            ${av ? `<div class="st-avant" style="height:${h(av)}%"></div>` : ''}
+            <div class="st-bar" style="height:${hv}%"></div>
+            <span class="st-val" style="bottom:calc(${Math.max(hv, av ? h(av) : 0)}% + 2px)">${v ? ST.court(v) : ''}</span>
+          </div>
+          <div class="st-mois">${esc(moisCourt)}${i === 0 || m.mois.slice(5) === '01' ? `<small>${esc(an)}</small>` : ''}</div>
+        </div>`;
+      }).join('')}</div>
+      <div class="st-leg"><span><i style="background:${or ? 'var(--accent-2)' : 'var(--accent)'}"></i>ce mois-là</span><span><i style="border:1px dashed var(--text-subtle)"></i>un an plus tôt</span></div>`;
+    }
+    /* Sur téléphone le graphe défile : on l'ouvre sur le mois en cours. Ne rien faire au bureau
+       (pas de débordement, donc rien à caler) — c'est la largeur rendue qui décide, pas un test JS. */
+    function calerGraphes() {
+      document.querySelectorAll('.st-graphe').forEach(g => { g.scrollLeft = g.scrollWidth; });
+    }
+    function renderGraphes(per) {
+      const mois = ST.moisDuGraphe(per);
+      const serie = ST.parMois(DONNEES.devis, DONNEES.factures, mois);
+      const code = 'SS // ' + mois.length + ' MOIS';
+      el('gCode1').textContent = code; el('gCode2').textContent = code;
+      el('graphSigne').innerHTML = grapheHtml(serie, 'signe', false);
+      el('graphEnc').innerHTML = grapheHtml(serie, 'encaisse', true);
+      calerGraphes();
+    }
+
+    function renderByType(per) {
+      const l = ST.ventesParType(DONNEES.devis, per);
+      if (!l.length) { el('byType').innerHTML = '<div class="empty-mini">Aucun devis signé sur la période.</div>'; return; }
+      const max = Math.max(1, ...l.map(x => x.valeur));
+      el('byType').innerHTML = l.map(x => barRow(x.type ? (TYPE_LABEL[x.type] || x.type) : 'Sans type', x.valeur, max,
+        `${fmtEur(x.valeur)} · ${x.qte} unité${x.qte > 1 ? 's' : ''}`, null, `${x.dossiers} devis signé${x.dossiers > 1 ? 's' : ''}`)).join('')
+        + `<div class="st-note">Les ouvertures des devis SIGNÉS de la période, à leur valeur catalogue HT.</div>`;
+    }
+
+    /* G — chaque ligne se déplie sur ses dossiers, qui mènent à leur fiche. L'état déplié survit au
+       changement de période (même ligne, même clé). */
+    const PERTES_OUVERTES = new Set();
+    window.basculerPerte = function (cle) {
+      if (PERTES_OUVERTES.has(cle)) PERTES_OUVERTES.delete(cle); else PERTES_OUVERTES.add(cle);
+      renderPertes(ST.periode(PERIODE));
+    };
+    function renderPertes(per) {
+      const p = ST.pertes(DONNEES.devis, per);
+      const ligne = (cle, titre, sous, g) => {
+        const ouvert = PERTES_OUVERTES.has(cle);
+        return `<button type="button" class="st-perte" data-cle="${esc(cle)}" aria-expanded="${ouvert}" onclick="basculerPerte(${SSUI.jsAttr(cle)})">
+            <span class="k">${esc(titre)}${sous ? `<small>${esc(sous)}</small>` : ''}</span>
+            <span class="mt">${g.dossiers.length} · ${fmtEur(g.montant)}</span><span class="chev">${icon('chevronright', 14)}</span>
+          </button>${ouvert ? `<div class="st-perte-l">${g.dossiers.map(x => `<a href="vue.html?id=${encodeURIComponent(x.id)}"><span>${esc(x.nom)} <span class="i">${esc(x.info)}</span></span><span class="mt">${fmtEur(x.montant)}</span></a>`).join('')}</div>` : ''}`;
+      };
+      let html = '';
+      if (p.expires.dossiers.length) html += ligne('expires', 'Expirés sans réponse', 'envoyés il y a plus de 30 jours, ni signés ni refusés', p.expires);
+      if (p.relance2.dossiers.length) html += ligne('relance2', 'En relance 2', 'la dernière relance du plan avant l\'expiration', p.relance2);
+      if (p.refus.length) {
+        html += `<div class="st-perte-sous">Refusés · ${esc(per.libelle)}</div>`;
+        html += p.refus.map(r => ligne('refus:' + r.raison, r.raison, '', r)).join('');
+      }
+      el('pertes').innerHTML = html || '<div class="empty-mini">Rien ne se perd : aucun devis expiré, aucun en relance 2, aucun refus sur la période.</div>';
+      if (html) el('pertes').insertAdjacentHTML('beforeend', '<div class="st-note">Un dossier mis en attente (le client revient vers nous) n\'y est pas : il a répondu.</div>');
+    }
+
+    function renderTopClients(per) {
+      const l = ST.topClients(DONNEES.devis, per, 8);
+      el('topClients').innerHTML = l.length ? l.map((c, i) => `
         <div class="rank-row">
           <div class="rank-no">#${i + 1}</div>
-          <div><div class="rank-name">${esc(c.name)}</div><div class="rank-sub">${c.count} devis</div></div>
-          <div class="rank-value" style="margin-left:auto;">${fmtEur(c.ca)}</div>
-        </div>`).join('') : '<div class="empty-mini">Aucun client.</div>';
+          <div><div class="rank-name"><a href="${c.cle.indexOf('id:') === 0 ? 'vue.html?id=' + encodeURIComponent(c.id) : 'clients.html?key=' + encodeURIComponent(c.cle)}">${esc(c.nom)}</a></div><div class="rank-sub">${c.nb} devis signé${c.nb > 1 ? 's' : ''}</div></div>
+          <div class="rank-value" style="margin-left:auto;">${fmtEur(c.montant)}</div>
+        </div>`).join('') : '<div class="empty-mini">Aucun client n\'a signé sur la période.</div>';
     }
 
-    function renderByCity(devisFull) {
-      const byCity = {};
-      devisFull.filter(d => !d.archive).forEach(d => {
-        const ville = (d.client?.adresse?.ville || '').trim();
-        if (!ville) return;
-        byCity[ville] = byCity[ville] || { count: 0, ca: 0 };
-        byCity[ville].count++;
-        byCity[ville].ca += ['signe', 'termine'].includes(d.statut) ? (d.calculs?.total_ttc || 0) : 0;
+    function renderByCity(per) {
+      const l = ST.villes(DONNEES.devis, per, 8);
+      const max = Math.max(1, ...l.map(v => v.envoyes));
+      el('byCity').innerHTML = l.length
+        ? l.map(v => barRow(v.ville, v.envoyes, max, `${v.envoyes} envoyé${v.envoyes > 1 ? 's' : ''} · ${v.signes} signé${v.signes > 1 ? 's' : ''}${v.montant ? ' · ' + fmtEur(v.montant) : ''}`)).join('')
+          + '<div class="st-note">Les devis envoyés sur la période, par commune (sans tenir compte des majuscules ni des accents).</div>'
+        : '<div class="empty-mini">Aucun devis envoyé avec une adresse sur la période.</div>';
+    }
+
+    function renderActivite(anime) {
+      const per = ST.periode(PERIODE);
+      document.querySelectorAll('.st-per [data-per]').forEach(b => {
+        const on = b.getAttribute('data-per') === PERIODE;
+        b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      const entries = Object.entries(byCity).sort((a, b) => b[1].count - a[1].count).slice(0, 8);
-      const max = Math.max(1, ...entries.map(([, v]) => v.count));
-      el('byCity').innerHTML = entries.length
-        ? entries.map(([ville, v]) => barRow(ville, v.count, max, `${v.count} devis · ${fmtEur(v.ca)}`)).join('')
-        : '<div class="empty-mini">Aucune adresse renseignée.</div>';
-    }
-
-    function renderKPIs(devisFull) {
-      const visible = devisFull.filter(d => !d.archive);
-      const signes = visible.filter(d => ['signe', 'termine'].includes(d.statut));
-      const envoyes = visible.filter(d => ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut));
-      const caTotal = visible.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
-      const caSigne = signes.reduce((s, d) => s + (d.calculs?.total_ttc || 0), 0);
-      const avg = visible.length ? caTotal / visible.length : 0;
-      // ⚠️ Un taux de conversion se calcule sur les dossiers TRANCHÉS : signés ÷ (signés + refusés).
-      // L'ancienne formule divisait par les devis EN ATTENTE — un dossier pas encore décidé comptait
-      // comme un échec, et un refus n'était jamais compté. Sur les données actuelles les deux
-      // donnaient 40 % par pure coïncidence (6 en attente = 6 refusés) : le jour où ces deux nombres
-      // divergent, le chiffre devient faux sans prévenir.
-      // ⚠️ ET SURTOUT : ce taux compte les devis ARCHIVÉS. Archiver est un rangement d'affichage,
-      // pas un événement commercial — sans ça, ranger les refusés du tableau de bord ferait grimper
-      // le taux à 100 % et le chiffre ne voudrait plus rien dire.
-      const signesTous = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
-      const refuses = devisFull.filter(d => d.statut === 'refuse');
-      const tranches = signesTous.length + refuses.length;
-      const conv = tranches > 0 ? Math.round((signesTous.length / tranches) * 100) : 0;
-      el('kpis').innerHTML = `
-        <div class="kpi accent ticked"><div class="kpi-label">Devis (hors archives)</div><div class="kpi-value">${visible.length}</div><div class="kpi-sub">${fmtEur(caTotal)} au total</div></div>
-        <div class="kpi ok ticked"><div class="kpi-label">CA signé</div><div class="kpi-value">${fmtEur(caSigne)}</div><div class="kpi-sub" title="Les devis archivés sont exclus de cette tuile, comme du compteur de gauche.">${signes.length} devis signés/terminés · hors archives</div></div>
-        <div class="kpi gold ticked"><div class="kpi-label">Valeur moyenne / devis</div><div class="kpi-value">${fmtEur(avg)}</div><div class="kpi-sub">tous statuts confondus</div></div>
-        <div class="kpi ticked"><div class="kpi-label">Taux de conversion</div><div class="kpi-value">${conv}%</div><div class="kpi-sub" title="Archives comprises : ranger un devis refusé ne doit pas embellir le taux">${signesTous.length} signé${signesTous.length > 1 ? 's' : ''} / ${tranches} tranché${tranches > 1 ? 's' : ''} (archives comprises)${envoyes.length ? ` · ${envoyes.length} en attente` : ''}</div></div>`;
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
-    }
-
-    // Marge (nicolas_net + yannick_net) répartie au prorata de la valeur catalogue de chaque
-    // type d'ouverture au sein d'un même devis — le moteur de calcul ne ventile pas la marge
-    // par ouverture individuellement, donc ceci est une ESTIMATION proportionnelle, pas un chiffre exact.
-    function renderMargeByType(devisFull) {
-      const signes = devisFull.filter(d => ['signe', 'termine'].includes(d.statut));
-      const byType = {};
-      signes.forEach(d => {
-        const items = d.items || [];
-        const totalCatalog = items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * SSRemu.quantiteDe(it), 0);
-        const totalNet = (d.calculs?.nicolas_net || 0) + (d.calculs?.yannick_net || 0);
-        if (totalCatalog <= 0 || !totalNet) return;
-        items.forEach(it => {
-          const t = it.type || 'autre';
-          const itemVal = (it.prix_catalogue_ht || 0) * SSRemu.quantiteDe(it);
-          byType[t] = (byType[t] || 0) + totalNet * (itemVal / totalCatalog);
-        });
-      });
-      const entries = Object.entries(byType).sort((a, b) => b[1] - a[1]);
-      if (!entries.length) { el('margeByType').innerHTML = '<div class="empty-mini">Aucun devis signé chiffré.</div>'; return; }
-      const max = Math.max(1, ...entries.map(([, v]) => v));
-      el('margeByType').innerHTML = entries.map(([t, v]) => barRow(TYPE_LABEL[t] || t, v, max, fmtEur(v), 'var(--accent-3)')).join('')
-        + `<div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">Estimation répartie au prorata de la valeur catalogue de chaque ouverture au sein d'un même devis.</div>`;
-    }
-
-    function renderRaisonRefus(devisFull) {
-      const refuses = devisFull.filter(d => d.statut === 'refuse');
-      if (!refuses.length) { el('byRaisonRefus').innerHTML = '<div class="empty-mini">Aucun devis refusé.</div>'; return; }
-      const counts = {};
-      refuses.forEach(d => { const r = d.raison_refus || 'Non renseignée'; counts[r] = (counts[r] || 0) + 1; });
-      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-      const max = Math.max(1, ...entries.map(([, v]) => v));
-      el('byRaisonRefus').innerHTML = entries.map(([r, n]) => barRow(r, n, max, `${n} devis`, 'var(--danger)')).join('')
-        + `<div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">${refuses.length} devis refusé(s) au total.</div>`;
+      el('perComp').textContent = per.avant ? per.libelle + ', comparé à ' + per.avant.libelle + ' (même période)' : 'depuis le premier devis';
+      if (!DONNEES) return;
+      bloc('chiffres du haut', 'kpis', () => renderKPIs(per, anime));
+      bloc('vendeurs', 'vendeurs', () => renderVendeurs(per));
+      bloc('entonnoir', 'entonnoir', () => renderEntonnoir(per));
+      bloc('sources', 'bySource', () => renderBySource(per));
+      bloc('graphes', 'graphSigne', () => renderGraphes(per));
+      bloc('ce qu\'on vend', 'byType', () => renderByType(per));
+      bloc('ce qui se perd', 'pertes', () => renderPertes(per));
+      bloc('top clients', 'topClients', () => renderTopClients(per));
+      bloc('villes', 'byCity', () => renderByCity(per));
+      bloc('temps de connexion', 'connTime', () => renderConnTime(DONNEES.connexions, per));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════
@@ -581,6 +717,8 @@
     //  1. deux cartes — le total, le nombre de plages, la moyenne, la plus longue, la dernière ;
     //  2. deux rythmes — la semaine et la journée, qui répondent à « quand » d'un coup d'œil ;
     //  3. l'historique COMPLET, groupé par jour et replié : rien n'est perdu, rien n'encombre.
+    // Depuis le 27/10/2026, la période est celle de toute l'activité (proposition A) : elle avait
+    // ses propres boutons 7 / 30 jours, une seconde période sur la même page.
     //
     // ⚠️ CE QUE MESURE UNE « PLAGE ». Le battement de nav.js ne part que si l'onglet est VISIBLE
     // et qu'il y a eu une interaction depuis moins de 2 min ; au-delà de 2 min 30 d'inactivité
@@ -592,23 +730,17 @@
     const fmtDuration = window.SSUI.fmtDuree;
     const CX_GENS = ['nicolas', 'yannick'];
     const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    let CX_PERIODE = 30, _CX = [], _CX_DEPLIE = false;
+    const JOURS_LONG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    let _CX_DEPLIE = false;
 
-    window.setCxPeriode = (n) => {
-      CX_PERIODE = n;
-      document.querySelectorAll('[data-cx]').forEach(c => c.classList.toggle('active', Number(c.dataset.cx) === n));
-      if (el('cxCode')) el('cxCode').textContent = 'SS // ' + (n ? n + ' JOURS' : 'TOUT');
-      renderConnTime(_CX);
-    };
-    window.toggleCxHistorique = () => { _CX_DEPLIE = !_CX_DEPLIE; renderConnTime(_CX); };
+    window.toggleCxHistorique = () => { _CX_DEPLIE = !_CX_DEPLIE; renderConnTime(DONNEES.connexions, ST.periode(PERIODE)); };
 
-    /** Une plage exploitable : bornes valides, durée positive, identité connue. */
-    function cxPlages(connections) {
-      const limite = CX_PERIODE ? Date.now() - CX_PERIODE * 86400000 : 0;
+    /** Une plage exploitable : bornes valides, durée positive, identité connue, dans la période. */
+    function cxPlages(connections, per) {
       return (connections || []).map(c => {
         const t0 = new Date(c.start_time).getTime(), t1 = new Date(c.last_seen).getTime();
         return { qui: c.identity, t0, t1, duree: t1 - t0, pages: Number(c.page_count) || 0 };
-      }).filter(p => isFinite(p.t0) && isFinite(p.t1) && p.duree >= 0 && p.t0 >= limite)
+      }).filter(p => isFinite(p.t0) && isFinite(p.t1) && p.duree >= 0 && ST.dans(new Date(p.t0).toISOString(), per))
         .sort((a, b) => b.t0 - a.t0);
     }
 
@@ -639,15 +771,19 @@
     }
 
     /**
-     * Un rythme : une colonne par tranche, deux segments empilés.
+     * Un rythme : une colonne par tranche, deux segments empilés — et sa phrase (proposition E) :
+     * sur téléphone, le détail d'une colonne ne vit qu'au survol, qui n'existe pas au doigt.
      * @param cases   nombre de colonnes
      * @param index   (plage) → numéro de colonne
-     * @param libelle (i) → étiquette, ou '' pour n'en afficher qu'une sur n
+     * @param libelle (i, complet) → étiquette, ou '' pour n'en afficher qu'une sur n
+     * @param phrase  (i, total) → la phrase du pic
      */
-    function cxRythme(plages, cases, index, libelle) {
+    function cxRythme(plages, cases, index, libelle, phrase) {
       const grille = Array.from({ length: cases }, () => ({ nicolas: 0, yannick: 0 }));
       plages.forEach(p => { const i = index(p); if (grille[i] && grille[i][p.qui] != null) grille[i][p.qui] += p.duree; });
-      const max = Math.max(1, ...grille.map(g => g.nicolas + g.yannick));
+      const tots = grille.map(g => g.nicolas + g.yannick);
+      const max = Math.max(1, ...tots);
+      const pic = tots.indexOf(Math.max(...tots));
       return `<div class="cx-rythme">${grille.map((g, i) => {
         const tot = g.nicolas + g.yannick;
         const h = tot ? Math.max(4, Math.round((tot / max) * 100)) : 0;
@@ -658,15 +794,14 @@
             : '<div class="cx-vide"></div>'}</div>
           <div class="cx-tick">${esc(libelle(i, false))}</div>
         </div>`;
-      }).join('')}</div>`;
+      }).join('')}</div><div class="cx-resume">${tots[pic] ? esc(phrase(pic, tots[pic])) : ''}</div>`;
     }
 
     // L'historique, groupé par JOUR. C'est le niveau « complet » : tout y est, mais rangé.
     function cxHistorique(plages) {
       const parJour = new Map();
       plages.forEach(p => {
-        const d = new Date(p.t0);
-        const cle = SSUI.isoDate ? SSUI.isoDate(d) : d.toISOString().slice(0, 10);
+        const cle = SSUI.isoDate(new Date(p.t0));
         if (!parJour.has(cle)) parJour.set(cle, []);
         parJour.get(cle).push(p);
       });
@@ -696,11 +831,11 @@
     }
     const cxHeure = ms => new Date(ms).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 
-    function renderConnTime(connections) {
-      _CX = connections || [];
-      const plages = cxPlages(_CX);
+    function renderConnTime(connections, per) {
+      el('cxCode').textContent = 'SS // ' + per.libelle.toUpperCase();
+      const plages = cxPlages(connections, per);
       if (!plages.length) {
-        el('connTime').innerHTML = `<div class="empty-mini">Aucune connexion enregistrée${CX_PERIODE ? ` sur ${CX_PERIODE} jours` : ''}.</div>`;
+        el('connTime').innerHTML = `<div class="empty-mini">Aucune connexion enregistrée sur la période (${esc(per.libelle)}).</div>`;
         return;
       }
       const parQui = {};
@@ -709,10 +844,12 @@
 
       // Semaine : getDay() renvoie 0 pour DIMANCHE — on décale pour commencer au lundi, qui est
       // le début de semaine en Belgique (et l'ordre dans lequel on lit son propre planning).
-      const semaine = cxRythme(plages, 7, p => (new Date(p.t0).getDay() + 6) % 7, (i) => JOURS[i]);
+      const semaine = cxRythme(plages, 7, p => (new Date(p.t0).getDay() + 6) % 7, (i) => JOURS[i],
+        (i, t) => 'Le jour le plus actif : le ' + JOURS_LONG[i] + ' (' + fmtDuration(t) + ' sur la période).');
       // Journée : 24 colonnes, mais une étiquette sur quatre — sinon elles se chevauchent.
       const journee = cxRythme(plages, 24, p => new Date(p.t0).getHours(),
-        (i, complet) => complet ? `${i} h` : (i % 4 === 0 ? i + 'h' : ''));
+        (i, complet) => complet ? `${i} h` : (i % 4 === 0 ? i + 'h' : ''),
+        (i, t) => 'L\'heure la plus active : entre ' + i + ' h et ' + (i + 1) + ' h (' + fmtDuration(t) + ').');
 
       el('connTime').innerHTML = `
         <div class="cx-duo">${CX_GENS.map(g => cxCarte(g, parQui[g])).join('')}</div>
@@ -738,96 +875,18 @@
         </div>`;
     }
 
-    /* Date de passage en « signé » : dernière transition vers 'signe' dans l'historique, et à
-       défaut la date de modification. Le podium compte les devis signés CE MOIS — la date de
-       création ne dirait rien (un devis de mars signé en octobre compte pour octobre).
-       ⚠️ SUPPRIMÉE PAR ACCIDENT le 04/10/2026 : elle vivait dans le bloc que la refonte de
-       « Temps de connexion » a remplacé d'un seul tenant. L'erreur n'est PAS apparue en local
-       parce qu'avec zéro devis la boucle du podium ne l'atteint jamais — c'est la donnée réelle
-       qui l'a révélée, en production. Leçon : remplacer un BLOC entier par position, c'est
-       emporter ce qu'on n'avait pas lu ; et un écran qui s'affiche sur des données vides n'est
-       pas un écran vérifié. */
-    // La règle vit désormais dans ui.js (`SSUI.dateSignature`) : le tableau de bord compte aussi
-    // « signé ce mois », et deux copies n'auraient pas compté le même mois.
-    function signeDateOf(d) { return window.SSUI.dateSignature(d); }
-
-    // Podium du mois : Nicolas vs Yannick, devis SIGNÉS ce mois-ci (par date de signature) + CA.
-    function renderPodium(devisFull) {
-      const nowKey = monthKey(new Date().toISOString());
-      const tally = { nicolas: { count: 0, ca: 0 }, yannick: { count: 0, ca: 0 } };
-      devisFull.forEach(d => {
-        if (d.archive) return;
-        const sd = signeDateOf(d);
-        if (!sd || monthKey(sd) !== nowKey) return;
-        // Équité : on ne crédite QUE les devis dont le vendeur principal est EXPLICITEMENT renseigné.
-        // (sellerOf() renvoie 'nicolas' par défaut pour le reste de l'app ; l'appliquer ici gonflerait
-        // artificiellement le podium de Nicolas avec les devis sans vendeur.)
-        const s = (d.pricing_v2 && d.pricing_v2.material && d.pricing_v2.material.sellers && d.pricing_v2.material.sellers.principal);
-        if (s !== 'nicolas' && s !== 'yannick') return;
-        tally[s].count++; tally[s].ca += (d.calculs && d.calculs.total_ttc) || 0;
-      });
-      el('podiumTitle').textContent = 'Podium — ' + new Date().toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' });
-      const leadNic = tally.nicolas.ca > tally.yannick.ca, leadYan = tally.yannick.ca > tally.nicolas.ca;
-      const card = (who, label, t, lead) => `
-        <div class="podium-card ${who} ${lead ? 'lead' : ''}">
-          ${lead ? '<div class="podium-crown">👑</div>' : ''}
-          <div class="podium-ava ${who}">${label[0]}</div>
-          <div class="podium-name">${label}</div>
-          <div class="podium-count">${t.count}</div>
-          <div class="podium-sub">devis signé${t.count > 1 ? 's' : ''} ce mois</div>
-          <div class="podium-ca">${fmtEur(t.ca)}</div>
-        </div>`;
-      const total = tally.nicolas.count + tally.yannick.count;
-      el('podium').innerHTML = `<div class="podium">
-        ${card('nicolas', 'Nicolas', tally.nicolas, leadNic)}
-        ${card('yannick', 'Yannick', tally.yannick, leadYan)}
-      </div>
-      <div class="podium-foot">${total ? `${total} devis signé(s) ce mois — ${fmtEur(tally.nicolas.ca + tally.yannick.ca)} au total. ${leadNic ? 'Nicolas mène 🎉' : (leadYan ? 'Yannick mène 🎉' : 'Égalité parfaite !')}` : 'Aucun devis signé ce mois — à vous de jouer ! 💪'}</div>`;
-    }
-
-    // D'où viennent les clients qui signent : par source des demandes de RDV converties en devis.
-    function renderBySource(devisFull, rdv) {
-      const devisById = new Map(devisFull.map(d => [d.id, d]));
-      const bySrc = {};
-      (rdv || []).forEach(r => {
-        const src = (r.source || '').trim() || 'Non précisé';
-        const b = bySrc[src] = bySrc[src] || { demandes: 0, devis: 0, signes: 0, ca: 0, _seen: new Set() };
-        b.demandes++;
-        if (r.devis_id) {
-          b.devis++;
-          const d = devisById.get(r.devis_id);
-          // Dédoublonnage : deux demandes de RDV peuvent pointer le même devis → on ne compte la
-          // signature (et son CA) qu'UNE fois par devis, sinon la conversion et le CA sont surévalués.
-          if (d && ['signe', 'termine'].includes(d.statut) && !b._seen.has(r.devis_id)) {
-            b._seen.add(r.devis_id); b.signes++; b.ca += (d.calculs && d.calculs.total_ttc) || 0;
-          }
-        }
-      });
-      const entries = Object.entries(bySrc).sort((a, b) => b[1].signes - a[1].signes || b[1].demandes - a[1].demandes);
-      if (!entries.length) {
-        el('bySource').innerHTML = '<div class="empty-mini">Les demandes de RDV (avec leur source) alimenteront cette section : tu verras quelle origine amène le plus de clients qui signent.</div>';
-        return;
-      }
-      const maxDem = Math.max(1, ...entries.map(([, v]) => v.demandes));
-      el('bySource').innerHTML = entries.map(([src, v]) => {
-        const taux = v.demandes ? Math.round((v.signes / v.demandes) * 100) : 0;
-        return barRow(src, v.demandes, maxDem, `${v.signes}/${v.demandes} signés · ${taux}%${v.ca ? ' · ' + fmtEur(v.ca) : ''}`, taux >= 50 ? 'var(--ok)' : (taux > 0 ? 'var(--accent)' : 'var(--text-subtle)'));
-      }).join('');
-    }
-
-
-    // ═══════════════════════════════════════════════════════════════════════════════════════
     // ═══════════════════════════════════════════════════════════════════════════════════════
     // MA RÉMUNÉRATION — l'outil pour me faire payer.
     //
-    // Tout le calcul vit dans `assets/js/remuneration.js` (SSRemu), protégé par 77 tests : cet
+    // Tout le calcul vit dans `assets/js/remuneration.js` (SSRemu), protégé par ses tests : cet
     // écran ne fait que METTRE EN FORME. C'est la même discipline que `calc.js` — un chiffre
     // d'argent calculé dans une page HTML n'est testable par personne.
     //
     // ⚠️ ÉCRIT DU POINT DE VUE DE NICOLAS, ET C'EST VOULU. Yannick est le patron : ce qui lui
     // revient, il en fait ce qu'il veut, ça ne se suit pas ici. Sa commission reste affichée
     // parce qu'elle fait partie du partage de la marge et doit être lisible — mais il n'y a ni
-    // « reste à toucher » ni prélèvement pour lui.
+    // « reste à toucher » ni prélèvement pour lui. Quand c'est LUI qui lit, seule la voix change
+    // (« Nicolas » au lieu de « toi », voir LECTEUR).
     //
     // ⚠️ L'ORDRE DE LECTURE EST LE SUJET DE CET ÉCRAN.
     //  1. Le total gagné depuis le début, en gros — c'est le chiffre qu'on emmène à la table.
@@ -840,6 +899,12 @@
     // ═══════════════════════════════════════════════════════════════════════════════════════
     const REMU = window.SSRemu;
     let _REMU_DOSSIERS = [], _REMU_PREL = [], _REMU_REGL = null, _REMU_CUMUL = null;
+    /* ⚠️ LE REGISTRE ILLISIBLE NE VAUT PAS ZÉRO. Une lecture ratée (session Access expirée, réseau)
+       était rattrapée en « liste vide » : « Déjà prélevé : 0 € », et « Reste à toucher » annonçait le
+       total gagné comme si rien n'avait jamais été versé — exactement la seconde réclamation que le
+       registre existe pour empêcher (règle 30 sexies). Illisible, le reste se tait et le DIT. */
+    let _PREL_LU = true;
+    let _ILLISIBLES = [];   // les dossiers de la liste dont la fiche n'a pas pu être lue
 
     // Dossiers retenus : signés ou terminés. Un devis en négociation ne doit rien — l'afficher
     // ferait monter le total avec des dossiers qui peuvent encore partir.
@@ -857,7 +922,7 @@
 
     function remuLigne(k, v, titre, fort) {
       return `<div class="remu-line${fort ? ' fort' : ''}"${titre ? ` title="${esc(titre)}"` : ''}>` +
-        `<span class="k">${k}</span><span class="v">${v}</span></div>`;
+        `<span class="k">${k}</span> <span class="v">${v}</span></div>`;
     }
     /* Un taux se lit à voix haute dans une discussion d'argent : « onze et demi », pas
        « onze point cinq ». Et sans arrondi, un 11.499999999999998 venu d'un vieux devis
@@ -867,14 +932,8 @@
     const remuWarn = t => `<div class="remu-warn">${icon('warning', 16)}<div>${t}</div></div>`;
     const remuInfo = t => `<div class="remu-info">${icon('info', 16)}<div>${t}</div></div>`;
 
-    function renderRemu(c) {
-      if (!_REMU_DOSSIERS.length) {
-        el('remu').innerHTML = '<div class="empty-mini">Aucun devis signé : rien à prélever pour le moment.</div>';
-        el('remuDossiers').innerHTML = '<div class="empty-mini">Aucun devis signé.</div>';
-        return;
-      }
-      // Combien d'ouvertures posées, tous dossiers confondus — c'est la phrase qui rend la paie
-      // de pose VÉRIFIABLE en face de Yannick : « 43 ouvertures posées à 50 €, pas un forfait ».
+    /** Les lignes de la paie de pose, par type : « 43 ouvertures posées à 50 €, pas un forfait ». */
+    function lignesPoseParType() {
       const parType = {};
       _REMU_DOSSIERS.forEach(x => {
         if (!x.r.pose) return;
@@ -883,8 +942,81 @@
           parType[d.type].qte += d.qte; parType[d.type].total += d.total;
         });
       });
-      const lignesPose = Object.entries(parType)
-        .sort((a, b) => b[1].total - a[1].total)
+      return Object.entries(parType).sort((a, b) => b[1].total - a[1].total);
+    }
+
+    /** Les avertissements d'argent, partagés par l'écran et le relevé imprimé. */
+    function avertissementsPaie(c) {
+      const out = [];
+      // ⚠️ Avertissement n°1 — l'équipe. Sans elle, la pose n'est attribuée à personne : le total
+      // affiché est donc trop BAS. C'est l'erreur la plus facile à laisser passer, puisque rien
+      // d'anormal ne se voit dans les chiffres.
+      if (c.en_attente_equipe > 0.004) {
+        out.push({ cle: 'equipe', court: `${fmtEur(c.en_attente_equipe)} de pose en attente d'une équipe`, html:
+          `<strong>${fmtEur(c.en_attente_equipe)} de pose en attente</strong> — des chantiers n'ont pas d'équipe renseignée, ` +
+          `donc l'ERP ne sait pas si c'est ${V('toi qui as posé', 'Nicolas qui a posé')}. Le total ci-dessus est trop bas de ce montant. ` +
+          `Clique sur le badge <em>équipe&nbsp;?</em> du détail ci-dessous : ça ouvre la fiche du devis directement sur ` +
+          `« Planification de pose », où se trouve le champ « Équipe ».` });
+      }
+      // ⚠️ Avertissement n°2 — la pose. Un dossier signé, où Nicolas est dans l'équipe, mais dont rien
+      // ne dit s'il a été posé : ni PV de réception, ni commande passée en « posé », ni date.
+      if (c.en_attente_pose > 0.004) {
+        out.push({ cle: 'pose', court: `${fmtEur(c.en_attente_pose)} de pose à confirmer (rien ne dit si c'est posé)`, html:
+          `<strong>${fmtEur(c.en_attente_pose)} de pose à confirmer</strong> — sur ces chantiers ${V('tu es', 'Nicolas est')} dans l'équipe, ` +
+          `mais rien ne dit s'ils ont été posés : pas de PV de réception, pas de commande passée en « posé », pas de date de pose. ` +
+          `Clique sur le badge <em>posé&nbsp;?</em> du détail ci-dessous pour ouvrir « Planification de pose » : ` +
+          `mets la date et le montant rentrera tout seul.` });
+      }
+      /* ⚠️ Avertissement n°3 — un type POSÉ sans tarif. C'est le défaut qui a laissé passer le
+         tablier de volet : il valait zéro en silence, et c'est Nicolas qui a dû le voir sur un
+         chantier terminé. Les deux types historiques (store banne, pergola) peuvent encore
+         remonter d'anciens devis — ils seront dits, pas oubliés. */
+      const sansTarif = Object.entries(c.sans_tarif || {});
+      if (sansTarif.length) {
+        const liste = sansTarif.map(([t, q]) => `${q} × ${esc(TYPE_LABEL[t] || t)}`).join(', ');
+        out.push({ cle: 'tarif', court: `${liste} posé(s) sans tarif`, html:
+          `<strong>${liste} posé${sansTarif.length > 1 || sansTarif[0][1] > 1 ? 's' : ''} sans tarif</strong> — ` +
+          `ces ouvertures ne ${V('te', 'lui')} rapportent rien parce qu'aucun tarif n'est fixé pour leur type. ` +
+          `Ajoute-le dans <a href="parametres.html">Paramètres → Ma paie de pose</a>, et le montant rentrera tout seul.` });
+      }
+      /* ⚠️ Avertissement n°4 — un devis chiffré SANS aucun partage. Sa commission vaut zéro
+         sans que rien ne le dise, et comme le tableau masque les dossiers qui ne rapportent
+         rien, le dossier disparaissait de l'écran entier. C'est le défaut du tablier de volet
+         transposé à l'argent de la vente, en bien plus cher. */
+      if (c.dossiers_sans_commission > 0) {
+        const n = c.dossiers_sans_commission;
+        out.push({ cle: 'commission', court: `${n} dossier${n > 1 ? 's' : ''} sans partage de commission (compté${n > 1 ? 's' : ''} 0 €)`, html:
+          `<strong>${n} dossier${n > 1 ? 's' : ''} sans partage de commission</strong> — ` +
+          `${n > 1 ? 'ces devis ont' : 'ce devis a'} un total client, mais ${n > 1 ? 'ils ne portent' : 'il ne porte'} ni taux ni montant de commission : ` +
+          `${n > 1 ? 'ils comptent' : 'il compte'} donc pour 0 €. Le badge <em>partage&nbsp;?</em> du détail ci-dessous ${n > 1 ? 'les' : 'le'} désigne. ` +
+          `Rouvrir la fiche au simulateur et l'enregistrer suffit à y inscrire le partage.` });
+      }
+      /* ⚠️ Avertissement n°5 — du catalogue facturé, aucune ouverture reconnue. Les lignes de
+         ces devis n'ont pas de type : elles sont facturées au client et invisibles pour la paie
+         de pose. C'est le cas qui ne pouvait RIEN dire, parce que tous les signalements de pose
+         vivaient sous « si le tarif total est positif » — or il vaut zéro, justement. Un
+         chantier entier pouvait donc sortir à 0 € de pose sans un mot. */
+      if (c.dossiers_sans_ouverture > 0) {
+        const n = c.dossiers_sans_ouverture;
+        out.push({ cle: 'ouvertures', court: `${n} dossier${n > 1 ? 's' : ''} sans ouverture reconnue (${fmtEur(c.catalogue_sans_ouverture)} de catalogue)`, html:
+          `<strong>${n} dossier${n > 1 ? 's' : ''} sans aucune ouverture reconnue</strong> — ` +
+          `${fmtEur(c.catalogue_sans_ouverture)} de catalogue ${n > 1 ? 'y sont' : 'y est'} facturé${n > 1 ? 's' : ''} au client, ` +
+          `mais aucune ligne ne porte de type de produit : la paie de pose ne peut rien compter dessus. ` +
+          `Le badge <em>sans ouverture</em> du détail ci-dessous ${n > 1 ? 'les' : 'le'} désigne — ouvre la fiche et vérifie les ouvertures.` });
+      }
+      return out;
+    }
+
+    function renderRemu(c) {
+      el('remuTitre').textContent = V('Ma rémunération', 'La rémunération de Nicolas');
+      el('remuCode').textContent = V('SS // CE QUI M\'EST DÛ', 'SS // CE QUI LUI EST DÛ');
+      el('prelTitre').textContent = V('Ce que j\'ai déjà reçu', 'Ce que Nicolas a déjà reçu');
+      if (!_REMU_DOSSIERS.length) {
+        el('remu').innerHTML = '<div class="empty-mini">Aucun devis signé : rien à prélever pour le moment.</div>';
+        el('remuDossiers').innerHTML = '<div class="empty-mini">Aucun devis signé.</div>';
+        return;
+      }
+      const lignesPose = lignesPoseParType()
         .map(([t, v]) => remuLigne(
           `${v.qte} × ${esc(TYPE_LABEL[t] || t)}`,
           `${fmtEur(v.unitaire)} → <strong>${fmtEur(v.total)}</strong>`,
@@ -912,72 +1044,19 @@
               (g.remise > 0.004 ? `, après ${fmtEur(g.remise)} de réduction commerciale` : '') +
               `, puis divisés pour le net.`)).join('');
 
-      let warn = '';
-      // ⚠️ Avertissement n°1 — l'équipe. Sans elle, la pose n'est attribuée à personne : le total
-      // affiché est donc trop BAS. C'est l'erreur la plus facile à laisser passer, puisque rien
-      // d'anormal ne se voit dans les chiffres.
-      if (c.en_attente_equipe > 0.004) {
-        warn += remuWarn(
-          `<strong>${fmtEur(c.en_attente_equipe)} de pose en attente</strong> — des chantiers n'ont pas d'équipe renseignée, ` +
-          `donc l'ERP ne sait pas si c'est toi qui as posé. Le total ci-dessus est trop bas de ce montant. ` +
-          `Clique sur le badge <em>équipe&nbsp;?</em> du tableau ci-dessous : ça ouvre la fiche du devis directement sur ` +
-          `« Planification de pose », où se trouve le champ « Équipe ».`);
-      }
-      // ⚠️ Avertissement n°2 — la pose. Un dossier signé, où tu es dans l'équipe, mais dont rien
-      // ne dit s'il a été posé : ni PV de réception, ni commande passée en « posé », ni date.
-      if (c.en_attente_pose > 0.004) {
-        warn += remuWarn(
-          `<strong>${fmtEur(c.en_attente_pose)} de pose à confirmer</strong> — sur ces chantiers tu es dans l'équipe, ` +
-          `mais rien ne dit s'ils ont été posés : pas de PV de réception, pas de commande passée en « posé », pas de date de pose. ` +
-          `Clique sur le badge <em>posé&nbsp;?</em> du tableau ci-dessous pour ouvrir « Planification de pose » : ` +
-          `mets la date et le montant rentrera tout seul.`);
-      }
-
-      /* ⚠️ Avertissement n°3 — un type POSÉ sans tarif. C'est le défaut qui a laissé passer le
-         tablier de volet : il valait zéro en silence, et c'est Nicolas qui a dû le voir sur un
-         chantier terminé. Les deux types historiques (store banne, pergola) peuvent encore
-         remonter d'anciens devis — ils seront dits, pas oubliés. */
-      const sansTarif = Object.entries(c.sans_tarif || {});
-      if (sansTarif.length) {
-        warn += remuWarn(
-          `<strong>${sansTarif.map(([t, q]) => `${q} × ${esc(TYPE_LABEL[t] || t)}`).join(', ')} posé${sansTarif.length > 1 || sansTarif[0][1] > 1 ? 's' : ''} sans tarif</strong> — ` +
-          `ces ouvertures ne te rapportent rien parce qu'aucun tarif n'est fixé pour leur type. ` +
-          `Ajoute-le dans <a href="parametres.html">Paramètres → Ma paie de pose</a>, et le montant rentrera tout seul.`);
-      }
-
-      /* ⚠️ Avertissement n°4 — un devis chiffré SANS aucun partage. Sa commission vaut zéro
-         sans que rien ne le dise, et comme le tableau masque les dossiers qui ne rapportent
-         rien, le dossier disparaissait de l'écran entier. C'est le défaut du tablier de volet
-         transposé à l'argent de la vente, en bien plus cher. */
-      if (c.dossiers_sans_commission > 0) {
-        const n = c.dossiers_sans_commission;
-        warn += remuWarn(
-          `<strong>${n} dossier${n > 1 ? 's' : ''} sans partage de commission</strong> — ` +
-          `${n > 1 ? 'ces devis ont' : 'ce devis a'} un total client, mais ${n > 1 ? 'ils ne portent' : 'il ne porte'} ni taux ni montant de commission : ` +
-          `${n > 1 ? 'ils comptent' : 'il compte'} donc pour 0 €. Le badge <em>partage&nbsp;?</em> du tableau ci-dessous ${n > 1 ? 'les' : 'le'} désigne. ` +
-          `Rouvrir la fiche au simulateur et l'enregistrer suffit à y inscrire le partage.`);
-      }
-
-      /* ⚠️ Avertissement n°5 — du catalogue facturé, aucune ouverture reconnue. Les lignes de
-         ces devis n'ont pas de type : elles sont facturées au client et invisibles pour la paie
-         de pose. C'est le cas qui ne pouvait RIEN dire, parce que tous les signalements de pose
-         vivaient sous « si le tarif total est positif » — or il vaut zéro, justement. Un
-         chantier entier pouvait donc sortir à 0 € de pose sans un mot. */
-      if (c.dossiers_sans_ouverture > 0) {
-        const n = c.dossiers_sans_ouverture;
-        warn += remuWarn(
-          `<strong>${n} dossier${n > 1 ? 's' : ''} sans aucune ouverture reconnue</strong> — ` +
-          `${fmtEur(c.catalogue_sans_ouverture)} de catalogue ${n > 1 ? 'y sont' : 'y est'} facturé${n > 1 ? 's' : ''} au client, ` +
-          `mais ${n > 1 ? 'aucune ligne ne porte' : 'aucune ligne ne porte'} de type de produit : la paie de pose ne peut rien compter dessus. ` +
-          `Le badge <em>sans ouverture</em> du tableau ci-dessous ${n > 1 ? 'les' : 'le'} désigne — ouvre la fiche et vérifie les ouvertures.`);
-      }
+      // Le registre illisible passe AVANT tout : sans lui, « reste à toucher » n'existe pas.
+      const warn = (_PREL_LU ? '' : remuWarn(
+          `<strong>Le registre des versements n'a pas pu être lu</strong> — « Reste à toucher » ne peut donc pas être calculé : ` +
+          `sans le registre, il annoncerait le total gagné comme si rien n'avait jamais été versé. Recharge la page (F5).`))
+        + avertissementsPaie(c).map(a => remuWarn(a.html)).join('');
+      const reste = _PREL_LU ? c.reste : null;
 
       el('remu').innerHTML = `
         <div class="remu-haut">
           <div class="remu-card moi">
-            <div class="remu-big-lbl">Ce que SolariScreen me doit</div>
-            <div class="remu-big ${Math.abs(c.reste) < 0.005 ? 'zero' : ''}">${fmtEur(c.reste)}</div>
-            <div class="remu-sous">Sur ${c.dossiers} dossier${c.dossiers > 1 ? 's' : ''} signé${c.dossiers > 1 ? 's' : ''} ou terminé${c.dossiers > 1 ? 's' : ''}, depuis le début, <span title="Archiver est un rangement d'affichage : ça ne retire pas le travail fait ni la commission gagnée. Les tuiles du haut de page, elles, excluent les archives.">archives comprises</span>.</div>
+            <div class="remu-big-lbl">${V('Ce que SolariScreen me doit', 'Ce que SolariScreen doit à Nicolas')}</div>
+            <div class="remu-big ${reste === null || Math.abs(reste) < 0.005 ? 'zero' : ''}" id="remuReste">${reste === null ? '—' : fmtEur(reste)}</div>
+            <div class="remu-sous">Sur ${c.dossiers} dossier${c.dossiers > 1 ? 's' : ''} signé${c.dossiers > 1 ? 's' : ''} ou terminé${c.dossiers > 1 ? 's' : ''}, depuis le début, <span title="Archiver est un rangement d'affichage : ça ne retire pas le travail fait ni la commission gagnée.">archives comprises</span>.</div>
             <div class="remu-sep">
               ${lignesPose || '<div class="remu-sous">Aucune ouverture posée pour l\'instant.</div>'}
               ${remuLigne('Paie de pose', `<strong>${fmtEur(c.pose)}</strong>`, 'Tarif convenu avec Yannick, compté sur les ouvertures posées.', true)}
@@ -989,17 +1068,17 @@
             </div>
             <div class="remu-sep">
               ${remuLigne('Total gagné', fmtEur(c.total), null, true)}
-              ${remuLigne('Déjà prélevé', c.preleve > 0 ? '− ' + fmtEur(c.preleve) : fmtEur(0), 'Somme du registre ci-dessous.')}
-              ${remuLigne('Reste à toucher', `<strong>${fmtEur(c.reste)}</strong>`, null, true)}
+              ${remuLigne('Déjà prélevé', !_PREL_LU ? '<span style="color:var(--warn)">registre illisible</span>' : (c.preleve > 0 ? '− ' + fmtEur(c.preleve) : fmtEur(0)), 'Somme du registre ci-dessous.')}
+              ${remuLigne('Reste à toucher', reste === null ? '—' : `<strong>${fmtEur(reste)}</strong>`, null, true)}
             </div>
           </div>
 
           <div class="remu-card">
             <div class="remu-big-lbl">Où en est l'argent</div>
             <div class="remu-sous" style="margin-bottom:var(--sp-3);">
-              Ces deux lignes ne changent pas ce qui t'est dû. Elles disent si la société a déjà encaissé de quoi te payer.
+              Ces deux lignes ne changent pas ce qui ${V('t\'est', 'lui est')} dû. Elles disent si la société a déjà encaissé de quoi ${V('te', 'le')} payer.
             </div>
-            ${remuLigne('Couvert par ce que les clients ont payé', fmtEur(c.couvert), 'Part de ton total correspondant aux factures réellement encaissées.')}
+            ${remuLigne('Couvert par ce que les clients ont payé', fmtEur(c.couvert), 'Part du total correspondant aux factures réellement encaissées.')}
             ${remuLigne('En attente de paiement client', fmtEur(c.en_attente_client), 'Des dossiers signés dont le client n\'a pas encore tout versé.')}
             <div class="remu-sep">
               ${remuLigne('Commission de Yannick', fmtEur(c.yannick_commission), 'Pour information : c\'est le partage de la marge sur ces mêmes dossiers. Ses prélèvements ne sont pas suivis ici.')}
@@ -1011,23 +1090,32 @@
           `<strong>Ce chiffre, c'est ce qui a été gagné — pas ce qui est exigible aujourd'hui.</strong> ` +
           `Le moment du versement n'est pas encore acté avec Yannick (il a évoqué « à chaque CA de SysCore », sans fréquence fixée). ` +
           `Tant que ce n'est pas décidé, l'ERP n'invente pas de règle : il donne le total gagné, et à côté la part déjà couverte par l'argent reçu des clients. ` +
-          `Le jour où la règle sera posée, il n'y aura qu'à choisir laquelle des deux pilote « reste à toucher ».`)}`;
+          `Le jour où la règle sera posée, il n'y aura qu'à choisir laquelle des deux pilote « reste à toucher ».`)}
+        <div class="remu-actions">
+          <button class="btn btn-ghost btn-sm" id="btnReleve" onclick="imprimerReleve()">${icon('filetext', 14)} Imprimer le relevé</button>
+          <span class="msg text-muted" id="releveMsg">Une page à montrer à Yannick : le total, ce qui est déjà reçu, et le détail dossier par dossier.</span>
+        </div>`;
       renderRemuDossiers();
     }
 
     // Le détail dossier par dossier : c'est CE tableau qu'on met sous les yeux de Yannick.
     // Trié par ce qu'il rapporte, le plus gros d'abord.
-    function renderRemuDossiers() {
-      /* On n'affiche QUE les dossiers qui apprennent quelque chose : ceux qui rapportent, et
-         ceux qui ont de l'argent en suspens. Un dépannage signé ne porte aucune ouverture et
-         aucune commission — il sortait en ligne à 0,00 € partout, et à force d'en accumuler il
-         aurait noyé les dossiers qui comptent. Le nombre de masqués est dit sous le tableau :
-         un filtre silencieux ferait douter du total. */
+    /* On n'affiche QUE les dossiers qui apprennent quelque chose : ceux qui rapportent, et
+       ceux qui ont de l'argent en suspens. Un dépannage signé ne porte aucune ouverture et
+       aucune commission — il sortait en ligne à 0,00 € partout, et à force d'en accumuler il
+       aurait noyé les dossiers qui comptent. Le nombre de masqués est dit sous le tableau :
+       un filtre silencieux ferait douter du total. */
+    function dossiersVisibles() {
       const tous = _REMU_DOSSIERS.slice().sort((a, b) => b.r.total - a.r.total);
       const lignes = tous.filter(x => x.r.total > 0.004 || x.r.incomplet.length || x.r.pose_tarifee > 0.004);
-      const masques = tous.length - lignes.length;
+      return { lignes, masques: tous.length - lignes.length };
+    }
+    function renderRemuDossiers() {
+      const { lignes, masques } = dossiersVisibles();
+      const rangees = lignes.map(remuRangee);
+      const pctCouvert = _REMU_CUMUL.total > 0 ? Math.round((_REMU_CUMUL.couvert / _REMU_CUMUL.total) * 100) : 0;
       el('remuDossiers').innerHTML = `
-        <div class="table-wrap" style="overflow-x:auto;overflow-y:hidden;">
+        <div class="table-wrap st-tableau" style="overflow-x:auto;overflow-y:hidden;">
           <table class="data">
             <thead><tr>
               <th>Client</th><th>Dossier</th><th>Posé par</th>
@@ -1037,7 +1125,7 @@
               <th class="num">Total</th>
               <th class="num">Payé par le client</th>
             </tr></thead>
-            <tbody>${lignes.map(remuRangee).join('')}</tbody>
+            <tbody>${rangees.map(r => r.ligne).join('')}</tbody>
             <tfoot><tr>
               <td colspan="4">Total</td>
               <td class="num">${fmtEur(_REMU_CUMUL.pose)}</td>
@@ -1046,28 +1134,46 @@
               ${/* ⚠️ Cette colonne affiche des POURCENTAGES ligne par ligne : y poser un montant
                      en euros dans le pied mélangeait deux unités dans la même colonne. On donne
                      donc le pourcentage global, et le montant en infobulle. */ ''}
-              <td class="num" title="${fmtEur(_REMU_CUMUL.couvert)} couverts sur ${fmtEur(_REMU_CUMUL.total)}">${
-                _REMU_CUMUL.total > 0 ? Math.round((_REMU_CUMUL.couvert / _REMU_CUMUL.total) * 100) : 0}&nbsp;%</td>
+              <td class="num" title="${fmtEur(_REMU_CUMUL.couvert)} couverts sur ${fmtEur(_REMU_CUMUL.total)}">${pctCouvert}&nbsp;%</td>
             </tr></tfoot>
           </table>
         </div>
+        <div class="st-cartes">
+          ${rangees.map(r => r.carte).join('')}
+          <div class="st-carte total"><div class="l1"><span>Total</span><span class="mt">${fmtEur(_REMU_CUMUL.total)}</span></div>
+            <div class="l3"><span>pose ${fmtEur(_REMU_CUMUL.pose)}</span><span>commission ${fmtEur(_REMU_CUMUL.commission)}</span><span>payé par les clients ${pctCouvert}&nbsp;%</span></div></div>
+        </div>
         <div class="text-muted" style="font-size:var(--fs-2xs);margin-top:var(--sp-3);">
-          ${masques ? `${masques} dossier${masques > 1 ? 's' : ''} sans rien à te verser ${masques > 1 ? 'sont masqués' : 'est masqué'} (dépannages, dossiers sans ouverture ni commission).<br>` : ''}
+          ${masques ? `${masques} dossier${masques > 1 ? 's' : ''} sans rien à ${V('te', 'lui')} verser ${masques > 1 ? 'sont masqués' : 'est masqué'} (dépannages, dossiers sans ouverture ni commission).<br>` : ''}
           Tous les montants sont <strong>nets</strong>. La pose est comptée sur les ouvertures réellement posées
           (${fmtEur(REMU.tarifPose(_REMU_REGL).screen)} le screen ou le volet, ${fmtEur(REMU.tarifPose(_REMU_REGL).tente_solaire)} la tente),
           pas sur ce que le devis a chiffré. La commission est lue sur chaque devis, avec la répartition qui y a été convenue.
         </div>`;
     }
 
+    /** « Posé par » en texte brut : la même réponse que le badge, pour le relevé imprimé. */
+    function poseTexte(r) {
+      if (r.incomplet.includes('ouvertures')) return 'sans ouverture';
+      if (r.pose_raison === 'equipe_inconnue') return 'équipe ?';
+      if (r.incomplet.includes('tarif') || r.pose_raison === 'sans_tarif') return 'tarif ?';
+      if (r.pose_raison === 'pose_inconnue') return 'posé ?';
+      if (r.pose_raison === 'sous_traitee') return 'sous-traitée';
+      if (r.pose_raison === 'sans_moi') return 'Yannick';
+      if (r.pose_raison === 'a_venir') return 'à venir';
+      if (r.pose_raison === 'sans_ouverture') return '—';
+      return 'Nicolas' + (r.pose_certaine ? '' : '*');
+    }
+    const nomDe = d => { const cl = d.client || {}; return [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom'; };
+    const ouverturesDe = r => r.pose_detail.reduce((s, p) => s + p.qte, 0) + (r.pose_sans_tarif || []).reduce((s, p) => s + p.qte, 0);
+    const resumeDe = d => SSUI.resumeDevis(d) || (d.type_document === 'depannage' ? 'Dépannage' : d.id);
+
     function remuRangee(x) {
       const d = x.devis, r = x.r;
-      const cl = d.client || {};
-      const nom = [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client sans nom';
+      const nom = nomDe(d);
       /* Les ouvertures NON TARIFÉES comptent ici aussi : la colonne dit combien il y en a, pas
          combien elles rapportent. Sans elles, un dossier marqué « tarif ? » affichait « — »
          pendant que le bandeau annonçait « 2 × Store banne » — deux comptes pour une même chose. */
-      const ouvertures = r.pose_detail.reduce((s, p) => s + p.qte, 0)
-        + (r.pose_sans_tarif || []).reduce((s, p) => s + p.qte, 0);
+      const ouvertures = ouverturesDe(r);
       /* LA COLONNE « POSÉ PAR » NE PEUT PLUS SE TAIRE. Elle rend « pose_raison », calculée par
          le moteur (19 tests) : il y a toujours une raison, et elle est toujours affichée.
          ⚠️ Les badges d'alerte sont des LIENS vers la carte « Planification de pose » de la
@@ -1084,15 +1190,15 @@
       if (r.incomplet.includes('ouvertures')) {
         pose = `<a class="badge badge-warn" href="${versDevis}" title="Ce devis facture du catalogue mais aucune de ses lignes ne porte de type de produit : la paie de pose ne peut rien compter dessus. Cliquer pour ouvrir la fiche.">sans ouverture</a>`;
       } else if (r.pose_raison === 'equipe_inconnue') {
-        pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée, ou valeur que l'ERP ne reconnaît pas : il ne sait donc pas si c'est toi qui as posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
+        pose = `<a class="badge badge-warn" href="${versChantier}" title="Équipe non renseignée, ou valeur que l'ERP ne reconnaît pas : il ne sait donc pas si c'est ${V('toi qui as', 'Nicolas qui a')} posé. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour la renseigner.">équipe ?</a>`;
       } else if (r.incomplet.includes('tarif') || r.pose_raison === 'sans_tarif') {
         pose = `<a class="badge badge-warn" href="parametres.html" title="${esc(r.pose_sans_tarif.map(x => x.qte + ' × ' + (TYPE_LABEL[x.type] || x.type)).join(', '))} — aucun tarif fixé pour ce type. Cliquer pour l'ajouter.">tarif ?</a>`;
       } else if (r.pose_raison === 'pose_inconnue') {
         pose = `<a class="badge badge-warn" href="${versChantier}" title="Rien ne dit si ce chantier a été posé : ni PV de réception, ni commande passée en « posé », ni date de pose. ${fmtEur(r.pose_tarifee)} en jeu. Cliquer pour mettre la date.">posé ?</a>`;
       } else if (r.pose_raison === 'sous_traitee') {
-        pose = '<span class="text-muted" title="Pose confiée à un sous-traitant : elle ne te revient pas.">sous-traitée</span>';
+        pose = `<span class="text-muted" title="Pose confiée à un sous-traitant : elle ne ${V('te', 'lui')} revient pas.">sous-traitée</span>`;
       } else if (r.pose_raison === 'sans_moi') {
-        pose = '<span class="text-muted" title="Tu n\'es pas dans l\'équipe de ce chantier.">Yannick</span>';
+        pose = `<span class="text-muted" title="${V('Tu n\'es pas', 'Nicolas n\'est pas')} dans l'équipe de ce chantier.">Yannick</span>`;
       } else if (r.pose_raison === 'a_venir') {
         pose = '<span class="text-muted" title="Chantier planifié, pas encore posé. Le montant rentrera à la date prévue.">à venir</span>';
       } else if (r.pose_raison === 'sans_ouverture') {
@@ -1102,7 +1208,8 @@
            vide. */
         pose = '<span class="text-muted" title="Aucune ouverture sur ce dossier — il n\'y a pas de pose à payer.">—</span>';
       } else {
-        pose = r.pose_certaine ? 'toi' : '<span title="Déduit d\'une date de pose passée : le PV de réception n\'a pas été rempli.">toi<sup>*</sup></span>';
+        const qui = V('toi', 'Nicolas');
+        pose = r.pose_certaine ? qui : `<span title="Déduit d'une date de pose passée : le PV de réception n'a pas été rempli.">${qui}<sup>*</sup></span>`;
       }
       /* La commission, VÉRIFIABLE ligne par ligne. Le montant seul ne dit pas d'où il sort :
          au survol, on lit le taux, l'assiette et la division. C'est ce qu'on montre à Yannick
@@ -1121,21 +1228,29 @@
       } else {
         comm = '<span class="text-muted" title="Aucune commission sur ce dossier.">—</span>';
       }
+      const archive = d.archive ? ' <span class="text-muted" style="font-size:var(--fs-2xs);" title="Dossier archivé : sa paie reste due.">archivé</span>' : '';
+      const payeTitre = `${fmtEur(r.encaisse)} reçus sur ${fmtEur(r.total_ttc)}`;
 
-      return `<tr>
+      const ligne = `<tr data-id="${esc(d.id)}">
         ${/* L'archivage est un rangement d'affichage, pas un evenement commercial : un dossier
-               archive garde sa paie. Mais les KPI du haut, eux, EXCLUENT les archives — sans ce
-               reperage, l'ecart entre les deux serait inexplicable. */ ''}
-        <td><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a>${
-          d.archive ? ' <span class="text-muted" style="font-size:var(--fs-2xs);" title="Dossier archivé : il compte ici (la paie reste due) mais pas dans les chiffres du haut de page.">archivé</span>' : ''}</td>
-        <td class="text-muted" style="font-size:var(--fs-2xs);max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(SSUI.resumeDevis(d) || (d.type_document === 'depannage' ? 'Dépannage' : d.id))}</td>
+               archive garde sa paie. */ ''}
+        <td><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a>${archive}</td>
+        <td class="text-muted" style="font-size:var(--fs-2xs);max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(resumeDe(d))}">${esc(resumeDe(d))}</td>
         <td>${pose}</td>
         <td class="num">${ouvertures || '—'}</td>
         <td class="num">${r.pose ? fmtEur(r.pose) : '<span class="text-muted">—</span>'}</td>
         <td class="num">${comm}</td>
         <td class="num"><strong>${fmtEur(r.total)}</strong></td>
-        <td class="num" title="${fmtEur(r.encaisse)} reçus sur ${fmtEur(r.total_ttc)}">${Math.round(r.part * 100)}&nbsp;%</td>
+        <td class="num" title="${payeTitre}">${Math.round(r.part * 100)}&nbsp;%</td>
       </tr>`;
+      /* La CARTE du téléphone dit la même chose en trois lignes : qui et combien, le dossier en
+         entier (plus d'ellipse : c'est lui qui distingue deux devis du même client), puis le détail. */
+      const carte = `<div class="st-carte" data-id="${esc(d.id)}">
+        <div class="l1"><a href="vue.html?id=${encodeURIComponent(d.id)}">${esc(nom)}</a><span class="mt">${fmtEur(r.total)}</span></div>
+        <div class="l2">${esc(resumeDe(d))}${archive}</div>
+        <div class="l3"><span>${pose}</span><span>${ouvertures || 0} ouv.</span><span>pose ${r.pose ? fmtEur(r.pose) : '—'}</span><span>comm. ${comm}</span><span title="${payeTitre}">payé ${Math.round(r.part * 100)}&nbsp;%</span></div>
+      </div>`;
+      return { ligne, carte };
     }
 
     // ── Le registre des prélèvements ──────────────────────────────────────────────────────
@@ -1160,6 +1275,7 @@
           <button class="btn btn-primary btn-sm" id="prelBtn" onclick="ajouterPrelevement()">${icon('plus', 14)} Enregistrer ce versement</button>
           <span id="prelMsg" class="text-muted" style="font-size:var(--fs-xs);"></span>
         </div>
+        ${!_PREL_LU ? `<div class="conn-subhead">Registre illisible</div><div class="empty-mini" style="color:var(--warn);">Le registre n'a pas pu être lu. Recharge la page (F5) avant de compter ce qui a déjà été versé.</div>` : `
         <div class="conn-subhead">${l.length ? `${l.length} versement${l.length > 1 ? 's' : ''} · ${fmtEur(total)} au total` : 'Registre vide'}</div>
         ${l.length ? l.map(x => `
           <div class="remu-prel">
@@ -1168,7 +1284,7 @@
             <span class="m">${fmtEur(x.montant)}</span>
             <button class="btn btn-ghost btn-sm" title="Supprimer cette ligne" onclick="supprimerPrelevement(${SSUI.jsAttr(x.id)})">${icon('trash', 13)}</button>
           </div>`).join('')
-        : '<div class="empty-mini">Rien n\'a encore été versé depuis le début de SolariScreen.</div>'}`;
+        : '<div class="empty-mini">Rien n\'a encore été versé depuis le début de SolariScreen.</div>'}`}`;
     }
 
     function prelMsg(texte, erreur) {
@@ -1180,7 +1296,14 @@
 
     function remuRafraichir() {
       renderRemuPrel();
-      renderRemu(REMU.cumul(_REMU_DOSSIERS.map(y => y.r), _REMU_PREL));
+      _REMU_CUMUL = REMU.cumul(_REMU_DOSSIERS.map(y => y.r), _PREL_LU ? _REMU_PREL : []);
+      renderRemu(_REMU_CUMUL);
+    }
+    /** Relit le registre ; une lecture ratée le dit (jamais une liste vide). */
+    async function relirePrel() {
+      try { _REMU_PREL = await SS.listPrelevements(); _PREL_LU = true; }
+      catch (e) { _PREL_LU = false; }
+      _REMU_CUMUL = REMU.cumul(_REMU_DOSSIERS.map(y => y.r), _PREL_LU ? _REMU_PREL : []);
     }
 
     window.ajouterPrelevement = async function () {
@@ -1200,18 +1323,69 @@
       if (!res || res.ok === false) return prelMsg(res && res.error ? res.error : 'Enregistrement impossible.', true);
       // On relit le serveur plutôt que de pousser l'objet local : c'est lui qui signe l'acteur et
       // l'horodatage, et sa version fait foi si l'autre a enregistré entre-temps.
-      _REMU_PREL = await SS.listPrelevements().catch(() => _REMU_PREL);
+      await relirePrel();
       remuRafraichir();
-      prelMsg('Enregistré.');
+      prelMsg(_PREL_LU ? 'Enregistré.' : 'Enregistré — mais le registre n\'a pas pu être relu : recharge la page.', !_PREL_LU);
     };
 
     window.supprimerPrelevement = async function (id) {
       if (!confirm('Supprimer cette ligne du registre ? « Reste à toucher » remontera d\'autant.')) return;
       const res = await SS.deletePrelevement(id);
       if (!res || res.ok === false) return prelMsg(res && res.error ? res.error : 'Suppression impossible.', true);
-      _REMU_PREL = await SS.listPrelevements().catch(() => _REMU_PREL.filter(x => x.id !== id));
+      await relirePrel();
       remuRafraichir();
     };
+
+    /* ── F — LE RELEVÉ IMPRIMABLE ────────────────────────────────────────────────────────────
+       « C'est CE tableau qu'on met sous les yeux de Yannick » : une page, datée et signée de celui
+       qui l'imprime — la pose par type, la commission par taux, le total, les versements reçus, le
+       reste, puis le détail. Ce qui n'est PAS compté (équipe ?, posé ?, tarif ?) y est écrit : un
+       relevé qui tait un manque se discute mal. Sans registre lisible, pas de relevé : il
+       annoncerait un reste faux. Des dossiers illisibles : le relevé le dit en tête. */
+    window.imprimerReleve = function () {
+      if (!_PREL_LU) {
+        el('releveMsg').textContent = 'Impossible : le registre des versements n\'a pas pu être lu — un relevé sans lui annoncerait un reste faux. Recharge la page.';
+        el('releveMsg').style.color = 'var(--danger)';
+        return;
+      }
+      el('releve').innerHTML = releveHtml();
+      window.print();
+    };
+    function releveHtml() {
+      const c = _REMU_CUMUL;
+      const { lignes } = dossiersVisibles();
+      const prel = _REMU_PREL.filter(x => x.qui === REMU.MOI).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const qui = LECTEUR ? (SSUI.IDENTITE_LABEL[LECTEUR] || LECTEUR) : '';
+      const ligne = (k, v, fort) => `<tr${fort ? ' class="fort"' : ''}><td>${k}</td> <td class="m">${v}</td></tr>`;
+      const manques = avertissementsPaie(c).map(a => `<li>${esc(a.court)}</li>`).join('');
+      return `
+        <h1>Relevé de rémunération — Nicolas</h1>
+        <div class="sous">SolariScreen (SysCore) · établi le ${fmtDate(SSUI.aujourdhui())}${qui ? ' par ' + esc(qui) : ''} · montants nets, depuis le début, archives comprises</div>
+        ${_ILLISIBLES.length ? `<div class="alerte"><strong>Relevé incomplet :</strong> ${_ILLISIBLES.length} dossier${_ILLISIBLES.length > 1 ? 's' : ''} n'${_ILLISIBLES.length > 1 ? 'ont' : 'a'} pas pu être lu${_ILLISIBLES.length > 1 ? 's' : ''} (${esc(_ILLISIBLES.map(nomDe).join(', '))}).</div>` : ''}
+        <h2>En résumé</h2>
+        <table><tbody>
+          ${lignesPoseParType().map(([t, v]) => ligne(`${v.qte} × ${esc(TYPE_LABEL[t] || t)} posé${v.qte > 1 ? 's' : ''}, à ${fmtEur(v.unitaire)}`, fmtEur(v.total))).join('')}
+          ${ligne('Paie de pose', fmtEur(c.pose), true)}
+          ${Object.values(c.commission_par_taux || {}).sort((a, b) => b.net - a.net).map(g => ligne(
+            (g.pct === null ? 'Taux non stocké' : fmtPct(g.pct)) + ` sur ${g.dossiers} dossier${g.dossiers > 1 ? 's' : ''} (${fmtEur(g.base)} de catalogue)`, fmtEur(g.net))).join('')}
+          ${ligne('Commission sur les ventes', fmtEur(c.commission), true)}
+          ${ligne('Total gagné', fmtEur(c.total), true)}
+          ${ligne(`Déjà reçu (${prel.length} versement${prel.length > 1 ? 's' : ''})`, c.preleve > 0 ? '− ' + fmtEur(c.preleve) : fmtEur(0))}
+          ${ligne('Reste à toucher', fmtEur(c.reste), true)}
+        </tbody></table>
+        ${manques ? `<div class="alerte"><strong>Non compté, en attente d'une donnée :</strong><ul style="margin:3pt 0 0 14pt;padding:0;">${manques}</ul></div>` : ''}
+        <h2>Dossier par dossier</h2>
+        <table>
+          <thead><tr><th>Client</th><th>Dossier</th><th>Posé par</th><th class="m">Ouv.</th><th class="m">Pose</th><th class="m">Commission</th><th class="m">Total</th><th class="m">Payé client</th></tr></thead>
+          <tbody>${lignes.map(x => `<tr><td>${esc(nomDe(x.devis))}</td><td>${esc(resumeDe(x.devis))}</td><td>${esc(poseTexte(x.r))}</td>
+            <td class="m">${ouverturesDe(x.r) || '—'}</td><td class="m">${x.r.pose ? fmtEur(x.r.pose) : '—'}</td>
+            <td class="m">${x.r.incomplet.includes('commission') ? 'partage ?' : (x.r.commission.nicolas.net ? fmtEur(x.r.commission.nicolas.net) : '—')}</td>
+            <td class="m">${fmtEur(x.r.total)}</td><td class="m">${Math.round(x.r.part * 100)} %</td></tr>`).join('')}</tbody>
+        </table>
+        ${prel.length ? `<h2>Versements reçus</h2><table><tbody>${prel.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.motif || '')}</td><td class="m">${fmtEur(p.montant)}</td></tr>`).join('')}</tbody></table>` : ''}
+        <div class="pied">La pose est comptée sur les ouvertures réellement posées (tarif convenu avec Yannick), pas sur ce que le devis a chiffré ; la commission est lue sur chaque devis, avec la répartition qui y a été convenue. * : pose déduite d'une date passée, le PV n'a pas été rempli.
+          Le moment du versement n'est pas encore acté : ce relevé dit ce qui a été gagné, pas ce qui est exigible.</div>`;
+    }
 
     /**
      * ⚠️ CHAQUE SECTION EST ISOLÉE, et c'est tout l'objet de ce bloc.
@@ -1224,7 +1398,7 @@
      * plus », et depuis sa capture il était impossible de savoir OÙ ça cassait.
      *
      * Désormais chaque section est rendue dans son propre `try` : celle qui échoue l'affiche
-     * À SA PLACE, avec son message d'erreur, et les quatorze autres s'affichent normalement.
+     * À SA PLACE, avec son message d'erreur, et les autres s'affichent normalement.
      * Un écran qui se dégrade section par section vaut infiniment mieux qu'un écran qui meurt
      * en silence — et le message est ce qui permet de corriger sans avoir à reproduire.
      */
@@ -1239,34 +1413,49 @@
       }
     }
 
+    // L'onglet de départ : l'adresse, puis le choix de cet appareil, puis le lecteur.
+    function ongletDeDepart() {
+      const o = ongletDeLAdresse() || lireLocal('ss_stats_onglet');
+      if (o === 'paie' || o === 'activite') return o;
+      return LECTEUR === 'yannick' ? 'activite' : 'paie';
+    }
+    choisirOnglet(ongletDeLAdresse() || lireLocal('ss_stats_onglet') || 'paie', true);
+    renderActivite(false);
+
     (async () => {
       // Les chargements aussi sont isolés : une route en échec ne doit pas empêcher d'afficher
-      // ce que les autres ont rapporté. `listDevis` est la seule dont tout dépend.
-      const raw = await SS.listDevis().catch(() => []);
-      const summary = (raw || []).map(normDevis);
-      const devisFull = (await Promise.all(summary.map(d => SS.getDevis(d.id).catch(() => null)))).filter(Boolean)
-        .map(d => ({ ...d, archive: !!d.archive }));
-      const factures = (await SS.listFactures().catch(() => [])) || [];
-      const connections = (await SS.listConnections().catch(() => [])) || [];
-      const rdv = (SS.listRdv ? await SS.listRdv().catch(() => []) : []);
-      const prelevements = await SS.listPrelevements().catch(() => []);
-      const reglages = await window.SSConf.charger().catch(() => null);
+      // ce que les autres ont rapporté. `listDevis` est la seule dont tout dépend. Ils partent
+      // ENSEMBLE : ils se suivaient un par un.
+      const [raw, factures, connections, rdv, prelevements, reglages, ident] = await Promise.all([
+        SS.listDevis().catch(() => []),
+        SS.listFactures().catch(() => []),
+        SS.listConnections().catch(() => []),
+        SS.listRdv ? SS.listRdv().catch(() => []) : Promise.resolve([]),
+        SS.listPrelevements().then(l => { _PREL_LU = true; return l || []; }).catch(() => { _PREL_LU = false; return []; }),
+        window.SSConf.charger().catch(() => null),
+        window.SSNav.getIdentity().catch(() => null),
+      ]);
+      LECTEUR = (ident && ident.key) || '';
+      el('ongPaie').textContent = V('Ma paie', 'La paie de Nicolas');
+      choisirOnglet(ongletDeDepart(), true);
+      // La liste BRUTE garde l'objet `client` (normDevis l'aplatit) : c'est elle qui nomme un illisible.
+      const summary = (raw || []).filter(Boolean);
+      /* ⚠️ UN DOSSIER ILLISIBLE NE DISPARAÎT PLUS EN SILENCE. Une fiche qui ne se charge pas
+         (réseau, session Access) sortait de la paie ET des statistiques sans un mot — le total
+         baissait, et c'est de l'argent. On les compte, on les nomme, au-dessus des deux onglets. */
+      const lus = await Promise.all(summary.map(d => SS.getDevis(d.id).then(x => x || null).catch(() => null)));
+      _ILLISIBLES = summary.filter((d, i) => !lus[i]);
+      const devisFull = lus.filter(Boolean).map(d => ({ ...d, archive: !!d.archive }));
+      if (_ILLISIBLES.length) {
+        const n = _ILLISIBLES.length;
+        el('avertLecture').innerHTML = remuWarn(`<strong>${n} dossier${n > 1 ? 's' : ''} n'${n > 1 ? 'ont' : 'a'} pas pu être lu${n > 1 ? 's' : ''}</strong> (${esc(_ILLISIBLES.map(nomDe).join(', '))}) — ` +
+          `les chiffres de cette page en sont incomplets, et la paie peut être trop basse d'autant. Recharge la page (F5).`);
+      }
+      DONNEES = { devis: devisFull, factures: factures || [], rdv: rdv || [], connexions: connections || [] };
 
       bloc('rémunération', 'remu', () => { renderRemu(remuCalculer(devisFull, factures, prelevements, reglages)); renderRemuPrel(); });
-      bloc('podium', 'podium', () => renderPodium(devisFull));
-      bloc('sources', 'bySource', () => renderBySource(devisFull, rdv));
-      bloc('chiffres du haut', 'kpis', () => renderKPIs(devisFull));
-      bloc('statuts', 'byStatus', () => renderByStatus(devisFull));
-      bloc('paiements', 'payments', () => renderPayments(factures));
-      _DF = devisFull; _FA = factures;   // conservés pour le sélecteur de période
-      bloc('graphes mensuels', 'monthlyCreated', () => renderMonthly(_DF, _FA));
-      bloc('types de produit', 'byType', () => renderByType(devisFull));
-      bloc('marge par type', 'margeByType', () => renderMargeByType(devisFull));
-      bloc('vendeurs', 'bySeller', () => renderBySeller(devisFull));
-      bloc('raisons de refus', 'byRaisonRefus', () => renderRaisonRefus(devisFull));
-      bloc('top clients', 'topClients', () => renderTopClients(devisFull));
-      bloc('villes', 'byCity', () => renderByCity(devisFull));
-      bloc('temps de connexion', 'connTime', () => renderConnTime(connections));
+      renderActivite(true);
+      if (location.hash === '#connexions') setTimeout(() => el('connexions').scrollIntoView(), 50);
     })();
   </script>
 </body>
