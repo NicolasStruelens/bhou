@@ -1325,6 +1325,9 @@ export async function onRequest(context) {
         moyen: String(body.moyen || '').slice(0, 40),
         saisi_le: now,
       };
+      // Un virement RÉPARTI sur plusieurs factures du dossier (règle 49) : chaque part le dit, pour
+      // qu'on retrouve d'où vient l'argent en relisant une seule des factures.
+      if (body.lot) paiement.lot = String(body.lot).slice(0, 80);
       const r = await env.DB.prepare(`
         UPDATE factures SET
           data = json_set(
@@ -1364,6 +1367,28 @@ export async function onRequest(context) {
       return json({ ok: true, paiements: (safeParse(apres && apres.data) || {}).paiements || [] });
     }
 
+    /* ── RELANCE DE PAIEMENT : écriture CIBLÉE (règle 49) ──
+       Les rappels n'existaient que dans le client mail : impossible de savoir si on avait déjà
+       relancé, ni quand. Chaque relance s'AJOUTE (qui, quand, par quel canal), sans réécrire la
+       facture — un encaissement a pu être saisi entre-temps. */
+    let mRel = path.match(/^\/api\/factures\/([^/]+)\/relance$/);
+    if (mRel && method === 'POST') {
+      const id = decodeURIComponent(mRel[1]);
+      const body = await request.json().catch(() => ({}));
+      const now = new Date().toISOString();
+      const relance = { id: crypto.randomUUID(), le: now, canal: ['email', 'copie', 'autre'].includes(body.canal) ? body.canal : 'autre',
+        par: (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null };
+      const r = await env.DB.prepare(`
+        UPDATE factures SET
+          data = json_set(json_insert(json_set(data, '$.relances', json(COALESCE(json_extract(data, '$.relances'), '[]'))), '$.relances[#]', json(?1)),
+                          '$.date_modification', ?2),
+          date_modification = ?2
+        WHERE id = ?3`).bind(JSON.stringify(relance), now, id).run();
+      if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Facture introuvable' }, 404);
+      const apres = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
+      return json({ ok: true, relance, relances: (safeParse(apres && apres.data) || {}).relances || [] });
+    }
+
     m = path.match(/^\/api\/factures\/([^/]+)$/);
     if (m) {
       const id = decodeURIComponent(m[1]);
@@ -1373,7 +1398,23 @@ export async function onRequest(context) {
         const d = safeParse(row.data);
         return d ? json({ ok: true, data: d }) : json({ ok: false, error: 'Facture illisible (données corrompues)' }, 500);
       }
-      if (method === 'DELETE') { await env.DB.prepare('DELETE FROM factures WHERE id = ?').bind(id).run(); return json({ ok: true }); }
+      /* ⚠️ UNE FACTURE ÉMISE NE SE SUPPRIME PAS, ELLE S'ANNULE (règle 49). La suppression était sans
+         condition : une facture encaissée emportait ses encaissements, une facture déjà reprise dans
+         Falco perdait sa trace ici, et une note de crédit restait orpheline de la facture qu'elle
+         annule. On ne supprime donc que ce qui n'a encore AUCUNE suite — l'erreur de saisie du jour. */
+      if (method === 'DELETE') {
+        const row = await env.DB.prepare('SELECT data FROM factures WHERE id = ?').bind(id).first();
+        if (!row) return json({ ok: true });
+        const f = safeParse(row.data) || {};
+        const raisons = [];
+        if (Array.isArray(f.paiements) && f.paiements.length) raisons.push('elle porte ' + f.paiements.length + ' encaissement' + (f.paiements.length > 1 ? 's' : '') + ' (retire-les d’abord)');
+        if (String(f.ref_externe || '').trim()) raisons.push('elle a déjà sa pièce SysCore / Falco (' + String(f.ref_externe).trim() + ')');
+        const nc = await env.DB.prepare("SELECT id FROM factures WHERE json_extract(data, '$.avoir_de') = ?").bind(id).first();
+        if (nc) raisons.push('la note de crédit ' + nc.id + ' l’annule');
+        if (raisons.length) return json({ ok: false, error: 'Suppression refusée : ' + raisons.join(' ; ') + '. Une facture émise s’annule par une note de crédit.' }, 409);
+        await env.DB.prepare('DELETE FROM factures WHERE id = ?').bind(id).run();
+        return json({ ok: true });
+      }
     }
 
     // ══════════ RDV (demandes de visite / leads avant devis) ══════════
