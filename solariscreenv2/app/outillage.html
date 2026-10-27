@@ -26,71 +26,145 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-4); }
-    .toolbar .search { flex: 1; min-width: 220px; position: relative; }
+    /* A — UNE ligne de résumé : les trois tuiles prenaient 252 px sur téléphone, et la première
+       référence commençait sous le premier écran. */
+    .ot-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.9rem; margin-bottom: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .ot-resume b { color: var(--text); font-size: var(--fs-md); }
+    .ot-resume .warn { color: var(--warn); font-weight: 600; }
+    .ot-alleger { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3);
+      border: 1px dashed var(--border-strong); border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text-muted); }
+    .ot-alleger span { flex: 1 1 18rem; min-width: 0; }
+    .toolbar { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-3); }
+    .toolbar .search { flex: 1; min-width: 200px; position: relative; }
     .toolbar .search input { padding-left: 2.2rem; }
     .toolbar .search > svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
     .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: var(--sp-4); }
     .chip:hover { border-color: var(--accent-2); color: var(--accent-2); }
     .chip.active { background: var(--accent-2); color: var(--bg); border-color: var(--accent-2); }
+    .ot-catsel { display: none; margin-bottom: var(--sp-3); }
 
-    /* ── Grille de références ── */
-    .ot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: var(--sp-4); }
-    .ot-card { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); display: flex; flex-direction: column; transition: all var(--t-fast); --tick-color: var(--accent-2); }
-    .ot-card:hover { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); box-shadow: var(--glow-soft); }
-    /* Vignette photo (ou pictogramme si aucune photo) */
-    .ot-photo { position: relative; aspect-ratio: 4 / 3; background: var(--surface); display: grid; place-items: center; overflow: hidden; border-bottom: 1px solid var(--border); }
-    .ot-photo img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+    /* D — À racheter : la liste de courses, par fournisseur */
+    .ot-courses { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); }
+    .ot-courses h2 { font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
+    .ot-four { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin: var(--sp-2) 0 0.2rem; }
+    .ot-cl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem var(--sp-2); padding: 0.35rem 0; border-top: 1px solid var(--border); }
+    .ot-cl .q { font-family: var(--font-mono); font-weight: 700; color: var(--warn); }
+    .ot-cl .txt { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+    .ot-cl .txt small { display: block; color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .ot-cl .bt { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+    /* E — Kits de pose et poses à venir */
+    .ot-kits { margin-bottom: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4); }
+    .ot-kits > summary { cursor: pointer; font-weight: 600; }
+    .ot-kits > summary small { font-weight: 400; color: var(--text-subtle); }
+    .ot-kits h3 { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin: var(--sp-3) 0 var(--sp-1); font-weight: 600; }
+    .ot-kl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem var(--sp-2); padding: 0.4rem 0; border-top: 1px solid var(--border); }
+    .ot-kl .txt { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+    .ot-kl .txt small { display: block; color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .ot-kl .bt { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+    /* ── Les références ── */
+    .ot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: var(--sp-4); }
+    .ot-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); display: flex; flex-direction: column; min-width: 0; --tick-color: var(--accent-2); }
+    .ot-card.rach { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+    .ot-haut { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .ot-photo { position: relative; aspect-ratio: 3 / 2; max-height: 180px; width: 100%; background: var(--surface); display: grid; place-items: center; overflow: hidden;
+      border: 0; border-bottom: 1px solid var(--border); border-radius: var(--r-md) var(--r-md) 0 0; padding: 0; color: inherit; }
+    button.ot-photo { cursor: zoom-in; }
+    .ot-photo img { width: 100%; height: 100%; object-fit: cover; }
     .ot-photo .ph { color: var(--text-subtle); opacity: 0.5; }
-    .ot-photo .count { position: absolute; right: 6px; bottom: 6px; background: color-mix(in srgb, var(--bg) 78%, transparent); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--fs-3xs); padding: 1px 6px; color: var(--text-muted); backdrop-filter: blur(3px); }
-    .ot-body { padding: var(--sp-3) var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
-    .ot-nom { font-weight: 700; font-size: var(--fs-md); line-height: 1.25; }
-    .ot-ref { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-    .ot-ref code { font-family: var(--font-mono); font-size: var(--fs-xs); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 7px; color: var(--accent-2-ink); word-break: break-all; }
+    /* Sans photo, un repère discret : un cadre vide de 180 px ne dit rien et repousse la référence. */
+    .ot-photo.vide { aspect-ratio: auto; height: 56px; }
+    .ot-photo .count { position: absolute; right: 6px; bottom: 6px; background: color-mix(in srgb, var(--bg) 78%, transparent); border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--font-mono); font-size: var(--fs-3xs); padding: 1px 6px; color: var(--text-muted); }
+    .ot-body { padding: var(--sp-3); display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+    .ot-cat { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
+    .ot-nom { font-weight: 700; font-size: var(--fs-md); line-height: 1.25; overflow-wrap: anywhere; }
+    .ot-ref { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; min-width: 0; }
+    .ot-ref code { font-family: var(--font-mono); font-size: var(--fs-xs); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 7px; color: var(--accent-2-ink); overflow-wrap: anywhere; min-width: 0; }
     .ot-ref .lab { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); }
-    .ot-copy { background: transparent; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text-muted); padding: 2px 5px; display: inline-flex; cursor: pointer; }
-    .ot-copy:hover { border-color: var(--accent-2); color: var(--accent-2-ink); }
-    .ot-line { font-size: var(--fs-sm); color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; }
-    .ot-line svg { flex: none; color: var(--text-subtle); }
-    .ot-notes { font-size: var(--fs-sm); color: var(--text-muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); line-height: 1.45; white-space: pre-wrap; }
-    .ot-price { font-family: var(--font-mono); font-weight: 700; color: var(--accent-2-ink); }
-    .ot-actions { margin-top: auto; display: flex; gap: 0.4rem; align-items: center; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
-    .ot-actions .grow { flex: 1; }
-    .icon-btn2 { background: transparent; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text-muted); padding: 0.4rem 0.5rem; display: inline-flex; cursor: pointer; }
-    .icon-btn2:hover { border-color: var(--accent-2); color: var(--accent-2-ink); }
-    .icon-btn2.danger:hover { border-color: var(--danger); color: var(--danger); }
+    /* F — une ligne par fournisseur : prix, date du prix, le moins cher */
+    .ot-offre { font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+    .ot-offre .px { font-family: var(--font-mono); font-weight: 700; color: var(--accent-2-ink); white-space: nowrap; }
+    .ot-offre .vu { font-size: var(--fs-2xs); color: var(--text-subtle); white-space: nowrap; }
+    .ot-offre .vu.ancien { color: var(--warn); }
+    .ot-offre .mc { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); border-radius: var(--r-pill); padding: 0 0.4rem; white-space: nowrap; }
+    /* Les notes restent VISIBLES, téléphone compris : elles étaient masquées sous 560 px — l'usage,
+       les dimensions, la quantité par boîte, c'est ce qu'on vient lire au magasin. */
+    .ot-notes { font-size: var(--fs-sm); color: var(--text-muted); background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-sm); padding: var(--sp-1) var(--sp-2); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ot-etat { font-size: var(--fs-xs); }
+    .ot-etat.rach { color: var(--warn); font-weight: 600; }
+    .ot-etat.achat { color: var(--text-subtle); }
+    /* Les actions PASSENT À LA LIGNE, elles ne débordent jamais : Modifier et Supprimer étaient
+       coupés hors de la carte sur téléphone (141 px pour 183 de boutons). */
+    .ot-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px solid var(--border); margin-top: auto; }
+    .ot-actions .btn { flex: 1 1 auto; justify-content: center; }
+    .ot-actions .btn.plus { flex: 0 0 auto; }
+    .ot-box { display: none; padding: 0 var(--sp-3) var(--sp-3); }
+    .ot-box.on { display: block; }
+    .ot-box .rangee { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+    .ot-box .rangee .input { flex: 1 1 8rem; min-width: 0; }
+    .ot-box .rangee .input.qte { flex: 0 0 5.5rem; }
 
-    /* ── Modale d'ajout / édition ── */
-    .ot-overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(4px); z-index: var(--z-overlay); display: none; align-items: flex-start; justify-content: center; padding: var(--sp-5) var(--sp-3); overflow-y: auto; }
+    /* ── Les fenêtres (fiche, kit, à emporter) : même gabarit et mêmes règles que le reste ── */
+    .ot-overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); z-index: var(--z-overlay); display: none; align-items: flex-start; justify-content: center; padding: var(--sp-5) var(--sp-3); overflow-y: auto; }
     .ot-overlay.open { display: flex; }
-    .ot-dialog { width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lg, var(--shadow)); }
-    .ot-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--border); }
-    .ot-dialog-head h2 { font-family: var(--font-display); font-size: var(--fs-lg); }
+    .ot-dialog { width: 100%; max-width: 580px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lg, var(--shadow)); }
+    .ot-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--border); }
+    .ot-dialog-head h2 { font-family: var(--font-display); font-size: var(--fs-lg); min-width: 0; overflow-wrap: anywhere; }
     .ot-dialog-body { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
-    .ot-field label { display: block; font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); margin-bottom: 0.3rem; }
-    .ot-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
-    .ot-thumbs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .ot-field label, .ot-field .lab { display: block; font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); margin-bottom: 0.3rem; }
+    .ot-field .aide { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    .ot-row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); }
+    .ot-autre { border: 1px dashed var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); }
+    .ot-autre > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--text-muted); }
+    .ot-autre[open] > summary { margin-bottom: var(--sp-2); }
+    .ot-thumbs { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     .ot-thumb { position: relative; width: 68px; height: 68px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); }
     .ot-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    .ot-thumb button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: none; background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--danger); cursor: pointer; display: grid; place-items: center; font-size: 12px; line-height: 1; }
+    .ot-thumb button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: none; background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--danger); cursor: pointer; display: grid; place-items: center; line-height: 1; }
     .ot-photo-add { width: 68px; height: 68px; border: 1px dashed var(--border-strong); border-radius: var(--r-sm); display: grid; place-items: center; color: var(--text-subtle); cursor: pointer; background: var(--surface-2); }
     .ot-photo-add:hover { border-color: var(--accent-2); color: var(--accent-2-ink); }
-    .ot-dialog-foot { display: flex; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); }
+    .ot-envoi { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .ot-dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); }
+    .ot-dialog-foot .gauche { margin-right: auto; }
+    .kl-ligne { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem 8.5rem auto; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-2); }
+    .em-ligne { display: flex; align-items: flex-start; gap: var(--sp-2); padding: 0.45rem 0; border-top: 1px solid var(--border); }
+    .em-ligne input[type=checkbox] { margin-top: 0.25rem; width: 18px; height: 18px; flex: 0 0 auto; }
+    .em-ligne .txt { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+    .em-ligne .txt small { display: block; color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .em-ligne .q { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
+    .em-ligne.fait .txt { text-decoration: line-through; color: var(--text-subtle); }
 
-    /* ── Lightbox photo ── */
-    .lb { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: var(--z-lightbox); display: none; align-items: center; justify-content: center; }
-    .lb.open { display: flex; }
-    .lb img { max-width: 92vw; max-height: 86vh; border-radius: var(--r-md); }
-    .lb .lb-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; }
-    .lb .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; color: #fff; font-size: 34px; width: 52px; height: 52px; border-radius: 50%; cursor: pointer; }
-    .lb .lb-prev { left: 16px; } .lb .lb-next { right: 16px; }
+    /* G — Montrer au comptoir : la photo et la référence en GRAND, à tendre au vendeur. */
+    .ot-comptoir { position: fixed; inset: 0; z-index: var(--z-lightbox); background: var(--bg); display: none; flex-direction: column; align-items: center;
+      gap: var(--sp-3); padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4) var(--sp-4); overflow-y: auto; text-align: center; }
+    .ot-comptoir.open { display: flex; }
+    .ot-comptoir img { max-width: 100%; max-height: 46vh; object-fit: contain; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); }
+    .ot-comptoir .cn { font-size: clamp(1.25rem, 5vw, 2rem); font-weight: 800; overflow-wrap: anywhere; }
+    .ot-comptoir .cr { font-family: var(--font-mono); font-size: clamp(2rem, 9vw, 4rem); font-weight: 700; letter-spacing: 0.04em; line-height: 1.1; overflow-wrap: anywhere; color: var(--text); }
+    .ot-comptoir .cf { color: var(--text-muted); }
+    .ot-comptoir .bt { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+    html.ot-fige, html.ot-fige body { overflow: hidden; }
 
+    /* B — Le téléphone : UNE colonne, la vignette à gauche, rien de coupé. Deux colonnes de 141 px
+       coupaient les boutons ; la feuille de style seule décide (règle 24). */
     @media (max-width: 560px) {
-      /* `minmax(0, 1fr)` et non `1fr` : la largeur minimale d'une colonne de grille vaut
-         « auto », elle se laisse donc étirer par son contenu et la page débordait de 6 px. */
-      .ot-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); }
-      .ot-notes { display: none; }               /* on garde les cartes compactes sur petit écran */
-      .ot-row2 { grid-template-columns: 1fr; }
+      .ot-grid { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+      /* Les catégories en UN menu : en pastilles, elles prenaient quatre rangées (130 px) et la première
+         référence tombait sous le premier écran. Rendus tous deux, la feuille de style choisit. */
+      .filters { display: none; }
+      .ot-catsel { display: block; }
+      .mod-suite { display: none; }
+      .ot-haut { flex-direction: row; }
+      .ot-photo, .ot-photo.vide { width: 84px; height: 84px; flex: 0 0 84px; aspect-ratio: auto; max-height: none; border-bottom: 0; border-right: 1px solid var(--border);
+        border-radius: var(--r-md) 0 0 0; }
+      .ot-body { flex: 1 1 0; }
+      .ot-row2 { grid-template-columns: minmax(0, 1fr); }
+      .kl-ligne { grid-template-columns: minmax(0, 1fr) 4.5rem; }
+      .kl-ligne .par { grid-column: 1; }
+    }
+    @media (pointer: coarse) {
+      .ot-photo-add { width: 72px; height: 72px; }
     }
   </style>
 </head>
@@ -102,322 +176,630 @@
       <span class="brand-logo"><img src="../assets/img/logo-solariscreen.svg" alt="" onerror="this.style.display='none'"></span>
       <div>
         <h1><a href="dashboard.html">SOLARISCREEN</a></h1>
-        <div class="module">Outillage &amp; références</div>
+        <div class="module">Outillage<span class="mod-suite"> &amp; références</span></div>
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="ouvrirFiche()" title="Ajouter une référence"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter</button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
-      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html" title="Tableau de bord"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
     </div>
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
-
+    <div class="ot-resume" id="resume"></div>
+    <div id="alleger"></div>
     <div class="toolbar">
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <label for="search" class="sr-only">Rechercher une référence</label>
-        <input class="input" id="search" placeholder="Rechercher : nom, référence, fournisseur…" oninput="render()">
+        <input class="input" id="search" placeholder="Nom, référence (avec ou sans espaces), fournisseur…" oninput="render()" autocomplete="off">
       </div>
-      <button class="btn btn-primary btn-sm" onclick="openForm()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une référence</button>
     </div>
     <div class="filters" id="catFilters"></div>
-
-    <section class="section">
-      <div class="section-head">
-        <span class="section-title">Mes références</span>
-        <span class="section-code">SS // OUTILLAGE</span>
-        <span class="section-sub" id="resultCount">—</span>
-      </div>
-      <div class="section-body">
-        <div class="ot-grid" id="grid"></div>
-      </div>
-    </section>
+    <div class="ot-catsel"><label for="catSelect" class="sr-only">Catégorie</label><select class="select" id="catSelect" onchange="setCat(this.value)"></select></div>
+    <div id="courses"></div>
+    <div id="kits"></div>
+    <div class="ot-grid" id="grid"><div aria-busy="true" style="grid-column:1/-1"><div class="skl" style="height:120px;margin-bottom:var(--sp-3)"></div><div class="skl" style="height:120px"></div></div></div>
   </main>
 
-  <!-- ══════ MODALE AJOUT / ÉDITION ══════ -->
-  <div class="ot-overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
-    <div class="ot-dialog">
+  <!-- ══════ LA FICHE (ajout / modification) ══════ -->
+  <div class="ot-overlay" id="ficheFen">
+    <div class="ot-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="ficheTitre">
       <div class="ot-dialog-head">
-        <h2 id="dialogTitle">Nouvelle référence</h2>
-        <button class="icon-btn2" onclick="closeForm()" aria-label="Fermer">✕</button>
+        <h2 id="ficheTitre">Nouvelle référence</h2>
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button>
       </div>
       <div class="ot-dialog-body">
-        <div class="ot-field">
-          <label for="fNom">Nom / désignation *</label>
-          <input class="input" id="fNom" placeholder="Ex : Vis inox tête fraisée 4×40">
+        <div class="ot-field"><label for="fNom">Nom / désignation *</label>
+          <input class="input" id="fNom" placeholder="Ex : vis inox tête fraisée 4×40"></div>
+        <div class="ot-row2">
+          <div class="ot-field"><label for="fCat">Catégorie</label><select class="select" id="fCat"></select></div>
+          <div class="ot-field"><label for="fRef">Référence</label><input class="input" id="fRef" placeholder="Ex : 0179 4 40"></div>
         </div>
         <div class="ot-row2">
-          <div class="ot-field">
-            <label for="fCat">Catégorie</label>
-            <select class="select" id="fCat"></select>
-          </div>
-          <div class="ot-field">
-            <label for="fRef">Référence</label>
-            <input class="input" id="fRef" placeholder="Ex : 0179 4 40">
-          </div>
+          <div class="ot-field"><label for="fFour">Fournisseur / plateforme</label>
+            <input class="input" id="fFour" list="fourList" placeholder="Ex : Würth, ManoMano…"></div>
+          <div class="ot-field"><label for="fPrix">Prix indicatif (€)</label>
+            <input class="input" id="fPrix" inputmode="decimal" placeholder="Ex : 12,90"><div class="aide" id="fPrixVu"></div></div>
         </div>
-        <div class="ot-row2">
-          <div class="ot-field">
-            <label for="fFour">Fournisseur / plateforme</label>
-            <input class="input" id="fFour" list="fourList" placeholder="Ex : Würth, ManoMano…">
-            <datalist id="fourList"></datalist>
+        <div class="ot-field"><label for="fUrl">Lien d'achat (page produit)</label>
+          <input class="input" id="fUrl" type="url" inputmode="url" placeholder="https://…"></div>
+        <details class="ot-autre" id="fAutre">
+          <summary>Un autre fournisseur, pour comparer les prix</summary>
+          <div class="ot-row2">
+            <div class="ot-field"><label for="fFour2">Fournisseur</label><input class="input" id="fFour2" list="fourList" placeholder="Ex : Brico"></div>
+            <div class="ot-field"><label for="fPrix2">Prix (€)</label><input class="input" id="fPrix2" inputmode="decimal" placeholder="Ex : 9,80"><div class="aide" id="fPrix2Vu"></div></div>
           </div>
-          <div class="ot-field">
-            <label for="fPrix">Prix indicatif (€)</label>
-            <input class="input" id="fPrix" inputmode="decimal" placeholder="Ex : 12,90">
+          <div class="ot-row2" style="margin-top:var(--sp-3)">
+            <div class="ot-field"><label for="fRef2">Sa référence</label><input class="input" id="fRef2" placeholder="Si elle diffère"></div>
+            <div class="ot-field"><label for="fUrl2">Son lien d'achat</label><input class="input" id="fUrl2" type="url" inputmode="url" placeholder="https://…"></div>
           </div>
-        </div>
-        <div class="ot-field">
-          <label for="fUrl">Lien d'achat (page produit)</label>
-          <input class="input" id="fUrl" type="url" inputmode="url" placeholder="https://…">
-        </div>
-        <div class="ot-field">
-          <label for="fNotes">Notes (usage, dimensions, quantité par boîte…)</label>
-          <textarea class="input" id="fNotes" rows="2" placeholder="Ex : pour fixation caisson sur béton — boîte de 200"></textarea>
-        </div>
-        <div class="ot-field">
-          <label>Photos</label>
+        </details>
+        <datalist id="fourList"></datalist>
+        <div class="ot-field"><label for="fNotes">Notes (usage, dimensions, quantité par boîte…)</label>
+          <textarea class="textarea" id="fNotes" rows="2" placeholder="Ex : fixation caisson sur béton — boîte de 200"></textarea></div>
+        <div class="ot-field"><span class="lab">Photos</span>
           <div class="ot-thumbs" id="fThumbs"></div>
-          <input type="file" id="fPhoto" accept="image/*" multiple style="display:none" onchange="onPhotos(event)">
-        </div>
+          <input type="file" id="fPhoto" accept="image/*" multiple style="display:none" onchange="ajouterPhotos(this)"></div>
       </div>
       <div class="ot-dialog-foot">
-        <button class="btn btn-danger btn-sm" id="fDelete" onclick="deleteFromForm()" style="display:none">Supprimer</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-ghost btn-sm" onclick="closeForm()">Annuler</button>
-        <button class="btn btn-primary btn-sm" id="fSave" onclick="saveForm()">Enregistrer</button>
+        <button class="btn btn-danger btn-sm gauche" id="fSuppr" onclick="supprimerDepuisFiche()" style="display:none">Supprimer</button>
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="fSave" onclick="enregistrerFiche()">Enregistrer</button>
       </div>
     </div>
   </div>
 
-  <!-- ══════ LIGHTBOX ══════ -->
-  <div class="lb" id="lb" role="dialog" aria-label="Photo agrandie">
-    <button class="lb-close" onclick="lbClose()" aria-label="Fermer">✕</button>
-    <button class="lb-nav lb-prev" onclick="lbNav(-1)" aria-label="Précédente">‹</button>
-    <img id="lbImg" src="" alt="Photo de la référence">
-    <button class="lb-nav lb-next" onclick="lbNav(1)" aria-label="Suivante">›</button>
+  <!-- ══════ E — UN KIT DE POSE ══════ -->
+  <div class="ot-overlay" id="kitFen">
+    <div class="ot-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="kitTitre">
+      <div class="ot-dialog-head">
+        <h2 id="kitTitre">Nouveau kit de pose</h2>
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button>
+      </div>
+      <div class="ot-dialog-body">
+        <div class="ot-row2">
+          <div class="ot-field"><label for="kNom">Nom du kit *</label><input class="input" id="kNom" placeholder="Ex : pose screen sur béton"></div>
+          <div class="ot-field"><label for="kPour">Pour</label><select class="select" id="kPour"></select></div>
+        </div>
+        <div class="ot-field"><span class="lab">Ce qu'il faut emporter</span>
+          <div id="kLignes"></div>
+          <button class="btn btn-ghost btn-sm" onclick="kitAjouterLigne()">+ Ajouter une référence</button></div>
+        <div class="ot-field"><label for="kNotes">Notes</label><textarea class="textarea" id="kNotes" rows="2" placeholder="Ex : prévoir le perforateur SDS"></textarea></div>
+      </div>
+      <div class="ot-dialog-foot">
+        <button class="btn btn-danger btn-sm gauche" id="kSuppr" onclick="supprimerKit()" style="display:none">Supprimer</button>
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="kSave" onclick="enregistrerKit()">Enregistrer</button>
+      </div>
+    </div>
   </div>
+
+  <!-- ══════ E — CE QU'IL FAUT EMPORTER ══════ -->
+  <div class="ot-overlay" id="emFen">
+    <div class="ot-dialog ticked" role="dialog" aria-modal="true" aria-labelledby="emTitre">
+      <div class="ot-dialog-head">
+        <h2 id="emTitre">À emporter</h2>
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button>
+      </div>
+      <div class="ot-dialog-body" id="emCorps"></div>
+    </div>
+  </div>
+
+  <!-- ══════ G — MONTRER AU COMPTOIR ══════ -->
+  <div class="ot-comptoir" id="comptoir" role="dialog" aria-modal="true" aria-label="Référence à montrer au comptoir"></div>
 
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/outillage.js"></script>
   <script>
-    const SS = window.SS;
+    const SS = window.SS, O = window.SSOutil, U = window.SSUI;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, setText, icon, toast, compressImage, jsAttr } = window.SSUI;
+    const { fmtDate, el, setText, icon, toast, compressImage, jsAttr, normDevis } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
-    const CATS = ['Visserie & boulonnerie', 'Chevilles & fixations', 'Perçage & découpe', 'Électroportatif', 'Mesure & traçage', 'Consommables', 'Quincaillerie', 'Sécurité / EPI', 'Autre'];
+    const SELLER_LABELS = U.SELLER_LABELS;
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    // escAttr sert au TEXTE d'un attribut (src, alt, value). Il ne protège PAS l'intérieur d'un
-    // onclick="…" : son &#39; est redécodé en apostrophe avant que le gestionnaire soit compilé.
-    // Pour un argument de gestionnaire, c'est jsAttr() et rien d'autre.
-    const escAttr = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    // N'ouvrir que des liens http(s) — jamais un javascript:/data: saisi par erreur (défense en profondeur).
-    const safeUrl = u => { const s = String(u || '').trim(); return /^https?:\/\//i.test(s) ? s : ''; };
-    const fmtPrix = p => { const n = parseFloat(String(p).replace(',', '.')); return isNaN(n) ? '' : n.toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; };
+    const nomDe = (k) => SELLER_LABELS[k] || k || '';
+    const jourCourt = (iso) => { const d = String(iso || '').slice(0, 10); return d ? d.slice(8, 10) + '/' + d.slice(5, 7) : ''; };
 
-    let ITEMS = [];
+    let ITEMS = [], KITS = [], DEVIS = [];
     let activeCat = 'all';
-    let editing = null;      // objet en cours d'édition, ou null (création)
-    let formPhotos = [];     // photos (dataURL) de l'item en cours d'édition
+    let BOITE = { id: '', type: '' };   // la seule zone dépliée d'une carte (à racheter, ⋯)
 
     async function load() {
-      ITEMS = (await SS.listOutillage()) || [];
-      // Peuple la liste des catégories + le datalist fournisseurs pour l'autocomplétion
-      const fourSet = [...new Set(ITEMS.map(o => (o.fournisseur || '').trim()).filter(Boolean))].sort();
-      el('fourList').innerHTML = fourSet.map(f => `<option value="${escAttr(f)}">`).join('');
-      el('fCat').innerHTML = CATS.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
-      renderKpis();
-      renderFilters();
-      render();
+      const r = await Promise.all([SS.listOutillage(), SS.listKits(), SS.listDevis().catch(() => [])]);
+      ITEMS = r[0] || []; KITS = r[1] || []; DEVIS = (r[2] || []).map(normDevis);
+      el('fCat').innerHTML = O.CATS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+      el('kPour').innerHTML = O.POUR.map(p => `<option value="${esc(p)}">${esc(O.libellePour(p))}</option>`).join('');
+      renderTout();
     }
+    function renderTout() { renderResume(); renderFilters(); renderCourses(); renderKits(); render(); }
+    const itemDe = (id) => ITEMS.filter(o => o.id === id)[0] || null;
 
-    function renderKpis() {
-      const cats = new Set(ITEMS.map(o => o.categorie).filter(Boolean));
-      const withLink = ITEMS.filter(o => safeUrl(o.url)).length;
-      el('kpis').innerHTML = `
-        <div class="kpi gold"><div class="kpi-label">Références</div><div class="kpi-value">${ITEMS.length}</div></div>
-        <div class="kpi accent"><div class="kpi-label">Catégories</div><div class="kpi-value">${cats.size}</div></div>
-        <div class="kpi"><div class="kpi-label">Avec lien d'achat</div><div class="kpi-value">${withLink}</div></div>`;
+    // ── A — Le résumé ──────────────────────────────────────────────────────────────────────────
+    function renderResume() {
+      const nRach = ITEMS.filter(o => o.racheter).length;
+      const sansLien = ITEMS.filter(o => !O.offres(o).some(x => x.url)).length;
+      el('resume').innerHTML = `<span><b>${ITEMS.length}</b> référence${ITEMS.length > 1 ? 's' : ''}</span>`
+        + (nRach ? ` <span class="warn">${nRach} à racheter</span>` : '')
+        + (ITEMS.length && sansLien ? ` <span>${sansLien} sans lien d’achat</span>` : '')
+        + (KITS.length ? ` <span>${KITS.length} kit${KITS.length > 1 ? 's' : ''} de pose</span>` : '');
+      // C — Ce qui pèse encore dans la base : chaque ouverture de la page le télécharge.
+      const inl = O.photosInline(ITEMS);
+      el('alleger').innerHTML = inl.photos ? `<div class="ot-alleger">${icon('warning', 14)}<span>${inl.photos} photo${inl.photos > 1 ? 's' : ''} encore dans la base
+        (≈ ${Math.round(inl.octets / 1024)} Ko), téléchargée${inl.photos > 1 ? 's' : ''} à chaque ouverture.</span><button class="btn btn-ghost btn-sm" id="btnAlleger" onclick="alleger()">Alléger</button></div>` : '';
+      // La liste des fournisseurs connus suit chaque enregistrement (elle n'était faite qu'au chargement).
+      const fours = [...new Set(ITEMS.flatMap(o => [o.fournisseur, o.autre && o.autre.fournisseur]).map(f => String(f || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+      el('fourList').innerHTML = fours.map(f => `<option value="${esc(f)}">`).join('');
     }
-
     function renderFilters() {
       const counts = {};
-      ITEMS.forEach(o => { const c = o.categorie || 'Autre'; counts[c] = (counts[c] || 0) + 1; });
-      const cats = CATS.filter(c => counts[c]);
-      let html = `<button class="chip ${activeCat === 'all' ? 'active' : ''}" onclick="setCat('all')">Toutes · ${ITEMS.length}</button>`;
-      html += cats.map(c => `<button class="chip ${activeCat === c ? 'active' : ''}" onclick="setCat('${escAttr(c)}')">${esc(c)} · ${counts[c]}</button>`).join('');
-      el('catFilters').innerHTML = html;
+      ITEMS.forEach(o => { const c = O.categorieDe(o); counts[c] = (counts[c] || 0) + 1; });
+      el('catFilters').innerHTML = `<button class="chip ${activeCat === 'all' ? 'active' : ''}" onclick="setCat('all')">Toutes · ${ITEMS.length}</button>`
+        + O.CATS.filter(c => counts[c]).map(c => `<button class="chip ${activeCat === c ? 'active' : ''}" onclick="setCat(${jsAttr(c)})">${esc(c)} · ${counts[c]}</button>`).join('');
+      el('catSelect').innerHTML = `<option value="all">Toutes les catégories · ${ITEMS.length}</option>`
+        + O.CATS.filter(c => counts[c]).map(c => `<option value="${esc(c)}" ${activeCat === c ? 'selected' : ''}>${esc(c)} · ${counts[c]}</option>`).join('');
     }
     window.setCat = (c) => { activeCat = c; renderFilters(); render(); };
-
     function filtered() {
-      const q = (el('search').value || '').trim().toLowerCase();
-      return ITEMS.filter(o => {
-        if (activeCat !== 'all' && (o.categorie || 'Autre') !== activeCat) return false;
-        if (!q) return true;
-        return [o.nom, o.reference, o.fournisseur, o.categorie, o.notes].filter(Boolean).join(' ').toLowerCase().includes(q);
-      });
+      const q = el('search').value || '';
+      return ITEMS.filter(o => (activeCat === 'all' || O.categorieDe(o) === activeCat) && O.correspond(o, q));
     }
 
+    // ── D — À racheter ─────────────────────────────────────────────────────────────────────────
+    function renderCourses() {
+      const g = O.aRacheter(ITEMS);
+      if (!g.length) { el('courses').innerHTML = ''; return; }
+      el('courses').innerHTML = `<section class="ot-courses" aria-label="À racheter"><h2>${icon('box', 15)} À racheter</h2>`
+        + g.map(gr => `<div class="ot-four">${esc(gr.fournisseur)}</div>` + gr.lignes.map(o => {
+          const r = o.racheter, id = jsAttr(o.id);
+          const cible = commandeDe(o);
+          return `<div class="ot-cl"><span class="q">× ${esc(r.qte)}</span>
+            <span class="txt">${esc(o.nom)}${o.reference ? ' · <code>' + esc(o.reference) + '</code>' : ''}
+              <small>${r.note ? esc(r.note) + ' · ' : ''}${r.par ? 'demandé par ' + esc(nomDe(r.par)) + ', ' : ''}${esc(U.relTime(r.le))}</small></span>
+            <span class="bt">${cible ? `<a class="btn btn-ghost btn-sm" href="${esc(cible.url)}" target="_blank" rel="noopener">${icon('coin', 13)} Commander</a>` : ''}
+              ${o.reference ? `<button class="btn btn-ghost btn-sm" onclick="copier(${id})">${icon('copy', 13)} Copier la réf.</button>` : ''}
+              <button class="btn btn-primary btn-sm" onclick="achete(${id})">${icon('check', 13)} Acheté</button></span></div>`;
+        }).join('')).join('') + '</section>';
+    }
+    /** Le lien « Commander » : le moins cher qui a un lien, sinon le premier qui en a un. */
+    function commandeDe(o) {
+      const l = O.offres(o).filter(x => x.url);
+      return l.filter(x => x.moinsCher)[0] || l[0] || null;
+    }
+    window.achete = async (id) => {
+      const res = await SS.retirerRacheter(id, true);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré — réessaie.', 'error', 6000); return; }
+      toast('Noté : acheté ✓', 'ok');
+      await rafraichir();
+    };
+    window.retirerRach = async (id) => {
+      const res = await SS.retirerRacheter(id, false);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré — réessaie.', 'error', 6000); return; }
+      BOITE = { id: '', type: '' };
+      toast('Retiré de la liste', 'ok');
+      await rafraichir();
+    };
+    window.ajouterRach = async (id) => {
+      const q = Number(((el('rq-' + id) || {}).value || '').trim());
+      if (!Number.isInteger(q) || q < 1 || q > 999) { toast('Indique une quantité entre 1 et 999.', 'warn'); return; }
+      const note = ((el('rn-' + id) || {}).value || '').trim();
+      const res = await SS.setRacheter(id, q, note);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré — réessaie.', 'error', 6000); return; }
+      BOITE = { id: '', type: '' };
+      toast('Ajouté à la liste « À racheter »', 'ok');
+      await rafraichir();
+    };
+    async function rafraichir() { ITEMS = (await SS.listOutillage()) || []; renderTout(); }
+
+    // ── E — Kits et poses à venir ──────────────────────────────────────────────────────────────
+    let KITS_OUVERT = false;
+    function renderKits() {
+      const poses = O.posesAVenir(DEVIS);
+      const ouvert = KITS_OUVERT ? 'open' : '';
+      el('kits').innerHTML = `<details class="ot-kits" id="kitsSec" ${ouvert} ontoggle="KITS_OUVERT = this.open">
+        <summary>Kits de pose et chantiers à préparer <small>· ${KITS.length} kit${KITS.length > 1 ? 's' : ''} · ${poses.length} pose${poses.length > 1 ? 's' : ''} dans les 3 semaines</small></summary>
+        <h3>Poses à venir</h3>
+        ${poses.length ? poses.map(d => `<div class="ot-kl"><span class="txt"><b>${esc(fmtDate(d.chantier.date_pose))}</b> · ${esc(`${d.prenom} ${d.nom}`.trim())}
+            <small>${esc(U.resumeDevis(d) || '')}${d.ville ? ' · ' + esc(d.ville) : ''}</small></span>
+          <span class="bt"><button class="btn btn-ghost btn-sm" onclick="ouvrirEmporter(${jsAttr(d.id)})">${icon('box', 13)} À emporter</button></span></div>`).join('')
+          : '<div class="ot-kl"><span class="txt" style="color:var(--text-subtle)">Aucune pose dans les trois semaines.</span></div>'}
+        <h3>Kits</h3>
+        ${KITS.length ? KITS.map(k => `<div class="ot-kl"><span class="txt"><b>${esc(k.nom)}</b>
+            <small>${esc(O.libellePour(k.pour))} · ${(k.lignes || []).length} référence${(k.lignes || []).length > 1 ? 's' : ''}</small></span>
+          <span class="bt"><button class="btn btn-ghost btn-sm" onclick="ouvrirKit(${jsAttr(k.id)})">${icon('edit', 13)} Modifier</button></span></div>`).join('')
+          : '<div class="ot-kl"><span class="txt" style="color:var(--text-subtle)">Aucun kit. Un kit dit ce qu’il faut emporter pour poser un type d’ouverture : « pose screen sur béton : 4 vis et 4 chevilles par screen, 1 silicone par chantier ».</span></div>'}
+        <div style="margin-top:var(--sp-2)"><button class="btn btn-ghost btn-sm" onclick="ouvrirKit()">+ Nouveau kit</button></div>
+      </details>`;
+    }
+
+    // ── Les cartes ─────────────────────────────────────────────────────────────────────────────
     function render() {
       const rows = filtered();
-      setText('resultCount', rows.length + (rows.length > 1 ? ' références' : ' référence'));
       if (!ITEMS.length) {
         el('grid').innerHTML = `<div class="empty" style="grid-column:1/-1;">${icon('hammer', 34)}
           <div>Aucune référence pour l'instant.</div>
-          <div class="hint">Ajoute tes vis, chevilles, forets… avec une photo, la référence exacte et le lien pour commander en 1 clic.</div>
-          <button class="btn btn-primary" onclick="openForm()">${icon('plus', 14)} Ajouter ma première référence</button></div>`;
+          <div class="hint">Ajoute tes vis, chevilles, forets… avec une photo, la référence exacte et le lien pour commander.</div>
+          <button class="btn btn-primary mt-4" onclick="ouvrirFiche()">${icon('plus', 14)} Ajouter ma première référence</button></div>`;
         return;
       }
       if (!rows.length) { el('grid').innerHTML = `<div class="empty" style="grid-column:1/-1;">${icon('search', 30)}<div>Aucune référence ne correspond.</div></div>`; return; }
-      el('grid').innerHTML = rows.map(cardHtml).join('');
+      el('grid').innerHTML = rows.map(carte).join('');
     }
-
-    function cardHtml(o) {
+    function offresHtml(o) {
+      return O.offres(o).map(x => `<div class="ot-offre">${x.url && O.offres(o).length > 1 ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.fournisseur || 'Lien d’achat')}</a>` : esc(x.fournisseur || (x.prix != null ? 'Prix' : 'Lien d’achat'))}${
+        x.prix != null ? ' · <span class="px">' + esc(O.fmtPrix(x.prix)) + '</span>' : ''}${
+        x.prix_le ? ` <span class="vu ${x.ancien ? 'ancien' : ''}">vu le ${esc(fmtDate(x.prix_le))}${x.ancien ? ' — à revérifier' : ''}</span>` : ''}${
+        x.moinsCher ? ' <span class="mc">le moins cher</span>' : ''}${
+        x.reference && x.rang === 'autre' && x.reference !== o.reference ? ' · réf. <code>' + esc(x.reference) + '</code>' : ''}</div>`).join('');
+    }
+    function carte(o) {
       const photos = Array.isArray(o.photos) ? o.photos : [];
-      const url = safeUrl(o.url);
-      const prix = fmtPrix(o.prix);
-      const photoBlock = photos.length
-        ? `<img src="${escAttr(photos[0])}" alt="${escAttr(o.nom)}" onclick="lbOpen('${escAttr(o.id)}',0)">${photos.length > 1 ? `<span class="count">${photos.length} photos</span>` : ''}`
-        : `<span class="ph">${icon('hammer', 40)}</span>`;
-      const refBlock = o.reference
-        ? `<div class="ot-ref"><span class="lab">Réf</span><code>${esc(o.reference)}</code>
-            <button class="ot-copy" title="Copier la référence" onclick="ssCopy(${jsAttr(o.reference)},'Référence')">${icon('save', 12)}</button></div>`
-        : '';
-      const fourBlock = o.fournisseur ? `<div class="ot-line">${icon('grid', 13)}<span>${esc(o.fournisseur)}</span>${prix ? ` · <span class="ot-price">${prix}</span>` : ''}</div>`
-        : (prix ? `<div class="ot-line"><span class="ot-price">${prix}</span></div>` : '');
-      const notes = o.notes ? `<div class="ot-notes">${esc(o.notes)}</div>` : '';
-      const orderBtn = url
-        ? `<a class="btn btn-primary btn-sm grow" href="${escAttr(url)}" target="_blank" rel="noopener">${icon('coin', 13)} Commander</a>`
-        : `<span class="grow" style="font-size:var(--fs-2xs);color:var(--text-subtle);">Pas de lien d'achat</span>`;
-      return `<div class="ot-card">
-        <div class="ot-photo">${photoBlock}</div>
-        <div class="ot-body">
-          ${o.categorie ? `<span class="badge badge-cyan" style="align-self:flex-start;">${esc(o.categorie)}</span>` : ''}
-          <div class="ot-nom">${esc(o.nom || 'Sans nom')}</div>
-          ${refBlock}
-          ${fourBlock}
-          ${notes}
-          <div class="ot-actions">
-            ${orderBtn}
-            <button class="icon-btn2" title="Modifier" onclick="openForm('${escAttr(o.id)}')" aria-label="Modifier">${icon('sliders', 14)}</button>
-            <button class="icon-btn2 danger" title="Supprimer" onclick="removeItem('${escAttr(o.id)}')" aria-label="Supprimer">${icon('x', 14)}</button>
+      const id = jsAttr(o.id), k = esc(o.id);
+      const cible = commandeDe(o);
+      const plusieurs = O.offres(o).filter(x => x.url).length > 1;
+      const ouverte = (t) => (BOITE.id === o.id && BOITE.type === t) ? 'on' : '';
+      const photo = photos.length
+        ? `<button type="button" class="ot-photo" onclick="voirPhotos(${id}, 0)" aria-label="Agrandir la photo"><img src="${esc(photos[0])}" alt="" loading="lazy">${photos.length > 1 ? `<span class="count">${photos.length} photos</span>` : ''}</button>`
+        : `<div class="ot-photo vide"><span class="ph">${icon('hammer', 26)}</span></div>`;
+      const etat = o.racheter
+        ? `<div class="ot-etat rach">${icon('box', 12)} À racheter × ${esc(o.racheter.qte)}${o.racheter.par ? ' — ' + esc(nomDe(o.racheter.par)) : ''}</div>`
+        : (o.dernier_achat ? `<div class="ot-etat achat">Racheté ${esc(U.relTime(o.dernier_achat.le))}${o.dernier_achat.par ? ' par ' + esc(nomDe(o.dernier_achat.par)) : ''}</div>` : '');
+      return `<div class="ot-card ticked ${o.racheter ? 'rach' : ''}" data-id="${k}">
+        <div class="ot-haut">${photo}
+          <div class="ot-body">
+            <div class="ot-cat">${esc(O.categorieDe(o))}</div>
+            <div class="ot-nom">${esc(o.nom || 'Sans nom')}</div>
+            ${o.reference ? `<div class="ot-ref"><span class="lab">Réf</span><code>${esc(o.reference)}</code></div>` : ''}
+            ${offresHtml(o)}
+            ${o.notes ? `<div class="ot-notes">${esc(o.notes)}</div>` : ''}
+            ${etat}
           </div>
         </div>
+        <div class="ot-actions">
+          ${cible ? `<a class="btn btn-primary btn-sm" href="${esc(cible.url)}" target="_blank" rel="noopener">${icon('coin', 13)} Commander${plusieurs && cible.fournisseur ? ' chez ' + esc(cible.fournisseur) : ''}</a>` : ''}
+          ${o.reference ? `<button class="btn btn-ghost btn-sm" onclick="copier(${id})">${icon('copy', 13)} Copier la réf.</button>` : ''}
+          ${o.racheter ? `<button class="btn btn-ghost btn-sm" onclick="achete(${id})">${icon('check', 13)} Acheté</button>`
+                       : `<button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'racheter')">${icon('box', 13)} À racheter</button>`}
+          <button class="btn btn-ghost btn-sm plus" onclick="boite(${id}, 'plus')" aria-expanded="${ouverte('plus') ? 'true' : 'false'}" aria-label="Plus d’actions" title="Plus d’actions">⋯</button>
+        </div>
+        <div class="ot-box ${ouverte('racheter')}">
+          <div class="rangee"><input class="input qte" id="rq-${k}" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" aria-label="Quantité">
+            <input class="input" id="rn-${k}" placeholder="Ex : il en reste une demi-boîte">
+            <button class="btn btn-primary btn-sm" onclick="ajouterRach(${id})">Ajouter à la liste</button></div>
+        </div>
+        <div class="ot-box ${ouverte('plus')}"><div class="rangee">
+          <button class="btn btn-ghost btn-sm" onclick="comptoir(${id})">${icon('window', 13)} Montrer au comptoir</button>
+          <button class="btn btn-ghost btn-sm" onclick="ouvrirFiche(${id})">${icon('edit', 13)} Modifier</button>
+          ${o.racheter ? `<button class="btn btn-ghost btn-sm" onclick="retirerRach(${id})">Retirer de la liste</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="supprimer(${id})">${icon('trash', 13)} Supprimer</button>
+        </div></div>
       </div>`;
     }
+    window.boite = (id, type) => {
+      BOITE = (BOITE.id === id && BOITE.type === type) ? { id: '', type: '' } : { id: id, type: type };
+      render();
+      if (BOITE.type === 'racheter') { const f = el('rq-' + id); if (f) { f.focus(); f.select(); } }
+    };
+    window.copier = (id) => { const o = itemDe(id); if (o && o.reference) U.copyText(o.reference, 'Référence'); };
+    // Les photos s'ouvrent dans la visionneuse COMMUNE (règle 26) : la copie locale montrait ses
+    // flèches avec une seule photo et laissait la page défiler derrière.
+    window.voirPhotos = (id, i) => { const o = itemDe(id); if (o) U.ouvrirPhotos(o.photos || [], i); };
+    window.supprimer = async (id) => {
+      const o = itemDe(id);
+      if (!o || !confirm(`Supprimer la référence « ${o.nom || 'sans nom'} » ?`)) return false;
+      const res = await SS.deleteOutillage(id);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Suppression impossible', 'error', 6000); return false; }
+      ITEMS = ITEMS.filter(x => x.id !== id);
+      BOITE = { id: '', type: '' };
+      toast('Référence supprimée', 'ok');
+      renderTout();
+      return true;
+    };
 
-    // ── Formulaire ──
-    window.openForm = (id) => {
-      editing = id ? ITEMS.find(o => o.id === id) : null;
-      formPhotos = editing && Array.isArray(editing.photos) ? editing.photos.slice() : [];
-      setText('dialogTitle', editing ? 'Modifier la référence' : 'Nouvelle référence');
-      el('fNom').value = editing ? (editing.nom || '') : '';
-      el('fCat').value = editing ? (editing.categorie || CATS[0]) : CATS[0];
-      el('fRef').value = editing ? (editing.reference || '') : '';
-      el('fFour').value = editing ? (editing.fournisseur || '') : '';
-      el('fPrix').value = editing ? (editing.prix != null ? String(editing.prix) : '') : '';
-      el('fUrl').value = editing ? (editing.url || '') : '';
-      el('fNotes').value = editing ? (editing.notes || '') : '';
-      el('fDelete').style.display = editing ? '' : 'none';
+    /* ── Les fenêtres : les règles déjà payées ailleurs (règle 13 bis) ────────────────────────
+       Le fond ne ferme que si le geste y a COMMENCÉ ; Échap dans un menu ou un champ date ne ferme
+       rien ; une saisie entamée demande « Fermer sans enregistrer ? » ; sur téléphone, « retour »
+       ferme la fenêtre (une étape d'historique) ; une fenêtre qui en ouvre une autre la RELAIE. */
+    const ETAPE = { otFenetre: true };
+    let FEN = null;   // { id, estSale }
+    const telephone = () => { try { return matchMedia('(max-width: 900px)').matches; } catch (e) { return false; } };
+    function ouvrirFenetre(id, estSale) {
+      const relais = !!FEN;
+      if (FEN) el(FEN.id).classList.remove('open');
+      FEN = { id: id, estSale: estSale || null };
+      el(id).classList.add('open');
+      if (id === 'comptoir') document.documentElement.classList.add('ot-fige');
+      if (!relais && telephone()) { try { history.pushState(ETAPE, ''); } catch (e) {} }
+    }
+    function fermerSansHistorique(force) {
+      if (!FEN) return true;
+      if (!force && FEN.estSale && FEN.estSale() && !confirm('Fermer sans enregistrer ?')) return false;
+      el(FEN.id).classList.remove('open');
+      document.documentElement.classList.remove('ot-fige');
+      FEN = null;
+      return true;
+    }
+    window.fermerFenetre = (force) => {
+      if (!fermerSansHistorique(force)) return false;
+      try { if (history.state && history.state.otFenetre) history.back(); } catch (e) {}
+      return true;
+    };
+    window.addEventListener('popstate', () => {
+      if (FEN && !fermerSansHistorique(false)) { try { history.pushState(ETAPE, ''); } catch (e) {} }
+    });
+    let downSurFond = null;
+    document.querySelectorAll('.ot-overlay').forEach((fond) => {
+      fond.addEventListener('mousedown', (e) => { downSurFond = e.target === fond ? fond : null; });
+      fond.addEventListener('click', (e) => { if (e.target === fond && downSurFond === fond) window.fermerFenetre(); downSurFond = null; });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !FEN) return;
+      const vis = document.getElementById('ssLightbox');
+      if (vis && vis.classList.contains('open')) return;   // la visionneuse se ferme d'abord, seule
+      const t = e.target;
+      if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(date|time|datetime-local)$/.test(t.type)))) return;
+      window.fermerFenetre();
+    });
+
+    // ── La fiche ───────────────────────────────────────────────────────────────────────────────
+    let FICHE = null;   // { id, avant, photos, envoi }
+    const champsFiche = ['fNom', 'fCat', 'fRef', 'fFour', 'fPrix', 'fUrl', 'fFour2', 'fPrix2', 'fRef2', 'fUrl2', 'fNotes'];
+    const instantane = () => JSON.stringify(champsFiche.map(k => el(k).value)) + '|' + JSON.stringify(FICHE ? FICHE.photos : []);
+    window.ouvrirFiche = (id) => {
+      const o = id ? itemDe(id) : null;
+      const a = (o && o.autre) || {};
+      FICHE = { id: o ? o.id : 'OUT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), existe: !!o, photos: o && Array.isArray(o.photos) ? o.photos.slice() : [], envoi: 0 };
+      setText('ficheTitre', o ? 'Modifier la référence' : 'Nouvelle référence');
+      el('fNom').value = o ? (o.nom || '') : '';
+      // La catégorie AFFICHÉE est celle qui sera enregistrée : « Autre » quand il n'y en a pas
+      // (la liste les range déjà là). Le formulaire affichait « Visserie » et l'écrivait.
+      el('fCat').value = o ? O.categorieDe(o) : 'Autre';
+      el('fRef').value = o ? (o.reference || '') : '';
+      el('fFour').value = o ? (o.fournisseur || '') : '';
+      el('fPrix').value = o ? O.prixChamp(o.prix) : '';
+      el('fUrl').value = o ? (o.url || '') : '';
+      el('fFour2').value = a.fournisseur || ''; el('fPrix2').value = O.prixChamp(a.prix); el('fRef2').value = a.reference || ''; el('fUrl2').value = a.url || '';
+      el('fAutre').open = !!(a.fournisseur || a.prix != null || a.url);
+      setText('fPrixVu', o && o.prix_le ? 'Prix vu le ' + fmtDate(o.prix_le) : '');
+      setText('fPrix2Vu', a.prix_le ? 'Prix vu le ' + fmtDate(a.prix_le) : '');
+      el('fNotes').value = o ? (o.notes || '') : '';
+      el('fSuppr').style.display = o ? '' : 'none';
       renderThumbs();
-      el('overlay').classList.add('open');
+      FICHE.avant = instantane();
+      ouvrirFenetre('ficheFen', () => FICHE && (FICHE.envoi > 0 || instantane() !== FICHE.avant));
       setTimeout(() => el('fNom').focus(), 60);
     };
-    window.closeForm = () => { el('overlay').classList.remove('open'); editing = null; formPhotos = []; };
-    // Ne ferme que si le geste a COMMENCÉ sur le fond : sélectionner du texte dans un champ et
-    // relâcher la souris en dehors adresse le `click` au plus proche ancêtre commun, c'est-à-dire au
-    // fond — et la saisie partait avec. Même correctif que la modale de demande de RDV.
-    let FOND_OUTIL = false;
-    el('overlay').addEventListener('mousedown', (e) => { FOND_OUTIL = (e.target === el('overlay')); });
-    el('overlay').addEventListener('click', (e) => {
-      if (e.target === el('overlay') && FOND_OUTIL) closeForm();
-      FOND_OUTIL = false;
-    });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (el('lb').classList.contains('open')) lbClose(); else if (el('overlay').classList.contains('open')) closeForm(); } });
-
     function renderThumbs() {
-      el('fThumbs').innerHTML = formPhotos.map((p, i) =>
-        `<div class="ot-thumb"><img src="${escAttr(p)}" alt=""><button type="button" onclick="removePhoto(${i})" aria-label="Retirer la photo">✕</button></div>`
-      ).join('') + `<div class="ot-photo-add" onclick="document.getElementById('fPhoto').click()" title="Ajouter une photo">${icon('camera', 20)}</div>`;
+      el('fThumbs').innerHTML = FICHE.photos.map((p, i) =>
+        `<div class="ot-thumb"><img src="${esc(p)}" alt=""><button type="button" onclick="retirerPhoto(${i})" aria-label="Retirer la photo">✕</button></div>`).join('')
+        + `<button type="button" class="ot-photo-add" onclick="document.getElementById('fPhoto').click()" aria-label="Ajouter une photo">${icon('camera', 20)}</button>`
+        + (FICHE.envoi ? `<span class="ot-envoi">Envoi de ${FICHE.envoi} photo${FICHE.envoi > 1 ? 's' : ''}…</span>` : '');
     }
-    window.removePhoto = (i) => { formPhotos.splice(i, 1); renderThumbs(); };
-    window.onPhotos = async (e) => {
-      const files = [...(e.target.files || [])];
-      e.target.value = '';
-      for (const f of files) {
-        try { formPhotos.push(await compressImage(f, 1000, 0.7)); }
-        catch (err) { toast('Photo illisible ignorée', 'warn'); }
+    window.retirerPhoto = (i) => { FICHE.photos.splice(i, 1); renderThumbs(); };
+    /** C — Une photo part dans R2 (règle 25) ; si le stockage ne répond pas, elle reste dans la
+     *  fiche — jamais perdue — et « Alléger » la déplacera plus tard. */
+    async function envoyerPhoto(dataUrl, id) {
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        const url = await SS.uploadPhoto(id, blob);
+        if (url) return url;
+      } catch (e) {}
+      return dataUrl;
+    }
+    window.ajouterPhotos = async (input) => {
+      const fichiers = [...(input.files || [])];
+      input.value = '';
+      if (!fichiers.length || !FICHE) return;
+      const f0 = FICHE;
+      f0.envoi += fichiers.length; renderThumbs();
+      let gardees = 0;
+      for (const f of fichiers) {
+        try {
+          const p = await envoyerPhoto(await compressImage(f, 1200, 0.72), f0.id);
+          if (O.estInline(p)) gardees++;
+          f0.photos.push(p);
+        } catch (e) { toast('Photo illisible ignorée', 'warn'); }
+        f0.envoi--;
+        if (FICHE === f0) renderThumbs();
       }
-      renderThumbs();
+      if (gardees) toast(gardees + ' photo(s) gardée(s) dans la fiche : le stockage ne répond pas. « Alléger » les déplacera quand le réseau reviendra.', 'warn', 8000);
     };
-
-    window.saveForm = async () => {
+    window.enregistrerFiche = async () => {
       const nom = el('fNom').value.trim();
       if (!nom) { toast('Donne au moins un nom à la référence.', 'warn'); el('fNom').focus(); return; }
+      if (FICHE.envoi) { toast('Une photo est encore en cours d’envoi — un instant.', 'warn'); return; }
+      const p1 = O.lirePrix(el('fPrix').value), p2 = O.lirePrix(el('fPrix2').value);
+      if (!p1.ok) { toast('Prix illisible : écris-le comme « 12,90 » ou « 1 234,50 ».', 'warn', 6000); el('fPrix').focus(); return; }
+      if (!p2.ok) { toast('Prix du second fournisseur illisible : écris-le comme « 9,80 ».', 'warn', 6000); el('fAutre').open = true; el('fPrix2').focus(); return; }
+      const o = itemDe(FICHE.id) || {};
+      const a = o.autre || {};
+      const auj = U.aujourdhui();
+      const autre = { fournisseur: el('fFour2').value.trim(), reference: el('fRef2').value.trim(), url: el('fUrl2').value.trim(), prix: p2.valeur };
+      autre.prix_le = O.datePrix(p2.valeur, a.prix, a.prix_le, auj);
+      const aUnAutre = !!(autre.fournisseur || autre.reference || autre.url || autre.prix != null);
+      // Une photo restée dans la fiche (stockage injoignable) repart à chaque enregistrement.
+      const photos = [];
+      for (const p of FICHE.photos) photos.push(O.estInline(p) ? await envoyerPhoto(p, FICHE.id) : p);
       const now = new Date().toISOString();
-      const prixRaw = el('fPrix').value.trim().replace(',', '.');
-      const prix = prixRaw === '' ? null : (isNaN(parseFloat(prixRaw)) ? null : parseFloat(prixRaw));
-      const obj = Object.assign({}, editing || {}, {
-        id: (editing && editing.id) || ('OUT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
-        nom: nom,
-        categorie: el('fCat').value,
-        reference: el('fRef').value.trim(),
-        fournisseur: el('fFour').value.trim(),
-        url: el('fUrl').value.trim(),
-        prix: prix,
-        notes: el('fNotes').value.trim(),
-        photos: formPhotos.slice(),
-        date_creation: (editing && editing.date_creation) || now,
-        date_modification: now,
-      });
+      const obj = {
+        id: FICHE.id, nom: nom, categorie: el('fCat').value, reference: el('fRef').value.trim(),
+        fournisseur: el('fFour').value.trim(), url: el('fUrl').value.trim(), prix: p1.valeur,
+        prix_le: O.datePrix(p1.valeur, o.prix, o.prix_le, auj),
+        autre: aUnAutre ? autre : null,
+        notes: el('fNotes').value.trim(), photos: photos,
+        date_creation: o.date_creation || now, date_modification: now,
+      };
       const btn = el('fSave'); btn.disabled = true;
       const res = await SS.saveOutillage(obj);
       btn.disabled = false;
-      if (res.ok === false) { toast(res.error || 'Enregistrement impossible', 'error', 7000); return; }
-      // Reflète immédiatement dans la liste locale (sans re-fetch : évite de perdre la modif si le
-      // GET renvoyait une version pas encore propagée).
-      const i = ITEMS.findIndex(o => o.id === obj.id);
-      if (i !== -1) ITEMS[i] = obj; else ITEMS.unshift(obj);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Enregistrement impossible', 'error', 7000); return; }
       SS.logActivity({ action: 'outillage.save', entity_type: 'outillage', entity_id: obj.id, label: `Référence outillage « ${obj.nom} »` });
-      toast(res.offline ? 'Enregistré (hors-ligne)' : 'Référence enregistrée ✓', res.offline ? 'warn' : 'ok');
-      closeForm();
-      renderKpis(); renderFilters(); render();
+      toast('Référence enregistrée ✓', 'ok');
+      window.fermerFenetre(true);
+      await rafraichir();
+    };
+    window.supprimerDepuisFiche = async () => {
+      const id = FICHE && FICHE.id;
+      if (id && await window.supprimer(id)) window.fermerFenetre(true);
     };
 
-    window.deleteFromForm = () => { if (editing) { const id = editing.id; closeForm(); removeItem(id); } };
-    window.removeItem = async (id) => {
-      const o = ITEMS.find(x => x.id === id);
-      if (!o) return;
-      if (!confirm(`Supprimer la référence « ${o.nom || 'sans nom'} » ?`)) return;
-      const res = await SS.deleteOutillage(id);
-      if (res.ok === false) { toast(res.error || 'Suppression impossible', 'error'); return; }
-      ITEMS = ITEMS.filter(x => x.id !== id);
-      toast(res.offline ? 'Supprimé (hors-ligne)' : 'Référence supprimée', 'ok');
-      renderKpis(); renderFilters(); render();
+    /* ── C — Alléger : les photos encore dans la base partent dans R2, une référence à la fois. On
+       n'envoie que l'identifiant, le nom et les photos : le serveur étale le reste (règle 2). */
+    window.alleger = async () => {
+      const b = el('btnAlleger'); if (b) { b.disabled = true; b.textContent = 'En cours…'; }
+      let deplacees = 0, echecs = 0;
+      for (const o of ITEMS.filter(x => (x.photos || []).some(O.estInline))) {
+        const photos = [];
+        for (const p of o.photos) {
+          if (!O.estInline(p)) { photos.push(p); continue; }
+          const url = await envoyerPhoto(p, o.id);
+          if (O.estInline(url)) echecs++; else deplacees++;
+          photos.push(url);
+        }
+        const res = await SS.saveOutillage({ id: o.id, nom: o.nom, photos: photos });
+        if (!res || res.ok === false) { echecs += photos.length; toast((res && res.error) || 'Non enregistré', 'error', 6000); break; }
+      }
+      toast(deplacees + ' photo(s) déplacée(s)' + (echecs ? ', ' + echecs + ' toujours dans la base (stockage injoignable)' : ' ✓'), echecs ? 'warn' : 'ok', 7000);
+      await rafraichir();
     };
 
-    // ── Lightbox ──
-    let lbPhotos = [], lbIdx = 0;
-    window.lbOpen = (id, i) => {
-      const o = ITEMS.find(x => x.id === id); if (!o) return;
-      lbPhotos = Array.isArray(o.photos) ? o.photos : []; lbIdx = i || 0;
-      if (!lbPhotos.length) return;
-      el('lbImg').src = lbPhotos[lbIdx];
-      el('lb').classList.add('open');
+    // ── E — Un kit ─────────────────────────────────────────────────────────────────────────────
+    let KIT = null;   // { id, lignes, avant }
+    const instantaneKit = () => JSON.stringify([el('kNom').value, el('kPour').value, el('kNotes').value, lireLignes()]);
+    function lireLignes() {
+      return [...document.querySelectorAll('#kLignes .kl-ligne')].map(r => ({
+        ref: r.querySelector('select.ref').value, qte: Number(String(r.querySelector('input').value).replace(',', '.')), par: r.querySelector('select.par').value,
+      }));
+    }
+    function ligneKitHtml(l) {
+      const choix = ITEMS.slice().sort((a, b) => String(a.nom).localeCompare(String(b.nom), 'fr'));
+      const connue = !l.ref || choix.some(o => o.id === l.ref);
+      return `<div class="kl-ligne"><select class="select ref" aria-label="Référence"><option value="">— Choisir —</option>${
+        connue ? '' : `<option value="${esc(l.ref)}" selected>Référence supprimée</option>`}${
+        choix.map(o => `<option value="${esc(o.id)}" ${o.id === l.ref ? 'selected' : ''}>${esc(o.nom)}${o.reference ? ' · ' + esc(o.reference) : ''}</option>`).join('')}</select>
+        <input class="input" inputmode="decimal" aria-label="Quantité" value="${esc(l.qte || 1)}">
+        <select class="select par" aria-label="Par"><option value="ouverture" ${l.par !== 'chantier' ? 'selected' : ''}>par ouverture</option><option value="chantier" ${l.par === 'chantier' ? 'selected' : ''}>par chantier</option></select>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()" aria-label="Retirer cette ligne">✕</button></div>`;
+    }
+    window.ouvrirKit = (id, pourDefaut) => {
+      const k = id ? KITS.filter(x => x.id === id)[0] : null;
+      KIT = { id: k ? k.id : 'KIT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), existe: !!k };
+      setText('kitTitre', k ? 'Modifier le kit' : 'Nouveau kit de pose');
+      el('kNom').value = k ? k.nom : '';
+      el('kPour').value = k ? (k.pour || '') : (pourDefaut || '');
+      el('kNotes').value = k ? (k.notes || '') : '';
+      el('kLignes').innerHTML = ((k && k.lignes && k.lignes.length) ? k.lignes : [{ ref: '', qte: 1, par: 'ouverture' }]).map(ligneKitHtml).join('');
+      el('kSuppr').style.display = k ? '' : 'none';
+      KIT.avant = instantaneKit();
+      ouvrirFenetre('kitFen', () => KIT && instantaneKit() !== KIT.avant);
+      setTimeout(() => el('kNom').focus(), 60);
     };
-    window.lbClose = () => el('lb').classList.remove('open');
-    window.lbNav = (d) => { if (!lbPhotos.length) return; lbIdx = (lbIdx + d + lbPhotos.length) % lbPhotos.length; el('lbImg').src = lbPhotos[lbIdx]; };
-    el('lb').addEventListener('click', (e) => { if (e.target === el('lb')) lbClose(); });
+    window.kitAjouterLigne = () => { el('kLignes').insertAdjacentHTML('beforeend', ligneKitHtml({ ref: '', qte: 1, par: 'ouverture' })); };
+    window.enregistrerKit = async () => {
+      const nom = el('kNom').value.trim();
+      if (!nom) { toast('Donne un nom au kit.', 'warn'); el('kNom').focus(); return; }
+      const lignes = lireLignes().filter(l => l.ref);
+      if (lignes.some(l => !(l.qte > 0))) { toast('Chaque ligne a besoin d’une quantité.', 'warn'); return; }
+      if (!lignes.length) { toast('Choisis au moins une référence à emporter.', 'warn'); return; }
+      const res = await SS.saveKit({ id: KIT.id, nom: nom, pour: el('kPour').value, lignes: lignes, notes: el('kNotes').value.trim() });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Kit non enregistré', 'error', 6000); return; }
+      toast('Kit enregistré ✓', 'ok');
+      window.fermerFenetre(true);
+      KITS = (await SS.listKits()) || [];
+      KITS_OUVERT = true;
+      renderTout();
+    };
+    window.supprimerKit = async () => {
+      if (!KIT || !confirm('Supprimer ce kit ? Les références, elles, restent.')) return;
+      const res = await SS.deleteKit(KIT.id);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Suppression impossible', 'error', 6000); return; }
+      window.fermerFenetre(true);
+      KITS = (await SS.listKits()) || [];
+      renderTout();
+    };
 
-    load();
+    // ── E — Ce qu'il faut emporter pour une pose ───────────────────────────────────────────────
+    // Ce qui est déjà chargé se coche SUR CET APPAREIL (le téléphone qu'on a en main devant la
+    // camionnette) : ce n'est pas une donnée du chantier.
+    const cleCharge = (devisId) => 'ss_emporter_' + devisId;
+    const lireCharge = (devisId) => { try { return JSON.parse(localStorage.getItem(cleCharge(devisId)) || '[]'); } catch (e) { return []; } };
+    let EM = null;   // devis affiché
+    window.ouvrirEmporter = (devisId) => {
+      EM = DEVIS.filter(d => d.id === devisId)[0] || null;
+      if (!EM) { toast('Chantier introuvable.', 'warn'); return; }
+      renderEmporter();
+      ouvrirFenetre('emFen', null);
+    };
+    function renderEmporter() {
+      const d = EM, r = O.aEmporter(d, KITS, ITEMS), charge = lireCharge(d.id);
+      const types = Object.keys(r.ouvertures).map(t => r.ouvertures[t] + ' ' + (r.ouvertures[t] > 1 ? O.libellePour(t) : (U.TYPE_LABEL[t] || t))).join(', ');
+      setText('emTitre', 'À emporter — ' + `${d.prenom} ${d.nom}`.trim());
+      const principal = Object.keys(r.ouvertures).sort((a, b) => r.ouvertures[b] - r.ouvertures[a])[0] || '';
+      el('emCorps').innerHTML = `<div style="color:var(--text-muted);font-size:var(--fs-sm)">${d.chantier && d.chantier.date_pose ? 'Pose le ' + esc(fmtDate(d.chantier.date_pose)) + ' · ' : ''}${esc(types || 'aucune ouverture')}${d.ville ? ' · ' + esc(d.ville) : ''}</div>`
+        + (r.kits.length ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">Kits : ${r.kits.map(k => esc(k.nom)).join(' · ')}</div>` : '')
+        + (r.lignes.length ? `<div><div style="font-family:var(--font-mono);font-size:var(--fs-2xs);color:var(--text-subtle);margin-bottom:0.2rem">${r.lignes.filter(l => charge.indexOf(l.ref) >= 0).length} / ${r.lignes.length} chargé${r.lignes.length > 1 ? 's' : ''}</div>`
+            + r.lignes.map(l => {
+              const fait = charge.indexOf(l.ref) >= 0, id = jsAttr(l.ref);
+              return `<div class="em-ligne ${fait ? 'fait' : ''}"><input type="checkbox" ${fait ? 'checked' : ''} onchange="cocher(${id}, this.checked)" aria-label="Chargé : ${esc(l.nom)}">
+                <span class="txt">${esc(l.nom)}${l.reference ? ' · <code>' + esc(l.reference) + '</code>' : ''}<small>${l.detail.map(esc).join(' · ')}</small></span>
+                <span class="q">× ${esc(Math.round(l.qte * 100) / 100)}</span>
+                ${l.item && !l.item.racheter ? `<button class="btn btn-ghost btn-sm" onclick="manque(${id}, ${Math.ceil(l.qte)})" title="L'ajouter à « À racheter »">Il en manque</button>` : (l.item && l.item.racheter ? '<span class="ot-etat rach">à racheter</span>' : '')}</div>`;
+            }).join('') + '</div>'
+          : `<div class="empty" style="padding:var(--sp-3)">Aucun kit pour ces ouvertures.<div class="hint">Un kit dit quoi emporter pour un type d’ouverture : on le crée une fois, il sert à chaque pose.</div>
+              <button class="btn btn-primary btn-sm mt-4" onclick="kitDepuisEmporter(${jsAttr(principal)})">+ Créer un kit</button></div>`);
+    }
+    window.cocher = (ref, oui) => {
+      const l = lireCharge(EM.id).filter(x => x !== ref);
+      if (oui) l.push(ref);
+      try { localStorage.setItem(cleCharge(EM.id), JSON.stringify(l)); } catch (e) {}
+      renderEmporter();
+    };
+    window.manque = async (ref, qte) => {
+      const res = await SS.setRacheter(ref, Math.max(1, Math.min(999, qte || 1)), EM ? 'Pour la pose chez ' + `${EM.prenom} ${EM.nom}`.trim() : '');
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré — réessaie.', 'error', 6000); return; }
+      toast('Ajouté à « À racheter »', 'ok');
+      ITEMS = (await SS.listOutillage()) || [];
+      renderEmporter(); renderResume(); renderCourses(); render();
+    };
+    // La fenêtre « À emporter » RELAIE la fenêtre du kit (même étape d'historique).
+    window.kitDepuisEmporter = (pour) => { window.ouvrirKit(null, pour); };
+
+    // ── G — Montrer au comptoir ────────────────────────────────────────────────────────────────
+    let CPT = { id: '', i: 0 };
+    window.comptoir = (id, i) => {
+      const o = itemDe(id); if (!o) return;
+      CPT = { id: id, i: i || 0 };
+      const photos = o.photos || [];
+      const of = O.offres(o)[0];
+      el('comptoir').innerHTML = `${photos.length ? `<img src="${esc(photos[CPT.i % photos.length])}" alt="">` : ''}
+        <div class="cn">${esc(o.nom)}</div>
+        ${o.reference ? `<div class="cr">${esc(o.reference)}</div>` : ''}
+        ${of && of.fournisseur ? `<div class="cf">${esc(of.fournisseur)}${of.prix != null ? ' · ' + esc(O.fmtPrix(of.prix)) : ''}</div>` : ''}
+        ${o.notes ? `<div class="cf" style="max-width:40rem">${esc(o.notes)}</div>` : ''}
+        <div class="bt">${photos.length > 1 ? `<button class="btn btn-ghost" onclick="comptoir(${jsAttr(id)}, ${CPT.i + 1})">Photo suivante</button>` : ''}
+          ${o.reference ? `<button class="btn btn-ghost" onclick="copier(${jsAttr(id)})">${icon('copy', 14)} Copier la réf.</button>` : ''}
+          <button class="btn btn-primary" onclick="fermerFenetre()">Fermer</button></div>`;
+      if (!FEN || FEN.id !== 'comptoir') ouvrirFenetre('comptoir', null);
+    };
+
+    // Arrivée depuis le planning (« À emporter » sur une pose) : la fenêtre s'ouvre, puis le
+    // paramètre quitte l'adresse — sinon un rechargement la rouvrirait.
+    load().then(() => {
+      const pose = U.qp('pose');
+      if (pose) {
+        KITS_OUVERT = true; renderKits();
+        window.ouvrirEmporter(pose);
+        try { history.replaceState(history.state, '', location.pathname); } catch (e) {}
+      }
+    });
   </script>
 </body>
 </html>

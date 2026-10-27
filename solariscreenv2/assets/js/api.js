@@ -10,6 +10,7 @@
   const LS_FACTURES = 'ss_factures_cache';
   const LS_RDV = 'ss_rdv_cache';
   const LS_OUTILLAGE = 'ss_outillage_cache';
+  const LS_KITS = 'ss_kits_cache';
   const LS_DISPOS = 'ss_dispos_cache';
   const LS_SUJETS = 'ss_sujets_cache';
   const LS_OUTBOX = 'ss_outbox';   // ce qui est écrit LOCALEMENT mais pas encore parti au serveur
@@ -845,18 +846,21 @@
     },
 
     // ── OUTILLAGE (carnet de références perso : visserie, fixations, outils…) ──
+    /* ⚠️ AUCUNE ÉCRITURE HORS-LIGNE (règle 48). L'ancien « Enregistré (hors-ligne) » n'avait aucune
+       file d'envoi : la référence n'arrivait jamais au serveur et disparaissait au chargement suivant,
+       et une suppression hors-ligne revenait. La fiche reste ouverte, rien n'est perdu : on réessaie.
+       Le cache sert à CONSULTER sans réseau (au comptoir, au fond d'un magasin) : il est réécrit à
+       chaque lecture réussie, pour montrer la dernière liste connue et pas seulement ce qu'on a saisi. */
     async listOutillage() {
-      try { return (await req('/outillage')).data; }
+      try { const d = (await req('/outillage')).data || []; localOutillage.remplacer(d); return d; }
       catch (e) { console.warn('[SS] listOutillage → cache local:', e.message); return localOutillage.list(); }
     },
     async saveOutillage(o) {
-      localOutillage.save(o);
-      try { return await req('/outillage', { method: 'POST', body: JSON.stringify(o) }); }
+      try { const r = await req('/outillage', { method: 'POST', body: JSON.stringify(o) }); if (r && r.ok !== false) localOutillage.save(r.data || o); return r; }
       catch (e) {
-        if (e && e.serverRejected) { console.warn('[SS] saveOutillage rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
-        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
-        console.warn('[SS] saveOutillage hors-ligne:', e.message);
-        return { ok: true, id: o.id, offline: true };
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : la référence n’est pas enregistrée. Réessaie une fois connecté — la fiche reste ouverte.' };
+        return { ok: false, error: MSG_SESSION };
       }
     },
     async deleteOutillage(id) {
@@ -866,10 +870,31 @@
         return r;
       } catch (e) {
         if (e && e.serverRejected) return { ok: false, error: e.message };
-        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
-        localOutillage.delete(id);
-        return { ok: true, offline: true };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : suppression impossible pour le moment.' };
+        return { ok: false, error: MSG_SESSION };
       }
+    },
+    /** « À racheter » : écriture ciblée (règle 48). `achete` vrai = acheté (laisse une trace), faux = retiré. */
+    async setRacheter(id, qte, note) {
+      try { return await req('/outillage/' + encodeURIComponent(id) + '/racheter', { method: 'POST', body: JSON.stringify({ qte: qte, note: note || '' }) }); }
+      catch (e) { return { ok: false, error: (e && e.serverRejected) ? e.message : ((await isReallyOffline()) ? 'Hors-ligne : réessaie une fois connecté.' : MSG_SESSION) }; }
+    },
+    async retirerRacheter(id, achete) {
+      try { return await req('/outillage/' + encodeURIComponent(id) + '/racheter', { method: 'DELETE', body: JSON.stringify({ achete: !!achete }) }); }
+      catch (e) { return { ok: false, error: (e && e.serverRejected) ? e.message : ((await isReallyOffline()) ? 'Hors-ligne : réessaie une fois connecté.' : MSG_SESSION) }; }
+    },
+    // ── KITS DE POSE (règle 48) : lecture avec repli sur le cache, écritures en ligne seulement ──
+    async listKits() {
+      try { const d = (await req('/kits')).data || []; try { localStorage.setItem(LS_KITS, JSON.stringify(d)); } catch (x) {} return d; }
+      catch (e) { try { return JSON.parse(localStorage.getItem(LS_KITS) || '[]'); } catch (x) { return []; } }
+    },
+    async saveKit(k) {
+      try { return await req('/kits', { method: 'POST', body: JSON.stringify(k) }); }
+      catch (e) { return { ok: false, error: (e && e.serverRejected) ? e.message : ((await isReallyOffline()) ? 'Hors-ligne : le kit n’est pas enregistré. Réessaie une fois connecté.' : MSG_SESSION) }; }
+    },
+    async deleteKit(id) {
+      try { return await req('/kits/' + encodeURIComponent(id), { method: 'DELETE' }); }
+      catch (e) { return { ok: false, error: (e && e.serverRejected) ? e.message : ((await isReallyOffline()) ? 'Hors-ligne : suppression impossible pour le moment.' : MSG_SESSION) }; }
     },
 
     // ── Exceptions de planning (congés, indisponibilités, disponibilité exceptionnelle) ──
@@ -1053,6 +1078,10 @@
     },
     delete: function (id) {
       localStorage.setItem(LS_OUTILLAGE, JSON.stringify(localOutillage.list().filter(function (o) { return o.id !== id; })));
+    },
+    remplacer: function (liste) {
+      try { localStorage.setItem(LS_OUTILLAGE, JSON.stringify(liste || [])); }
+      catch (e) { console.warn('[SS] cache outillage plein:', e.message); }
     },
   };
 

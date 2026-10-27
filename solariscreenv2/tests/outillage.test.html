@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — outillage</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de l’outillage</h1>
+  <p class="note">
+    La page Outillage &amp; références (règle 48) : les règles pures (<code>assets/js/outillage.js</code>), les ROUTES
+    SERVEUR (le vrai <code>[[catchall]].js</code> sur une vraie base SQLite, <code>tests/banc-serveur.js</code>), puis la VRAIE
+    page remplie par le bac à sable, cliquée au bureau et sur téléphone : recherche, à racheter, prix et
+    fournisseurs, fiche, photos et « Alléger », visionneuse, comptoir, kits et « à emporter », et le lien depuis le planning.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/outillage.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 700) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 700) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests outillage';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 5000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const O = window.SSOutil, U = window.SSUI, SS = window.SS, BANC = window.SSBanc;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const ref = (id) => BANC.donnee('outillage', 'id', id) || {};
+    const bouton = (racine, libelle) => [...racine.querySelectorAll('button, a')].find((b) => txt(b) === libelle) || null;
+    const carte = (d, id) => d.querySelector('.ot-card[data-id="' + id + '"]');
+    const dernierToast = (d) => { const l = [...d.querySelectorAll('.toast')]; return l.length ? txt(l[l.length - 1]) : ''; };
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    async function ouvrirPage(largeur, hauteur, suffixe) {
+      const f = await BANC.cadre('../app/outillage.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      await attendreQue(() => f.contentDocument.querySelector('.ot-card, .empty'), 8000);
+      await attendre(150);
+      return f;
+    }
+    function tape(champ, valeur) { champ.value = valeur; champ.dispatchEvent(new Event('input', { bubbles: true })); }
+    async function photoFichier(w) {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 30;
+      const g = c.getContext('2d'); g.fillStyle = '#4a7'; g.fillRect(0, 0, 40, 30);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return new w.File([blob], 'photo.png', { type: 'image/png' });
+    }
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles de la page, en fonctions pures');
+        const REF = '2026-10-27';
+        check('S1 Sans catégorie (ou une catégorie inconnue), une référence est rangée dans « Autre »',
+          [O.categorieDe({ categorie: '' }), O.categorieDe({ categorie: 'Bidon' }), O.categorieDe({ categorie: 'Consommables' })], ['Autre', 'Autre', 'Consommables']);
+        const vis = { nom: 'Vis inox tête fraisée 4×40', reference: '0179 4 40', fournisseur: 'Würth', categorie: 'Visserie & boulonnerie', notes: 'Pré-percer' };
+        check('S2 La recherche ignore les accents et l’ordre des mots ; une référence se tape d’un bloc (à partir de 3 caractères : « 9.4 » ne trouve rien)',
+          [O.correspond(vis, 'TETE fraisee'), O.correspond(vis, 'inox 40 vis'), O.correspond(vis, '0179440'), O.correspond(vis, '0179.4-40'), O.correspond(vis, '9.4'), O.correspond(vis, 'cheville'), O.correspond({ nom: 'Foret', categorie: 'Perçage & découpe' }, 'percage')],
+          [true, true, true, true, false, false, true]);
+        check('S3 Un prix se lit comme on le tape en Belgique — et ce qu’on ne sait pas lire est REFUSÉ (« 1 234,50 » valait 1 €)',
+          ['12,90', '1 234,50', '1.234,50', '1,234.50', '12.9', ' 7,2 € ', '', 'abc', '-3', '12,5,0'].map((p) => { const r = O.lirePrix(p); return r.ok ? r.valeur : 'refusé'; }),
+          [12.9, 1234.5, 1234.5, 1234.5, 12.9, 7.2, null, 'refusé', 'refusé', 'refusé']);
+        check('S4 Le champ relit le prix tel qu’on l’écrit (« 12,90 » et pas « 12.9 »)', [O.prixChamp(12.9), O.prixChamp(null), O.prixChamp(1234.5)], ['12,90', '', '1234,50']);
+        const of = O.offres({ fournisseur: 'Würth', prix: 12.9, prix_le: '2026-10-07', url: 'javascript:alert(1)',
+          autre: { fournisseur: 'Brico', prix: 14.5, prix_le: '2026-04-10', url: 'https://brico.exemple.invalid/x' } }, REF);
+        check('S5 Deux fournisseurs : le moins cher est marqué, un prix de plus de 6 mois est « ancien », un lien javascript: n’est jamais gardé',
+          of.map((x) => [x.fournisseur, x.moinsCher, x.ancien, x.url]), [['Würth', true, false, ''], ['Brico', false, true, 'https://brico.exemple.invalid/x']]);
+        check('S6 La date d’un prix change quand le PRIX change, pas quand on corrige autre chose',
+          [O.datePrix(12.9, 12.9, '2026-01-02', REF), O.datePrix(13, 12.9, '2026-01-02', REF), O.datePrix(null, 12.9, '2026-01-02', REF), O.datePrix(5, null, '', REF)],
+          ['2026-01-02', REF, '', REF]);
+        const g = O.aRacheter([{ nom: 'B', fournisseur: 'Würth', racheter: { qte: 1 } }, { nom: 'A', fournisseur: 'Würth', racheter: { qte: 2 } },
+          { nom: 'C', fournisseur: '', racheter: { qte: 1 } }, { nom: 'D', fournisseur: 'Brico', racheter: { qte: 1 } }, { nom: 'E', fournisseur: 'Brico' }]);
+        check('S7 À racheter : groupé par fournisseur (là où l’on va), « Sans fournisseur » en dernier, ce qui n’est pas sur la liste n’y est pas',
+          g.map((x) => [x.fournisseur, x.lignes.map((l) => l.nom)]), [['Brico', ['D']], ['Würth', ['A', 'B']], ['Sans fournisseur', ['C']]]);
+        check('S8 Les photos encore dans la base se comptent', O.photosInline([{ photos: ['data:image/png;base64,AAAA', '/api/photos/x/y'] }, { photos: ['data:xx'] }, {}]),
+          { photos: 2, references: 2, octets: 33 });
+        const KITS = [
+          { id: 'k1', nom: 'Screen béton', pour: 'screen', lignes: [{ ref: 'r1', qte: 4, par: 'ouverture' }, { ref: 'r2', qte: 1, par: 'chantier' }] },
+          { id: 'k2', nom: 'Volet', pour: 'volet_roulant', lignes: [{ ref: 'r1', qte: 6, par: 'ouverture' }] },
+          { id: 'k3', nom: 'Toujours', pour: '', lignes: [{ ref: 'r3', qte: 1, par: 'ouverture' }, { ref: 'r4', qte: 0, par: 'chantier' }] },
+          { id: 'k4', nom: 'Tente', pour: 'tente_solaire', lignes: [{ ref: 'r1', qte: 9, par: 'ouverture' }] },
+        ];
+        const dv = { items_min: [{ type: 'screen', quantite: 3 }, { type: 'volet_roulant', quantite: 2 }, { type: 'screen', quantite: 0 }, { type: 'screen', quantite: -2 }, { type: 'tente_solaire', quantite: 0 }] };
+        const em = O.aEmporter(dv, KITS, [{ id: 'r1', nom: 'Vis', reference: 'V1' }, { id: 'r3', nom: 'Embout' }]);
+        check('S9 À emporter : les kits des types présents (une tente à 0 n’en est pas une), par ouverture ou par chantier, une même vis ADDITIONNÉE, une référence supprimée NOMMÉE',
+          [em.kits.map((k) => k.id), em.lignes.map((l) => [l.ref, l.nom, l.qte])],
+          [['k1', 'k2', 'k3'], [['r1', 'Vis', 24], ['r2', 'Référence supprimée', 1], ['r3', 'Embout', 5]]]);
+        check('S10 Les ouvertures se comptent avec la règle de l’argent (un zéro écrit vaut zéro, un négatif ne retire rien)', em.ouvertures, { screen: 3, volet_roulant: 2 });
+        const L = [
+          { id: 'a', statut: 'signe', chantier: { date_pose: J(3) } },
+          { id: 'b', statut: 'signe', chantier: { date_pose: J(-1) } },
+          { id: 'c', statut: 'signe', chantier: { date_pose: J(30) } },
+          { id: 'd', statut: 'signe', chantier: { date_pose: J(1) }, commande_statut: 'pose' },
+          { id: 'e', statut: 'signe', type_document: 'depannage', chantier: { date_pose: J(2) } },
+          { id: 'f', statut: 'brouillon', chantier: { date_pose: J(2) } },
+          { id: 'g', statut: 'termine', archive: true, chantier: { date_pose: J(2) } },
+          { id: 'h', statut: 'termine', chantier: { date_pose: J(0) } },
+        ];
+        check('S11 Les poses à venir (3 semaines) : ni passées, ni trop lointaines, ni déjà posées, ni dépannage, brouillon ou archive ; la plus proche d’abord',
+          O.posesAVenir(L).map((d) => d.id), ['h', 'a']);
+
+        // ══════════ R — LES ROUTES SERVEUR ══════════
+        titre('R — Les routes (vrai serveur, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        let r = await SS.saveOutillage({ id: 'R-1', nom: '  ' });
+        check('R1 Une référence sans nom est refusée par le serveur', [r.ok, /nom/.test(r.error || '')], [false, true]);
+        await SS.saveOutillage({ id: 'R-1', nom: 'Vis', reference: 'V-1', notes: 'Boîte de 100', champInconnu: 'gardé', photos: ['data:image/png;base64,AA'] });
+        await SS.saveOutillage({ id: 'R-1', nom: 'Vis', photos: ['/api/photos/R-1/p1'] });
+        check('R2 L’enregistrement ÉTALE l’existant (règle 2) : « Alléger » n’envoie que les photos, la note et un champ inconnu survivent',
+          [ref('R-1').notes, ref('R-1').reference, ref('R-1').champInconnu, ref('R-1').photos], ['Boîte de 100', 'V-1', 'gardé', ['/api/photos/R-1/p1']]);
+        const rq = await Promise.all([SS.setRacheter('R-1', 0), SS.setRacheter('R-1', 2.5), SS.setRacheter('ZZZ', 1)]);
+        check('R3 À racheter : une quantité hors 1..999 ou non entière est refusée, une référence inconnue aussi', rq.map((x) => x.ok), [false, false, false]);
+        r = await SS.setRacheter('R-1', 2, 'demi-boîte');
+        check('R4 À racheter : écrit par la route ciblée, SIGNÉ par l’identité Access', [r.ok, ref('R-1').racheter.qte, ref('R-1').racheter.par, ref('R-1').racheter.note], [true, 2, 'nicolas', 'demi-boîte']);
+        await SS.saveOutillage(Object.assign({}, ref('R-1'), { racheter: null, notes: 'Corrigée' }));
+        await SS.saveOutillage({ id: 'R-1', nom: 'Vis', notes: 'Corrigée 2' });
+        check('R5 Réenregistrer la fiche (même avec « racheter: null ») ne touche PAS à la liste : seule sa route l’écrit', [ref('R-1').notes, !!ref('R-1').racheter, (ref('R-1').racheter || {}).qte], ['Corrigée 2', true, 2]);
+        BANC.ident = BANC.YANNICK;
+        await SS.retirerRacheter('R-1', true);
+        BANC.ident = BANC.NICOLAS;
+        check('R6 « Acheté » vide la ligne ET le dit : qui, combien', [!!ref('R-1').racheter, ref('R-1').dernier_achat.par, ref('R-1').dernier_achat.qte], [false, 'yannick', 2]);
+        await SS.setRacheter('R-1', 1);
+        await SS.retirerRacheter('R-1', false);
+        check('R7 « Retirer de la liste » (une erreur) ne laisse pas de trace d’achat', [!!ref('R-1').racheter, ref('R-1').dernier_achat.par], [false, 'yannick']);
+        r = await SS.saveKit({ id: 'K-1', nom: '' });
+        const r2 = await SS.saveKit({ id: 'K-1', nom: ' Pose screen ', pour: 'bidon', extra: 'x', lignes: [{ ref: 'R-1', qte: 4, par: 'ouverture' }, { ref: '', qte: 2 }, { ref: 'R-1', qte: 0 }, { ref: 'R-2', qte: 1, par: 'chantier' }] });
+        const k1 = BANC.donnee('kits', 'id', 'K-1');
+        check('R8 Un kit : nom exigé, type inconnu ramené à « tout chantier », lignes sans référence ou sans quantité écartées',
+          [r.ok, r2.ok, k1.nom, k1.pour, k1.lignes, k1.extra], [false, true, 'Pose screen', '', [{ ref: 'R-1', qte: 4, par: 'ouverture' }, { ref: 'R-2', qte: 1, par: 'chantier' }], 'x']);
+        await SS.saveKit({ id: 'K-1', nom: 'Pose screen', pour: 'screen', lignes: k1.lignes });
+        await SS.deleteKit('K-1');
+        check('R9 Un kit se corrige (en gardant ce qu’il portait) et se supprime', BANC.sql1("SELECT COUNT(*) FROM kits"), 0);
+        // Hors-ligne : plus aucun mensonge « Enregistré (hors-ligne) ».
+        const vrai = window.fetch;
+        window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        const hs = await SS.saveOutillage({ id: 'R-HS', nom: 'Pas de réseau' });
+        const hd = await SS.deleteOutillage('R-1');
+        const hl = await SS.listOutillage();
+        window.fetch = vrai;
+        check('R10 Hors-ligne : l’enregistrement et la suppression sont REFUSÉS et le disent ; la liste vient du cache (la dernière lue), sans la fiche refusée',
+          [hs.ok, /Hors-ligne/.test(hs.error || ''), hd.ok, hl.map((o) => o.id)], [false, true, false, ['R-1']]);
+
+        // ══════════ P — LA PAGE AU BUREAU ══════════
+        titre('P — La page, remplie par le bac à sable, cliquée au bureau');
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const rem = await window.SSBacASable.remplir(SS, {});
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        const ouverts = []; w.open = (u) => { ouverts.push(u); return null; };
+        check('P1 La page parle au banc ; une ligne de résumé, plus de tuiles', [rem.erreurs, f.branche, !!d.querySelector('.kpis'), txt(d.getElementById('resume'))],
+          [[], true, false, '6 références 1 à racheter 2 sans lien d’achat 2 kits de pose']);
+        check('P2 À racheter : par fournisseur, avec qui l’a demandé', [txt(d.querySelector('.ot-courses .ot-four')), /× 2 Cheville nylon 6×40/.test(txt(d.querySelector('.ot-courses'))), /demandé par Nicolas/.test(txt(d.querySelector('.ot-courses')))],
+          ['Fixami', true, true]);
+        const visibles = () => [...d.querySelectorAll('.ot-card')].map((c) => c.getAttribute('data-id')).sort();
+        const cherche = async (q) => { tape(d.getElementById('search'), q); await attendre(30); return visibles(); };
+        check('P3 La recherche : sans accents, mots dans le désordre, référence d’un bloc',
+          [await cherche('percage'), await cherche('0179440'), await cherche('inox 40 vis'), await cherche('zzz'), txt(d.querySelector('#grid .empty'))],
+          [['OUT-ESSAI-3'], ['OUT-ESSAI-1'], ['OUT-ESSAI-1'], [], 'Aucune référence ne correspond.']);
+        await cherche('');
+        let cV = carte(d, 'OUT-ESSAI-1');
+        const offresV = [...cV.querySelectorAll('.ot-offre')].map(txt);
+        check('P4 Deux fournisseurs sur la carte : le moins cher marqué, le prix ancien « à revérifier », et « Commander chez Würth »',
+          [/Würth · 12,90 € vu le .* le moins cher/.test(offresV[0]), /Brico · 14,50 € vu le .* à revérifier/.test(offresV[1]), !!bouton(cV, 'Commander chez Würth')], [true, true, true]);
+        check('P5 Les notes sont visibles ; une référence sans catégorie est dans « Autre » (carte et filtre)',
+          [w.getComputedStyle(cV.querySelector('.ot-notes')).display, txt(carte(d, 'OUT-ESSAI-5').querySelector('.ot-cat')), [...d.querySelectorAll('#catFilters .chip')].map(txt).indexOf('Autre · 1') >= 0],
+          ['block', 'Autre', true]);
+        // D — À racheter depuis la carte.
+        bouton(cV, 'À racheter').click(); await attendre(40);
+        cV = carte(d, 'OUT-ESSAI-1');
+        const q = cV.querySelector('.ot-box.on input[type=number]');
+        check('P6 « À racheter » demande combien (1 par défaut)', [!!q, q && q.value], [true, '1']);
+        q.value = '3'; cV.querySelector('.ot-box.on input:not([type])').value = 'Plus que 20';
+        bouton(cV, 'Ajouter à la liste').click();
+        await attendreQue(() => ref('OUT-ESSAI-1').racheter && carte(d, 'OUT-ESSAI-1').classList.contains('rach'));
+        check('P7 Ajouté : la route l’écrit (signé), la liste et la carte le montrent',
+          [ref('OUT-ESSAI-1').racheter.qte, ref('OUT-ESSAI-1').racheter.par, [...d.querySelectorAll('.ot-courses .ot-four')].map(txt), /À racheter × 3/.test(txt(carte(d, 'OUT-ESSAI-1')))],
+          [3, 'nicolas', ['Fixami', 'Würth'], true]);
+        const ligneW = [...d.querySelectorAll('.ot-courses .ot-cl')].find((l) => /Vis inox/.test(txt(l)));
+        bouton(ligneW, 'Acheté').click();
+        await attendreQue(() => !ref('OUT-ESSAI-1').racheter && /Racheté/.test(txt(carte(d, 'OUT-ESSAI-1'))));
+        check('P8 « Acheté » depuis la liste : la ligne part, la carte dit qui l’a racheté',
+          [!!ref('OUT-ESSAI-1').racheter, ref('OUT-ESSAI-1').dernier_achat.par, /Racheté à l’instant par Nicolas/.test(txt(carte(d, 'OUT-ESSAI-1')))], [false, 'nicolas', true]);
+        // La fiche.
+        carte(d, 'OUT-ESSAI-1').querySelector('.btn.plus').click(); await attendre(40);
+        bouton(carte(d, 'OUT-ESSAI-1'), 'Modifier').click(); await attendre(80);
+        const fen = d.getElementById('ficheFen');
+        check('P9 La fiche relit les prix comme on les écrit, et ouvre le second fournisseur quand il existe',
+          [fen.classList.contains('open'), d.getElementById('fPrix').value, d.getElementById('fCat').value, d.getElementById('fAutre').open, d.getElementById('fPrix2').value],
+          [true, '12,90', 'Visserie & boulonnerie', true, '14,50']);
+        tape(d.getElementById('fPrix'), 'abc');
+        bouton(fen, 'Enregistrer').click(); await attendre(150);
+        check('P10 Un prix illisible est REFUSÉ, la fiche reste ouverte', [ref('OUT-ESSAI-1').prix, fen.classList.contains('open'), /Prix illisible/.test(dernierToast(d))], [12.9, true, true]);
+        const avant2 = ref('OUT-ESSAI-1').autre.prix_le;
+        tape(d.getElementById('fPrix'), '1 234,50');
+        bouton(fen, 'Enregistrer').click();
+        await attendreQue(() => ref('OUT-ESSAI-1').prix === 1234.5 && !fen.classList.contains('open'));
+        check('P11 « 1 234,50 » vaut 1 234,50 € ; la date du prix change, celle du second fournisseur non ; « racheté par » survit',
+          [ref('OUT-ESSAI-1').prix, ref('OUT-ESSAI-1').prix_le, ref('OUT-ESSAI-1').autre.prix_le === avant2, ref('OUT-ESSAI-1').dernier_achat.par, ref('OUT-ESSAI-1').notes.slice(0, 8)],
+          [1234.5, J(0), true, 'nicolas', 'Caisson ']);
+        carte(d, 'OUT-ESSAI-5').querySelector('.btn.plus').click(); await attendre(30);
+        bouton(carte(d, 'OUT-ESSAI-5'), 'Modifier').click(); await attendre(60);
+        check('P12 Une référence sans catégorie s’ouvre sur « Autre » (et plus sur « Visserie », qui s’écrivait au premier enregistrement)', d.getElementById('fCat').value, 'Autre');
+        let confirmations = 0, reponse = false;
+        w.confirm = () => { confirmations++; return reponse; };
+        d.getElementById('fCat').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('P13 Échap dans le menu Catégorie referme le menu, pas la fiche', [fen.classList.contains('open'), confirmations], [true, 0]);
+        tape(d.getElementById('fNotes'), 'En cours de frappe');
+        d.getElementById('fNotes').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        fen.querySelector('.ot-dialog').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        fen.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        check('P14 Une saisie entamée : Échap demande « Fermer sans enregistrer ? » (non = tout reste), un geste commencé dans la fiche ne ferme rien',
+          [fen.classList.contains('open'), confirmations, d.getElementById('fNotes').value], [true, 1, 'En cours de frappe']);
+        reponse = true;
+        fen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); fen.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        check('P15 Un clic commencé sur le fond ferme, après confirmation', [fen.classList.contains('open'), confirmations], [false, 2]);
+        // C — Une nouvelle référence avec photo : directement dans R2.
+        let envois = 0;
+        w.SS.uploadPhoto = async (owner) => '/api/photos/' + owner + '/p' + (++envois);
+        bouton(d.querySelector('.header-actions'), 'Ajouter').click(); await attendre(60);
+        check('P16 Nouvelle référence : catégorie « Autre » affichée = enregistrée', [fen.classList.contains('open'), d.getElementById('fCat').value], [true, 'Autre']);
+        tape(d.getElementById('fNom'), 'Rivet aveugle 4×10');
+        const inp = d.getElementById('fPhoto'), dt = new w.DataTransfer();
+        dt.items.add(await photoFichier(w)); inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+        await attendreQue(() => d.querySelectorAll('#fThumbs .ot-thumb').length === 1 && !/Envoi/.test(txt(d.getElementById('fThumbs'))));
+        bouton(fen, 'Enregistrer').click();
+        await attendreQue(() => BANC.sql1("SELECT COUNT(*) FROM outillage WHERE nom = 'Rivet aveugle 4×10'") === 1 && !fen.classList.contains('open'));
+        const neuf = JSON.parse(BANC.sql1("SELECT data FROM outillage WHERE nom = 'Rivet aveugle 4×10'"));
+        check('P17 La photo part dans R2 dès qu’on la choisit (la base ne reçoit que l’adresse)', [neuf.photos.length, /^\/api\/photos\/OUT-/.test(neuf.photos[0]), neuf.categorie], [1, true, 'Autre']);
+        // C — Alléger.
+        check('P18 Le bandeau « Alléger » dit ce qui pèse encore', /1 photo encore dans la base/.test(txt(d.getElementById('alleger'))), true);
+        d.getElementById('btnAlleger').click();
+        await attendreQue(() => !O.estInline(ref('OUT-ESSAI-1').photos[0]) && !d.querySelector('#alleger .ot-alleger'));
+        check('P19 « Alléger » déplace la photo dans R2, sans toucher au reste de la fiche ; le bandeau disparaît',
+          [/^\/api\/photos\/OUT-ESSAI-1\//.test(ref('OUT-ESSAI-1').photos[0]), ref('OUT-ESSAI-1').prix, ref('OUT-ESSAI-1').reference, !!d.querySelector('#alleger .ot-alleger')],
+          [true, 1234.5, '0179 4 40', false]);
+        // Visionneuse commune et comptoir.
+        carte(d, 'OUT-ESSAI-1').querySelector('button.ot-photo').click(); await attendre(60);
+        const vis2 = d.getElementById('ssLightbox');
+        check('P20 La photo s’ouvre dans la visionneuse COMMUNE (règle 26), sans nouvel onglet', [!!(vis2 && vis2.classList.contains('open')), ouverts.length], [true, 0]);
+        d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(40);
+        carte(d, 'OUT-ESSAI-1').querySelector('.btn.plus').click(); await attendre(30);
+        bouton(carte(d, 'OUT-ESSAI-1'), 'Montrer au comptoir').click(); await attendre(40);
+        const cpt = d.getElementById('comptoir');
+        check('P21 « Montrer au comptoir » : la référence en GRAND, la page figée derrière',
+          [cpt.classList.contains('open'), txt(cpt.querySelector('.cr')), d.documentElement.classList.contains('ot-fige')], [true, '0179 4 40', true]);
+        d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(40);
+        check('P22 Échap le ferme, la page défile à nouveau', [cpt.classList.contains('open'), d.documentElement.classList.contains('ot-fige')], [false, false]);
+        // E — Kits et « à emporter ».
+        d.querySelector('#kitsSec > summary').click(); await attendre(40);
+        const poseL = [...d.querySelectorAll('#kitsSec .ot-kl')].find((l) => /Saint-Exemple/.test(txt(l)));
+        check('P23 Les poses à venir sont listées (l’école, 8 screens dans 3 jours), avec « À emporter »', [!!poseL, !!(poseL && bouton(poseL, 'À emporter'))], [true, true]);
+        bouton(poseL, 'À emporter').click(); await attendre(60);
+        const em2 = d.getElementById('emFen');
+        const lignes = () => [...em2.querySelectorAll('.em-ligne')];
+        check('P24 « À emporter » : le kit des screens, multiplié par les 8 screens, par chantier pour le foret et le silicone',
+          [em2.classList.contains('open'), lignes().map((l) => txt(l.querySelector('.q')))], [true, ['× 32', '× 32', '× 1', '× 1']]);
+        lignes()[0].querySelector('input[type=checkbox]').click(); await attendre(40);
+        check('P25 Ce qui est chargé se coche, sur cet appareil', [lignes()[0].classList.contains('fait'), JSON.parse(w.localStorage.getItem('ss_emporter_ESSAI-10')), /1 \/ 4 chargés/.test(txt(em2))],
+          [true, ['OUT-ESSAI-1'], true]);
+        bouton(lignes()[2], 'Il en manque').click();
+        await attendreQue(() => ref('OUT-ESSAI-3').racheter);
+        check('P26 « Il en manque » l’ajoute à « À racheter », avec le chantier en note', [ref('OUT-ESSAI-3').racheter.qte, /Pour la pose chez/.test(ref('OUT-ESSAI-3').racheter.note)], [1, true]);
+        w.localStorage.removeItem('ss_emporter_ESSAI-10');
+        w.fermerFenetre(true); await attendre(40);
+        bouton(d.getElementById('kitsSec'), '+ Nouveau kit').click(); await attendre(60);
+        const kf = d.getElementById('kitFen');
+        tape(d.getElementById('kNom'), 'Tente sur façade');
+        bouton(kf, 'Enregistrer').click(); await attendre(150);
+        check('P27 Un kit sans référence est refusé', [kf.classList.contains('open'), /au moins une référence/.test(dernierToast(d))], [true, true]);
+        d.getElementById('kPour').value = 'tente_solaire';
+        const l0 = kf.querySelector('.kl-ligne');
+        l0.querySelector('select.ref').value = 'OUT-ESSAI-4'; l0.querySelector('input').value = '2'; l0.querySelector('select.par').value = 'chantier';
+        bouton(kf, 'Enregistrer').click();
+        await attendreQue(() => BANC.sql1("SELECT COUNT(*) FROM kits") === 3 && !kf.classList.contains('open'));
+        const kn = JSON.parse(BANC.sql1("SELECT data FROM kits WHERE nom = 'Tente sur façade'"));
+        check('P28 Un kit se crée depuis la page', [kn.pour, kn.lignes], ['tente_solaire', [{ ref: 'OUT-ESSAI-4', qte: 2, par: 'chantier' }]]);
+        check('P29 Tous les gestionnaires compilent (apostrophe dans « L’Universelle »)', compiles(d), []);
+        f.remove();
+        f = await ouvrirPage(1500, 900, '?pose=ESSAI-10');
+        d = f.contentDocument;
+        await attendreQue(() => d.getElementById('emFen').classList.contains('open'));
+        check('P30 Arriver avec ?pose=… (depuis le planning) ouvre « À emporter », puis le paramètre quitte l’adresse',
+          [d.getElementById('emFen').classList.contains('open'), /Saint-Exemple/.test(txt(d.getElementById('emTitre'))), f.contentWindow.location.search], [true, true, '']);
+        f.remove();
+
+        // ══════════ V — LE PLANNING Y MÈNE ══════════
+        titre('V — Le planning mène à « À emporter »');
+        f = await BANC.cadre('../app/planning.html?vue=jour&date=' + J(3) + '&t=' + Date.now(), 1500, 900);
+        await attendreQue(() => f.contentDocument.querySelector('a[href="outillage.html?pose=ESSAI-10"]'), 8000);
+        check('V1 Vue Jour : la pose de l’école porte « À emporter », vers la bonne pose', txt(f.contentDocument.querySelector('a[href="outillage.html?pose=ESSAI-10"]')), 'À emporter');
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const debordent = [...d.querySelectorAll('.ot-card, .ot-card *, .ot-courses *')].filter((e) => e.scrollWidth > e.clientWidth + 1 && w.getComputedStyle(e).overflowX !== 'hidden').map((e) => e.className || e.tagName);
+        const horsCarte = [...d.querySelectorAll('.ot-actions .btn')].filter((b) => b.getBoundingClientRect().right > b.closest('.ot-card').getBoundingClientRect().right + 1).length;
+        check('T1 Une colonne ; aucun bouton hors de sa carte (Modifier et Supprimer étaient coupés), rien ne déborde',
+          [w.getComputedStyle(d.getElementById('grid')).gridTemplateColumns.split(' ').length, horsCarte, debordent, d.documentElement.scrollWidth <= 375], [1, 0, [], true]);
+        check('T2 Les notes restent visibles ; les catégories tiennent dans UN menu ; la première référence est dans le premier écran',
+          [w.getComputedStyle(carte(d, 'OUT-ESSAI-2').querySelector('.ot-notes')).display, w.getComputedStyle(d.getElementById('catFilters')).display, w.getComputedStyle(d.querySelector('.ot-catsel')).display,
+            Math.round(d.querySelector('.ot-card').getBoundingClientRect().top) < 812],
+          ['block', 'none', 'block', true]);
+        d.getElementById('catSelect').value = 'Consommables'; d.getElementById('catSelect').dispatchEvent(new Event('change'));
+        await attendre(30);
+        check('T3 Le menu Catégorie filtre', [...d.querySelectorAll('.ot-card')].map((c) => c.getAttribute('data-id')), ['OUT-ESSAI-4']);
+        f.remove();
+        f = await cadreNavigue('../app/outillage.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => typeof w.ouvrirFiche === 'function' && d.querySelector('.ot-card, .empty'), 8000);
+        bouton(d.querySelector('.header-actions'), 'Ajouter').click(); await attendre(60);
+        const fT = d.getElementById('ficheFen');
+        check('T4 La fiche pose une étape d’historique', [fT.classList.contains('open'), !!(w.history.state && w.history.state.otFenetre)], [true, true]);
+        // On ne recule que si la page a posé son étape : sinon « retour » quitterait la page de TEST elle-même.
+        if (w.history.state && w.history.state.otFenetre) w.history.back();
+        await attendreQue(() => !fT.classList.contains('open'), 2000);
+        check('T5 « Retour » ferme la fiche et reste sur la page', [fT.classList.contains('open'), /outillage\.html$/.test(w.location.pathname)], [false, true]);
+        bouton(d.querySelector('.header-actions'), 'Ajouter').click(); await attendre(60);
+        let confT = 0; w.confirm = () => { confT++; return false; };
+        tape(d.getElementById('fNom'), 'Saisie');
+        const etapeT6 = !!(w.history.state && w.history.state.otFenetre);
+        if (etapeT6) w.history.back();
+        await attendre(300);
+        check('T6 « Retour » sur une saisie entamée demande d’abord — « non » garde la fiche et son étape',
+          [etapeT6, fT.classList.contains('open'), confT, !!(w.history.state && w.history.state.otFenetre)], [true, true, 1, true]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        try { localStorage.removeItem('ss_outillage_cache'); localStorage.removeItem('ss_kits_cache'); localStorage.removeItem('ss_emporter_ESSAI-10'); } catch (e) {}
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

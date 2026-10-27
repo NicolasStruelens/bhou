@@ -37,6 +37,8 @@
   <script src="../assets/js/actions.js"></script>
   <script src="../assets/js/attente.js"></script>
   <script src="../assets/js/sav.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/outillage.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
   <script>
@@ -102,20 +104,23 @@
           devis: sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'"), rdv: sql1("SELECT COUNT(*) FROM rdv WHERE id LIKE 'ESSAI-RDV-%'"),
           sujets: sql1("SELECT COUNT(*) FROM sujets WHERE id LIKE 'SUJ-ESSAI-%'"), dispos: sql1("SELECT COUNT(*) FROM dispos WHERE id LIKE 'DISPO-ESSAI-%'"),
           fiches: sql1('SELECT COUNT(*) FROM clients'), factures: sql1('SELECT COUNT(*) FROM factures'),
+          outillage: sql1("SELECT COUNT(*) FROM outillage WHERE id LIKE 'OUT-ESSAI-%'"), kits: sql1("SELECT COUNT(*) FROM kits WHERE id LIKE 'KIT-ESSAI-%'"),
           encaissements: sqlL('SELECT data FROM factures').reduce((s, r) => s + (JSON.parse(r[0]).paiements || []).length, 0),
         });
-        const attenduCompte = { devis: 21, rdv: 5, sujets: 3, dispos: 2, fiches: 27, factures: 10, encaissements: 8 };
-        check('R2 Vingt et un dossiers, cinq demandes, trois sujets, deux congés, 27 fiches (dont le quasi-doublon et la marque), dix factures, huit encaissements',
+        const attenduCompte = { devis: 21, rdv: 5, sujets: 3, dispos: 2, fiches: 27, factures: 10, outillage: 6, kits: 2, encaissements: 8 };
+        check('R2 Vingt et un dossiers, cinq demandes, trois sujets, deux congés, 27 fiches (dont le quasi-doublon et la marque), dix factures, six références, deux kits, huit encaissements',
           compte(), attenduCompte);
         const numeros = sqlL('SELECT id FROM factures ORDER BY id').map((r) => r[0]);
         check('R3 Les factures sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
           [numeros.length, new Set(numeros).size, numeros.every((n) => /^F\d{4}-\d{3}$/.test(n))], [10, 10, true]);
+        const racheterAvant = donnee('outillage', 'id', 'OUT-ESSAI-2').racheter.le;
         const b2 = await B.remplir(window.SS, {});
         check('R4 REJOUABLE : relancer « Remplir » ne crée ni facture, ni note, ni ticket, ni attente, ni passage de réparation en double',
           [b2.erreurs, compte(), (donnee('devis', 'id', 'ESSAI-04').comments || []).length, (donnee('devis', 'id', 'ESSAI-17').sav_tickets || []).length,
             (donnee('devis', 'id', 'ESSAI-05').attentes || []).filter((a) => !a.levee_le).length,
-            (donnee('devis', 'id', 'ESSAI-11').sav_tickets || []).length, ((donnee('devis', 'id', 'ESSAI-12').sav_tickets || [])[0] || {}).passages.length],
-          [[], attenduCompte, 1, 1, 1, 1, 1]);
+            (donnee('devis', 'id', 'ESSAI-11').sav_tickets || []).length, ((donnee('devis', 'id', 'ESSAI-12').sav_tickets || [])[0] || {}).passages.length,
+            donnee('outillage', 'id', 'OUT-ESSAI-2').racheter.le === racheterAvant],
+          [[], attenduCompte, 1, 1, 1, 1, 1, true]);
         check('R5 Les montants sortent du vrai moteur : 4 screens à 1 450 € + 4 poses à 280 €, TVA 6 % = 7 335,20 € ; l’école à 21 % = 16 746,40 €',
           [sql1("SELECT total_ttc FROM devis WHERE id = 'ESSAI-07'"), sql1("SELECT total_ttc FROM devis WHERE id = 'ESSAI-10'")], [7335.2, 16746.4]);
         const f12 = sqlL("SELECT data FROM factures WHERE devis_id = 'ESSAI-12'").map((r) => JSON.parse(r[0]));
@@ -183,6 +188,11 @@
         const syn = window.SSSav.synthese(tickets);
         check('R16 SAV : « Ce qui casse le plus » compte deux pannes du même moteur (ESSAI-11 et ESSAI-21) et le signale',
           syn.aSignaler.map((m) => [m.label, m.n]), [['4114: Sunea 40 RTS', 2]]);
+        const refs = await window.SS.listOutillage(), kits = await window.SS.listKits();
+        const em = window.SSOutil.aEmporter(liste.find((x) => x.id === 'ESSAI-10'), kits, refs);
+        check('R17 Outillage : la pose de l’école (8 screens) a son chargement — 32 vis, 32 chevilles, 1 foret, 1 silicone — et les chevilles sont « à racheter », signé par le serveur',
+          [em.kits.map((k) => k.id), em.lignes.map((l) => [l.ref, l.qte]), refs.find((o) => o.id === 'OUT-ESSAI-2').racheter.par, window.SSOutil.posesAVenir(liste).map((d) => d.id).indexOf('ESSAI-10') >= 0],
+          [['KIT-ESSAI-1'], [['OUT-ESSAI-1', 32], ['OUT-ESSAI-2', 32], ['OUT-ESSAI-3', 1], ['OUT-ESSAI-4', 1]], 'nicolas', true]);
 
         // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
         titre('P — La page de remplissage (tests/bac-a-sable.html)');
@@ -210,7 +220,7 @@
         const bv = await w.vider();
         check('V1 Les dossiers, demandes, sujets, congés, fiches et factures d’essai partent ; le devis saisi à la main et la marque restent',
           [bv.erreurs, compte(), sql1("SELECT COUNT(*) FROM devis WHERE id = '202610269999'"), sql1("SELECT COUNT(*) FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'")],
-          [[], { devis: 0, rdv: 0, sujets: 0, dispos: 0, fiches: 1, factures: 0, encaissements: 0 }, 1, 1]);
+          [[], { devis: 0, rdv: 0, sujets: 0, dispos: 0, fiches: 1, factures: 0, outillage: 0, kits: 0, encaissements: 0 }, 1, 1]);
         v = await B.verifier({ hote: PREVIEW });
         check('V2 Grâce à la marque, une base d’essai vidée qui garde un devis manuel se remplit toujours', [v.ok, v.etat.essai, v.etat.marque], [true, 0, true]);
         BANC.DB.exec("DELETE FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'");

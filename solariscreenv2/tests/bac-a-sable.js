@@ -321,7 +321,31 @@
     FICHES.push(Object.assign({}, dbl, { prenom: 'Marc', nom: 'Dubbois', key: U().clientKeyOf('Marc', 'Dubbois'), type_bien: '', tags: [], notes: 'Quasi-doublon volontaire (essai).',
       essai: true, date_creation: T(-30), date_modification: T(-30) }));
 
-    return { base: base, devis: D, rdv: RDV, sujets: SUJETS, dispos: DISPOS, fiches: FICHES };
+    /* L'OUTILLAGE (règle 48) : des références fictives (liens en .invalid, qui ne mènent nulle part),
+       deux fournisseurs dont un prix ANCIEN, une référence sans catégorie, une apostrophe, une photo
+       dessinée laissée dans la base (pour essayer « Alléger »), et deux kits de pose. La pose de
+       l'école (ESSAI-10, 8 screens dans 3 jours) a donc de quoi remplir « À emporter ». */
+    const lien = function (n) { return 'https://boutique.exemple.invalid/ref-' + n; };
+    const OUTILLAGE = [
+      { id: 'OUT-ESSAI-1', nom: 'Vis inox tête fraisée 4×40', categorie: 'Visserie & boulonnerie', reference: '0179 4 40', fournisseur: 'Würth', prix: 12.9, prix_le: J(-20), url: lien(1),
+        autre: { fournisseur: 'Brico', reference: '', prix: 14.5, prix_le: J(-200), url: lien('1b') }, notes: 'Caisson sur béton — boîte de 200. Pré-percer à 3 mm dans l’alu.',
+        photos: [photo('Vis 4×40', '#4a5a6b')] },
+      { id: 'OUT-ESSAI-2', nom: 'Cheville nylon 6×40', categorie: 'Chevilles & fixations', reference: 'SX 6x40', fournisseur: 'Fixami', prix: 6.9, prix_le: J(-35), url: lien(2), notes: 'Paquet de 100' },
+      { id: 'OUT-ESSAI-3', nom: 'Foret béton SDS-plus 6 mm', categorie: 'Perçage & découpe', reference: '2608.597.523', fournisseur: 'Würth', prix: 8.4, prix_le: J(-10), url: lien(3) },
+      { id: 'OUT-ESSAI-4', nom: 'Mastic silicone transparent 310 ml', categorie: 'Consommables', reference: 'SIL-310', fournisseur: 'ManoMano', prix: 7.2, prix_le: J(-60), url: lien(4) },
+      { id: 'OUT-ESSAI-5', nom: 'Embout Torx T25', categorie: '', reference: 'T25-50', notes: 'Pour les coulisses des screens.' },
+      { id: 'OUT-ESSAI-6', nom: 'Cheville à frapper L’Universelle 6×40', categorie: 'Chevilles & fixations', reference: "UX 6×40 R", fournisseur: 'Brico', prix: 8.49, prix_le: J(-5) },
+    ].map(function (o) { return Object.assign({ photos: [], date_creation: T(-30), date_modification: T(-3), essai: true }, o); });
+    const KITS = [
+      { id: 'KIT-ESSAI-1', nom: 'Pose screen sur béton', pour: 'screen', notes: 'Prévoir le perforateur SDS.',
+        lignes: [{ ref: 'OUT-ESSAI-1', qte: 4, par: 'ouverture' }, { ref: 'OUT-ESSAI-2', qte: 4, par: 'ouverture' }, { ref: 'OUT-ESSAI-3', qte: 1, par: 'chantier' }, { ref: 'OUT-ESSAI-4', qte: 1, par: 'chantier' }] },
+      { id: 'KIT-ESSAI-2', nom: 'Volet en rénovation', pour: 'volet_roulant', notes: '',
+        lignes: [{ ref: 'OUT-ESSAI-1', qte: 6, par: 'ouverture' }, { ref: 'OUT-ESSAI-4', qte: 1, par: 'chantier' }] },
+    ];
+    // « À racheter », par la route ciblée (signée par le serveur) : il n'y a plus de chevilles.
+    const RACHETER = [{ id: 'OUT-ESSAI-2', qte: 2, note: 'Il en reste une demi-boîte (essai)' }];
+
+    return { base: base, devis: D, rdv: RDV, sujets: SUJETS, dispos: DISPOS, fiches: FICHES, outillage: OUTILLAGE, kits: KITS, racheter: RACHETER };
   }
 
   // ── Les gardes ────────────────────────────────────────────────────────────────────────────────
@@ -479,6 +503,21 @@
       const res = await SS.saveDispo(x);
       note(!echec(res), x.id + ' (' + x.kind + ')', res && res.error);
     }
+    for (const o of jeu.outillage) {
+      const res = await SS.saveOutillage(o);
+      note(!echec(res), o.id + ' (référence)', res && res.error);
+    }
+    for (const k of jeu.kits) {
+      const res = await SS.saveKit(k);
+      note(!echec(res), k.id + ' (kit)', res && res.error);
+    }
+    const refs = (await SS.listOutillage()) || [];
+    for (const r of jeu.racheter) {
+      const ex = refs.filter(function (o) { return o.id === r.id; })[0];
+      if (ex && ex.racheter) { bilan.ignores++; continue; }   // déjà sur la liste : on ne la redate pas
+      const res = await SS.setRacheter(r.id, r.qte, r.note);
+      note(!echec(res), r.id + ' : à racheter', res && res.error);
+    }
     return bilan;
   }
 
@@ -504,6 +543,8 @@
     for (const s of jeu.sujets) { const res = await SS.deleteSujet(s.id); note(!echec(res), s.id, res && res.error); }
     for (const x of jeu.dispos) { const res = await SS.deleteDispo(x.id); note(!echec(res), x.id, res && res.error); }
     for (const f of jeu.fiches) { const res = await SS.deleteClient(f.key); note(!echec(res), 'fiche ' + f.prenom + ' ' + f.nom, res && res.error); }
+    for (const o of jeu.outillage) { const res = await SS.deleteOutillage(o.id); note(!echec(res), o.id, res && res.error); }
+    for (const k of jeu.kits) { const res = await SS.deleteKit(k.id); note(!echec(res), k.id, res && res.error); }
     return bilan;
   }
 

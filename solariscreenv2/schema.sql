@@ -84,6 +84,15 @@ CREATE TABLE IF NOT EXISTS outillage (
 );
 CREATE INDEX IF NOT EXISTS idx_outillage_modif ON outillage(date_modification DESC);
 
+-- ── KITS DE POSE (références à emporter par type d'ouverture — règle 48) ──
+-- Créée aussi à la volée par le backend, comme l'outillage.
+CREATE TABLE IF NOT EXISTS kits (
+  id                TEXT PRIMARY KEY,
+  nom               TEXT NOT NULL DEFAULT '',
+  date_modification TEXT,
+  data              TEXT NOT NULL
+);
+
 -- ── CONNEXIONS (historique de connexion Nicolas / Yannick, alimenté par nav.js) ──
 CREATE TABLE IF NOT EXISTS connections (
   session_id        TEXT PRIMARY KEY,
