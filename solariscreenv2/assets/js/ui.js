@@ -9,6 +9,14 @@
   const fmtEur = (n) => eur.format(Number(n) || 0);
   const fmt2   = (n) => nf2.format(Number(n) || 0);
   const r2     = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». Elle vivait en TROIS copies
+   *  (devis, fiche, page client) et la FACTURE n'en avait aucune : une main-d'œuvre de 1,5 h y
+   *  sortait « 1.5 », sur le document même qui part chez le client — pendant que le devis du même
+   *  dossier écrivait « 1,5 ». Trouvé dans le bac à sable le 27/10/2026. Source unique ici (règle 10). */
+  function fmtQte(q) {
+    const n = Number(q) || 0;
+    return (n % 1 === 0) ? String(n) : n.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
+  }
 
   function fmtDate(iso) {
     if (!iso) return '—';
@@ -367,6 +375,8 @@
       email: (d.client && d.client.email) || '',
       chantier: d.chantier || null,
       commande_statut: (d.commande && d.commande.statut) || d.commande_statut || '',
+      // Jour où la commande est passée à « Reçu » : l'ancienneté de « pose à planifier » part de là.
+      commande_recu_le: (d.commande && d.commande.recu_le) || d.commande_recu_le || '',
       reception_date: (d.reception && d.reception.date) || d.reception_date || '',
       checklist: d.checklist || null,
       raison_refus: d.raison_refus || '',
@@ -496,6 +506,12 @@
     const hist = (d && d.statut_history) || [];
     for (let i = hist.length - 1; i >= 0; i--) if (hist[i] && hist[i].statut === 'signe') return hist[i].date;
     return d && ['signe', 'termine'].indexOf(d.statut) >= 0 ? (d.date_modification || null) : null;
+  }
+  /** Jour où le matériel est arrivé (commande passée à « Reçu », posé par la fiche devis). Lu sous
+   *  les deux formes : `commande.recu_le` sur une fiche complète, `commande_recu_le` à plat dans une
+   *  liste. Null si on ne sait pas — un dossier reçu avant le 27/10/2026 n'a pas cette date. */
+  function dateReception(d) {
+    return (d && ((d.commande && d.commande.recu_le) || d.commande_recu_le)) || null;
   }
 
   // Natures d'un ticket SAV. Vivait en double (sav.html + vue.html) ; source unique ici.
@@ -2048,7 +2064,7 @@
   }
 
   window.SSUI = {
-    fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate,
+    fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
@@ -2076,7 +2092,7 @@
     COMMANDE_ETAPES: COMMANDE_ETAPES, COMMANDE_LABEL: COMMANDE_LABEL, etatCommande: etatCommande,
     materielRecu: materielRecu, livraisonEstimee: livraisonEstimee,
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
-    nouveauSujet: nouveauSujet, dateSignature: dateSignature,
+    nouveauSujet: nouveauSujet, dateSignature: dateSignature, dateReception: dateReception,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,

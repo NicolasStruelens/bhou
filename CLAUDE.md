@@ -71,7 +71,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 121 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 73 des 93 tests de sa suite (`window.SSAttente`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 78 des 100 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
@@ -80,7 +80,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
-| `tests/attente.test.html` | Les 93 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
+| `tests/attente.test.html` | Les 100 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
@@ -97,7 +97,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 24 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 26 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -313,6 +313,14 @@ Seul un même DOSSIER n'apparaît qu'une fois : quand le devis porte déjà son 
 d'attente qui pointe sur lui se tait.
 Les seuils métier (4 h / 24 h sur un lead, 2 j, 3 j, 7 j) vivent dans `SSAttente.SEUILS` : ils
 étaient dans `rdv.html`, ils n'y sont plus.
+⚠️ **L'ANCIENNETÉ NE SE LIT JAMAIS SUR `date_modification`** (trouvé dans le bac à sable le 27/10/2026).
+Toute écriture sur un dossier — une note, une photo de chantier, une réassignation — l'avance : trois
+alertes s'en servaient, et un chantier en attente depuis des semaines s'affichait « depuis à
+l'instant ». C'est pourtant l'ancienneté qui rend une chose urgente. Chaque alerte part de SON moment :
+« matériel pas commandé » de la signature (`SSUI.dateSignature`), « pose à planifier » de la réception
+du matériel (`SSUI.dateReception` : `commande.recu_le`, posé par la fiche quand la commande passe à
+« Reçu », projeté à plat dans la liste sous `commande_recu_le` et gardé par `normDevis` ; sans lui,
+repli sur la signature), « visité, en attente du devis » de la visite (`date_rdv`). Tests G1 à G6.
 
 **15 quater. UN COMPTEUR QUI NE DÉSIGNE RIEN FAIT CHERCHER — donc, au bout de deux fois, plus
 rien.** « C'est quoi la situation critique ? » (Nicolas, 12/10/2026, capture à l'appui). Le
@@ -2342,6 +2350,18 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   Cloudflare : **à réutiliser pour toute nouvelle route.** Vérifié par mutation (garde « vraie base »,
   doublons de factures, champs privés envoyés).
 • ⚠️ **Jamais de clé SMTP2GO dans l'environnement Preview** : un essai ne doit pas pouvoir envoyer de mail.
+• **BRANCHÉ le 27/10/2026.** Adresse fixe : `essai-bac-a-sable.solariscreen-erp.pages.dev` (branche
+  `essai/bac-a-sable`, la production telle quelle plus un commit vide — jamais fusionnée). Access :
+  application « solariscreen-erp - Cloudflare Pages » sur `*.solariscreen-erp.pages.dev`, stratégies
+  « Allow Members » + « Equipe SolariScreen ». Tous les aperçus partagent la MÊME base d'essai.
+• ⚠️ **Ce que seul le vrai Cloudflare montre** (trouvé en jouant le bac à sable, invisible en local) :
+  - l'adresse d'une branche est **tronquée à 28 caractères** (`amelioration/bac-a-sable-scenarios` →
+    `amelioration-bac-a-sable-sce.…`) : lire l'adresse dans le rapport de build, ne pas la deviner ;
+  - **une adresse inexistante ne répond PAS 404** : faute de `404.html`, Pages sert une autre page sans
+    rien dire — un lien cassé dans l'ERP passe inaperçu en ligne, alors que le serveur de test, lui,
+    répond 404 ;
+  - le traceur Web Analytics de Cloudflare (`cloudflareinsights.com`) remplit la console d'erreurs CORS
+    sur les aperçus : c'est du bruit côté Cloudflare, sans effet sur l'ERP.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2614,7 +2634,7 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
-   `tests/attente.test.html`, exiger « 93/93 ».
+   `tests/attente.test.html`, exiger « 100/100 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
    quatre de ses cas chargent `tests/amorce-theme.html` en iframe pour mesurer le premier rendu.
@@ -2627,7 +2647,7 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`) ou à une route qu'il emprunte : `tests/bac-a-sable.test.html`,
-   exiger « 24/24 », par le serveur (il charge sql.js depuis cdnjs).
+   exiger « 26/26 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.

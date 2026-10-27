@@ -363,6 +363,35 @@
     check('D20 signer un devis éteint l\u2019attente sans rien effacer',
       SSUI.attenteClient({ statut: 'signe', attentes: ATT_ACTIVE }).etat, 'aucune');
 
+    // ══════════ L'ANCIENNETÉ PART DU BON MOMENT (trouvé dans le bac à sable, 27/10/2026) ══════════
+    // Trois alertes lisaient leur ancienneté sur « date_modification » : toute écriture sur le
+    // dossier (une note, une photo de chantier) la remettait à zéro, et un chantier en attente depuis
+    // des semaines s'affichait « depuis à l'instant ». Or c'est l'ancienneté qui rend une chose
+    // urgente (règle 15). Chaque cas ci-dessous porte une modification « à l'instant » qui ne doit
+    // plus rien changer.
+    const MODIF_A_L_INSTANT = new Date().toISOString();
+    const SIGNE_10J = ilYaH(240);
+    const pl = (aPlan, aCom) => A.depuisPlanning([], aPlan || [], REG, {}, aCom || []);
+    check('G1 « matériel pas commandé » compte depuis la SIGNATURE, pas la dernière modification',
+      pl([], [{ id: 'G1', statut: 'signe', client: cli('G'), date_modification: MODIF_A_L_INSTANT, statut_history: [{ statut: 'signe', date: SIGNE_10J }] }])[0].depuis, SIGNE_10J);
+    check('G2 « pose à planifier » compte depuis la RÉCEPTION du matériel (forme liste, à plat)',
+      pl([{ id: 'G2', statut: 'signe', client: cli('G'), commande_statut: 'recu', commande_recu_le: jour(-6), date_modification: MODIF_A_L_INSTANT,
+        statut_history: [{ statut: 'signe', date: SIGNE_10J }] }])[0].depuis, jour(-6));
+    check('G3 … et sous la forme de la fiche complète (commande.recu_le)',
+      pl([{ id: 'G3', statut: 'signe', client: cli('G'), commande: { statut: 'recu', recu_le: jour(-6) }, date_modification: MODIF_A_L_INSTANT }])[0].depuis, jour(-6));
+    check('G4 un dossier reçu sans date de réception (avant le 27/10/2026) retombe sur la SIGNATURE, jamais sur la modification',
+      pl([{ id: 'G4', statut: 'signe', client: cli('G'), commande_statut: 'recu', date_modification: MODIF_A_L_INSTANT,
+        statut_history: [{ statut: 'signe', date: SIGNE_10J }] }])[0].depuis, SIGNE_10J);
+    check('G5 « visité, en attente du devis » compte depuis la VISITE (ni la création, ni la modification)',
+      A.depuisRdv([{ id: 'RG', statut: 'visite', assigned_to: 'nicolas', client: cli('G'), date_rdv: jour(-2) + 'T14:00',
+        date_creation: ilYaH(288), date_modification: MODIF_A_L_INSTANT }], [])
+        .filter(i => i.quoi === 'Visité, en attente du devis')[0].depuis, jour(-2) + 'T14:00');
+    check('G6 normDevis GARDE la date de réception (la liste du tableau de bord passe par lui — c’est une liste blanche)',
+      [SSUI.normDevis({ id: 'x', commande_recu_le: jour(-3) }).commande_recu_le, SSUI.dateReception({ commande: { recu_le: jour(-1) } }), SSUI.dateReception({})],
+      [jour(-3), jour(-1), null]);
+    check('G7 « 1,5 » et non « 1.5 » : la quantité suit UNE règle (la facture n’en avait aucune)',
+      [SSUI.fmtQte(1.5), SSUI.fmtQte(2), SSUI.fmtQte('0.75'), SSUI.fmtQte(null)], ['1,5', '2', '0,75', '0']);
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';

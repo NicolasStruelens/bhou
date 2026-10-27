@@ -95,18 +95,27 @@
     return Object.assign(fiche, c[5] || {});
   }
 
-  // ── Les ouvertures (mêmes champs que le simulateur) ──────────────────────────────────────────
+  /* ── Les ouvertures (mêmes champs que le simulateur) ──────────────────────────────────────────
+     COMPLÈTES, avec des valeurs prises dans les VRAIES listes du catalogue (`SSProducts` :
+     CS8_VARIANTES, CS8_COLLECTIONS, CS8_MOTEURS, VR_LAMES, VR_CAISSONS, VR_COULEURS_LAMES,
+     TS_MANOEUVRES, TS_COLLECTIONS) : une valeur hors liste s'afficherait « valeur enregistrée »
+     (règle 31 bis), et un champ exigé vide allume « à compléter » (`CHAMPS_REQUIS`). Seul le
+     dossier ABÎMÉ (ESSAI-20) doit porter ce badge — c'est lui qui le teste (test R12).
+     Le caisson de volet (165) couvre la hauteur de 1 400 mm. */
   function screens(n, o) {
-    return Object.assign({ type: 'screen', modele: 'SC 90', largeur: 2400, hauteur: 2200, quantite: n, prix_catalogue_ht: 1450,
-      couleur: '7016 — Gris anthracite', toile: 'Soltis 86 — Gris', moteur: 'Somfy RTS', emplacement: 'Façade sud', emetteur: true, photos: [] }, o || {});
+    return Object.assign({ type: 'screen', modele: 'SC 90', variante: 'Standard', largeur: 2400, hauteur: 2200, quantite: n, prix_catalogue_ht: 1450,
+      collection: 'Collectie soltis 86', toile_couleur: 'Gris', couleur: '7016 — Gris anthracite', caisson_mesure: '110x115',
+      moteur_ref: '4114: Sunea 40 RTS', emplacement: 'Façade sud', emetteur: true, photos: [] }, o || {});
   }
   function volets(n, o) {
     return Object.assign({ type: 'volet_roulant', modele: 'VR150', largeur: 1200, hauteur: 1400, quantite: n, prix_catalogue_ht: 780,
-      couleur: '9016 — Blanc signalisation', emplacement: 'Chambres', emetteur: true, photos: [] }, o || {});
+      lame_type: 'alu35', caisson_mesure: '165', alimentation: 'Électrique (filaire)', moteur: 'Secure (RF, standard)',
+      couleur: '9016 — Blanc signalisation', couleur_lame: '01 — 9016 Blanc', emplacement: 'Chambres', emetteur: true, photos: [] }, o || {});
   }
   function tente(o) {
-    return Object.assign({ type: 'tente_solaire', modele: 'Tente coffre', largeur: 4000, projection: 3000, quantite: 1, prix_catalogue_ht: 3200,
-      couleur: '7016 — Gris anthracite', toile: 'Dickson Orchestra — Écru', telecommande: true, photos: [] }, o || {});
+    return Object.assign({ type: 'tente_solaire', modele: 'BX270', largeur: 4000, projection: 3000, quantite: 1, prix_catalogue_ht: 3200,
+      manoeuvre: 'Moteur', moteur: 'IO (standard)', collection: 'Dickson Orchestra', toile_couleur: 'Écru',
+      couleur: '7016 — Gris anthracite', telecommande: true, photos: [] }, o || {});
   }
 
   /* ── Un devis, comme le simulateur l'enregistre ───────────────────────────────────────────────
@@ -203,7 +212,7 @@
         _factures: [{ type: 'acompte', pct: 50, date: J(-64), echeance: J(-49), paiements: [{ date: J(-58), moyen: 'Virement' }] },
           { type: 'solde', date: J(-19), echeance: J(-4) }] }),
       devis(base, { n: '12', client: 'c12', vendeur: 'nicolas', cree: -120, modifie: -30, statut: 'termine',
-        items: [screens(1, { photos: [photo('Screen posé', '#2e4a62'), photo('Screen, détail', '#3b5b75')] }), volets(2, { couleur: '7016 — Gris anthracite', photos: [photo('Volets posés', '#4a3b62')] })],
+        items: [screens(1, { photos: [photo('Screen posé', '#2e4a62'), photo('Screen, détail', '#3b5b75')] }), volets(2, { couleur: '7016 — Gris anthracite', couleur_lame: '38 — 7016 Gris anthracite', photos: [photo('Volets posés', '#4a3b62')] })],
         role: 'Chantier terminé et soldé, dans le portfolio (avant / après)',
         champs: { date_envoi: J(-115), statut_history: [{ statut: 'signe', date: T(-110) }, { statut: 'termine', date: T(-30) }],
           commande: { statut: 'pose', date_commande: J(-100), delai_semaines: 5 }, chantier: { date_pose: J(-40), equipe: 'nicolas_yannick' }, reception_date: J(-40),
