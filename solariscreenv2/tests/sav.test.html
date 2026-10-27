@@ -251,7 +251,9 @@
           [true, true, true, false]);
         const ici = (c) => [...c.querySelectorAll('.sav-et')].findIndex((e) => e.classList.contains('ici'));
         check('P6 Les étapes : ouvert pour le ticket orphelin, « pris en charge · Yannick · échéance » pour l’autre',
-          [ici(cH), ici(cG), /Yannick · \d\d\/\d\d/.test(txt(cG.querySelectorAll('.sav-et')[1]))], [0, 1, true]);
+          [ici(cH), ici(cG), /^Pris en charge Yannick d’ici le \d\d\/\d\d$/.test(txt(cG.querySelectorAll('.sav-et')[1]))], [0, 1, true]);
+        const coupes = (doc) => [...doc.querySelectorAll('.sav-et b, .sav-et span, .sav-client, .sav-devis')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent);
+        check('P6b Aucune étape, aucun nom ni chantier n’est COUPÉ (ils passent à la ligne)', coupes(d), []);
         check('P7 Appeler / Y aller sont rendus mais masqués au bureau (règle 33 : la feuille de style décide)',
           [!!bouton(cH, 'Appeler'), w.getComputedStyle(cH.querySelector('.sav-terrain')).display], [true, 'none']);
         check('P8 Tous les gestionnaires de la page compilent, avec « L’Hoest » et « Rue de l’Église » dans les données', compiles(d), []);
@@ -285,7 +287,7 @@
         await attendreQue(() => t0De('P-GAR').statut === 'attente_piece' && ici(carteDe(d, 'P-GAR')) === 2);
         cG = carteDe(d, 'P-GAR');
         check('P12 Pièce commandée : date et note écrites, le nom reste, l’étape « Pièce » s’allume avec sa date',
-          [t0De('P-GAR').piece_prevue, t0De('P-GAR').piece_note, t0De('P-GAR').pour, ici(cG), /prévue \d\d\/\d\d/.test(txt(cG.querySelectorAll('.sav-et')[2])), !!bouton(cG, 'Pièce reçue')],
+          [t0De('P-GAR').piece_prevue, t0De('P-GAR').piece_note, t0De('P-GAR').pour, ici(cG), /prévue le \d\d\/\d\d/.test(txt(cG.querySelectorAll('.sav-et')[2])), !!bouton(cG, 'Pièce reçue')],
           [J(4), 'Moteur Sunea, chez Harol', 'yannick', 2, true, true]);
         bouton(cG, 'Pièce reçue').click();
         await attendreQue(() => t0De('P-GAR').statut === 'en_cours' && ici(carteDe(d, 'P-GAR')) === 1);
@@ -463,8 +465,11 @@
         check('T2 Appeler / Y aller apparaissent sur le terrain, d’un seul appui',
           [w.getComputedStyle(premier.querySelector('.sav-terrain')).display, (premier.querySelector('.sav-terrain a') || {}).getAttribute && premier.querySelector('.sav-terrain a').getAttribute('href')],
           ['flex', 'tel:0000000002']);
-        const deborde = [...d.querySelectorAll('.sav-card, .sav-card *')].filter((e) => e.scrollWidth > e.clientWidth + 1 && w.getComputedStyle(e).overflowX !== 'hidden' && !e.closest('.sav-et')).map((e) => e.className || e.tagName);
+        const deborde = [...d.querySelectorAll('.sav-card, .sav-card *')].filter((e) => e.scrollWidth > e.clientWidth + 1 && w.getComputedStyle(e).overflowX !== 'hidden').map((e) => e.className || e.tagName);
         check('T3 Rien ne déborde de sa boîte, ni la page de l’écran', [deborde, d.documentElement.scrollWidth <= 375], [[], true]);
+        const largeurCarte = premier.clientWidth - 2 * parseFloat(w.getComputedStyle(premier).paddingLeft);
+        check('T3b Rien n’est coupé, et le chantier prend toute la largeur de la carte (il ne s’écrase plus à côté de l’âge)',
+          [coupes(d), Math.round(premier.querySelector('.sav-devis').getBoundingClientRect().width) >= Math.round(largeurCarte) - 1], [[], true]);
         f.remove();
         f = await cadreNavigue('../app/sav.html?t=' + Date.now(), 375, 812);
         w = f.contentWindow; d = f.contentDocument;

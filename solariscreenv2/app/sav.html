@@ -40,10 +40,11 @@
     .sav-card.etape-2 { --tick-color: var(--text-subtle); }
     .sav-card.is-resolu { --tick-color: var(--ok); }
     .sav-card.personne { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+    /* Le nom et l'âge sur une ligne, le chantier DESSOUS sur toute la largeur : à côté de la pastille,
+       sur téléphone, le résumé du chantier s'écrasait sur trois lignes de 150 px. */
     .sav-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
-    .sav-head > div:first-child { min-width: 0; }
-    .sav-client { font-weight: 700; }
-    .sav-devis { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.15rem; }
+    .sav-client { font-weight: 700; min-width: 6ch; overflow-wrap: anywhere; }
+    .sav-devis { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.15rem; overflow-wrap: anywhere; }
     .sav-age { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.04em;
       padding: 0.15rem 0.5rem; border-radius: var(--r-pill); border: 1px solid var(--border-strong); color: var(--text-subtle); white-space: nowrap; }
     .sav-age.gene { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
@@ -61,8 +62,10 @@
     /* C — Les étapes : ouvert → pris en charge → pièce commandée → réparé. */
     .sav-etapes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: var(--sp-3) 0 var(--sp-2); }
     .sav-et { border-top: 3px solid var(--border); padding-top: 0.25rem; font-size: var(--fs-3xs); font-family: var(--font-mono); color: var(--text-subtle); min-width: 0; }
-    .sav-et b { display: block; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sav-et span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Les étapes PASSENT À LA LIGNE, elles ne coupent pas : « Pris en ch… » et « Yannick · 01/… »
+       cachaient l'étape et l'échéance — justement ce qu'on vient lire (vu sur l'aperçu, 27/10/2026). */
+    .sav-et b { display: block; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.25; overflow-wrap: anywhere; }
+    .sav-et span { display: block; line-height: 1.3; overflow-wrap: anywhere; }
     .sav-et.fait { border-top-color: var(--ok); color: var(--text-muted); }
     .sav-et.ici { border-top-color: var(--accent); color: var(--text); }
     .sav-photos { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); }
@@ -351,14 +354,15 @@
 
     function etapesHtml(t) {
       const e = SAV.etape(t);
+      // Une information par ligne : le nom, puis l'échéance — sur 80 px, les deux ensemble se coupaient.
       const libs = [
-        ['Ouvert', fmtDate(t.date_creation)],
-        ['Pris en charge', t.pour ? nomDe(t.pour) + (t.echeance ? ' · ' + fmtDate(t.echeance).slice(0, 5) : '') : '—'],
-        ['Pièce', t.statut === 'attente_piece' ? (t.piece_prevue ? 'prévue ' + fmtDate(t.piece_prevue).slice(0, 5) : 'commandée') : '—'],
-        ['Réparé', t.date_resolution ? fmtDate(t.date_resolution) : '—'],
+        ['Ouvert', [fmtDate(t.date_creation)]],
+        ['Pris en charge', t.pour ? [nomDe(t.pour)].concat(t.echeance ? ['d’ici le ' + fmtDate(t.echeance).slice(0, 5)] : []) : ['—']],
+        ['Pièce', t.statut === 'attente_piece' ? [t.piece_prevue ? 'prévue le ' + fmtDate(t.piece_prevue).slice(0, 5) : 'commandée'] : ['—']],
+        ['Réparé', [t.date_resolution ? fmtDate(t.date_resolution) : '—']],
       ];
       return `<div class="sav-etapes" aria-label="Étape : ${esc(U.SAV_STATUT_LABEL[t.statut] || t.statut)}">${libs.map((l, i) =>
-        `<div class="sav-et ${i < e || (i === 3 && e === 3) ? 'fait' : (i === e ? 'ici' : '')}"><b>${l[0]}</b><span>${esc(l[1])}</span></div>`).join('')}</div>`;
+        `<div class="sav-et ${i < e || (i === 3 && e === 3) ? 'fait' : (i === e ? 'ici' : '')}"><b>${l[0]}</b> ${l[1].map((x) => `<span>${esc(x)}</span>`).join(' ')}</div>`).join('')}</div>`;
     }
     function passagesHtml(t) {
       const ps = U.savPassages(t);
@@ -462,12 +466,10 @@
       return `
         <div class="sav-card ticked etape-${e} ${e === 3 ? 'is-resolu' : ''} ${!t.pour && e < 3 ? 'personne' : ''}" data-ticket="${esc(t.id)}">
           <div class="sav-head">
-            <div>
-              <div class="sav-client">${esc(t.client) || '—'}</div>
-              <div class="sav-devis">${resume ? esc(resume) + ' · ' : ''}#${esc(t.devisId)}${t.devis && t.devis.ville ? ' · ' + esc(t.devis.ville) : ''}</div>
-            </div>
+            <div class="sav-client">${esc(t.client) || '—'}</div>
             ${pastille}
           </div>
+          <div class="sav-devis">${resume ? esc(resume) + ' · ' : ''}#${esc(t.devisId)}${t.devis && t.devis.ville ? ' · ' + esc(t.devis.ville) : ''}</div>
           ${garantieHtml(t, dev, id)}
           <div class="sav-nature">${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}${SAV.enRetard(t) ? ' · <span style="color:var(--danger)">en retard</span>' : ''}</div>
           <div class="sav-desc">${esc(t.description)}</div>

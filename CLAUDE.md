@@ -100,7 +100,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/bac-a-sable.test.html` | Les 29 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html` et `sav.test.html` (règles 46 et 47). |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
-| `tests/sav.test.html` | Les 64 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone et « retour ». Vérifié par 12 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -2381,7 +2381,9 @@ dans `assets/js/sav.js` (`window.SSSav`, fonctions pures) ; protégé par `tests
   n'a pris, puis ce qui est en retard (échéance dépassée, ou pièce pas arrivée à la date prévue), puis le
   plus ANCIEN. Avant, le plus récent passait devant : le client qui attendait depuis trois semaines
   finissait en bas. L'âge est sur chaque carte (gênant à 3 jours, criant à 7 : `SSAttente.SEUILS`). Les
-  réparés sont repliés derrière un bouton.
+  réparés sont repliés derrière un bouton. ⚠️ Les étapes PASSENT À LA LIGNE, elles ne coupent jamais :
+  « Pris en ch… » et « Yannick · 01/… » cachaient l'étape et l'échéance (vu sur l'aperçu, invisible aux
+  mesures de débordement de la page) ; le chantier s'écrit SOUS le nom, sur toute la largeur.
 • **Quatre étapes** (`SSUI.SAV_STATUTS`, libellés dans `SAV_STATUT_LABEL`, partagés avec la fiche devis) :
   Ouvert → Pris en charge (`en_cours`) → Pièce commandée (`attente_piece`) → Réparé.
   ⚠️ **Un nom posé suffit à « pris en charge », et c'est le SERVEUR qui le fait** (`ouvert` + `pour` →
@@ -2717,7 +2719,7 @@ dans `assets/js/sav.js` (`window.SSSav`, fonctions pures) ; protégé par `tests
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 29/29 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
-   `tests/sav.test.html`, exiger « 64/64 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
+   `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
