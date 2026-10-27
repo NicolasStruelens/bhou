@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — page notes de frais</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Notes de frais</h1>
+  <p class="note">
+    La page Notes de frais (règle 32, revue du 27/10/2026) : les ROUTES SERVEUR (le vrai <code>[[catchall]].js</code> sur une
+    vraie base SQLite, <code>tests/banc-serveur.js</code>) — date dans le futur, conflit entre deux écrans, « remis » et
+    « remboursé » ciblés et signés, un lot tout ou rien — puis la VRAIE page cliquée au bureau et sur téléphone : une ligne par
+    personne et le chiffre du menu, la fenêtre d'un ticket, le doublon, le conflit, le bordereau de remise, le remboursement
+    groupé, la recherche et le bilan, la photo prise depuis une ligne, « retour ». Les règles pures sont dans
+    <code>depenses.test.html</code>.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/depenses.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 700) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 700) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests page notes de frais';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 5000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const U = window.SSUI, SS = window.SS, BANC = window.SSBanc, D = window.SSDepenses;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const AUJ = J(0), AN_PASSE = String(Number(AUJ.slice(0, 4)) - 1);
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const dep = (id) => BANC.donnee('depenses', 'id', id) || {};
+    const nbLignes = () => BANC.sql1('SELECT COUNT(*) FROM depenses');
+    const ligneDe = (d, id) => d.querySelector('.dp[data-id="' + id + '"]');
+    const ids = (d) => [...d.querySelectorAll('#liste .dp')].map((x) => x.getAttribute('data-id'));
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    async function ouvrirPage(largeur, hauteur) {
+      const f = await BANC.cadre('../app/depenses.html?t=' + Date.now(), largeur, hauteur);
+      await attendreQue(() => f.contentDocument.querySelector('#liste .dp, #liste .empty-mini'), 8000);
+      await attendre(150);
+      return f;
+    }
+    function tape(champ, valeur) { champ.value = valeur; champ.dispatchEvent(new Event('input', { bubbles: true })); champ.dispatchEvent(new Event('change', { bubbles: true })); }
+    async function photoFichier(w) {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 30;
+      const g = c.getContext('2d'); g.fillStyle = '#4a7'; g.fillRect(0, 0, 40, 30);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return new w.File([blob], 'ticket.png', { type: 'image/png' });
+    }
+    const PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90"><rect width="60" height="90" fill="#eee"/></svg>');
+    /** Le jeu : trois tickets de Nicolas en attente, deux de Yannick (dont l'échafaudage), un remboursé, un de l'an passé. */
+    async function semer() {
+      BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+      const L = [
+        { id: 'T-1', qui: 'nicolas', date: J(-37), montant: 84.37, detail: 'Visserie inox + silicone, Brico Nivelles', client_nom: 'Julie L\'Hoest' },
+        { id: 'T-2', qui: 'nicolas', date: J(-7), montant: 23.9, detail: 'Mèches béton' },
+        { id: 'T-3', qui: 'nicolas', date: J(-47), montant: 156, detail: 'Coulisses de rechange', remis_le: J(-40) },
+        { id: 'T-4', qui: 'yannick', date: J(-12), montant: 41.2, detail: 'Silicone, Gamma Wavre', remis_le: J(-11) },
+        { id: 'T-5', qui: 'yannick', date: J(-2), montant: 1234.5, detail: 'Échafaudage roulant' },
+        { id: 'T-6', qui: 'nicolas', date: J(-80), montant: 212.5, detail: 'Location perforateur', remis_le: J(-78), rembourse_le: J(-50) },
+        { id: 'T-7', qui: 'nicolas', date: AN_PASSE + '-12-10', montant: 65, detail: 'Chevilles L\'Universelle', remis_le: AN_PASSE + '-12-12', rembourse_le: AN_PASSE + '-12-20' },
+      ];
+      for (const x of L) await SS.saveDepense(x);
+      await SS.addDepensePhoto('T-1', PHOTO);
+    }
+    /** Ce que l'autre fait depuis SON téléphone : la même route, avec son identité. */
+    async function commeYannick(fn) { BANC.ident = BANC.YANNICK; try { return await fn(); } finally { BANC.ident = BANC.NICOLAS; } }
+
+    (async function () {
+      try {
+        await BANC.demarrer();
+        BANC.installer(window);
+
+        // ══════════ R — LES ROUTES ══════════
+        titre('R — Les routes du serveur (vrai fichier, vraie base)');
+        await semer();
+        let r = await SS.saveDepense({ id: 'X-1', qui: 'nicolas', date: J(400), montant: 5 });
+        const r2 = await SS.saveDepense({ id: 'X-2', qui: 'nicolas', date: J(-3), montant: 5, remis_le: J(-5) });
+        check('R1 Refusé par le SERVEUR : une date d’achat dans le futur (faute sur l’année) et une remise avant l’achat — rien n’est écrit',
+          [r.ok, /futur/.test(r.error || ''), r2.ok, /AVANT/.test(r2.error || ''), dep('X-1').id || null, dep('X-2').id || null], [false, true, false, true, null, null]);
+        const vue = dep('T-2');
+        await commeYannick(() => SS.saveDepense(Object.assign({}, vue, { montant: 25.9, detail: 'Mèches béton (2 × 6 mm)', _attendu: vue.date_modification })));
+        r = await SS.saveDepense(Object.assign({}, vue, { detail: 'Mèches', _attendu: vue.date_modification }));
+        check('R2 CONFLIT : un écran qui enregistre une version périmée est refusé, on dit QUI, on rend sa version — la correction de l’autre reste (25,90 €)',
+          [r.ok, r.conflict, /Yannick/.test(r.error || ''), r.actuel && r.actuel.montant, dep('T-2').montant, dep('T-2').detail], [false, true, true, 25.9, 25.9, 'Mèches béton (2 × 6 mm)']);
+        check('R3 Une remise posée par l’enregistrement complet est SIGNÉE par le serveur ; un « remis_par » envoyé par l’écran est ignoré',
+          [dep('T-3').remis_par, dep('T-4').remis_par, (await SS.saveDepense(Object.assign({}, dep('T-3'), { remis_par: 'yannick' }))).ok, dep('T-3').remis_par], ['nicolas', 'nicolas', true, 'nicolas']);
+        await commeYannick(() => SS.saveDepense(Object.assign({}, dep('T-3'), { detail: 'Coulisses de rechange (Harol)' })));
+        check('R4 L’autre modifie le ticket sans toucher à la date de remise : la signature reste celle de celui qui l’a remis',
+          [dep('T-3').remis_par, dep('T-3').acteur], ['nicolas', 'yannick']);
+        // L'ancien défaut : « Je l'ai remis » renvoyait le ticket entier lu par l'écran.
+        r = await SS.marquerDepenses(['T-1', 'T-2'], 'remis_le', AUJ);
+        check('R5 « Remis » par la route CIBLÉE, sur un lot : la date et la signature, et RIEN d’autre (la correction de Yannick sur T-2 reste)',
+          [r.ok, (r.data || []).length, dep('T-1').remis_le, dep('T-1').remis_par, dep('T-2').montant, dep('T-2').detail], [true, 2, AUJ, 'nicolas', 25.9, 'Mèches béton (2 × 6 mm)']);
+        r = await SS.marquerDepenses(['T-3', 'T-2'], 'rembourse_le', J(-10), 'virement');
+        check('R6 TOUT OU RIEN : un ticket du lot acheté APRÈS la date du virement → refusé, et AUCUN ticket du lot n’est touché',
+          [r.ok, /avant d’avoir été acheté/.test(r.error || ''), dep('T-3').rembourse_le || '', dep('T-2').rembourse_le || ''], [false, true, '', '']);
+        r = await commeYannick(() => SS.marquerDepenses(['T-3', 'T-1'], 'rembourse_le', AUJ, 'virement du ' + AUJ + ' : 240,37 € pour 2 tickets'));
+        check('R7 Un remboursement groupé : la date, QUI l’a coché, et le lot sur chaque ticket',
+          [r.ok, dep('T-3').rembourse_le, dep('T-3').rembourse_par, dep('T-1').rembourse_lot], [true, AUJ, 'yannick', 'virement du ' + AUJ + ' : 240,37 € pour 2 tickets']);
+        await SS.saveDepense(Object.assign({}, dep('T-1'), { detail: 'Visserie inox' }));
+        const lotGarde = dep('T-1').rembourse_lot, parGarde = dep('T-1').rembourse_par;
+        r = await SS.marquerDepenses(['T-1'], 'rembourse_le', '');
+        check('R8 Corriger le détail garde le lot et la signature ; annuler « remboursé » efface la date, la signature et le lot',
+          [lotGarde, parGarde, r.ok, dep('T-1').rembourse_le, dep('T-1').rembourse_par || null, dep('T-1').rembourse_lot || null, dep('T-1').remis_le],
+          ['virement du ' + AUJ + ' : 240,37 € pour 2 tickets', 'yannick', true, '', null, null, AUJ]);
+        r = await SS.marquerDepenses(['T-1'], 'remis_le', J(400));
+        const r9 = await SS.marquerDepenses(['T-1'], 'payé', AUJ), r9b = await SS.marquerDepenses(['nexistepas'], 'remis_le', AUJ);
+        check('R9 La route refuse une date dans le futur, un geste inconnu, un ticket inconnu',
+          [r.ok, r9.ok, r9b.ok, /introuvable/.test(r9b.error || '')], [false, false, false, true]);
+
+        // ══════════ P — LA PAGE, AU BUREAU ══════════
+        titre('P — La vraie page, au bureau (1500 px)');
+        await semer();
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        check('P0 Le cadre parle au banc (sinon tout le reste ne prouve rien)', f.branche, true);
+        const badge = await attendreQue(() => txt(d.querySelector('.ssrail-item[data-badge="depenses"] .ssnav-count')), 6000);
+        const pers = [...d.querySelectorAll('.dp-pers')].map(txt);
+        check('P1 A — UNE ligne par personne, moi d’abord : mes 108,27 € à remettre ne comptent PAS l’échafaudage de Yannick ; mes deux compteurs (2 + 1) font le chiffre du menu (3)',
+          [pers.length, /^Toi /.test(pers[0]), /108,27 € à remettre \(2\)/.test(pers[0]), /156,00 € au bureau \(1\)/.test(pers[0]), /1 234,50/.test(pers[0]), /^Yannick /.test(pers[1] || ''), /1 234,50 € à remettre \(1\)/.test(pers[1] || ''), badge],
+          [2, true, true, true, false, true, true, '3']);
+        check('P1b L’ancienneté la plus criante se voit dans la ligne (37 j, rouge)', [/le plus vieux 37 j/.test(pers[0]), !!d.querySelector('.dp-pers .tres-vieux')], [true, true]);
+        d.querySelector('.dp-pers button.w').click(); await attendre(60);
+        check('P2 Le chiffre MÈNE à ce qu’il compte : mes tickets à remettre, le plus vieux d’abord, et les filtres le disent',
+          [ids(d), d.getElementById('fQui').value, d.getElementById('fEtat').value], [['T-1', 'T-2'], 'nicolas', 'a_remettre']);
+        w.filtrer('qui', ''); w.filtrer('etat', ''); await attendre(40);
+        const l4 = ligneDe(d, 'T-4'), l5 = ligneDe(d, 'T-5'), l3 = ligneDe(d, 'T-3');
+        check('P3 E — sur les tickets de Yannick, plus de première personne ; la trace dit qui a coché',
+          [txt(l5.querySelector('.g-remis')), txt(l4.querySelector('.g-rembourse')), txt(ligneDe(d, 'T-2').querySelector('.g-remis')), /remis le \d\d\/\d\d\/\d{4} par Nicolas/.test(txt(l3.querySelector('.dp-meta')))],
+          ['Yannick l’a remis', 'Yannick a été remboursé', 'Je l’ai remis', true]);
+        check('P3b B — un ticket SANS photo le dit (« photo ? ») tant que l’argent est dû ; remboursé, il se tait (mais reste cliquable) ; celui qui en a une montre sa vignette',
+          [!!ligneDe(d, 'T-2').querySelector('.dp-vig.manque'), txt(ligneDe(d, 'T-2').querySelector('.dp-vig')), !!ligneDe(d, 'T-6').querySelector('.dp-vig.manque'), !!ligneDe(d, 'T-6').querySelector('.dp-vig[onclick*="photoPour"]'), !!ligneDe(d, 'T-1').querySelector('.dp-vig img')],
+          [true, 'photo ?', false, true, true]);
+
+        // La fenêtre d'un ticket (règle 13 bis)
+        let confirme = 0, reponse = false, dernierConfirm = '';
+        w.confirm = (m) => { confirme++; dernierConfirm = m; return reponse; };
+        d.getElementById('btnNouveau').click(); await attendre(40);
+        const fen = d.getElementById('fenTicket');
+        check('P4 « + Nouveau ticket » ouvre une FENÊTRE (le formulaire ne pousse plus la liste) : date du jour, moi coché',
+          [fen.classList.contains('open'), d.getElementById('fDate').value, txt(d.querySelector('#segQui button.on'))], [true, AUJ, 'Nicolas']);
+        tape(d.getElementById('fMontant'), '57.80'); tape(d.getElementById('fDetail'), 'Rails + vis, Hubo Wavre');
+        d.getElementById('fDate').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const apresEchapDate = fen.classList.contains('open');
+        d.getElementById('fMontant').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const apresEchap = fen.classList.contains('open');
+        d.querySelector('#fenTicket .dp-dialog').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        fen.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        check('P5 La saisie entamée ne se perd plus : Échap dans la date ne ferme rien, Échap ailleurs DEMANDE (non = on reste), un geste commencé dans la fenêtre ne la ferme pas',
+          [apresEchapDate, apresEchap, confirme, /Fermer sans enregistrer/.test(dernierConfirm), fen.classList.contains('open'), d.getElementById('fMontant').value], [true, true, 1, true, true, '57.80']);
+        const avantN = nbLignes();
+        tape(d.getElementById('fDate'), J(400));
+        d.getElementById('btnSave').click(); await attendre(150);
+        check('P6 Une date d’achat dans le futur est refusée DANS la fenêtre, rien n’est écrit', [/futur/.test(txt(d.getElementById('msg'))), nbLignes(), fen.classList.contains('open')], [true, avantN, true]);
+        tape(d.getElementById('fDate'), J(-7)); tape(d.getElementById('fMontant'), '23.90'); tape(d.getElementById('fDetail'), 'Mèches');
+        confirme = 0; reponse = false;
+        d.getElementById('btnSave').click(); await attendre(150);
+        check('P7 G — le même ticket déjà saisi (même jour, même montant) : on DEMANDE, et « non » n’écrit rien',
+          [confirme, /existe déjà/.test(dernierConfirm), /Mèches béton/.test(dernierConfirm), nbLignes()], [1, true, true, avantN]);
+        tape(d.getElementById('fDate'), AUJ); tape(d.getElementById('fMontant'), '57.80'); tape(d.getElementById('fDetail'), 'Rails + vis, Hubo Wavre');
+        confirme = 0;
+        d.getElementById('btnSave').click();
+        await attendreQue(() => !fen.classList.contains('open') && ids(d).length === 8, 4000);
+        const neuf = BANC.sqlL("SELECT data FROM depenses WHERE json_extract(data, '$.montant') = 57.8").map((x) => JSON.parse(x[0]))[0] || {};
+        check('P8 Un ticket neuf s’enregistre (sans doublon, sans question), la fenêtre se ferme, il est dans la liste',
+          [confirme, neuf.qui, neuf.detail, neuf.date, fen.classList.contains('open'), ids(d).length], [0, 'nicolas', 'Rails + vis, Hubo Wavre', AUJ, false, 8]);
+        // Le conflit, vu de la fenêtre
+        w.modifier('T-2'); await attendre(40);
+        await commeYannick(async () => { const v = dep('T-2'); return SS.saveDepense(Object.assign({}, v, { montant: 25.9, _attendu: v.date_modification })); });
+        tape(d.getElementById('fDetail'), 'Mèches béton 6 mm');
+        d.getElementById('btnSave').click(); await attendre(200);
+        const msgC = txt(d.getElementById('msg'));
+        check('P9 CONFLIT dans la fenêtre : on DIT que Yannick a modifié, on montre sa version (25,90 €), on garde ma saisie, rien n’est écrasé',
+          [/Yannick vient de modifier/.test(msgC), /25,90/.test(msgC), d.getElementById('msg').classList.contains('warn'), fen.classList.contains('open'), d.getElementById('fDetail').value, dep('T-2').montant, dep('T-2').detail],
+          [true, true, true, true, 'Mèches béton 6 mm', 25.9, 'Mèches béton']);
+        d.getElementById('btnSave').click();
+        await attendreQue(() => !fen.classList.contains('open'), 3000);
+        check('P10 Un second clic enregistre MA version, en connaissance de cause', [dep('T-2').detail, fen.classList.contains('open')], ['Mèches béton 6 mm', false]);
+        // L'ancien défaut, rejoué au geste : une page restée ouverte coche « Je l'ai remis ».
+        await commeYannick(async () => { const v = dep('T-5'); return SS.saveDepense(Object.assign({}, v, { montant: 1240, _attendu: v.date_modification })); });
+        ligneDe(d, 'T-5').querySelector('.g-remis').click();
+        await attendreQue(() => dep('T-5').remis_le === AUJ, 3000);
+        check('P11 « Remis » depuis une page ouverte AVANT la correction de l’autre : la date est posée, le montant corrigé reste (1 240 €, pas 1 234,50)',
+          [dep('T-5').remis_le, dep('T-5').remis_par, dep('T-5').montant], [AUJ, 'nicolas', 1240]);
+
+        // C — Remettre au bureau
+        await attendre(200);
+        d.getElementById('btnRemettre').click(); await attendre(60);
+        const fr = d.getElementById('fenRemise');
+        const aRemettre = D.dansEtat(await SS.listDepenses(), 'nicolas', 'a_remettre');
+        const cases = [...d.querySelectorAll('#remListe input[type=checkbox]')];
+        check('C1 « Remettre au bureau » : MES tickets encore en poche, du plus ancien, tous cochés, et leur total',
+          [fr.classList.contains('open'), cases.map((c) => c.value), cases.every((c) => c.checked), txt(d.getElementById('remTotal'))],
+          [true, aRemettre.map((x) => x.id), true, aRemettre.length + ' tickets ' + U.fmtEur(D.bordereau(aRemettre).total).replace(/\s+/g, ' ')]);
+        const garde = cases[cases.length - 1];
+        garde.checked = false; garde.dispatchEvent(new Event('change', { bubbles: true }));
+        const remis = cases.slice(0, -1).map((c) => c.value), totalRemis = D.bordereau(aRemettre.filter((x) => remis.indexOf(x.id) >= 0)).total;
+        check('C2 Décocher un ticket le retire du total', txt(d.getElementById('remTotal')), remis.length + ' ticket' + (remis.length > 1 ? 's ' : ' ') + U.fmtEur(totalRemis).replace(/\s+/g, ' '));
+        d.getElementById('remOk').click();
+        await attendreQue(() => !fr.classList.contains('open'), 3000);
+        check('C3 « Je les remets » : les tickets cochés sont remis aujourd’hui (signé), celui qu’on a décoché reste en poche ; le bordereau est prêt',
+          [remis.map((id) => dep(id).remis_le), remis.map((id) => dep(id).remis_par), dep(garde.value).remis_le || '', /Bordereau de remise/.test(txt(d.getElementById('impression'))), /Reçu par/.test(txt(d.getElementById('impression'))), new RegExp(U.fmtEur(totalRemis).replace(/\s+/g, '\\s')).test(d.getElementById('impression').textContent)],
+          [remis.map(() => AUJ), remis.map(() => 'nicolas'), '', true, true, true]);
+        let imprime = 0; w.print = () => { imprime++; };
+        d.getElementById('btnRemettre').click(); await attendre(60);
+        d.getElementById('remImprimer').click(); await attendre(40);
+        check('C4 « Imprimer le bordereau » imprime CE qui est coché (le ticket resté en poche)',
+          [imprime, (txt(d.getElementById('impression')).match(/Total à rembourser/) || []).length, txt(d.getElementById('impression')).indexOf(dep(garde.value).detail) >= 0], [1, 1, true]);
+        w.fermerFenetre(true); await attendre(40);
+
+        // D — Rembourser en une fois
+        d.getElementById('btnRembourser').click(); await attendre(60);
+        const fb = d.getElementById('fenRemb');
+        const auBureau = D.dansEtat(await SS.listDepenses(), 'nicolas', 'au_bureau');
+        check('D1 « Rembourser » : MES tickets au bureau, tous cochés, date du jour',
+          [fb.classList.contains('open'), [...d.querySelectorAll('#rbListe input')].map((c) => c.value), d.getElementById('rbDate').value], [true, auBureau.map((x) => x.id), AUJ]);
+        tape(d.getElementById('rbDate'), J(-60));
+        check('D2 Un virement daté AVANT un achat est refusé avant d’écrire (bouton éteint, raison dite)',
+          [d.getElementById('rbOk').disabled, /précéder un achat/.test(txt(d.getElementById('rbMsg')))], [true, true]);
+        tape(d.getElementById('rbDate'), AUJ);
+        const totRb = D.bordereau(auBureau).total;
+        check('D3 Le bouton dit le montant du virement', txt(d.getElementById('rbOk')), 'Marquer remboursés (' + U.fmtEur(totRb).replace(/\s+/g, ' ') + ')');
+        d.getElementById('rbOk').click();
+        await attendreQue(() => !fb.classList.contains('open'), 3000);
+        const badgeApres = await attendreQue(() => { const n = d.querySelector('.ssrail-item[data-badge="depenses"] .ssnav-count'); return n ? (txt(n) === '1' ? '1' : null) : null; }, 5000);
+        check('D4 Tous remboursés à la date du virement, QUI l’a coché, le lot ; et le chiffre du menu suit sans attendre (il reste 1 ticket en poche)',
+          [auBureau.map((x) => dep(x.id).rembourse_le), auBureau.map((x) => dep(x.id).rembourse_par), /^virement du \d\d\/\d\d\/\d{4} : .+ pour \d+ tickets?$/.test(dep(auBureau[0].id).rembourse_lot || ''), badgeApres],
+          [auBureau.map(() => AUJ), auBureau.map(() => 'nicolas'), true, '1']);
+
+        // F — Recherche et bilan
+        tape(d.getElementById('fRecherche'), 'gamma'); await attendre(40);
+        const parRecherche = ids(d);
+        tape(d.getElementById('fRecherche'), 'ECHAFAUDAGE'); await attendre(40);
+        const sansAccent = ids(d);
+        tape(d.getElementById('fRecherche'), ''); await attendre(20);
+        d.getElementById('fAnnee').value = AN_PASSE; d.getElementById('fAnnee').dispatchEvent(new Event('change', { bubbles: true })); await attendre(40);
+        check('F1 La recherche trouve un magasin, sans accents ; le filtre d’année isole l’an passé ; le bilan a une ligne par année',
+          [parRecherche, sansAccent, ids(d), d.querySelectorAll('#bilan .l').length], [['T-4'], ['T-5'], ['T-7'], 2]);
+        w.filtrer('annee', ''); await attendre(20);
+
+        // B — la photo prise depuis la ligne
+        const sansPhoto = [...d.querySelectorAll('#liste .dp')].find((x) => x.querySelector('.dp-vig.manque'));
+        const idSans = sansPhoto.getAttribute('data-id');
+        let ouvert = 0; d.getElementById('fPhotoLigne').click = () => { ouvert++; };
+        sansPhoto.querySelector('.dp-vig.manque').click();
+        const inp = d.getElementById('fPhotoLigne'), dt = new w.DataTransfer(); dt.items.add(await photoFichier(w));
+        inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true }));
+        await attendreQue(() => (dep(idSans).photos || []).length === 1, 5000);
+        await attendreQue(() => ligneDe(d, idSans) && ligneDe(d, idSans).querySelector('.dp-vig img'), 3000);
+        check('B1 « photo ? » ouvre l’appareil, et la photo part SUR CE ticket (route ciblée) ; la ligne montre la vignette',
+          [ouvert, (dep(idSans).photos || []).length, !!ligneDe(d, idSans).querySelector('.dp-vig img')], [1, 1, true]);
+        check('P12 Tous les gestionnaires de la page compilent (apostrophes : L’Hoest, L’Universelle)', compiles(d), []);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const L = d.documentElement.clientWidth;
+        const coupes = [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.className || e.tagName);
+        const premier = d.querySelector('#liste .dp');
+        /* Un menu étroit coupe son libellé sans rien faire déborder : on compare la largeur du texte choisi à la
+           place qu'il a (moins la flèche du menu natif) — avec un canevas de la PAGE mesurée, et sa police. */
+        const menuCoupe = (s) => { const cs = w.getComputedStyle(s), g = d.createElement('canvas').getContext('2d');
+          g.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          return g.measureText(s.options[s.selectedIndex].text).width > s.clientWidth - parseFloat(cs.paddingLeft) - 20; };
+        check('T1 Rien ne dépasse, aucun menu ne coupe son libellé (« Tout le m »), et le premier ticket commence dans le PREMIER écran (il était à 1 580 px)',
+          [coupes, d.documentElement.scrollWidth <= 375, ['fQui', 'fEtat', 'fAnnee'].filter((id) => menuCoupe(d.getElementById(id))), Math.round(premier.getBoundingClientRect().top) < 812], [[], true, [], true]);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
+        const hBureau = Math.round(d.querySelector('.dp-pers button').getBoundingClientRect().height);
+        w.ouvrirRemise();   // pour que les tickets d'un lot existent dans la page
+        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const cs = (sel) => { const e = d.querySelector(sel); return e ? w.getComputedStyle(e).minHeight : 'absent'; };
+        check('T2 Écran tactile (blocs « pointer: coarse » forcés) : les chiffres du résumé, le choix de la personne et les tickets d’un lot se touchent sans viser ; en 16 px, aucun menu ne coupe son libellé — le bureau ne bouge pas',
+          [hBureau < 30, Math.round(d.querySelector('.dp-pers button').getBoundingClientRect().height) >= 36, cs('.seg button'), cs('.dp-choix'),
+            w.getComputedStyle(d.getElementById('fAnnee')).fontSize, ['fQui', 'fEtat', 'fAnnee'].filter((id) => menuCoupe(d.getElementById(id)))],
+          [true, true, '44px', '44px', '16px', []]);
+        f.remove();
+        f = await cadreNavigue('../app/depenses.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => typeof w.nouveauTicket === 'function' && d.querySelector('#liste .dp, #liste .empty-mini'), 8000);
+        d.getElementById('btnNouveau').click(); await attendre(60);
+        const fT = d.getElementById('fenTicket');
+        check('T3 La fenêtre d’un ticket pose une étape d’historique sur téléphone', [fT.classList.contains('open'), !!(w.history.state && w.history.state.dpFenetre)], [true, true]);
+        if (w.history.state && w.history.state.dpFenetre) w.history.back();
+        await attendreQue(() => !fT.classList.contains('open'), 2000);
+        check('T4 « Retour » ferme la fenêtre et reste sur la page', [fT.classList.contains('open'), /depenses\.html$/.test(w.location.pathname)], [false, true]);
+        d.getElementById('btnNouveau').click(); await attendre(60);
+        tape(d.getElementById('fMontant'), '12.40');
+        let confT = 0; w.confirm = () => { confT++; return false; };
+        const etapeT5 = !!(w.history.state && w.history.state.dpFenetre);
+        if (etapeT5) w.history.back();
+        await attendre(300);
+        check('T5 « Retour » sur une saisie entamée demande d’abord — « non » garde la fenêtre et son étape',
+          [etapeT5, fT.classList.contains('open'), confT, !!(w.history.state && w.history.state.dpFenetre)], [true, true, 1, true]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1892,7 +1892,23 @@ export async function onRequest(context) {
         const d = String(v || '').slice(0, 10);
         return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
       };
+      /* ⚠️ Une date dans le FUTUR est presque toujours une faute sur l'année (2027 pour 2026) : le
+         ticket restait à « 0 j » et ne se signalait jamais — l'oubli que cet outil doit empêcher.
+         Un jour de marge : le serveur compte en UTC, la Belgique a une ou deux heures d'avance. */
+      const demain = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      if (date > demain) return json({ ok: false, error: 'Date d’achat dans le futur (' + date + ') : une faute sur l’année ?' }, 400);
+      const remisLe = dateOuVide(x.remis_le), rembourseLe = dateOuVide(x.rembourse_le);
+      if ((remisLe && remisLe < date) || (rembourseLe && rembourseLe < date)) return json({ ok: false, error: 'Remis ou remboursé AVANT l’achat : une faute de frappe sur une date ?' }, 400);
+      if ((remisLe && remisLe > demain) || (rembourseLe && rembourseLe > demain)) return json({ ok: false, error: 'Remis ou remboursé dans le futur : une faute sur l’année ?' }, 400);
       const ancien = safeParse((await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(String(x.id)).first() || {}).data) || {};
+      /* ⚠️ CONFLIT : un écran ouvert depuis un moment renvoyait SA copie du ticket et effaçait la
+         correction que l'autre venait de faire (montant 25,90 → 23,90, mesuré le 27/10/2026). L'écran
+         dit la version qu'il a lue (« _attendu ») ; si la ligne a bougé depuis, on refuse et on dit qui. */
+      if (x._attendu !== undefined && ancien.id && String(ancien.date_modification || '') !== String(x._attendu || '')) {
+        const parQui = ancien.acteur ? (ancien.acteur.charAt(0).toUpperCase() + ancien.acteur.slice(1)) : 'Quelqu’un';
+        return json({ ok: false, conflict: true, actuel: ancien,
+          error: parQui + ' vient de modifier ce ticket. Sa version est à l’écran : vérifie, puis enregistre à nouveau si tu veux garder la tienne.' }, 409);
+      }
       const emailDep = parseAccessEmail(request);
       const acteur = (emailDep && IDENTITIES[emailDep.toLowerCase()]) || emailDep || null;
       const now = new Date().toISOString();
@@ -1905,18 +1921,67 @@ export async function onRequest(context) {
         detail: String(x.detail || '').slice(0, 300),
         client_nom: String(x.client_nom || '').slice(0, 160),
         client_key: String(x.client_key || '').slice(0, 160),
-        remis_le: dateOuVide(x.remis_le),
-        rembourse_le: dateOuVide(x.rembourse_le),
+        remis_le: remisLe,
+        rembourse_le: rembourseLe,
         photos: Array.isArray(ancien.photos) ? ancien.photos : [],
         acteur, date_modification: now,
         date_creation: ancien.date_creation || x.date_creation || now,
       };
+      delete propre._attendu;
+      /* E — QUI A COCHÉ : signé par le serveur, jamais par l'écran. Une date qui ne change pas garde sa
+         signature ; une date qui change prend celle de l'auteur ; une date effacée efface la sienne. */
+      [['remis_le', 'remis_par'], ['rembourse_le', 'rembourse_par']].forEach(([cle, par]) => {
+        const inchangee = !!propre[cle] && propre[cle] === (ancien[cle] || '');
+        if (inchangee && ancien[par]) propre[par] = ancien[par];
+        else if (propre[cle] && !inchangee) propre[par] = acteur;
+        else delete propre[par];
+      });
+      // Le lot d'un remboursement groupé (D) appartient à SA date : il ne vient jamais de l'écran.
+      if (propre.rembourse_le && propre.rembourse_le === (ancien.rembourse_le || '') && ancien.rembourse_lot) propre.rembourse_lot = ancien.rembourse_lot;
+      else delete propre.rembourse_lot;
       await env.DB.prepare(`
         INSERT INTO depenses (id, qui, date, montant, date_modification, data) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET qui = excluded.qui, date = excluded.date,
           montant = excluded.montant, date_modification = excluded.date_modification, data = excluded.data
       `).bind(propre.id, qui, date, montant, now, JSON.stringify(propre)).run();
       return json({ ok: true, id: propre.id, data: propre });
+    }
+    // ── « Remis » / « Remboursé » : un ticket ou un LOT, par écriture CIBLÉE ───────────
+    // « Je l'ai remis » renvoyait le ticket ENTIER lu par l'écran : un écran ouvert depuis un moment
+    // effaçait la correction de l'autre (règle 3). On n'écrit ici que la date, sa signature (E) et,
+    // pour un remboursement groupé (D), le lot. Tout est vérifié AVANT d'écrire, puis écrit en une
+    // fois : un bordereau de remise (C) ou un virement passe en entier, ou pas du tout.
+    if (path === '/api/depenses/etat' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const champ = String(body.champ || '');
+      const PAR = { remis_le: 'remis_par', rembourse_le: 'rembourse_par' };
+      if (!PAR[champ]) return json({ ok: false, error: 'Geste inconnu' }, 400);
+      const ids = Array.isArray(body.ids) ? [...new Set(body.ids.map(String))] : [];
+      if (!ids.length || ids.length > 200) return json({ ok: false, error: 'Aucun ticket choisi' }, 400);
+      const date = String(body.date || '').slice(0, 10);
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, error: 'Date invalide' }, 400);
+      if (date && date > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) return json({ ok: false, error: 'Date dans le futur : une faute sur l’année ?' }, 400);
+      const lot = champ === 'rembourse_le' && date ? String(body.lot || '').trim().slice(0, 160) : '';
+      const lignes = [];
+      for (const id of ids) {
+        const row = await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(id).first();
+        const d = row && safeParse(row.data);
+        if (!d) return json({ ok: false, error: 'Ticket introuvable (' + id + ') : la liste a changé, recharge la page.' }, 404);
+        if (date && String(d.date || '') > date) return json({ ok: false, error: 'Le ticket du ' + d.date + ' (' + (d.detail || d.montant + ' €') + ') ne peut pas être ' + (champ === 'remis_le' ? 'remis' : 'remboursé') + ' avant d’avoir été acheté.' }, 400);
+        lignes.push(id);
+      }
+      const emailEt = parseAccessEmail(request);
+      const acteurEt = (emailEt && IDENTITIES[emailEt.toLowerCase()]) || emailEt || null;
+      const now = new Date().toISOString();
+      let expr = date
+        ? `json_set(data, '$.${champ}', ?1, '$.${PAR[champ]}', ?2, '$.date_modification', ?3)`
+        : `json_remove(json_set(data, '$.${champ}', ?1, '$.date_modification', ?3), '$.${PAR[champ]}')`;
+      if (champ === 'rembourse_le') expr = lot ? `json_set(${expr}, '$.rembourse_lot', ?4)` : `json_remove(${expr}, '$.rembourse_lot')`;
+      const sql = `UPDATE depenses SET data = ${expr}, date_modification = ?3 WHERE id = ?5`;
+      await env.DB.batch(lignes.map((id) => env.DB.prepare(sql).bind(date, acteurEt, now, lot, id)));
+      const data = [];
+      for (const id of lignes) data.push(safeParse((await env.DB.prepare('SELECT data FROM depenses WHERE id = ?').bind(id).first() || {}).data));
+      return json({ ok: true, data });
     }
     // ── PHOTO d'une dépense (le ticket) ───────────────────────────────────────
     // Écriture CIBLÉE (règle 3) : l'image part dans R2 avant cet appel, on ne stocke ici que son

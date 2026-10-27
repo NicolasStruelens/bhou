@@ -359,7 +359,21 @@
     // « À racheter », par la route ciblée (signée par le serveur) : il n'y a plus de chevilles.
     const RACHETER = [{ id: 'OUT-ESSAI-2', qte: 2, note: 'Il en reste une demi-boîte (essai)' }];
 
-    return { base: base, devis: D, rdv: RDV, sujets: SUJETS, dispos: DISPOS, fiches: FICHES, outillage: OUTILLAGE, kits: KITS, racheter: RACHETER };
+    /* LES NOTES DE FRAIS (règle 32) : un ticket dans la poche depuis plus de cinq semaines (rouge), un
+       autre SANS photo (« photo ? »), un au bureau depuis 40 jours (ça traîne), un de Yannick (il ne
+       doit pas gonfler la ligne de Nicolas), un remboursé par un virement groupé, et un de l'an passé
+       pour le bilan par année. Les dates de remise et de remboursement sont signées par le serveur. */
+    const anPasse = String(Number(base.slice(0, 4)) - 1);
+    const DEPENSES = [
+      { id: 'DEP-ESSAI-1', qui: 'nicolas', date: J(-37), montant: 84.37, detail: 'Visserie inox + silicone, Brico Nivelles (essai)', client_nom: 'Julie Martin', _photo: photo('Ticket Brico 84,37', '#6b5a4a') },
+      { id: 'DEP-ESSAI-2', qui: 'nicolas', date: J(-7), montant: 23.9, detail: 'Mèches béton (essai)' },
+      { id: 'DEP-ESSAI-3', qui: 'nicolas', date: J(-47), montant: 156, detail: 'Coulisses de rechange, comptoir Harol (essai)', remis_le: J(-40) },
+      { id: 'DEP-ESSAI-4', qui: 'yannick', date: J(-12), montant: 41.2, detail: 'Silicone, Gamma (essai)', remis_le: J(-11) },
+      { id: 'DEP-ESSAI-5', qui: 'nicolas', date: J(-80), montant: 212.5, detail: 'Location perforateur (essai)', remis_le: J(-78), rembourse_le: J(-50), _lot: 'virement de 212,50 € (essai)' },
+      { id: 'DEP-ESSAI-6', qui: 'nicolas', date: anPasse + '-12-10', montant: 65, detail: 'Chevilles L’Universelle (essai)', remis_le: anPasse + '-12-12', rembourse_le: anPasse + '-12-20' },
+    ].map(function (x) { return Object.assign({ essai: true }, x); });
+
+    return { base: base, devis: D, rdv: RDV, sujets: SUJETS, dispos: DISPOS, fiches: FICHES, outillage: OUTILLAGE, kits: KITS, racheter: RACHETER, depenses: DEPENSES };
   }
 
   // ── Les gardes ────────────────────────────────────────────────────────────────────────────────
@@ -568,6 +582,22 @@
       const res = await SS.setRacheter(r.id, r.qte, r.note);
       note(!echec(res), r.id + ' : à racheter', res && res.error);
     }
+    // Les notes de frais : réécrites à l'identique (dates du jour), la photo et le lot une seule fois.
+    const depEx = SS.listDepenses ? ((await SS.listDepenses().catch(function () { return []; })) || []) : [];
+    for (const x of jeu.depenses || []) {
+      const res = await SS.saveDepense(sansPrives(x));
+      note(!echec(res), x.id + ' (note de frais)', res && res.error);
+      if (echec(res)) continue;
+      const ex = depEx.filter(function (d) { return d.id === x.id; })[0] || {};
+      if (x._photo && !(ex.photos || []).length) {
+        const rp = await SS.addDepensePhoto(x.id, x._photo);
+        note(!echec(rp), x.id + ' : photo du ticket', rp && rp.error);
+      }
+      if (x._lot && ex.rembourse_lot !== x._lot) {
+        const rl = await SS.marquerDepenses([x.id], 'rembourse_le', x.rembourse_le, x._lot);
+        note(!echec(rl), x.id + ' : remboursement groupé', rl && rl.error);
+      }
+    }
     return bilan;
   }
 
@@ -601,6 +631,7 @@
     for (const f of jeu.fiches) { const res = await SS.deleteClient(f.key); note(!echec(res), 'fiche ' + f.prenom + ' ' + f.nom, res && res.error); }
     for (const o of jeu.outillage) { const res = await SS.deleteOutillage(o.id); note(!echec(res), o.id, res && res.error); }
     for (const k of jeu.kits) { const res = await SS.deleteKit(k.id); note(!echec(res), k.id, res && res.error); }
+    for (const x of jeu.depenses || []) { const res = await SS.deleteDepense(x.id); note(!echec(res), x.id, res && res.error); }
     return bilan;
   }
 

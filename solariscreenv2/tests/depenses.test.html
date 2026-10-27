@@ -170,6 +170,47 @@
     check('G9 le bilan d’une année ne compte que cette année',
       D.bilanAnnee(LOT.concat([dep({ id: 'vieux', montant: 999, date: '2024-03-03' })]), '', '2026').tout, 375);
 
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('La revue du 27/10/2026 — défauts trouvés et propositions A à G');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    /* ⚠️ Une faute sur l'ANNÉE (2027 pour 2026) était acceptée : le ticket restait à « 0 j » et ne se
+       signalait jamais — exactement l'oubli que cet outil doit empêcher. */
+    check('N1 une date d’achat dans le futur est refusée ; une remise ou un remboursement dans le futur aussi ; aujourd’hui passe',
+      [D.problemes(dep({ date: '2027-10-05' }), AUJ).map(p => p.l), D.problemes(dep({ remis_le: '2027-10-05' }), AUJ).map(p => p.k), D.problemes(dep({ date: AUJ }), AUJ)],
+      [['Date de l’achat dans le futur'], ['remis_le'], []]);
+    /* ⚠️ A — les tuiles additionnaient les deux personnes sous « les tickets encore dans ta poche ». */
+    const PP = D.parPersonne([dep({ id: 'n1', montant: 10 }), dep({ id: 'n2', montant: 5, date: '2026-09-01', remis_le: '2026-09-02' }), dep({ id: 'y1', qui: 'yannick', montant: 1234.5 }), dep({ id: 'n3', montant: 7, rembourse_le: '2026-10-05' })], 'nicolas', AUJ);
+    check('N2 une ligne PAR PERSONNE, moi d’abord ; le ticket de Yannick ne gonfle pas la mienne ; mes deux compteurs font le chiffre du menu',
+      PP.map(p => [p.qui, p.a_remettre, p.nb_remettre, p.au_bureau, p.nb_bureau, p.vieux_bureau, p.nb_du]),
+      [['nicolas', 10, 1, 5, 1, 38, 2], ['yannick', 1234.5, 1, 0, 0, 0, 1]]);
+    check('N3 vue par Yannick, c’est lui d’abord', D.parPersonne([], 'yannick').map(p => p.qui), ['yannick', 'nicolas']);
+    /* G — resaisi le lendemain, le même ticket serait réclamé deux fois. */
+    const DB = [dep({ id: 'a', montant: 23.9, date: '2026-10-08' }), dep({ id: 'b', qui: 'yannick', montant: 23.9, date: '2026-10-08' })];
+    check('N4 doublon : même personne, même jour, même montant (23,9 = 23,90) — pas le ticket lui-même, pas l’autre personne, pas un autre jour',
+      [D.doublons(DB, dep({ id: 'neuf', montant: '23.90', date: '2026-10-08' })).map(x => x.id), D.doublons(DB, DB[0]).length,
+        D.doublons(DB, dep({ id: 'neuf', montant: 23.9, date: '2026-10-09' })).length],
+      [['a'], 0, 0]);
+    /* F — la recherche : sans accents, et le montant tel qu'on l'écrit. */
+    const FR = [dep({ id: 'm', detail: 'Mèches béton', montant: 23.9 }), dep({ id: 'g', detail: 'Silicone, Gamma Wavre', montant: 41.2 })];
+    check('N5 recherche sans accents, par montant écrit à la belge, et mot à mot dans le désordre',
+      [D.filtrer(FR, { recherche: 'meches' }).map(x => x.id), D.filtrer(FR, { recherche: '23,90' }).map(x => x.id), D.filtrer(FR, { recherche: '23,9' }).map(x => x.id),
+        D.filtrer(FR, { recherche: 'wavre GAMMA' }).map(x => x.id), D.filtrer(FR, { recherche: 'gamma nivelles' }).length],
+      [['m'], ['m'], ['m'], ['g'], 0]);
+    check('N6 bilan par année : avancé, remboursé, encore dû — la plus récente d’abord, pour une personne',
+      D.bilanParAnnee([dep({ montant: 100 }), dep({ montant: 50, rembourse_le: '2026-10-09' }), dep({ montant: 30, date: '2025-12-01', rembourse_le: '2025-12-20' }), dep({ qui: 'yannick', montant: 999 })], 'nicolas'),
+      [{ annee: '2026', avance: 150, rembourse: 50, du: 100, nb: 2 }, { annee: '2025', avance: 30, rembourse: 30, du: 0, nb: 1 }]);
+    /* E — sur le ticket de l'autre, plus de « Je l'ai remis ». */
+    check('N7 les gestes dits par la bonne personne',
+      [D.libelleGeste(dep({}), 'remis_le', 'nicolas', 'Nicolas'), D.libelleGeste(dep({ qui: 'yannick' }), 'remis_le', 'nicolas', 'Yannick'), D.libelleGeste(dep({ qui: 'yannick' }), 'rembourse_le', 'nicolas', 'Yannick'), D.libelleGeste(dep({}), 'rembourse_le', 'nicolas')],
+      ['Je l’ai remis', 'Yannick l’a remis', 'Yannick a été remboursé', 'J’ai été remboursé']);
+    check('N8 la trace dit QUI a coché chaque geste, et le lot d’un virement',
+      D.trace(dep({ remis_le: '2026-10-02', remis_par: 'nicolas', rembourse_le: '2026-10-05', rembourse_par: 'yannick', rembourse_lot: 'virement de 42,50 €' }), null, { nicolas: 'Nicolas', yannick: 'Yannick' }),
+      'acheté le 2026-10-01 · remis le 2026-10-02 par Nicolas · remboursé le 2026-10-05 par Yannick (virement de 42,50 €)');
+    check('N9 un bordereau : les tickets d’une personne dans un état, du plus ancien, et leur total',
+      [D.dansEtat(LOT.concat([dep({ id: 'Z', date: '2026-09-15' })]), 'nicolas', 'a_remettre').map(x => x.id),
+        D.bordereau([dep({ montant: 10.1 }), dep({ montant: 20.2 }), null]).total],
+      [['Z', 'A'], 30.3]);
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
