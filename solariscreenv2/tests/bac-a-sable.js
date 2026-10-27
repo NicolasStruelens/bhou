@@ -81,6 +81,7 @@
     ['c22', 'Paul', 'Gilson', 'Rixensart', '1330'],
     ['c23', 'Hélène', 'Charlier', 'Louvain-la-Neuve', '1348'],
     ['c24', 'Damien', 'Leroy', 'Genval', '1332'],
+    ['c25', 'Robert', 'Delvaux', 'La Hulpe', '1310'],
   ];
   function client(code) {
     const i = CLIENTS.findIndex(function (c) { return c[0] === code; });
@@ -210,7 +211,10 @@
         champs: { date_envoi: J(-70), statut_history: [{ statut: 'signe', date: T(-65) }], commande: { statut: 'pose', date_commande: J(-60), delai_semaines: 5 },
           chantier: { date_pose: J(-20), equipe: 'nicolas' }, reception_date: J(-20) },
         _factures: [{ type: 'acompte', pct: 50, date: J(-64), echeance: J(-49), paiements: [{ date: J(-58), moyen: 'Virement' }] },
-          { type: 'solde', date: J(-19), echeance: J(-4) }] }),
+          { type: 'solde', date: J(-19), echeance: J(-4) }],
+        // SAV : la balle est chez le fournisseur, avec la date où s'inquiéter (page SAV, étape « Pièce »).
+        _sav: [{ probleme: 'moteur', description: 'Le moteur du screen du salon fait un bruit de crécelle à la descente.', pour: 'yannick', echeance: J(6),
+          statut: 'attente_piece', piece_prevue: J(4), piece_note: 'Moteur Sunea 40 RTS, commandé chez Harol' }] }),
       devis(base, { n: '12', client: 'c12', vendeur: 'nicolas', cree: -120, modifie: -30, statut: 'termine',
         items: [screens(1, { photos: [photo('Screen posé', '#2e4a62'), photo('Screen, détail', '#3b5b75')] }), volets(2, { couleur: '7016 — Gris anthracite', couleur_lame: '38 — 7016 Gris anthracite', photos: [photo('Volets posés', '#4a3b62')] })],
         role: 'Chantier terminé et soldé, dans le portfolio (avant / après)',
@@ -222,7 +226,9 @@
             { id: 'essai-cp2', url: photo('Pendant', '#55705a'), phase: 'pendant', date: J(-40) },
             { id: 'essai-cp3', url: photo('Après', '#3f7a4c'), phase: 'apres', date: J(-40) }] },
         _factures: [{ type: 'acompte', pct: 50, date: J(-109), echeance: J(-94), paiements: [{ date: J(-100), moyen: 'Virement' }] },
-          { type: 'solde', date: J(-39), echeance: J(-24), paiements: [{ date: J(-33), moyen: 'Virement' }] }] }),
+          { type: 'solde', date: J(-39), echeance: J(-24), paiements: [{ date: J(-33), moyen: 'Virement' }] }],
+        _sav: [{ probleme: 'reglage', description: 'Le volet de la chambre ne descend pas jusqu’en bas.', statut: 'resolu',
+          resolution: 'Fin de course basse réglée (deux tours), essai fait devant la cliente.', cause: 'Fin de course réglée trop court à la pose.' }] }),
       devis(base, { n: '13', client: 'c13', vendeur: 'yannick', cree: -40, modifie: -20, statut: 'refuse', items: [volets(2)],
         role: 'Refusé (trop cher)',
         champs: { date_envoi: J(-35), raison_refus: 'Trop cher', statut_history: [{ statut: 'refuse', date: T(-20) }] } }),
@@ -255,6 +261,20 @@
       devis(base, { n: '20', client: 'c20', vendeur: 'nicolas', cree: -3, statut: 'brouillon',
         items: [{ type: '', quantite: 0, photos: [] }, { type: 'screen', quantite: -1, prix_catalogue_ht: 500, photos: [] }],
         role: 'Données ABÎMÉES : ouverture sans type, quantité négative, client sans adresse ni contact, sans calculs' }),
+      /* SAV HORS GARANTIE (règle 47) : posé il y a seize mois, un moteur qui lâche, et PERSONNE dessus
+         depuis neuf jours — le ticket que la page SAV doit mettre en tête, avec « Créer le bon
+         d'intervention ». ⚠️ Écrit dans le devis et non par la route : le serveur date un ticket
+         « maintenant », et c'est justement son ANCIENNETÉ qu'il faut voir. Réécrit à chaque
+         « Remplir », comme les dates du reste du jeu. Même moteur que la pièce d'ESSAI-11 : deux
+         pannes du même moteur, « Ce qui casse le plus » le signale (à dire à Harol). */
+      devis(base, { n: '21', client: 'c25', vendeur: 'nicolas', cree: -520, modifie: -9, statut: 'termine', items: [screens(2, { emplacement: 'Terrasse' })],
+        role: 'Posé il y a 16 mois (hors garantie) : moteur en panne, personne dessus depuis 9 jours — bon d’intervention à faire',
+        champs: { date_envoi: J(-515), statut_history: [{ statut: 'signe', date: T(-510) }, { statut: 'termine', date: T(-480) }],
+          commande: { statut: 'pose', date_commande: J(-505), delai_semaines: 5 }, chantier: { date_pose: J(-485), equipe: 'nicolas' }, reception_date: J(-485),
+          sav_tickets: [{ id: 'essai-sav-21', probleme: 'moteur', description: 'Le screen de la terrasse ne remonte plus : le moteur claque puis s’arrête.',
+            statut: 'ouvert', photos: [photo('Moteur, constat', '#6b4a3b')], photos_apres: [], pour: '', echeance: '', date_creation: T(-9),
+            date_resolution: null, cause: '', resolution: '', resolu_par: null, passages: [], piece_prevue: '', piece_note: '', notes: [] }] },
+        _factures: [{ type: 'totale', date: J(-484), echeance: J(-469), paiements: [{ date: J(-475), moyen: 'Virement' }] }] }),
     ];
     // Le dossier abîmé n'a PAS de calculs : c'est précisément le cas à rejouer (règle 6 de « vérifier son travail »).
     delete D[19].calculs;

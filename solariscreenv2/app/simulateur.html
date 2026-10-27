@@ -1305,6 +1305,9 @@
         depannage_mode: estDepannage() ? depMode() : undefined,
         // Détails du rapport d'intervention (date réelle, intervenants, constat, garantie, suite).
         depannage: collectDepannage(),
+        // Dépannage préparé depuis un ticket SAV (règle 47) : la page SAV retrouve ainsi son bon
+        // d'intervention. Absent d'un devis ordinaire (une clé undefined ne part pas en JSON).
+        sav_origine: state.sav_origine || undefined,
         informatif: el('isInformatif').checked,
         client,
         items: state.items.map(({ _id, ...rest }) => rest),
@@ -1434,6 +1437,22 @@
         toast('Client pré-rempli depuis sa fiche', 'ok');
       } catch (e) {}
     }
+    /** Bon d'intervention préparé depuis la page SAV (règle 47) : le motif et le ticket d'origine.
+     *  Lu une seule fois, comme le client pré-rempli, puis effacé : un rechargement ne le rejoue pas. */
+    function applyPrefillDepannage() {
+      try {
+        const raw = sessionStorage.getItem('ss_prefill_depannage');
+        if (!raw) return;
+        sessionStorage.removeItem('ss_prefill_depannage');
+        const p = JSON.parse(raw) || {};
+        if (!estDepannage()) return;
+        if (p.motif) setVal('depMotif', p.motif);
+        if (p.sav_origine && p.sav_origine.devis_id && p.sav_origine.ticket_id) {
+          state.sav_origine = { devis_id: String(p.sav_origine.devis_id), ticket_id: String(p.sav_origine.ticket_id) };
+          toast('Bon d’intervention préparé depuis le ticket SAV', 'ok');
+        }
+      } catch (e) {}
+    }
     function fillDatalist(id, values) {
       el(id).innerHTML = values.map(v => `<option value="${v.replace(/"/g, '&quot;')}">`).join('');
     }
@@ -1479,6 +1498,7 @@
           if (radioTva) radioTva.checked = true;
         }
         applyPrefillClient();
+        applyPrefillDepannage();
         el('clientSearchField').classList.remove('hidden');
         CLIENT_DIRECTORY = await buildClientDirectory();
       }

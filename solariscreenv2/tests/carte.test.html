@@ -96,6 +96,11 @@
     const plus = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
     const LUN = plus(aujIso, -((AUJ.getDay() + 6) % 7));
     const J = (n) => plus(LUN, n);
+    /* Les trois autres arrêts tombent sur des jours de CETTE semaine différents d'aujourd'hui. Écrits à
+       jour fixe (mardi, mercredi, samedi), ils partageaient le jour de la pose d'Hugo trois jours sur
+       sept : A2 et A4 échouaient selon le jour où l'on lançait la suite (trouvé un mardi, 27/10/2026). */
+    const AUTRES = [0, 1, 2, 3, 4, 5].filter((k) => k !== (AUJ.getDay() + 6) % 7);
+    const JR = (i) => J(AUTRES[i < 0 ? AUTRES.length + i : i]);
     const T = (iso) => iso + 'T10:00:00.000Z';
     const adr = (rue, numero, cp, ville) => ({ rue, numero, code_postal: cp, ville });
     const cli = (prenom, nom, a, tel) => ({ prenom, nom, adresse: a, telephone: tel || '' });
@@ -106,21 +111,21 @@
       limal: adr('Rue du Moulin', '7', '1300', 'Limal'), namur: adr('Rue du Refus', '1', '5000', 'Namur'),
     };
     const DEVIS = [
-      { id: 'P-BW', client: cli('Bernadette', 'Windey', A.bw, '0470 11 22 33'), statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: J(5), equipe: 'nicolas_yannick', duree_h: 4 }, items_min: [{ type: 'screen', quantite: 2 }], date_creation: T(plus(aujIso, -40)), date_modification: T(plus(aujIso, -9)), seller_principal: 'nicolas' },
+      { id: 'P-BW', client: cli('Bernadette', 'Windey', A.bw, '0470 11 22 33'), statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: JR(-1), equipe: 'nicolas_yannick', duree_h: 4 }, items_min: [{ type: 'screen', quantite: 2 }], date_creation: T(plus(aujIso, -40)), date_modification: T(plus(aujIso, -9)), seller_principal: 'nicolas' },
       { id: 'P-AUJ', client: cli('Hugo', 'Aujourdhui', A.rix), statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: aujIso, equipe: 'yannick', duree_h: 3 }, items_min: [{ type: 'volet_roulant', quantite: 2 }], date_creation: T(plus(aujIso, -40)), date_modification: T(plus(aujIso, -9)), seller_principal: 'yannick' },
       { id: 'Z-PROS', client: cli('Pierre', 'Prospect', A.pros, '0471 22 33 44'), statut: 'envoye_client', date_envoi: plus(aujIso, -10), statut_history: [{ statut: 'envoye_client', date: T(plus(aujIso, -10)) }], items_min: [{ type: 'screen', quantite: 3 }], date_creation: T(plus(aujIso, -12)), date_modification: T(plus(aujIso, -10)), seller_principal: 'nicolas' },
       { id: 'T-1', client: cli('Paul', "L'Hoest", A.v2), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -60), pv: { signe: true } }, items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -120)), date_modification: T(plus(aujIso, -50)), seller_principal: 'nicolas' },
       { id: 'T-1B', client: cli('Paul', "L'Hoest", A.v2), statut: 'envoye_client', date_envoi: plus(aujIso, -2), statut_history: [{ statut: 'envoye_client', date: T(plus(aujIso, -2)) }], items_min: [{ type: 'tente_solaire', quantite: 2 }], date_creation: T(plus(aujIso, -3)), date_modification: T(plus(aujIso, -2)), seller_principal: 'nicolas' },
       { id: 'T-2', client: cli('Marie', 'Voisine', A.v9), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -90) }, items_min: [{ type: 'screen', quantite: 2 }], date_creation: T(plus(aujIso, -150)), date_modification: T(plus(aujIso, -80)), seller_principal: 'yannick' },
       { id: 'T-ARCH', client: cli('Jean', 'Ancien', A.vieille), statut: 'termine', archive: true, commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -400) }, items_min: [{ type: 'screen', quantite: 4 }], date_creation: T(plus(aujIso, -420)), date_modification: T(plus(aujIso, -390)), seller_principal: 'nicolas' },
-      { id: 'D-DEP', type_document: 'depannage', depannage_mode: 'a_realiser', client: cli('Marc', 'Panne', A.ott), statut: 'signe', depannage_plan: { date_intervention: J(2), heure: '14:00', duree_h: 2, techniciens: ['Yannick'], motif: 'Moteur bloqué' }, date_creation: T(plus(aujIso, -5)), date_modification: T(plus(aujIso, -5)) },
+      { id: 'D-DEP', type_document: 'depannage', depannage_mode: 'a_realiser', client: cli('Marc', 'Panne', A.ott), statut: 'signe', depannage_plan: { date_intervention: JR(1), heure: '14:00', duree_h: 2, techniciens: ['Yannick'], motif: 'Moteur bloqué' }, date_creation: T(plus(aujIso, -5)), date_modification: T(plus(aujIso, -5)) },
       { id: 'S-SAV', client: cli('Sophie', 'Garantie', A.limal), statut: 'termine', commande: { statut: 'pose' }, chantier: { date_pose: plus(aujIso, -200) }, sav_tickets: [{ id: 't1', statut: 'ouvert', pour: '', date_creation: T(plus(aujIso, -3)), description: 'Toile qui frotte' }], items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -230)), date_modification: T(plus(aujIso, -3)), seller_principal: 'nicolas' },
       { id: 'Z-REF', client: cli('Rémi', 'Refus', A.namur), statut: 'refuse', items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -60)), date_modification: T(plus(aujIso, -40)), calculs: { total_ttc: 900 }, seller_principal: 'nicolas' },
       { id: 'Z-SANS', client: cli('Sans', 'Adresse', {}), statut: 'envoye_client', date_envoi: plus(aujIso, -1), items_min: [{ type: 'screen', quantite: 1 }], date_creation: T(plus(aujIso, -2)), date_modification: T(plus(aujIso, -1)), seller_principal: 'nicolas' },
       { id: 'Z-BROU', client: cli('Brouillon', 'Pasla', A.genval), statut: 'brouillon', date_creation: T(plus(aujIso, -1)), date_modification: T(plus(aujIso, -1)) },
     ];
     const RDV = [
-      { id: 'R-1', statut: 'rdv_fixe', date_rdv: J(1) + 'T10:00', assigned_to: 'yannick', client: cli('Marie', 'Visite', A.genval, '0472 00 00 00'), projet: 'Screens véranda' },
+      { id: 'R-1', statut: 'rdv_fixe', date_rdv: JR(0) + 'T10:00', assigned_to: 'yannick', client: cli('Marie', 'Visite', A.genval, '0472 00 00 00'), projet: 'Screens véranda' },
       { id: 'R-2', statut: 'nouveau', client: cli('Jean', 'Demande', A.basse), projet: 'Volets' },
     ];
     const REG = { planning: { heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },

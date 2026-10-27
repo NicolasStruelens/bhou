@@ -1963,8 +1963,11 @@
       if (sel) sel.innerHTML = Object.keys(SAV_TYPE_LABEL)
         .map(k => `<option value="${k}">${SAV_TYPE_LABEL[k]}</option>`).join('');
     })();
-    const SAV_STATUT_LABEL = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu' };
-    const SAV_STATUT_COLOR = { ouvert: 'var(--danger)', en_cours: 'var(--warn)', resolu: 'var(--ok)' };
+    // Les étapes et leurs libellés vivent dans ui.js (règle 47) : cette carte et la page SAV doivent
+    // dire la même chose au mot près (règle 20 bis). Gris pour la pièce commandée : la balle est chez
+    // le fournisseur, il n'y a rien à faire de notre côté (règle 21 bis).
+    const SAV_STATUT_LABEL = window.SSUI.SAV_STATUT_LABEL;
+    const SAV_STATUT_COLOR = { ouvert: 'var(--danger)', en_cours: 'var(--warn)', attente_piece: 'var(--text-subtle)', resolu: 'var(--ok)' };
     let EDITING_SAV_ID = null, PENDING_SAV_PHOTOS = [];
     function renderSav() {
       const card = el('savCard');
@@ -1986,7 +1989,15 @@
       // sans toucher aux entrées des ouvertures (jamais marquées sav:true).
       PHOTOS = PHOTOS.filter(p => !p.sav);
       el('savList').innerHTML = tickets.length ? tickets.map(t => {
-        const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
+        const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : (t.statut === 'attente_piece' ? '' : 'badge-danger'));
+        // L'HISTORIQUE DES PASSAGES (règle 47) : chaque réparation datée et signée. Sur un ticket
+        // ROUVERT, elles s'affichent comme des passages précédents, plus jamais comme « Réparé : » en
+        // vert — on lisait « réparé » sur un ticket qui ne l'était plus.
+        const passages = window.SSUI.savPassages(t);
+        const passagesHtml = passages.length ? `<div class="sav-ticket-fix"${t.statut === 'resolu' ? '' : ' style="border-color:var(--border);background:transparent"'}>${icon(t.statut === 'resolu' ? 'check' : 'clock', 12)} <div>${
+          t.statut === 'resolu' ? '' : '<b>Passages précédents</b>'}${passages.map((p, i) => `<div${i ? ' style="margin-top:0.35rem"' : ''}>${
+          t.statut === 'resolu' && i === passages.length - 1 ? '<b>Réparé :</b> ' : ''}${esc(p.resolution)}${p.cause ? `<div class="sav-ticket-cause">Cause : ${esc(p.cause)}</div>` : ''}<div class="sav-ticket-cause">${
+          esc(SSUI.SELLER_LABELS[p.par] || p.par || '—')}${p.date ? ' · ' + fmtDate(p.date) : ''}${passages.length > 1 ? ' · passage ' + (i + 1) : ''}</div></div>`).join('')}</div></div>` : '';
         const photosHtml = (t.photos || []).length ? `<div class="sav-ticket-photos">${t.photos.map(p => {
           const idx = PHOTOS.length;
           PHOTOS.push({ src: p, cap: `Ticket SAV — ${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}`, sav: true });
@@ -2004,12 +2015,13 @@
                app/sav.html) doivent dire la meme chose, sinon on recommence le diagnostic. -->
           ${t.statut !== 'resolu' && t.pour ? `<div class="sav-ticket-date mt-1">${icon('user', 11)} ${esc(SSUI.SELLER_LABELS[t.pour] || t.pour)}${t.echeance ? ' · pour le ' + fmtDate(t.echeance) : ''}</div>` : ''}
           ${t.statut !== 'resolu' && !t.pour ? `<div class="sav-ticket-date mt-1" style="color:var(--danger)">${icon('warning', 11)} Personne ne s’en occupe</div>` : ''}
+          ${t.statut === 'attente_piece' ? `<div class="sav-ticket-date mt-1">${icon('box', 11)} Pièce commandée${t.piece_prevue ? ' — prévue le ' + fmtDate(t.piece_prevue) : ''}${t.piece_note ? ' · ' + esc(t.piece_note) : ''}</div>` : ''}
           ${(t.photos_apres || []).length ? `<div class="sav-ticket-photos sav-apres">${t.photos_apres.map(p => {
             const i2 = PHOTOS.length;
             PHOTOS.push({ src: p, cap: `Ticket SAV — après réparation`, sav: true });
             return `<button type="button" class="sav-photo-mini" onclick="lbOpen(${i2})" aria-label="Agrandir la photo"><img src="${p}" alt=""></button>`;
           }).join('')}</div>` : ''}
-          ${t.resolution ? `<div class="sav-ticket-fix">${icon('check', 12)} <div><b>Réparé :</b> ${esc(t.resolution)}${t.cause ? `<div class="sav-ticket-cause">Cause : ${esc(t.cause)}</div>` : ''}</div></div>` : ''}
+          ${passagesHtml}
           ${(t.notes || []).length ? `<div class="sav-ticket-notes">${t.notes.map(n => `<div>${esc(SSUI.SELLER_LABELS[n.auteur] || n.auteur || '—')} : ${esc(n.texte)}</div>`).join('')}</div>` : ''}
           ${t.date_resolution ? `<div class="sav-ticket-date mt-1">Résolu le ${fmtDate(t.date_resolution)}</div>` : ''}
           <div class="sav-ticket-actions">
@@ -2115,11 +2127,19 @@
       if (savMenuEl) savMenuEl.classList.remove('open');
       const t = (DEVIS.sav_tickets || []).find(x => x.id === ticketId);
       if (!t || t.statut === statut) return;
+      /* CLORE EXIGE D'ÉCRIRE CE QUI A ÉTÉ RÉPARÉ (règle 20 bis). Ce menu passait « Résolu » sans un
+         mot, et la règle n'était tenue que par la page SAV. Le serveur la tient désormais aussi : sans
+         ce texte, il refuse. */
+      let resolution = '';
+      if (statut === 'resolu') {
+        resolution = (prompt('Ce qui a été réparé (obligatoire) — c’est ce qu’on relira la prochaine fois :') || '').trim();
+        if (!resolution) { toast('Rien n’est changé : écris ce qui a été réparé pour clore le ticket.', 'warn', 5000); return; }
+      }
       // `pour` et `echeance` sont RENVOYÉS tels quels : le serveur reconstruit le ticket champ par
       // champ, les omettre ici effacerait le responsable à chaque changement de statut.
       const res = await SS.saveSavTicket(DEVIS.id, {
         id: t.id, probleme: t.probleme, description: t.description, statut, photos: t.photos || [],
-        pour: t.pour || '', echeance: t.echeance || '',
+        pour: t.pour || '', echeance: t.echeance || '', resolution: resolution || undefined,
       });
       if (res.ok === false) { toast(res.error || 'Statut du ticket NON enregistré — réessaie.', 'error', 6000); return; }
       DEVIS.sav_tickets = res.sav_tickets || DEVIS.sav_tickets;
