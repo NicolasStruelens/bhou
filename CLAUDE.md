@@ -95,6 +95,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 62 tests des règles pures des notes de frais. |
 | `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `assets/js/stats.js` | **L'activité de la page Statistiques** (règle 51) : période et comparaison à l'an passé, ce qu'est une vente (un bon d'intervention n'en est pas une), chiffres de la période, ventes par vendeur, ce qu'on vend, entonnoir et délais, sources, ce qui se perd, graphes, clients, villes. Fonctions pures (`window.SSStats`) ; la paie reste dans `remuneration.js`. |
+| `tests/stats.test.html` | Les 37 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
@@ -2599,6 +2601,64 @@ rémunération, ni TVA). Les règles vivent dans `assets/js/depenses.js` ; prot�
   l'écran les sépare, un lecteur d'écran ou un copier-coller non. Une espace dans le gabarit ne change rien à
   l'affichage flex.
 
+**51. LES STATISTIQUES : DEUX ONGLETS, UNE PÉRIODE, DES CHIFFRES QUI DISENT CE QU'ILS COMPTENT** (27/10/2026 —
+revue de la page, propositions A à G choisies par Nicolas sur maquette). Les règles de l'activité vivent dans
+`assets/js/stats.js` (`window.SSStats`, fonctions pures) ; la paie reste dans `remuneration.js` (règle 30). Protégé par
+`tests/stats.test.html`.
+• ⚠️ **UN REGISTRE ILLISIBLE NE VAUT PAS ZÉRO.** La lecture ratée des versements (session Access expirée, réseau) était
+  rattrapée en liste vide : « Déjà prélevé : 0 € » et « Reste à toucher » = tout le total gagné — la seconde réclamation
+  que le registre existe pour empêcher (règle 30 sexies). Illisible, le reste affiche « — », le DIT, et le relevé
+  refuse de s'imprimer.
+• ⚠️ **UN DOSSIER ILLISIBLE NE DISPARAÎT PLUS EN SILENCE.** Une fiche qui ne se chargeait pas sortait de la paie et des
+  chiffres sans un mot (le total baissait). Les illisibles sont comptés et NOMMÉS au-dessus des deux onglets, et le
+  relevé imprimé le dit en tête. On les nomme depuis la liste BRUTE : `normDevis` aplatit `client`.
+• ⚠️ **UN BON D'INTERVENTION N'EST PAS UNE VENTE** (`estIntervention` : dépannage `realise`). Il comptait dans le podium
+  (« 3 devis signés » pour Yannick, dont ESSAI-15) et dans le taux de conversion. Un devis informatif non plus (pas de
+  bloc de signature : il traînait « en attente » pour toujours). « Signé » les dit à part (« + 1 intervention »).
+• **A — Une période pour toute l'activité** (Ce mois · Cette année · 12 mois · Tout, retenue par appareil
+  `ss_stats_periode`), comparée à la MÊME période l'an passé arrêtée au même jour (la pose est saisonnière ; un 29 février
+  devient le 28). Tout se compte par l'ÉVÉNEMENT (signé ce jour-là, refusé, payé), ARCHIVES COMPRISES : le CA signé
+  baissait quand on rangeait un dossier. Le tableau de bord garde son « CA signé » des dossiers vivants (règle 40) — deux
+  questions, deux libellés (« Signé · 2026 »). Ce qui est DÛ se lit aujourd'hui, quelle que soit la période. Les dates
+  passent par `jourDe` (heure LOCALE, règle 18). La paie n'a pas de période : ce qui est dû l'est depuis le début.
+• **B — Deux onglets** : « Ma paie » (la rémunération, le détail, le registre) et « L'activité ». Retenus par appareil
+  (`ss_stats_onglet`) ; par défaut la paie pour Nicolas, l'activité pour Yannick ; `#connexions` (lien du menu) et `#paie`
+  ouvrent le bon. ⚠️ **AUCUNE étape d'historique** : « retour » quitte la page, il ne promène pas d'un onglet à l'autre.
+• **La voix suit le lecteur** (`LECTEUR`, `V(tu, il)`) : Yannick lisait « Ce que SolariScreen me doit », « tu es dans
+  l'équipe ». Le CONTENU ne change pas (règle 30 : on ne symétrise pas) — « toi » devient « Nicolas ». Identité inconnue :
+  la voix de Nicolas.
+• **C — Des chiffres honnêtes** : « Ventes par vendeur » = devis signés où il est vendeur principal (et son taux), plus
+  une ligne « Sans vendeur » — le podium faisait disparaître ces devis, et « Performance par vendeur » affichait les
+  COMMISSIONS sous un nombre de devis compté par vendeur principal. « Ce qu'on vend » = les ouvertures des devis SIGNÉS (la
+  répartition additionnait brouillons et refusés, plus une ligne « autre 0 unité »). Le faux « Marge interne » (la somme
+  des deux commissions) a disparu : les commissions sont dans la paie.
+• **D — Du premier contact à la signature** : demandes → devis envoyés → signés de la période, le délai HABITUEL entre
+  l'envoi et la signature (la MÉDIANE : un dossier signé après six mois ne fait pas croire qu'on signe en trois semaines),
+  combien ont signé sans relance, et ce qui attend aujourd'hui. **Les sources** rattachent une demande à son devis par
+  `SSAttente.devisDeRdv` (règle 17 — l'ancien calcul ne lisait que `rdv.devis_id`) ; ⚠️ le lien « même client » n'est
+  retenu que pour un devis créé APRÈS la demande ; une demande encore EN COURS n'est ni un succès ni un échec (« Site web
+  0/1 · 0 % » pour une demande arrivée le matin même). D'où `attente.js` chargé par la page (et la page « sans
+  attente.js » de `nav.test.html` est devenue les Notes de frais).
+• **E — Des graphes lisibles au doigt** : la valeur ÉCRITE au-dessus de chaque barre (elle ne vivait qu'au survol), posée
+  au-dessus de la plus haute des deux barres (dans le contour de l'an passé, elle avait l'air de lui appartenir) ; l'an
+  passé en pointillés ; le mois seul, l'année quand elle change. ⚠️ Une colonne ne descend jamais sous 34 px : au-delà
+  le graphe DÉFILE et s'ouvre sur le mois en cours (24 mois dans une carte de 360 px se chevauchaient ; sur téléphone, le
+  mois en cours était caché à droite). Les rythmes de connexion ont leur phrase (« le jour le plus actif : le mardi »).
+• **F — Le relevé de paie imprimable** : une page datée et signée de celui qui l'imprime — pose par type, commission par
+  taux, total, déjà reçu, reste, CE QUI N'EST PAS COMPTÉ (équipe ?, posé ?, tarif ?), le détail, les versements. À
+  l'impression il ne reste que lui. Sur téléphone, le détail est en CARTES (le tableau faisait 735 px dans 291) : les deux
+  rendus existent, la feuille de style choisit (règle 24).
+• **G — Ce qui se perd sans un mot** : devis expirés sans réponse (30 jours, ni acceptés en ligne ni archivés), en relance
+  2, refus de la période par raison, chaque ligne dépliée sur ses dossiers. ⚠️ Un dossier MIS EN ATTENTE (règle 38) n'y est
+  pas : le client a répondu.
+• Sur téléphone : le code « SS // … » des titres est masqué (un titre prenait 88 à 144 px), les chiffres du haut vont par
+  deux, les barres de répartition sont sur DEUX niveaux partout (à 820 px, une valeur longue écrasait la barre à 10 px et
+  sortait de la carte — test W1, à la largeur la plus étroite AVANT le passage à une colonne).
+• ⚠️ Pièges de mesure payés ici : `history.length` PLAFONNE à 50 dans Chrome — on compte les `pushState` au lieu de lire la
+  longueur ; un libellé qui déborde de sa colonne ne se voit pas à sa boîte (elle fait la largeur de la colonne) — on mesure
+  le TEXTE (`Range.getBoundingClientRect`) ; le défilement d'un cadre est `smooth` (`base.css`) : couper
+  `scrollBehavior` avant de défiler pour regarder.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2610,8 +2670,8 @@ rémunération, ni TVA). Les règles vivent dans `assets/js/depenses.js` ; prot�
   ligne ne l'explique. Trouvé le 04/10/2026 en rejouant la page Statistiques sur des données
   dégradées, pas en relisant le code.
   `SSRemu.quantiteDe(item)` est la seule source : champ absent/vide/illisible → 1, sinon la valeur
-  si elle est > 0, et **0 dans tous les autres cas, jamais un négatif**. `app/stats.html` la
-  consomme aussi (répartition par type, marge par type) plutôt que d'en garder une copie.
+  si elle est > 0, et **0 dans tous les autres cas, jamais un négatif**. Les Statistiques la
+  consomment aussi (`stats.js`, « ce qu'on vend ») plutôt que d'en garder une copie.
   La leçon générale : **un `|| valeurParDéfaut` sur un NOMBRE confond « absent » et « zéro »**,
   et ne dit rien du signe. Sur de l'argent, il faut les trois cas séparément.
 
@@ -2901,6 +2961,8 @@ rémunération, ni TVA). Les règles vivent dans `assets/js/depenses.js` ; prot�
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 51/51 », par le serveur.
+   Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 37/37 », par
+   le serveur — ET `remuneration.test.html` (la paie qu'elle affiche) et `nav.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à
    `app/depenses.html` ou à `/api/depenses` : `tests/depenses-page.test.html`, exiger « 39/39 », par le serveur, ET
    `bac-a-sable.test.html`. Les dates s'y

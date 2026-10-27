@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Statistiques</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Statistiques</h1>
+  <p class="note">
+    La page Statistiques (règle 51, revue du 27/10/2026) : les règles PURES de <code>assets/js/stats.js</code> (période et
+    comparaison, ce qu'est une vente, chiffres de la période, vendeurs, ce qu'on vend, entonnoir et délais, sources, ce qui se
+    perd, graphes, clients, villes), puis la VRAIE page remplie par le bac à sable sur le vrai serveur
+    (<code>tests/banc-serveur.js</code>) : les deux onglets, la voix quand c'est Yannick qui lit, le registre ou un dossier
+    illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé
+    imprimable, le téléphone et « retour ». La paie elle-même est protégée par <code>remuneration.test.html</code>.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/stats.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 800) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 800) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests statistiques';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const ST = window.SSStats, U = window.SSUI, SS = window.SS, BANC = window.SSBanc, REMU = window.SSRemu;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const T = (n) => J(n) + 'T10:00:00.000Z';
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const eur = (n) => U.fmtEur(n).replace(/\s+/g, ' ');
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const CLES_PAGE = ['ss_stats_onglet', 'ss_stats_periode'];
+    const SAUVE_PAGE = {};
+    CLES_PAGE.forEach((k) => { try { SAUVE_PAGE[k] = localStorage.getItem(k); } catch (e) {} });
+    const oublierChoix = () => CLES_PAGE.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+    /** Ouvre la page dans un cadre branché sur le banc ; `panne(url)` rend une réponse à la place du serveur. */
+    async function ouvrirPage(largeur, hauteur, panne, suffixe) {
+      const vrai = BANC.fetch;
+      if (panne) BANC.fetch = async (url, o) => { const r = panne(String(url), o); return r || vrai(url, o); };
+      try {
+        const f = await BANC.cadre('../app/stats.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+        await attendreQue(() => { const r = f.contentDocument.getElementById('remu'); return r && !/Chargement/.test(r.textContent) && f.contentDocument.querySelector('#kpis .kpi'); }, 10000);
+        await attendre(1300);   // l'odomètre des chiffres du haut (premier rendu seulement)
+        return f;
+      } finally { BANC.fetch = vrai; }
+    }
+    /** Les bords du TEXTE d'un élément (sa boîte fait la largeur de la colonne, c'est le texte qui déborde). */
+    const texteRect = (e) => { const r = e.ownerDocument.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); };
+    const chevauchent = (l) => l.some((m, i) => i && texteRect(m).left < texteRect(l[i - 1]).right - 0.5);
+    const reponse = (corps, statut, type) => new Response(typeof corps === 'string' ? corps : JSON.stringify(corps), { status: statut || 200, headers: { 'Content-Type': type || 'application/json' } });
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures (stats.js)');
+        const A = ST.periode('annee', '2026-10-27'), M = ST.periode('mois', '2026-10-27'), D = ST.periode('12m', '2026-10-27'), TT = ST.periode('tout', '2026-10-27');
+        check('S1 A — Les périodes et leur comparaison : la MÊME période l’an passé, arrêtée au même jour ; « Tout » ne se compare pas ; un 29 février devient le 28',
+          [[A.debut, A.fin, A.libelle, A.avant.debut, A.avant.fin, A.avant.libelle], [M.debut, M.libelle, M.avant.debut, M.avant.fin], [D.debut, D.avant.debut, D.avant.fin], [TT.debut, TT.avant],
+            ST.periode('annee', '2028-02-29').avant.fin, ST.dans('2026-01-01', A), ST.dans('2025-12-31', A), ST.dans('2026-10-28', A)],
+          [['2026-01-01', '2026-10-27', '2026', '2025-01-01', '2025-10-27', '2025'], ['2026-10-01', 'octobre 2026', '2025-10-01', '2025-10-27'], ['2025-10-28', '2024-10-28', '2025-10-27'], ['', null],
+            '2027-02-28', true, false, false]);
+        const tard = '2026-10-31T23:30:00.000Z';
+        check('S2 Un horodatage se lit en heure LOCALE (règle 18), une date nue telle quelle, l’illisible ne compte jamais',
+          [ST.jourDe(tard), ST.jourDe('2026-10-31'), ST.jourDe('n’importe quoi'), ST.jourDe(null), ST.dans('', TT)], [U.isoDate(new Date(tard)), '2026-10-31', '', '', false]);
+        const dep = { id: 'dp', statut: 'signe', type_document: 'depannage', depannage_mode: 'realise' };
+        check('S3 Un bon d’intervention (dépannage FAIT) n’est pas une vente ; une proposition de dépannage l’est ; un devis informatif non plus',
+          [ST.estIntervention(dep), ST.estVente(dep), ST.estVente(Object.assign({}, dep, { depannage_mode: 'a_realiser' })), ST.estVente({ statut: 'envoye_client', informatif: true }), ST.estVente({ statut: 'signe' })],
+          [true, false, true, false, true]);
+        const sig = (id, j, ttc, o) => Object.assign({ id, statut: 'signe', calculs: { total_ttc: ttc }, date_envoi: J(j - 10), statut_history: [{ statut: 'envoye_client', date: T(j - 10) }, { statut: 'signe', date: T(j) }] }, o || {});
+        const L1 = [
+          sig('a', -5, 1000, { pricing_v2: { material: { sellers: { principal: 'nicolas' } } }, items: [{ type: 'screen', quantite: 2, prix_catalogue_ht: 300 }, { type: 'volet_roulant', quantite: 0, prix_catalogue_ht: 999 }] }),
+          sig('b', -6, 2000, { archive: true, pricing_v2: { material: { sellers: { principal: 'yannick' } } }, items: [{ type: 'screen', prix_catalogue_ht: 500 }, { prix_catalogue_ht: 100 }] }),
+          sig('c', -7, 500),
+          sig('inter', -3, 431.95, { type_document: 'depannage', depannage_mode: 'realise', pricing_v2: { material: { sellers: { principal: 'yannick' } } } }),
+          { id: 'r', statut: 'refuse', calculs: { total_ttc: 700 }, date_envoi: J(-30), statut_history: [{ statut: 'refuse', date: T(-4) }], raison_refus: 'Trop cher', pricing_v2: { material: { sellers: { principal: 'nicolas' } } } },
+          { id: 'w', statut: 'relance_1', calculs: { total_ttc: 900 }, date_envoi: J(-2), items: [{ type: 'tente_solaire', prix_catalogue_ht: 5000 }] },
+          { id: 'info', statut: 'envoye_client', informatif: true, calculs: { total_ttc: 300 }, date_envoi: J(-1) },
+          { id: 'br', statut: 'brouillon', calculs: { total_ttc: 8000 }, date_creation: T(-1), items: [{ type: 'screen', quantite: 9, prix_catalogue_ht: 1000 }] },
+          sig('old', -800, 4000),
+        ];
+        const P30 = { cle: 'x', debut: J(-30), fin: J(0) };
+        const FAC = [{ id: 'f1', type: 'acompte', total_ttc: 1000, date: J(-5), echeance: J(-1), paiements: [{ date: J(-2), montant: 400 }, { date: J(-200), montant: 50 }] },
+          { id: 'f2', type: 'solde', total_ttc: 500, date: J(-100), echeance: J(10), paiements: [] }];
+        const C1 = ST.chiffres(L1, FAC, P30);
+        check('S4 Les chiffres de la période : signé par la date de SIGNATURE, archives comprises, sans l’intervention (dite à part) ; taux sur les tranchés ; encaissé par date de paiement ; le dû AUJOURD’HUI',
+          [C1.signe, C1.nbSignes, C1.interventions, C1.refuses, C1.envoyes, C1.enAttente, C1.taux, C1.tranches, C1.encaisse, C1.facture, C1.du, C1.retard, C1.nbRetard],
+          [3500, 3, { nb: 1, montant: 431.95 }, { nb: 1, montant: 700 }, 5, 1, 75, 4, 400, 1000, 1050, 550, 1]);
+        check('S5 L’évolution : +20 %, rien à comparer quand les deux sont nuls, « nouveau » quand l’an passé valait 0, des POINTS pour un taux',
+          [ST.evolution(120, 100), ST.evolution(0, 0), ST.evolution(5, 0), ST.evolution(80, 75, true), ST.evolution(3, null)],
+          [{ pct: 20 }, null, { nouveau: true }, { points: 5 }, null]);
+        const V1 = ST.vendeurs(L1, P30);
+        check('S6 C — Les ventes par vendeur : ce que chacun a VENDU (vendeur principal), un devis SANS vendeur a sa ligne, l’intervention n’y est pas, « en tête » au plus gros montant',
+          V1.map((v) => [v.qui, v.nb, v.montant, v.refuses, v.taux, v.enTete]),
+          [['nicolas', 1, 1000, 1, 50, false], ['yannick', 1, 2000, 0, 100, true], ['', 1, 500, 0, 100, false]]);
+        check('S7 C — Ce qu’on vend : les ouvertures des devis SIGNÉS seulement (le brouillon de 9 screens n’y est pas), une quantité nulle ne compte pas, une ligne sans type est nommée',
+          ST.ventesParType(L1, P30).map((x) => [x.type, x.qte, x.valeur, x.dossiers]), [['screen', 3, 1100, 2], ['', 1, 100, 1]]);
+        const L2 = [
+          sig('e1', -2, 100, { date_envoi: J(-12), relances: [{ n: 1, date: J(-6) }] }),
+          sig('e2', -3, 100, { date_envoi: J(-7), statut_history: [{ statut: 'relance_1', date: T(-5) }, { statut: 'signe', date: T(-3) }] }),
+          sig('e3', -1, 100, { date_envoi: J(-101), relances: [{ n: 1, date: null, implied: true }] }),
+          { id: 'l1', statut: 'envoye_client', date_envoi: J(-1) }, { id: 'l2', statut: 'relance_2', date_envoi: J(-20) }, { id: 'l3', statut: 'relance_2', date_envoi: J(-20), archive: true },
+        ];
+        const E1 = ST.entonnoir(L2, [{ id: 'q1', date_creation: T(-3) }, { id: 'q2', date_creation: T(-90) }], P30);
+        check('S8 D — L’entonnoir : demandes, envoyés et signés de la période ; le délai HABITUEL (médiane : 10 j, pas la moyenne de 42) ; signés sans relance ; ce qui attend aujourd’hui (archives à part)',
+          [E1.demandes, E1.envoyes, E1.signes, E1.delai, E1.mesures, E1.sansRelance, E1.enCours, ST.mediane([1, 2, 3, 100]), ST.mediane([])],
+          [1, 5, 3, 10, 3, 1, { envoye_client: 1, relance_1: 0, relance_2: 1 }, 3, null]);
+        const cli = { prenom: 'Anne', nom: 'L’Hoest' };
+        const L3 = [
+          Object.assign(sig('s1', -5, 1500), { client: cli, date_creation: T(-20) }),
+          { id: 's2', statut: 'refuse', client: { nom: 'Refus' }, date_creation: T(-20), rdv_id: 'R2' },
+          { id: 'vieux', statut: 'signe', client: { nom: 'Ancien' }, date_creation: T(-400), calculs: { total_ttc: 99 } },
+        ];
+        const R3 = [
+          { id: 'R1', source: 'Site web', client: cli, statut: 'visite', date_creation: T(-25) },
+          { id: 'R1b', source: 'site WEB ', client: cli, statut: 'converti', date_creation: T(-24), devis_id: 's1' },
+          { id: 'R2', source: 'Téléphone', client: { nom: 'Refus' }, statut: 'converti', date_creation: T(-22) },
+          { id: 'R3', source: 'Téléphone', client: { nom: 'Ancien' }, statut: 'visite', date_creation: T(-10) },
+          { id: 'R4', source: '', client: { nom: 'Perdu' }, statut: 'annule', date_creation: T(-9) },
+          { id: 'R5', source: 'Salon', client: { nom: 'Neuf' }, statut: 'nouveau', date_creation: T(-1) },
+        ];
+        check('S9 D — Les sources : la demande trouve le devis fait au simulateur APRÈS elle (même client, règle 17) mais pas un vieux devis du même client ; une signature ne compte qu’une fois ; ce qui est en cours n’est NI succès NI échec',
+          ST.sources(L3, R3, P30).map((s) => [s.source, s.demandes, s.devis, s.signes, s.perdus, s.enCours, s.montant, s.taux]),
+          [['Site web', 2, 2, 1, 0, 0, 1500, 100], ['Téléphone', 2, 1, 0, 1, 1, 0, 0], ['Non précisée', 1, 0, 0, 1, 0, 0, 0], ['Salon', 1, 0, 0, 0, 1, 0, null]]);
+        const L4 = [
+          { id: 'x1', statut: 'relance_2', date_envoi: J(-45), calculs: { total_ttc: 3000 }, client: { nom: 'Expiré' } },
+          { id: 'x2', statut: 'relance_2', date_envoi: J(-20), calculs: { total_ttc: 1000 }, client: { nom: 'R2' } },
+          { id: 'x3', statut: 'relance_1', date_envoi: J(-40), calculs: { total_ttc: 500 }, client: { nom: 'Attente' }, attentes: [{ id: 'a', motif: 'Revient en novembre', revoir_le: J(10) }] },
+          { id: 'x4', statut: 'envoye_client', date_envoi: J(-50), client_accepted: true, calculs: { total_ttc: 800 } },
+          { id: 'x5', statut: 'envoye_client', date_envoi: J(-50), archive: true, calculs: { total_ttc: 800 } },
+          { id: 'x6', statut: 'refuse', raison_refus: 'Trop cher', statut_history: [{ statut: 'refuse', date: T(-3) }], calculs: { total_ttc: 4210 } },
+          { id: 'x7', statut: 'refuse', statut_history: [{ statut: 'refuse', date: T(-300) }], calculs: { total_ttc: 1 } },
+        ];
+        const PE = ST.pertes(L4, P30);
+        check('S10 G — Ce qui se perd : expirés (30 j, ni acceptés en ligne, ni MIS EN ATTENTE, ni archivés) et relance 2 DISJOINTS ; les refus de la période par raison',
+          [PE.expires.dossiers.map((x) => x.id), PE.expires.montant, PE.relance2.dossiers.map((x) => x.id), PE.refus.map((r) => [r.raison, r.dossiers.length, r.montant])],
+          [['x1'], 3000, ['x2'], [['Trop cher', 1, 4210]]]);
+        const AN = ST.periode('annee', '2026-10-27');
+        const serie = ST.parMois([sig('g1', 0, 1200), Object.assign(sig('g2', 0, 300), { statut_history: [{ statut: 'signe', date: '2025-10-05T10:00:00Z' }] })],
+          [{ paiements: [{ date: '2026-10-02', montant: 10234 }, { date: '2025-10-12', montant: 850 }] }], ['2026-10']);
+        check('S11 E — Les mois du graphe (janvier → ce mois-ci pour l’année, 12 sinon, 24 pour tout) ; chaque mois porte l’an passé ; une valeur courte tient au-dessus d’une barre',
+          [ST.moisDuGraphe(AN, '2026-10-27').length, ST.moisDuGraphe(AN, '2026-10-27')[0], ST.moisDuGraphe(ST.periode('12m', '2026-10-27'), '2026-10-27')[0], ST.moisDuGraphe(ST.periode('tout', '2026-10-27'), '2026-10-27').length,
+            serie[0].encaisse, serie[0].encaisseAvant, serie[0].signeAvant, [0, 850, 2140, 10234, 125400].map(ST.court).join(' | '), ST.libelleMois('2026-07')],
+          [10, '2026-01', '2025-11', 24, 10234, 850, 300, '0 | 850 | 2,1 k | 10 k | 125 k', 'juil 26']);
+        const L5 = [
+          Object.assign(sig('v1', -2, 100), { client: { nom: 'A', adresse: { ville: 'Nivelles' } } }),
+          Object.assign(sig('v2', -2, 200), { client: { nom: 'B', adresse: { ville: 'NIVELLES' } } }),
+          { id: 'v3', statut: 'envoye_client', date_envoi: J(-3), client: { nom: 'C', adresse: { ville: 'nivelles' } } },
+          { id: 'v4', statut: 'envoye_client', date_envoi: J(-3), client: { nom: 'D', adresse: { ville: 'Écaussinnes' } } },
+          Object.assign(sig('t1', -1, 50), { client: {} }), Object.assign(sig('t2', -1, 70), { client: {} }),
+          Object.assign(sig('t3', -1, 90), { archive: true, client: { prenom: 'Jo', nom: 'B' } }),
+        ];
+        check('S12 Villes sans casse ni accents (« Nivelles », « NIVELLES », « nivelles » = UNE commune) ; top clients par la clé du CRM (deux sans nom ne se fondent pas) et archives comprises',
+          [ST.villes(L5, P30).map((v) => [v.ville, v.envoyes, v.signes, v.montant]), ST.topClients(L5, P30).map((c) => [c.nom, c.nb, c.montant])],
+          [[['Nivelles', 3, 2, 300], ['Écaussinnes', 1, 0, 0]], [['B', 1, 200], ['A', 1, 100], ['Jo B', 1, 90], ['Client sans nom', 1, 70], ['Client sans nom', 1, 50]]]);
+
+        // ══════════ P — LA PAGE, AU BUREAU ══════════
+        titre('P — La vraie page, remplie par le bac à sable (1500 px)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS; oublierChoix();
+        const rem = await window.SSBacASable.remplir(SS, {});
+        await SS.saveRdv({ id: 'RDV-T1', source: 'Test probable', statut: 'visite', client: (await SS.getDevis('ESSAI-08')).client, date_creation: T(-200), date_modification: T(-200) });
+        await SS.savePrelevement({ id: 'prel-t1', qui: 'nicolas', date: J(-10), montant: 250, motif: 'Virement d’essai' });
+        BANC.viderCaches();
+        // Les données telles que la page les lira, pour comparer ses chiffres à ceux des règles.
+        const LISTE = (await SS.listDevis()).map(U.normDevis);
+        const FULL = (await Promise.all(LISTE.map((d) => SS.getDevis(d.id)))).filter(Boolean).map((d) => Object.assign({}, d, { archive: !!d.archive }));
+        const FACT = await SS.listFactures(), RDVS = await SS.listRdv(), REGL = await window.SSConf.charger();
+        const DOS = FULL.filter((d) => ['signe', 'termine'].includes(d.statut)).map((d) => REMU.parDossier(d, FACT, REGL, U.aujourdhui()));
+        const CUM = REMU.cumul(DOS, await SS.listPrelevements());
+        BANC.viderCaches();
+
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        check('P0 Le cadre parle au banc ; le bac à sable est rempli sans erreur ; aucune section n’a planté',
+          [f.branche, rem.erreurs, [...d.querySelectorAll('.empty-mini')].filter((e) => /pas pu s.afficher/.test(e.textContent)).map(txt)], [true, [], []]);
+        check('P1 B — Deux onglets ; Nicolas arrive sur SA paie ; l’activité est cachée',
+          [txt(d.getElementById('ongPaie')), d.getElementById('ongPaie').getAttribute('aria-selected'), d.getElementById('panPaie').hidden, d.getElementById('panActivite').hidden],
+          ['Ma paie', 'true', false, true]);
+        check('P2 La paie : le reste à toucher est celui du moteur (registre lu : 250 € déjà reçus) ; la voix est la mienne',
+          [txt(d.getElementById('remuReste')), /Déjà prélevé − ?250,00 €/.test(txt(d.getElementById('remu')).replace(/\s+/g, ' ')), /Ce que SolariScreen me doit/.test(txt(d.getElementById('remu'))), txt(d.getElementById('remuTitre'))],
+          [eur(CUM.reste), true, true, 'Ma rémunération']);
+        const lignesT = [...d.querySelectorAll('#remuDossiers tbody tr')], cartes = [...d.querySelectorAll('#remuDossiers .st-carte:not(.total)')];
+        check('P3 F — Le détail existe en TABLEAU et en CARTES, les mêmes dossiers ; au bureau, c’est le tableau qu’on voit',
+          [lignesT.length > 5, lignesT.map((t) => t.getAttribute('data-id')).join() === cartes.map((c) => c.getAttribute('data-id')).join(),
+            w.getComputedStyle(d.querySelector('.st-tableau')).display !== 'none', w.getComputedStyle(d.querySelector('.st-cartes')).display],
+          [true, true, true, 'none']);
+        let imprime = 0; w.print = () => { imprime++; };
+        d.getElementById('btnReleve').click(); await attendre(60);
+        const rel = d.getElementById('releve');
+        check('P4 F — « Imprimer le relevé » : le total, le déjà reçu, le reste, ce qui n’est PAS compté (équipe ?), le détail et les versements ; puis l’impression',
+          [imprime, /Relevé de rémunération — Nicolas/.test(txt(rel)), /établi le \d\d\/\d\d\/\d{4} par Nicolas/.test(txt(rel)), new RegExp('Reste à toucher ' + eur(CUM.reste)).test(txt(rel)),
+            /Non compté, en attente d.une donnée/.test(txt(rel)), /pose en attente d'une équipe/.test(txt(rel)), rel.querySelectorAll('h2 + table tbody tr').length > 0,
+            /Virement d’essai/.test(txt(rel)), rel.querySelectorAll('table')[1].querySelectorAll('tbody tr').length === lignesT.length],
+          [1, true, true, true, true, true, true, true, true]);
+        // À l'impression, la page disparaît : on force les règles « print » à s'appliquer à l'écran pour le mesurer.
+        const regles = []; const parcourir = (l) => { for (const r of l) { if (r.type === 4 && /print/.test(r.media.mediaText)) regles.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        for (const s of d.styleSheets) { let l; try { l = s.cssRules; } catch (e) { continue; } parcourir(l); }
+        regles.forEach((r) => { r.media.mediaText = 'all'; });
+        check('P5 F — À l’impression, il ne reste QUE le relevé (la page, le menu et Soli disparaissent)',
+          [w.getComputedStyle(d.querySelector('main')).display, w.getComputedStyle(rel).display, w.getComputedStyle(d.querySelector('.app-header')).display], ['none', 'block', 'none']);
+        regles.forEach((r) => { r.media.mediaText = 'print'; });
+
+        // L'activité
+        d.getElementById('ongActivite').click(); await attendre(60);
+        check('P6 B — L’onglet « L’activité » s’ouvre, la paie se cache, le choix est RETENU sur l’appareil',
+          [d.getElementById('panActivite').hidden, d.getElementById('panPaie').hidden, d.getElementById('ongActivite').getAttribute('aria-selected'), localStorage.getItem('ss_stats_onglet')],
+          [false, true, 'true', 'activite']);
+        w.choisirPeriode('tout'); await attendre(60);
+        const CT = ST.chiffres(FULL, FACT, ST.periode('tout'));
+        const signesVentes = FULL.filter((x) => ['signe', 'termine'].includes(x.statut) && x.type_document !== 'depannage').length;
+        check('P7 Le bon d’intervention ESSAI-15 n’est PAS une vente : « Signé » le dit à part (+ 1 intervention), il n’est ni dans le taux ni chez Yannick ; les archives comptent (ESSAI-18)',
+          [txt(d.querySelector('#kSigne .kpi-value')), CT.nbSignes, signesVentes, /\+ 1 intervention \(431,95 €\)/.test(txt(d.getElementById('kSigne'))), txt(d.querySelector('#kTaux .kpi-value')),
+            CT.taux, ST.vendeurs(FULL, ST.periode('tout')).reduce((s, v) => s + v.nb, 0), /Yannick( en tête)? \d+ signés? · /.test(txt(d.getElementById('vendeurs')))],
+          [eur(CT.signe), signesVentes, 11, true, CT.taux + ' %', Math.round(11 / 12 * 100), 11, true]);
+        w.choisirPeriode('mois'); await attendre(60);
+        const CM = ST.chiffres(FULL, FACT, ST.periode('mois')), PM = ST.periode('mois');
+        check('P8 A — « Ce mois » : les chiffres de la période, la comparaison à la même période l’an passé, et le choix RETENU',
+          [txt(d.querySelector('#kSigne .kpi-label')), txt(d.querySelector('#kSigne .kpi-value')), txt(d.querySelector('#kEnvoyes .kpi-value')), new RegExp('vs ' + PM.avant.libelle).test(txt(d.getElementById('kSigne'))),
+            txt(d.getElementById('perComp')), localStorage.getItem('ss_stats_periode'), d.querySelector('.st-per [data-per="mois"]').getAttribute('aria-pressed')],
+          ['Signé · ' + PM.libelle, eur(CM.signe), String(CM.envoyes), true, PM.libelle + ', comparé à ' + PM.avant.libelle + ' (même période)', 'mois', 'true']);
+        w.choisirPeriode('12m'); await attendre(60);
+        const src = txt(d.getElementById('bySource'));
+        check('P9 D — Les sources : plus de « 0 % » pour des demandes encore en cours ; une demande faite AVANT le devis de son client (simulateur) le trouve : signée',
+          [/ 0 %/.test(src), /Site web · 1 demande · 0 signé · 1 en cours/.test(src) || /Site web.*1 en cours/.test(src), /Test probable.*1 signé · 100 %/.test(src)],
+          [false, true, true]);
+        const serieP = ST.parMois(FULL, FACT, ST.moisDuGraphe(ST.periode('12m')));
+        const cour = d.querySelector('#graphEnc .st-col.courant');
+        check('P10 E — Les graphes ÉCRIVENT leur valeur (12 mois), le mois en cours est marqué et dit son montant, l’an passé en pointillés là où il existe',
+          [d.querySelectorAll('#graphEnc .st-col').length, d.querySelectorAll('#graphEnc .st-val').length, txt(cour.querySelector('.st-val')), d.querySelectorAll('#graphEnc .st-avant').length],
+          [12, 12, serieP[11].encaisse ? ST.court(serieP[11].encaisse) : '', serieP.filter((m) => m.encaisseAvant > 0).length]);
+        const moisL = [...d.querySelectorAll('#graphEnc .st-mois')];
+        const chevauche = chevauchent(moisL);
+        check('P10b E — Les mois ne se chevauchent pas (le mois seul, l’année quand elle change) ; une valeur ne se pose jamais DANS le contour de l’an passé',
+          [chevauche, moisL.filter((m) => m.querySelector('small')).length >= 1, [...d.querySelectorAll('#graphEnc .st-col')].every((c) => { const a = c.querySelector('.st-avant'), v = c.querySelector('.st-val'); return !a || v.getBoundingClientRect().bottom <= a.getBoundingClientRect().top + 1; })],
+          [false, true, true]);
+        const PP = ST.pertes(FULL, ST.periode('12m'));
+        const btnExp = d.querySelector('.st-perte[data-cle="expires"]');
+        btnExp.click(); await attendre(40);
+        const lienExp = [...d.querySelectorAll('.st-perte-l a')].map((a) => a.getAttribute('href'));
+        check('P11 G — Ce qui se perd : le devis expiré de 45 jours (ESSAI-14), pas celui MIS EN ATTENTE (ESSAI-05) ; la ligne se déplie sur ses dossiers, qui mènent à leur fiche',
+          [PP.expires.dossiers.map((x) => x.id), /ESSAI-05/.test(JSON.stringify(PP)), d.querySelector('.st-perte[data-cle="expires"]').getAttribute('aria-expanded'), lienExp, /Trop cher/.test(txt(d.getElementById('pertes')))],
+          [['ESSAI-14'], false, 'true', ['vue.html?id=ESSAI-14'], true]);
+        const typ = txt(d.getElementById('byType'));
+        check('P12 C — Ce qu’on vend : les devis SIGNÉS seuls (le total d’unités est celui des signés), plus de ligne « autre 0 unité »',
+          [/autre/.test(typ), / 0 unité/.test(typ), (typ.match(/(\d+) unités?/g) || []).map((x) => Number(x.split(' ')[0])).reduce((a, b) => a + b, 0),
+            ST.ventesParType(FULL, ST.periode('12m')).reduce((s, x) => s + x.qte, 0)],
+          [false, false, ST.ventesParType(FULL, ST.periode('12m')).reduce((s, x) => s + x.qte, 0), ST.ventesParType(FULL, ST.periode('12m')).reduce((s, x) => s + x.qte, 0)]);
+        check('P13 Tous les gestionnaires de la page compilent (apostrophes : L’Hoest, Braine-l’Alleud)', compiles(d), []);
+        f.remove();
+        // À 820 px, deux colonnes de cartes étroites (les plus étroites avant le passage à une colonne) : c'est là que les valeurs sortaient de la carte (vu à l'écran).
+        f = await ouvrirPage(820, 900);
+        w = f.contentWindow; d = f.contentDocument;
+        d.getElementById('ongActivite').click(); w.choisirPeriode('tout'); await attendre(120);
+        const horsCarte = [...d.querySelectorAll('#panActivite .section')].flatMap((s) => { const sb = s.getBoundingClientRect();
+          return [...s.querySelectorAll('*')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > sb.right + 1; }).map((e) => (s.querySelector('.section-title') || {}).textContent + ' › ' + (e.className || e.tagName)); });
+        const pistes = [...d.querySelectorAll('#byCity .bar-track, #byType .bar-track, #bySource .bar-track')].map((x) => Math.round(x.getBoundingClientRect().width));
+        check('W1 À 820 px : rien ne sort de sa carte, et chaque barre a de la place (elle tombait à 10 px)', [horsCarte.slice(0, 5), Math.min(...pistes) > 150], [[], true]);
+        const m24 = [...d.querySelectorAll('#graphSigne .st-mois')], g24 = d.querySelector('#graphSigne .st-graphe'), c24 = d.querySelector('#graphSigne .st-col.courant');
+        check('W2 E — « Tout » : 24 mois dans une carte étroite, aucun libellé n’en chevauche un autre ; le graphe défile et s’ouvre sur le mois en cours',
+          [m24.length, chevauchent(m24), g24.scrollLeft > 0, c24.getBoundingClientRect().right <= g24.getBoundingClientRect().right + 1],
+          [24, false, true, true]);
+        f.remove();
+
+        // ══════════ L — CE QUI N'A PAS PU ÊTRE LU ══════════
+        titre('L — Un registre ou un dossier illisible se DIT');
+        oublierChoix();
+        f = await ouvrirPage(1500, 900, (u) => /\/api\/prelevements/.test(u) ? reponse('<html>Cloudflare Access</html>', 200, 'text/html') : null);
+        w = f.contentWindow; d = f.contentDocument;
+        let imp2 = 0; w.print = () => { imp2++; };
+        d.getElementById('btnReleve').click(); await attendre(40);
+        check('L1 Registre illisible (session Access expirée) : PAS de « reste à toucher » (il annoncerait le total comme si rien n’était versé), on le DIT, et pas de relevé',
+          [txt(d.getElementById('remuReste')), /Le registre des versements n'a pas pu être lu/.test(txt(d.getElementById('remu'))), /Déjà prélevé registre illisible/.test(txt(d.getElementById('remu'))),
+            /Reste à toucher —/.test(txt(d.getElementById('remu'))), /Registre illisible/.test(txt(d.getElementById('remuPrel'))), imp2, /Impossible/.test(txt(d.getElementById('releveMsg')))],
+          ['—', true, true, true, true, 0, true]);
+        f.remove();
+        f = await ouvrirPage(1500, 900, (u, o) => /\/api\/devis\/ESSAI-08\b/.test(u) && !(o && o.method && o.method !== 'GET') ? reponse({ ok: false, error: 'boom' }, 500) : null);
+        w = f.contentWindow; d = f.contentDocument;
+        const nomE8 = [((FULL.find((x) => x.id === 'ESSAI-08') || {}).client || {}).prenom, ((FULL.find((x) => x.id === 'ESSAI-08') || {}).client || {}).nom].filter(Boolean).join(' ');
+        check('L2 Un dossier illisible ne disparaît plus en silence : il est NOMMÉ au-dessus des deux onglets, et la paie ne prétend pas être complète',
+          [/1 dossier n'a pas pu être lu/.test(txt(d.getElementById('avertLecture'))), txt(d.getElementById('avertLecture')).indexOf(nomE8) >= 0, !!d.querySelector('#remuDossiers [data-id="ESSAI-08"]')],
+          [true, true, false]);
+        f.remove();
+
+        // ══════════ Y — QUAND C'EST YANNICK QUI LIT ══════════
+        titre('Y — Quand c’est Yannick qui lit');
+        oublierChoix(); BANC.ident = BANC.YANNICK;
+        f = await ouvrirPage(1500, 900);
+        w = f.contentWindow; d = f.contentDocument;
+        const ongA = d.getElementById('ongActivite').getAttribute('aria-selected');
+        d.getElementById('ongPaie').click(); await attendre(40);
+        const remY = txt(d.getElementById('remu'));
+        check('Y1 Yannick arrive sur l’activité (la paie n’est pas la sienne) ; l’onglet dit « La paie de Nicolas », et plus aucun « me doit » ni « toi » ne le désigne',
+          [ongA, txt(d.getElementById('ongPaie')), txt(d.getElementById('remuTitre')), /Ce que SolariScreen doit à Nicolas/.test(remY), /me doit/.test(remY), /t'est dû|ce qui t’est dû/.test(remY),
+            [...d.querySelectorAll('#remuDossiers tbody td:nth-child(3)')].some((t) => /^toi\*?$/.test(txt(t))), txt(d.getElementById('prelTitre'))],
+          ['true', 'La paie de Nicolas', 'La rémunération de Nicolas', true, false, false, false, 'Ce que Nicolas a déjà reçu']);
+        f.remove();
+        BANC.ident = BANC.NICOLAS;
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        oublierChoix();
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const L = d.documentElement.clientWidth;
+        const deborde = () => [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.className || e.tagName).slice(0, 6);
+        check('T1 Ma paie : rien ne dépasse ; le détail en CARTES (le tableau de 735 px est caché) ; le dossier se lit en entier (plus d’ellipse)',
+          [deborde(), w.getComputedStyle(d.querySelector('.st-tableau')).display, w.getComputedStyle(d.querySelector('.st-cartes')).display,
+            [...d.querySelectorAll('.st-carte .l2')].every((x) => x.scrollWidth <= x.clientWidth + 1)],
+          [[], 'none', 'block', true]);
+        d.getElementById('ongActivite').click(); await attendre(120);
+        const g = d.querySelector('#graphEnc .st-graphe'), gc = d.querySelector('#graphEnc .st-col.courant');
+        const gb = g.getBoundingClientRect(), cb = gc.getBoundingClientRect();
+        const hTetes = [...d.querySelectorAll('#panActivite .section-head')].map((h) => Math.round(h.getBoundingClientRect().height));
+        check('T2 L’activité : rien ne dépasse ; les chiffres du haut dans le PREMIER écran (ils étaient à 1 513 px) ; un titre de section sur deux lignes au plus, sans son code « SS // » (88 à 144 px avant) ; le graphe s’ouvre sur le MOIS EN COURS',
+          [deborde(), Math.round(d.getElementById('kpis').getBoundingClientRect().top) < 400, Math.max(...hTetes) < 80, [...d.querySelectorAll('#panActivite .section-code')].every((c) => w.getComputedStyle(c).display === 'none'), g.scrollLeft > 0, cb.left >= gb.left - 1 && cb.right <= gb.right + 1],
+          [[], true, true, true, true, true]);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parc = (l) => { for (const r of l) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parc(r.cssRules); } };
+        for (const s of d.styleSheets) { let l; try { l = s.cssRules; } catch (e) { continue; } parc(l); }
+        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const mh = (sel) => { const e = d.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
+        check('T3 Écran tactile (blocs « pointer: coarse » forcés) : les onglets et la période se touchent sans viser',
+          [mh('#ongActivite') >= 44, mh('.st-per button') >= 40], [true, true]);
+        f.remove();
+        f = await cadreNavigue('../app/stats.html?t=' + Date.now() + '#connexions', 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#kpis .kpi') && d.getElementById('connTime').textContent.trim(), 10000);
+        /* history.length plafonne à 50 dans Chrome (et la page de tests en a déjà beaucoup) : on COMPTE les étapes posées. */
+        let poussees = 0;
+        const pousser = w.history.pushState.bind(w.history);
+        w.history.pushState = function () { poussees++; return pousser.apply(null, arguments); };
+        d.getElementById('ongPaie').click(); d.getElementById('ongActivite').click(); d.getElementById('ongPaie').click(); await attendre(60);
+        check('T4 Le lien « #connexions » du menu ouvre l’activité ; changer d’onglet ne pose AUCUNE étape d’historique (« retour » quitte la page, il ne promène pas d’un onglet à l’autre)',
+          [localStorage.getItem('ss_stats_onglet'), poussees, /stats\.html$/.test(w.location.pathname)], ['paie', 0, true]);
+        f.remove();
+        f = await cadreNavigue('../app/stats.html?t=' + Date.now() + '#connexions', 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#kpis .kpi'), 10000); await attendre(200);
+        check('T5 … même quand l’appareil avait retenu « Ma paie » : l’adresse l’emporte', [d.getElementById('panActivite').hidden, d.getElementById('ongActivite').getAttribute('aria-selected')], [false, 'true']);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        CLES_PAGE.forEach((k) => { try { if (SAUVE_PAGE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE_PAGE[k]); } catch (e) {} });
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>
