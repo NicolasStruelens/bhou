@@ -99,6 +99,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/stats.test.html` | Les 37 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/echanges.js` | **La page Échanges** (règle 52) : recherche sans accents, ce qu'une carte repliée dit, quand « Lui rappeler », ce qu'on peut supprimer, le registre des décisions, les dossiers d'un client, les nombres des onglets. Fonctions pures (`window.SSEchanges`) ; « qui doit agir » reste dans `attente.js`. |
 | `tests/echanges.test.html` | Les 33 tests des Échanges : règles pures, les ROUTES (la balle qui ne revient pas chez celui qui a répondu, le conflit entre deux écrans, la suppression gardée, le rappel), la vraie page remplie par le bac à sable et cliquée (onglets, écriture en une ligne, dossier du client, cartes repliées, brouillon gardé, conflit dit dans la carte, réponse sur place, rappel, registre des décisions, recherche), le téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `assets/js/parametres.js` | **La page Paramètres** (règle 53) : ce qui a changé (et la valeur qu'on avait sous les yeux), le contrôle d'une valeur saisie, comment se lit une valeur (avec son unité), ce qu'un réglage change sur un cas concret (devis type par `calc.js`). Fonctions pures (`window.SSParam`) ; les valeurs par défaut restent dans `config.js`. |
+| `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
@@ -1886,7 +1888,7 @@ Un appareil qui choisit garde son choix (`localStorage`, pastille « cet apparei
   rien choisi : sinon on écraserait son choix une seconde après l'avoir affiché.
 • ⚠️ **La resynchro des libellés « Comme la société · … » se fait APRÈS l'enregistrement**, pas
   sur le `change` du menu : le cache n'est réécrit qu'une fois le serveur d'accord
-  (`SSConf.enregistrer`). Branchée sur le `change`, elle relisait l'ANCIENNE valeur et affichait
+  (`SSConf.enregistrerChangements` depuis la règle 53). Branchée sur le `change`, elle relisait l'ANCIENNE valeur et affichait
   « Comme la société · Halo » alors qu'on venait de choisir Pouls — un écran qui contredit le
   geste qu'on vient de faire.
 • ⚠️ **Une valeur serveur abîmée retombe sur le repli du module**, jamais sur rien : sinon un
@@ -1910,8 +1912,9 @@ menu société affichait la nouvelle — deux endroits de la même page qui se c
 ⚠️ **PARAMÈTRES MÊLE DEUX NATURES DE RÉGLAGE, et ça doit SE VOIR.** La plupart partent au serveur
 (bouton « Enregistrer ») ; décors de fête et choix d'appareil du signal ne partent nulle part et
 s'appliquent à l'instant. **Un bouton gris après une modification ne se lit pas « déjà fait »,
-il se lit « ça n'a pas marché »** — Nicolas a posé la question. D'où les deux pastilles
-`« cet appareil »` et `« société »` à côté du nom de la ligne.
+il se lit « ça n'a pas marché »** — Nicolas a posé la question. D'où, d'abord, deux pastilles
+`« cet appareil »` et `« société »` à côté du nom de la ligne ; depuis le 27/10/2026, deux ONGLETS
+(« La société » et « Cet appareil », règle 53), qui le disent une fois pour toute la page.
 
 ⚠️ **Les cases à cocher ne sont PAS signalées dans cette version**, et c'est en attente, pas un
 oubli : aucune n'est dans `CHAMPS_REQUIS`, et Nicolas a préféré voir le résultat avant de
@@ -2702,6 +2705,55 @@ propositions A à G choisies par Nicolas sur maquette). Les règles de la page v
 • La recherche ignore les accents, mot à mot. Le menu est rafraîchi après chaque geste. Sur écran tactile, « voir » (14 px)
   et les liens de méta ont une cible de 44 px, « voir ce qui est fait » aussi.
 
+**53. LES PARAMÈTRES : ON ENVOIE CE QUI A CHANGÉ, ET CHAQUE LIGNE DIT CE QU'ELLE ENGAGE** (27/10/2026 — revue de la
+page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent dans `assets/js/parametres.js`
+(`window.SSParam`, fonctions pures) ; les défauts restent dans `config.js`, les prix dans `calc.js`. Protégé par
+`tests/parametres.test.html`.
+• ⚠️ **ENREGISTRER N'ÉCRASE PLUS CE QUE L'AUTRE A CHANGÉ.** La page renvoyait TOUS les réglages tels qu'elle les avait lus
+  à l'ouverture : ce que Yannick avait enregistré entre-temps — ou la trame posée depuis le Planning — revenait à l'ancienne
+  valeur, sans un mot. Elle envoie désormais `_changes` (`SSConf.enregistrerChangements`) : chaque réglage touché, avec la
+  valeur qu'elle avait sous les yeux (`avant`) et son nom. Le serveur les pose sur la version du MOMENT. Un réglage que
+  l'autre a changé entre-temps (en base, différent de `avant` et de la nouvelle valeur) refuse TOUT l'envoi (409) et rend
+  sa version : la ligne le DIT (« Yannick l'a mis à 70,00 € entre-temps »), la saisie reste, un second clic enregistre en
+  connaissance de cause. Le corps complet (le Planning, qui relit avant d'écrire) reste accepté.
+• ⚠️ **LA PART FOURNISSEUR EST DÉDUITE, ELLE NE SE JUGE PAS SEULE** : un ancien enregistrement peut la porter incohérente
+  (0,23 pour une marge de 75 %), et elle partait en conflit à chaque essai. Le serveur ne la compare pas ; la marge, si.
+• ⚠️ **UNE VALEUR ABÎMÉE EN BASE NE BOUCLE PAS** : « 5 » en texte s'affiche 5 (`fusionner` remplace ce qu'il ne sait pas lire)
+  et le serveur, lui, voit « 5 » — conflit. La page retient la valeur EN BASE rendue par le conflit (`BRUT`) et l'annonce
+  au second essai, qui passe. Sans ça : conflit à chaque clic, sans issue (test K2).
+• ⚠️ **UNE VALEUR VIDE OU HORS BORNES NE S'ENREGISTRE PAS** (`SSParam.controle`, bornes = `min` / `max` du champ). Un champ
+  vidé était remplacé EN SILENCE par la valeur par défaut (l'écran le montrait vide) ; rien n'empêchait un acompte de 150 %.
+  La ligne dit pourquoi, « Enregistrer » est bloqué, la barre le compte.
+• **A — Le sommaire** : une ligne de liens vers les sections et groupes de l'onglet (`data-som`). Ni l'adresse ni
+  l'historique ne bougent ; un lien dans les réglages avancés ouvre le volet.
+• **B — Les derniers changements** (`GET /api/settings/historique`) : qui, quand, « Nom : avant → après » en clair, lus
+  dans `activity.meta` (que l'enregistrement remplit désormais) ; un enregistrement complet garde son libellé. Illisible,
+  on le DIT (ne pas confondre « rien à montrer » et « illisible »).
+• **C — Chercher un réglage** : sans accents, mot à mot, sur le NOM et l'AIDE (pas sur les mentions ajoutées sous la ligne) ;
+  les intertitres, notes et sections vides se cachent, les réglages avancés s'ouvrent, et si l'autre onglet en a : « N dans
+  « Cet appareil » — y aller ». Échap efface.
+• **D — L'effet sous le réglage** (`SSParam.effet`), seulement quand il est modifié et valide, dans ses mots : « 1 h 30 sur
+  place : 82,50 € → 90,00 € HTVA », « 2 screens à 1 500 € : commission nette du vendeur 216,00 € → 240,00 € — le client paie
+  pareil », les dates des trois relances, la paie de 10 poses. Les prix passent par `calc.js`, jamais par une formule copiée.
+  L'aperçu du devis type est à droite au bureau ; sur téléphone il était à 7 889 px, à 5 000 px du réglage qu'on touchait.
+• **E — Deux onglets** : « La société » (partagés, « Enregistrer ») et « Cet appareil » (thème, mise en lumière, décors :
+  appliqués à l'instant, rien à enregistrer). Retenus par appareil (`ss_param_onglet`, `#appareil` ouvre le second), AUCUNE
+  étape d'historique. La mise en lumière a son aperçu dans les deux. Les pastilles « société » / « cet appareil » des lignes
+  sont parties : l'onglet le dit une fois. Un point doré sur « La société » quand il reste quelque chose à enregistrer.
+• **F — « ↺ remettre »** sous une ligne modifiée (« enregistré : 55,00 € ») : ce réglage seul revient à la valeur enregistrée.
+• **G — « ↺ origine »** quand la valeur diffère de celle de `config.js`. Quand l'enregistré EST l'origine, un seul retour
+  (« enregistré (valeur d'origine) ») : deux boutons qui font la même chose font hésiter. Les adresses e-mail n'ont pas
+  d'origine (règle 43).
+• ⚠️ **« Revenir à toutes les valeurs d'origine » NE TOUCHE PAS AUX ADRESSES E-MAIL** : elle les remettait à vide, et après
+  « Enregistrer » l'envoi des relances repassait « En construction ». Le bouton est passé en bas de la société.
+• **Quitter la page avec des réglages pas enregistrés DEMANDE** (`beforeunload`) : ils se perdaient.
+• **Téléphone** : la barre d'enregistrement n'apparaît que s'il y a quelque chose à enregistrer ou à corriger (126 px au repos
+  avant) ; plus de `backdrop-filter` (texte flou sur iPhone) ; onglets en libellés courts. ⚠️ « Comme la société · Suit le
+  thème » fait 247 px en 16 px : les marges de la carte et de la ligne ont été rendues aux champs, il tient dès 345 px de large
+  (test T6) ; à 320 (iPhone SE de 2016) il se coupe de 22 px — le menu ouvert l'affiche en entier.
+• ⚠️ Mesurer un libellé de menu AVANT `document.fonts.ready`, c'est mesurer la police de repli : le test passait à 345 px, et
+  la vraie police le coupait de 7 px.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3007,6 +3059,10 @@ propositions A à G choisies par Nicolas sur maquette). Les règles de la page v
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
+   Et dès qu'on touche aux Paramètres (`app/parametres.html`, `parametres.js`, `/api/settings`, `SSConf.enregistrerChangements`) :
+   `tests/parametres.test.html`, exiger « 36/36 », par le serveur — ET `mails.test.html` (la section E-mails),
+   `assistant.test.html` (Soli au-dessus de la barre), `themes.test.html`, `planning-page.test.html` (la trame) et
+   `tactile.test.html` dans les deux modes.
    Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 37/37 », par
    le serveur — ET `remuneration.test.html` (la paie qu'elle affiche) et `nav.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à

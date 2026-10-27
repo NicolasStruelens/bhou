@@ -762,9 +762,17 @@
     async saveSettings(reglages) {
       try { return await req('/settings', { method: 'POST', body: JSON.stringify(reglages) }); }
       catch (e) {
+        // Un CONFLIT (règle 53) rend la version de l'autre et les réglages qu'il a touchés.
+        if (e && e.serverRejected && e.data && e.data.conflict) return Object.assign({ ok: false }, e.data, { error: e.message });
         if (e && e.serverRejected) return { ok: false, error: e.message };
         return { ok: false, error: 'Réglages NON enregistrés — vérifie ta connexion et réessaie.' };
       }
+    },
+    // Qui a changé quel réglage, et quand (règle 53, B). Null si la lecture échoue : ne pas confondre
+    // « rien à montrer » et « illisible ».
+    async historiqueReglages() {
+      try { return (await req('/settings/historique')).data || []; }
+      catch (e) { return null; }
     },
     async listConnections() {
       try { return (await req('/connections')).data; }

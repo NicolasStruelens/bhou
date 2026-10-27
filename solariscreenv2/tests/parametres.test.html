@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Paramètres</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Paramètres</h1>
+  <p class="note">
+    La page Paramètres (règle 53, revue du 27/10/2026) : les règles PURES de <code>assets/js/parametres.js</code>, les ROUTES du
+    vrai serveur (<code>tests/banc-serveur.js</code>) — on n'envoie que ce qui a changé, posé sur la version du moment, le
+    conflit entre deux écrans, la trame du planning qui survit, l'historique — puis la VRAIE page cliquée : les deux onglets,
+    le sommaire, la recherche, l'effet sous le réglage, « ↺ remettre » et « ↺ origine », le contrôle des valeurs,
+    l'enregistrement, le conflit avec Yannick dit sur la ligne, « Revenir aux valeurs d'origine » qui garde les adresses
+    e-mail, le téléphone (barre, menus, tactile) et « retour ».
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur (réglages compris) sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/parametres.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 800) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 800) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests paramètres';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const P = window.SSParam, U = window.SSUI, SS = window.SS, BANC = window.SSBanc, C = window.SSConf;
+    const E = (n) => U.fmtEur(n);
+    const NE = (n) => U.fmtEur(n).replace(/\s+/g, ' ');   // tel que txt() le lit
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    // Ce que la page écrit dans le navigateur : sauvé ici, rendu tel quel à la fin.
+    const CLES = ['ss_reglages', 'ss_param_onglet'];
+    const SAUVE = {}; CLES.forEach((k) => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    const remettreCles = () => CLES.forEach((k) => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
+    async function comme(qui, fn) { const avant = BANC.ident; BANC.ident = qui === 'yannick' ? BANC.YANNICK : BANC.NICOLAS; try { return await fn(); } finally { BANC.ident = avant; } }
+    const base = () => BANC.donnee('settings', 'id', 'global') || {};
+    const ch = (chemin, avant, apres, nom) => ({ chemin: chemin.split('.'), avant: avant, apres: apres, nom: nom || chemin });
+    const changer = (qui, changes) => comme(qui, () => SS.saveSettings({ _changes: changes, _resume: 'Réglages : test' }));
+    async function ouvrirPage(largeur, hauteur) {
+      const f = await BANC.cadre('../app/parametres.html?t=' + Date.now(), largeur, hauteur);
+      const w = f.contentWindow, d = f.contentDocument;
+      await attendreQue(() => w.eval('ENREGISTRES') && !/Chargement/.test(txt(d.getElementById('historique'))), 9000);
+      d.documentElement.style.scrollBehavior = 'auto';
+      await attendre(150);
+      return f;
+    }
+    const tape = (c, v) => { c.value = v; c.dispatchEvent(new Event('input', { bubbles: true })); };
+    const choisir = (c, v) => { c.value = v; c.dispatchEvent(new Event('change', { bubbles: true })); };
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures (parametres.js)');
+        check('S1 C — Chercher un réglage : sans accents, sans casse, mot à mot',
+          [P.correspond('Main-d’œuvre, à l’heure — Prix d’une heure sur place', 'HEURE prix'), P.correspond('Décors de fête', 'fete'), P.correspond('Acompte par défaut', 'acompte tva'), P.correspond('x', '')],
+          [true, true, false, true]);
+        const av = { prix: { taux_horaire: 55, acompte_pct: 50 }, usage: { relance_visite: [4, 9, 21] } };
+        const ap = { prix: { taux_horaire: 60, acompte_pct: 50 }, usage: { relance_visite: [4, 10, 21] } };
+        const chemins = [['prix', 'taux_horaire'], ['prix', 'acompte_pct'], ['usage', 'relance_visite']];
+        check('S2 On n’envoie QUE ce qui a changé, chacun avec la valeur qu’on avait sous les yeux',
+          P.changements(av, ap, chemins), [{ chemin: ['prix', 'taux_horaire'], avant: 55, apres: 60 }, { chemin: ['usage', 'relance_visite'], avant: [4, 9, 21], apres: [4, 10, 21] }]);
+        check('S3 Après un conflit, « avant » annonce la valeur EN BASE (même abîmée), sinon le second essai repartirait en conflit',
+          P.changements(av, ap, [['prix', 'taux_horaire']], { 'prix.taux_horaire': '55' }), [{ chemin: ['prix', 'taux_horaire'], avant: '55', apres: 60 }]);
+        check('S4 Une valeur saisie se contrôle : vide, illisible, hors bornes (les bornes du champ) — la virgule est lue',
+          [P.controle('', '0', '100'), P.controle('abc', 0, 100), P.controle('150', '0', '100'), P.controle('-1', '0', ''), P.controle('20000', '', '10000'), P.controle('5,5', '0', '100'), P.controle('0', '0', '')],
+          ['Indique une valeur (0 si rien).', 'Ce n’est pas un nombre.', 'Entre 0 et 100.', 'Au moins 0.', 'Au plus ' + (10000).toLocaleString('fr-BE') + '.', null, null]);
+        check('S5 Une valeur se lit avec son unité (origine, historique) : la marge en %, pas en fraction',
+          [P.format(['prix', 'material_margin'], 0.23), P.format('prix.commission_principal', 18), P.format('prix.install_gross', 280), P.format('usage.relance_visite', [4, 9, 21]),
+            P.format('prix.garantie_mois', 12), P.format('prix.net_divisor', 2.5), P.format('usage.seuil_lead_chaud', 5), P.format('affichage.mantra', true), P.format('mail.expediteur', ''), P.format('remu.pose.screen', 50)],
+          ['23 %', '18 %', E(280), '4 · 9 · 21 j', '12 mois', '÷ 2,5', '5 vues', 'oui', '(vide)', E(50)]);
+        const D = C.fusionner(C.DEFAUTS, {});
+        const D2 = JSON.parse(JSON.stringify(D)); D2.prix.taux_horaire = 60; D2.remu.pose.screen = 60; D2.usage.relance_visite = [5, 9, 21]; D2.prix.garantie_mois = 0;
+        // Un réglage à la fois sur le devis type : la TVA change le prix du client, la commission non.
+        const DC = JSON.parse(JSON.stringify(D)); DC.prix.commission_principal = 20;
+        const DT = JSON.parse(JSON.stringify(D)); DT.prix.tva_pct = 21;
+        check('S6 D — L’effet d’un réglage, sur un cas concret et avec le VRAI moteur : la main-d’œuvre sur 1 h 30, la commission sur le devis type (le client paie pareil), la TVA, la paie de pose, les relances, la garantie',
+          [P.effet(['prix', 'taux_horaire'], D2, D), /^2 screens à 1 500 € : commission nette du vendeur .* — le client paie pareil$/.test(P.effet('prix.commission_principal', DC, D)),
+            /^2 screens à 1 500 € : total TVAC .*→.*$/.test(P.effet('prix.tva_pct', DT, D)) && !/le client paie/.test(P.effet('prix.tva_pct', DT, D)),
+            P.effet('remu.pose.screen', D2, D), P.effet('usage.relance_visite', D2, D, '2026-10-27'), P.effet('prix.garantie_mois', D2, D), P.effet('usage.vue_defaut', D2, D)],
+          ['1 h 30 sur place : ' + E(82.5) + ' → ' + E(90) + ' HTVA', true, true, '10 screens posés : ' + E(500) + ' → ' + E(600) + ' pour Nicolas',
+            'un devis envoyé aujourd’hui se relance le 01/11, le 05/11 puis le 17/11', 'le bon d’intervention n’annonce plus de garantie', '']);
+        check('S7 Le devis type passe par calc.js (2 × 1 500 € catalogue)', [P.devisType(D).total_catalog_ht, P.devisType(D).total_ttc > 3000], [3000, true]);
+
+        // ══════════ R — LES ROUTES ══════════
+        titre('R — Les routes du serveur (vrai fichier, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        let r = await changer('nicolas', [ch('prix.taux_horaire', 55, 60, 'Main-d’œuvre, à l’heure')]);
+        const act1 = BANC.sqlL("SELECT actor, label, meta FROM activity WHERE action = 'settings.save'");
+        check('R1 Des CHANGEMENTS, pas un instantané : posés en base, rendus (data), journalisés avec ce qui a changé ; le résumé ne finit pas dans les réglages',
+          [r.ok, r.data && r.data.prix.taux_horaire, base(), act1.length, act1[0][0], JSON.parse(act1[0][2]).changes],
+          [true, 60, { prix: { taux_horaire: 60 } }, 1, 'nicolas', [{ chemin: ['prix', 'taux_horaire'], avant: 55, apres: 60, nom: 'Main-d’œuvre, à l’heure' }]]);
+        await attendre(5);
+        // Le Planning enregistre encore le corps COMPLET, après l'avoir relu : il reste accepté.
+        const plein = C.fusionner(C.DEFAUTS, base()); plein.planning.trame.yannick.sam = 'journee';
+        await comme('yannick', () => SS.saveSettings(plein));
+        await attendre(5);
+        r = await changer('nicolas', [ch('prix.commission_principal', 18, 19)]);
+        check('R2 Ce que l’autre a enregistré entre-temps (la trame du Planning, la main-d’œuvre) SURVIT : on pose ses changements sur la version du MOMENT',
+          [r.ok, base().planning.trame.yannick.sam, base().prix.taux_horaire, base().prix.commission_principal], [true, 'journee', 60, 19]);
+        await attendre(5);
+        await changer('yannick', [ch('prix.acompte_pct', 50, 40)]);
+        await attendre(5);
+        r = await changer('nicolas', [ch('prix.acompte_pct', 50, 30), ch('prix.deplacement', 45, 50)]);
+        check('R3 CONFLIT : Yannick a changé l’acompte entre-temps — refus (409), on dit qui, on rend sa version et le réglage touché ; RIEN n’est écrit, pas même l’autre changement',
+          [r.ok, r.conflict, r.conflits, /^Yannick a modifié ce réglage entre-temps/.test(r.error || ''), r.actuel && r.actuel.prix.acompte_pct, base().prix.acompte_pct, base().prix.deplacement],
+          [false, true, [{ chemin: ['prix', 'acompte_pct'], valeur: 40 }], true, 40, 40, 45]);
+        await attendre(5);
+        r = await changer('nicolas', [ch('prix.acompte_pct', 50, 40)]);
+        check('R4 Pas de conflit quand on a mis la MÊME valeur que l’autre', [r.ok, base().prix.acompte_pct], [true, 40]);
+        await attendre(5);
+        BANC.sql1("UPDATE settings SET data = json_set(data, '$.prix.material_margin', 0.75, '$.prix.supplier_rate', 0.23) WHERE id = 'global'");
+        r = await changer('nicolas', [ch('prix.material_margin', 0.75, 0.7), ch('prix.supplier_rate', 0.25, 0.3)]);
+        check('R5 La part fournisseur est DÉDUITE : incohérente en base (0,23 pour 75 %), elle ne bloque pas l’enregistrement de la marge',
+          [r.ok, base().prix.material_margin, base().prix.supplier_rate], [true, 0.7, 0.3]);
+        await attendre(5);
+        r = await changer('nicolas', [{ chemin: ['__proto__', 'pollue'], apres: 1 }, { chemin: ['prix', 'a-b'], apres: 1 }, { chemin: [], apres: 1 }, { chemin: 'prix.x', apres: 1 }, ch('prix.tools_gross', 30, 35)]);
+        check('R6 Un chemin invalide est ignoré (et ne pollue rien) ; le reste passe',
+          [r.ok, ({}).pollue, Object.keys(base().prix).sort().join(','), base().prix.tools_gross], [true, undefined, 'acompte_pct,commission_principal,commission_second,deplacement,garantie_mois,install_gross,material_margin,net_divisor,supplier_rate,taux_horaire,tech1_gross,tech2_gross,tools_gross,tva_pct', 35]);
+        const h = (await (await BANC.fetch('/api/settings/historique')).json()).data;
+        check('R7 B — L’historique : le plus récent d’abord, qui et quoi ; un enregistrement complet (le Planning) garde son libellé',
+          [h.length, h[0].actor, h[0].changes.map((x) => x.chemin.join('.')), h.map((x) => (x.changes ? 'c' : 'l')).join(''), h[h.length - 2].label, h[h.length - 2].actor],
+          [7, 'nicolas', ['prix.tools_gross'], 'ccccclc', 'Réglages de l’ERP modifiés', 'yannick']);
+
+        // ══════════ P — LA PAGE, AU BUREAU ══════════
+        titre('P — La vraie page (1500 px)');
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        try { localStorage.removeItem('ss_param_onglet'); localStorage.removeItem('ss_reglages'); } catch (e) {}
+        const graine = C.fusionner(C.DEFAUTS, {});
+        graine.prix.deplacement = 50; graine.mail.expediteur = 'info@exemple.invalid'; graine.planning.trame.nicolas.sam = 'matin';
+        await comme('yannick', () => SS.saveSettings(Object.assign({}, graine, { _resume: 'Réglages : mise en place' })));
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        w.confirm = () => true;
+        let poussees = 0;
+        const pousser = w.history.pushState.bind(w.history);
+        w.history.pushState = function () { poussees++; return pousser.apply(null, arguments); };
+        const dans = (pan, ids) => ids.filter((id) => !d.getElementById(pan).contains(d.getElementById(id)));
+        check('P0 Le cadre parle au banc ; la page se charge sur les réglages de la base', [f.branche, d.getElementById('deplacement').value, d.getElementById('mail_expediteur').value], [true, '50', 'info@exemple.invalid']);
+        check('P1 E — Deux onglets : « La société » (partagés, avec « Enregistrer ») et « Cet appareil » (appliqué à l’instant) ; chaque réglage dans le sien, l’aperçu de la mise en lumière dans les deux',
+          [[...d.querySelectorAll('.par-onglets [role=tab]')].map((b) => txt(b.querySelector('.ll') || b)), d.getElementById('panSociete').hidden, d.getElementById('panAppareil').hidden,
+            dans('panAppareil', ['themeAppareil', 'signalEffet', 'signalCouleur', 'signalApercu', 'fetes', 'fetesApercu']),
+            dans('panSociete', ['theme_defaut', 'signal_effet', 'signal_couleur', 'mantra', 'meteo', 'btnSave', 'signalApercuSociete', 'sectionMails']),
+            d.getElementById('signalApercuSociete').children.length > 0, d.getElementById('signalApercu').children.length > 0, !!d.querySelector('#panAppareil .barre')],
+          [['La société · partagés', 'Cet appareil'], false, true, [], [], true, true, false]);
+        const som = [...d.querySelectorAll('#sommaire a')];
+        som.find((a) => txt(a) === 'Installation').click(); await attendre(60);
+        const topPose = Math.round(d.getElementById('g-pose').getBoundingClientRect().top);
+        check('A1 A — Le sommaire nomme les sections et groupes de l’onglet ; un lien y emmène (sous le bandeau), sans toucher à l’adresse ni à l’historique',
+          [som.map(txt), topPose >= 0 && topPose < 160, w.location.hash, poussees],
+          [['Prix & marges', 'Ma paie', 'Installation', 'Dépannage', 'À la création', 'Utilisation', 'E-mails', 'Affichage', 'Derniers changements'], true, '', 0]);
+        w.scrollTo(0, 0);
+        const visibles = (pan) => [...d.querySelectorAll('#' + pan + ' .reg:not(.deduit)')].filter((l) => !l.hidden && l.offsetHeight);
+        const rech = d.getElementById('chercher');
+        tape(rech, 'ACOMPTE');
+        const v1 = visibles('panSociete').map((l) => l.getAttribute('data-reg')), info1 = txt(d.getElementById('chercherInfo')), somVide = d.getElementById('sommaire').children.length;
+        tape(rech, 'diviseur');
+        const ouvert = d.querySelector('details.avance').open, v2 = visibles('panSociete').map((l) => l.getAttribute('data-reg'));
+        tape(rech, 'fete');
+        const info3 = txt(d.getElementById('chercherInfo'));
+        d.querySelector('#chercherInfo .reg-mini').click(); await attendre(30);
+        const v3 = visibles('panAppareil').length, ongA = d.getElementById('panAppareil').hidden;
+        rech.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('C1 C — Chercher un réglage : seules les lignes trouvées restent (le sommaire s’efface), les réglages avancés s’ouvrent, l’autre onglet est signalé et « y aller » y mène ; Échap efface',
+          [v1, info1, somVide, ouvert, v2, info3, v3, ongA, rech.value, visibles('panAppareil').length > 4],
+          [['prix.acompte_pct'], '1 réglage trouvé', 0, true, ['prix.net_divisor'], 'Aucun réglage ici · 2 dans « Cet appareil » y aller', 2, false, '', true]);
+        w.choisirOnglet('societe'); await attendre(20);
+        d.querySelector('details.avance').open = false;
+        // D, F — l'effet sous le réglage et « ↺ remettre »
+        const lTaux = d.querySelector('[data-reg="prix.taux_horaire"]');
+        tape(d.getElementById('taux_horaire'), '60');
+        const effet = txt(lTaux.querySelector('.reg-effet')), pied = txt(lTaux.querySelector('.reg-pied'));
+        tape(d.getElementById('commission_principal'), '20');
+        const effetC = txt(d.querySelector('[data-reg="prix.commission_principal"] .reg-effet'));
+        check('D1 D — Sous un réglage modifié, ce qu’il change sur un cas concret (main-d’œuvre : 1 h 30 ; commission : le devis type, le client paie pareil) ; la barre et l’onglet le disent',
+          [effet, /^2 screens à 1 500 € : commission nette du vendeur .* — le client paie pareil$/.test(effetC), lTaux.classList.contains('modifie'), txt(d.getElementById('etat')), d.getElementById('ongSociete').classList.contains('sale'), d.getElementById('btnSave').disabled],
+          ['1 h 30 sur place : ' + NE(82.5) + ' → ' + NE(90) + ' HTVA', true, true, '2 réglages modifiés — pas encore enregistrés.', true, false]);
+        lTaux.querySelector('.reg-pied .reg-mini').click(); await attendre(20);
+        check('F1 F — « enregistré (valeur d’origine) : 55,00 € ↺ remettre » sous la ligne (un seul retour quand l’enregistré EST l’origine) ; un clic remet CE réglage seul, l’autre reste modifié',
+          [pied, d.getElementById('taux_horaire').value, lTaux.classList.contains('modifie'), txt(lTaux.querySelector('.reg-effet')) || '', d.querySelectorAll('.reg.modifie').length],
+          ['enregistré (valeur d’origine) : ' + NE(55) + ' ↺ remettre', '55', false, '', 1]);
+        w.annuler(); await attendre(20);
+        // G — l'origine
+        const lDep = d.querySelector('[data-reg="prix.deplacement"]');
+        const piedDep = txt(lDep.querySelector('.reg-pied'));
+        [...lDep.querySelectorAll('.reg-pied .reg-mini')].find((b) => /origine/.test(txt(b))).click(); await attendre(20);
+        check('G1 G — Une valeur différente de celle d’origine le dit (« origine : 45,00 € ↺ origine ») et y revient en un clic (sans enregistrer) ; les adresses e-mail n’ont pas d’« origine »',
+          [piedDep, d.getElementById('deplacement').value, lDep.classList.contains('modifie'), txt(d.querySelector('[data-reg="mail.expediteur"] .reg-pied')) || ''],
+          ['origine : ' + NE(45) + ' ↺ origine', '45', true, '']);
+        w.annuler(); await attendre(20);
+        // Le contrôle des valeurs
+        const acompte = d.getElementById('acompte_pct'), lAc = acompte.closest('.reg');
+        tape(acompte, '');
+        const vide = [txt(lAc.querySelector('.reg-erreur')), lAc.classList.contains('invalide'), d.getElementById('btnSave').disabled, d.querySelector('.barre').classList.contains('erreur'), txt(d.getElementById('etat'))];
+        tape(acompte, '150');
+        const trop = txt(lAc.querySelector('.reg-erreur'));
+        await w.enregistrer(); await attendre(50);
+        check('V1 Une valeur vide ou hors bornes est REFUSÉE sur sa ligne (elle était remplacée en silence par le défaut) : « Enregistrer » bloqué, rien n’est écrit',
+          [vide, trop, base().prix.acompte_pct], [['Indique une valeur (0 si rien).', true, true, true, '1 réglage à corriger avant d’enregistrer.'], 'Entre 0 et 100.', 50]);
+        w.annuler(); await attendre(20);
+        // L'enregistrement
+        tape(d.getElementById('commission_principal'), '19');
+        tape(d.getElementById('taux_horaire'), '60');
+        d.getElementById('btnSave').click();
+        await attendreQue(() => base().prix.taux_horaire === 60 && !d.getElementById('btnSave').disabled === false && /Tout est enregistré/.test(txt(d.getElementById('etat'))), 5000);
+        await attendreQue(() => /19 %/.test(txt(d.getElementById('historique'))), 3000);
+        const premier = d.querySelector('#historique .hist-l');
+        check('E1 Enregistrer n’envoie que les deux réglages touchés : ce que Yannick avait posé (trame, déplacement, adresse) reste ; l’historique le dit en clair, signé',
+          [base().prix.commission_principal, base().prix.taux_horaire, base().planning.trame.nicolas.sam, base().prix.deplacement, base().mail.expediteur, txt(d.getElementById('etat')),
+            /^Nicolas · /.test(txt(premier.querySelector('.qd'))), [...premier.querySelectorAll('.ch')].map(txt), JSON.parse(localStorage.getItem('ss_reglages')).prix.taux_horaire],
+          [19, 60, 'matin', 50, 'info@exemple.invalid', 'Tout est enregistré.', true, ['Commission — celui qui a vendu : 18 % → 19 %', "Main-d'œuvre, à l'heure : " + NE(55) + ' → ' + NE(60)], 60]);
+        // Le conflit, vu de la page
+        await changer('yannick', [ch('prix.taux_horaire', 60, 70)]);
+        tape(d.getElementById('taux_horaire'), '65');
+        tape(d.getElementById('acompte_pct'), '40');
+        d.getElementById('btnSave').click();
+        await attendreQue(() => txt(d.querySelector('[data-reg="prix.taux_horaire"] .reg-conflit')), 5000);
+        const conf = [txt(d.querySelector('[data-reg="prix.taux_horaire"] .reg-conflit')), d.getElementById('taux_horaire').value, d.getElementById('acompte_pct').value,
+          base().prix.taux_horaire, base().prix.acompte_pct, d.querySelector('[data-reg="prix.taux_horaire"]').classList.contains('modifie')];
+        d.getElementById('btnSave').click();
+        await attendreQue(() => base().prix.taux_horaire === 65, 5000);
+        await attendre(100);
+        check('K1 CONFLIT : Yannick a mis la main-d’œuvre à 70 € entre-temps — la ligne le DIT, ma saisie reste (65 € et l’acompte), rien n’est écrit ; un second clic enregistre en connaissance de cause',
+          [conf, base().prix.taux_horaire, base().prix.acompte_pct, txt(d.querySelector('[data-reg="prix.taux_horaire"] .reg-conflit')) || ''],
+          [['Yannick l’a mis à ' + NE(70) + ' entre-temps — enregistre à nouveau pour garder ta valeur.', '65', '40', 70, 50, true], 65, 40, '']);
+        // Une valeur ABÎMÉE en base (« 5 » en texte) : la page affiche le défaut, le serveur voit autre chose.
+        BANC.sql1("UPDATE settings SET data = json_set(data, '$.prix.commission_second', '5') WHERE id = 'global'");
+        tape(d.getElementById('commission_second'), '6');
+        d.getElementById('btnSave').click();
+        await attendreQue(() => txt(d.querySelector('[data-reg="prix.commission_second"] .reg-conflit')), 5000);
+        const abime = txt(d.querySelector('[data-reg="prix.commission_second"] .reg-conflit')) || '';
+        d.getElementById('btnSave').click();
+        await attendreQue(() => base().prix.commission_second === 6, 4000);
+        await attendre(100);
+        check('K2 Une valeur abîmée en base part en conflit une fois ; le second clic l’annonce telle qu’elle est en base et passe (sinon : conflit à chaque clic, sans issue)',
+          [/l’a mis à 5 entre-temps/.test(abime), base().prix.commission_second, txt(d.querySelector('[data-reg="prix.commission_second"] .reg-conflit')) || ''], [true, 6, '']);
+        // Valeurs d'origine : les adresses e-mail ne bougent pas
+        d.querySelector('.par-origine button').click(); await attendre(30);
+        check('O1 « Revenir à toutes les valeurs d’origine » remet le formulaire aux défauts SANS toucher aux adresses e-mail (elles repassaient à vide) ; rien n’est écrit tant qu’on n’enregistre pas',
+          [d.getElementById('commission_principal').value, d.getElementById('deplacement').value, d.getElementById('mail_expediteur').value, base().prix.commission_principal, d.getElementById('btnSave').disabled],
+          ['18', '45', 'info@exemple.invalid', 19, false]);
+        const ev1 = new Event('beforeunload', { cancelable: true }); w.dispatchEvent(ev1);
+        w.annuler(); await attendre(20);
+        const ev2 = new Event('beforeunload', { cancelable: true }); w.dispatchEvent(ev2);
+        check('U1 Quitter la page avec des réglages pas enregistrés DEMANDE (ils se perdaient) ; sans rien en cours, on part librement', [ev1.defaultPrevented, ev2.defaultPrevented], [true, false]);
+        w.choisirOnglet('appareil'); await attendre(20);
+        check('P2 L’onglet « Cet appareil » : son sommaire, retenu par appareil, sans étape d’historique',
+          [[...d.querySelectorAll('#sommaire a')].map(txt), localStorage.getItem('ss_param_onglet'), d.getElementById('panSociete').hidden, poussees],
+          [['Thème et décors', 'Mise en lumière', 'Décors de fête'], 'appareil', true, 0]);
+        w.choisirOnglet('societe');
+        w.SS.historiqueReglages = async () => null;
+        await w.chargerHistorique();
+        check('B1 B — Un historique illisible le DIT (il ne fait pas croire que personne n’a rien changé)', txt(d.getElementById('historique')), 'L’historique n’a pas pu être lu (connexion ?).');
+        check('P3 Au bureau, la barre d’enregistrement reste visible au repos (« Tout est enregistré. ») ; tous les gestionnaires compilent',
+          [w.getComputedStyle(d.querySelector('.barre')).display !== 'none', compiles(d)], [true, []]);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        try { localStorage.removeItem('ss_param_onglet'); } catch (e) {}
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE.test(x.media.mediaText)) blocsT.push(x); if (x.cssRules) parc(x.cssRules); } };
+        for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); }
+        blocsT.forEach((x) => { x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        await attendre(60); await d.fonts.ready;   // mesurer un libellé avant que la police soit là, c’est mesurer la police de repli
+        const L = d.documentElement.clientWidth;
+        const deborde = () => [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.id || e.className || e.tagName).slice(0, 6);
+        const barre = d.querySelector('.barre');
+        const onglets = [...d.querySelectorAll('.par-onglets [role=tab]')];
+        check('T1 Rien ne dépasse ; au repos, la barre d’enregistrement ne prend pas l’écran (126 px avant) ; les onglets tiennent sur une ligne (libellés courts)',
+          [deborde(), w.getComputedStyle(barre).display, onglets.map((b) => txt([...b.querySelectorAll('span')].find((s) => w.getComputedStyle(s).display !== 'none') || b)), onglets.every((b) => b.scrollWidth <= b.clientWidth && Math.round(b.getBoundingClientRect().height) < 60)],
+          [[], 'none', ['La société', 'Cet appareil'], true]);
+        tape(d.getElementById('taux_horaire'), '58');
+        const rb = barre.getBoundingClientRect();
+        check('T2 Dès qu’un réglage bouge, la barre apparaît, dans l’écran, sans flou (pas de backdrop-filter : texte flou sur iPhone)',
+          [w.getComputedStyle(barre).display, rb.left >= 0 && rb.right <= L + 0.5 && rb.bottom <= 812 + 0.5, w.getComputedStyle(barre).backdropFilter || 'none', deborde()], ['flex', true, 'none', []]);
+        w.annuler(); await attendre(20);
+        /* Un menu étroit coupe son libellé sans rien faire déborder : on compare la largeur de CHAQUE libellé proposé
+           à la place qu'il a (moins la flèche du menu natif) — avec un canevas de la PAGE mesurée, et sa police. */
+        d.getElementById('panAppareil').hidden = false;
+        const coupes = (s) => { const cs = w.getComputedStyle(s), g = d.createElement('canvas').getContext('2d');
+          g.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          const place = s.clientWidth - parseFloat(cs.paddingLeft) - 20;
+          return [...s.options].filter((o) => g.measureText(o.text).width > place).map((o) => s.id + ' : ' + o.text); };
+        const menus = [...d.querySelectorAll('.reg-champ select')];
+        check('T3 Écran tactile (16 px) : aucun menu ne coupe un de ses libellés (« Comme la société · Suit le thème » était coupé)',
+          [w.getComputedStyle(d.getElementById('signalCouleur')).fontSize, menus.flatMap(coupes)], ['16px', []]);
+        const h44 = (sel) => { const e = d.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) >= 44 : 'absent'; };
+        tape(d.getElementById('taux_horaire'), '58');
+        check('T4 Écran tactile : les onglets se touchent (44 px), « ↺ remettre » a une cible de 44 px',
+          [h44('#ongSociete'), w.getComputedStyle(d.querySelector('.reg-pied .reg-mini'), '::after').height], [true, '44px']);
+        w.annuler();
+        d.getElementById('panAppareil').hidden = true;
+        let pp = 0;
+        const pousser2 = w.history.pushState.bind(w.history);
+        w.history.pushState = function () { pp++; return pousser2.apply(null, arguments); };
+        d.getElementById('ongAppareil').click(); d.getElementById('ongSociete').click();
+        d.querySelector('#sommaire a').click(); tape(d.getElementById('chercher'), 'garantie'); tape(d.getElementById('chercher'), '');
+        await attendre(30);
+        check('T5 « Retour » quitte la page : ni les onglets, ni le sommaire, ni la recherche ne posent d’étape d’historique ; le premier réglage est dans le premier écran',
+          [pp, w.location.hash, Math.round(d.querySelector('#panSociete .reg').getBoundingClientRect().top) < 812], [0, '', true]);
+        f.remove();
+        // Le plus étroit qu'on tienne : 345 px (en dessous, « Comme la société · Suit le thème » se coupe de
+        // quelques pixels ; le menu ouvert l'affiche en entier). Sans la marge rendue aux menus, il coupe dès ici.
+        f = await ouvrirPage(345, 740);
+        w = f.contentWindow; d = f.contentDocument;
+        const blocs345 = [];
+        const parc345 = (l) => { for (const x of l) { if (x.type === 4 && COARSE.test(x.media.mediaText)) blocs345.push(x); if (x.cssRules) parc345(x.cssRules); } };
+        for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc345(l); }
+        blocs345.forEach((x) => { x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        await attendre(60); await d.fonts.ready;
+        d.getElementById('panAppareil').hidden = false;
+        const coupes345 = (s) => { const cs = w.getComputedStyle(s), g = d.createElement('canvas').getContext('2d');
+          g.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          const place = s.clientWidth - parseFloat(cs.paddingLeft) - 20;
+          return [...s.options].filter((o) => g.measureText(o.text).width > place).map((o) => s.id + ' : ' + o.text); };
+        check('T6 À 345 px, en 16 px, aucun menu ne coupe un de ses libellés, et rien ne dépasse',
+          [[...d.querySelectorAll('.reg-champ select')].flatMap(coupes345), d.documentElement.scrollWidth <= 345], [[], true]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        remettreCles();
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

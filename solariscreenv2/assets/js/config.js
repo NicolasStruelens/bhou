@@ -196,6 +196,18 @@
     return res;
   }
 
+  /** Enregistre des CHANGEMENTS (règle 53) : `[{ chemin, avant, apres, nom }]`, posés par le serveur
+   *  sur la version du moment. Un réglage que l'autre a changé entre-temps revient en conflit
+   *  (`res.conflict`, `res.actuel`, `res.conflits`) au lieu d'être écrasé. */
+  async function enregistrerChangements(changes, resume) {
+    const res = await window.SS.saveSettings({ _changes: changes || [], _resume: resume || '' });
+    if (res && res.ok !== false && res.data && estObjet(res.data)) {
+      ecrireCache(res.data);
+      charge = Promise.resolve(get());
+    }
+    return res;
+  }
+
   /** Taux à utiliser pour CALCULER un devis.
    *  @param devis  devis existant (facultatif). S'il en a, ce sont les SIENS qui gagnent.
    *  Un devis ancien sans taux stockés retombe sur les taux historiques — jamais sur les réglages
@@ -210,6 +222,6 @@
 
   window.SSConf = {
     DEFAUTS: DEFAUTS, TAUX_HISTORIQUES: TAUX_HISTORIQUES,
-    get: get, charger: charger, enregistrer: enregistrer, tauxPour: tauxPour, fusionner: fusionner,
+    get: get, charger: charger, enregistrer: enregistrer, enregistrerChangements: enregistrerChangements, tauxPour: tauxPour, fusionner: fusionner,
   };
 })();

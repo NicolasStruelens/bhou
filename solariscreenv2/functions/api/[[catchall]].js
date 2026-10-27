@@ -2269,11 +2269,52 @@ export async function onRequest(context) {
         return json({ ok: true, data: (row && safeParse(row.data)) || {},
                       date_modification: (row && row.date_modification) || null, actor: (row && row.actor) || null });
       }
-      const body = await request.json().catch(() => null);
+      let body = await request.json().catch(() => null);
       if (!body || typeof body !== 'object') return json({ ok: false, error: 'Réglages invalides' }, 400);
       const emailSet = parseAccessEmail(request);
       const acteur = (emailSet && IDENTITIES[emailSet.toLowerCase()]) || emailSet || null;
       const now = new Date().toISOString();
+      /* ⚠️ DES CHANGEMENTS, PAS UN INSTANTANÉ (règle 53). La page Paramètres renvoyait TOUS les
+         réglages tels qu'elle les avait lus à l'ouverture : ce que Yannick avait changé entre-temps,
+         ou la trame enregistrée depuis le Planning, revenait à l'ancienne valeur sans un mot. Elle
+         envoie désormais `_changes` : chaque réglage touché, avec la valeur qu'elle avait sous les
+         yeux (`avant`). On les pose sur la version du MOMENT ; celui que l'autre a modifié
+         entre-temps est refusé (409), et on rend sa version. Un réglage absent de la base n'a été
+         touché par personne : pas de conflit. Le corps complet (Planning, qui relit avant d'écrire)
+         reste accepté. */
+      let journalMeta = null;
+      if (Array.isArray(body._changes)) {
+        const rowAct = await env.DB.prepare('SELECT data, date_modification, actor FROM settings WHERE id = ?').bind('global').first();
+        const actuel = (rowAct && safeParse(rowAct.data)) || {};
+        const lireChemin = (o, c) => c.reduce((a, k) => (a == null ? undefined : a[k]), o);
+        const valides = body._changes.filter((x) => x && Array.isArray(x.chemin) && x.chemin.length && x.chemin.every((k) => typeof k === 'string' && /^[a-z_]+$/i.test(k) && k !== '__proto__'));
+        /* La part fournisseur est DÉDUITE de la marge (le complément) : elle ne se juge pas seule. Un
+           ancien enregistrement peut la porter incohérente (0,23 pour une marge de 75 %) ; comparée à la
+           valeur recalculée par l'écran, elle partait en conflit à CHAQUE essai, sans issue. Un conflit
+           sur la marge, lui, est bien vu. */
+        const enConflit = valides.filter((x) => {
+          if (x.chemin.join('.') === 'prix.supplier_rate') return false;
+          const v = lireChemin(actuel, x.chemin);
+          return v !== undefined && JSON.stringify(v) !== JSON.stringify(x.avant) && JSON.stringify(v) !== JSON.stringify(x.apres);
+        });
+        if (enConflit.length) {
+          const parQui = rowAct && rowAct.actor ? String(rowAct.actor).charAt(0).toUpperCase() + String(rowAct.actor).slice(1) : 'L’autre';
+          return json({ ok: false, conflict: true, actuel, par: (rowAct && rowAct.actor) || '', le: (rowAct && rowAct.date_modification) || '',
+            conflits: enConflit.map((x) => ({ chemin: x.chemin, valeur: lireChemin(actuel, x.chemin) })),
+            error: parQui + ' a modifié ' + (enConflit.length > 1 ? enConflit.length + ' de ces réglages' : 'ce réglage') + ' entre-temps : relis, puis enregistre à nouveau si tu veux garder ta valeur.' }, 409);
+        }
+        const neuf = JSON.parse(JSON.stringify(actuel));
+        valides.forEach((x) => {
+          let o = neuf;
+          x.chemin.slice(0, -1).forEach((k) => { if (!o[k] || typeof o[k] !== 'object' || Array.isArray(o[k])) o[k] = {}; o = o[k]; });
+          o[x.chemin[x.chemin.length - 1]] = x.apres;
+        });
+        journalMeta = JSON.stringify({ changes: valides.map((x) => ({ chemin: x.chemin, avant: x.avant, apres: x.apres, nom: String(x.nom || '').slice(0, 80) })) }).slice(0, 4000);
+        neuf._resume = body._resume;
+        body = neuf;
+      }
+      const resumeJournal = body._resume;
+      delete body._resume;
       const blob = JSON.stringify(body);
       if (blob.length > 20000) return json({ ok: false, error: 'Réglages trop volumineux' }, 400);
       await env.DB.prepare(`
@@ -2286,9 +2327,19 @@ export async function onRequest(context) {
         await env.DB.prepare(
           'INSERT INTO activity (ts, actor, action, entity_type, entity_id, label, meta) VALUES (?, ?, ?, ?, ?, ?, ?)'
         ).bind(now, acteur, 'settings.save', 'system', 'settings',
-          String(body._resume || 'Réglages de l’ERP modifiés').slice(0, 300), null).run();
+          String(resumeJournal || 'Réglages de l’ERP modifiés').slice(0, 300), journalMeta).run();
       } catch (e) { /* le journal ne bloque jamais un enregistrement */ }
-      return json({ ok: true, date_modification: now });
+      return json({ ok: true, date_modification: now, data: body });
+    }
+    /* B — LES DERNIERS CHANGEMENTS DE RÉGLAGES : qui, quand, quoi (ils étaient notés dans le journal
+       d'activité, visibles nulle part). Les plus récents d'abord. */
+    if (path === '/api/settings/historique' && method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT ts, actor, label, meta FROM activity WHERE action = 'settings.save' ORDER BY ts DESC LIMIT 30"
+        ).all();
+        return json({ ok: true, data: (results || []).map((r) => ({ ts: r.ts, actor: r.actor, label: r.label, changes: ((safeParse(r.meta) || {}).changes) || null })) });
+      } catch (e) { return json({ ok: true, data: [] }); }
     }
     if (path === '/api/connections' && method === 'GET') {
       const { results } = await env.DB.prepare(
