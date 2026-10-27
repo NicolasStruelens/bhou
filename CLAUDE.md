@@ -97,9 +97,11 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 30 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 32 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
 | `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
+| `assets/js/facturation.js` | **La facturation** (règle 49) : montants d'une nouvelle facture et leur libellé, à facturer maintenant, par chantier, relances, répartition d'un virement, export comptable. Fonctions pures (`window.SSFact`) ; ce qui est DÛ reste dans `ui.js` (règle 4). |
+| `tests/facturation.test.html` | Les 47 tests de la facturation : règles pures et statut partagé (notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone (tactile simulé) et « retour ». Vérifié par 19 mutations. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
@@ -163,6 +165,10 @@ la valeur *actuelle* de la ligne. Réécrire l'objet complet écrase le travail 
 
 **4. Tout calcul d'argent dû vit à un seul endroit** (`SSUI.duFacture`). Trois écrans le calculaient
 séparément : ils ont fini par annoncer trois créances différentes.
+
+**4 bis. « Payée » veut dire « plus rien de dû », notes de crédit comprises** (`SSUI.statutFacture` lit
+`duFacture`). Comparer les paiements au total brut laissait « Partielle », puis « En retard », une facture
+réglée par une note de crédit partielle et un paiement. Le document imprimé lit la même règle (règle 49).
 
 **5. Les numéros de facture sont attribués par le SERVEUR** (table `compteurs`, incrément atomique).
 Jamais côté client, jamais réutilisés après une suppression. Une facture ne peut pas être créée
@@ -2346,7 +2352,12 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   route, parce que le serveur date un ticket « maintenant » et que c'est son ANCIENNETÉ qu'il faut voir.
   Côté outillage (règle 48, test R17) : six références (deux fournisseurs dont un prix ancien, une sans
   catégorie, une apostrophe, une photo laissée dans la base pour essayer « Alléger »), deux kits, et des
-  chevilles « à racheter » par la route ciblée — la pose de l'école (ESSAI-10) remplit « À emporter ». Le test R10 vérifie CHAQUE dossier avec la vraie règle
+  chevilles « à racheter » par la route ciblée — la pose de l'école (ESSAI-10) remplit « À emporter ».
+  Côté facturation (règle 49, test R18) : un signé dont l'acompte n'est pas facturé (ESSAI-22), un posé dont
+  l'acompte a été réduit par une NOTE DE CRÉDIT puis payé (ESSAI-23 — il ne doit plus rien, son solde reste
+  à facturer), une relance de paiement déjà faite (ESSAI-11), trois pièces Falco. ⚠️ « Vider » défait dans
+  l'ordre (encaissements, référence Falco, notes de crédit, puis factures) : le serveur refuse désormais de
+  supprimer une facture qui a une suite. Le test R10 vérifie CHAQUE dossier avec la vraie règle
   (`SSActions`) sur la liste telle que le serveur la projette. Noms à apostrophe (L'Hoest,
   Braine-l'Alleud), accents, TVA 21 %.
 • **Faux par construction** : e-mails en `@exemple.invalid` (ne peut rien recevoir, RFC 2606),
@@ -2357,6 +2368,10 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   routes ciblées (auteur signé par le serveur, règle 3).
 • **Rejouable** : « Remplir » réécrit devis, demandes, sujets et congés avec des dates RELATIVES au jour
   même ; une facture, une note, un ticket ou une attente déjà posés ne sont pas recréés (test R4).
+  ⚠️ Une facture déjà posée reçoit pourtant ce qui lui MANQUE (pièce Falco, relance de paiement), par les
+  routes ciblées : la base en ligne avait été remplie avant que le jeu ne les porte, et le rejeu sautait la
+  facture entière — « 13 sans pièce Falco » sur l'aperçu, invisible en local où l'on part d'une base vide
+  (test R19). Toute trace ajoutée au jeu sur un objet qui existe déjà doit se demander : qui la pose au REJEU ?
   **« Vider » ne retire que ce que la page a posé** — ce qu'on saisit à la main pendant un essai reste.
 • **Le test joue le VRAI serveur** : `[[catchall]].js` importé dans la page, une vraie base SQLite en
   mémoire (sql.js 1.10.3 depuis cdnjs, fonctions JSON comprises), une surface D1 réduite à
@@ -2483,6 +2498,55 @@ fonctions pures) ; protégé par `tests/outillage.test.html`.
   partout (`categorieDe`).
 • Les fenêtres (fiche, kit, à emporter, comptoir) suivent la règle 13 bis ; « Créer un kit » depuis
   « À emporter » RELAIE la fenêtre sans toucher à l'historique.
+
+**49. LA FACTURATION : CE QUI EST DÛ, CE QUI RESTE À FACTURER, ET LES TRACES QU'ON LAISSE** (27/10/2026 —
+revue de la page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent dans
+`assets/js/facturation.js` (`window.SSFact`, fonctions pures) ; ce qui est DÛ reste dans `ui.js` (règles 4 et
+4 bis). Protégé par `tests/facturation.test.html`.
+• ⚠️ **« Payée » = plus RIEN de dû, notes de crédit comprises.** Trouvé sur le bac à sable : 3 667,60 €
+  annulés de 300 € et payés pour le reste sortaient « Partielle », avec un bouton « Encaisser » qui proposait
+  300 €, et — échéance passée — « En retard ». La même faute vivait en COPIE dans le document (`facture.html`),
+  qui imprimait « IMPAYÉE » sur une facture annulée : il lit désormais `ui.js` avec TOUTES les factures (c'est
+  là que vivent les notes de crédit), et une facture annulée dit « annulée par la note de crédit … » au lieu
+  de « À payer ». Et le tableau de bord comptait l'acompte brut (`isAcompteUnpaid`, net désormais).
+• ⚠️ **Un acompte en euros imprimait « Acompte de 2000 % »** — la valeur saisie collée devant « % », sur la
+  facture du CLIENT. `libelleAcompte` écrit le pourcentage seulement quand il est exact, sinon le MONTANT
+  (« Acompte de 2 000,00 € TVAC ») — y compris quand l'acompte est plafonné à ce qui reste à facturer.
+• **Les quantités suivent la règle de l'argent** (`SSRemu.quantiteDe`) : facture totale et partielle
+  comptaient `quantite || 1`. Les noms de produits viennent de `SSUI.TYPE_LABEL` (deux copies locales).
+• ⚠️ **UNE FACTURE ÉMISE NE SE SUPPRIME PAS, ELLE S'ANNULE.** Le serveur refuse (409, avec la raison) la
+  suppression d'une facture qui a un encaissement, une pièce Falco ou une note de crédit : elle emportait ses
+  encaissements et laissait la note de crédit orpheline. Plus de suppression hors-ligne (seul le serveur
+  sait). La page ne propose « Supprimer » que sur une facture sans suite — l'erreur de saisie du jour.
+• **A — À facturer maintenant** (`aFacturer`) : les mêmes faits que le tableau de bord, mais une autre
+  question — ce qui n'est pas encore FACTURÉ (le tableau de bord dit « Acompte à encaisser » dans les deux
+  cas) : l'acompte au pourcentage DU DEVIS, le solde d'un posé, ce qui est posé quand une seconde pose vient
+  (une seule fois), l'intervention faite (règle 7). Un test vérifie que le tableau de bord réclame bien ces
+  dossiers. Le haut de page tient en une ligne, et chaque chiffre mène à ce qu'il compte.
+• **B — Téléphone en cartes** : tableau au-dessus de 1 100 px, cartes en dessous, la feuille de style seule
+  décide (règle 24). Le tableau faisait 993 px dans un écran de 331 : « Encaisser » était à trois écrans.
+• **C — Par chantier** (vue par défaut, retenue par appareil `ss_fact_vue`) : devis, facturé (net des notes
+  de crédit), encaissé, dû, reste à facturer ; le dossier en retard d'abord. « Par facture » reste.
+• **D — Les relances de paiement se notent** (`POST /api/factures/:id/relance`, ciblée et signée) : le mail,
+  la copie (SMS, WhatsApp) ou « relancé autrement » ; « à relancer » une semaine après la dernière
+  (`RELANCE_ECART_J`) ; le texte réclame ce qui est DÛ (il réclamait aussi un montant annulé). L'envoi reste
+  par le client mail : l'envoi direct est toujours en construction (règle 43).
+• **E — Répartir un virement** (`repartir`) : la facture choisie, puis les autres du MÊME dossier, de la plus
+  ancienne à la plus récente, chacune jusqu'à ce qu'elle doit. Chaque part porte `lot` (« Virement de
+  5 000,00 € réparti (…) ») ; un excédent est DIT et, accepté, reste sur la facture choisie. Ce sont plusieurs
+  écritures ciblées : un échec en route dit ce qui est déjà passé.
+• **F — Le suivi Falco** : « N sans pièce Falco » et son filtre ; la référence se saisit DANS la ligne
+  (Entrée enregistre, Échap ou ✕ annule — un clavier de téléphone n'a pas d'Échap) — plus de boîte de dialogue.
+  ⚠️ Vu sur l'aperçu en tactile : « + pièce Falco » faisait 13 px de haut, les chiffres du résumé 21. Le bloc
+  `pointer: coarse` de la page les porte à 36 px (piège des composants maison) ; T6 le mesure en forçant ce bloc.
+  ⚠️ « + pièce Falco » reste un BLOC : passé en `inline-flex` pour centrer son texte, il remontait sur la ligne du
+  numéro (« F2026-006+ pièce Falco ») — toutes les mesures au vert, vu sur la capture. Un bouton centre déjà son texte.
+• **G — L'export comptable** (`csv`) : UTF-8 avec BOM, « ; », virgule décimale, guillemets quand il le faut,
+  une ligne par pièce de la période avec sa référence Falco. ⚠️ `blob.text()` retire le BOM en décodant :
+  un test qui le cherche ainsi ne le trouve jamais — lire les trois premiers OCTETS.
+• « Nouvelle facture » ne propose que les devis qui ont encore quelque chose à facturer, et dit combien. Les
+  fenêtres suivent la règle 13 bis ; quitter la page depuis une fenêtre REMPLACE l'étape d'historique
+  (`location.replace`), sinon « retour » ramènerait sur une étape vide.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2768,7 +2832,10 @@ fonctions pures) ; protégé par `tests/outillage.test.html`.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
-   `tests/bac-a-sable.test.html`, exiger « 30/30 », par le serveur (il charge sql.js depuis cdnjs).
+   `tests/bac-a-sable.test.html`, exiger « 32/32 », par le serveur (il charge sql.js depuis cdnjs).
+   Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
+   des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 47/47 », par le serveur —
+   ET `clients.test.html`, `dashboard.test.html` et `bac-a-sable.test.html`. C'est de l'argent.
    Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :

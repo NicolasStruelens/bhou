@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — facturation</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la facturation</h1>
+  <p class="note">
+    La page Facturation (règle 49) : les règles pures (<code>assets/js/facturation.js</code>) et le statut partagé
+    (<code>ui.js</code>), les ROUTES SERVEUR (vrai <code>[[catchall]].js</code>, vraie base SQLite — <code>tests/banc-serveur.js</code>),
+    la VRAIE page remplie par le bac à sable et cliquée, le document imprimé, le téléphone et « retour ».
+    <br><br>
+    <strong>⚠️ C'est de l'argent.</strong> À ouvrir PAR LE SERVEUR DE TEST (et avec un accès à cdnjs). Aucune donnée réelle ;
+    les caches locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/facturation.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 800) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 800) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests facturation';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const F = window.SSFact, U = window.SSUI, SS = window.SS, BANC = window.SSBanc;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const sp = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ');
+    const eur = (n) => sp(U.fmtEur(n));
+    const bouton = (racine, libelle) => [...racine.querySelectorAll('button, a')].find((b) => txt(b) === libelle) || null;
+    const dernierToast = (d) => { const l = [...d.querySelectorAll('.toast')]; return l.length ? txt(l[l.length - 1]) : ''; };
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    async function ouvrirPage(largeur, hauteur, suffixe) {
+      const f = await BANC.cadre('../app/factures.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      await attendreQue(() => f.contentDocument.querySelector('.fa-ligne, .empty'), 8000);
+      await attendre(200);
+      return f;
+    }
+    const tape = (c, v) => { c.value = v; c.dispatchEvent(new Event('input', { bubbles: true })); };
+    const fac = (id) => BANC.donnee('factures', 'id', id) || {};
+    const facDe = (devisId, type) => { const r = BANC.sqlL("SELECT data FROM factures").map((x) => JSON.parse(x[0])).filter((f) => f.devis_id === devisId && f.type === type); return r[r.length - 1] || null; };
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures');
+        const DV = { id: 'D1', type_document: 'devis', calculs: { total_ttc: 10600, total_ht: 10000, total_tva: 600, tva_pct: 6 }, items: [
+          { type: 'screen', quantite: 2, prix_catalogue_ht: 1000, modele: 'SC 90' }, { type: 'volet_roulant', quantite: 0, prix_catalogue_ht: 500 },
+          { type: 'screen', quantite: -1, prix_catalogue_ht: 800 }, { type: 'tente_solaire', prix_catalogue_ht: 3000 } ] };
+        const A0 = F.montants(DV, [], 'acompte', { unite: 'pct', valeur: 30 });
+        const A1 = F.montants(DV, [], 'acompte', { unite: 'eur', valeur: 2000 });
+        const FA = [{ id: 'X1', devis_id: 'D1', type: 'acompte', total_ttc: 9000 }];
+        const A2 = F.montants(DV, FA, 'acompte', { unite: 'pct', valeur: 30 });
+        const NC = FA.concat([{ id: 'NC1', devis_id: 'D1', type: 'avoir', avoir_de: 'X1', total_ttc: -1000 }]);
+        check('S1 Les montants : acompte en % ou en €, plafonné à ce qui reste (et le DIT), solde, totale refusée après une facture, note de crédit déduite',
+          [A0.total_ttc, A0.plafonne, A1.total_ttc, A2.total_ttc, A2.plafonne, F.montants(DV, FA, 'solde', {}).total_ttc, F.montants(DV, FA, 'totale', {}).total_ttc, F.montants(DV, [], 'totale', {}).total_ttc, F.montants(DV, NC, 'solde', {}).total_ttc].map((x) => typeof x === 'number' ? Math.round(x * 100) / 100 : x),
+          [3180, false, 2000, 1600, true, 1600, 0, 10600, 2600]);
+        check('S2 Le libellé d’un acompte, sur la facture du client : « 30 % » en %, le MONTANT en € (« Acompte de 2000 % » imprimé avant) et quand il est plafonné',
+          [F.libelleAcompte(DV, A0, { unite: 'pct', valeur: 30 }), sp(F.libelleAcompte(DV, A1, { unite: 'eur', valeur: 2000 })), sp(F.libelleAcompte(DV, A2, { unite: 'pct', valeur: 30 })),
+            F.libelleAcompte(Object.assign({}, DV, { type_document: 'depannage' }), A0, { unite: 'pct', valeur: 12.5 })],
+          ['Acompte de 30 % sur devis N° D1', 'Acompte de 2 000,00 € TVAC sur devis N° D1', 'Acompte de 1 600,00 € TVAC sur devis N° D1', 'Acompte de 12,5 % sur dépannage N° D1']);
+        const LT = F.lignes(DV, 'totale', F.montants(DV, [], 'totale', {}), {});
+        check('S3 Facture totale : la quantité suit la règle de l’argent (un zéro ne devient pas 1, un négatif ne passe pas) et les noms viennent de ui.js',
+          LT.filter((l) => l.qty !== 1 || /Screen|Tente/.test(l.desc)).slice(0, 2).map((l) => [l.desc, l.qty, l.total]),
+          [[U.TYPE_LABEL.screen + ' — SC 90', 2, 2000], [U.TYPE_LABEL.tente_solaire, 1, 3000]]);
+        check('S4 Facture partielle : la part posée se compte en valeur, avec les mêmes quantités (0,8 ici ; 0 et −1 comptaient avant)',
+          [F.partPosee(DV, [1, 0, 0, 1]), F.lignes(DV, 'partielle', { total_ht: 100 }, { poses: [1, 0, 0, 1] })[0].desc], [0.8, 'Travaux exécutés sur devis N° D1 — 2 ouvertures posées sur 3']);
+        const fA = { id: 'A', type: 'acompte', total_ttc: 1000, paiements: [{ montant: 700 }], echeance: '2020-01-01' }, ncA = { id: 'NCA', type: 'avoir', avoir_de: 'A', total_ttc: -300 };
+        const fB = Object.assign({}, fA, { paiements: [] });
+        check('S5 Le statut tient compte des notes de crédit : 300 annulés + 700 payés = « Payée », rien en retard ; sans le paiement, 700 dus et en retard ; tout annulé = « Annulée »',
+          [U.statutFacture(fA, [fA, ncA]), U.duFacture(fA, [fA, ncA]), U.factureEnRetard(fA, [fA, ncA]), U.statutFacture(fB, [fB, ncA]), U.duFacture(fB, [fB, ncA]), U.factureEnRetard(fB, [fB, ncA]),
+            U.statutFacture(fB, [fB, { type: 'avoir', avoir_de: 'A', total_ttc: -1000 }])],
+          ['payee', 0, false, 'impayee', 700, true, 'annulee']);
+        const auj = U.aujourdhui();
+        const L = [
+          { id: 'sig', statut: 'signe', ttc: 1000, acompte_pct: 40 },
+          { id: 'sigAc', statut: 'signe', ttc: 1000 },
+          { id: 'pose', statut: 'signe', ttc: 1000, commande_statut: 'pose', chantier: { date_pose: J(-3) } },
+          { id: 'deuxP', statut: 'signe', ttc: 1000, commande_statut: 'pose', chantier: { date_pose: J(4) } },
+          { id: 'deuxP2', statut: 'signe', ttc: 1000, commande_statut: 'pose', chantier: { date_pose: J(4) } },
+          { id: 'dep', statut: 'signe', ttc: 300, type_document: 'depannage', depannage_mode: 'realise' },
+          { id: 'depA', statut: 'signe', ttc: 300, type_document: 'depannage', depannage_mode: 'a_realiser' },
+          { id: 'arch', statut: 'signe', ttc: 1000, archive: true },
+          { id: 'plein', statut: 'termine', ttc: 1000, reception_date: J(-30) },
+          { id: 'zero', statut: 'signe', ttc: 1000, acompte_pct: 0 },
+          { id: 'brou', statut: 'brouillon', ttc: 1000 },
+        ];
+        const FL = [{ id: 'f1', devis_id: 'sigAc', type: 'acompte', total_ttc: 300 }, { id: 'f2', devis_id: 'pose', type: 'acompte', total_ttc: 300 },
+          { id: 'f3', devis_id: 'deuxP2', type: 'partielle', total_ttc: 600 }, { id: 'f4', devis_id: 'plein', type: 'totale', total_ttc: 1000 }];
+        check('S6 À facturer : l’acompte d’un signé (à SON pourcentage), le solde d’un posé, ce qui est posé quand une seconde pose vient (une fois), l’intervention faite ; rien d’autre',
+          F.aFacturer(L, FL, auj).map((x) => [x.devis.id, x.type, x.montant]).sort(),
+          [['dep', 'totale', 300], ['deuxP', 'partielle', null], ['pose', 'solde', 700], ['sig', 'acompte', 400]]);
+        const PC = F.parChantier([
+          { id: 'a1', devis_id: 'P1', type: 'acompte', total_ttc: 300, paiements: [{ montant: 300 }], date: '2026-01-01', echeance: '2026-01-15' },
+          { id: 'a2', devis_id: 'P2', type: 'solde', total_ttc: 700, paiements: [], date: '2026-02-01', echeance: '2020-01-01' },
+          { id: 'a3', devis_id: 'P2', type: 'acompte', total_ttc: 300, paiements: [{ montant: 300 }], date: '2026-01-02', echeance: '2026-01-15' },
+        ], [{ id: 'P1', ttc: 1000 }, { id: 'P2', ttc: 1000 }]);
+        check('S7 Par chantier : le dossier EN RETARD d’abord ; facturé, encaissé, dû, reste à facturer ; les factures dans l’ordre',
+          PC.map((g) => [g.devisId, g.facture, g.encaisse, g.du, g.resteAFacturer, g.enRetard, g.factures.map((f) => f.id)]),
+          [['P2', 1000, 300, 700, 0, true, ['a3', 'a2']], ['P1', 300, 300, 0, 700, false, ['a1']]]);
+        const fr = { id: 'R', type: 'solde', total_ttc: 500, paiements: [], echeance: '2020-01-01' };
+        check('S8 Relances : à relancer tant qu’on n’a rien fait, puis une semaine après la dernière ; jamais une facture pas en retard',
+          [F.aRelancer(fr, [fr]), F.aRelancer(Object.assign({}, fr, { relances: [{ le: J(-3) + 'T10:00:00Z' }] }), []), F.aRelancer(Object.assign({}, fr, { relances: [{ le: J(-8) + 'T10:00:00Z' }] }), []),
+            F.aRelancer(Object.assign({}, fr, { echeance: J(5) }), []), F.relancesDe(Object.assign({}, fr, { relances: [{ le: '2026-10-20T10:00:00Z' }, { le: '2026-10-25T10:00:00Z' }] }))],
+          [true, false, true, false, { n: 2, derniere: '2026-10-25', prochaine: '2026-11-01' }]);
+        const fT = { id: 'F9', type: 'solde', total_ttc: 1000, paiements: [{ montant: 200 }], date: '2026-10-01', echeance: '2026-10-15', client: { prenom: 'Anne', nom: "L'Hoest" } };
+        const tR = F.texteRelance(fT, [fT, { type: 'avoir', avoir_de: 'F9', total_ttc: -300 }], { iban: 'BE00 0000', name: 'SolariScreen' });
+        check('S9 Le rappel réclame ce qui est DÛ (notes de crédit et paiements déduits), pas le total ; le second s’appelle « Nouveau rappel »',
+          [tR.du, /il reste 500,00 € à percevoir \(sur 1 000,00 €, note de crédit de 300,00 € déduite et 200,00 € déjà reçus\)/.test(sp(tR.corps)), tR.sujet,
+            F.texteRelance(Object.assign({}, fT, { relances: [{ le: '2026-10-20' }] }), [fT], {}).sujet.slice(0, 26)],
+          [500, true, 'Rappel de paiement — facture F9 (SolariScreen)', 'Nouveau rappel de paiement']);
+        const RA = [{ id: 'ac', devis_id: 'Z', type: 'acompte', total_ttc: 3000, paiements: [], date: '2026-01-01' }, { id: 'so', devis_id: 'Z', type: 'solde', total_ttc: 2000, paiements: [{ montant: 500 }], date: '2026-02-01' },
+          { id: 'nc', devis_id: 'Z', type: 'avoir', avoir_de: 'so', total_ttc: -200, date: '2026-02-02' }, { id: 'aut', devis_id: 'Y', type: 'solde', total_ttc: 900, paiements: [], date: '2026-01-01' }];
+        const rp = F.repartir(5000, RA[0], RA);
+        check('S10 Répartir un virement : la facture choisie d’abord, puis les autres DU MÊME dossier (note de crédit déduite), jamais un autre dossier ; l’excédent est dit',
+          [rp.lignes.map((l) => [l.id, l.montant]), rp.excedent, F.repartir(1000, RA[0], RA).lignes.map((l) => [l.id, l.montant])],
+          [[['ac', 3000], ['so', 1300]], 700, [['ac', 1000]]]);
+        check('S11 Sans pièce Falco ; la recherche ignore les accents et trouve un n° de devis',
+          [F.sansFalco([{ ref_externe: '' }, { ref_externe: '123' }, {}]).length, F.correspond({ id: 'F1', client: { nom: 'Lemaître' }, devis_id: 'ESSAI-07' }, 'lemaitre'),
+            F.correspond({ id: 'F1', client: {}, devis_id: 'ESSAI-07' }, 'essai-07'), F.correspond({ id: 'F1', client: {} }, 'zzz')], [2, true, true, false]);
+        const CS = F.csv([{ id: 'F1', ref_externe: '26001', type: 'acompte', date: '2026-10-01', echeance: '2020-01-01', client: { prenom: 'Jean', nom: 'Dupont; fils' }, devis_id: 'D1', total_ht: 943.4, total_tva: 56.6, total_ttc: 1000, paiements: [{ montant: 400 }] },
+          { id: 'F2', type: 'solde', date: '2026-09-01', client: {}, total_ttc: 10, total_ht: 10, total_tva: 0 }], '2026-10-01', '2026-10-31').split('\r\n');
+        check('S12 L’export : BOM, « ; », virgule décimale, guillemets quand il le faut, la période seule, le statut « En retard »',
+          [CS[0].slice(0, 12), CS.length, CS[1]], ['﻿Numéro;Réf.', 2, 'F1;26001;Acompte;2026-10-01;2020-01-01;"Jean Dupont; fils";D1;943,40;56,60;1000,00;400,00;600,00;En retard']);
+
+        // ══════════ R — LES ROUTES SERVEUR ══════════
+        titre('R — Les routes (vrai serveur, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const mkF = async (o) => { const r = await SS.saveFacture(Object.assign({ type: 'acompte', devis_id: 'RD', date: J(0), echeance: J(15), client: {}, lines: [], total_ht: 100, total_tva: 6, total_ttc: 106, paiements: [] }, o), 'F'); return r.id; };
+        const f1 = await mkF({}), f2 = await mkF({}), f3 = await mkF({ ref_externe: '2600001' }), f4 = await mkF({});
+        await SS.addPaiement(f1, { date: J(0), montant: 50, moyen: 'Virement', lot: 'Virement de 150,00 € réparti (x, y)' });
+        const nc = await SS.saveFacture({ type: 'avoir', avoir_de: f2, devis_id: 'RD', date: J(0), echeance: J(0), client: {}, lines: [], total_ht: -10, total_tva: 0, total_ttc: -10, paiements: [] }, 'NC');
+        const d1 = await SS.deleteFacture(f1), d2 = await SS.deleteFacture(f2), d3 = await SS.deleteFacture(f3), d4 = await SS.deleteFacture(f4);
+        check('R1 Supprimer est REFUSÉ quand la facture a une suite (encaissement, pièce Falco, note de crédit) — et dit pourquoi ; permis sinon',
+          [d1.ok, /encaissement/.test(d1.error || ''), d2.ok, /note de crédit/.test(d2.error || ''), d3.ok, /Falco \(2600001\)/.test(d3.error || ''), d4.ok, !!BANC.donnee('factures', 'id', f4)],
+          [false, true, false, true, false, true, true, false]);
+        const f5 = await mkF({});
+        check('R2 Un numéro supprimé n’est jamais réutilisé', [f4 !== f5, Number(f5.slice(-3)) > Number(f4.slice(-3))], [true, true]);
+        check('R3 Un encaissement réparti garde la mention de son virement', ((fac(f1).paiements || [])[0] || {}).lot, 'Virement de 150,00 € réparti (x, y)');
+        let rl = await SS.relancerFacture(f1, 'email');
+        BANC.ident = BANC.YANNICK;
+        rl = await SS.relancerFacture(f1, 'bidon');
+        BANC.ident = BANC.NICOLAS;
+        const r404 = await SS.relancerFacture('F9999-999', 'email');
+        check('R4 Une relance s’AJOUTE, signée par l’identité Access, avec son canal (inconnu → « autre ») ; facture inconnue refusée',
+          [(fac(f1).relances || []).map((r) => [r.par, r.canal]), (fac(f1).paiements || []).length, r404.ok], [[['nicolas', 'email'], ['yannick', 'autre']], 1, false]);
+        const vrai = window.fetch;
+        window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        const hors = await SS.deleteFacture(f5);
+        window.fetch = vrai;
+        check('R5 Hors-ligne, la suppression est refusée (seul le serveur sait si elle est permise)', [hors.ok, /Hors-ligne/.test(hors.error || ''), !!fac(f5).id], [false, true, true]);
+
+        // ══════════ P — LA PAGE ══════════
+        titre('P — La page, remplie par le bac à sable, cliquée au bureau');
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        try { localStorage.removeItem('ss_fact_vue'); } catch (e) {}
+        const rem = await window.SSBacASable.remplir(SS, {});
+        const ac23 = facDe('ESSAI-23', 'acompte'), so11 = facDe('ESSAI-11', 'solde'), ac07 = facDe('ESSAI-07', 'acompte');
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        let confs = 0, rep = false; w.confirm = () => { confs++; return rep; };
+        check('P1 La page parle au banc ; une ligne de résumé ; « À facturer maintenant » nomme les trois dossiers avec LEUR geste',
+          [rem.erreurs, f.branche, !!d.querySelector('.kpis'), /à encaisser/.test(txt(d.getElementById('resume'))), /1 en retard/.test(txt(d.getElementById('resume'))), /3 à facturer/.test(txt(d.getElementById('resume'))), /9 sans pièce Falco/.test(txt(d.getElementById('resume'))),
+            [...d.querySelectorAll('#aFacturer .fa-al')].map((l) => txt(l.querySelector('button')))],
+          [[], true, false, true, true, true, true, ['Facturer l’intervention', 'Facturer le solde', 'Facturer l’acompte de 50 %']]);
+        const lAc23 = d.querySelector('.fa-ligne[data-id="' + ac23.id + '"]');
+        check('P2 L’acompte réduit par une note de crédit et payé pour le reste : « Payée », la note de crédit dite, rien dû — plus de bouton « Encaisser »',
+          [txt(lAc23.querySelector('.fl-st .badge')), /− NC 100,00 €/.test(sp(txt(lAc23.querySelector('.fl-mt')))), sp(txt(lAc23.querySelector('.fl-du'))), !!bouton(lAc23, 'Encaisser'), !!bouton(lAc23, 'Encaissements')],
+          ['Payée', true, 'Reste dû' + eur(0), false, true]);
+        check('P3 Par chantier, par défaut : le dossier EN RETARD d’abord, avec ses chiffres',
+          [d.querySelector('.fa-chantier').getAttribute('data-devis'), /Dû/.test(txt(d.querySelector('.fa-chantier .fc-chiffres'))), d.querySelector('.fa-chantier').classList.contains('retard')], ['ESSAI-11', true, true]);
+        bouton(d.querySelector('.fa-vue'), 'Par facture').click(); await attendre(40);
+        check('P4 « Par facture » : un tableau au bureau, et le choix est retenu sur l’appareil', [w.getComputedStyle(d.querySelector('.fa-tete')).display, w.localStorage.getItem('ss_fact_vue')], ['grid', 'facture']);
+        const ids = () => [...d.querySelectorAll('.fa-ligne')].map((l) => l.getAttribute('data-id'));
+        const filtrer = async (v) => { d.getElementById('filtre').value = v; d.getElementById('filtre').dispatchEvent(new Event('change')); await attendre(30); return ids(); };
+        const nc23 = facDe('ESSAI-23', 'avoir');
+        check('P5 Filtres et recherche : en retard, sans pièce Falco, notes de crédit ; « lemoine » sans majuscule, un n° de devis',
+          [await filtrer('retard'), (await filtrer('sansfalco')).length, await filtrer('avoir'), (await filtrer('tous')).length > 9,
+            (tape(d.getElementById('search'), 'lemoine'), await attendre(30), ids().sort()), (tape(d.getElementById('search'), 'essai-07'), await attendre(30), ids())],
+          [[so11.id], 9, [nc23.id], true, [ac23.id, nc23.id].sort(), [ac07.id]]);
+        tape(d.getElementById('search'), ''); await attendre(30);
+        // La nouvelle facture, depuis « À facturer ».
+        bouton(d.getElementById('aFacturer'), 'Facturer l’acompte de 50 %').click();
+        await attendreQue(() => d.getElementById('fenNouv').classList.contains('open') && /Acompte de 50 %/.test(txt(d.getElementById('mApercu'))));
+        const opts = [...d.getElementById('mDevis').options].map((o) => o.value);
+        check('P6 « Facturer l’acompte » ouvre la fenêtre déjà réglée ; la liste ne propose plus un devis entièrement facturé, et dit ce qui reste',
+          [d.getElementById('mDevis').value, d.getElementById('mType').value, d.getElementById('mPct').value, opts.indexOf('ESSAI-12'), /reste .* sur /.test(sp(d.getElementById('mDevis').selectedOptions[0].textContent)),
+            /Sur la facture : « Acompte de 50 % sur devis N° ESSAI-22 »/.test(txt(d.getElementById('mApercu')))],
+          ['ESSAI-22', 'acompte', '50', -1, true, true]);
+        bouton(d.getElementById('mUnite'), 'En €').click(); await attendre(30);
+        tape(d.getElementById('mPct'), '2000'); await attendreQue(() => /2 000,00 € TVAC/.test(sp(txt(d.getElementById('mApercu')))));
+        bouton(d.getElementById('fenNouv'), 'Générer').click();
+        await attendreQue(() => facDe('ESSAI-22', 'acompte'), 6000);
+        await attendreQue(() => /facture\.html$/.test(f.contentWindow.location.pathname), 6000);
+        const ac22 = facDe('ESSAI-22', 'acompte');
+        check('P7 Un acompte en EUROS s’imprime « Acompte de 2 000,00 € TVAC » (et plus « 2000 % ») ; on arrive sur le document',
+          [sp(ac22.lines[0].desc), ac22.total_ttc, /facture\.html$/.test(f.contentWindow.location.pathname)], ['Acompte de 2 000,00 € TVAC sur devis N° ESSAI-22', 2000, true]);
+        f.remove();
+        // E — Répartir : le solde d'ESSAI-22 facturé à côté de l'acompte, un virement couvre les deux.
+        const dv22 = await SS.getDevis('ESSAI-22');
+        const aS = F.montants(dv22, await SS.listFactures(), 'solde', {});
+        const rs = await SS.saveFacture({ type: 'solde', devis_id: 'ESSAI-22', source_type: 'devis', date: J(0), echeance: J(15), client: dv22.client, lines: F.lignes(dv22, 'solde', aS, {}),
+          total_ht: Math.round(aS.total_ht * 100) / 100, total_tva: Math.round(aS.total_tva * 100) / 100, total_ttc: Math.round(aS.total_ttc * 100) / 100, tva_pct: aS.tva_pct, paiements: [] }, 'F');
+        f = await ouvrirPage(1500, 900);
+        w = f.contentWindow; d = f.contentDocument; w.confirm = () => { confs++; return rep; };
+        const lAc22 = d.querySelector('.fa-ligne[data-id="' + ac22.id + '"]');
+        bouton(lAc22, 'Encaisser').click(); await attendre(60);
+        const fenPay = d.getElementById('fenPay');
+        check('P8 Encaisser propose EXACTEMENT ce qui est dû', [fenPay.classList.contains('open'), d.getElementById('payMontant').value], [true, '2000']);
+        const totalDossier = Math.round((2000 + aS.total_ttc) * 100) / 100;
+        tape(d.getElementById('payMontant'), String(totalDossier)); await attendre(40);
+        check('P9 Un virement qui couvre aussi le solde : la page le répartit (acompte puis solde) et le dit',
+          [txt(d.getElementById('paySave')), [...d.querySelectorAll('#payRepart .l')].map((l) => sp(txt(l)))],
+          ['Répartir et enregistrer', [ac22.id + ' · Acompte ' + eur(2000), rs.id + ' · Solde ' + eur(Math.round(aS.total_ttc * 100) / 100)]]);
+        d.getElementById('paySave').click();
+        await attendreQue(() => (fac(rs.id).paiements || []).length === 1 && !fenPay.classList.contains('open'));
+        check('P10 Enregistré sur LES DEUX factures, chaque part disant d’où elle vient ; plus rien de dû',
+          [fac(ac22.id).paiements.map((p) => p.montant), fac(rs.id).paiements.map((p) => p.montant), /réparti/.test(fac(rs.id).paiements[0].lot || ''), U.duFacture(fac(ac22.id), await SS.listFactures()) + U.duFacture(fac(rs.id), await SS.listFactures())],
+          [[2000], [Math.round(aS.total_ttc * 100) / 100], true, 0]);
+        // D — Relancer et le noter.
+        const lSo11 = () => d.querySelector('.fa-ligne[data-id="' + so11.id + '"]');
+        lSo11().querySelector('.btn.plus').click(); await attendre(40);
+        bouton(lSo11(), 'Relancer').click(); await attendre(60);
+        check('P11 Le rappel réclame ce qui est dû et dit qu’on a déjà relancé', [d.getElementById('fenRelance').classList.contains('open'), new RegExp('il reste ' + eur(U.duFacture(so11, [so11]))).test(sp(d.getElementById('relCorps').value)), /Déjà relancée 1×/.test(txt(d.getElementById('relInfo'))), d.getElementById('relSujet').value.slice(0, 26)],
+          [true, true, true, 'Nouveau rappel de paiement']);
+        bouton(d.getElementById('fenRelance'), 'Relancé autrement — noter').click();
+        await attendreQue(() => (fac(so11.id).relances || []).length === 2 && /relancée 2×/.test(txt(lSo11())));
+        check('P12 « Relancé autrement » note la relance (signée) ; la ligne le dit', [fac(so11.id).relances.map((r) => r.canal), fac(so11.id).relances[1].par, /relancée 2×/.test(txt(lSo11()))], [['email', 'autre'], 'nicolas', true]);
+        // Note de crédit partielle sur l'acompte d'ESSAI-07.
+        const lAc07 = () => d.querySelector('.fa-ligne[data-id="' + ac07.id + '"]');
+        lAc07().querySelector('.btn.plus').click(); await attendre(40);
+        bouton(lAc07(), 'Note de crédit').click(); await attendre(60);
+        tape(d.getElementById('avMontant'), '300'); tape(d.getElementById('avMotif'), 'Remise accordée');
+        bouton(d.getElementById('fenAvoir'), 'Établir la note de crédit').click();
+        await attendreQue(() => facDe('ESSAI-07', 'avoir') && !d.getElementById('fenAvoir').classList.contains('open'));
+        lAc07().querySelector('.btn.plus').click(); await attendre(40);
+        check('P13 Note de crédit partielle : le reste dû baisse de 300 € ; on n’en propose pas une seconde, et la facture ne se supprime plus',
+          [facDe('ESSAI-07', 'avoir').avoir_de, sp(txt(lAc07().querySelector('.fl-du'))), !!bouton(lAc07(), 'Note de crédit'), !!bouton(lAc07(), 'Supprimer'), /s’annule par une note de crédit/.test(txt(lAc07().querySelector('.fl-plus')))],
+          [ac07.id, 'Reste dû' + eur(Math.round((ac07.total_ttc - 300) * 100) / 100), false, false, true]);
+        // Supprimer : seulement une facture sans suite.
+        const rx = await SS.saveFacture({ type: 'totale', devis_id: 'ESSAI-15', source_type: 'depannage', date: J(0), echeance: J(15), client: {}, lines: [], total_ht: 10, total_tva: 0.6, total_ttc: 10.6, paiements: [] }, 'F');
+        await w.load(); await attendre(60);
+        const lRx = () => d.querySelector('.fa-ligne[data-id="' + rx.id + '"]');
+        lRx().querySelector('.btn.plus').click(); await attendre(40);
+        rep = true;
+        bouton(lRx(), 'Supprimer').click();
+        await attendreQue(() => !BANC.donnee('factures', 'id', rx.id) && !lRx());
+        rep = false;
+        check('P14 Une facture SANS suite (erreur du jour) se supprime', [!!BANC.donnee('factures', 'id', rx.id), !!lRx()], [false, false]);
+        // F — La pièce Falco dans la ligne.
+        const avantSf = (await SS.listFactures()).filter((x) => !x.ref_externe).length;
+        lAc07().querySelector('.falco').click(); await attendre(40);
+        const champF = lAc07().querySelector('.falco-edit input');
+        check('P15 « + pièce Falco » ouvre la saisie DANS la ligne', [!!champF, d.activeElement === champF], [true, true]);
+        champF.value = '2600099'; champF.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await attendreQue(() => fac(ac07.id).ref_externe === '2600099' && /Falco 2600099/.test(txt(lAc07())));
+        check('P16 Entrée l’enregistre (écriture ciblée) ; le compteur « sans pièce Falco » suit', [fac(ac07.id).ref_externe, new RegExp((avantSf - 1) + ' sans pièce Falco').test(txt(d.getElementById('resume')))], ['2600099', true]);
+        const lSo = lSo11(); lSo.querySelector('.falco').click(); await attendre(30);
+        lSo11().querySelector('.falco-edit input').value = 'NON';
+        lSo11().querySelector('.falco-edit input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await attendre(40);
+        const apresEchap = !!lSo11().querySelector('.falco-edit');
+        lSo11().querySelector('.falco').click(); await attendre(30);
+        lSo11().querySelector('.falco-edit input').value = 'NON2';
+        lSo11().querySelector('.falco-annuler').click();
+        await attendre(40);
+        check('P17 Échap — ou ✕, un clavier de téléphone n’ayant pas d’Échap — annule la saisie, sans rien écrire',
+          [apresEchap, !!lSo11().querySelector('.falco-edit'), fac(so11.id).ref_externe || ''], [false, false, '']);
+        // G — L'export.
+        let blobLu = null; w.URL.createObjectURL = (b) => { blobLu = b; return 'blob:essai'; }; w.URL.revokeObjectURL = () => {};
+        bouton(d.querySelector('.fa-barre'), 'Export comptable').click(); await attendre(40);
+        d.getElementById('exPeriode').value = 'tout'; d.getElementById('exPeriode').dispatchEvent(new Event('change')); await attendre(30);
+        bouton(d.getElementById('fenExport'), 'Télécharger le CSV').click();
+        await attendreQue(() => blobLu);
+        // `text()` retire le BOM en décodant : on lit les trois premiers OCTETS pour s'assurer qu'il y est.
+        const octets = blobLu ? [...new Uint8Array(await blobLu.arrayBuffer()).slice(0, 3)] : [];
+        const csvTxt = blobLu ? await blobLu.text() : '';
+        const lignesCsv = csvTxt.split('\r\n');
+        check('P18 L’export comptable : toutes les pièces de la période, avec leur pièce Falco',
+          [octets, lignesCsv[0].replace(/^﻿/, '').slice(0, 30), lignesCsv.length - 1, lignesCsv.some((l) => l.indexOf(ac07.id + ';2600099;Acompte') === 0)],
+          [[239, 187, 191], 'Numéro;Réf. SysCore/Falco;Type', (await SS.listFactures()).length, true]);
+        // Les fenêtres.
+        bouton(d.querySelector('.header-actions'), 'Nouvelle facture').click();
+        await attendreQue(() => d.getElementById('fenNouv').classList.contains('open') && d.getElementById('mApercu').textContent);
+        await attendre(100);
+        const fenN = d.getElementById('fenNouv'); confs = 0;
+        d.getElementById('mType').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('P19 Échap dans un menu referme le menu, pas la fenêtre', [fenN.classList.contains('open'), confs], [true, 0]);
+        tape(d.getElementById('mRefExterne'), '26001');
+        fenN.querySelector('.fa-dialog').dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); fenN.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        d.getElementById('mRefExterne').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('P20 Un geste commencé dans la fenêtre ne ferme rien ; une saisie entamée demande confirmation (« non » garde tout)', [fenN.classList.contains('open'), confs, d.getElementById('mRefExterne').value], [true, 1, '26001']);
+        rep = true; w.fermerFenetre(); rep = false;
+        check('P21 Tous les gestionnaires compilent', compiles(d), []);
+        f.remove();
+        f = await ouvrirPage(1500, 900, '?devis=ESSAI-23&type=solde');
+        d = f.contentDocument;
+        await attendreQue(() => d.getElementById('fenNouv').classList.contains('open') && d.getElementById('mApercu').textContent);
+        check('P22 La fiche devis y mène (?devis=…&type=…) : la fenêtre s’ouvre réglée, puis les paramètres quittent l’adresse',
+          [d.getElementById('mDevis').value, d.getElementById('mType').value, f.contentWindow.location.search], ['ESSAI-23', 'solde', '']);
+        f.remove();
+
+        // ══════════ D — LE DOCUMENT IMPRIMÉ ══════════
+        titre('D — Le document que reçoit le client');
+        f = await BANC.cadre('../app/facture.html?id=' + encodeURIComponent(ac23.id) + '&t=' + Date.now(), 1000, 1200);
+        await attendreQue(() => f.contentDocument.querySelector('.pay-status'), 6000);
+        const pd = f.contentDocument.getElementById('paper');
+        check('D1 Acompte réduit par note de crédit et payé : « PAYÉE », la note de crédit dite, reste dû 0', [txt(pd.querySelector('.pay-status')), /Note de crédit NC\d{4}-\d{3} — 100,00 €/.test(sp(txt(pd))), /Reste dû : 0,00 €/.test(sp(txt(pd)))],
+          ['✓ PAYÉE', true, true]);
+        f.remove();
+        const rz = await SS.saveFacture({ type: 'totale', devis_id: 'ESSAI-15', source_type: 'depannage', date: J(-40), echeance: J(-25), client: {}, lines: [{ desc: 'x', qty: 1, pu: 10, total: 10 }], total_ht: 10, total_tva: 0.6, total_ttc: 10.6, paiements: [] }, 'F');
+        await SS.saveFacture({ type: 'avoir', avoir_de: rz.id, devis_id: 'ESSAI-15', source_type: 'depannage', date: J(0), echeance: J(0), client: {}, lines: [], total_ht: -10, total_tva: -0.6, total_ttc: -10.6, paiements: [] }, 'NC');
+        f = await BANC.cadre('../app/facture.html?id=' + encodeURIComponent(rz.id) + '&t=' + Date.now(), 1000, 1200);
+        await attendreQue(() => f.contentDocument.querySelector('.pay-status'), 6000);
+        const pz = f.contentDocument.getElementById('paper');
+        check('D2 Une facture entièrement annulée et échue : « ANNULÉE », plus de « À payer », plus de filigrane « IMPAYÉE »',
+          [txt(pz.querySelector('.pay-status')), /À payer pour le/.test(txt(pz)), !!pz.querySelector('.watermark.due'), /annulée par la note de crédit/.test(txt(pz))], ['↩ ANNULÉE', false, false, true]);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px)');
+        try { localStorage.removeItem('ss_fact_vue'); } catch (e) {}
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const larg = d.documentElement.clientWidth;
+        const deb = [...d.querySelectorAll('.fa-ligne, .fa-ligne *, .fa-chantier, .fa-afact *')].filter((e) => e.scrollWidth > e.clientWidth + 1 && w.getComputedStyle(e).overflowX !== 'hidden').map((e) => e.className || e.tagName);
+        check('T1 Des cartes : aucun bouton hors de l’écran (« Encaisser » était à trois écrans à droite), rien ne déborde',
+          [w.getComputedStyle(d.querySelector('.fa-ligne')).gridTemplateAreas.indexOf('"num st"') >= 0, [...d.querySelectorAll('.fl-act .btn')].filter((b) => b.getBoundingClientRect().right > larg + 1).length, deb, d.documentElement.scrollWidth <= 375],
+          [true, 0, [], true]);
+        check('T2 Le premier chantier — celui en retard — commence dans le premier écran', [d.querySelector('.fa-chantier').getAttribute('data-devis'), Math.round(d.querySelector('.fa-chantier').getBoundingClientRect().top) < 812], ['ESSAI-11', true]);
+        const lF = d.querySelector('.fa-ligne'); lF.querySelector('.falco').click(); await attendre(40);
+        const lF2 = d.querySelector('.fa-ligne[data-id="' + lF.getAttribute('data-id') + '"]');
+        const boite = lF2.getBoundingClientRect(), x = lF2.querySelector('.falco-annuler').getBoundingClientRect(), chF = lF2.querySelector('.falco-edit input').getBoundingClientRect();
+        check('T5 La saisie Falco tient dans la carte : champ, ✓ et ✕ visibles', [x.right <= boite.right + 1, x.width > 0, chF.width >= 60, d.documentElement.scrollWidth <= 375], [true, true, true, true]);
+        lF2.querySelector('.falco-annuler').click(); await attendre(40);
+        /* Les boutons maison sur écran TACTILE : un navigateur de bureau ne déclenche jamais « pointer: coarse »,
+           on force donc chaque bloc de la page à vrai (même technique que tactile.test.html). */
+        const hFalcoBureau = Math.round(d.querySelector('.falco').getBoundingClientRect().height);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
+        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const touche = (sel) => { const h = [...d.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().height); return h.length > 0 && Math.min(...h) >= 36; };
+        const sousNumero = [...d.querySelectorAll('.fl-num')].every((n) => { const fb = n.querySelector('.falco'), idb = n.querySelector('.id'); return !fb || !idb || fb.getBoundingClientRect().top >= idb.getBoundingClientRect().bottom - 1; });
+        check('T6 Écran tactile : « + pièce Falco » (13 px), les chiffres du résumé (21) et Par chantier / Par facture se touchent sans viser, « + pièce Falco » reste SOUS le numéro — le bureau ne bouge pas',
+          [hFalcoBureau < 20, touche('.falco'), sousNumero, touche('.fa-resume button'), touche('.fa-vue button'), w.getComputedStyle(d.querySelector('.fa-seg button')).minHeight],
+          [true, true, true, true, true, '36px']);
+        f.remove();
+        f = await cadreNavigue('../app/factures.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => typeof w.ouvrirPaiement === 'function' && d.querySelector('.fa-ligne, .empty'), 8000);
+        const lT = d.querySelector('.fa-ligne .btn-primary');
+        if (lT) lT.click();
+        await attendre(80);
+        const fenT = d.querySelector('.fa-overlay.open');
+        check('T3 Une fenêtre pose une étape d’historique sur téléphone', [!!fenT, !!(w.history.state && w.history.state.faFenetre)], [true, true]);
+        if (w.history.state && w.history.state.faFenetre) w.history.back();
+        await attendreQue(() => !d.querySelector('.fa-overlay.open'), 2000);
+        check('T4 « Retour » ferme la fenêtre et reste sur la page', [!!d.querySelector('.fa-overlay.open'), /factures\.html$/.test(w.location.pathname)], [false, true]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        try { localStorage.removeItem('ss_fact_vue'); } catch (e) {}
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

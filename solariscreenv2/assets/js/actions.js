@@ -55,8 +55,10 @@
       // dû — sinon l'alerte « acompte non payé » reste allumée sur un dossier qu'on a soldé
       // exprès par un avoir.
       const acompteFacs = facs.filter(f => f.type === 'acompte' && !window.SSUI.factureAnnulee(f, FACT()));
+      // Montant de la/les facture(s) d'acompte NET des notes de crédit partielles (règle 49) : un
+      // acompte ramené de 100 € par une note de crédit et payé pour le reste restait « à encaisser ».
       const due = acompteFacs.length
-        ? acompteFacs.reduce((s, f) => s + (Number(f.total_ttc) || 0), 0)                 // montant de la/les facture(s) d'acompte
+        ? acompteFacs.reduce((s, f) => s + (Number(f.total_ttc) || 0) - window.SSUI.avoirsSur(FACT(), f.id), 0)
         : (d.ttc || 0) * ((d.acompte_pct != null) ? d.acompte_pct : 30) / 100;             // sinon, % attendu du TTC
       return due > 0 && totalPaid < due - 0.005;
     }

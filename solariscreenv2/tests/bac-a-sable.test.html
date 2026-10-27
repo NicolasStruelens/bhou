@@ -39,6 +39,7 @@
   <script src="../assets/js/sav.js"></script>
   <script src="../assets/js/remuneration.js"></script>
   <script src="../assets/js/outillage.js"></script>
+  <script src="../assets/js/facturation.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
   <script>
@@ -107,12 +108,12 @@
           outillage: sql1("SELECT COUNT(*) FROM outillage WHERE id LIKE 'OUT-ESSAI-%'"), kits: sql1("SELECT COUNT(*) FROM kits WHERE id LIKE 'KIT-ESSAI-%'"),
           encaissements: sqlL('SELECT data FROM factures').reduce((s, r) => s + (JSON.parse(r[0]).paiements || []).length, 0),
         });
-        const attenduCompte = { devis: 21, rdv: 5, sujets: 3, dispos: 2, fiches: 27, factures: 10, outillage: 6, kits: 2, encaissements: 8 };
-        check('R2 Vingt et un dossiers, cinq demandes, trois sujets, deux congés, 27 fiches (dont le quasi-doublon et la marque), dix factures, six références, deux kits, huit encaissements',
+        const attenduCompte = { devis: 23, rdv: 5, sujets: 3, dispos: 2, fiches: 29, factures: 12, outillage: 6, kits: 2, encaissements: 9 };
+        check('R2 Vingt-trois dossiers, cinq demandes, trois sujets, deux congés, 29 fiches (dont le quasi-doublon et la marque), douze pièces (dont une note de crédit), six références, deux kits, neuf encaissements',
           compte(), attenduCompte);
         const numeros = sqlL('SELECT id FROM factures ORDER BY id').map((r) => r[0]);
-        check('R3 Les factures sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
-          [numeros.length, new Set(numeros).size, numeros.every((n) => /^F\d{4}-\d{3}$/.test(n))], [10, 10, true]);
+        check('R3 Les factures et notes de crédit sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
+          [numeros.length, new Set(numeros).size, numeros.every((n) => /^(F|NC)\d{4}-\d{3}$/.test(n)), numeros.filter((n) => /^NC/.test(n)).length], [12, 12, true, 1]);
         const racheterAvant = donnee('outillage', 'id', 'OUT-ESSAI-2').racheter.le;
         const b2 = await B.remplir(window.SS, {});
         check('R4 REJOUABLE : relancer « Remplir » ne crée ni facture, ni note, ni ticket, ni attente, ni passage de réparation en double',
@@ -147,7 +148,7 @@
           'ESSAI-08': 'Chez le fournisseur — fabrication', 'ESSAI-09': 'Matériel reçu — pose à planifier', 'ESSAI-10': 'Chantier à préparer',
           'ESSAI-11': 'Solde à encaisser', 'ESSAI-12': null, 'ESSAI-13': null, 'ESSAI-14': 'Expiré — à relancer ou classer', 'ESSAI-15': null,
           'ESSAI-16': 'En attente de réponse client', 'ESSAI-17': 'Posé et soldé — à clôturer', 'ESSAI-18': null, 'ESSAI-19': 'En attente de réponse client',
-          'ESSAI-20': 'À finaliser et envoyer', 'ESSAI-21': null,
+          'ESSAI-20': 'À finaliser et envoyer', 'ESSAI-21': null, 'ESSAI-22': 'Acompte à encaisser', 'ESSAI-23': 'Solde à encaisser',
         };
         Object.keys(attendu).forEach((id) => { const l = action(id); obtenu[id] = (l && id === 'ESSAI-05') ? l.slice(0, 22) : l; });
         check('R10 Chaque dossier déclenche l’action pour laquelle il est écrit, selon la règle du tableau de bord (sur la liste projetée par le serveur)', obtenu, attendu);
@@ -188,11 +189,28 @@
         const syn = window.SSSav.synthese(tickets);
         check('R16 SAV : « Ce qui casse le plus » compte deux pannes du même moteur (ESSAI-11 et ESSAI-21) et le signale',
           syn.aSignaler.map((m) => [m.label, m.n]), [['4114: Sunea 40 RTS', 2]]);
+        const FT = window.SSFact;
+        const af = FT.aFacturer(liste, factures);
+        const ac23 = factures.find((f) => f.devis_id === 'ESSAI-23' && f.type === 'acompte'), so11 = factures.find((f) => f.devis_id === 'ESSAI-11' && f.type === 'solde');
+        check('R18 Facturation : à facturer = l’intervention (ESSAI-15), l’acompte d’hier (ESSAI-22), le solde posé (ESSAI-23) ; l’acompte réduit par une note de crédit et payé ne doit plus rien ; la relance est signée ; trois pièces Falco',
+          [af.map((x) => [x.devis.id, x.type]).sort(), U.statutFacture(ac23, factures), U.duFacture(ac23, factures), (so11.relances || []).map((r) => [r.par, r.canal]), FT.sansFalco(factures).length],
+          [[['ESSAI-15', 'totale'], ['ESSAI-22', 'acompte'], ['ESSAI-23', 'solde']], 'payee', 0, [['nicolas', 'email']], 9]);
         const refs = await window.SS.listOutillage(), kits = await window.SS.listKits();
         const em = window.SSOutil.aEmporter(liste.find((x) => x.id === 'ESSAI-10'), kits, refs);
         check('R17 Outillage : la pose de l’école (8 screens) a son chargement — 32 vis, 32 chevilles, 1 foret, 1 silicone — et les chevilles sont « à racheter », signé par le serveur',
           [em.kits.map((k) => k.id), em.lignes.map((l) => [l.ref, l.qte]), refs.find((o) => o.id === 'OUT-ESSAI-2').racheter.par, window.SSOutil.posesAVenir(liste).map((d) => d.id).indexOf('ESSAI-10') >= 0],
           [['KIT-ESSAI-1'], [['OUT-ESSAI-1', 32], ['OUT-ESSAI-2', 32], ['OUT-ESSAI-3', 1], ['OUT-ESSAI-4', 1]], 'nicolas', true]);
+        /* La base d'essai EN LIGNE avait été remplie avant que le jeu ne porte les pièces Falco et la relance :
+           rejouée, elle sautait les factures déjà là et n'en recevait aucune (vu sur l'aperçu, « 13 sans pièce
+           Falco »). On simule cette base-là, puis on rejoue deux fois. */
+        sql1("UPDATE factures SET data = json_remove(json_set(data, '$.ref_externe', ''), '$.relances')");
+        const b3 = await B.remplir(window.SS, {});
+        const facR = () => window.SS.listFactures().then((l) => [FT.sansFalco(l).length, (l.find((f) => f.devis_id === 'ESSAI-11' && f.type === 'solde').relances || []).map((r) => [r.par, r.canal])]);
+        const apres3 = await facR();
+        const b4 = await B.remplir(window.SS, {});
+        check('R19 Rejouée sur une base remplie AVANT les pièces Falco et la relance, « Remplir » les complète (sans refaire ni facture ni encaissement), puis ne les double pas',
+          [b3.erreurs, apres3, b4.erreurs, await facR(), compte()],
+          [[], [9, [['nicolas', 'email']]], [], [9, [['nicolas', 'email']]], attenduCompte]);
 
         // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
         titre('P — La page de remplissage (tests/bac-a-sable.html)');
@@ -206,12 +224,12 @@
         await attendre(300);
         check('P1 Sur le poste local SANS banc, la page refuse d’elle-même (pas de base) et les boutons restent grisés',
           [d.getElementById('btnRemplir').disabled, /ne répond pas/.test(d.getElementById('gardes').textContent)], [true, true]);
-        check('P2 Elle liste les 26 scénarios avec un lien vers chaque fiche', [d.querySelectorAll('#scenarios tr').length - 1, !!d.querySelector('#scenarios a[href="../app/vue.html?id=ESSAI-03"]')], [26, true]);
+        check('P2 Elle liste les 28 scénarios avec un lien vers chaque fiche', [d.querySelectorAll('#scenarios tr').length - 1, !!d.querySelector('#scenarios a[href="../app/vue.html?id=ESSAI-03"]')], [28, true]);
         w.fetch = BANC.fetch;   // le banc fournit la base : comme un aperçu protégé
         await w.verifier();
         check('P3 Avec une base et une identité : les gardes passent, les boutons s’allument', [d.getElementById('btnRemplir').disabled, d.querySelectorAll('#gardes .ko').length], [false, 0]);
         const bp = await w.remplir();
-        check('P4 « Remplir » depuis la page : tout est écrit, le journal le dit', [bp.erreurs.length, /0 erreur/.test(d.getElementById('journal').textContent), sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'")], [0, true, 21]);
+        check('P4 « Remplir » depuis la page : tout est écrit, le journal le dit', [bp.erreurs.length, /0 erreur/.test(d.getElementById('journal').textContent), sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'")], [0, true, 23]);
 
         // ══════════ V — VIDER ══════════
         titre('V — Vider : seulement ce que la page a posé');

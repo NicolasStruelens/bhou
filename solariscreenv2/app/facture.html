@@ -62,27 +62,21 @@
     const estAvoir = f => f && f.type === 'avoir';
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-    function paidSum(f) { return (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0); }
-    function statutOf(f) {
-      // Une note de crédit ne s'encaisse pas : sans ce cas à part, son total négatif satisfait
-      // « payé ≥ total » et le document s'imprimait avec le tampon « PAYÉE ».
-      if (estAvoir(f)) return 'avoir';
-      const paid = paidSum(f);
-      if (paid >= (f.total_ttc || 0) - 0.005) return 'payee';
-      if (paid > 0) return 'partielle';
-      return 'impayee';
-    }
-
-    function render(f) {
+    /* ⚠️ LE STATUT ET LE RESTE DÛ VIENNENT DE `ui.js` (règles 4 et 49), avec TOUTES les factures :
+       c'est là que vivent les notes de crédit. La copie locale les ignorait — une facture annulée
+       et échue s'imprimait avec le filigrane « IMPAYÉE », et le « Reste dû » imprimé ne déduisait
+       pas la note de crédit. C'est le document que le CLIENT reçoit. */
+    function render(f, toutes) {
       const cl = f.client || {}, adr = cl.adresse || {};
-      const paid = paidSum(f), reste = (f.total_ttc || 0) - paid;
-      const st = statutOf(f);
-      const overdue = st !== 'payee' && st !== 'avoir' && f.echeance && f.echeance < SSUI.aujourdhui();
-      const statusCls = st === 'avoir' ? 'partial' : (st === 'payee' ? 'paid' : (st === 'partielle' ? 'partial' : 'due'));
-      const statusTxt = st === 'avoir' ? '↩ ANNULATION' : (st === 'payee' ? '✓ PAYÉE' : (st === 'partielle' ? '◐ PARTIELLEMENT PAYÉE' : (overdue ? '▲ ÉCHUE' : '● À PAYER')));
+      const st = SSUI.statutFacture(f, toutes);
+      const reste = SSUI.duFacture(f, toutes), nc = SSUI.avoirsSur(toutes, f.id);
+      const overdue = SSUI.factureEnRetard(f, toutes);
+      const ncs = toutes.filter(x => x && x.type === 'avoir' && x.avoir_de === f.id).map(x => x.id);
+      const statusCls = st === 'avoir' || st === 'annulee' ? 'partial' : (st === 'payee' ? 'paid' : (st === 'partielle' ? 'partial' : 'due'));
+      const statusTxt = st === 'avoir' ? '↩ ANNULATION' : (st === 'annulee' ? '↩ ANNULÉE' : (st === 'payee' ? '✓ PAYÉE' : (st === 'partielle' ? '◐ PARTIELLEMENT PAYÉE' : (overdue ? '▲ ÉCHUE' : '● À PAYER'))));
 
       let wm = '';
-      if (st === 'avoir') wm = '';   // pas de filigrane : le titre « NOTE DE CRÉDIT » suffit et doit rester lisible
+      if (st === 'avoir' || st === 'annulee') wm = '';   // le titre et la mention d'annulation suffisent
       else if (st === 'payee') wm = '<div class="watermark paid">PAYÉE</div>';
       else if (overdue) wm = '<div class="watermark due">IMPAYÉE</div>';
 
@@ -98,8 +92,9 @@
         <td class="num">${fmtEur(l.total)}</td>
       </tr>`).join('');
 
-      const paiements = (f.paiements || []).length
-        ? `<div class="terms"><h4>Paiements reçus</h4>${f.paiements.map(p => `${fmtDate(p.date)} — ${fmtEur(p.montant)}${p.moyen ? ' (' + esc(p.moyen) + ')' : ''}`).join('<br>')}<br><strong>Reste dû : ${fmtEur(reste)}</strong></div>`
+      const paiements = ((f.paiements || []).length || nc > 0.005)
+        ? `<div class="terms"><h4>${(f.paiements || []).length ? 'Paiements reçus' : 'Déductions'}</h4>${(f.paiements || []).map(p => `${fmtDate(p.date)} — ${fmtEur(p.montant)}${p.moyen ? ' (' + esc(p.moyen) + ')' : ''}`).join('<br>')}${
+            nc > 0.005 ? ((f.paiements || []).length ? '<br>' : '') + 'Note' + (ncs.length > 1 ? 's' : '') + ' de crédit ' + ncs.map(esc).join(', ') + ' — ' + fmtEur(nc) : ''}<br><strong>Reste dû : ${fmtEur(reste)}</strong></div>`
         : '';
 
       el('paper').innerHTML = `
@@ -161,10 +156,12 @@
           encaissé, il sera remboursé ou imputé sur la prochaine facture relative au même devis.
           TVA régularisée au même taux que la facture d'origine.
         </div>` : `
-        <div class="pay-note">
+        ${st === 'annulee' ? `<div class="pay-note">
+          Cette facture est <strong>annulée</strong> par la note de crédit ${ncs.map(esc).join(', ')} : plus rien n’est dû.
+        </div>` : `<div class="pay-note">
           À payer pour le <strong>${fmtDate(f.echeance)}</strong> sur le compte <strong>${esc(COMPANY.iban)}</strong>.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Communication structurée / libre : facture ${esc(f.id)}.</span>
-        </div>
+        </div>`}
         ${paiements}
 
         <div class="terms">
@@ -194,9 +191,11 @@
     (async () => {
       const id = qp('id');
       if (!id) { el('paper').innerHTML = '<p style="color:var(--text-muted);">Aucune facture spécifiée.</p>'; return; }
-      const f = await SS.getFacture(id);
+      const r = await Promise.all([SS.getFacture(id), SS.listFactures().catch(() => [])]);
+      const f = r[0];
       if (!f) { el('paper').innerHTML = '<p style="color:var(--danger);">Facture introuvable (' + esc(id) + ').</p>'; return; }
-      render(f);
+      const toutes = (r[1] || []).filter(x => x && x.id !== f.id).concat([f]);
+      render(f, toutes);
     })();
   </script>
 </body>

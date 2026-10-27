@@ -1988,7 +1988,11 @@
     if (f && f.type === 'avoir') return 'avoir';
     if (factureAnnulee(f, factures)) return 'annulee';
     const p = paiementsSum(f);
-    if (p >= ((f && Number(f.total_ttc)) || 0) - 0.005) return 'payee';
+    /* « Payée » = plus RIEN de dû, notes de crédit comprises (`duFacture`). Le test comparait les
+       paiements au total brut : une facture de 3 667,60 € annulée à hauteur de 300 € et payée
+       pour le reste restait « Partielle », avec un bouton « Encaisser » et — échéance passée —
+       « En retard » (trouvé le 27/10/2026, règle 49). */
+    if (duFacture(f, factures) <= 0.005) return 'payee';
     if (p > 0) return 'partielle';
     return 'impayee';
   }
