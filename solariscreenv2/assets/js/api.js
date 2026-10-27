@@ -938,8 +938,19 @@
     async saveDepense(x) {
       try { return await req('/depenses', { method: 'POST', body: JSON.stringify(x) }); }
       catch (e) {
-        if (e && e.serverRejected) return { ok: false, error: e.message };
+        // Un CONFLIT (l'autre a modifié le ticket entre-temps) revient avec sa version : l'écran la montre.
+        if (e && e.serverRejected) return { ok: false, error: e.message, conflict: !!(e.data && e.data.conflict), actuel: e.data && e.data.actuel };
         if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : un ticket s’enregistre en ligne, sinon tu le resaisirais demain.' };
+        return { ok: false, error: MSG_SESSION };
+      }
+    },
+    /** « Remis » ou « Remboursé », sur un ticket ou un lot : écriture CIBLÉE, signée par le serveur.
+     *  `date` vide = annuler le geste. `lot` = le libellé d'un remboursement groupé. Tout ou rien. */
+    async marquerDepenses(ids, champ, date, lot) {
+      try { return await req('/depenses/etat', { method: 'POST', body: JSON.stringify({ ids: ids, champ: champ, date: date || '', lot: lot || '' }) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (await isReallyOffline()) return { ok: false, error: 'Hors-ligne : rien n’a été coché, réessaie une fois en ligne.' };
         return { ok: false, error: MSG_SESSION };
       }
     },

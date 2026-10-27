@@ -35,6 +35,7 @@
   const r2 = function (n) { return Math.round((Number(n) || 0) * 100) / 100; };
   const num = function (v) { const n = parseFloat(v); return isFinite(n) ? n : 0; };
   const jour = function (v) { return String(v == null ? '' : v).slice(0, 10); };
+  const sansAccents = function (s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
 
   const GENS = ['nicolas', 'yannick'];
   const ETATS = ['a_remettre', 'au_bureau', 'rembourse'];
@@ -100,11 +101,18 @@
    * registre dont on se méfie ne sert plus à rien.
    * @returns [{ k, l }] — vide = c'est bon.
    */
-  function problemes(d) {
+  function problemes(d, aujourdhui) {
     const out = [];
     const x = d || {};
+    const auj = jour(aujourdhui || (window.SSUI && window.SSUI.aujourdhui ? window.SSUI.aujourdhui() : ''));
     if (GENS.indexOf(String(x.qui || '')) < 0) out.push({ k: 'qui', l: 'Qui a avancé l’argent' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(jour(x.date))) out.push({ k: 'date', l: 'Date de l’achat' });
+    /* ⚠️ Une date dans le FUTUR est une faute sur l'année (2027 pour 2026) : acceptée, le ticket restait
+       à « 0 j » et ne se signalait jamais — exactement l'oubli que cet outil doit empêcher. */
+    else if (auj && jour(x.date) > auj) out.push({ k: 'date', l: 'Date de l’achat dans le futur' });
+    if (auj && ((jour(x.remis_le) && jour(x.remis_le) > auj) || (jour(x.rembourse_le) && jour(x.rembourse_le) > auj))) {
+      out.push({ k: jour(x.remis_le) > auj ? 'remis_le' : 'rembourse_le', l: 'Remis ou remboursé dans le futur' });
+    }
     if (!(num(x.montant) > 0)) out.push({ k: 'montant', l: 'Montant payé' });
     /* ⚠️ Une incohérence de dates se SIGNALE. Remboursé avant d'avoir acheté, ou remis avant
        d'avoir acheté : c'est presque toujours une faute de frappe sur l'année, et elle fausse
@@ -154,15 +162,18 @@
   /** Le filtre de l'écran. Une valeur vide ne filtre pas — jamais de « tous » magique à gérer. */
   function filtrer(liste, f) {
     const o = f || {};
-    const q = String(o.recherche || '').trim().toLowerCase();
+    const q = String(o.recherche || '').trim();
     return (liste || []).filter(function (d) {
       if (!d) return false;
       if (o.qui && String(d.qui || '') !== o.qui) return false;
       if (o.etat && etatDe(d) !== o.etat) return false;
       if (o.annee && jour(d.date).slice(0, 4) !== String(o.annee)) return false;
       if (!q) return true;
-      const texte = [d.detail, d.client_nom, d.montant, d.date].join(' ').toLowerCase();
-      return texte.indexOf(q) >= 0;
+      // F — sans accents (« gamma » trouve « Gamma », « meches » trouve « Mèches »), et le montant tel
+      // qu'on l'écrit : « 23,90 » comme « 23.9 ».
+      const m = num(d.montant);
+      const texte = sansAccents([d.detail, d.client_nom, d.date, m, m.toFixed(2), m.toFixed(2).replace('.', ','), d.rembourse_lot].join(' '));
+      return sansAccents(q).split(/\s+/).every(function (mot) { return texte.indexOf(mot) >= 0; });
     });
   }
 
@@ -178,10 +189,85 @@
     return totaux(filtrer(liste, { qui: qui, annee: annee }), '');
   }
 
+  /**
+   * A — CE QUE LA SOCIÉTÉ DOIT À CHACUN, une ligne par personne, MOI d'abord.
+   * ⚠️ Les quatre tuiles additionnaient les deux personnes sous « les tickets encore dans ta poche » :
+   * l'échafaudage de Yannick (1 234,50 €) gonflait la poche de Nicolas. Et le menu comptait 4 (mes
+   * tickets) quand la page en annonçait 6 : le compteur ne désignait rien. nb_remettre + nb_bureau de
+   * MOI est exactement le chiffre du menu (nav.js).
+   */
+  function parPersonne(liste, moi, aujourdhui) {
+    const ordre = GENS.indexOf(moi) >= 0 ? [moi].concat(GENS.filter(function (g) { return g !== moi; })) : GENS.slice();
+    return ordre.map(function (qui) {
+      const out = { qui: qui, a_remettre: 0, nb_remettre: 0, vieux_remettre: 0, au_bureau: 0, nb_bureau: 0, vieux_bureau: 0, du: 0, nb_du: 0 };
+      (liste || []).forEach(function (d) {
+        if (!d || String(d.qui || '') !== qui) return;
+        const e = etatDe(d), m = r2(num(d.montant)), age = ageJours(d, aujourdhui);
+        if (e === 'a_remettre') { out.a_remettre = r2(out.a_remettre + m); out.nb_remettre++; out.vieux_remettre = Math.max(out.vieux_remettre, age); }
+        if (e === 'au_bureau') { out.au_bureau = r2(out.au_bureau + m); out.nb_bureau++; out.vieux_bureau = Math.max(out.vieux_bureau, age); }
+      });
+      out.du = r2(out.a_remettre + out.au_bureau);
+      out.nb_du = out.nb_remettre + out.nb_bureau;
+      return out;
+    });
+  }
+
+  /** G — Le même ticket déjà saisi ? Même personne, même jour, même montant, autre ligne. Le resaisir
+   *  le lendemain, c'est réclamer deux fois le même remboursement. */
+  function doublons(liste, d) {
+    if (!d) return [];
+    return (liste || []).filter(function (x) {
+      return x && x.id !== d.id && String(x.qui || '') === String(d.qui || '') && jour(x.date) === jour(d.date) && r2(num(x.montant)) === r2(num(d.montant));
+    });
+  }
+
+  /** C et D — les tickets d'une personne dans un état, du plus ancien au plus récent (l'ordre d'un bordereau). */
+  function dansEtat(liste, qui, etat) {
+    return (liste || []).filter(function (d) { return d && String(d.qui || '') === qui && etatDe(d) === etat; })
+      .sort(function (a, b) { return jour(a.date).localeCompare(jour(b.date)) || String(a.id).localeCompare(String(b.id)); });
+  }
+  /** C — Le bordereau : les tickets remis ensemble, et leur total. */
+  function bordereau(tickets) {
+    const l = (tickets || []).filter(Boolean).slice().sort(function (a, b) { return jour(a.date).localeCompare(jour(b.date)); });
+    return { lignes: l, nb: l.length, total: r2(l.reduce(function (s, d) { return s + num(d.montant); }, 0)) };
+  }
+
+  /** F — Le bilan d'une personne ('' = les deux), année par année, la plus récente d'abord. */
+  function bilanParAnnee(liste, qui) {
+    return annees(liste).map(function (a) {
+      const t = totaux(filtrer(liste, { qui: qui || '', annee: a }), '');
+      return { annee: a, avance: t.tout, rembourse: t.rembourse, du: t.du, nb: t.nb };
+    }).filter(function (b) { return b.nb > 0; });
+  }
+
+  /**
+   * E — Les gestes, dits par la bonne personne. Sur le ticket de Yannick, Nicolas lisait « Je l'ai
+   * remis » et « J'ai été remboursé » : à la première personne, sur le ticket de l'autre.
+   */
+  function libelleGeste(d, champ, moi, nom) {
+    const lui = nom || String((d && d.qui) || '');
+    const mien = String((d && d.qui) || '') === moi;
+    if (champ === 'remis_le') return mien ? 'Je l’ai remis' : lui + ' l’a remis';
+    return mien ? 'J’ai été remboursé' : lui + ' a été remboursé';
+  }
+  /** E — La trace d'un ticket : chaque geste avec sa date et QUI l'a coché (signé par le serveur). */
+  function trace(d, fmtDate, noms) {
+    const f = fmtDate || function (x) { return x; };
+    const n = function (k) { return k ? ((noms && noms[k]) || k) : ''; };
+    if (!d) return '';
+    return [
+      'acheté le ' + f(jour(d.date)),
+      jour(d.remis_le) ? 'remis le ' + f(jour(d.remis_le)) + (d.remis_par ? ' par ' + n(d.remis_par) : '') : '',
+      jour(d.rembourse_le) ? 'remboursé le ' + f(jour(d.rembourse_le)) + (d.rembourse_par ? ' par ' + n(d.rembourse_par) : '') + (d.rembourse_lot ? ' (' + d.rembourse_lot + ')' : '') : '',
+    ].filter(Boolean).join(' · ');
+  }
+
   window.SSDepenses = {
     GENS: GENS, ETATS: ETATS, ETAT_LABEL: ETAT_LABEL, SEUILS: SEUILS,
     etatDe: etatDe, estDu: estDu, ageJours: ageJours, retard: retard,
     problemes: problemes, totaux: totaux, trier: trier, filtrer: filtrer,
     annees: annees, bilanAnnee: bilanAnnee,
+    parPersonne: parPersonne, doublons: doublons, dansEtat: dansEtat, bordereau: bordereau,
+    bilanParAnnee: bilanParAnnee, libelleGeste: libelleGeste, trace: trace, sansAccents: sansAccents,
   };
 })();

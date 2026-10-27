@@ -40,6 +40,7 @@
   <script src="../assets/js/remuneration.js"></script>
   <script src="../assets/js/outillage.js"></script>
   <script src="../assets/js/facturation.js"></script>
+  <script src="../assets/js/depenses.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
   <script>
@@ -106,10 +107,11 @@
           sujets: sql1("SELECT COUNT(*) FROM sujets WHERE id LIKE 'SUJ-ESSAI-%'"), dispos: sql1("SELECT COUNT(*) FROM dispos WHERE id LIKE 'DISPO-ESSAI-%'"),
           fiches: sql1('SELECT COUNT(*) FROM clients'), factures: sql1('SELECT COUNT(*) FROM factures'),
           outillage: sql1("SELECT COUNT(*) FROM outillage WHERE id LIKE 'OUT-ESSAI-%'"), kits: sql1("SELECT COUNT(*) FROM kits WHERE id LIKE 'KIT-ESSAI-%'"),
+          depenses: sql1("SELECT COUNT(*) FROM depenses WHERE id LIKE 'DEP-ESSAI-%'"),
           encaissements: sqlL('SELECT data FROM factures').reduce((s, r) => s + (JSON.parse(r[0]).paiements || []).length, 0),
         });
-        const attenduCompte = { devis: 23, rdv: 5, sujets: 3, dispos: 2, fiches: 29, factures: 12, outillage: 6, kits: 2, encaissements: 9 };
-        check('R2 Vingt-trois dossiers, cinq demandes, trois sujets, deux congés, 29 fiches (dont le quasi-doublon et la marque), douze pièces (dont une note de crédit), six références, deux kits, neuf encaissements',
+        const attenduCompte = { devis: 23, rdv: 5, sujets: 3, dispos: 2, fiches: 29, factures: 12, outillage: 6, kits: 2, depenses: 6, encaissements: 9 };
+        check('R2 Vingt-trois dossiers, cinq demandes, trois sujets, deux congés, 29 fiches (dont le quasi-doublon et la marque), douze pièces (dont une note de crédit), six références, deux kits, six notes de frais, neuf encaissements',
           compte(), attenduCompte);
         const numeros = sqlL('SELECT id FROM factures ORDER BY id').map((r) => r[0]);
         check('R3 Les factures et notes de crédit sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
@@ -211,6 +213,14 @@
         check('R19 Rejouée sur une base remplie AVANT les pièces Falco et la relance, « Remplir » les complète (sans refaire ni facture ni encaissement), puis ne les double pas',
           [b3.erreurs, apres3, b4.erreurs, await facR(), compte()],
           [[], [9, [['nicolas', 'email']]], [], [9, [['nicolas', 'email']]], attenduCompte]);
+        /* Les notes de frais (règle 32), lues comme la page les lit — après QUATRE remplissages (aucune photo
+           ni aucun lot en double). */
+        const deps = await window.SS.listDepenses(), DP = window.SSDepenses;
+        const nico = DP.parPersonne(deps, 'nicolas')[0], dep = (id) => deps.find((x) => x.id === id) || {};
+        check('R20 Notes de frais : la ligne de Nicolas ne compte que SES tickets (108,27 € à remettre, 156 € au bureau — pas ceux de Yannick) ; une photo et une seule, un ticket sans ; la remise signée par le serveur ; le remboursement groupé porte son lot ; deux années au bilan',
+          [nico.a_remettre, nico.nb_remettre, nico.au_bureau, nico.nb_bureau, (dep('DEP-ESSAI-1').photos || []).length, (dep('DEP-ESSAI-2').photos || []).length,
+            dep('DEP-ESSAI-3').remis_par, dep('DEP-ESSAI-5').rembourse_lot, dep('DEP-ESSAI-5').rembourse_par, DP.bilanParAnnee(deps, 'nicolas').length],
+          [108.27, 2, 156, 1, 1, 0, 'nicolas', 'virement de 212,50 € (essai)', 'nicolas', 2]);
 
         // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
         titre('P — La page de remplissage (tests/bac-a-sable.html)');
@@ -236,9 +246,9 @@
         await window.SS.saveDevis({ id: '202610269999', statut: 'brouillon', client: { prenom: 'Saisi', nom: 'À la main' }, date_creation: new Date().toISOString() });
         w.confirm = () => true;
         const bv = await w.vider();
-        check('V1 Les dossiers, demandes, sujets, congés, fiches et factures d’essai partent ; le devis saisi à la main et la marque restent',
+        check('V1 Les dossiers, demandes, sujets, congés, fiches, factures et notes de frais d’essai partent ; le devis saisi à la main et la marque restent',
           [bv.erreurs, compte(), sql1("SELECT COUNT(*) FROM devis WHERE id = '202610269999'"), sql1("SELECT COUNT(*) FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'")],
-          [[], { devis: 0, rdv: 0, sujets: 0, dispos: 0, fiches: 1, factures: 0, outillage: 0, kits: 0, encaissements: 0 }, 1, 1]);
+          [[], { devis: 0, rdv: 0, sujets: 0, dispos: 0, fiches: 1, factures: 0, outillage: 0, kits: 0, depenses: 0, encaissements: 0 }, 1, 1]);
         v = await B.verifier({ hote: PREVIEW });
         check('V2 Grâce à la marque, une base d’essai vidée qui garde un devis manuel se remplit toujours', [v.ok, v.etat.essai, v.etat.marque], [true, 0, true]);
         BANC.DB.exec("DELETE FROM clients WHERE key = '" + B.cleMarque().replace(/'/g, "''") + "'");
