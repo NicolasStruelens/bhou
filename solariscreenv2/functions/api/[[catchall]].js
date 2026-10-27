@@ -393,6 +393,8 @@ export async function onRequest(context) {
                json_extract(data, '$.chantier') AS chantier_json,
                json_extract(data, '$.commande.statut') AS commande_statut,
                json_extract(data, '$.commande.recu_le') AS commande_recu_le,
+               json_extract(data, '$.sav_origine.devis_id') AS sav_origine_devis,
+               json_extract(data, '$.sav_origine.ticket_id') AS sav_origine_ticket,
                json_extract(data, '$.reception.date') AS reception_date,
                json_extract(data, '$.checklist') AS checklist_json,
                json_extract(data, '$.raison_refus') AS raison_refus,
@@ -659,10 +661,45 @@ export async function onRequest(context) {
       const d = safeParse(row.data) || {};
       const tickets = Array.isArray(d.sav_tickets) ? d.sav_tickets.slice() : [];
       const now = new Date().toISOString();
-      const statut = ['ouvert', 'en_cours', 'resolu'].includes(body.statut) ? body.statut : 'ouvert';
       const idx = body.id ? tickets.findIndex(t => String(t.id) === String(body.id)) : -1;
+      const avant = idx !== -1 ? tickets[idx] : null;
+      const quiSav = (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null;
+      /* LES ÉTAPES D'UN TICKET (CLAUDE.md, règle 47) : ouvert → pris en charge (« en_cours ») →
+         pièce commandée (« attente_piece ») → réparé (« resolu »). Un statut inconnu ou absent garde
+         celui d'avant : un écran qui ne connaît pas une étape ne la fait pas reculer. */
+      const STATUTS_SAV = ['ouvert', 'en_cours', 'attente_piece', 'resolu'];
+      let statut = STATUTS_SAV.includes(body.statut) ? body.statut : ((avant && avant.statut) || 'ouvert');
+      const pourSav = ['nicolas', 'yannick'].includes(body.pour) ? body.pour : '';
+      // Un ticket qui porte un NOM est pris en charge, quel que soit l'écran qui l'a attribué (la page
+      // SAV, la fiche devis, les Échanges) : « Ouvert » ne veut plus dire que « personne dessus ».
+      // Avant, « Je prends » le laissait « Ouvert », et la colonne « En cours » ne contenait que les
+      // tickets ROUVERTS.
+      if (statut === 'ouvert' && pourSav) statut = 'en_cours';
+      const ferme = statut === 'resolu' && !(avant && avant.statut === 'resolu');
+      const resolutionNeuve = String(body.resolution || '').trim().slice(0, 2000);
+      // ⚠️ CLORE EXIGE D'ÉCRIRE CE QUI A ÉTÉ RÉPARÉ (règle 20 bis), tenu ICI par le serveur : le menu
+      // de statut de la fiche devis passait un ticket « Résolu » sans un mot (trouvé le 27/10/2026).
+      if (ferme && !resolutionNeuve) {
+        return json({ ok: false, error: 'Écris ce qui a été réparé — c’est ce qu’on relira la prochaine fois.' }, 400);
+      }
+      /* L'HISTORIQUE DES PASSAGES : chaque clôture AJOUTE une ligne datée et signée, rien ne s'écrase.
+         Avant, une seule « résolution » : recloturer un ticket rouvert effaçait la première réparation,
+         et la signature restait celle du premier réparateur — Yannick réparait, le ticket disait
+         « Nicolas » (vérifié sur le bac à sable, 27/10/2026). Un ticket clos avant cet historique voit
+         son ancienne résolution reprise comme premier passage, à la première écriture. */
+      let passages = (avant && Array.isArray(avant.passages)) ? avant.passages.slice() : [];
+      if (avant && !passages.length && avant.resolution) {
+        passages.push({ id: 'p0', date: avant.date_resolution || avant.date_creation || now, par: avant.resolu_par || null,
+          resolution: String(avant.resolution), cause: String(avant.cause || '') });
+      }
+      if (ferme) {
+        passages = passages.concat([{ id: crypto.randomUUID(), date: now, par: quiSav,
+          resolution: resolutionNeuve, cause: String(body.cause || '').trim().slice(0, 2000) }]);
+      }
+      const dernierPassage = passages.length ? passages[passages.length - 1] : null;
+      const jourSav = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
       const ticket = {
-        id: (idx !== -1) ? tickets[idx].id : crypto.randomUUID(),
+        id: avant ? avant.id : crypto.randomUUID(),
         probleme: String(body.probleme || 'autre').slice(0, 40),
         description: description.slice(0, 5000),
         statut,
@@ -674,22 +711,23 @@ export async function onRequest(context) {
         // Responsable et échéance. Un ticket SAV n'attendait PERSONNE nommément : un client
         // mécontent, et chacun pouvait croire que l'autre s'en occupait. Sans nom dessus, rien
         // n'avance ; sans date, rien n'est jamais urgent (voir assets/js/attente.js).
-        pour: ['nicolas', 'yannick'].includes(body.pour) ? body.pour : '',
+        pour: pourSav,
         echeance: /^\d{4}-\d{2}-\d{2}$/.test(String(body.echeance || '')) ? body.echeance : '',
-        date_creation: (idx !== -1) ? tickets[idx].date_creation : now,
-        // Horodate la résolution au moment où le ticket passe (ou reste) « résolu ».
-        date_resolution: statut === 'resolu' ? (((idx !== -1) && tickets[idx].date_resolution) || now) : null,
-        // CE QUI A ÉTÉ FAIT. Même raison que la décision d'un sujet : un ticket qu'on classe sans
-        // noter la cause ni le remède ne sert plus à rien le jour où le même défaut revient — et
-        // sur des screens, il revient. Conservé si le ticket rouvre : un constat reste un fait.
-        cause: String(body.cause || ((idx !== -1) && tickets[idx].cause) || '').slice(0, 2000),
-        resolution: String(body.resolution || ((idx !== -1) && tickets[idx].resolution) || '').slice(0, 2000),
-        // Signé par le SERVEUR, et seulement quand la résolution est écrite pour la première fois.
-        resolu_par: (body.resolution && !((idx !== -1) && tickets[idx].resolution))
-          ? ((parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null)
-          : ((idx !== -1) && tickets[idx].resolu_par) || null,
+        date_creation: avant ? avant.date_creation : now,
+        // Horodate la résolution au moment où le ticket passe « résolu » (une nouvelle clôture = maintenant).
+        date_resolution: statut === 'resolu' ? (ferme ? now : ((avant && avant.date_resolution) || now)) : null,
+        // CE QUI A ÉTÉ FAIT : le miroir du DERNIER passage, pour les écrans et les appelants d'avant
+        // l'historique. Conservé si le ticket rouvre — l'historique, lui, est dans `passages`.
+        cause: dernierPassage ? String(dernierPassage.cause || '') : '',
+        resolution: dernierPassage ? String(dernierPassage.resolution || '') : '',
+        resolu_par: dernierPassage ? (dernierPassage.par || null) : null,
+        passages: passages,
+        // PIÈCE COMMANDÉE : la date prévue et ce qui est commandé. Une clé ABSENTE du corps garde sa
+        // valeur — la fiche devis et les Échanges renvoient le ticket sans connaître ces champs.
+        piece_prevue: body.piece_prevue !== undefined ? jourSav(body.piece_prevue) : ((avant && avant.piece_prevue) || ''),
+        piece_note: body.piece_note !== undefined ? String(body.piece_note || '').trim().slice(0, 200) : ((avant && avant.piece_note) || ''),
         // Notes internes : elles ont leur propre route (écriture ciblée), jamais écrasées ici.
-        notes: ((idx !== -1) && Array.isArray(tickets[idx].notes)) ? tickets[idx].notes : [],
+        notes: (avant && Array.isArray(avant.notes)) ? avant.notes : [],
       };
       if (idx !== -1) tickets[idx] = ticket; else tickets.push(ticket);
       await env.DB.prepare(

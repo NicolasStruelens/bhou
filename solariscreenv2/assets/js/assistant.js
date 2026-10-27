@@ -375,7 +375,9 @@
           lien: lienApp('facture.html?id=' + encodeURIComponent(x.id)),
         })),
         sav: (n.sav_tickets || []).map((t) => ({
-          statut: t.statut, type: (SSUI.SAV_TYPE_LABEL && SSUI.SAV_TYPE_LABEL[t.type]) || t.type || undefined,
+          // La nature d'un ticket s'appelle `probleme` : `t.type` n'existait pas, l'assistant ne la voyait jamais.
+          statut: (SSUI.SAV_STATUT_LABEL && SSUI.SAV_STATUT_LABEL[t.statut]) || t.statut,
+          type: (SSUI.SAV_TYPE_LABEL && SSUI.SAV_TYPE_LABEL[t.probleme]) || t.probleme || undefined,
           description: texteCourt(t.description, 300), ouvert_le: jj(t.date_creation), pour: t.pour ? nomAssocie(t.pour) : 'personne',
         })),
         notes_internes: (f.comments || []).slice(-8).map((c) => ({

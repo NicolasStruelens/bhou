@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — SAV</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du SAV</h1>
+  <p class="note">
+    La page SAV (règle 47) : les règles pures (<code>assets/js/sav.js</code>), la ROUTE SERVEUR des tickets
+    (le vrai <code>[[catchall]].js</code> sur une vraie base SQLite en mémoire, <code>tests/banc-serveur.js</code>),
+    puis la VRAIE page dans des cadres, au bureau et sur téléphone, cliquée comme un utilisateur : la file,
+    la garantie, les étapes, « Je prends », la pièce commandée, la note, la réparation, la réouverture,
+    les photos, le bon d’intervention jusque dans le simulateur, la fenêtre « Nouveau ticket », et la fiche
+    devis qui doit dire la même chose.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle :
+    la base vit dans la page ; les caches locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/sav.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 700) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 700) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests SAV';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 5000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const S = window.SSSav, U = window.SSUI, SS = window.SS, BANC = window.SSBanc;
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const T = (n, h) => new Date(J(n) + 'T' + (h || '10:00') + ':00').toISOString();
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const ticketsDe = (id) => (BANC.donnee('devis', 'id', id) || {}).sav_tickets || [];
+    const t0De = (id) => ticketsDe(id)[0] || {};
+
+    // ── Données FICTIVES de la page (apostrophes dans le nom ET la rue : règle « vérifier » n° 2) ──
+    const cli = (prenom, nom, ville, cp, n) => ({ prenom, nom, telephone: '0000 00 00 0' + n, email: 'essai' + n + '@exemple.invalid',
+      adresse: { rue: "Rue de l'Église", numero: String(n), code_postal: cp, ville } });
+    const scr = (n) => ({ type: 'screen', modele: 'SC 90', quantite: n, prix_catalogue_ht: 1000, largeur: 2000, hauteur: 2000, moteur_ref: '4114: Sunea 40 RTS', emplacement: 'Terrasse', photos: [] });
+    const PHOTO = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="60"><rect width="80" height="60" fill="#6b4a3b"/></svg>');
+    async function semerPage() {
+      BANC.nouvelleBase(true); BANC.ident = BANC.NICOLAS; BANC.viderCaches();
+      const base = (id, o) => Object.assign({ id: id, version: 1, statut: 'signe', items: [scr(2)], calculs: { total_ttc: 5000 },
+        date_creation: T(-90), date_modification: T(-5) }, o);
+      await SS.saveDevis(base('P-GAR', { client: cli('Martine', "L'Hoest", 'Nivelles', '1400', 1), items: [scr(3)], commande: { statut: 'pose' }, chantier: { date_pose: J(-60) } }));
+      await SS.saveDevis(base('P-HORS', { statut: 'termine', client: cli('Robert', 'Delvaux', 'La Hulpe', '1310', 2), commande: { statut: 'pose' }, chantier: { date_pose: J(-480) },
+        // Un ticket d'AVANT (neuf jours, personne dessus) : la route le daterait « maintenant ».
+        sav_tickets: [{ id: 'tk-hors', probleme: 'moteur', description: 'Le screen ne remonte plus : le moteur claque puis s’arrête.', statut: 'ouvert',
+          photos: [PHOTO, PHOTO], photos_apres: [], pour: '', echeance: '', date_creation: T(-9), passages: [], notes: [] }] }));
+      await SS.saveDevis(base('P-NEUF', { client: cli('Claire', 'Dewit', 'Rixensart', '1330', 3), chantier: { date_pose: J(10) } }));
+      await SS.saveDevis(base('P-BROU', { statut: 'brouillon', client: cli('Brouillon', 'Pasencore', 'Wavre', '1300', 4) }));
+      await SS.saveDevis(base('P-ARCH', { archive: true, client: cli('Archivé', 'Ancien', 'Wavre', '1300', 5) }));
+      await SS.saveDevis(base('P-REP', { statut: 'termine', client: cli('Paul', 'Gilson', 'Genval', '1332', 6), commande: { statut: 'pose' }, chantier: { date_pose: J(-200) } }));
+      await SS.saveSavTicket('P-GAR', { probleme: 'moteur', description: 'Le moteur du salon fait un bruit de crécelle.', pour: 'yannick', echeance: J(5) });
+      await SS.saveSavTicket('P-REP', { probleme: 'reglage', description: 'Le volet ne descend pas jusqu’en bas.', statut: 'resolu', resolution: 'Fin de course réglée.', cause: 'Réglage trop court.' });
+    }
+    /** La page SAV dans un cadre branché sur le banc, prête quand ses cartes sont dessinées. */
+    async function ouvrirSav(largeur, hauteur, suffixe) {
+      const f = await BANC.cadre('../app/sav.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      await attendreQue(() => f.contentDocument.querySelector('.sav-card, .empty'), 8000);
+      await attendre(150);
+      return f;
+    }
+    /** Une VRAIE navigation, sans le banc : seule elle a une entrée d'historique, donc seule elle
+     *  permet de tester « retour » (voir tests/banc-serveur.js). La page n'y a besoin d'aucune donnée. */
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const carteDe = (d, devisId) => [...d.querySelectorAll('.sav-card')].find((c) => (txt(c.querySelector('.sav-devis')) || '').indexOf('#' + devisId) >= 0) || null;
+    const bouton = (racine, libelle) => [...racine.querySelectorAll('button, a')].find((b) => txt(b) === libelle) || null;
+    const dernierToast = (d) => { const l = [...d.querySelectorAll('.toast')]; return l.length ? txt(l[l.length - 1]) : ''; };
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES (assets/js/sav.js) ══════════
+        titre('S — Les règles de la page, en fonctions pures (date de référence fixe : 27/10/2026)');
+        const REF = '2026-10-27';
+        check('S1 Les étapes : ouvert 0 · un NOM suffit à « pris en charge » (données d’avant) · pièce 2 · réparé 3',
+          [S.etape({ statut: 'ouvert' }), S.etape({ statut: 'ouvert', pour: 'nicolas' }), S.etape({ statut: 'en_cours' }), S.etape({ statut: 'attente_piece', pour: 'yannick' }), S.etape({ statut: 'resolu', pour: 'nicolas' })],
+          [0, 1, 1, 2, 3]);
+        check('S2 En retard : échéance dépassée, ou pièce pas arrivée à la date prévue — jamais un ticket réparé',
+          [S.enRetard({ statut: 'en_cours', echeance: '2026-10-26' }, REF), S.enRetard({ statut: 'en_cours', echeance: '2026-10-27' }, REF),
+            S.enRetard({ statut: 'attente_piece', piece_prevue: '2026-10-20' }, REF), S.enRetard({ statut: 'attente_piece', piece_prevue: '2026-11-02' }, REF),
+            S.enRetard({ statut: 'resolu', echeance: '2026-01-01' }, REF)],
+          [true, false, true, false, false]);
+        check('S3 L’ancienneté devient gênante à 3 jours et criante à 7 (mêmes seuils que le reste de l’ERP, règle 15)',
+          [S.anciennete({ date_creation: '2026-10-25T09:00:00Z' }, REF), S.anciennete({ date_creation: '2026-10-24' }, REF), S.anciennete({ date_creation: '2026-10-20' }, REF)],
+          [{ j: 2, niveau: 'ok' }, { j: 3, niveau: 'gene' }, { j: 7, niveau: 'criant' }]);
+        const TK = [
+          { id: 'a', statut: 'en_cours', pour: 'nicolas', date_creation: '2026-10-01' },
+          { id: 'b', statut: 'ouvert', pour: '', date_creation: '2026-10-20' },
+          { id: 'c', statut: 'en_cours', pour: 'yannick', echeance: '2026-10-26', date_creation: '2026-10-15' },
+          { id: 'd', statut: 'ouvert', pour: '', date_creation: '2026-10-10' },
+          { id: 'r1', statut: 'resolu', date_creation: '2026-09-01', date_resolution: '2026-10-01' },
+          { id: 'r2', statut: 'resolu', date_creation: '2026-09-02', date_resolution: '2026-10-20' },
+          { id: 'p', statut: 'attente_piece', pour: 'yannick', piece_prevue: '2026-11-03', date_creation: '2026-10-05' },
+        ];
+        const fl = S.file(TK, REF);
+        check('S4 La file : PERSONNE dessus d’abord, puis en retard, puis le plus ANCIEN ; les réparés à part, le plus récent en tête',
+          [fl.aTraiter.map((t) => t.id), fl.repares.map((t) => t.id)], [['d', 'b', 'c', 'a', 'p'], ['r2', 'r1']]);
+        check('S5 Le résumé d’une ligne compte la même file',
+          S.resume(TK, REF), { aTraiter: 5, sansPersonne: 2, enRetard: 1, piece: 1, repares: 2 });
+        const dv = (moteur, moteurVolet) => ({ items_min: [moteur ? { type: 'screen', moteur_ref: moteur } : { type: 'volet_roulant', moteur: moteurVolet }] });
+        const syn = S.synthese([
+          { probleme: 'moteur', date_creation: '2026-10-01', devis: dv('4114: Sunea 40 RTS') },
+          { probleme: 'moteur', date_creation: '2026-03-01', devis: dv('4114: Sunea 40 RTS') },
+          { probleme: 'moteur', date_creation: '2026-06-01', devis: dv(null, 'Secure (RF, standard)') },
+          { probleme: 'toile', date_creation: '2026-08-01', devis: dv('4114: Sunea 40 RTS') },
+          { probleme: 'moteur', date_creation: '2025-09-01', devis: dv('4114: Sunea 40 RTS') },
+        ], REF);
+        check('S6 « Ce qui casse le plus » : 12 mois glissants (le ticket de septembre 2025 sort), par nature, et un moteur à 2 pannes est À SIGNALER',
+          [syn.total, syn.depuis, syn.parNature.map((n) => [n.label, n.n]), syn.moteurs.map((m) => [m.label, m.n]), syn.aSignaler.map((m) => m.label)],
+          [4, '2025-10-27', [['Moteur', 3], ['Toile', 1]], [['4114: Sunea 40 RTS', 2], ['Secure (RF, standard)', 1]], ['4114: Sunea 40 RTS']]);
+        const LISTE = [{ id: 'B1', sav_origine_devis: 'D1', sav_origine_ticket: 'tA' }, { id: 'B2', sav_origine_devis: 'D1', sav_origine_ticket: 'tB' }];
+        check('S7 Le bon d’intervention d’un ticket se retrouve par son origine (devis ET ticket), jamais par le seul devis',
+          [(S.bonDe({ id: 'tB', devisId: 'D1' }, LISTE) || {}).id, S.bonDe({ id: 'tC', devisId: 'D1' }, LISTE)], ['B2', null]);
+        const prep = S.preparationBon({ id: 'tA', devisId: 'D1', probleme: 'moteur', description: ' Le moteur claque ',
+          devis: { prenom: 'Martine', nom: "L'Hoest", telephone: '0000', email: 'x@exemple.invalid', adresse: { ville: 'Nivelles' } } });
+        check('S8 Ce que le simulateur reçoit : le client, le motif « SAV moteur — … », le ticket d’origine',
+          [prep.client.nom, prep.client.adresse.ville, prep.depannage.motif, prep.depannage.sav_origine], ["L'Hoest", 'Nivelles', 'SAV moteur — Le moteur claque', { devis_id: 'D1', ticket_id: 'tA' }]);
+        check('S9 Un ticket clos AVANT l’historique : sa résolution devient le premier passage, à l’écran comme au serveur',
+          U.savPassages({ resolution: 'Moteur changé', cause: 'Orage', resolu_par: 'yannick', date_resolution: '2026-01-02T10:00:00Z' }),
+          [{ id: 'p0', date: '2026-01-02T10:00:00Z', par: 'yannick', resolution: 'Moteur changé', cause: 'Orage' }]);
+        check('S10 Le vocabulaire des étapes vit dans ui.js (la page et la fiche devis lisent la même table)',
+          U.SAV_STATUT_LABEL, { ouvert: 'Ouvert', en_cours: 'Pris en charge', attente_piece: 'Pièce commandée', resolu: 'Réparé' });
+
+        // ══════════ A — CE QUE « QUI DOIT AGIR » EN DIT (attente.js) ══════════
+        titre('A — Le SAV dans « qui doit agir » (attente.js)');
+        const A = window.SSAttente;
+        const sav = (t) => A.depuisSav([{ id: 'D9', client: { prenom: 'Anne', nom: 'Test' }, sav_tickets: [Object.assign({ id: 'x', description: 'd', date_creation: T(-1) }, t)] }])[0];
+        const a1 = sav({ statut: 'attente_piece', pour: 'yannick', piece_prevue: J(4) });
+        const a2 = sav({ statut: 'attente_piece', pour: 'yannick', piece_prevue: J(-2) });
+        const a3 = sav({ statut: 'en_cours', pour: 'nicolas' });
+        check('A1 Pièce commandée à date FUTURE : listée (« prévue le … »), sans peser — la balle est chez le fournisseur',
+          [a1.quoi, a1.urgence], ['Pièce commandée — prévue le ' + J(4).slice(8, 10) + '/' + J(4).slice(5, 7), A.URGENCE.BASSE]);
+        check('A2 Pièce EN RETARD : ça redevient à nous de relancer (urgent) ; un ticket pris dit « pris en charge »',
+          [a2.quoi, a2.urgence, a3.quoi], ['Pièce SAV en retard', A.URGENCE.HAUTE, 'Ticket SAV pris en charge']);
+
+        // ══════════ R — LA ROUTE SERVEUR ══════════
+        titre('R — La route des tickets (vrai serveur, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        await SS.saveDevis({ id: 'R-1', statut: 'signe', client: cli('Anne', 'Route', 'Wavre', '1300', 7), calculs: { total_ttc: 1000 }, date_creation: T(-10) });
+        let r = await SS.saveSavTicket('R-1', { probleme: 'moteur', description: 'Bruit au moteur', pour: 'yannick', echeance: J(4) });
+        const tid = r.ticket && r.ticket.id;
+        check('R1 Un ticket créé AVEC un nom est « pris en charge » d’office, sans passage', [r.ok, t0De('R-1').statut, t0De('R-1').pour, t0De('R-1').passages], [true, 'en_cours', 'yannick', []]);
+        r = await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'resolu', resolution: '   ' }));
+        check('R2 Clore SANS écrire la réparation est REFUSÉ par le serveur, et rien ne change', [r.ok, /Écris ce qui a été réparé/.test(r.error || ''), t0De('R-1').statut], [false, true, 'en_cours']);
+        r = await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'resolu', resolution: 'Moteur resserré', cause: 'Vis desserrée' }));
+        let tk = t0De('R-1');
+        check('R3 La clôture devient un PASSAGE daté et signé par l’identité Access ; les champs à plat en sont le miroir',
+          [tk.statut, tk.passages.length, tk.passages[0].par, tk.passages[0].resolution, tk.resolution, tk.resolu_par, !!tk.date_resolution],
+          ['resolu', 1, 'nicolas', 'Moteur resserré', 'Moteur resserré', 'nicolas', true]);
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'ouvert' }));
+        tk = t0De('R-1');
+        check('R4 Rouvert (« ouvert » + un nom) : pris en charge, l’historique reste, plus de date de réparation',
+          [tk.statut, tk.passages.length, tk.date_resolution], ['en_cours', 1, null]);
+        BANC.ident = BANC.YANNICK;
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'resolu', resolution: 'Moteur changé', cause: '' }));
+        BANC.ident = BANC.NICOLAS;
+        tk = t0De('R-1');
+        check('R5 Reclore AJOUTE un passage signé par celui qui répare : la première réparation et sa signature restent',
+          [tk.passages.map((p) => [p.par, p.resolution]), tk.resolu_par, tk.resolution], [[['nicolas', 'Moteur resserré'], ['yannick', 'Moteur changé']], 'yannick', 'Moteur changé']);
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'resolu', resolution: 'Autre texte' }));
+        check('R6 Renvoyer un ticket DÉJÀ réparé (une autre raison) n’ajoute aucun passage', t0De('R-1').passages.length, 2);
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'attente_piece', piece_prevue: J(6), piece_note: 'Moteur chez Harol' }));
+        // La fiche devis renvoie le ticket SANS les champs de pièce : ils doivent survivre.
+        const sansPiece = Object.assign({}, t0De('R-1')); delete sansPiece.piece_prevue; delete sansPiece.piece_note;
+        await SS.saveSavTicket('R-1', Object.assign(sansPiece, { pour: 'nicolas' }));
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { statut: 'bidon' }));
+        tk = t0De('R-1');
+        check('R7 Pièce commandée : date et note gardées quand un écran renvoie le ticket sans elles ; un statut inconnu ne fait pas reculer',
+          [tk.statut, tk.piece_prevue, tk.piece_note, tk.pour], ['attente_piece', J(6), 'Moteur chez Harol', 'nicolas']);
+        await SS.addSavNote('R-1', tid, 'Client rappelé');
+        await SS.saveSavTicket('R-1', Object.assign({}, t0De('R-1'), { notes: [] }));
+        check('R8 Les notes ont leur route : réenregistrer le ticket ne les efface pas, et l’auteur est signé', t0De('R-1').notes.map((n) => [n.auteur, n.texte]), [['nicolas', 'Client rappelé']]);
+        await SS.saveDevis({ id: 'R-2', statut: 'termine', client: cli('Léa', 'Ancienne', 'Wavre', '1300', 8), calculs: { total_ttc: 1000 }, date_creation: T(-400),
+          sav_tickets: [{ id: 'tk-old', probleme: 'toile', description: 'Toile déchirée', statut: 'resolu', pour: 'yannick', date_creation: T(-300),
+            date_resolution: T(-290), resolution: 'Toile remplacée', cause: 'Grêle', resolu_par: 'yannick' }] });
+        await SS.saveSavTicket('R-2', Object.assign({}, t0De('R-2'), { statut: 'ouvert' }));
+        tk = t0De('R-2');
+        check('R9 Un ticket clos AVANT l’historique, rouvert : son ancienne réparation devient le premier passage (avec sa signature)',
+          [tk.statut, tk.passages.map((p) => [p.id, p.par, p.resolution, p.cause])], ['en_cours', [['p0', 'yannick', 'Toile remplacée', 'Grêle']]]);
+        await SS.saveDevis({ id: 'R-3', statut: 'brouillon', type_document: 'depannage', depannage_mode: 'a_realiser', client: cli('Anne', 'Route', 'Wavre', '1300', 7),
+          calculs: { total_ttc: 120 }, date_creation: T(0), sav_origine: { devis_id: 'R-1', ticket_id: tid } });
+        const liste = (await SS.listDevis()).map(U.normDevis);
+        const bon = S.bonDe({ id: tid, devisId: 'R-1' }, liste);
+        check('R10 Le dépannage préparé depuis un ticket est projeté par la liste et retrouvé par la page (sans rien réécrire sur le ticket)',
+          [bon && bon.id, (liste.find((d) => d.id === 'R-3') || {}).sav_origine_ticket === tid, t0De('R-1').bon_id || null], ['R-3', true, null]);
+
+        // ══════════ P — LA PAGE AU BUREAU (1500 px) ══════════
+        titre('P — La page SAV au bureau, cliquée comme un utilisateur');
+        await semerPage();
+        let f = await ouvrirSav(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        check('P1 La page parle au banc dès sa première requête (aucune au vrai réseau)', f.branche, true);
+        check('P2 Le haut tient en UNE ligne de résumé (plus de tuiles) : à traiter, sans personne, réparés',
+          [!!d.querySelector('.kpis'), txt(d.getElementById('resume'))], [false, '2 tickets à traiter 1 sans personne 1 réparé']);
+        check('P3 La file : le ticket SANS personne d’abord (9 jours), le réparé replié derrière un bouton',
+          [[...d.querySelectorAll('.sav-grid .sav-card')].map((c) => (txt(c.querySelector('.sav-devis')).match(/#(P-[A-Z]+)/) || [])[1]),
+            txt(d.querySelector('.sav-repares-btn'))], [['P-HORS', 'P-GAR'], 'Voir le ticket réparé']);
+        let cH = carteDe(d, 'P-HORS'), cG = carteDe(d, 'P-GAR');
+        check('P4 L’âge se lit (« Personne · depuis 9 j », criant) et le chantier se reconnaît (résumé, ville)',
+          [txt(cH.querySelector('.sav-age')), cH.querySelector('.sav-age').classList.contains('criant'), /2 Screens SC 90/.test(txt(cH.querySelector('.sav-devis'))), /La Hulpe/.test(txt(cH.querySelector('.sav-devis')))],
+          ['Personne · depuis 9 j', true, true, true]);
+        check('P5 La garantie d’abord : hors garantie → « Créer le bon d’intervention » ; sous garantie → « gratuit », pas de bon',
+          [cH.querySelector('.sav-g').classList.contains('hors'), !!bouton(cH, 'Créer le bon d’intervention'), /gratuit/.test(txt(cG.querySelector('.sav-g'))), !!bouton(cG, 'Créer le bon d’intervention')],
+          [true, true, true, false]);
+        const ici = (c) => [...c.querySelectorAll('.sav-et')].findIndex((e) => e.classList.contains('ici'));
+        check('P6 Les étapes : ouvert pour le ticket orphelin, « pris en charge · Yannick · échéance » pour l’autre',
+          [ici(cH), ici(cG), /^Pris en charge Yannick d’ici le \d\d\/\d\d$/.test(txt(cG.querySelectorAll('.sav-et')[1]))], [0, 1, true]);
+        const coupes = (doc) => [...doc.querySelectorAll('.sav-et b, .sav-et span, .sav-client, .sav-devis')].filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent);
+        check('P6b Aucune étape, aucun nom ni chantier n’est COUPÉ (ils passent à la ligne)', coupes(d), []);
+        check('P7 Appeler / Y aller sont rendus mais masqués au bureau (règle 33 : la feuille de style décide)',
+          [!!bouton(cH, 'Appeler'), w.getComputedStyle(cH.querySelector('.sav-terrain')).display], [true, 'none']);
+        check('P8 Tous les gestionnaires de la page compilent, avec « L’Hoest » et « Rue de l’Église » dans les données', compiles(d), []);
+
+        // « Je prends… » : la date est DEMANDÉE (une chose sans date n'est jamais urgente).
+        bouton(cH, 'Je prends…').click();
+        await attendre(50);
+        cH = carteDe(d, 'P-HORS');
+        const boitePrise = cH.querySelector('.sav-box.on');
+        check('P9 « Je prends… » ouvre la question « Pour quand ? », trois jours proposés', [!!boitePrise, boitePrise && boitePrise.querySelector('input[type=date]').value], [true, J(3)]);
+        bouton(boitePrise, 'Je prends').click();
+        await attendreQue(() => t0De('P-HORS').pour === 'nicolas' && /depuis 9 j/.test(txt(carteDe(d, 'P-HORS').querySelector('.sav-age'))) && /Nicolas/.test(txt(carteDe(d, 'P-HORS').querySelector('.sav-age'))));
+        check('P10 « Je prends » : mon nom, l’échéance, « pris en charge », et la page le dit',
+          [t0De('P-HORS').pour, t0De('P-HORS').echeance, t0De('P-HORS').statut, /C’est pour toi/.test(dernierToast(d)), ici(carteDe(d, 'P-HORS'))],
+          ['nicolas', J(3), 'en_cours', true, 1]);
+
+        // Pièce commandée sur le ticket de Yannick.
+        cG = carteDe(d, 'P-GAR');
+        bouton(cG, 'Pièce commandée').click();
+        await attendre(50);
+        cG = carteDe(d, 'P-GAR');
+        let bx = cG.querySelector('.sav-box.on');
+        bx.querySelector('input[type=date]').value = '';
+        bouton(bx, 'Pièce commandée').click();
+        await attendre(150);
+        check('P11 Pièce commandée SANS date : refusé, avec la raison (c’est la date qui dira quand relancer)', [t0De('P-GAR').statut, /date prévue/.test(dernierToast(d))], ['en_cours', true]);
+        cG = carteDe(d, 'P-GAR'); bx = cG.querySelector('.sav-box.on');
+        bx.querySelector('input[type=date]').value = J(4);
+        bx.querySelector('input:not([type])').value = 'Moteur Sunea, chez Harol';
+        bouton(bx, 'Pièce commandée').click();
+        await attendreQue(() => t0De('P-GAR').statut === 'attente_piece' && ici(carteDe(d, 'P-GAR')) === 2);
+        cG = carteDe(d, 'P-GAR');
+        check('P12 Pièce commandée : date et note écrites, le nom reste, l’étape « Pièce » s’allume avec sa date',
+          [t0De('P-GAR').piece_prevue, t0De('P-GAR').piece_note, t0De('P-GAR').pour, ici(cG), /prévue le \d\d\/\d\d/.test(txt(cG.querySelectorAll('.sav-et')[2])), !!bouton(cG, 'Pièce reçue')],
+          [J(4), 'Moteur Sunea, chez Harol', 'yannick', 2, true, true]);
+        bouton(cG, 'Pièce reçue').click();
+        await attendreQue(() => t0De('P-GAR').statut === 'en_cours' && ici(carteDe(d, 'P-GAR')) === 1);
+        check('P13 Pièce reçue : le ticket reprend chez Yannick (pris en charge)', [t0De('P-GAR').statut, t0De('P-GAR').pour], ['en_cours', 'yannick']);
+
+        // La note.
+        cG = carteDe(d, 'P-GAR');
+        bouton(cG, 'Note').click();
+        await attendre(50);
+        cG = carteDe(d, 'P-GAR'); bx = cG.querySelector('.sav-box.on');
+        bx.querySelector('textarea').value = 'Client prévenu, il est là jeudi';
+        bouton(bx, 'Ajouter la note').click();
+        await attendreQue(() => (t0De('P-GAR').notes || []).length === 1 && carteDe(d, 'P-GAR').querySelector('.sav-note'));
+        check('P14 La note part par sa route, signée, et s’affiche sous le ticket',
+          [t0De('P-GAR').notes[0].auteur, txt(carteDe(d, 'P-GAR').querySelector('.sav-note .sn-txt'))], ['nicolas', 'Client prévenu, il est là jeudi']);
+
+        // Réparé.
+        cG = carteDe(d, 'P-GAR');
+        bouton(cG, 'Réparé').click();
+        await attendre(50);
+        cG = carteDe(d, 'P-GAR'); bx = cG.querySelector('.sav-box.on');
+        bouton(bx, 'Marquer réparé').click();
+        await attendre(150);
+        check('P15 « Marquer réparé » sans un mot : rien ne part, la page dit pourquoi', [t0De('P-GAR').statut, /Écris ce qui a été réparé/.test(dernierToast(d))], ['en_cours', true]);
+        cG = carteDe(d, 'P-GAR'); bx = cG.querySelector('.sav-box.on');
+        bx.querySelector('textarea').value = 'Moteur remplacé, réglé';
+        bx.querySelector('input:not([type])').value = 'Moteur défectueux';
+        bouton(bx, 'Marquer réparé').click();
+        await attendreQue(() => t0De('P-GAR').statut === 'resolu' && !carteDe(d, 'P-GAR'));
+        check('P16 Réparé : un passage signé, la carte quitte la file, le résumé suit',
+          [t0De('P-GAR').passages.map((p) => [p.par, p.resolution, p.cause]), txt(d.getElementById('resume')), txt(d.querySelector('.sav-repares-btn'))],
+          [[['nicolas', 'Moteur remplacé, réglé', 'Moteur défectueux']], '1 ticket à traiter 2 réparés', 'Voir les 2 tickets réparés']);
+        d.querySelector('.sav-repares-btn').click();
+        await attendre(50);
+        cG = carteDe(d, 'P-GAR');
+        check('P17 Déplié, le ticket réparé dit « Réparé » en vert, avec la réparation, et se rouvre',
+          [!!cG, cG && cG.querySelector('.sav-passages').classList.contains('dernier-ok'), cG && /Moteur remplacé, réglé/.test(txt(cG.querySelector('.sav-passages'))), !!(cG && bouton(cG, 'Rouvrir'))],
+          [true, true, true, true]);
+        bouton(cG, 'Rouvrir').click();
+        await attendreQue(() => t0De('P-GAR').statut !== 'resolu' && carteDe(d, 'P-GAR') && !carteDe(d, 'P-GAR').querySelector('.dernier-ok'));
+        cG = carteDe(d, 'P-GAR');
+        check('P18 Rouvert : repris chez Yannick, la réparation passe en « Passages précédents » — plus jamais « Réparé » en vert',
+          [t0De('P-GAR').statut, t0De('P-GAR').passages.length, txt(cG.querySelector('.sav-passages .pt')), cG.querySelector('.sav-passages').classList.contains('dernier-ok')],
+          ['en_cours', 1, 'Passages précédents', false]);
+
+        // Les photos s'ouvrent DANS la page (règle 26).
+        const ouverts = []; w.open = (u) => { ouverts.push(u); return null; };
+        const href0 = w.location.href;
+        carteDe(d, 'P-HORS').querySelectorAll('.sav-photos button')[1].click();
+        await attendre(80);
+        const vis = d.getElementById('ssLightbox');
+        check('P19 Une photo du constat s’ouvre dans la page, sur la bonne image, sans nouvel onglet',
+          [!!(vis && vis.classList.contains('open')), ouverts.length, w.location.href === href0], [true, 0, true]);
+        d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await attendre(50);
+        check('P20 Échap la referme', vis.classList.contains('open'), false);
+
+        // « Ce qui casse le plus » (2 tickets moteur sur des chantiers au même moteur).
+        check('P21 « Ce qui casse le plus » : replié par défaut, il compte et signale le moteur qui revient',
+          [d.getElementById('synthese').open, /Moteur 2/.test(txt(d.querySelector('#synthese .sav-chips'))), /4114: Sunea 40 RTS : 2 pannes de moteur/.test(txt(d.querySelector('#synthese .sav-signal')))],
+          [false, true, true]);
+
+        // Le bon d'intervention, jusque dans le simulateur.
+        bouton(carteDe(d, 'P-HORS'), 'Créer le bon d’intervention').click();
+        await attendreQue(() => /simulateur\.html$/.test(f.contentWindow.location.pathname) && f.contentDocument.readyState === 'complete', 8000);
+        await attendreQue(() => (f.contentDocument.getElementById('depMotif') || {}).value, 5000);
+        const w2 = f.contentWindow;
+        let origine = null; try { origine = w2.eval('state.sav_origine'); } catch (e) { origine = String(e); }
+        check('P22 « Créer le bon d’intervention » ouvre un DÉPANNAGE pré-rempli : motif, ticket d’origine, et rien ne reste en mémoire',
+          [w2.location.search, (w2.document.getElementById('depMotif').value || '').slice(0, 13), origine, w2.sessionStorage.getItem('ss_prefill_depannage')],
+          ['?type=depannage', 'SAV moteur — ', { devis_id: 'P-HORS', ticket_id: 'tk-hors' }, null]);
+        f.remove();
+        await SS.saveDevis({ id: 'P-BON', statut: 'brouillon', type_document: 'depannage', depannage_mode: 'a_realiser', client: cli('Robert', 'Delvaux', 'La Hulpe', '1310', 2),
+          calculs: { total_ttc: 150 }, date_creation: T(0), sav_origine: { devis_id: 'P-HORS', ticket_id: 'tk-hors' } });
+        f = await ouvrirSav(1500, 900);
+        d = f.contentDocument;
+        cH = carteDe(d, 'P-HORS');
+        const lien = [...cH.querySelectorAll('a')].find((a) => /Bon d’intervention #/.test(txt(a)));
+        check('P23 Une fois le bon enregistré, la carte y MÈNE au lieu d’en proposer un second',
+          [lien && lien.getAttribute('href'), !!bouton(cH, 'Créer le bon d’intervention')], ['vue.html?id=P-BON', false]);
+        f.remove();
+
+        // ══════════ N — « NOUVEAU TICKET », SANS QUITTER LA PAGE ══════════
+        titre('N — La fenêtre « Nouveau ticket »');
+        f = await ouvrirSav(1500, 900);
+        w = f.contentWindow; d = f.contentDocument;
+        bouton(d.querySelector('.header-actions'), 'Nouveau ticket SAV').click();
+        await attendre(60);
+        const nv = d.getElementById('modalNew');
+        const choix = () => [...d.querySelectorAll('#nvListe .pick-item')].map((b) => (txt(b.querySelector('.pi-sub')).match(/#(P-[A-Z]+)/) || [])[1]);
+        check('N1 La fenêtre s’ouvre ici ; on choisit parmi les chantiers SIGNÉS (même pas encore posés), jamais un brouillon ni une archive',
+          [nv.classList.contains('open'), choix().sort()], [true, ['P-GAR', 'P-HORS', 'P-NEUF', 'P-REP']]);
+        const gar = [...d.querySelectorAll('#nvListe .pick-item')].find((b) => /#P-GAR/.test(txt(b)));
+        check('N2 Chaque chantier dit ce qu’il est (résumé, ville) et ses tickets', /^Martine L'Hoest 3 Screens SC 90 .*#P-GAR · Nivelles · 1 ticket$/.test(txt(gar)), true);
+        const rech = d.getElementById('nvRecherche');
+        rech.value = 'hoest'; rech.dispatchEvent(new Event('input', { bubbles: true }));
+        await attendre(30);
+        check('N3 La recherche filtre (sans casser le champ qu’on tape)', [choix(), d.activeElement === d.getElementById('nvRecherche') || d.getElementById('nvRecherche') === rech], [['P-GAR'], true]);
+        rech.value = ''; rech.dispatchEvent(new Event('input', { bubbles: true }));
+        await attendre(30);
+        [...d.querySelectorAll('#nvListe .pick-item')].find((b) => /#P-NEUF/.test(txt(b))).click();
+        await attendre(30);
+        bouton(nv, 'Créer le ticket').click();
+        await attendre(120);
+        check('N4 Créer sans décrire le problème : refusé, la fenêtre reste ouverte', [ticketsDe('P-NEUF').length, nv.classList.contains('open'), /Décris le problème/.test(dernierToast(d))], [0, true, true]);
+        d.getElementById('nvNature').value = 'materiel';
+        d.getElementById('nvDesc').value = 'Un screen livré avec la toile tachée.';
+        d.getElementById('nvDesc').dispatchEvent(new Event('input', { bubbles: true }));
+        const moi = [...d.querySelectorAll('#nvPour input')].find((i) => i.value === 'nicolas');
+        moi.checked = true; moi.dispatchEvent(new Event('change', { bubbles: true }));
+        check('N5 Choisir quelqu’un propose une échéance (trois jours) : un nom sans date ne rend rien urgent', d.getElementById('nvEcheance').value, J(3));
+        bouton(nv, 'Créer le ticket').click();
+        await attendreQue(() => ticketsDe('P-NEUF').length === 1 && !nv.classList.contains('open') && carteDe(d, 'P-NEUF'));
+        const tn = t0De('P-NEUF');
+        check('N6 Créé : nature, nom, échéance, « pris en charge » ; la fenêtre se ferme et la carte apparaît (pose pas encore faite : garantie non démarrée)',
+          [tn.probleme, tn.pour, tn.echeance, tn.statut, nv.classList.contains('open'), !!carteDe(d, 'P-NEUF'), /garantie non démarrée/.test(txt(carteDe(d, 'P-NEUF').querySelector('.sav-g')))],
+          ['materiel', 'nicolas', J(3), 'en_cours', false, true, true]);
+        // Les règles des fenêtres.
+        let confirmations = 0, reponse = false;
+        w.confirm = () => { confirmations++; return reponse; };
+        bouton(d.querySelector('.header-actions'), 'Nouveau ticket SAV').click();
+        await attendre(40);
+        const date = d.getElementById('nvEcheance');
+        date.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('N7 Échap dans le champ DATE referme le calendrier, pas la fenêtre', [nv.classList.contains('open'), confirmations], [true, 0]);
+        d.getElementById('nvDesc').value = 'en cours de frappe';
+        d.getElementById('nvDesc').dispatchEvent(new Event('input', { bubbles: true }));
+        nv.querySelector('.modal').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        nv.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        check('N8 Un geste COMMENCÉ dans la fenêtre et relâché sur le fond ne ferme rien', [nv.classList.contains('open'), confirmations], [true, 0]);
+        d.getElementById('nvDesc').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('N9 Une saisie entamée : Échap demande « Fermer sans enregistrer ? » — et « non » garde tout', [nv.classList.contains('open'), confirmations, d.getElementById('nvDesc').value], [true, 1, 'en cours de frappe']);
+        reponse = true;
+        nv.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        nv.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        check('N10 Un clic COMMENCÉ sur le fond ferme (après confirmation)', [nv.classList.contains('open'), confirmations], [false, 2]);
+        // Une pièce commandée que personne n'a prise : « Je prends » pose un nom, sans la faire reculer.
+        await SS.saveSavTicket('P-REP', { probleme: 'moteur', description: 'Pièce attendue, personne dessus.', statut: 'attente_piece', piece_prevue: J(3) });
+        await w.load();
+        let cP = carteDe(d, 'P-REP');
+        bouton(cP, 'Je prends…').click();
+        await attendre(50);
+        cP = carteDe(d, 'P-REP');
+        bouton(cP.querySelector('.sav-box.on'), 'Je prends').click();
+        const tP = () => ticketsDe('P-REP').find((x) => x.description === 'Pièce attendue, personne dessus.') || {};
+        await attendreQue(() => tP().pour === 'nicolas');
+        check('N12 « Je prends » sur une pièce commandée : mon nom, et elle reste « pièce commandée » (le statut n’est pas renvoyé)',
+          [tP().pour, tP().statut, tP().piece_prevue], ['nicolas', 'attente_piece', J(3)]);
+        f.remove();
+        f = await ouvrirSav(1500, 900, '?nouveau=1&devis=P-REP');
+        d = f.contentDocument;
+        await attendreQue(() => d.getElementById('modalNew').classList.contains('open'));
+        check('N11 Arriver avec ?nouveau=1&devis=… ouvre la fenêtre sur ce chantier, puis le paramètre quitte l’adresse',
+          [d.getElementById('modalNew').classList.contains('open'), /#P-REP/.test(txt(d.querySelector('.nv-choisi'))), f.contentWindow.location.search], [true, true, '']);
+        f.remove();
+
+        // ══════════ V — LA FICHE DEVIS DIT LA MÊME CHOSE (règle 20 bis) ══════════
+        titre('V — La carte SAV de la fiche devis dit la même chose');
+        f = await BANC.cadre('../app/vue.html?id=P-GAR&t=' + Date.now(), 1500, 900);
+        d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#savList') && txt(d.querySelector('#savList')).length > 20, 8000);
+        const savV = txt(d.getElementById('savList'));
+        check('V1 Ticket rouvert : « Pris en charge », la réparation d’avant en « Passages précédents », jamais « Réparé : »',
+          [/Pris en charge/.test(savV), /Passages précédents/.test(savV), /Réparé :/.test(savV), /Moteur remplacé, réglé/.test(savV)], [true, true, false, true]);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE (375 × 812) ══════════
+        titre('T — Sur téléphone');
+        f = await ouvrirSav(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const premier = d.querySelector('.sav-grid .sav-card');
+        const premierBouton = premier.querySelector('.sav-actions .btn');
+        check('T1 Le résumé tient en une ligne courte et les boutons du premier ticket sont dans le PREMIER écran',
+          [d.getElementById('resume').getBoundingClientRect().height <= 48, Math.round(premierBouton.getBoundingClientRect().bottom) < 812], [true, true]);
+        check('T2 Appeler / Y aller apparaissent sur le terrain, d’un seul appui',
+          [w.getComputedStyle(premier.querySelector('.sav-terrain')).display, (premier.querySelector('.sav-terrain a') || {}).getAttribute && premier.querySelector('.sav-terrain a').getAttribute('href')],
+          ['flex', 'tel:0000000002']);
+        const deborde = [...d.querySelectorAll('.sav-card, .sav-card *')].filter((e) => e.scrollWidth > e.clientWidth + 1 && w.getComputedStyle(e).overflowX !== 'hidden').map((e) => e.className || e.tagName);
+        check('T3 Rien ne déborde de sa boîte, ni la page de l’écran', [deborde, d.documentElement.scrollWidth <= 375], [[], true]);
+        const largeurCarte = premier.clientWidth - 2 * parseFloat(w.getComputedStyle(premier).paddingLeft);
+        check('T3b Rien n’est coupé, et le chantier prend toute la largeur de la carte (il ne s’écrase plus à côté de l’âge)',
+          [coupes(d), Math.round(premier.querySelector('.sav-devis').getBoundingClientRect().width) >= Math.round(largeurCarte) - 1], [[], true]);
+        f.remove();
+        f = await cadreNavigue('../app/sav.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => typeof w.ouvrirNouveau === 'function' && d.querySelector('.sav-card, .empty'), 8000);
+        bouton(d.querySelector('.header-actions'), 'Nouveau ticket SAV').click();
+        await attendre(60);
+        const nvT = d.getElementById('modalNew');
+        check('T4 La fenêtre tient dans l’écran et pose une étape d’historique', [Math.round(nvT.querySelector('.modal').getBoundingClientRect().width) <= 375, !!(w.history.state && w.history.state.savNouveau)], [true, true]);
+        w.history.back();
+        await attendreQue(() => !nvT.classList.contains('open'), 2000);
+        check('T5 « Retour » ferme la fenêtre (et ne quitte pas la page)', [nvT.classList.contains('open'), /sav\.html$/.test(w.location.pathname)], [false, true]);
+        bouton(d.querySelector('.header-actions'), 'Nouveau ticket SAV').click();
+        await attendre(60);
+        let confT = 0; w.confirm = () => { confT++; return false; };
+        d.getElementById('nvDesc').value = 'saisie'; d.getElementById('nvDesc').dispatchEvent(new Event('input', { bubbles: true }));
+        w.history.back();
+        await attendre(300);
+        check('T6 « Retour » sur une saisie entamée demande d’abord — « non » garde la fenêtre ET son étape d’historique',
+          [nvT.classList.contains('open'), confT, !!(w.history.state && w.history.state.savNouveau)], [true, 1, true]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        try { sessionStorage.removeItem('ss_prefill_client'); sessionStorage.removeItem('ss_prefill_depannage'); } catch (e) {}
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

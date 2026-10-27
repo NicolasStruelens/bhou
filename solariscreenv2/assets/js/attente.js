@@ -244,14 +244,25 @@
         const nom = nomClient(d.client);
         const j = joursDepuis(t.date_creation);
         const sansPersonne = !t.pour;
+        /* PIÈCE COMMANDÉE (règle 47) : la balle est chez le fournisseur. Tant que la date prévue n'est
+           pas passée, le ticket reste listé (on ne l'oublie pas) sans peser ; passée, la pièce est EN
+           RETARD et ça redevient à nous de relancer. Sans date prévue, rien ne dit quand s'inquiéter :
+           il pèse comme un ticket pris en charge. */
+        const piece = t.statut === 'attente_piece';
+        const pieceEnRetard = piece && t.piece_prevue && t.piece_prevue < aujourdhui();
+        const quoi = sansPersonne ? 'Ticket SAV sans responsable'
+          : (pieceEnRetard ? 'Pièce SAV en retard'
+          : (piece ? 'Pièce commandée' + (t.piece_prevue ? ' — prévue le ' + t.piece_prevue.slice(8, 10) + '/' + t.piece_prevue.slice(5, 7) : '')
+          : 'Ticket SAV pris en charge'));
         out.push(item({
           id: 'sav:' + d.id + ':' + t.id, source: 'sav', ref: d.id, devis_id: d.id, ticket_id: t.id,
-          qui: t.pour || '', titre: nom,
-          quoi: sansPersonne ? 'Ticket SAV sans responsable' : (t.statut === 'en_cours' ? 'Ticket SAV en cours' : 'Ticket SAV ouvert'),
+          qui: t.pour || '', titre: nom, quoi: quoi,
           detail: String(t.description || '').slice(0, 120),
           depuis: t.date_creation, href: 'vue.html?id=' + encodeURIComponent(d.id) + '#sav', peutPrendre: true,
           urgence: sansPersonne && j >= SEUILS.SAV_SANS_SUITE_J ? URGENCE.CRITIQUE
-                 : (sansPersonne ? URGENCE.HAUTE : (j >= SEUILS.SAV_SANS_SUITE_J ? URGENCE.HAUTE : URGENCE.MOYENNE)),
+                 : (sansPersonne || pieceEnRetard ? URGENCE.HAUTE
+                 : (piece && t.piece_prevue ? URGENCE.BASSE
+                 : (j >= SEUILS.SAV_SANS_SUITE_J ? URGENCE.HAUTE : URGENCE.MOYENNE))),
         }));
       });
     });
