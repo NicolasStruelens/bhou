@@ -71,7 +71,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 121 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 78 des 100 tests de sa suite (`window.SSAttente`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 102 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
@@ -80,7 +80,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
-| `tests/attente.test.html` | Les 100 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
+| `tests/attente.test.html` | Les 102 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
@@ -97,6 +97,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/stats.js` | **L'activité de la page Statistiques** (règle 51) : période et comparaison à l'an passé, ce qu'est une vente (un bon d'intervention n'en est pas une), chiffres de la période, ventes par vendeur, ce qu'on vend, entonnoir et délais, sources, ce qui se perd, graphes, clients, villes. Fonctions pures (`window.SSStats`) ; la paie reste dans `remuneration.js`. |
 | `tests/stats.test.html` | Les 37 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `assets/js/echanges.js` | **La page Échanges** (règle 52) : recherche sans accents, ce qu'une carte repliée dit, quand « Lui rappeler », ce qu'on peut supprimer, le registre des décisions, les dossiers d'un client, les nombres des onglets. Fonctions pures (`window.SSEchanges`) ; « qui doit agir » reste dans `attente.js`. |
+| `tests/echanges.test.html` | Les 33 tests des Échanges : règles pures, les ROUTES (la balle qui ne revient pas chez celui qui a répondu, le conflit entre deux écrans, la suppression gardée, le rappel), la vraie page remplie par le bac à sable et cliquée (onglets, écriture en une ligne, dossier du client, cartes repliées, brouillon gardé, conflit dit dans la carte, réponse sur place, rappel, registre des décisions, recherche), le téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
@@ -2659,6 +2661,47 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
   le TEXTE (`Range.getBoundingClientRect`) ; le défilement d'un cadre est `smooth` (`base.css`) : couper
   `scrollBehavior` avant de défiler pour regarder.
 
+**52. LES ÉCHANGES : LA BALLE, LES DEUX ÉCRANS, ET CE QUI NE S'EFFACE PAS** (27/10/2026 — revue de la page,
+propositions A à G choisies par Nicolas sur maquette). Les règles de la page vivent dans `assets/js/echanges.js`
+(`window.SSEchanges`, fonctions pures) ; « qui doit agir » reste dans `attente.js` (règle 15). Protégé par
+`tests/echanges.test.html` et `tests/attente.test.html` (E7, E8).
+• ⚠️ **LA BALLE NE REVIENT PAS CHEZ CELUI QUI A DÉJÀ RÉPONDU.** Le serveur remettait `awaiting = pour` à CHAQUE
+  enregistrement : Nicolas demande à Yannick, Yannick répond (à Nicolas de jouer), Nicolas corrige une faute du titre… et
+  le sujet repartait « chez Yannick ». Le destinataire ne se remet que quand il CHANGE, quand on classe (personne) ou
+  quand on rouvre.
+• ⚠️ **CONFLIT ENTRE DEUX ÉCRANS** : chaque geste (corriger, classer, garder, confier) renvoie le sujet tel que l'écran
+  l'a lu — une page restée ouverte rouvrait en silence un sujet que l'autre venait de classer. L'écran envoie `_attendu`
+  = son `edite_le` (posé par le seul enregistrement complet, avec `edite_par`) ; si un autre enregistrement complet est
+  passé, refus 409 avec la version de l'autre. Les réponses et les photos (routes ciblées) ne touchent pas `edite_le` :
+  aucun faux conflit. La carte le DIT, garde ce qu'on écrivait, et reste visible même si l'autre l'a classée.
+• ⚠️ **ON NE SUPPRIME PAS CE QUE L'AUTRE A ÉCRIT** (le serveur le tient, 409) : son sujet, sa réponse ou sa décision se
+  CLASSENT et restent cherchables — corriger une seule de ses réponses était déjà refusé (règle 15 bis). Supprimer reste
+  possible pour ce qui n'engage que soi.
+• ⚠️ **L'ANCIENNETÉ D'UN ÉCHANGE PART DE LA BALLE** (`balle_le`, écrit par le serveur quand `awaiting` change, à
+  l'enregistrement comme à la réponse ; `SSAttente.depuisBalle`, avec un repli sur le fil pour les sujets d'avant). Elle
+  se lisait sur `date_modification` : une photo, une correction ou un rappel la remettaient à zéro (règle 15).
+• ⚠️ **UN BROUILLON NE SE PERD PLUS** : chaque rendu réécrit les cartes, et une correction revenait au texte enregistré
+  dès qu'on choisissait « Pour Yannick » ; une réponse disparaissait si l'on touchait à la recherche. Les champs d'une
+  zone ouverte sont relevés avant chaque rendu et reposés après (`BROUILLONS`), même si la carte a disparu un instant.
+• **A — Cartes repliées** : la nature, le titre, la balle (« Chez Yannick · 4 j »), qui/quand/client/dossier, et la
+  dernière parole du fil. Toucher la tête déplie : le fil, Répondre, C'est fait, Lui rappeler ; Modifier, Le dossier et
+  Supprimer derrière « Plus ». 148 px de boutons par carte poussaient le premier sujet à 2 149 px sur téléphone.
+• **B — Trois onglets** : Ce qui attend · Les échanges · Décisions, chacun avec son nombre, retenus par appareil
+  (`ss_echanges_onglet`) ; `?sujet=` et `#suj-…` (le « Ouvrir » des autres écrans) ouvrent la carte, dépliée. Aucune
+  étape d'historique. Sur téléphone, des libellés courts (« Attend »).
+• **C — Écrire en une ligne** : nature, destinataire, client, dossier, date et photo s'ouvrent au focus ou au premier mot,
+  se referment quand la zone est vide et qu'on la quitte (458 px → une ligne sur téléphone).
+• **D — Répondre sur place** : une ligne « Échange » de « Ce qui attend » se répond ou se classe dans la ligne même.
+• **E — Lier un dossier** : en choisissant le client, ses devis sont proposés (`dossiersDuClient`, résumé et statut, les
+  archivés en dernier), à la publication comme à la correction. Le sujet apparaît alors sur la fiche du dossier (règle 19).
+• **F — Lui rappeler** : quand la balle est chez l'autre depuis 3 jours (`SEUILS.ATTENTE_LONGUE_J`), un rappel daté et
+  signé s'ajoute au fil (`rappel: true`), la balle reste chez lui, son ancienneté continue de courir ; pas deux fois le
+  même jour. Aucune notification : le rappel se lit dans le fil et remonte le sujet.
+• **G — Le registre des décisions** : toutes les décisions, la plus récente d'abord, cherchables sans accents (décision,
+  titre, client), chacune menant à son sujet.
+• La recherche ignore les accents, mot à mot. Le menu est rafraîchi après chaque geste. Sur écran tactile, « voir » (14 px)
+  et les liens de méta ont une cible de 44 px, « voir ce qui est fait » aussi.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -2930,7 +2973,7 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
-   `tests/attente.test.html`, exiger « 100/100 ».
+   `tests/attente.test.html`, exiger « 102/102 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
    quatre de ses cas chargent `tests/amorce-theme.html` en iframe pour mesurer le premier rendu.
@@ -2961,6 +3004,9 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 51/51 », par le serveur.
+   Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
+   exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
+   `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 37/37 », par
    le serveur — ET `remuneration.test.html` (la paie qu'elle affiche) et `nav.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à
