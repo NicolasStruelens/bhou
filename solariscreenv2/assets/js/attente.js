@@ -212,10 +212,13 @@
       // lieu de supposer. Un devis déjà parti ne doit plus être réclamé — avant, « en attente du
       // devis » restait affiché pour toujours, puisque rien ne reliait la demande au devis.
       if (r.statut === 'visite' && !devisEnBrouillon(r, devis, out, nom, href)) {
+        // Depuis la VISITE : la dernière modification de la demande (une note, une réassignation)
+        // remettait l'attente à zéro, et la date de création comptait aussi les jours d'avant la visite.
+        const visite = r.date_rdv && String(r.date_rdv).slice(0, 10) <= auj ? r.date_rdv : '';
         out.push(item({
           id: 'rdv:' + r.id + ':sansdevis', source: 'rdv', ref: r.id, rdv_id: r.id,
           qui: r.assigned_to || '', titre: nom, quoi: 'Visité, en attente du devis',
-          depuis: r.date_modification, href: href, urgence: URGENCE.MOYENNE,
+          depuis: visite || r.date_modification, href: href, urgence: URGENCE.MOYENNE,
         }));
       }
       if (r.rappel_date && r.rappel_date <= auj) {
@@ -304,7 +307,12 @@
         id: 'plan:' + d.id + ':aplanifier', source: 'planning', ref: d.id, devis_id: d.id,
         qui: '', titre: nomClient(d.client), quoi: 'Matériel reçu, pose à planifier',
         detail: (SSUI.resumeDevis && SSUI.resumeDevis(d)) || '',
-        depuis: d.date_modification, href: 'planning.html', urgence: URGENCE.HAUTE,
+        /* ⚠️ JAMAIS « date_modification » : toute écriture sur le devis (une note, une photo de
+           chantier) remettait l'ancienneté à zéro, et c'est elle qui rend la chose urgente
+           (règle 15). Trouvé dans le bac à sable le 27/10/2026 : un chantier en attente depuis des
+           semaines affiché « depuis à l'instant ». Réception du matériel, sinon la signature. */
+        depuis: (SSUI.dateReception && SSUI.dateReception(d)) || (SSUI.dateSignature && SSUI.dateSignature(d)) || d.date_modification,
+        href: 'planning.html', urgence: URGENCE.HAUTE,
       }));
     });
     /* La contrepartie : un chantier signé dont le matériel n'est pas commandé. Sans cette ligne,
@@ -316,7 +324,9 @@
         id: 'plan:' + d.id + ':acommander', source: 'planning', ref: d.id, devis_id: d.id,
         qui: '', titre: nomClient(d.client), quoi: 'Chantier signé, matériel pas commandé',
         detail: (SSUI.resumeDevis && SSUI.resumeDevis(d)) || '',
-        depuis: d.date_modification, href: 'vue.html?id=' + encodeURIComponent(d.id) + '#commande',
+        // Depuis la SIGNATURE, pour la même raison que ci-dessus.
+        depuis: (SSUI.dateSignature && SSUI.dateSignature(d)) || d.date_modification,
+        href: 'vue.html?id=' + encodeURIComponent(d.id) + '#commande',
         urgence: URGENCE.HAUTE,
       }));
     });
