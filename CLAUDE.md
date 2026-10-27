@@ -92,12 +92,13 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/volet.test.html` | Les 139 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 58 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
-| `assets/js/depenses.js` | **Les notes de frais.** États, ancienneté, totaux. Fonctions pures, 53 tests (`window.SSDepenses`) |
-| `tests/depenses.test.html` | Les 53 tests des notes de frais. |
+| `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
+| `tests/depenses.test.html` | Les 62 tests des règles pures des notes de frais. |
+| `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 32 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 33 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, notes de frais, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
 | `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
 | `assets/js/facturation.js` | **La facturation** (règle 49) : montants d'une nouvelle facture et leur libellé, à facturer maintenant, par chantier, relances, répartition d'un virement, export comptable. Fonctions pures (`window.SSFact`) ; ce qui est DÛ reste dans `ui.js` (règle 4). |
@@ -2357,7 +2358,10 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   l'acompte a été réduit par une NOTE DE CRÉDIT puis payé (ESSAI-23 — il ne doit plus rien, son solde reste
   à facturer), une relance de paiement déjà faite (ESSAI-11), trois pièces Falco. ⚠️ « Vider » défait dans
   l'ordre (encaissements, référence Falco, notes de crédit, puis factures) : le serveur refuse désormais de
-  supprimer une facture qui a une suite. Le test R10 vérifie CHAQUE dossier avec la vraie règle
+  supprimer une facture qui a une suite.
+  Côté notes de frais (règle 50, test R20) : un ticket de Nicolas dans la poche depuis cinq semaines (avec sa
+  photo), un autre SANS photo, un au bureau depuis 40 jours, un de Yannick (il ne doit pas gonfler la ligne de
+  Nicolas), un remboursé par un virement groupé (avec son lot), un de l'an passé pour le bilan par année. Le test R10 vérifie CHAQUE dossier avec la vraie règle
   (`SSActions`) sur la liste telle que le serveur la projette. Noms à apostrophe (L'Hoest,
   Braine-l'Alleud), accents, TVA 21 %.
 • **Faux par construction** : e-mails en `@exemple.invalid` (ne peut rien recevoir, RFC 2606),
@@ -2547,6 +2551,53 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
 • « Nouvelle facture » ne propose que les devis qui ont encore quelque chose à facturer, et dit combien. Les
   fenêtres suivent la règle 13 bis ; quitter la page depuis une fenêtre REMPLACE l'étape d'historique
   (`location.replace`), sinon « retour » ramènerait sur une étape vide.
+
+**50. LES NOTES DE FRAIS : CE QUE LA SOCIÉTÉ DOIT À CHACUN, ET QUI A COCHÉ** (27/10/2026 — revue de la page,
+propositions A à G choisies par Nicolas sur maquette). La règle 32 reste entière (outil À PART : ni stats, ni
+rémunération, ni TVA). Les règles vivent dans `assets/js/depenses.js` ; protégé par `tests/depenses.test.html` et
+`tests/depenses-page.test.html`.
+• ⚠️ **UN CLIC NE RENVOIE PLUS LE TICKET ENTIER.** « Je l'ai remis » réenregistrait le ticket tel que la page l'avait
+  lu : une page restée ouverte effaçait la correction que l'autre venait de faire (23,90 → 25,90 corrigé par
+  Yannick, revenu à 23,90 au premier clic de Nicolas — mesuré). « Remis » et « remboursé » passent par
+  `POST /api/depenses/etat` (règle 3) : la date, sa signature et, pour un virement, le lot — rien d'autre. Un lot
+  est vérifié EN ENTIER avant d'écrire, puis écrit en une fois : tout ou rien.
+• ⚠️ **CONFLIT ENTRE DEUX ÉCRANS** : la fenêtre envoie la version qu'elle a lue (`_attendu` = sa
+  `date_modification`) ; si la ligne a bougé, le serveur refuse (409) et rend la version de l'autre. La fenêtre le
+  DIT (« Yannick vient de modifier ce ticket », avec son montant), GARDE la saisie, et un second clic enregistre en
+  connaissance de cause. Plus rien ne s'écrase en silence.
+• ⚠️ **UNE DATE DANS LE FUTUR EST UNE FAUTE SUR L'ANNÉE** (2027 pour 2026) : acceptée, le ticket restait à
+  « 0 j » et ne se signalait jamais — l'oubli que l'outil doit empêcher. Refusée à l'écran ET au serveur (un jour
+  de marge au serveur, qui compte en UTC), comme une remise ou un remboursement antérieurs à l'achat — ce contrôle
+  n'existait que dans la page.
+• **A — Une ligne par personne, moi d'abord** (`parPersonne`). Les quatre tuiles additionnaient les deux personnes
+  sous « les tickets encore dans ta poche » (l'échafaudage de Yannick gonflait la poche de Nicolas), et le menu
+  disait 4 quand la page disait 6. Les deux nombres entre parenthèses de MA ligne font exactement le chiffre du
+  menu ; chaque chiffre filtre la liste. Le formulaire est passé dans une FENÊTRE (règle 13 bis) : il prenait 817 px
+  sur téléphone (premier ticket à 1 580 px) et une saisie entamée disparaissait au premier « Modifier ».
+• **B — La photo d'abord** : sur écran tactile, « + Nouveau ticket » ouvre l'appareil photo ; un ticket SANS photo
+  affiche « photo ? » (le rappel ne vivait qu'au survol) et se photographie depuis sa ligne, par la route ciblée.
+  « photo ? » ne s'allume que tant que l'argent est dû : sur un ticket remboursé l'an passé, ce serait un signal
+  pour rien (règle 36).
+• **C — Bordereau de remise** : les tickets en poche, cochés d'office, « Je les remets aujourd'hui » (un lot) et un
+  bordereau imprimable (liste, total, photos, « Remis par » / « Reçu par ») — à l'impression, la page disparaît et
+  il ne reste que lui.
+• **D — Rembourser en une fois** : les tickets au bureau d'une personne, la date du virement (jamais avant un achat,
+  jamais dans le futur), un lot « virement du … : X € pour N tickets » écrit sur chaque ticket.
+• **E — Qui a coché** : `remis_par` / `rembourse_par` sont posés par le SERVEUR, à la route ciblée comme à
+  l'enregistrement complet (une date qui ne change pas garde sa signature ; une valeur envoyée par l'écran est
+  ignorée). Sur le ticket de l'autre, les gestes sont à la troisième personne (« Yannick l'a remis ») : Nicolas
+  lisait « Je l'ai remis » sur les tickets de Yannick.
+• **F — Recherche et bilan** : sans accents, et le montant tel qu'on l'écrit (« 23,90 ») ; un bilan par année
+  (avancé, remboursé, encore dû) sous la liste.
+• **G — Doublon** : même personne, même jour, même montant → on DEMANDE avant d'enregistrer (deux achats identiques
+  le même jour, ça arrive ; le même ticket resaisi le lendemain, c'est une double réclamation).
+• Le menu est rafraîchi après chaque geste (`SSNav.rafraichirCompteurs`) : il gardait son chiffre une minute.
+• ⚠️ Sur téléphone, trois menus côte à côte coupaient leur libellé (« Tout le m ») et, en 16 px, « Toutes les
+  années » ne tenait pas même à deux : deux colonnes et « Toutes années ». Rien ne déborde dans ce cas — le test
+  compare la largeur du texte à la place du menu (canevas de la page mesurée, flèche native déduite).
+• Des `<span>` collés sans espace dans un conteneur flex se lisent collés (« Toi108,27 », « 3 tickets166,07 € ») :
+  l'écran les sépare, un lecteur d'écran ou un copier-coller non. Une espace dans le gabarit ne change rien à
+  l'affichage flex.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2832,7 +2883,7 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
-   `tests/bac-a-sable.test.html`, exiger « 32/32 », par le serveur (il charge sql.js depuis cdnjs).
+   `tests/bac-a-sable.test.html`, exiger « 33/33 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
    des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 47/47 », par le serveur —
    ET `clients.test.html`, `dashboard.test.html` et `bac-a-sable.test.html`. C'est de l'argent.
@@ -2850,7 +2901,9 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 51/51 », par le serveur.
-   Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 53/53 ». Les dates s'y
+   Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à
+   `app/depenses.html` ou à `/api/depenses` : `tests/depenses-page.test.html`, exiger « 39/39 », par le serveur, ET
+   `bac-a-sable.test.html`. Les dates s'y
    manipulent en chaînes `YYYY-MM-DD` — jamais `toISOString().slice(0,10)`, qui renvoie une date
    UTC et donc LA VEILLE entre minuit et 2 h du matin en heure d'été belge.
    Et dès qu'on touche à la taille d'un champ (`--fs-champ`, `.input`/`.select`/`.textarea`, un

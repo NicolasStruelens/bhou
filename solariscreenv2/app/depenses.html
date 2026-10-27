@@ -26,9 +26,30 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    .filters { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; margin-bottom: var(--sp-4); }
-    .filters .sep { width: 1px; height: 22px; background: var(--border); margin: 0 0.3rem; }
-    .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    /* A — UNE ligne par personne, MOI d'abord. Les quatre tuiles additionnaient les deux personnes sous
+       « les tickets encore dans ta poche » (l'échafaudage de Yannick gonflait la poche de Nicolas), et
+       sur téléphone elles prenaient 469 px avant le premier ticket. Chaque chiffre MÈNE à ce qu'il
+       compte (règle 15 quater) ; les deux nombres entre parenthèses de MA ligne font le chiffre du menu. */
+    .dp-resume { display: grid; gap: 0.3rem; margin-bottom: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .dp-pers { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem; }
+    .dp-pers .qui { font-weight: 700; color: var(--text); }
+    .dp-pers button { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+    .dp-pers .w { color: var(--warn); font-weight: 600; }
+    .dp-pers .a { color: var(--accent); font-weight: 600; }
+    .dp-pers .ok { color: var(--ok); }
+    .dp-pers .vieux { color: var(--warn); } .dp-pers .tres-vieux { color: var(--danger); font-weight: 700; }
+    .dp-pers.autre { font-size: var(--fs-xs); }
+    /* En mono : en Inter, l'espace des milliers (U+202F) fait 1,5 px et « 1 234,50 » se lisait « 1234,50 ». */
+    .dp-pers .mt { font-family: var(--font-mono); }
+    .dp-barre { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+    .dp-filtres { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .dp-filtres .search { position: relative; min-width: 0; }
+    .dp-filtres .search input { padding-left: 2.2rem; }
+    .dp-filtres .search svg { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+    .dp-filtres .select { min-width: 0; }
+    /* Deux colonnes sur téléphone : à trois, chaque menu tombait à 100 px et coupait son libellé
+       (« Tout le m », « Tous les ») — rien ne déborde, donc aucune mesure de débordement ne le voit. */
+    @media (max-width: 700px) { .dp-filtres { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dp-filtres .search { grid-column: 1 / -1; } }
 
     /* ── Une ligne de ticket ─────────────────────────────────────────────────────────────
        Pas un tableau : il y a une vignette, trois dates et deux boutons par ligne, et sur un
@@ -38,14 +59,17 @@
     .dp:last-child { border-bottom: none; }
     .dp-vig { flex: none; width: 56px; height: 56px; border-radius: var(--r-sm); overflow: hidden;
               border: 1px solid var(--border); background: var(--surface-2); display: grid; place-items: center;
-              cursor: pointer; color: var(--text-subtle); }
+              cursor: pointer; color: var(--text-subtle); padding: 0; font: inherit; }
     .dp-vig img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* B — un ticket sans photo le DIT, et se photographie en un appui. Le rappel ne vivait qu'au
+       survol (« pense à le photographier ») : invisible sur téléphone, là où il sert (règle 33). */
+    .dp-vig.manque { border: 1px dashed var(--warn); color: var(--warn); font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; line-height: 1.2; text-align: center; align-content: center; gap: 2px; }
     .dp-corps { flex: 1; min-width: 8ch; }
     .dp-h { display: flex; gap: var(--sp-2); align-items: baseline; flex-wrap: wrap; }
     .dp-m { font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-md); flex: 0 0 auto; }
     .dp-d { font-size: var(--fs-xs); color: var(--text-muted); }
-    .dp-detail { font-size: var(--fs-sm); margin-top: 0.15rem; }
-    .dp-meta { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; line-height: 1.6; }
+    .dp-detail { font-size: var(--fs-sm); margin-top: 0.15rem; overflow-wrap: anywhere; }
+    .dp-meta { font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.25rem; line-height: 1.6; overflow-wrap: anywhere; }
     .dp-act { flex: none; display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-end; }
     .dp-vieux { color: var(--warn); font-weight: 600; }
     .dp-tres-vieux { color: var(--danger); font-weight: 700; }
@@ -57,25 +81,26 @@
     .etat.au_bureau  { color: var(--accent); }
     .etat.rembourse  { color: var(--ok); }
 
+    /* ⚠️ Sur téléphone, les boutons d'action prennent ~190 px : le texte de la ligne tombait alors à
+       82 px de large (mesuré à 390 px), et « Visserie inox + silicone » se cassait en colonne. Ici
+       c'est le MONTANT et le détail qui identifient le ticket, donc ce sont les boutons qui passent
+       dessous, pas l'inverse. */
+    @media (max-width: 560px) {
+      .dp { flex-wrap: wrap; }
+      .dp-corps { min-width: 55%; }
+      .dp-act { width: 100%; flex-direction: row; justify-content: flex-end; flex-wrap: wrap; margin-top: var(--sp-2); }
+    }
+    /* F — le bilan par année, sous la liste */
+    .dp-bilan { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px dashed var(--border); font-size: var(--fs-xs); color: var(--text-muted); }
+    .dp-bilan .t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.3rem; }
+    .dp-bilan .l { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; padding: 0.15rem 0; }
+    .dp-bilan b { font-family: var(--font-mono); color: var(--text); }
+
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: var(--sp-3); }
     .seg { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
     .seg button { flex: 1; background: transparent; border: none; color: var(--text-muted);
                   padding: 0.45rem 0.6rem; cursor: pointer; font: inherit; font-size: var(--fs-sm); }
     .seg button.on { background: var(--accent); color: var(--on-accent); }
-    @media (pointer: coarse) { .seg button { min-height: 44px; } .chip { min-height: 44px; } }
-
-    /* ⚠️ Sur téléphone, les deux boutons d'action prennent ~190 px : le texte de la ligne
-       tombait alors à 82 px de large (mesuré à 390 px), et « Visserie inox + silicone » se
-       cassait en colonne. C'est le piège connu du texte coincé à côté d'un bloc qui ne cède
-       pas : ici c'est le MONTANT et le détail qui identifient le ticket, donc ce sont les
-       boutons qui passent dessous, pas l'inverse. */
-    @media (max-width: 560px) {
-      .dp { flex-wrap: wrap; }
-      .dp-corps { min-width: 55%; }
-      .dp-act { width: 100%; flex-direction: row; justify-content: flex-end;
-                flex-wrap: wrap; margin-top: var(--sp-2); }
-    }
-
     .vignettes { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
     .vignettes .v { position: relative; width: 64px; height: 64px; border-radius: var(--r-sm);
                     overflow: hidden; border: 1px solid var(--border); }
@@ -83,6 +108,52 @@
     .vignettes .v button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
                            border-radius: 50%; border: none; background: var(--danger); color: #fff;
                            cursor: pointer; font-size: 11px; line-height: 20px; padding: 0; }
+
+    /* ── Les fenêtres : même gabarit et mêmes règles que le reste de l'ERP (règle 13 bis) ── */
+    .dp-overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 72%, transparent); z-index: var(--z-overlay, 1000); display: none; align-items: flex-start; justify-content: center; padding: var(--sp-5) var(--sp-3); overflow-y: auto; }
+    .dp-overlay.open { display: flex; }
+    .dp-dialog { width: 100%; max-width: 580px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lg, var(--shadow)); }
+    .dp-dhead { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--border); }
+    .dp-dhead h2 { font-family: var(--font-display); font-size: var(--fs-lg); min-width: 0; overflow-wrap: anywhere; }
+    .dp-dbody { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+    .dp-dfoot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); }
+    .dp-info { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.6; }
+    .dp-info.warn { color: var(--warn); }
+    .dp-info.danger { color: var(--danger); }
+    /* C et D — les tickets d'un lot, cochés d'office */
+    .dp-choix { display: flex; align-items: center; gap: var(--sp-2); padding: 0.45rem 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-sm); cursor: pointer; }
+    .dp-choix:last-child { border-bottom: none; }
+    .dp-choix input { flex: none; width: 18px; height: 18px; }
+    .dp-choix .c-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .dp-choix .c-t small { display: block; color: var(--text-subtle); font-size: var(--fs-2xs); }
+    .dp-choix .c-m { font-family: var(--font-mono); font-weight: 700; white-space: nowrap; }
+    .dp-total { display: flex; justify-content: space-between; font-family: var(--font-mono); font-weight: 700; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
+
+    /* Sur écran tactile, ces boutons maison n'ont pas la taille que base.css donne aux .btn (piège
+       « pointer: coarse » : il ne couvre que .btn et consorts). */
+    @media (pointer: coarse) {
+      .seg button { min-height: 44px; }
+      .dp-pers button { min-height: 36px; }
+      .dp-choix { min-height: 44px; }
+    }
+
+    /* C — LE BORDEREAU s'imprime seul : la page entière disparaît à l'impression, il ne reste que lui. */
+    #impression { display: none; }
+    @media print {
+      html, body { background: #fff !important; }
+      body > *:not(#impression) { display: none !important; }
+      #impression { display: block !important; color: #000; font-family: Inter, system-ui, sans-serif; font-size: 12pt; padding: 0; }
+      #impression h1 { font-size: 16pt; margin: 0 0 4pt; }
+      #impression .sous { color: #444; margin-bottom: 12pt; }
+      #impression table { width: 100%; border-collapse: collapse; }
+      #impression th, #impression td { border-bottom: 1px solid #bbb; padding: 4pt 6pt; text-align: left; vertical-align: top; }
+      #impression td.m, #impression th.m { text-align: right; white-space: nowrap; }
+      #impression tfoot td { font-weight: 700; border-top: 2px solid #000; border-bottom: 0; }
+      #impression .photos { display: flex; flex-wrap: wrap; gap: 6pt; margin-top: 12pt; }
+      #impression .photos img { width: 30mm; height: 40mm; object-fit: cover; border: 1px solid #bbb; }
+      #impression .signe { margin-top: 18pt; display: flex; gap: 40pt; }
+      #impression .signe div { flex: 1; border-top: 1px solid #000; padding-top: 4pt; font-size: 10pt; color: #444; }
+    }
   </style>
 </head>
 <body>
@@ -104,11 +175,46 @@
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
+    <div class="dp-resume" id="resume"></div>
+    <div class="dp-barre">
+      <button class="btn btn-primary btn-sm" id="btnNouveau" onclick="nouveauTicket()">+ Nouveau ticket</button>
+      <button class="btn btn-ghost btn-sm" id="btnRemettre" onclick="ouvrirRemise()">Remettre au bureau</button>
+      <button class="btn btn-ghost btn-sm" id="btnRembourser" onclick="ouvrirRemboursement()">Rembourser</button>
+    </div>
+    <div class="dp-filtres">
+      <label class="search"><span class="sr-only">Rechercher</span><span id="icCherche"></span>
+        <input class="input" type="search" id="fRecherche" placeholder="Magasin, chantier, montant…" autocomplete="off" oninput="filtrer('recherche', this.value)"></label>
+      <select class="select" id="fQui" aria-label="Qui" onchange="filtrer('qui', this.value)"></select>
+      <select class="select" id="fEtat" aria-label="État" onchange="filtrer('etat', this.value)"></select>
+      <select class="select" id="fAnnee" aria-label="Année" onchange="filtrer('annee', this.value)"></select>
+    </div>
 
     <section class="section ticked">
-      <div class="section-head"><h2 id="formTitre">Nouveau ticket</h2><span class="section-tag">SS // FRAIS</span></div>
+      <div class="section-head"><h2>Tickets</h2><span class="section-tag" id="tagNb"></span></div>
       <div class="section-body">
+        <div id="liste"></div>
+        <div class="dp-bilan" id="bilan"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- B — une photo prise depuis une LIGNE part directement sur ce ticket (route ciblée). -->
+  <input type="file" accept="image/*" capture="environment" hidden id="fPhotoLigne" onchange="photoLigneChoisie(this)">
+
+  <!-- ══ Fenêtre : un ticket (nouveau ou modifié) ══ -->
+  <div class="dp-overlay" id="fenTicket" role="dialog" aria-modal="true" aria-labelledby="formTitre">
+    <div class="dp-dialog">
+      <div class="dp-dhead"><h2 id="formTitre">Nouveau ticket</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="dp-dbody">
+        <div class="field">
+          <label class="label">Photo du ticket</label>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-self:flex-start;">
+            <span id="icPhoto"></span>&nbsp;Prendre ou ajouter une photo
+            <input type="file" accept="image/*" capture="environment" multiple hidden id="fPhoto" onchange="choisirPhotos(this)">
+          </label>
+          <div class="vignettes" id="vignettes"></div>
+          <div class="text-muted mt-2" style="font-size:var(--fs-2xs);">Le ticket thermique s’efface en quelques mois. La photo, elle, reste.</div>
+        </div>
         <div class="form-grid">
           <div class="field">
             <label class="label">Qui a avancé l’argent</label>
@@ -117,60 +223,80 @@
           <div class="field"><label class="label" for="fDate">Date de l’achat</label>
             <input class="input" type="date" id="fDate"></div>
           <div class="field"><label class="label" for="fMontant">Montant payé</label>
-            <div class="input-unit"><input class="input input-num" type="number" min="0.01" step="0.01" id="fMontant" placeholder="0,00"><span class="unit">€</span></div></div>
+            <div class="input-unit"><input class="input input-num" type="number" min="0.01" step="0.01" inputmode="decimal" id="fMontant" placeholder="0,00"><span class="unit">€</span></div></div>
           <div class="field"><label class="label" for="fClient">Chantier / client (facultatif)</label>
             <input class="input" type="text" id="fClient" list="dlClients" autocomplete="off" placeholder="Laisser vide si ce n’est pour personne"></div>
         </div>
-        <div class="field mt-3"><label class="label" for="fDetail">Ce que j’ai acheté (facultatif)</label>
+        <div class="field"><label class="label" for="fDetail">Ce que j’ai acheté (facultatif)</label>
           <input class="input" type="text" id="fDetail" maxlength="300" placeholder="Visserie + silicone, Brico Nivelles"></div>
-        <div class="form-grid mt-3">
+        <div class="form-grid">
           <div class="field"><label class="label" for="fRemis">Remis au bureau le</label>
             <input class="input" type="date" id="fRemis"></div>
           <div class="field"><label class="label" for="fRembourse">Remboursé le</label>
             <input class="input" type="date" id="fRembourse"></div>
         </div>
-
-        <div class="field mt-3">
-          <label class="label">Photo du ticket</label>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;">
-            <span id="icPhoto"></span>&nbsp;Ajouter une photo
-            <input type="file" accept="image/*" capture="environment" multiple hidden id="fPhoto" onchange="choisirPhotos(this)">
-          </label>
-          <div class="vignettes" id="vignettes"></div>
-          <div class="text-muted mt-2" style="font-size:var(--fs-2xs);">
-            Le ticket thermique s’efface en quelques mois. La photo, elle, reste.
-          </div>
-        </div>
-
-        <div style="display:flex;gap:var(--sp-3);align-items:center;margin-top:var(--sp-4);flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" id="btnSave" onclick="enregistrer()">Enregistrer le ticket</button>
-          <button class="btn btn-ghost btn-sm" id="btnAnnuler" onclick="nouveau()" style="display:none;">Annuler la modification</button>
-          <span id="msg" class="text-muted" style="font-size:var(--fs-xs);"></span>
-        </div>
+        <div id="msg" class="dp-info" aria-live="polite"></div>
       </div>
-    </section>
-
-    <section class="section ticked mt-4">
-      <div class="section-head"><h2>Historique</h2><span class="section-tag" id="tagNb"></span></div>
-      <div class="section-body">
-        <div class="filters" id="filtres"></div>
-        <div id="liste"></div>
+      <div class="dp-dfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="btnSave" onclick="enregistrer()">Enregistrer le ticket</button>
       </div>
-    </section>
-  </main>
+    </div>
+  </div>
 
+  <!-- ══ Fenêtre : C — remettre au bureau (et son bordereau) ══ -->
+  <div class="dp-overlay" id="fenRemise" role="dialog" aria-modal="true" aria-labelledby="remTitre">
+    <div class="dp-dialog">
+      <div class="dp-dhead"><h2 id="remTitre">Remettre au bureau</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="dp-dbody">
+        <div class="seg" id="remQui"></div>
+        <div class="dp-info" id="remAide"></div>
+        <div id="remListe"></div>
+        <div class="dp-total" id="remTotal"></div>
+      </div>
+      <div class="dp-dfoot">
+        <button class="btn btn-ghost btn-sm" id="remImprimer" onclick="imprimerBordereau()">Imprimer le bordereau</button>
+        <button class="btn btn-primary btn-sm" id="remOk" onclick="validerRemise()">Je les remets aujourd’hui</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Fenêtre : D — rembourser en une fois ══ -->
+  <div class="dp-overlay" id="fenRemb" role="dialog" aria-modal="true" aria-labelledby="rbTitre">
+    <div class="dp-dialog">
+      <div class="dp-dhead"><h2 id="rbTitre">Rembourser</h2><button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Fermer</button></div>
+      <div class="dp-dbody">
+        <div class="seg" id="rbQui"></div>
+        <div class="dp-info" id="rbAide"></div>
+        <div id="rbListe"></div>
+        <div class="dp-total" id="rbTotal"></div>
+        <div class="field"><label class="label" for="rbDate">Date du virement</label>
+          <input class="input" type="date" id="rbDate" onchange="majRemboursement()"></div>
+        <div class="dp-info danger" id="rbMsg"></div>
+      </div>
+      <div class="dp-dfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerFenetre()">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="rbOk" onclick="validerRemboursement()">Marquer remboursés</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="impression"></div>
   <datalist id="dlClients"></datalist>
 
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
-  <!-- Toute la logique (états, ancienneté, totaux, tri) vit dans ce module et y est testée. -->
+  <!-- Toute la logique (états, ancienneté, totaux, tri, par personne, doublons, bilans) vit dans ce
+       module et y est testée. -->
   <script src="../assets/js/depenses.js"></script>
   <script>
     const SS = window.SS, SSUI = window.SSUI, D = window.SSDepenses;
     const el = SSUI.el, esc = SSUI.escHtml, fmtEur = SSUI.fmtEur, toast = SSUI.toast;
-    const icon = SSUI.icon, jsAttr = SSUI.jsAttr;
+    const icon = SSUI.icon, jsAttr = SSUI.jsAttr, fmtDate = SSUI.fmtDate;
+    const NOMS = SSUI.SELLER_LABELS || {};
+    const nom = (k) => NOMS[k] || k;
 
     /* ⚠️ LE MENU ET LE BOUTON DE THÈME NE S'ACCROCHENT PAS TOUT SEULS.
        Les emplacements (`#quickNav`, `#themeToggle`) étaient bien dans le bandeau, mais rien ne
@@ -184,26 +310,73 @@
 
     let TOUT = [], CLIENTS = [], MOI = 'nicolas';
     let EDITE = null;                 // l'id du ticket en cours de modification, ou null
+    let BASE = null;                  // la version du ticket que la fenêtre a LUE (pour le conflit)
     let FORM_QUI = 'nicolas';
     let PHOTOS = [];                  // les photos du ticket en cours d'édition
-    let FILTRE = { qui: '', etat: '', annee: '' };
+    let FILTRE = { qui: '', etat: '', annee: '', recherche: '' };
+    let AVANT = '';                   // l'instantané de la fenêtre à l'ouverture (saisie entamée ?)
 
     el('icPhoto').innerHTML = icon('camera', 14);
+    el('icCherche').innerHTML = icon('search', 14);
+    const telephone = () => { try { return matchMedia('(max-width: 900px)').matches; } catch (e) { return false; } };
+    const tactile = () => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
 
-    // ── Le formulaire ────────────────────────────────────────────────────────────────────
+    /* ── Les fenêtres (règle 13 bis) : le fond ne ferme que si le geste y a COMMENCÉ ; Échap dans un
+       menu ou un champ date ne ferme rien ; une saisie entamée demande « Fermer sans enregistrer ? » ;
+       sur téléphone, « retour » ferme la fenêtre (une étape d'historique). ── */
+    const ETAPE = { dpFenetre: true };
+    let FEN = null;
+    function ouvrirFenetre(id, estSale) {
+      const relais = !!FEN;
+      if (FEN) el(FEN.id).classList.remove('open');
+      FEN = { id: id, estSale: estSale || null };
+      el(id).classList.add('open');
+      if (!relais && telephone()) { try { history.pushState(ETAPE, ''); } catch (e) {} }
+    }
+    function fermerSansHistorique(force) {
+      if (!FEN) return true;
+      if (!force && FEN.estSale && FEN.estSale() && !confirm('Fermer sans enregistrer ?')) return false;
+      el(FEN.id).classList.remove('open');
+      FEN = null;
+      return true;
+    }
+    window.fermerFenetre = (force) => {
+      if (!fermerSansHistorique(force)) return false;
+      try { if (history.state && history.state.dpFenetre) history.back(); } catch (e) {}
+      return true;
+    };
+    window.addEventListener('popstate', () => { if (FEN && !fermerSansHistorique(false)) { try { history.pushState(ETAPE, ''); } catch (e) {} } });
+    let downSurFond = null;
+    document.querySelectorAll('.dp-overlay').forEach((fond) => {
+      fond.addEventListener('mousedown', (e) => { downSurFond = e.target === fond ? fond : null; });
+      fond.addEventListener('click', (e) => { if (e.target === fond && downSurFond === fond) window.fermerFenetre(); downSurFond = null; });
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !FEN) return;
+      const t = e.target;
+      if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(date|time|datetime-local)$/.test(t.type)))) return;
+      window.fermerFenetre();
+    });
+
+    // ── La fenêtre d'un ticket ───────────────────────────────────────────────────────────
     function rendreSegQui() {
       el('segQui').innerHTML = D.GENS.map(g =>
-        `<button type="button" class="${FORM_QUI === g ? 'on' : ''}" onclick="choisirQui(${jsAttr(g)})">${
-          esc(SSUI.SELLER_LABELS[g] || g)}</button>`).join('');
+        `<button type="button" class="${FORM_QUI === g ? 'on' : ''}" onclick="choisirQui(${jsAttr(g)})">${esc(nom(g))}</button>`).join('');
     }
     window.choisirQui = function (g) { FORM_QUI = g; rendreSegQui(); };
 
     function rendreVignettes() {
       el('vignettes').innerHTML = PHOTOS.map((p, i) =>
         `<div class="v"><img src="${esc(p.url)}" alt="Ticket" onclick="voirPhotos(${i})">` +
-        `<button type="button" title="Retirer" onclick="retirerPhoto(${i})">✕</button></div>`).join('');
+        `<button type="button" title="Retirer" aria-label="Retirer la photo" onclick="retirerPhoto(${i})">✕</button></div>`).join('');
     }
     window.voirPhotos = function (i) { SSUI.ouvrirPhotos(PHOTOS.map(p => p.url), i); };
+
+    /** Ce que la fenêtre contient : comparé à l'ouverture, il dit si une saisie est entamée. */
+    function instantane() {
+      return [FORM_QUI, el('fDate').value, el('fMontant').value, el('fClient').value, el('fDetail').value,
+        el('fRemis').value, el('fRembourse').value, PHOTOS.filter(p => p._local).length].join('|');
+    }
 
     /* ⚠️ Deux chemins, et c'est la même règle que les photos d'un sujet (règle 25) : tant que le
        ticket n'est pas enregistré il n'a pas d'identifiant, donc la route ciblée ne peut pas
@@ -219,7 +392,9 @@
           if (EDITE) {
             const r = await SS.addDepensePhoto(EDITE, url);
             if (!r || !r.ok) { toast(r && r.error ? r.error : 'Photo non enregistrée.', 'warn'); continue; }
-            PHOTOS = (await recharger(EDITE)).photos || [];
+            const frais = await recharger(EDITE);
+            PHOTOS = frais.photos || [];
+            if (BASE && frais.date_modification) BASE = Object.assign({}, BASE, { date_modification: frais.date_modification, photos: PHOTOS });
           } else {
             PHOTOS.push({ id: 'tmp-' + Math.random().toString(36).slice(2), url: url, _local: true });
           }
@@ -233,6 +408,8 @@
       if (EDITE && !p._local) {
         const r = await SS.removeDepensePhoto(EDITE, p.id);
         if (!r || !r.ok) return toast(r && r.error ? r.error : 'Suppression impossible.', 'warn');
+        const frais = await recharger(EDITE);
+        if (BASE && frais.date_modification) BASE = Object.assign({}, BASE, { date_modification: frais.date_modification });
       }
       PHOTOS.splice(i, 1);
       rendreVignettes();
@@ -241,52 +418,61 @@
     async function recharger(id) {
       TOUT = await SS.listDepenses().catch(() => TOUT);
       rendre();
+      // Le menu compte MES tickets non remboursés (cache d'une minute) : après un geste, il doit suivre.
+      try { if (window.SSNav && SSNav.rafraichirCompteurs) SSNav.rafraichirCompteurs().catch(() => {}); } catch (e) {}
       return TOUT.filter(x => x.id === id)[0] || {};
     }
 
-    window.nouveau = function () {
-      EDITE = null; PHOTOS = []; FORM_QUI = MOI;
-      el('formTitre').textContent = 'Nouveau ticket';
-      el('btnSave').textContent = 'Enregistrer le ticket';
-      /* ⚠️ `hidden` ne suffit PAS sur un `.btn` : la règle `display: inline-flex` de la feuille
-         de style l'emporte sur `[hidden] { display: none }` du navigateur, et le bouton reste
-         affiché. Vu à l'écran, pas en relisant le code. */
-      el('btnAnnuler').style.display = 'none';
-      el('fDate').value = SSUI.aujourdhui();
-      ['fMontant', 'fClient', 'fDetail', 'fRemis', 'fRembourse'].forEach(k => { el(k).value = ''; });
-      el('msg').textContent = '';
-      rendreSegQui(); rendreVignettes();
-    };
-
-    window.modifier = function (id) {
-      const d = TOUT.filter(x => x.id === id)[0];
-      if (!d) return;
-      EDITE = id; PHOTOS = (d.photos || []).slice(); FORM_QUI = d.qui || MOI;
-      el('formTitre').textContent = 'Modifier le ticket';
-      el('btnSave').textContent = 'Enregistrer les modifications';
-      el('btnAnnuler').style.display = '';
+    function remplirFenetre(d) {
       el('fDate').value = d.date || '';
       el('fMontant').value = d.montant || '';
       el('fClient').value = d.client_nom || '';
       el('fDetail').value = d.detail || '';
       el('fRemis').value = d.remis_le || '';
       el('fRembourse').value = d.rembourse_le || '';
-      el('msg').textContent = '';
+    }
+
+    /* A et B — « + Nouveau ticket » ouvre une FENÊTRE : le formulaire occupait le haut de la page
+       (817 px sur téléphone, le premier ticket à 1 580 px), et une saisie entamée disparaissait sans
+       un mot dès qu'on touchait « Modifier » sur une ligne. Sur un écran tactile, l'appareil photo
+       s'ouvre D'ABORD : on photographie le ticket à la caisse, le montant se tape ensuite en le lisant. */
+    window.nouveauTicket = function () {
+      EDITE = null; BASE = null; PHOTOS = []; FORM_QUI = MOI;
+      el('formTitre').textContent = 'Nouveau ticket';
+      el('btnSave').textContent = 'Enregistrer le ticket';
+      remplirFenetre({ date: SSUI.aujourdhui() });
+      el('msg').textContent = ''; el('msg').className = 'dp-info';
       rendreSegQui(); rendreVignettes();
-      el('formTitre').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      AVANT = instantane();
+      ouvrirFenetre('fenTicket', () => instantane() !== AVANT);
+      if (tactile()) { try { el('fPhoto').click(); } catch (e) {} }
+    };
+
+    window.modifier = function (id) {
+      const d = TOUT.filter(x => x.id === id)[0];
+      if (!d) return;
+      EDITE = id; BASE = d; PHOTOS = (d.photos || []).slice(); FORM_QUI = d.qui || MOI;
+      el('formTitre').textContent = 'Modifier le ticket';
+      el('btnSave').textContent = 'Enregistrer les modifications';
+      remplirFenetre(d);
+      el('msg').textContent = ''; el('msg').className = 'dp-info';
+      rendreSegQui(); rendreVignettes();
+      AVANT = instantane();
+      ouvrirFenetre('fenTicket', () => instantane() !== AVANT);
     };
 
     /** Un nom tapé → le client du CRM s'il existe. Un nom inconnu est gardé TEL QUEL mais sans
      *  clé : mieux vaut conserver ce qui a été écrit que l'effacer parce qu'on ne le reconnaît
      *  pas (même règle que les Échanges). */
-    function clientDepuisNom(nom) {
-      const propre = (nom || '').trim();
+    function clientDepuisNom(texte) {
+      const propre = (texte || '').trim();
       const lie = CLIENTS.filter(c => c.nom.toLowerCase() === propre.toLowerCase())[0];
       return { client_nom: propre, client_key: (lie && lie.key) || '' };
     }
+    const dire = (texte, classe) => { el('msg').className = 'dp-info ' + (classe || ''); el('msg').textContent = texte; };
 
     window.enregistrer = async function () {
-      const base = EDITE ? (TOUT.filter(x => x.id === EDITE)[0] || {}) : {};
+      const base = BASE || {};
       // Règle 2 : on étale l'existant, on ne le reconstruit pas par liste blanche.
       const d = Object.assign({}, base, {
         id: EDITE || ('dep-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)),
@@ -297,15 +483,32 @@
         remis_le: el('fRemis').value,
         rembourse_le: el('fRembourse').value,
       }, clientDepuisNom(el('fClient').value));
+      delete d.photos;
+      if (EDITE) d._attendu = base.date_modification || '';
 
       const pbs = D.problemes(d);
-      if (pbs.length) { el('msg').innerHTML = '<span style="color:var(--danger)">À compléter : ' +
-        esc(pbs.map(p => p.l).join(', ')) + '</span>'; return; }
+      if (pbs.length) return dire('À compléter : ' + pbs.map(p => p.l).join(', '), 'danger');
+
+      /* G — LE MÊME TICKET DÉJÀ SAISI ? Le resaisir le lendemain, c'est réclamer deux fois le même
+         remboursement. On demande seulement : deux achats identiques le même jour, ça arrive. */
+      const changeQuoi = !EDITE || base.qui !== d.qui || base.date !== d.date || Number(base.montant) !== d.montant;
+      const dbl = changeQuoi ? D.doublons(TOUT, d) : [];
+      if (dbl.length && !confirm('Un ticket de ' + fmtEur(d.montant) + ' du ' + fmtDate(d.date) + ' existe déjà pour ' + nom(d.qui)
+          + (dbl[0].detail ? ' (« ' + dbl[0].detail + ' »)' : '') + '. Le même ? Enregistrer quand même ?')) return;
 
       el('btnSave').disabled = true;
       const r = await SS.saveDepense(d);
       el('btnSave').disabled = false;
-      if (!r || !r.ok) { el('msg').innerHTML = '<span style="color:var(--danger)">' + esc((r && r.error) || 'Enregistrement impossible.') + '</span>'; return; }
+      if (r && r.conflict && r.actuel) {
+        /* ⚠️ L'autre a modifié ce ticket pendant que la fenêtre était ouverte : on le DIT, on montre ce
+           qu'il a écrit, et on garde la saisie. Un second clic enregistre la tienne en connaissance de
+           cause — plus rien ne s'écrase en silence. */
+        BASE = r.actuel;
+        dire(r.error + ' (' + fmtEur(r.actuel.montant) + (r.actuel.detail ? ' · « ' + r.actuel.detail + ' »' : '') + ' · acheté le ' + fmtDate(r.actuel.date) + ')', 'warn');
+        await recharger();
+        return;
+      }
+      if (!r || !r.ok) return dire((r && r.error) || 'Enregistrement impossible.', 'danger');
 
       // Les photos choisies AVANT que le ticket existe partent maintenant, une par une.
       const enAttente = PHOTOS.filter(p => p._local);
@@ -314,7 +517,7 @@
         if (!rp || !rp.ok) toast('Une photo n’a pas pu être jointe.', 'warn');
       }
       toast(EDITE ? 'Ticket modifié.' : 'Ticket enregistré.', 'ok');
-      nouveau();
+      window.fermerFenetre(true);
       await recharger();
     };
 
@@ -324,58 +527,169 @@
       if (!confirm('Supprimer ce ticket de ' + fmtEur(d.montant) + ' ? Cette ligne disparaît définitivement.')) return;
       const r = await SS.deleteDepense(id);
       if (!r || !r.ok) return toast((r && r.error) || 'Suppression impossible.', 'warn');
-      if (EDITE === id) nouveau();
       toast('Ticket supprimé.', 'ok');
       await recharger();
     };
 
     /* Les deux gestes du quotidien, en un clic depuis la liste : c'est tout l'intérêt de l'outil.
-       Les faire passer par le formulaire obligerait à rouvrir, dater, enregistrer — trois gestes
-       pour cocher une case, donc on ne le ferait pas. */
+       ⚠️ Par la route CIBLÉE : ce bouton renvoyait le ticket ENTIER lu par la page — une page ouverte
+       depuis un moment effaçait la correction de l'autre (montant 25,90 revenu à 23,90, mesuré). */
     window.marquer = async function (id, champ) {
       const d = TOUT.filter(x => x.id === id)[0];
       if (!d) return;
-      const maj = Object.assign({}, d);
-      maj[champ] = maj[champ] ? '' : SSUI.aujourdhui();
-      const r = await SS.saveDepense(maj);
+      const r = await SS.marquerDepenses([id], champ, d[champ] ? '' : SSUI.aujourdhui());
       if (!r || !r.ok) return toast((r && r.error) || 'Impossible pour le moment.', 'warn');
       await recharger();
     };
 
-    // ── Les chiffres du haut ─────────────────────────────────────────────────────────────
-    function rendreKpis() {
-      const t = D.totaux(TOUT, FILTRE.qui || '');
-      const qui = FILTRE.qui ? (SSUI.SELLER_LABELS[FILTRE.qui] || FILTRE.qui) : 'Nicolas et Yannick';
-      el('kpis').innerHTML = `
-        <div class="kpi warn ticked"><div class="kpi-label">À remettre au bureau</div>
-          <div class="kpi-value">${fmtEur(t.a_remettre)}</div>
-          <div class="kpi-sub">Les tickets encore dans ta poche</div></div>
-        <div class="kpi accent ticked"><div class="kpi-label">Chez le bureau</div>
-          <div class="kpi-value">${fmtEur(t.au_bureau)}</div>
-          <div class="kpi-sub">Remis, pas encore remboursés</div></div>
-        <div class="kpi ok ticked"><div class="kpi-label">Remboursé</div>
-          <div class="kpi-value">${fmtEur(t.rembourse)}</div>
-          <div class="kpi-sub">Depuis le début</div></div>
-        <div class="kpi ticked"><div class="kpi-label">Total encore dû</div>
-          <div class="kpi-value">${fmtEur(t.du)}</div>
-          <div class="kpi-sub">${t.nb_du} ticket${t.nb_du > 1 ? 's' : ''} · ${esc(qui)}</div></div>`;
-    }
+    // B — la photo d'un ticket qui n'en a pas, prise depuis sa ligne.
+    let PHOTO_LIGNE = null;
+    window.photoPour = function (id) { PHOTO_LIGNE = id; el('fPhotoLigne').click(); };
+    window.photoLigneChoisie = async function (input) {
+      const f = input.files && input.files[0], id = PHOTO_LIGNE;
+      input.value = ''; PHOTO_LIGNE = null;
+      if (!f || !id) return;
+      try {
+        const url = await SSUI.compressAndUploadPhoto(f, id);
+        const r = await SS.addDepensePhoto(id, url);
+        if (!r || !r.ok) return toast((r && r.error) || 'Photo non enregistrée.', 'warn');
+        toast('Photo du ticket jointe.', 'ok');
+        await recharger();
+      } catch (e) { toast('Photo illisible, réessaie.', 'warn'); }
+    };
 
+    // ── C — Remettre au bureau, et le bordereau ──────────────────────────────────────────
+    let LOT = { qui: '', ids: [] };
+    function choixHtml(d, coche) {
+      return `<label class="dp-choix"><input type="checkbox" value="${esc(d.id)}" ${coche ? 'checked' : ''} onchange="majLot()">
+        <span class="c-t">${esc(d.detail || 'Ticket sans détail')}<small>${esc('acheté le ' + fmtDate(d.date) + (d.client_nom ? ' · ' + d.client_nom : '') + ((d.photos || []).length ? '' : ' · sans photo'))}</small></span>
+        <span class="c-m">${fmtEur(d.montant)}</span></label>`;
+    }
+    function segQuiHtml(actif, onclickFn, compte) {
+      return D.GENS.map(g => `<button type="button" class="${actif === g ? 'on' : ''}" onclick="${onclickFn}(${jsAttr(g)})">${esc(nom(g))} (${compte(g)})</button>`).join('');
+    }
+    const cochesDe = (idListe) => [...el(idListe).querySelectorAll('input[type=checkbox]:checked')].map(i => i.value);
+    const ticketsDe = (ids) => ids.map(id => TOUT.filter(x => x.id === id)[0]).filter(Boolean);
+
+    window.ouvrirRemise = function (qui) {
+      const nb = (g) => D.dansEtat(TOUT, g, 'a_remettre').length;
+      LOT.qui = qui || (nb(MOI) || !nb(D.GENS.filter(g => g !== MOI)[0]) ? MOI : D.GENS.filter(g => g !== MOI)[0]);
+      el('remQui').innerHTML = segQuiHtml(LOT.qui, 'ouvrirRemise', nb);
+      const l = D.dansEtat(TOUT, LOT.qui, 'a_remettre');
+      el('remAide').textContent = l.length
+        ? 'Les tickets encore chez ' + (LOT.qui === MOI ? 'toi' : nom(LOT.qui)) + ', du plus ancien au plus récent. Décoche ceux qui restent ; imprime le bordereau pour le donner avec les tickets.'
+        : 'Aucun ticket à remettre pour ' + nom(LOT.qui) + '.';
+      el('remListe').innerHTML = l.map(d => choixHtml(d, true)).join('');
+      majLot();
+      if (!FEN || FEN.id !== 'fenRemise') ouvrirFenetre('fenRemise', null);
+    };
+    window.majLot = function () {
+      if (FEN && FEN.id === 'fenRemb') return majRemboursement();
+      const b = D.bordereau(ticketsDe(cochesDe('remListe')));
+      el('remTotal').innerHTML = `<span>${b.nb} ticket${b.nb > 1 ? 's' : ''}</span> <span>${fmtEur(b.total)}</span>`;
+      el('remOk').disabled = !b.nb; el('remImprimer').disabled = !b.nb;
+    };
+    /** Le bordereau imprimé : la liste, le total, les photos, et deux lignes pour signer. */
+    function bordereauHtml(b, qui, remisLe) {
+      const photos = b.lignes.flatMap(d => (d.photos || []).map(p => p.url)).slice(0, 24);
+      return `<h1>Bordereau de remise — notes de frais</h1>
+        <div class="sous">${esc(nom(qui))} · ${b.nb} ticket${b.nb > 1 ? 's' : ''} · remis le ${esc(fmtDate(remisLe))}</div>
+        <table><thead><tr><th>Acheté le</th><th>Ce qui a été acheté</th><th>Chantier</th><th class="m">Montant</th></tr></thead>
+        <tbody>${b.lignes.map(d => `<tr><td>${esc(fmtDate(d.date))}</td><td>${esc(d.detail || '—')}</td><td>${esc(d.client_nom || '')}</td><td class="m">${fmtEur(d.montant)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="3">Total à rembourser</td><td class="m">${fmtEur(b.total)}</td></tr></tfoot></table>
+        ${photos.length ? `<div class="photos">${photos.map(u => `<img src="${esc(u)}" alt="Ticket">`).join('')}</div>` : ''}
+        <div class="signe"><div>Remis par ${esc(nom(qui))}</div><div>Reçu par</div></div>`;
+    }
+    window.imprimerBordereau = function () {
+      const b = D.bordereau(ticketsDe(cochesDe('remListe')));
+      if (!b.nb) return;
+      el('impression').innerHTML = bordereauHtml(b, LOT.qui, SSUI.aujourdhui());
+      window.print();
+    };
+    window.validerRemise = async function () {
+      const ids = cochesDe('remListe');
+      if (!ids.length) return;
+      const b = D.bordereau(ticketsDe(ids));
+      el('remOk').disabled = true;
+      const r = await SS.marquerDepenses(ids, 'remis_le', SSUI.aujourdhui());
+      el('remOk').disabled = false;
+      if (!r || !r.ok) return toast((r && r.error) || 'Rien n’a été coché.', 'warn');
+      el('impression').innerHTML = bordereauHtml(b, LOT.qui, SSUI.aujourdhui());   // prêt à imprimer après coup
+      toast(b.nb + ' ticket' + (b.nb > 1 ? 's' : '') + ' remis (' + fmtEur(b.total) + ').', 'ok');
+      window.fermerFenetre(true);
+      await recharger();
+    };
+
+    // ── D — Rembourser en une fois ───────────────────────────────────────────────────────
+    window.ouvrirRemboursement = function (qui) {
+      const nb = (g) => D.dansEtat(TOUT, g, 'au_bureau').length;
+      const autre = D.GENS.filter(g => g !== MOI)[0];
+      LOT.qui = qui || (nb(MOI) || !nb(autre) ? MOI : autre);
+      el('rbQui').innerHTML = segQuiHtml(LOT.qui, 'ouvrirRemboursement', nb);
+      const l = D.dansEtat(TOUT, LOT.qui, 'au_bureau');
+      el('rbAide').textContent = l.length
+        ? 'Les tickets de ' + nom(LOT.qui) + ' déposés au bureau. Décoche ceux que le virement ne couvre pas.'
+        : 'Aucun ticket au bureau pour ' + nom(LOT.qui) + '.';
+      el('rbListe').innerHTML = l.map(d => choixHtml(d, true)).join('');
+      if (!el('rbDate').value || !FEN || FEN.id !== 'fenRemb') el('rbDate').value = SSUI.aujourdhui();
+      if (!FEN || FEN.id !== 'fenRemb') ouvrirFenetre('fenRemb', null);
+      majRemboursement();
+    };
+    window.majRemboursement = function () {
+      const t = ticketsDe(cochesDe('rbListe'));
+      const b = D.bordereau(t);
+      el('rbTotal').innerHTML = `<span>${b.nb} ticket${b.nb > 1 ? 's' : ''}</span> <span>${fmtEur(b.total)}</span>`;
+      const date = el('rbDate').value;
+      const avant = t.filter(d => date && d.date > date);
+      el('rbMsg').textContent = !date ? 'Indique la date du virement.'
+        : (avant.length ? 'Le virement ne peut pas précéder un achat (ticket du ' + fmtDate(avant[0].date) + ').'
+        : (date > SSUI.aujourdhui() ? 'Date dans le futur : une faute sur l’année ?' : ''));
+      el('rbOk').textContent = b.nb ? 'Marquer remboursés (' + fmtEur(b.total) + ')' : 'Marquer remboursés';
+      el('rbOk').disabled = !b.nb || !!el('rbMsg').textContent;
+    };
+    window.validerRemboursement = async function () {
+      const ids = cochesDe('rbListe');
+      const b = D.bordereau(ticketsDe(ids));
+      const date = el('rbDate').value;
+      if (!b.nb || el('rbMsg').textContent) return;
+      const lot = 'virement du ' + fmtDate(date) + ' : ' + fmtEur(b.total) + ' pour ' + b.nb + ' ticket' + (b.nb > 1 ? 's' : '');
+      el('rbOk').disabled = true;
+      const r = await SS.marquerDepenses(ids, 'rembourse_le', date, lot);
+      el('rbOk').disabled = false;
+      if (!r || !r.ok) return toast((r && r.error) || 'Rien n’a été coché.', 'warn');
+      toast(b.nb + ' ticket' + (b.nb > 1 ? 's' : '') + ' remboursé' + (b.nb > 1 ? 's' : '') + ' (' + fmtEur(b.total) + ').', 'ok');
+      window.fermerFenetre(true);
+      await recharger();
+    };
+
+    // ── A — le haut de page : une ligne par personne ─────────────────────────────────────
+    function rendreResume() {
+      const cl = (j, etat) => j > (etat === 'au_bureau' ? D.SEUILS.rembourser : D.SEUILS.remettre) * 2 ? 'tres-vieux' : (j > (etat === 'au_bureau' ? D.SEUILS.rembourser : D.SEUILS.remettre) ? 'vieux' : '');
+      el('resume').innerHTML = D.parPersonne(TOUT, MOI).map((p, i) => {
+        const qui = p.qui === MOI ? 'Toi' : nom(p.qui);
+        if (!p.nb_du) return `<div class="dp-pers ${i ? 'autre' : ''}"><span class="qui">${esc(qui)}</span> <span class="ok">rien en attente ✓</span></div>`;
+        const morceaux = [];
+        if (p.nb_remettre) morceaux.push(`<button class="w" onclick="filtrerSur(${jsAttr(p.qui)}, 'a_remettre')"><span class="mt">${fmtEur(p.a_remettre)}</span> à remettre (${p.nb_remettre})</button>`
+          + ` <span class="${cl(p.vieux_remettre, 'a_remettre')}">le plus vieux ${p.vieux_remettre} j</span>`);
+        if (p.nb_bureau) morceaux.push(`<button class="a" onclick="filtrerSur(${jsAttr(p.qui)}, 'au_bureau')"><span class="mt">${fmtEur(p.au_bureau)}</span> au bureau (${p.nb_bureau})</button>`
+          + ` <span class="${cl(p.vieux_bureau, 'au_bureau')}">${p.vieux_bureau} j</span>`);
+        return `<div class="dp-pers ${i ? 'autre' : ''}" data-qui="${esc(p.qui)}"><span class="qui">${esc(qui)}</span> ${morceaux.join(' <span>·</span> ')}</div>`;
+      }).join('');
+    }
+    window.filtrerSur = function (qui, etat) {
+      FILTRE.qui = qui; FILTRE.etat = etat;
+      rendre();
+      el('liste').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+
+    // ── F — les filtres : recherche, qui, état, année ────────────────────────────────────
     function rendreFiltres() {
-      const puce = (actif, libelle, onclick) =>
-        `<button type="button" class="chip ${actif ? 'active' : ''}" onclick="${onclick}">${esc(libelle)}</button>`;
-      let h = puce(!FILTRE.qui, 'Tout le monde', 'filtrer(\'qui\', \'\')');
-      D.GENS.forEach(g => { h += puce(FILTRE.qui === g, SSUI.SELLER_LABELS[g] || g, `filtrer('qui', ${jsAttr(g)})`); });
-      h += '<span class="sep"></span>';
-      h += puce(!FILTRE.etat, 'Tous les états', 'filtrer(\'etat\', \'\')');
-      D.ETATS.forEach(e => { h += puce(FILTRE.etat === e, D.ETAT_LABEL[e], `filtrer('etat', ${jsAttr(e)})`); });
+      const opt = (v, l, actif) => `<option value="${esc(v)}" ${actif ? 'selected' : ''}>${esc(l)}</option>`;
+      el('fQui').innerHTML = opt('', 'Tout le monde', !FILTRE.qui) + D.GENS.map(g => opt(g, g === MOI ? nom(g) + ' (toi)' : nom(g), FILTRE.qui === g)).join('');
+      el('fEtat').innerHTML = opt('', 'Tous les états', !FILTRE.etat) + D.ETATS.map(e => opt(e, D.ETAT_LABEL[e], FILTRE.etat === e)).join('');
       const ans = D.annees(TOUT);
-      if (ans.length > 1) {
-        h += '<span class="sep"></span>';
-        h += puce(!FILTRE.annee, 'Toutes les années', 'filtrer(\'annee\', \'\')');
-        ans.forEach(a => { h += puce(FILTRE.annee === a, a, `filtrer('annee', ${jsAttr(a)})`); });
-      }
-      el('filtres').innerHTML = h;
+      if (FILTRE.annee && ans.indexOf(FILTRE.annee) < 0) FILTRE.annee = '';
+      el('fAnnee').innerHTML = opt('', 'Toutes années', !FILTRE.annee) + ans.map(a => opt(a, a, FILTRE.annee === a)).join('');
     }
     window.filtrer = function (k, v) { FILTRE[k] = v; rendre(); };
 
@@ -385,44 +699,42 @@
       const r = D.retard(d);
       const age = D.ageJours(d);
       const photo = (d.photos || [])[0];
+      /* « photo ? » n'alerte que tant que l'argent est DÛ : sur un ticket remboursé l'an passé, ce serait un
+         signal allumé pour rien (règle 36). La vignette reste cliquable pour joindre la photo quand même. */
       const vign = photo
-        ? `<div class="dp-vig" title="Voir le ticket" onclick="ouvrirTicket(${jsAttr(d.id)})"><img src="${esc(photo.url)}" alt="Ticket"></div>`
-        : `<div class="dp-vig" title="Aucune photo — le ticket thermique s’efface, pense à le photographier">${icon('camera', 18)}</div>`;
+        ? `<button type="button" class="dp-vig" title="Voir le ticket" aria-label="Voir la photo du ticket" onclick="ouvrirTicket(${jsAttr(d.id)})"><img src="${esc(photo.url)}" alt="Ticket"></button>`
+        : (etat !== 'rembourse'
+          ? `<button type="button" class="dp-vig manque" title="Le ticket thermique s’efface : photographie-le" aria-label="Prendre la photo du ticket" onclick="photoPour(${jsAttr(d.id)})">${icon('camera', 16)}<span>photo ?</span></button>`
+          : `<button type="button" class="dp-vig" title="Joindre la photo du ticket" aria-label="Joindre la photo du ticket" onclick="photoPour(${jsAttr(d.id)})">${icon('camera', 18)}</button>`);
 
       /* L'ANCIENNETÉ EST LE CŒUR DE L'OUTIL. « 23 j » à côté d'un montant, c'est ce qui fait
          qu'on se décide à aller au bureau. Un registre qui ne dit que des montants ne pousse
          à rien — c'est exactement ce qui fait tomber les tickets dans l'oubli. */
       const cl = r ? (r.jours > r.limite * 2 ? 'dp-tres-vieux' : 'dp-vieux') : '';
-      const anciennete = etat === 'rembourse' ? ''
-        : `<span class="${cl}">${age} j${r ? ' — ça traîne' : ''}</span>`;
+      const anciennete = etat === 'rembourse' ? '' : `<span class="${cl}">${age} j${r ? ' — ça traîne' : ''}</span>`;
+      const geste = (champ) => D.libelleGeste(d, champ, MOI, nom(d.qui));
 
-      const trace = [
-        'Acheté le ' + SSUI.fmtDate(d.date),
-        d.remis_le ? 'remis le ' + SSUI.fmtDate(d.remis_le) : '',
-        d.rembourse_le ? 'remboursé le ' + SSUI.fmtDate(d.rembourse_le) : '',
-      ].filter(Boolean).join(' · ');
-
-      return `<div class="dp">
+      return `<div class="dp" data-id="${esc(d.id)}">
         ${vign}
         <div class="dp-corps">
           <div class="dp-h">
             <span class="dp-m">${fmtEur(d.montant)}</span>
             <span class="etat ${etat}">${esc(D.ETAT_LABEL[etat])}</span>
-            <span class="dp-d">${esc(SSUI.SELLER_LABELS[d.qui] || d.qui)}</span>
+            <span class="dp-d">${esc(nom(d.qui))}</span>
             ${anciennete}
           </div>
           ${d.detail ? `<div class="dp-detail">${esc(d.detail)}</div>` : ''}
-          <div class="dp-meta">${esc(trace)}${d.client_nom ? ' · ' + esc(d.client_nom) : ''}</div>
+          <div class="dp-meta">${esc(D.trace(d, fmtDate, NOMS))}${d.client_nom ? ' · ' + esc(d.client_nom) : ''}</div>
         </div>
         <div class="dp-act">
-          ${etat !== 'rembourse' ? `<button class="btn btn-ghost btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('remis_le')})">${
-            d.remis_le ? 'Annuler « remis »' : 'Je l’ai remis'}</button>` : ''}
+          ${etat !== 'rembourse' ? `<button class="btn btn-ghost btn-sm g-remis" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('remis_le')})">${
+            d.remis_le ? 'Annuler « remis »' : esc(geste('remis_le'))}</button>` : ''}
           ${etat !== 'rembourse'
-            ? `<button class="btn btn-primary btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">J’ai été remboursé</button>`
-            : `<button class="btn btn-ghost btn-sm" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">Annuler « remboursé »</button>`}
+            ? `<button class="btn btn-primary btn-sm g-rembourse" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">${esc(geste('rembourse_le'))}</button>`
+            : `<button class="btn btn-ghost btn-sm g-rembourse" onclick="marquer(${jsAttr(d.id)}, ${jsAttr('rembourse_le')})">Annuler « remboursé »</button>`}
           <div style="display:flex;gap:0.3rem;">
-            <button class="btn btn-ghost btn-sm" title="Modifier" onclick="modifier(${jsAttr(d.id)})">${icon('edit', 13)}</button>
-            <button class="btn btn-ghost btn-sm" title="Supprimer" onclick="supprimer(${jsAttr(d.id)})">${icon('trash', 13)}</button>
+            <button class="btn btn-ghost btn-sm" title="Modifier" aria-label="Modifier le ticket" onclick="modifier(${jsAttr(d.id)})">${icon('edit', 13)}</button>
+            <button class="btn btn-ghost btn-sm" title="Supprimer" aria-label="Supprimer le ticket" onclick="supprimer(${jsAttr(d.id)})">${icon('trash', 13)}</button>
           </div>
         </div>
       </div>`;
@@ -434,14 +746,24 @@
       SSUI.ouvrirPhotos((d.photos || []).map(p => p.url), 0);
     };
 
+    // F — le bilan année par année, pour la personne filtrée (ou les deux).
+    function rendreBilan() {
+      const b = D.bilanParAnnee(TOUT, FILTRE.qui);
+      el('bilan').innerHTML = b.length ? `<div class="t">Bilan par année · ${esc(FILTRE.qui ? nom(FILTRE.qui) : 'Nicolas et Yannick')}</div>` + b.map(x =>
+        `<div class="l"><span>${esc(x.annee)}</span><span>avancé <b>${fmtEur(x.avance)}</b></span><span>remboursé <b>${fmtEur(x.rembourse)}</b></span><span>encore dû <b>${fmtEur(x.du)}</b></span><span>${x.nb} ticket${x.nb > 1 ? 's' : ''}</span></div>`).join('') : '';
+    }
+
     function rendre() {
-      rendreKpis();
+      rendreResume();
       rendreFiltres();
       const vus = D.trier(D.filtrer(TOUT, FILTRE));
       el('tagNb').textContent = vus.length + (vus.length > 1 ? ' TICKETS' : ' TICKET');
+      const filtre = FILTRE.qui || FILTRE.etat || FILTRE.annee || FILTRE.recherche;
       el('liste').innerHTML = vus.length
         ? vus.map(ligne).join('')
-        : '<div class="empty-mini">Aucun ticket ici. Le premier que tu enregistres apparaîtra en haut.</div>';
+        : `<div class="empty-mini">${filtre ? 'Aucun ticket ne correspond à ces filtres.' : 'Aucun ticket ici. « + Nouveau ticket » en haut, et le premier apparaîtra ici.'}</div>`;
+      rendreBilan();
+      el('btnRemettre').textContent = 'Remettre au bureau' + (D.dansEtat(TOUT, MOI, 'a_remettre').length ? ' (' + D.dansEtat(TOUT, MOI, 'a_remettre').length + ')' : '');
     }
 
     // ── Chargement ───────────────────────────────────────────────────────────────────────
@@ -449,7 +771,6 @@
       const moi = await SSNav.getIdentity().catch(() => null);
       MOI = (moi && moi.key) || 'nicolas';
       FORM_QUI = MOI;
-      nouveau();
 
       TOUT = await SS.listDepenses().catch(() => []);
       const cls = await SS.listClients().catch(() => []);
