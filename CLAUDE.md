@@ -97,7 +97,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 31 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 32 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
 | `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
 | `assets/js/facturation.js` | **La facturation** (règle 49) : montants d'une nouvelle facture et leur libellé, à facturer maintenant, par chantier, relances, répartition d'un virement, export comptable. Fonctions pures (`window.SSFact`) ; ce qui est DÛ reste dans `ui.js` (règle 4). |
@@ -2368,6 +2368,10 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   routes ciblées (auteur signé par le serveur, règle 3).
 • **Rejouable** : « Remplir » réécrit devis, demandes, sujets et congés avec des dates RELATIVES au jour
   même ; une facture, une note, un ticket ou une attente déjà posés ne sont pas recréés (test R4).
+  ⚠️ Une facture déjà posée reçoit pourtant ce qui lui MANQUE (pièce Falco, relance de paiement), par les
+  routes ciblées : la base en ligne avait été remplie avant que le jeu ne les porte, et le rejeu sautait la
+  facture entière — « 13 sans pièce Falco » sur l'aperçu, invisible en local où l'on part d'une base vide
+  (test R19). Toute trace ajoutée au jeu sur un objet qui existe déjà doit se demander : qui la pose au REJEU ?
   **« Vider » ne retire que ce que la page a posé** — ce qu'on saisit à la main pendant un essai reste.
 • **Le test joue le VRAI serveur** : `[[catchall]].js` importé dans la page, une vraie base SQLite en
   mémoire (sql.js 1.10.3 depuis cdnjs, fonctions JSON comprises), une surface D1 réduite à
@@ -2824,7 +2828,7 @@ revue de la page, propositions A à G choisies par Nicolas sur maquette). Les r�
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
-   `tests/bac-a-sable.test.html`, exiger « 31/31 », par le serveur (il charge sql.js depuis cdnjs).
+   `tests/bac-a-sable.test.html`, exiger « 32/32 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
    des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 45/45 », par le serveur —
    ET `clients.test.html`, `dashboard.test.html` et `bac-a-sable.test.html`. C'est de l'argent.

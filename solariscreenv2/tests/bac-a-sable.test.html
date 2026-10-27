@@ -200,6 +200,17 @@
         check('R17 Outillage : la pose de l’école (8 screens) a son chargement — 32 vis, 32 chevilles, 1 foret, 1 silicone — et les chevilles sont « à racheter », signé par le serveur',
           [em.kits.map((k) => k.id), em.lignes.map((l) => [l.ref, l.qte]), refs.find((o) => o.id === 'OUT-ESSAI-2').racheter.par, window.SSOutil.posesAVenir(liste).map((d) => d.id).indexOf('ESSAI-10') >= 0],
           [['KIT-ESSAI-1'], [['OUT-ESSAI-1', 32], ['OUT-ESSAI-2', 32], ['OUT-ESSAI-3', 1], ['OUT-ESSAI-4', 1]], 'nicolas', true]);
+        /* La base d'essai EN LIGNE avait été remplie avant que le jeu ne porte les pièces Falco et la relance :
+           rejouée, elle sautait les factures déjà là et n'en recevait aucune (vu sur l'aperçu, « 13 sans pièce
+           Falco »). On simule cette base-là, puis on rejoue deux fois. */
+        sql1("UPDATE factures SET data = json_remove(json_set(data, '$.ref_externe', ''), '$.relances')");
+        const b3 = await B.remplir(window.SS, {});
+        const facR = () => window.SS.listFactures().then((l) => [FT.sansFalco(l).length, (l.find((f) => f.devis_id === 'ESSAI-11' && f.type === 'solde').relances || []).map((r) => [r.par, r.canal])]);
+        const apres3 = await facR();
+        const b4 = await B.remplir(window.SS, {});
+        check('R19 Rejouée sur une base remplie AVANT les pièces Falco et la relance, « Remplir » les complète (sans refaire ni facture ni encaissement), puis ne les double pas',
+          [b3.erreurs, apres3, b4.erreurs, await facR(), compte()],
+          [[], [9, [['nicolas', 'email']]], [], [9, [['nicolas', 'email']]], attenduCompte]);
 
         // ══════════ P — LA PAGE DE REMPLISSAGE ══════════
         titre('P — La page de remplissage (tests/bac-a-sable.html)');

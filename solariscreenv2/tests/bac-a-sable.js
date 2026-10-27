@@ -487,7 +487,23 @@
       const ids = {};   // type → numéro, pour qu'une note de crédit désigne la facture qu'elle annule
       facturesEx.filter(function (f) { return f.devis_id === d.id; }).forEach(function (f) { ids[f.type] = f.id; });
       for (const spec of d._factures) {
-        if (facturesEx.some(function (f) { return f.devis_id === d.id && f.type === spec.type; })) { bilan.ignores++; continue; }
+        const existante = facturesEx.filter(function (f) { return f.devis_id === d.id && f.type === spec.type; })[0];
+        if (existante) {
+          /* Déjà posée : jamais refaite, jamais réencaissée. Mais une base remplie AVANT que le jeu ne porte
+             la pièce Falco et la relance (la base d'essai en ligne, partagée) ne les recevait jamais : on
+             complète ce qui manque, par les routes ciblées. Une référence saisie à la main n'est pas écrasée. */
+          let complete = false;
+          if (spec.ref && !String(existante.ref_externe || '').trim()) {
+            const rf = await SS.setRefFacture(existante.id, spec.ref);
+            note(!echec(rf), existante.id + ' : pièce Falco ' + spec.ref, rf && rf.error); complete = true;
+          }
+          if (spec.relance && !(existante.relances || []).length) {
+            const rr = await SS.relancerFacture(existante.id, spec.relance);
+            note(!echec(rr), existante.id + ' : relance de paiement', rr && rr.error); complete = true;
+          }
+          if (!complete) bilan.ignores++;
+          continue;
+        }
         const c = d.calculs || {}, ttc = c.total_ttc || 0;
         let fac, montant;
         if (spec.type === 'avoir') {
