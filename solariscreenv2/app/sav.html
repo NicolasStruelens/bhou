@@ -26,61 +26,110 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
+    /* A — Le résumé en UNE ligne : les trois tuiles prenaient 317 px sur téléphone, et les boutons du
+       premier ticket passaient sous l'écran. */
+    .sav-resume { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.9rem; margin-bottom: var(--sp-4); font-size: var(--fs-sm); color: var(--text-muted); }
+    .sav-resume b { color: var(--text); font-size: var(--fs-md); }
+    .sav-resume .alerte { color: var(--danger); font-weight: 600; }
     .sav-section-title { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin: var(--sp-6) 0 var(--sp-3); }
     .sav-section-title:first-child { margin-top: 0; }
     .sav-section-title .n { color: var(--text-muted); }
-    .sav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: var(--sp-3); }
-    .sav-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); --tick-color: var(--danger); }
-    .sav-card.is-resolu { --tick-color: var(--ok); opacity: 0.7; }
+    .sav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: var(--sp-3); }
+    .sav-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); --tick-color: var(--danger); min-width: 0; }
+    .sav-card.etape-1 { --tick-color: var(--warn); }
+    .sav-card.etape-2 { --tick-color: var(--text-subtle); }
+    .sav-card.is-resolu { --tick-color: var(--ok); }
+    .sav-card.personne { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
     .sav-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+    .sav-head > div:first-child { min-width: 0; }
     .sav-client { font-weight: 700; }
-    .sav-devis { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.2rem; }
-    /* Garantie : la premiere chose qu'on regarde, donc la plus visible. */
-    .sav-garantie { display: inline-flex; align-items: center; gap: 0.35rem; margin: var(--sp-2) 0;
-      font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.05em;
-      padding: 0.15rem 0.5rem; border-radius: var(--r-sm); }
-    .sav-garantie.sous { color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); }
-    .sav-garantie.hors { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
-    .sav-garantie.inconnue { color: var(--text-subtle); border: 1px dashed var(--border-strong); }
-    /* Ce qui a ete repare : c'est ce qu'on vient relire le jour ou le defaut revient. */
-    .sav-resolution { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-3);
-      padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text);
-      border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
-      background: color-mix(in srgb, var(--ok) 8%, transparent); }
-    .sav-resolution svg { color: var(--ok); flex: none; margin-top: 2px; }
-    .sav-cause { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.2rem; }
-    .sav-sign { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.2rem; }
+    .sav-devis { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.15rem; }
+    .sav-age { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 0.15rem 0.5rem; border-radius: var(--r-pill); border: 1px solid var(--border-strong); color: var(--text-subtle); white-space: nowrap; }
+    .sav-age.gene { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+    .sav-age.criant { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+    .sav-age.ok-repare { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+    /* Garantie : la première question devant un ticket — facturable ou pas. */
+    .sav-garantie { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; margin: var(--sp-2) 0; }
+    .sav-g { display: inline-flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 0.15rem 0.5rem; border-radius: var(--r-sm); }
+    .sav-g.sous { color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); }
+    .sav-g.hors { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+    .sav-g.inconnue { color: var(--text-subtle); border: 1px dashed var(--border-strong); }
+    .sav-nature { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .sav-desc { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); overflow-wrap: anywhere; }
+    /* C — Les étapes : ouvert → pris en charge → pièce commandée → réparé. */
+    .sav-etapes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: var(--sp-3) 0 var(--sp-2); }
+    .sav-et { border-top: 3px solid var(--border); padding-top: 0.25rem; font-size: var(--fs-3xs); font-family: var(--font-mono); color: var(--text-subtle); min-width: 0; }
+    .sav-et b { display: block; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sav-et span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sav-et.fait { border-top-color: var(--ok); color: var(--text-muted); }
+    .sav-et.ici { border-top-color: var(--accent); color: var(--text); }
+    .sav-photos { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); }
+    .sav-photos .sp-lbl { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.25rem; }
+    .sav-photos .sp-lbl.apres { color: var(--ok); }
+    .sav-photos .sp-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .sav-photos button { padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: none; cursor: zoom-in; line-height: 0; }
+    .sav-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: var(--r-sm); display: block; }
+    /* D — L'historique des passages : chaque réparation, datée et signée. */
+    .sav-passages { margin-top: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border); font-size: var(--fs-sm); }
+    .sav-passages.dernier-ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 7%, transparent); }
+    .sav-passages .pt { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.2rem; }
+    .sav-pas + .sav-pas { margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px dashed var(--border); }
+    .sav-pas .ps { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .sav-pas .pc { font-size: var(--fs-xs); color: var(--text-muted); }
     .sav-notes { margin-top: var(--sp-3); border-top: 1px solid var(--border); padding-top: var(--sp-2); }
     .sav-note { display: flex; gap: var(--sp-2); align-items: baseline; font-size: var(--fs-sm); margin-bottom: 0.3rem; flex-wrap: wrap; }
     .sav-note .sn-qui { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--accent); flex: 0 0 auto; }
-    .sav-note .sn-txt { flex: 1 1 10ch; min-width: 10ch; color: var(--text-muted); }
+    .sav-note .sn-txt { flex: 1 1 10ch; min-width: 10ch; color: var(--text-muted); overflow-wrap: anywhere; }
     .sav-note .sn-qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); flex: 0 0 auto; }
-    .sav-photos { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); }
-    .sav-photos .sp-lbl { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.25rem; }
-    .sav-photos .sp-lbl.apres { color: var(--ok); }
-    .sav-photos .sp-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-    .sav-photos img { width: 62px; height: 62px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); display: block; }
+    .sav-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+    /* F — Sur le terrain, appeler ou partir coûte UN appui (règle 33) : rendus toujours, montrés
+       seulement sur téléphone, par la feuille de style seule (aucune branche JS sur la largeur). */
+    .sav-terrain { display: none; gap: var(--sp-2); margin-top: var(--sp-2); }
+    @media (max-width: 560px) { .sav-terrain { display: flex; } .sav-terrain .btn { flex: 1 1 0; justify-content: center; } }
+    .sav-box { display: none; margin-top: var(--sp-3); padding: var(--sp-3); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); }
+    .sav-box.on { display: block; }
+    .sav-box .lbl { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 0.3rem; }
+    .sav-box .rangee { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+    .sav-box .rangee .input { flex: 1 1 10rem; min-width: 0; }
+    .sav-box-fin { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
     .sav-ajout-photo { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
     .sav-ajout-photo .sp-attente { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
-    .sav-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
-    .sav-box { display: none; margin-top: var(--sp-3); }
-    .sav-box.on { display: block; }
-    .sav-box-fin { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
-    .sav-desc { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); }
-    .sav-date { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: var(--sp-2); }
+    .sav-repares-btn { margin-top: var(--sp-5); }
+    /* G — Ce qui casse le plus */
+    .sav-synthese { margin-top: var(--sp-6); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4); }
+    .sav-synthese summary { cursor: pointer; font-weight: 600; }
+    .sav-synthese summary small { font-weight: 400; color: var(--text-subtle); }
+    .sav-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .sav-chip { font-size: var(--fs-xs); padding: 0.15rem 0.6rem; border-radius: var(--r-pill); border: 1px solid var(--border-strong); color: var(--text-muted); }
+    .sav-chip b { color: var(--text); }
+    .sav-signal { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--warn); }
 
-    /* Sélecteur de devis pour créer un ticket (même gabarit de modale que le dashboard) */
-    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    /* B — La fenêtre « Nouveau ticket » (même gabarit que les autres fenêtres de l'ERP) */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: var(--z-overlay, 1000); display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
     .modal-bg.open { display: flex; }
-    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 600px; max-width: 100%; max-height: 92vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
     .modal .mhead { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; gap: var(--sp-2); }
     .modal .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; min-height: 120px; }
-    .pick-item { display: flex; align-items: center; gap: var(--sp-3); width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-2); cursor: pointer; color: inherit; font: inherit; }
-    .pick-item:hover { border-color: var(--accent); }
+    .modal .mfoot { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: var(--sp-2); flex-wrap: wrap; }
+    .pick-list { max-height: 34vh; overflow-y: auto; }
+    .pick-item { display: flex; align-items: center; gap: var(--sp-3); width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); cursor: pointer; color: inherit; font: inherit; }
+    .pick-item:hover, .pick-item.choisi { border-color: var(--accent); }
     .pick-item .pi-main { flex: 1; min-width: 0; }
     .pick-item .pi-name { font-weight: 700; }
-    .pick-item .pi-sub { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-top: 0.15rem; }
+    .pick-item .pi-sub { font-size: var(--fs-2xs); color: var(--text-muted); margin-top: 0.15rem; }
+    .nv-champ { margin-top: var(--sp-3); }
+    .nv-pour { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+    .nv-pour label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--fs-sm); padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: var(--r-pill); cursor: pointer; }
+    .nv-photos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    .nv-photos img { width: 56px; height: 56px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); }
+    .nv-choisi { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--accent); border-radius: var(--r-sm); }
+    .nv-choisi > div { flex: 1; min-width: 0; }
+    @media (pointer: coarse) {
+      .sav-photos button { min-height: 44px; }
+      .nv-pour label { min-height: 40px; }
+    }
   </style>
 </head>
 <body>
@@ -95,28 +144,42 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-primary btn-sm" onclick="openPicker()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket SAV</button>
+      <button class="btn btn-primary btn-sm" onclick="ouvrirNouveau()" title="Nouveau ticket SAV"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouveau ticket SAV</button>
       <span id="quickNav"></span>
       <span id="themeToggle"></span>
-      <a class="btn btn-ghost btn-sm" href="dashboard.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
+      <a class="btn btn-ghost btn-sm" href="dashboard.html" title="Tableau de bord"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Dashboard</a>
     </div>
   </header>
 
   <main class="container">
-    <div class="kpis" id="kpis"></div>
+    <div class="sav-resume" id="resume"></div>
     <div id="host"><div aria-busy="true"><div class="skl" style="height:96px;margin-bottom:var(--sp-3)"></div><div class="skl" style="height:96px;margin-bottom:var(--sp-3)"></div><div class="skl" style="height:96px"></div></div></div>
   </main>
 
-  <!-- Sélecteur de chantier : un ticket SAV est toujours rattaché à un devis posé -->
-  <div class="modal-bg" id="modalPick">
-    <div class="modal ticked">
+  <!-- B — Nouveau ticket, SANS quitter la page. Avant, il fallait choisir le chantier ici, puis
+       retrouver la carte SAV sur la fiche du devis. -->
+  <div class="modal-bg" id="modalNew">
+    <div class="modal ticked" role="dialog" aria-modal="true" aria-labelledby="nvTitre">
       <div class="mhead">
-        <span id="pickTitle">Sur quel chantier ?</span>
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="closePicker()">✕</button>
+        <span id="nvTitre">Nouveau ticket SAV</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="fermerNouveau()">Fermer</button>
       </div>
       <div class="mbody">
-        <input class="input" id="pickSearch" placeholder="Rechercher un client, une ville, un n° de devis…" oninput="renderPicker()" style="margin-bottom:var(--sp-3);">
-        <div id="pickList"></div>
+        <div id="nvChantier"></div>
+        <div class="nv-champ"><label class="label" for="nvNature">Nature</label><select class="select" id="nvNature"></select></div>
+        <div class="nv-champ"><label class="label" for="nvDesc">Ce qui ne va pas (obligatoire)</label>
+          <textarea class="textarea" id="nvDesc" style="min-height:72px" placeholder="La toile du screen de la cuisine se déroule de travers depuis la tempête."></textarea></div>
+        <div class="nv-champ"><span class="label">Photos du constat</span>
+          <label class="btn btn-ghost btn-sm" id="nvPhotoBtn">Ajouter une photo
+            <input type="file" accept="image/*" multiple style="display:none" onchange="ajouterPhotoConstat(this)">
+          </label>
+          <div class="nv-photos" id="nvPhotos"></div></div>
+        <div class="nv-champ"><span class="label">Qui s'en occupe</span><div class="nv-pour" id="nvPour"></div></div>
+        <div class="nv-champ"><label class="label" for="nvEcheance">Pour quand</label><input class="input" id="nvEcheance" type="date" style="max-width:12rem"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-ghost btn-sm" onclick="fermerNouveau()">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="nvCreer" onclick="creerTicket()">Créer le ticket</button>
       </div>
     </div>
   </div>
@@ -126,92 +189,113 @@
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/sav.js"></script>
   <script>
-    const SS = window.SS;
+    const SS = window.SS, SAV = window.SSSav, U = window.SSUI;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtDate, el, icon, normDevis, toast } = window.SSUI;
+    const { fmtDate, el, icon, normDevis, toast, jsAttr } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
-    const SAV_TYPE_LABEL = window.SSUI.SAV_TYPE_LABEL;   // source unique : assets/js/ui.js
+    const SAV_TYPE_LABEL = U.SAV_TYPE_LABEL;       // source unique : assets/js/ui.js
+    const SELLER_LABELS = U.SELLER_LABELS;          // source unique : assets/js/ui.js
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    let ELIGIBLES = [];   // chantiers sur lesquels un ticket SAV a du sens (pose faite)
-    let TICKETS = [];     // tickets a plat, avec leur devis (pour la garantie et l'attribution)
+    let LISTE = [];       // tous les devis (liste projetée) : le bon d'intervention d'un ticket s'y retrouve
+    let ELIGIBLES = [];   // chantiers sur lesquels un ticket a du sens (devis SIGNÉ, règle 20)
+    let TICKETS = [];     // tickets à plat, avec leur devis (garantie, résumé, contact)
     let IDENTITE = { key: '' };
     let REGLAGES = null;
-    let NOTE_OUVERTE = '';   // ticket dont la zone de note est depliee
-    let RESOUT = '';         // ticket qu'on est en train de cloturer
-    const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique : assets/js/ui.js
+    let BOITE = { id: '', type: '' };   // la seule zone dépliée (note, prise en charge, pièce, réparation)
+    let VOIR_REPARES = false;
+    const moi = () => IDENTITE.key || 'nicolas';
     const autre = (k) => (k === 'nicolas' ? 'yannick' : 'nicolas');
     const nomDe = (k) => SELLER_LABELS[k] || k || '—';
+    const plusJours = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
 
     async function load() {
       const raw = await SS.listDevis();
-      const tous = (raw || []).map(normDevis);
-      const summary = tous.filter(d => (d.sav_tickets || []).length);
-      // Un SAV concerne un chantier POSÉ (jalon partagé isPoseDone : PV de réception signé ou
-      // étape fournisseur « Posé »), ou déjà marqué terminé. Les archivés sont exclus.
-      ELIGIBLES = tous
-        .filter(window.SSUI.savPossible)
+      LISTE = (raw || []).map(normDevis);
+      // Un ticket se crée dès que le devis est SIGNÉ (règle 20) : un matériel livré défectueux se
+      // constate avant la pose. La page disait le contraire (« chantier posé »).
+      ELIGIBLES = LISTE.filter(U.savPossible)
         .sort((a, b) => String(b.date_modification).localeCompare(String(a.date_modification)));
       const all = [];
-      // On garde le DEVIS entier avec le ticket : la garantie se deduit de la date de pose, et
-      // c'est la premiere question devant un SAV -- facturable ou pas.
-      summary.forEach(d => (d.sav_tickets || []).forEach(t => all.push({
+      LISTE.filter(d => (d.sav_tickets || []).length).forEach(d => (d.sav_tickets || []).forEach(t => all.push({
         ...t, devisId: d.id, client: `${d.prenom} ${d.nom}`.trim(), devis: d,
       })));
       TICKETS = all;
       try { IDENTITE = await window.SSNav.getIdentity(); } catch (e) { IDENTITE = { key: '' }; }
       try { REGLAGES = await window.SSConf.charger(); } catch (e) { REGLAGES = null; }
-      render(all);
+      render();
     }
 
     // ── Agir SANS quitter la liste ───────────────────────────────────────────────────────────
-    // Avant, chaque geste imposait d'ouvrir la fiche du devis puis de retrouver la carte SAV.
-    // Ce saut d'ecran casse l'elan : on remet a plus tard, et le client attend.
     function ticketDe(devisId, ticketId) {
       return TICKETS.filter(t => String(t.devisId) === String(devisId) && String(t.id) === String(ticketId))[0] || null;
     }
-    /** Renvoie le ticket ENTIER au serveur : il le reconstruit champ par champ, omettre une cle
-     *  l'effacerait (le responsable avait deja disparu comme ca a chaque changement de statut). */
+    /** Renvoie le ticket ENTIER au serveur : il le reconstruit champ par champ, omettre une clé
+     *  l'effacerait (le responsable avait déjà disparu comme ça à chaque changement de statut). */
     async function majTicket(devisId, ticketId, patch) {
       const t = ticketDe(devisId, ticketId);
       if (!t) { toast('Ticket introuvable — recharge la page.', 'error'); return false; }
       const envoi = Object.assign({}, t, patch);
       delete envoi.devis; delete envoi.devisId; delete envoi.client;
       const res = await SS.saveSavTicket(devisId, envoi);
-      if (res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 6000); return false; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré — réessaie.', 'error', 6000); return false; }
       return true;
     }
-    window.attribuer = async (devisId, ticketId, qui) => {
-      if (await majTicket(devisId, ticketId, { pour: qui })) {
-        toast(qui === IDENTITE.key ? 'C’est pour toi' : 'Confié à ' + nomDe(qui), 'ok');
+    window.boite = (ticketId, type) => {
+      BOITE = (BOITE.id === ticketId && BOITE.type === type) ? { id: '', type: '' } : { id: ticketId, type: type };
+      render();
+      const f = el('bx-' + type + '-' + ticketId);
+      if (f) f.focus();
+    };
+    // C — « Je prends » DEMANDE pour quand : une chose sans date n'est jamais urgente (règle 15).
+    window.prendre = async (devisId, ticketId, qui) => {
+      const echeance = (el('bx-prise-' + ticketId) || {}).value || '';
+      if (!echeance) { toast('Dis pour quand — sans date, rien ne devient jamais urgent.', 'warn', 5000); return; }
+      // Pas de statut ici : le serveur passe « ouvert » en « pris en charge » dès qu'un nom est posé,
+      // et un ticket qui attend une pièce doit continuer de l'attendre.
+      if (await majTicket(devisId, ticketId, { pour: qui, echeance: echeance })) {
+        BOITE = { id: '', type: '' };
+        toast(qui === IDENTITE.key ? 'C’est pour toi — d’ici le ' + fmtDate(echeance) : 'Confié à ' + nomDe(qui), 'ok');
         load();
       }
     };
-    window.changerStatut = async (devisId, ticketId, statut) => {
-      if (await majTicket(devisId, ticketId, { statut: statut })) {
-        toast(statut === 'resolu' ? 'Ticket réparé' : 'Ticket rouvert', 'ok');
+    window.passerA = async (devisId, ticketId, qui) => {
+      if (await majTicket(devisId, ticketId, { pour: qui })) { toast('Confié à ' + nomDe(qui), 'ok'); load(); }
+    };
+    // C — Pièce commandée : la balle est chez le fournisseur, avec une date pour savoir quand s'inquiéter.
+    window.pieceCommandee = async (devisId, ticketId) => {
+      const prevue = (el('bx-piece-' + ticketId) || {}).value || '';
+      const note = ((el('bx-piecenote-' + ticketId) || {}).value || '').trim();
+      if (!prevue) { toast('Indique la date prévue d’arrivée — c’est elle qui dira quand relancer Harol.', 'warn', 5000); return; }
+      if (await majTicket(devisId, ticketId, { statut: 'attente_piece', piece_prevue: prevue, piece_note: note })) {
+        BOITE = { id: '', type: '' };
+        toast('Pièce commandée — on te la rappelle le ' + fmtDate(prevue), 'ok');
         load();
       }
     };
-    window.ouvrirNote = (ticketId) => { NOTE_OUVERTE = NOTE_OUVERTE === ticketId ? '' : ticketId; RESOUT = ''; render(TICKETS); const t = el('nt-' + ticketId); if (t) t.focus(); };
-    window.ouvrirResolution = (ticketId) => { RESOUT = RESOUT === ticketId ? '' : ticketId; NOTE_OUVERTE = ''; render(TICKETS); const t = el('rs-' + ticketId); if (t) t.focus(); };
+    window.pieceRecue = async (devisId, ticketId) => {
+      // « ouvert » : le serveur en fait « pris en charge » s'il y a un nom — sans nom, il redevient
+      // ce qu'il est, un ticket que personne n'a pris.
+      if (await majTicket(devisId, ticketId, { statut: 'ouvert' })) { toast('Pièce reçue — le ticket reprend', 'ok'); load(); }
+    };
+    window.rouvrir = async (devisId, ticketId) => {
+      if (await majTicket(devisId, ticketId, { statut: 'ouvert' })) { toast('Ticket rouvert — la réparation précédente reste dans l’historique', 'ok'); load(); }
+    };
     window.envoyerNote = async (devisId, ticketId) => {
-      const champ = el('nt-' + ticketId);
+      const champ = el('bx-note-' + ticketId);
       const texte = (champ && champ.value.trim()) || '';
       if (!texte) { toast('La note est vide.', 'warn'); return; }
       const res = await SS.addSavNote(devisId, ticketId, texte);
-      if (res.ok === false) { toast(res.error || 'Note non enregistrée.', 'error', 6000); return; }
-      NOTE_OUVERTE = '';
+      if (!res || res.ok === false) { toast((res && res.error) || 'Note non enregistrée.', 'error', 6000); return; }
+      BOITE = { id: '', type: '' };
       toast('Note ajoutée', 'ok');
       load();
     };
-    /** Clore un ticket EXIGE d'ecrire ce qui a ete repare : sans ca, le meme defaut revient six
-     *  mois plus tard et personne ne sait ce qui avait ete fait. Meme regle que les decisions. */
-    /** Photo APRES : meme chemin que partout (compression + depot R2), puis ecriture du ticket.
-     *  On enregistre tout de suite plutot qu'a la cloture : si la page est fermee entre-temps, la
-     *  photo prise sur le chantier ne doit pas etre perdue. */
+    /** Photo APRÈS : même chemin que partout (compression + dépôt R2), puis écriture du ticket.
+     *  Enregistrée tout de suite plutôt qu'à la clôture : si la page se ferme, elle n'est pas perdue. */
     window.ajouterPhotoApres = async (devisId, ticketId, input) => {
       const fichiers = [...(input.files || [])];
       input.value = '';
@@ -222,155 +306,343 @@
       if (!t) { toast('Ticket introuvable — recharge la page.', 'error'); return; }
       const urls = [];
       for (const f of fichiers) {
-        try { urls.push(await window.SSUI.compressAndUploadPhoto(f, devisId)); }
+        try { urls.push(await U.compressAndUploadPhoto(f, devisId)); }
         catch (e) { toast('Photo non envoyée : ' + e.message, 'error', 6000); }
       }
       if (!urls.length) { if (etat) etat.textContent = ''; return; }
       if (await majTicket(devisId, ticketId, { photos_apres: (t.photos_apres || []).concat(urls) })) {
         toast(urls.length + ' photo(s) ajoutée(s)', 'ok');
-        RESOUT = ticketId;   // on garde la zone de clôture ouverte, on était en train de clore
+        BOITE = { id: ticketId, type: 'repare' };   // on était en train de clore : la zone reste ouverte
         load();
       }
     };
-
+    /** Clore EXIGE d'écrire ce qui a été réparé (règle 20 bis) — et chaque clôture devient un PASSAGE
+     *  daté et signé dans l'historique (D) : rien ne s'écrase. Le serveur tient les deux règles. */
     window.cloturer = async (devisId, ticketId) => {
-      const champ = el('rs-' + ticketId);
+      const champ = el('bx-repare-' + ticketId);
       const texte = (champ && champ.value.trim()) || '';
       if (!texte) { toast('Écris ce qui a été réparé — c’est ce qu’on relira la prochaine fois.', 'warn', 6000); if (champ) champ.focus(); return; }
-      const cause = (el('cs-' + ticketId) || {}).value || '';
-      if (await majTicket(devisId, ticketId, { statut: 'resolu', resolution: texte, cause: cause.trim() })) {
-        RESOUT = '';
+      const cause = ((el('bx-cause-' + ticketId) || {}).value || '').trim();
+      if (await majTicket(devisId, ticketId, { statut: 'resolu', resolution: texte, cause: cause })) {
+        BOITE = { id: '', type: '' };
         toast('Ticket réparé', 'ok');
         load();
       }
     };
-
-    // ── Création d'un ticket : on choisit d'abord le chantier, puis on ouvre sa fiche au bon endroit ──
-    window.openPicker = () => { el('pickSearch').value = ''; renderPicker(); el('modalPick').classList.add('open'); el('pickSearch').focus(); };
-    window.closePicker = () => el('modalPick').classList.remove('open');
-    window.renderPicker = () => {
-      const q = el('pickSearch').value.trim().toLowerCase();
-      const list = q
-        ? ELIGIBLES.filter(d => `${d.prenom} ${d.nom} ${d.id} ${d.ville}`.toLowerCase().includes(q))
-        : ELIGIBLES;
-      el('pickList').innerHTML = list.length
-        ? list.slice(0, 50).map(d => `
-            <button class="pick-item" onclick="goCreate('${encodeURIComponent(d.id)}')">
-              <div class="pi-main">
-                <div class="pi-name">${esc(`${d.prenom} ${d.nom}`.trim() || '—')}</div>
-                <div class="pi-sub">#${esc(d.id)}${d.ville ? ' · ' + esc(d.ville) : ''}${(d.sav_tickets || []).length ? ' · ' + d.sav_tickets.length + ' ticket(s)' : ''}</div>
-              </div>
-              ${icon('window', 16)}
-            </button>`).join('')
-        : `<div class="empty">Aucun chantier posé ne correspond.<div class="hint">Un ticket SAV se crée sur un chantier dont la pose est faite (PV de réception signé ou étape « Posé »).</div></div>`;
+    // F — Les photos s'ouvrent DANS la page (règle 26) : un nouvel onglet faisait quitter l'ERP, et sur
+    // un iPhone où l'application est installée, on se retrouvait dans Safari sans chemin du retour.
+    window.voirPhotos = (devisId, ticketId, serie, i) => {
+      const t = ticketDe(devisId, ticketId);
+      if (t) U.ouvrirPhotos(serie === 'apres' ? (t.photos_apres || []) : (t.photos || []), i);
     };
-    // `#sav` : la fiche devis déplie la carte SAV et y amène directement (voir vue.html).
-    window.goCreate = (encId) => { location.href = `vue.html?id=${encId}#sav`; };
+    // E — Hors garantie, une intervention se FACTURE : le simulateur s'ouvre sur un dépannage déjà
+    // rempli (client, motif, ticket d'origine). Le dépannage porte `sav_origine` : la carte retrouve
+    // ensuite son bon dans la liste, sans rien réécrire sur le ticket.
+    window.creerBon = (devisId, ticketId) => {
+      const t = ticketDe(devisId, ticketId);
+      if (!t) return;
+      const p = SAV.preparationBon(t);
+      try {
+        sessionStorage.setItem('ss_prefill_client', JSON.stringify(p.client));
+        sessionStorage.setItem('ss_prefill_depannage', JSON.stringify(p.depannage));
+      } catch (e) { toast('Le navigateur refuse de préparer le bon — remplis-le à la main.', 'warn', 6000); }
+      location.href = 'simulateur.html?type=depannage';
+    };
 
-    function ticketCard(t) {
-      const badgeCls = t.statut === 'resolu' ? 'badge-ok' : (t.statut === 'en_cours' ? 'badge-warn' : 'badge-danger');
-      const statutLabel = t.statut === 'resolu' ? 'Résolu' : (t.statut === 'en_cours' ? 'En cours' : 'Ouvert');
-      const id = window.SSUI.jsAttr(t.id);
-      const dev = window.SSUI.jsAttr(t.devisId);
-      // LA question devant un ticket : facturable ou pas. Elle se repondait de tete, dossier par
-      // dossier ; elle se deduit de la date de pose et de la duree de garantie des reglages.
-      const g = window.SSUI.garantieDe(t.devis, REGLAGES);
-      const clsG = !g.connue ? 'inconnue' : (g.sous_garantie ? 'sous' : 'hors');
-      const resolu = t.statut === 'resolu';
-      const notes = t.notes || [];
+    function etapesHtml(t) {
+      const e = SAV.etape(t);
+      const libs = [
+        ['Ouvert', fmtDate(t.date_creation)],
+        ['Pris en charge', t.pour ? nomDe(t.pour) + (t.echeance ? ' · ' + fmtDate(t.echeance).slice(0, 5) : '') : '—'],
+        ['Pièce', t.statut === 'attente_piece' ? (t.piece_prevue ? 'prévue ' + fmtDate(t.piece_prevue).slice(0, 5) : 'commandée') : '—'],
+        ['Réparé', t.date_resolution ? fmtDate(t.date_resolution) : '—'],
+      ];
+      return `<div class="sav-etapes" aria-label="Étape : ${esc(U.SAV_STATUT_LABEL[t.statut] || t.statut)}">${libs.map((l, i) =>
+        `<div class="sav-et ${i < e || (i === 3 && e === 3) ? 'fait' : (i === e ? 'ici' : '')}"><b>${l[0]}</b><span>${esc(l[1])}</span></div>`).join('')}</div>`;
+    }
+    function passagesHtml(t) {
+      const ps = U.savPassages(t);
+      if (!ps.length) return '';
+      const fini = t.statut === 'resolu';
+      return `<div class="sav-passages ${fini ? 'dernier-ok' : ''}">
+        <div class="pt">${fini ? (ps.length > 1 ? 'Réparations — ' + ps.length + ' passages' : 'Réparé') : 'Passages précédents'}</div>
+        ${ps.map((p, i) => `<div class="sav-pas">${esc(p.resolution)}
+          ${p.cause ? `<div class="pc">Cause : ${esc(p.cause)}</div>` : ''}
+          <div class="ps">${esc(nomDe(p.par))}${p.date ? ' · ' + fmtDate(p.date) : ''}${ps.length > 1 ? ' · passage ' + (i + 1) : ''}</div></div>`).join('')}
+      </div>`;
+    }
+    function garantieHtml(t, dev, id) {
+      const g = U.garantieDe(t.devis, REGLAGES);
+      const cls = !g.connue ? 'inconnue' : (g.sous_garantie ? 'sous' : 'hors');
+      const bon = SAV.bonDe(t, LISTE);
+      let suite = '';
+      if (bon) suite = `<a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(bon.id)}">${icon('filetext', 13)} Bon d’intervention #${esc(bon.id)}</a>`;
+      else if (g.connue && !g.sous_garantie && t.statut !== 'resolu') suite = `<button class="btn btn-ghost btn-sm" onclick="creerBon(${dev}, ${id})">${icon('filetext', 13)} Créer le bon d’intervention</button>`;
+      return `<div class="sav-garantie"><span class="sav-g ${cls}">${icon(g.sous_garantie ? 'check' : 'warning', 11)} ${esc(g.texte)}${g.sous_garantie ? ' — gratuit' : ''}</span>${suite}</div>`;
+    }
+    function photosHtml(t, dev, id) {
+      const av = t.photos || [], ap = t.photos_apres || [];
+      if (!av.length && !ap.length) return '';
+      const serie = (urls, nom, lib, cls) => `<div class="sp-col"><div class="sp-lbl ${cls}">${lib}</div><div class="sp-row">${urls.map((u, i) =>
+        `<button type="button" onclick="voirPhotos(${dev}, ${id}, '${nom}', ${i})" aria-label="Agrandir la photo"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join('')}</div></div>`;
+      return `<div class="sav-photos">${av.length ? serie(av, 'avant', 'Constat', '') : ''}${ap.length ? serie(ap, 'apres', 'Après', 'apres') : ''}</div>`;
+    }
+    function terrainHtml(t) {
+      const d = t.devis || {};
+      const tel = String(d.telephone || '').split(',')[0].trim();
+      const a = d.adresse || {};
+      const adr = [((a.rue || '') + ' ' + (a.numero || '')).trim(), ((a.code_postal || '') + ' ' + (a.ville || d.ville || '')).trim()].filter(Boolean).join(', ');
+      const b = [];
+      if (tel) b.push(`<a class="btn btn-ghost btn-sm" href="tel:${esc(tel.replace(/[^\d+]/g, ''))}">${icon('phone', 14)} Appeler</a>`);
+      // ⚠️ `jsAttr` et jamais des quotes à la main : « Rue de l'Église » casserait le bouton.
+      if (adr) b.push(`<button type="button" class="btn btn-ghost btn-sm" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(${jsAttr(adr)}), '_blank', 'noopener')">${icon('route', 14)} Y aller</button>`);
+      return b.length ? `<div class="sav-terrain">${b.join('')}</div>` : '';
+    }
+    function boitesHtml(t, dev, id) {
+      const ouverte = (type) => (BOITE.id === t.id && BOITE.type === type) ? 'on' : '';
+      const k = esc(t.id);
       return `
-        <div class="sav-card ticked ${resolu ? 'is-resolu' : ''}">
+        <div class="sav-box ${ouverte('prise')}">
+          <div class="lbl">Pour quand ?</div>
+          <div class="rangee"><input class="input" type="date" id="bx-prise-${k}" value="${esc(t.echeance || plusJours(3))}">
+            <button class="btn btn-primary btn-sm" onclick="prendre(${dev}, ${id}, '${esc(moi())}')">Je prends</button>
+            <button class="btn btn-ghost btn-sm" onclick="prendre(${dev}, ${id}, '${esc(autre(moi()))}')">Pour ${esc(nomDe(autre(moi())))}</button></div>
+        </div>
+        <div class="sav-box ${ouverte('piece')}">
+          <div class="lbl">Pièce commandée — arrivée prévue le</div>
+          <div class="rangee"><input class="input" type="date" id="bx-piece-${k}" value="${esc(t.piece_prevue || plusJours(7))}">
+            <input class="input" id="bx-piecenote-${k}" placeholder="Moteur Sunea 40 RTS, chez Harol" value="${esc(t.piece_note || '')}"></div>
+          <div class="sav-box-fin"><button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'piece')">Annuler</button>
+            <button class="btn btn-primary btn-sm" onclick="pieceCommandee(${dev}, ${id})">Pièce commandée</button></div>
+        </div>
+        <div class="sav-box ${ouverte('note')}">
+          <textarea class="textarea" id="bx-note-${k}" style="min-height:52px" placeholder="Appelé le client, il rappelle lundi…"></textarea>
+          <div class="sav-box-fin"><button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'note')">Annuler</button>
+            <button class="btn btn-primary btn-sm" onclick="envoyerNote(${dev}, ${id})">Ajouter la note</button></div>
+        </div>
+        <div class="sav-box ${ouverte('repare')}">
+          <textarea class="textarea" id="bx-repare-${k}" style="min-height:52px" placeholder="Ce qui a été réparé (obligatoire)…"></textarea>
+          <input class="input" id="bx-cause-${k}" style="margin-top:var(--sp-2)" placeholder="La cause, si elle est connue (facultatif)">
+          <div class="sav-ajout-photo">
+            <label class="btn btn-ghost btn-sm">${icon('camera', 13)} Photo après
+              <input type="file" accept="image/*" multiple style="display:none" onchange="ajouterPhotoApres(${dev}, ${id}, this)">
+            </label>
+            <span class="sp-attente" id="pa-${k}">${(t.photos_apres || []).length ? (t.photos_apres.length + ' photo(s) enregistrée(s)') : ''}</span>
+          </div>
+          <div class="sav-box-fin"><button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'repare')">Annuler</button>
+            <button class="btn btn-primary btn-sm" onclick="cloturer(${dev}, ${id})">Marquer réparé</button></div>
+        </div>`;
+    }
+    function actionsHtml(t, dev, id) {
+      const e = SAV.etape(t);
+      const b = [];
+      if (e === 3) {
+        b.push(`<button class="btn btn-ghost btn-sm" onclick="rouvrir(${dev}, ${id})">${icon('reply', 13)} Rouvrir</button>`);
+      } else {
+        if (!t.pour) b.push(`<button class="btn btn-primary btn-sm" onclick="boite(${id}, 'prise')">Je prends…</button>`);
+        else b.push(`<button class="btn btn-ghost btn-sm" onclick="passerA(${dev}, ${id}, '${esc(autre(t.pour))}')">Passer à ${esc(nomDe(autre(t.pour)))}</button>`);
+        if (e === 2) b.push(`<button class="btn btn-ghost btn-sm" onclick="pieceRecue(${dev}, ${id})">${icon('check', 13)} Pièce reçue</button>`);
+        else b.push(`<button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'piece')">${icon('box', 13)} Pièce commandée</button>`);
+        b.push(`<button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'note')">${icon('message', 13)} Note</button>`);
+        b.push(`<button class="btn btn-ghost btn-sm" onclick="boite(${id}, 'repare')">${icon('check', 13)} Réparé</button>`);
+      }
+      b.push(`<a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(t.devisId)}#sav">${icon('window', 14)} La fiche</a>`);
+      b.push(`<a class="btn btn-ghost btn-sm" href="${U.lienSujet({ client: t.client, devis_id: t.devisId, kind: 'question' })}" title="Poser une question à l'autre sur ce SAV">${icon('message', 14)} Demander</a>`);
+      return `<div class="sav-actions">${b.join('')}</div>`;
+    }
+    function ticketCard(t) {
+      const id = jsAttr(t.id), dev = jsAttr(t.devisId);
+      const e = SAV.etape(t);
+      const age = SAV.anciennete(t);
+      const resume = U.resumeDevis ? U.resumeDevis(t.devis) : '';
+      const notes = t.notes || [];
+      const pastille = e === 3
+        ? `<span class="sav-age ok-repare">${icon('check', 10)} réparé${t.date_resolution ? ' le ' + esc(fmtDate(t.date_resolution).slice(0, 5)) : ''}</span>`
+        : `<span class="sav-age ${age.niveau}" title="Ouvert le ${esc(fmtDate(t.date_creation))}">${t.pour ? esc(nomDe(t.pour)) : 'Personne'} · ${age.j ? 'depuis ' + age.j + ' j' : 'aujourd’hui'}</span>`;
+      return `
+        <div class="sav-card ticked etape-${e} ${e === 3 ? 'is-resolu' : ''} ${!t.pour && e < 3 ? 'personne' : ''}" data-ticket="${esc(t.id)}">
           <div class="sav-head">
             <div>
               <div class="sav-client">${esc(t.client) || '—'}</div>
-              <div class="sav-devis">Devis #${esc(t.devisId)} · ${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}</div>
+              <div class="sav-devis">${resume ? esc(resume) + ' · ' : ''}#${esc(t.devisId)}${t.devis && t.devis.ville ? ' · ' + esc(t.devis.ville) : ''}</div>
             </div>
-            <span class="badge ${badgeCls}">${statutLabel}</span>
+            ${pastille}
           </div>
-          <div class="sav-garantie ${clsG}">${icon(g.sous_garantie ? 'check' : 'warning', 11)} ${esc(g.texte)}</div>
+          ${garantieHtml(t, dev, id)}
+          <div class="sav-nature">${esc(SAV_TYPE_LABEL[t.probleme] || t.probleme)}${SAV.enRetard(t) ? ' · <span style="color:var(--danger)">en retard</span>' : ''}</div>
           <div class="sav-desc">${esc(t.description)}</div>
-          <div class="sav-date">Ouvert le ${fmtDate(t.date_creation)}${t.date_resolution ? ' · Résolu le ' + fmtDate(t.date_resolution) : ''}</div>
-          <div class="sav-date">${resolu ? '' :
-            (t.pour
-              ? icon('user', 11) + ' ' + esc(nomDe(t.pour))
-              : '<span style="color:var(--danger)">' + icon('warning', 11) + ' Personne ne s’en occupe</span>')
-            + (t.echeance ? ' · pour le ' + esc(fmtDate(t.echeance)) : '')}</div>
-          ${(t.photos || []).length || (t.photos_apres || []).length ? `<div class="sav-photos">
-            ${(t.photos || []).length ? `<div class="sp-col"><div class="sp-lbl">Avant</div><div class="sp-row">${t.photos.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Constat"></a>`).join('')}</div></div>` : ''}
-            ${(t.photos_apres || []).length ? `<div class="sp-col"><div class="sp-lbl apres">Après</div><div class="sp-row">${t.photos_apres.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Réparation"></a>`).join('')}</div></div>` : ''}
-          </div>` : ''}
-          ${t.resolution ? `<div class="sav-resolution">${icon('check', 12)}
-            <div><b>Réparé :</b> ${esc(t.resolution)}
-            ${t.cause ? `<div class="sav-cause">Cause : ${esc(t.cause)}</div>` : ''}
-            <div class="sav-sign">${esc(nomDe(t.resolu_par))}${t.date_resolution ? ' · ' + fmtDate(t.date_resolution) : ''}</div></div></div>` : ''}
+          ${etapesHtml(t)}
+          ${t.statut === 'attente_piece' && t.piece_note ? `<div class="sav-nature">${icon('box', 11)} ${esc(t.piece_note)}</div>` : ''}
+          ${photosHtml(t, dev, id)}
+          ${passagesHtml(t)}
           ${notes.length ? `<div class="sav-notes">${notes.map(n => `
             <div class="sav-note"><span class="sn-qui">${esc(nomDe(n.auteur))}</span>
             <span class="sn-txt">${esc(n.texte)}</span>
-            <span class="sn-qd">${esc(window.SSUI.relTime(n.date))}</span></div>`).join('')}</div>` : ''}
-          <div class="sav-actions">
-            ${resolu
-              ? `<button class="btn btn-ghost btn-sm" onclick="changerStatut(${dev}, ${id}, 'en_cours')">${icon('reply', 13)} Rouvrir</button>`
-              : (t.pour
-                  ? `<button class="btn btn-ghost btn-sm" onclick="attribuer(${dev}, ${id}, '${esc(autre(t.pour))}')">Passer à ${esc(nomDe(autre(t.pour)))}</button>`
-                  : `<button class="btn btn-primary btn-sm" onclick="attribuer(${dev}, ${id}, '${esc(IDENTITE.key || 'nicolas')}')">Je prends</button>
-                     <button class="btn btn-ghost btn-sm" onclick="attribuer(${dev}, ${id}, '${esc(autre(IDENTITE.key || 'nicolas'))}')">Pour ${esc(nomDe(autre(IDENTITE.key || 'nicolas')))}</button>`)
-                + `<button class="btn btn-ghost btn-sm" onclick="ouvrirNote(${id})">${icon('message', 13)} Note</button>
-                   <button class="btn btn-ghost btn-sm" onclick="ouvrirResolution(${id})">${icon('check', 13)} Réparé</button>`}
-            <a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(t.devisId)}#sav">${icon('window', 14)} La fiche</a>
-            <a class="btn btn-ghost btn-sm" href="${window.SSUI.lienSujet({ client: t.client, devis_id: t.devisId, kind: 'question' })}" title="Poser une question à l'autre sur ce SAV">${icon('message', 14)} Demander</a>
-          </div>
-          <div class="sav-box ${NOTE_OUVERTE === t.id ? 'on' : ''}">
-            <textarea class="textarea" id="nt-${esc(t.id)}" style="min-height:52px" placeholder="Appelé le client, pièce commandée…"></textarea>
-            <div class="sav-box-fin"><button class="btn btn-primary btn-sm" onclick="envoyerNote(${dev}, ${id})">Ajouter</button></div>
-          </div>
-          <div class="sav-box ${RESOUT === t.id ? 'on' : ''}">
-            <textarea class="textarea" id="rs-${esc(t.id)}" style="min-height:52px" placeholder="Ce qui a été réparé (obligatoire)…"></textarea>
-            <input class="input" id="cs-${esc(t.id)}" style="margin-top:var(--sp-2)" placeholder="La cause, si elle est connue (facultatif)">
-            <div class="sav-ajout-photo">
-              <label class="btn btn-ghost btn-sm">${icon('camera', 13)} Photo après
-                <input type="file" accept="image/*" multiple style="display:none" onchange="ajouterPhotoApres(${dev}, ${id}, this)">
-              </label>
-              <span class="sp-attente" id="pa-${esc(t.id)}">${(t.photos_apres || []).length ? (t.photos_apres.length + ' photo(s) enregistrée(s)') : ''}</span>
-            </div>
-            <div class="sav-box-fin">
-              <button class="btn btn-ghost btn-sm" onclick="ouvrirResolution(${id})">Annuler</button>
-              <button class="btn btn-primary btn-sm" onclick="cloturer(${dev}, ${id})">Marquer réparé</button>
-            </div>
-          </div>
+            <span class="sn-qd">${esc(U.relTime(n.date))}</span></div>`).join('')}</div>` : ''}
+          ${terrainHtml(t)}
+          ${actionsHtml(t, dev, id)}
+          ${e === 3 ? '' : boitesHtml(t, dev, id)}
         </div>`;
     }
+    function syntheseHtml() {
+      const s = SAV.synthese(TICKETS);
+      if (!s.total) return '';
+      return `<details class="sav-synthese" id="synthese">
+        <summary>Ce qui casse le plus <small>· ${s.total} ticket${s.total > 1 ? 's' : ''} depuis le ${esc(fmtDate(s.depuis))}</small></summary>
+        <div class="sav-chips">${s.parNature.map(n => `<span class="sav-chip">${esc(n.label)} <b>${n.n}</b></span>`).join('')}</div>
+        ${s.moteurs.length ? `<div class="sav-chips">${s.moteurs.map(m => `<span class="sav-chip">${icon('motor', 11)} ${esc(m.label)} <b>${m.n}</b></span>`).join('')}</div>` : ''}
+        ${s.aSignaler.length ? `<div class="sav-signal">${icon('warning', 13)} ${s.aSignaler.map(m => esc(m.label) + ' : ' + m.n + ' pannes de moteur').join(' · ')} — peut-être un défaut de série, à signaler à Harol.</div>` : ''}
+      </details>`;
+    }
+    window.basculerRepares = () => { VOIR_REPARES = !VOIR_REPARES; render(); };
 
-    function render(all) {
-      const ouverts = all.filter(t => t.statut === 'ouvert').sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
-      const enCours = all.filter(t => t.statut === 'en_cours').sort((a, b) => String(b.date_creation).localeCompare(String(a.date_creation)));
-      const resolus = all.filter(t => t.statut === 'resolu').sort((a, b) => String(b.date_resolution || b.date_creation).localeCompare(String(a.date_resolution || a.date_creation)));
-
-      el('kpis').innerHTML = `
-        <div class="kpi ticked danger"><div class="kpi-label">Ouverts</div><div class="kpi-value">${ouverts.length}</div><div class="kpi-sub">à traiter</div></div>
-        <div class="kpi ticked"><div class="kpi-label">En cours</div><div class="kpi-value">${enCours.length}</div><div class="kpi-sub">en traitement</div></div>
-        <div class="kpi ticked ok"><div class="kpi-label">Résolus</div><div class="kpi-value">${resolus.length}</div><div class="kpi-sub">total historique</div></div>`;
-      if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
-
-      if (!all.length) {
-        // Un écran vide sans point d'entrée se lit comme « fonctionnalité absente » : on explique
-        // et on propose l'action directement ici.
+    function render() {
+      const f = SAV.file(TICKETS);
+      const r = SAV.resume(TICKETS);
+      el('resume').innerHTML = r.aTraiter
+        ? `<span><b>${r.aTraiter}</b> ticket${r.aTraiter > 1 ? 's' : ''} à traiter</span>`
+          + (r.sansPersonne ? ` <span class="alerte">${r.sansPersonne} sans personne</span>` : '')
+          + (r.enRetard ? ` <span class="alerte">${r.enRetard} en retard</span>` : '')
+          + (r.piece ? ` <span>${r.piece} attend${r.piece > 1 ? 'ent' : ''} une pièce</span>` : '')
+          + (r.repares ? ` <span>${r.repares} réparé${r.repares > 1 ? 's' : ''}</span>` : '')
+        : `<span><b>Rien à traiter</b></span>${r.repares ? ` <span>${r.repares} réparé${r.repares > 1 ? 's' : ''}</span>` : ''}`;
+      if (!TICKETS.length) {
         el('host').innerHTML = `<div class="empty">${icon('check', 40)}
           <div>Aucun ticket SAV pour l'instant.</div>
-          <div class="hint">Un ticket se crée sur un chantier posé — clique ci-dessous pour choisir le chantier concerné.</div>
-          <button class="btn btn-primary mt-4" onclick="openPicker()">+ Nouveau ticket SAV</button>
+          <div class="hint">Un ticket se crée dès que le devis est signé — même avant la pose, pour un matériel livré défectueux.</div>
+          <button class="btn btn-primary mt-4" onclick="ouvrirNouveau()">+ Nouveau ticket SAV</button>
         </div>`;
         return;
       }
-      const section = (title, list) => list.length ? `
-        <div class="sav-section-title">${title} <span class="n">(${list.length})</span></div>
-        <div class="sav-grid">${list.map(ticketCard).join('')}</div>` : '';
-      el('host').innerHTML = section('Ouverts', ouverts) + section('En cours', enCours) + section('Résolus', resolus);
+      el('host').innerHTML =
+        (f.aTraiter.length ? `<div class="sav-section-title">À traiter <span class="n">(${f.aTraiter.length})</span></div>
+          <div class="sav-grid">${f.aTraiter.map(ticketCard).join('')}</div>` : '')
+        + (f.repares.length ? `<button class="btn btn-ghost btn-sm sav-repares-btn" onclick="basculerRepares()" aria-expanded="${VOIR_REPARES}">
+            <span style="display:inline-flex;${VOIR_REPARES ? 'transform:rotate(180deg)' : ''}">${icon('chevrondown', 13)}</span> ${VOIR_REPARES ? 'Masquer' : 'Voir'} ${f.repares.length > 1 ? 'les ' + f.repares.length + ' tickets réparés' : 'le ticket réparé'}</button>
+          ${VOIR_REPARES ? `<div class="sav-grid" style="margin-top:var(--sp-3)">${f.repares.map(ticketCard).join('')}</div>` : ''}` : '')
+        + syntheseHtml();
     }
 
-    el('modalPick').addEventListener('click', (e) => { if (e.target === el('modalPick')) closePicker(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePicker(); });
+    /* ── B — Nouveau ticket ───────────────────────────────────────────────────────────────────
+       Les règles des fenêtres de l'ERP (CLAUDE.md, pièges et règle 13 bis) : le fond ne ferme que si
+       le geste y a COMMENCÉ, Échap dans un menu ou un champ date ne ferme rien, une saisie entamée
+       demande « Fermer sans enregistrer ? », et sur téléphone « retour » ferme la fenêtre. */
+    let NV = { devis: '', photos: [], pour: '', sale: false, recherche: '' };
+    const ETAPE_NV = { savNouveau: true };
+    function nvChantierHtml() {
+      if (NV.devis) {
+        const d = LISTE.filter(x => x.id === NV.devis)[0] || {};
+        const resume = U.resumeDevis ? U.resumeDevis(d) : '';
+        return `<span class="label">Chantier</span><div class="nv-choisi"><div><div class="pi-name" style="font-weight:700">${esc(`${d.prenom || ''} ${d.nom || ''}`.trim() || '—')}</div>
+          <div class="pi-sub" style="font-size:var(--fs-2xs);color:var(--text-muted)">${resume ? esc(resume) + ' · ' : ''}#${esc(d.id)}${d.ville ? ' · ' + esc(d.ville) : ''}</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="nvChoisir('')">Changer</button></div>`;
+      }
+      const q = NV.recherche.trim().toLowerCase();
+      const liste = q ? ELIGIBLES.filter(d => `${d.prenom} ${d.nom} ${d.id} ${d.ville} ${U.resumeDevis ? U.resumeDevis(d) : ''}`.toLowerCase().includes(q)) : ELIGIBLES;
+      return `<label class="label" for="nvRecherche">Sur quel chantier ?</label>
+        <input class="input" id="nvRecherche" placeholder="Un client, une ville, un n° de devis…" value="${esc(NV.recherche)}" oninput="nvChercher(this.value)" style="margin-bottom:var(--sp-2)">
+        <div class="pick-list" id="nvListe">${liste.length ? liste.slice(0, 60).map(d => {
+          const resume = U.resumeDevis ? U.resumeDevis(d) : '';
+          const n = (d.sav_tickets || []).length;
+          return `<button class="pick-item" onclick="nvChoisir(${jsAttr(d.id)})"><div class="pi-main">
+            <div class="pi-name">${esc(`${d.prenom} ${d.nom}`.trim() || '—')}</div>
+            <div class="pi-sub">${resume ? esc(resume) + ' · ' : ''}#${esc(d.id)}${d.ville ? ' · ' + esc(d.ville) : ''}${n ? ' · ' + n + ' ticket' + (n > 1 ? 's' : '') : ''}</div>
+          </div>${icon('chevronright', 14)}</button>`;
+        }).join('') : `<div class="empty">Aucun chantier ne correspond.<div class="hint">Un ticket se crée sur un devis signé — même avant la pose.</div></div>`}</div>`;
+    }
+    function nvRendre() {
+      el('nvChantier').innerHTML = nvChantierHtml();
+      el('nvPhotos').innerHTML = NV.photos.map(u => `<img src="${esc(u)}" alt="">`).join('');
+      el('nvPour').innerHTML = [['', 'Personne pour l’instant'], [moi(), 'Moi'], [autre(moi()), nomDe(autre(moi()))]].map(([k, l]) =>
+        `<label><input type="radio" name="nvPour" value="${esc(k)}" ${NV.pour === k ? 'checked' : ''} onchange="nvPour(this.value)"> ${esc(l)}</label>`).join('');
+    }
+    window.nvChercher = (v) => {
+      NV.recherche = v;
+      el('nvListe').outerHTML = (() => { const tmp = document.createElement('div'); tmp.innerHTML = nvChantierHtml(); return tmp.querySelector('#nvListe').outerHTML; })();
+    };
+    window.nvChoisir = (id) => { NV.devis = id; NV.sale = NV.sale || !!id; nvRendre(); if (!id) { const r = el('nvRecherche'); if (r) r.focus(); } };
+    window.nvPour = (k) => {
+      NV.pour = k; NV.sale = true;
+      // Un nom sans date ne rend rien urgent (règle 15) : on propose trois jours, modifiables.
+      if (k && !el('nvEcheance').value) el('nvEcheance').value = plusJours(3);
+    };
+    window.ajouterPhotoConstat = async (input) => {
+      const fichiers = [...(input.files || [])];
+      input.value = '';
+      if (!fichiers.length) return;
+      if (!NV.devis) { toast('Choisis d’abord le chantier : la photo est rangée avec lui.', 'warn', 5000); return; }
+      for (const f of fichiers) {
+        try { NV.photos.push(await U.compressAndUploadPhoto(f, NV.devis)); NV.sale = true; }
+        catch (e) { toast('Photo non envoyée : ' + e.message, 'error', 6000); }
+      }
+      nvRendre();
+    };
+    window.ouvrirNouveau = () => {
+      NV = { devis: '', photos: [], pour: '', sale: false, recherche: '' };
+      el('nvNature').innerHTML = Object.keys(SAV_TYPE_LABEL).map(k => `<option value="${esc(k)}">${esc(SAV_TYPE_LABEL[k])}</option>`).join('');
+      el('nvDesc').value = ''; el('nvEcheance').value = '';
+      nvRendre();
+      el('modalNew').classList.add('open');
+      // Sur téléphone, « retour » doit fermer la fenêtre, pas quitter la page (règle 13 bis).
+      try { if (matchMedia('(max-width: 900px)').matches) history.pushState(ETAPE_NV, ''); } catch (e) {}
+      const r = el('nvRecherche'); if (r) r.focus();
+    };
+    function estSale() { return NV.sale || !!el('nvDesc').value.trim() || !!el('nvEcheance').value; }
+    function fermerSansHistorique(force) {
+      if (!el('modalNew').classList.contains('open')) return true;
+      if (!force && estSale() && !confirm('Fermer sans enregistrer ce ticket ?')) return false;
+      el('modalNew').classList.remove('open');
+      return true;
+    }
+    window.fermerNouveau = (force) => {
+      if (!fermerSansHistorique(force)) return;
+      // L'étape d'historique posée à l'ouverture est retirée, sinon « retour » ne ferait plus rien.
+      try { if (history.state && history.state.savNouveau) history.back(); } catch (e) {}
+    };
+    window.addEventListener('popstate', () => {
+      if (el('modalNew').classList.contains('open') && !fermerSansHistorique(false)) {
+        try { history.pushState(ETAPE_NV, ''); } catch (e) {}
+      }
+    });
+    window.creerTicket = async () => {
+      if (!NV.devis) { toast('Choisis le chantier concerné.', 'warn'); const r = el('nvRecherche'); if (r) r.focus(); return; }
+      const description = el('nvDesc').value.trim();
+      if (!description) { toast('Décris le problème — c’est ce qu’on lira en arrivant chez le client.', 'warn', 5000); el('nvDesc').focus(); return; }
+      const pour = NV.pour, echeance = el('nvEcheance').value || '';
+      if (pour && !echeance) { toast('Dis pour quand — sans date, rien ne devient jamais urgent.', 'warn', 5000); el('nvEcheance').focus(); return; }
+      el('nvCreer').disabled = true;
+      const res = await SS.saveSavTicket(NV.devis, {
+        probleme: el('nvNature').value, description: description, photos: NV.photos.slice(),
+        pour: pour, echeance: echeance, statut: 'ouvert',
+      });
+      el('nvCreer').disabled = false;
+      if (!res || res.ok === false) { toast((res && res.error) || 'Ticket NON créé — réessaie.', 'error', 6000); return; }
+      toast('Ticket SAV créé ✓', 'ok');
+      window.fermerNouveau(true);
+      load();
+    };
+    let downSurFond = false;
+    el('modalNew').addEventListener('mousedown', (e) => { downSurFond = e.target === el('modalNew'); });
+    el('modalNew').addEventListener('click', (e) => { if (e.target === el('modalNew') && downSurFond) window.fermerNouveau(); downSurFond = false; });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !el('modalNew').classList.contains('open')) return;
+      const t = e.target;
+      // Échap referme d'abord le calendrier ou le menu du navigateur, jamais la fenêtre entière.
+      if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(date|time|datetime-local)$/.test(t.type)))) return;
+      window.fermerNouveau();
+    });
+    el('nvDesc').addEventListener('input', () => { NV.sale = true; });
 
-    load();
+    // Arrivée depuis un autre écran avec ?nouveau=1 (et éventuellement &devis=…) : la fenêtre s'ouvre,
+    // puis le paramètre quitte l'adresse — sinon un rechargement en rouvrirait une.
+    load().then(() => {
+      if (U.qp('nouveau')) {
+        window.ouvrirNouveau();
+        const dv = U.qp('devis');
+        if (dv && ELIGIBLES.some(d => d.id === dv)) window.nvChoisir(dv);
+        try { history.replaceState(history.state, '', location.pathname); } catch (e) {}
+      }
+    });
   </script>
 </body>
 </html>

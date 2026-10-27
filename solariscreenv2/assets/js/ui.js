@@ -392,6 +392,10 @@
       has_review_link: (d.has_review_link != null) ? !!d.has_review_link
         : (!!d.review_token || (Array.isArray(d.review_views) && d.review_views.length > 0)),
       sav_tickets: d.sav_tickets || [],
+      // Un DÉPANNAGE créé depuis un ticket SAV dit lequel (règle 47) : la page SAV retrouve ainsi son
+      // bon d'intervention sans rien réécrire sur le ticket.
+      sav_origine_devis: (d.sav_origine && d.sav_origine.devis_id) || d.sav_origine_devis || '',
+      sav_origine_ticket: (d.sav_origine && d.sav_origine.ticket_id) || d.sav_origine_ticket || '',
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       date_envoi: d.date_envoi || '',
       relances: d.relances || [],
@@ -525,6 +529,23 @@
     garantie: 'Garantie',
     autre: 'Autre',
   };
+  /* LES ÉTAPES D'UN TICKET SAV (règle 47), dans l'ordre. Écrites ICI parce que la page SAV et la
+     carte SAV de la fiche devis doivent dire la même chose au mot près (règle 20 bis) : la fiche
+     avait sa propre table, à trois étapes. « Pris en charge » et non « En cours » : un ticket qui
+     porte un nom EST pris en charge (le serveur le fait passer tout seul). */
+  const SAV_STATUTS = ['ouvert', 'en_cours', 'attente_piece', 'resolu'];
+  const SAV_STATUT_LABEL = {
+    ouvert: 'Ouvert', en_cours: 'Pris en charge', attente_piece: 'Pièce commandée', resolu: 'Réparé',
+  };
+  /** L'historique des réparations d'un ticket, du plus ancien au plus récent. Un ticket clos AVANT
+   *  l'historique (27/10/2026) n'a qu'une « résolution » à plat : elle devient son premier passage,
+   *  exactement comme le serveur la reprendra à la prochaine écriture. */
+  function savPassages(t) {
+    if (!t) return [];
+    if (Array.isArray(t.passages) && t.passages.length) return t.passages.slice();
+    return t.resolution ? [{ id: 'p0', date: t.date_resolution || t.date_creation || '', par: t.resolu_par || null,
+      resolution: t.resolution, cause: t.cause || '' }] : [];
+  }
 
   /** Un SAV est-il possible sur ce dossier ? Dès que le devis est SIGNÉ : un matériel livré
    *  défectueux se constate bien avant la pose, et il fallait pouvoir l'enregistrer. Un dossier
@@ -2094,6 +2115,7 @@
     STATUT_DEVIS_LABEL: STATUT_DEVIS_LABEL, STATUT_DEVIS_COULEUR: STATUT_DEVIS_COULEUR, lienSujet: lienSujet,
     nouveauSujet: nouveauSujet, dateSignature: dateSignature, dateReception: dateReception,
     SAV_TYPE_LABEL: SAV_TYPE_LABEL, savPossible: savPossible,
+    SAV_STATUTS: SAV_STATUTS, SAV_STATUT_LABEL: SAV_STATUT_LABEL, savPassages: savPassages,
     showSaveConflict: showSaveConflict, icon: icon, compressImage: compressImage, countUp: countUp, animateKpis: animateKpis, sparkline: sparkline,
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,

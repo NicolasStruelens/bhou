@@ -97,7 +97,10 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 26 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/bac-a-sable.test.html` | Les 29 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html` et `sav.test.html` (règles 46 et 47). |
+| `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
+| `tests/sav.test.html` | Les 64 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone et « retour ». Vérifié par 12 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -477,10 +480,13 @@ mélanger fait perdre la seule preuve utile et on ne sait plus à quoi ressembla
 de pose, on répond « inconnue » : on ne devine pas.
 Clore un ticket EXIGE d'écrire la réparation (la cause reste facultative) — même règle que la
 décision d'un sujet : six mois plus tard, le même défaut revient et personne ne sait ce qui avait
-été fait. Signée et horodatée par le serveur, conservée si le ticket rouvre.
+été fait. **C'est le SERVEUR qui le tient** (400 sans texte, depuis le 27/10/2026 : le menu de statut
+de la fiche devis passait « Résolu » sans un mot). Chaque clôture devient un PASSAGE daté et signé,
+qui s'ajoute aux précédents si le ticket rouvre puis se referme (règle 47).
 Les NOTES du ticket ont leur propre route (`/api/devis/:id/sav/:tid/note`), en écriture ciblée.
 ⚠️ Le serveur reconstruit un ticket CHAMP PAR CHAMP : tout appelant de `saveSavTicket` doit renvoyer
-le ticket ENTIER (`pour`, `echeance`, `cause`, `resolution`, `notes`…), sinon il les efface.
+le ticket ENTIER — `pour` et `echeance` surtout, sinon il les efface. Les notes, les passages et la
+pièce commandée (`piece_prevue`, `piece_note`), eux, sont repris de la base quand ils manquent.
 Les deux écrans du SAV — `app/sav.html` et la carte de `app/vue.html` — doivent afficher la même
 chose, sinon on refait le diagnostic.
 
@@ -2327,11 +2333,14 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
 • **La fiche-marqueur** est posée en premier et jamais retirée par « Vider » : sans elle, une base d'essai
   vidée qui garde un devis saisi à la main ressemble trait pour trait à une vraie, et serait refusée pour
   toujours (tests V2 et V3).
-• **Vingt dossiers, un par situation que le tableau de bord reconnaît** — brouillon, relances 1 et 2, mise
-  en attente, accepté en ligne, acompte à encaisser, chez le fournisseur, pose à planifier, chantier à
+• **Vingt et un dossiers, un par situation que le tableau de bord reconnaît** — brouillon, relances 1 et 2,
+  mise en attente, accepté en ligne, acompte à encaisser, chez le fournisseur, pose à planifier, chantier à
   préparer, solde en retard, soldé au portfolio, refusé, expiré, dépannage fait et à faire, SAV, archive,
-  devis informatif, données abîmées — plus cinq demandes de visite, trois sujets, deux exceptions de
-  planning et un quasi-doublon de fiche. Le test R10 vérifie CHAQUE dossier avec la vraie règle
+  devis informatif, données abîmées, SAV hors garantie — plus cinq demandes de visite, trois sujets, deux
+  exceptions de planning et un quasi-doublon de fiche. Côté SAV (règle 47, tests R14 à R16) : une pièce
+  commandée (ESSAI-11), un ticket réparé avec son passage (ESSAI-12), un ticket confié (ESSAI-17) et un
+  ticket HORS garantie sans personne depuis neuf jours (ESSAI-21) — écrit dans le devis et non par la
+  route, parce que le serveur date un ticket « maintenant » et que c'est son ANCIENNETÉ qu'il faut voir. Le test R10 vérifie CHAQUE dossier avec la vraie règle
   (`SSActions`) sur la liste telle que le serveur la projette. Noms à apostrophe (L'Hoest,
   Braine-l'Alleud), accents, TVA 21 %.
 • **Faux par construction** : e-mails en `@exemple.invalid` (ne peut rien recevoir, RFC 2606),
@@ -2347,8 +2356,9 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   mémoire (sql.js 1.10.3 depuis cdnjs, fonctions JSON comprises), une surface D1 réduite à
   `prepare / bind / first / all / run` — aussi stricte que D1 (un `undefined` lié lève une erreur) — et un
   faux réseau qui pose l'en-tête Access. C'est le seul banc qui rejoue des écritures de bout en bout sans
-  Cloudflare : **à réutiliser pour toute nouvelle route.** Vérifié par mutation (garde « vraie base »,
-  doublons de factures, champs privés envoyés).
+  Cloudflare : **à réutiliser pour toute nouvelle route** — il vit dans `tests/banc-serveur.js` depuis le
+  27/10/2026 (`window.SSBanc`, règle 47). Vérifié par mutation (garde « vraie base », doublons de
+  factures, champs privés envoyés).
 • ⚠️ **Jamais de clé SMTP2GO dans l'environnement Preview** : un essai ne doit pas pouvoir envoyer de mail.
 • **BRANCHÉ le 27/10/2026.** Adresse fixe : `essai-bac-a-sable.solariscreen-erp.pages.dev` (branche
   `essai/bac-a-sable`, la production telle quelle plus un commit vide — jamais fusionnée). Access :
@@ -2362,6 +2372,64 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
     répond 404 ;
   - le traceur Web Analytics de Cloudflare (`cloudflareinsights.com`) remplit la console d'erreurs CORS
     sur les aperçus : c'est du bruit côté Cloudflare, sans effet sur l'ERP.
+
+**47. LA PAGE SAV EST UNE FILE DE TRAVAIL : QUI s'en occupe, DEPUIS QUAND, et CE QUI A DÉJÀ ÉTÉ FAIT**
+(27/10/2026 — revue de la page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent
+dans `assets/js/sav.js` (`window.SSSav`, fonctions pures) ; protégé par `tests/sav.test.html`.
+• **A — La file.** Une ligne de résumé remplace les trois tuiles (317 px sur téléphone : les boutons du
+  premier ticket passaient sous l'écran). L'ordre EST le raisonnement de la règle 15 : ce que PERSONNE
+  n'a pris, puis ce qui est en retard (échéance dépassée, ou pièce pas arrivée à la date prévue), puis le
+  plus ANCIEN. Avant, le plus récent passait devant : le client qui attendait depuis trois semaines
+  finissait en bas. L'âge est sur chaque carte (gênant à 3 jours, criant à 7 : `SSAttente.SEUILS`). Les
+  réparés sont repliés derrière un bouton.
+• **Quatre étapes** (`SSUI.SAV_STATUTS`, libellés dans `SAV_STATUT_LABEL`, partagés avec la fiche devis) :
+  Ouvert → Pris en charge (`en_cours`) → Pièce commandée (`attente_piece`) → Réparé.
+  ⚠️ **Un nom posé suffit à « pris en charge », et c'est le SERVEUR qui le fait** (`ouvert` + `pour` →
+  `en_cours`) : « Je prends » laissait le ticket « Ouvert », et la colonne « En cours » ne contenait que
+  les tickets ROUVERTS. Corollaire, trouvé en relisant la route : **la page n'envoie jamais `en_cours`
+  elle-même.** « Je prends » n'envoie AUCUN statut — sinon une pièce commandée sans responsable
+  reculait en « pris en charge » et son attente disparaissait (test N12) ; « Pièce reçue » et « Rouvrir »
+  envoient `ouvert`, que le serveur relève s'il y a un nom. Un statut inconnu garde celui d'avant.
+• **Pièce commandée** (`piece_prevue`, `piece_note`) : la balle est chez le fournisseur. `attente.js` la
+  liste sans peser tant que la date prévue n'est pas passée, puis « Pièce SAV en retard » (urgent) :
+  c'est à nous de relancer Harol. La date est exigée : sans elle, rien ne dit quand s'inquiéter.
+• **D — L'historique des passages** (`passages`, `SSUI.savPassages`) : chaque clôture AJOUTE une ligne
+  datée et signée par l'identité Access. ⚠️ Avant, une seule « résolution » : reclore un ticket rouvert
+  effaçait la première réparation, et la signature restait celle du premier réparateur — Yannick
+  réparait, le ticket disait « Nicolas ». Un ticket clos AVANT l'historique voit son ancienne résolution
+  reprise comme premier passage (`p0`), au serveur à la première écriture et à l'écran dès la lecture.
+  Les champs à plat (`resolution`, `cause`, `resolu_par`) restent le miroir du DERNIER passage, pour les
+  appelants d'avant. Un ticket ROUVERT montre ses réparations en « Passages précédents », jamais
+  « Réparé : » en vert — la fiche devis le faisait, sur un ticket qui ne l'était plus.
+• **B — Nouveau ticket SUR PLACE** (fenêtre `#modalNew`) : le chantier se cherche par client, ville ou
+  numéro, avec son résumé (`SSUI.resumeDevis`) et ses tickets ; seuls les devis SIGNÉS (`savPossible`,
+  règle 20) — la page disait « chantier posé ». Description obligatoire, photos du constat, qui s'en
+  occupe (un nom propose une échéance à trois jours : un nom sans date ne rend rien urgent). Les règles
+  des fenêtres (règle 13 bis) : le fond, Échap dans un champ date, « Fermer sans enregistrer ? »,
+  « retour » sur téléphone. `?nouveau=1&devis=…` l'ouvre, puis le paramètre quitte l'adresse.
+• **E — Hors garantie, un BON D'INTERVENTION** : « Créer le bon d'intervention » ouvre le simulateur en
+  dépannage pré-rempli (`ss_prefill_client` et `ss_prefill_depannage` : motif « SAV moteur — … » et
+  `sav_origine`), lus une fois puis effacés. Le dépannage porte `sav_origine`, projeté à plat par la
+  liste (`sav_origine_devis`, `sav_origine_ticket`, gardés par `normDevis`) : la carte retrouve son bon
+  (`SSSav.bonDe`, par le devis ET le ticket) et y MÈNE au lieu d'en proposer un second — sans rien
+  réécrire sur le ticket. Sous garantie, la carte dit « — gratuit ».
+• **F — Terrain** : Appeler / Y aller sur téléphone seulement (règle 33 ; `jsAttr`, « Rue de l'Église »).
+  Les photos s'ouvrent DANS la page (`SSUI.ouvrirPhotos`, règle 26) : un nouvel onglet faisait quitter
+  l'ERP installé sur l'iPhone, sans chemin du retour.
+• **G — Ce qui casse le plus** (`SSSav.synthese`) : douze mois glissants, par nature, et les moteurs des
+  chantiers en panne moteur (lus dans `items_min` : `moteur_ref` d'un screen, `moteur` d'un volet ou
+  d'une tente). Un même moteur à deux pannes ou plus est signalé « à dire à Harol » : un défaut de série
+  se prouve par les tickets, pas de mémoire.
+• **L'assistant lisait `t.type`, qui n'existe pas** : la nature d'un ticket s'appelle `probleme`.
+• ⚠️ **LE BANC DES TESTS SERVEUR VIT DANS `tests/banc-serveur.js`** (`window.SSBanc`, sorti du test du bac
+  à sable). `SSBanc.cadre(url)` ÉCRIT la page dans un cadre déjà branché (`document.open` / `write`).
+  Deux essais écartés, et pourquoi : régler le `fetch` d'un cadre vide puis naviguer ne tient pas
+  (Chrome donne au document une fenêtre NEUVE) ; naviguer et GUETTER le nouveau document par minuterie
+  marche quand on regarde, et échoue une fois sur deux quand le panneau du navigateur est masqué — ses
+  minuteries tombent à une par seconde, la page a déjà fait ses requêtes et retombe sur le cache. **Un
+  test qui passe « parfois » a le même défaut que celui qui ne passe jamais** : `cadre.branche` le
+  vérifie (test P1). ⚠️ Un document ÉCRIT n'a pas d'entrée d'historique à lui : « retour » y change
+  l'état sans déclencher `popstate`. « Retour » se teste donc par une VRAIE navigation (tests T4 à T6).
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2646,8 +2714,10 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
-   Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`) ou à une route qu'il emprunte : `tests/bac-a-sable.test.html`,
-   exiger « 26/26 », par le serveur (il charge sql.js depuis cdnjs).
+   Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
+   `tests/bac-a-sable.test.html`, exiger « 29/29 », par le serveur (il charge sql.js depuis cdnjs).
+   Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
+   `tests/sav.test.html`, exiger « 64/64 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
