@@ -1529,6 +1529,18 @@ export async function onRequest(context) {
       const now = new Date().toISOString();
       const existant = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(s.id).first();
       const ancien = (existant && safeParse(existant.data)) || null;
+      /* CONFLIT ENTRE DEUX ÉCRANS (règle 52). Chaque geste de la page (corriger, classer, garder,
+         confier) renvoie le sujet tel que l'écran l'avait LU : une page restée ouverte rouvrait en
+         silence un sujet que l'autre venait de classer, ou annulait sa correction. L'écran dit la
+         version qu'il a lue (« _attendu » = son « edite_le ») ; si un autre enregistrement complet
+         est passé depuis, on refuse et on dit qui. Les réponses et les photos (routes ciblées) ne
+         touchent pas « edite_le » : elles ne provoquent aucun faux conflit. */
+      if (s._attendu !== undefined && ancien && String(ancien.edite_le || '') !== String(s._attendu || '')) {
+        const parQui = ancien.edite_par ? (String(ancien.edite_par).charAt(0).toUpperCase() + String(ancien.edite_par).slice(1)) : 'L’autre';
+        return json({ ok: false, conflict: true, actuel: ancien,
+          error: parQui + ' vient de modifier ce sujet. Sa version est à l’écran : relis-la, puis recommence si tu veux garder la tienne.' }, 409);
+      }
+      delete s._attendu;
       // Les RÉPONSES ne transitent jamais par cette route : elles ont la leur, qui écrit sur la
       // valeur actuelle de la ligne. Réécrire le sujet entier effacerait ce que l'autre vient
       // d'ajouter — c'est exactement l'accident que la règle 3 du guide décrit.
@@ -1549,6 +1561,14 @@ export async function onRequest(context) {
       const decisionNeuve = String(s.decision || '').trim();
       const decisionAncienne = String((ancien && ancien.decision) || '');
       const decisionChange = !!decisionNeuve && decisionNeuve !== decisionAncienne;
+      /* ⚠️ LA BALLE NE REVIENT PAS CHEZ CELUI QUI A DÉJÀ RÉPONDU (règle 52). « awaiting » valait
+         « pour » à CHAQUE enregistrement : Nicolas demande à Yannick, Yannick répond (la balle passe
+         à Nicolas), Nicolas corrige une faute du titre… et le sujet repartait « chez Yannick ». On ne
+         remet le destinataire que quand il CHANGE, ou quand le sujet est créé ou rouvert. */
+      const vivant = !!ancien && ancien.statut !== 'fait';
+      const awaitingNeuf = statut === 'fait' ? ''
+        : ((vivant && String(ancien.pour || '') === pour && ancien.awaiting !== undefined) ? String(ancien.awaiting || '') : pour);
+      const balleBouge = !ancien || String(ancien.awaiting || '') !== awaitingNeuf;
       const propre = {
         ...(ancien || {}), ...s,
         id: String(s.id).slice(0, 60),
@@ -1583,9 +1603,14 @@ export async function onRequest(context) {
         decision_par: decisionChange ? acteur : ((ancien && ancien.decision_par) || ''),
         decision_le: decisionChange ? now : ((ancien && ancien.decision_le) || ''),
         // Une chose close n'attend plus personne, sinon le badge compterait du travail terminé.
-        awaiting: statut === 'fait' ? '' : pour,
+        awaiting: awaitingNeuf,
+        // Depuis QUAND la balle est chez elle : c'est l'ancienneté que lit « ce qui attend » (règle 15
+        // — jamais date_modification, qu'une photo, une correction ou un rappel font avancer).
+        balle_le: balleBouge ? now : ((ancien && ancien.balle_le) || (ancien && ancien.date_creation) || now),
         date_creation: (ancien && ancien.date_creation) || now,
         date_modification: now,
+        // La version de l'enregistrement complet, et qui l'a faite (le conflit les lit).
+        edite_le: now, edite_par: acteur || '',
         modifie_par: texteChange ? acteur : ((ancien && ancien.modifie_par) || ''),
         modifie_le: texteChange ? now : ((ancien && ancien.modifie_le) || ''),
       };
@@ -1595,7 +1620,7 @@ export async function onRequest(context) {
         ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, statut = excluded.statut, pour = excluded.pour,
           awaiting = excluded.awaiting, client_key = excluded.client_key, devis_id = excluded.devis_id,
           echeance = excluded.echeance, date_modification = excluded.date_modification, data = excluded.data
-      `).bind(propre.id, kind, statut, propre.auteur, pour, propre.awaiting, propre.client_key,
+      `).bind(propre.id, kind, statut, propre.auteur, pour, awaitingNeuf, propre.client_key,
               propre.devis_id, propre.echeance, propre.date_creation, now, JSON.stringify(propre)).run();
       return json({ ok: true, id: propre.id, data: propre });
     }
@@ -1661,9 +1686,20 @@ export async function onRequest(context) {
       const emailRep = parseAccessEmail(request);
       const auteur = (emailRep && IDENTITIES[emailRep.toLowerCase()]) || emailRep || 'nicolas';
       const now = new Date().toISOString();
+      // `rappel` (proposition F) : « Lui rappeler » ajoute au fil un rappel daté et signé ; la balle
+      // RESTE chez l'autre (celui qui rappelle n'est pas celui qu'on attend, donc rien ne bouge).
       const reponse = { id: crypto.randomUUID(), auteur, texte: texte.slice(0, 5000), date: now };
+      if (body.rappel) reponse.rappel = true;
       // `relance` : la réponse repasse explicitement la balle à l'autre (« et toi, tu en penses quoi ? »)
       const relance = ['nicolas', 'yannick'].includes(body.relance) ? body.relance : '';
+      /* La nouvelle valeur de « awaiting », écrite UNE fois et lue deux fois : pour l'écrire, et pour
+         savoir si la balle a changé de camp (« balle_le », l'ancienneté de ce qui attend). Dans un
+         UPDATE, « data » désigne la ligne AVANT la modification : les deux lectures voient l'ancienne. */
+      const NOUVELLE_BALLE = `CASE
+                      WHEN ?4 <> '' THEN ?4
+                      WHEN COALESCE(json_extract(data, '$.awaiting'), '') = ?5
+                        THEN COALESCE(json_extract(data, '$.auteur'), '')
+                      ELSE COALESCE(json_extract(data, '$.awaiting'), '') END`;
       const r = await env.DB.prepare(
         `UPDATE sujets SET
            data = json_set(
@@ -1671,11 +1707,9 @@ export async function onRequest(context) {
                       json_set(data, '$.reponses', json(COALESCE(json_extract(data, '$.reponses'), '[]'))),
                       '$.reponses[#]', json(?1)),
                     '$.reponses_count', COALESCE(json_array_length(data, '$.reponses'), 0) + 1,
-                    '$.awaiting', CASE
-                      WHEN ?4 <> '' THEN ?4
-                      WHEN COALESCE(json_extract(data, '$.awaiting'), '') = ?5
-                        THEN COALESCE(json_extract(data, '$.auteur'), '')
-                      ELSE COALESCE(json_extract(data, '$.awaiting'), '') END,
+                    '$.awaiting', ${NOUVELLE_BALLE},
+                    '$.balle_le', CASE WHEN (${NOUVELLE_BALLE}) <> COALESCE(json_extract(data, '$.awaiting'), '') THEN ?2
+                      ELSE COALESCE(json_extract(data, '$.balle_le'), json_extract(data, '$.date_creation'), ?2) END,
                     '$.date_modification', ?2),
            awaiting = json_extract(data, '$.awaiting'),
            date_modification = ?2
@@ -1728,6 +1762,22 @@ export async function onRequest(context) {
     let mSuj = path.match(/^\/api\/sujets\/([^/]+)$/);
     if (mSuj && method === 'DELETE') {
       const id = decodeURIComponent(mSuj[1]);
+      /* ⚠️ ON NE SUPPRIME PAS CE QUE L'AUTRE A ÉCRIT (règle 52). « Supprimer » effaçait le sujet
+         ENTIER — les réponses de l'autre et la décision qu'il avait prise — sur une simple
+         confirmation, alors que corriger une seule de ses réponses est refusé (règle 15 bis).
+         Supprimer reste possible pour ce qui n'engage que soi (son sujet, sans la parole de
+         l'autre) ; le reste se CLASSE, et reste cherchable. */
+      const rowDel = await env.DB.prepare('SELECT data FROM sujets WHERE id = ?').bind(id).first();
+      if (!rowDel) return json({ ok: false, error: 'Sujet introuvable' }, 404);
+      const emailDel = parseAccessEmail(request);
+      const acteurDel = (emailDel && IDENTITIES[emailDel.toLowerCase()]) || emailDel || null;
+      const sujDel = safeParse(rowDel.data) || {};
+      if (acteurDel) {
+        const deLautre = (sujDel.auteur && sujDel.auteur !== acteurDel)
+          || (sujDel.reponses || []).some(function (r) { return r && r.auteur && r.auteur !== acteurDel; })
+          || (!!sujDel.decision && !!sujDel.decision_par && sujDel.decision_par !== acteurDel);
+        if (deLautre) return json({ ok: false, error: 'Ce sujet porte ce que l’autre a écrit : on ne le supprime pas, on le classe (« C’est fait »). Il restera cherchable.' }, 409);
+      }
       const r = await env.DB.prepare('DELETE FROM sujets WHERE id = ?').bind(id).run();
       if (!r.meta || r.meta.changes === 0) return json({ ok: false, error: 'Sujet introuvable' }, 404);
       return json({ ok: true });

@@ -25,16 +25,27 @@
   <link rel="stylesheet" href="../assets/css/theme-ardoise.css">
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
-    /* ── Zone de saisie : toujours en haut, toujours prête ─────────────────────────────────── */
-    .ec-poster { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-4); margin-bottom: var(--sp-5); }
-    .ec-poster .textarea { min-height: 62px; }
+    /* ── C — Écrire en une ligne ───────────────────────────────────────────────────────────────
+       Écrire reste la chose la plus facile de la page : la zone est en haut, ouverte. Mais ses
+       options (nature, destinataire, client, dossier, date, photo) prenaient 458 px sur téléphone
+       AVANT qu'on ait écrit un mot. Elles s'ouvrent au premier mot (ou au focus) et se referment
+       quand la zone est vide et qu'on la quitte. */
+    .ec-poster { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); }
+    .ec-poster .textarea { min-height: 42px; height: 42px; resize: none; transition: height var(--t-fast); }
+    /* Fermée, la zone ne défile pas : une barre de défilement dans un champ d'une ligne ressemble à une panne. */
+    .ec-poster:not(.ouvert) .textarea { overflow: hidden; }
+    .ec-poster.ouvert .textarea { height: auto; min-height: 72px; resize: vertical; }
+    .ec-poster .ec-plus { display: none; }
+    .ec-poster.ouvert .ec-plus { display: block; }
     .ec-contexte { margin-top: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent-2); }
     .ec-contexte:empty { display: none; }
     .ec-opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
     .ec-opts .sep { width: 1px; height: 22px; background: var(--border); flex: none; }
-    .ec-poster .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
-    .ec-poster .ec-fin .input, .ec-poster .ec-fin .select { height: auto; padding: 0.4rem 0.6rem; font-size: var(--fs-champ); line-height: 1.25; }
+    .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-3); }
+    .ec-fin .input, .ec-fin .select { height: auto; padding: 0.4rem 0.6rem; font-size: var(--fs-champ); line-height: 1.25; }
     .ec-lie { flex: 1 1 220px; min-width: 160px; }
+    .ec-dossier { flex: 1 1 220px; min-width: 160px; }
+    .ec-dossier[hidden] { display: none; }
     .ec-envoi { margin-left: auto; }
 
     /* Une puce = une nature ou un destinataire. Hauteur explicite : `pointer: coarse` de base.css
@@ -44,10 +55,21 @@
       font-size: var(--fs-xs); cursor: pointer; white-space: nowrap; }
     .ec-chip.on { border-color: var(--kc, var(--accent)); color: var(--kc, var(--accent)); background: color-mix(in srgb, var(--kc, var(--accent)) 12%, transparent); }
 
+    /* ── B — Trois onglets ─────────────────────────────────────────────────────────────────────
+       Le premier sujet tombait sous 1 400 px d'attentes (2 149 px sur téléphone). Chaque onglet porte
+       son nombre ; aucun ne pose d'étape d'historique : « retour » quitte la page. */
+    .ec-onglets { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--border-strong); border-radius: var(--r-md);
+      overflow: hidden; background: var(--surface); margin-bottom: var(--sp-4); width: fit-content; max-width: 100%; }
+    .ec-onglets button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-weight: 600;
+      font-size: var(--fs-sm); padding: 0.55rem 1rem; cursor: pointer; display: inline-flex; gap: 0.4rem; align-items: center; white-space: nowrap; }
+    /* Un libellé court pour le téléphone : « Ce qui attend » passait sur deux lignes, son nombre à part. */
+    .ec-onglets .lc { display: none; }
+    .ec-onglets button .n { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .ec-onglets button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+    .ec-onglets button[aria-selected="true"] .n { color: var(--accent); }
+    .ec-onglets button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
     /* ── Ce qui attend (les quatre modules réunis) ─────────────────────────────────────────── */
-    /* Flux de TEXTE, pas une rangee flex : en flex, les morceaux de texte deviennent des elements
-       anonymes et se retrouvaient cote a cote en deux colonnes qui se cassaient chacune de leur
-       cote sur telephone. En bloc, la phrase se replie comme une phrase. */
     /* ⚠️ UN COMPTEUR QUI NE DÉSIGNE RIEN FAIT CHERCHER. « C'est quoi la situation critique ? »
        (Nicolas, 12/10/2026, capture à l'appui) : le bandeau annonçait « 1 situation critique » et
        les trois lignes en dessous étaient rigoureusement identiques à l'œil. Rien ne portait
@@ -115,6 +137,8 @@
     .at-age.vieux { color: var(--warn); }
     .at-age.tresvieux { color: var(--danger); font-weight: 700; }
     .at-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; flex: 0 0 auto; }
+    /* D — la réponse donnée SUR PLACE, dans la ligne de « ce qui attend ». */
+    .at-boite { flex: 1 1 100%; }
     .at-plie { background: none; border: none; color: var(--text-subtle); font-family: var(--font-mono);
       font-size: var(--fs-2xs); cursor: pointer; text-decoration: underline; padding: 0; }
     .at-vide { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: var(--sp-5);
@@ -129,14 +153,16 @@
     .ec-lien-bouton { background: none; border: none; padding: 0; font: inherit; color: var(--accent);
       cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .ec-lien-bouton:hover { color: var(--accent-2); }
-    /* ⚠️ Au doigt, ce lien fait 15 px de haut : intouchable. On élargit la CIBLE à 44 px par un
-       pseudo-élément plutôt que par du padding — le padding décalerait la ligne de métadonnées.
+    /* ⚠️ Au doigt, ces liens font 13 à 15 px de haut : intouchables. On élargit la CIBLE à 44 px par
+       un pseudo-élément plutôt que par du padding — le padding décalerait la ligne de métadonnées.
        Le pseudo n'étend que la HAUTEUR (left/right à 0) : une extension horizontale compterait
        dans le scrollWidth des ancêtres, piège déjà payé sur la pastille de probabilité. */
     @media (pointer: coarse) {
-      .ec-lien-bouton { position: relative; }
-      .ec-lien-bouton::after { content: ''; position: absolute; left: 0; right: 0; top: 50%;
+      .ec-lien-bouton, .ec-meta a, .at-plie { position: relative; }
+      .ec-lien-bouton::after, .ec-meta a::after, .at-plie::after { content: ''; position: absolute; left: 0; right: 0; top: 50%;
         height: 44px; transform: translateY(-50%); }
+      .ec-voirfaits { min-height: 44px; }
+      .ec-onglets button { min-height: 44px; }
     }
 
     /* Vignettes : assez grandes pour reconnaitre la photo sans l'ouvrir, assez petites pour qu'une
@@ -156,15 +182,22 @@
     .ec-ph .ec-ph-suppr { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0;
       border-radius: 50%; border: none; cursor: pointer; line-height: 1;
       background: color-mix(in srgb, var(--danger) 85%, transparent); color: #fff; font-size: 12px; }
+    @media (pointer: coarse) { .ec-ph .ec-ph-suppr { width: 28px; height: 28px; font-size: 14px; } }
     .ec-ph-att { opacity: 0.75; }
     .ec-bar { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-4); }
     .ec-bar .rech { flex: 1 1 200px; min-width: 160px; }
     .ec-liste { display: flex; flex-direction: column; gap: var(--sp-3); }
     .ec-suj { border: 1px solid var(--border); border-left: 3px solid var(--kc, var(--accent)); border-radius: var(--r-md);
-      background: var(--surface); padding: var(--sp-4); }
+      background: var(--surface); padding: var(--sp-3) var(--sp-4); }
     .ec-suj.pour-moi { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
     .ec-suj.est-fait { opacity: 0.6; }
-    .ec-tete { display: flex; align-items: flex-start; gap: var(--sp-2); flex-wrap: wrap; }
+    /* A — La tête de carte est UN bouton : toute la ligne se touche pour déplier (un petit chevron
+       seul serait une cible de 14 px). */
+    .ec-tete { display: flex; align-items: flex-start; gap: var(--sp-2); flex-wrap: wrap; width: 100%;
+      background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+    .ec-tete:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
+    .ec-chev { flex: none; color: var(--text-subtle); display: inline-flex; transition: transform var(--t-fast); margin-top: 2px; }
+    .ec-suj.ouverte .ec-chev { transform: rotate(90deg); }
     /* Le titre porte le sens : on lui donne un plancher et on refuse aux badges de grandir,
        sinon c'est lui qui cède et on lit une lettre et demie. */
     .ec-titre { font-weight: 700; color: var(--text); flex: 1 1 12ch; min-width: 12ch; }
@@ -172,8 +205,10 @@
     .ec-nat { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase;
       letter-spacing: 0.06em; padding: 0.15rem 0.5rem; border-radius: var(--r-sm); color: var(--kc, var(--accent));
       border: 1px solid color-mix(in srgb, var(--kc, var(--accent)) 45%, transparent); }
-    .ec-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.3rem; }
+    .ec-meta { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.3rem; overflow-wrap: anywhere; }
     .ec-meta .ec-lien { color: var(--accent-2); }
+    .ec-dernier { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 0.35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ec-dernier b { color: var(--text); font-weight: 600; }
     .ec-corps { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-2); white-space: pre-wrap; line-height: 1.55; }
     .ec-balle { display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto; font-family: var(--font-mono);
       font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.06em; padding: 0.15rem 0.5rem;
@@ -186,6 +221,7 @@
     .ec-ava { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center;
       font-family: var(--font-mono); font-size: var(--fs-3xs); font-weight: 700; color: var(--on-accent); background: var(--ac, var(--accent)); }
     .ec-rep .txt { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; line-height: 1.5; }
+    .ec-rep.rappel .txt { font-style: italic; color: var(--text-muted); }
     .ec-rep .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.15rem; }
     /* La décision : mise en avant, c'est ce qu'on vient relire des semaines plus tard. */
     .ec-decision { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-3);
@@ -195,18 +231,33 @@
     .ec-decision svg { color: var(--ok); flex: none; margin-top: 2px; }
     .ec-decision .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.2rem; }
     .ec-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
-    .ec-repbox { margin-top: var(--sp-3); display: none; }
-    .ec-repbox.on { display: block; }
-    .ec-repbox .ec-fin { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-top: var(--sp-2); }
+    .ec-plusl { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px dashed var(--border); }
+    .ec-repbox { margin-top: var(--sp-3); }
+    .ec-avert { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--warn); }
+    .ec-avert:empty { display: none; }
+
+    /* ── G — Le registre des décisions ── */
+    .ec-dec { border: 1px solid var(--border); border-left: 3px solid var(--ok); border-radius: var(--r-md); background: var(--surface);
+      padding: var(--sp-3) var(--sp-4); }
+    .ec-dec .txt { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; line-height: 1.5; }
+    .ec-dec .qd { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); margin-top: 0.3rem; overflow-wrap: anywhere; }
 
     @media (max-width: 560px) {
       .ec-envoi { margin-left: 0; width: 100%; justify-content: center; }
-      .ec-lie { flex: 1 1 100%; }
+      .ec-lie, .ec-dossier { flex: 1 1 100%; }
       .ec-opts .sep { display: none; }
       /* La revue porte QUATRE actions, une de plus que le bandeau des attentes. À 390 px la rangée
          ne se repliait pas (.at-actions est en flex: 0 0 auto) et poussait la page de 78 px. On lui
          rend toute la largeur ici seulement : le bandeau des attentes, lui, tient à trois. */
-      #revueHost .at-actions { flex: 1 1 100%; }
+      #revueHost .at-actions, .at-item .at-actions { flex: 1 1 100%; }
+      .ec-onglets { width: 100%; }
+      /* La tête d'une carte : les pastilles sur une ligne (la balle à droite), le titre en dessous sur
+         toute la largeur. Coincé entre les deux, il passait sur trois lignes (100 px de tête). */
+      .ec-titre { order: 3; flex: 1 1 100%; }
+      .ec-tete .ec-balle { margin-left: auto; }
+      .ec-onglets button { flex: 1 1 0; justify-content: center; padding: 0.55rem 0.4rem; font-size: var(--fs-xs); }
+      .ec-onglets .ll { display: none; }
+      .ec-onglets .lc { display: inline; }
     }
     @media (pointer: coarse) {
       .ec-chip { min-height: 38px; }
@@ -234,47 +285,60 @@
   <main class="container">
     <!-- ÉCRIRE EN PREMIER. Cette zone était sous les compteurs, sous les trois bandes d'attente et
          sous la revue des idées : il fallait dérouler toute la page pour déposer une pensée de dix
-         secondes. L'intention d'origine — « écrire doit être la chose la plus facile de la page » —
-         était restée dans le commentaire pendant que l'écran se remplissait par-dessus.
-         Un outil où l'on hésite à écrire ne sert plus à rien : la zone passe donc avant tout. -->
-    <!-- Écrire doit être la chose la plus facile de la page : la zone est en haut, ouverte,
-         sans bouton « nouveau sujet » à trouver d'abord. -->
-    <div class="ec-poster">
-      <textarea class="textarea" id="pTitre" placeholder="Une chose à faire, une question, une idée… (Ctrl+Entrée pour envoyer)"></textarea>
-      <div class="ec-opts" id="pNatures"></div>
-      <div class="ec-fin">
-        <span class="ec-opts" id="pPour" style="margin-top:0"></span>
-        <span class="sep"></span>
-        <input class="input ec-lie" id="pClient" list="dlClients" placeholder="Lié à un client (facultatif)" autocomplete="off">
-        <input class="input" id="pEcheance" type="date" title="Pour quand (facultatif)" style="max-width:160px">
-        <button type="button" class="btn btn-ghost btn-sm" id="btnPhoto" onclick="document.getElementById('pPhoto').click()" title="Joindre une ou plusieurs photos">Photo</button>
-        <input type="file" id="pPhoto" accept="image/*" multiple hidden onchange="ajouterPhotos(this)">
-        <button class="btn btn-primary btn-sm ec-envoi" id="btnPublier" onclick="publier()">Publier</button>
+         secondes. Un outil où l'on hésite à écrire ne sert plus à rien : la zone passe donc avant
+         tout — et depuis le 27/10/2026 elle tient en une ligne tant qu'on n'a rien écrit (C). -->
+    <div class="ec-poster" id="poster">
+      <textarea class="textarea" id="pTitre" rows="1" placeholder="Une question, une idée, une tâche…" title="Ctrl+Entrée pour envoyer"></textarea>
+      <div class="ec-plus" id="pPlus">
+        <div class="ec-opts" id="pNatures"></div>
+        <div class="ec-fin">
+          <span class="ec-opts" id="pPour" style="margin-top:0"></span>
+          <span class="sep"></span>
+          <input class="input ec-lie" id="pClient" list="dlClients" placeholder="Lié à un client (facultatif)" autocomplete="off">
+          <select class="select ec-dossier" id="pDossier" hidden aria-label="Dossier du client"></select>
+          <input class="input" id="pEcheance" type="date" title="Pour quand (facultatif)" style="max-width:160px">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnPhoto" onclick="document.getElementById('pPhoto').click()" title="Joindre une ou plusieurs photos">Photo</button>
+          <input type="file" id="pPhoto" accept="image/*" multiple hidden onchange="ajouterPhotos(this)">
+          <button class="btn btn-primary btn-sm ec-envoi" id="btnPublier" onclick="publier()">Publier</button>
+        </div>
+        <div class="ec-vign" id="pVignettes"></div>
+        <div class="ec-contexte" id="pContexte"></div>
       </div>
-      <div class="ec-vign" id="pVignettes"></div>
-      <div class="ec-contexte" id="pContexte"></div>
       <datalist id="dlClients"></datalist>
     </div>
 
-    <!-- CE QUI ATTEND — les quatre modules réunis (demandes de RDV, planning, SAV, échanges).
-         Chacun savait déjà dire « ça attend quelqu'un », mais chacun dans son coin : il fallait
-         ouvrir quatre écrans pour le savoir, donc on ne le faisait pas. Ici, tout est au même
-         endroit ET chaque ligne porte son action : attribuer sans changer de page. -->
-    <div id="attenteHost"></div>
-
-
-    <!-- REVUE DES IDÉES — ce qui dort depuis deux mois. Une chose que personne n'attend et qui n'a
-         pas d'échéance ne remonte nulle part : c'est voulu (sinon la liste de ce qui bloque se
-         remplirait d'idées), mais ça veut dire qu'elle s'enterre toute seule. -->
-    <div id="revueHost"></div>
-
-    <div class="ec-bar">
-      <div class="ec-opts" id="fNatures" style="margin-top:0"></div>
-      <input class="input rech" id="rech" type="search" placeholder="Rechercher…" oninput="rendre()">
-      <label class="chip" style="cursor:pointer;"><input type="checkbox" id="voirFaits" onchange="rendre()" style="vertical-align:-1px"> Voir ce qui est fait</label>
+    <div class="ec-onglets" role="tablist" aria-label="Échanges">
+      <button type="button" role="tab" id="ongAttente" aria-controls="panAttente" aria-selected="true" onclick="choisirOnglet('attente')"><span class="ll">Ce qui attend</span><span class="lc">Attend</span> <span class="n" id="nAttente"></span></button>
+      <button type="button" role="tab" id="ongEchanges" aria-controls="panEchanges" aria-selected="false" tabindex="-1" onclick="choisirOnglet('echanges')"><span class="ll">Les échanges</span><span class="lc">Échanges</span> <span class="n" id="nEchanges"></span></button>
+      <button type="button" role="tab" id="ongDecisions" aria-controls="panDecisions" aria-selected="false" tabindex="-1" onclick="choisirOnglet('decisions')"><span class="ll">Décisions</span><span class="lc">Décisions</span> <span class="n" id="nDecisions"></span></button>
     </div>
 
-    <div id="host"><div class="ec-liste" aria-busy="true"><div class="skl" style="height:110px"></div><div class="skl" style="height:110px"></div></div></div>
+    <div id="panAttente" role="tabpanel" aria-labelledby="ongAttente">
+      <!-- CE QUI ATTEND — les quatre modules réunis (demandes de RDV, planning, SAV, échanges).
+           Chacun savait déjà dire « ça attend quelqu'un », mais chacun dans son coin : il fallait
+           ouvrir quatre écrans pour le savoir, donc on ne le faisait pas. Ici, tout est au même
+           endroit ET chaque ligne porte son action : attribuer — ou répondre (D) — sans changer de page. -->
+      <div id="attenteHost"><div class="skl" style="height:90px"></div></div>
+      <!-- REVUE DES IDÉES — ce qui dort depuis deux semaines. Une chose que personne n'attend et qui
+           n'a pas d'échéance ne remonte nulle part : c'est voulu, mais elle s'enterre toute seule. -->
+      <div id="revueHost"></div>
+    </div>
+
+    <div id="panEchanges" role="tabpanel" aria-labelledby="ongEchanges" hidden>
+      <div class="ec-bar">
+        <div class="ec-opts" id="fNatures" style="margin-top:0"></div>
+        <input class="input rech" id="rech" type="search" placeholder="Rechercher…" oninput="rendre()">
+        <label class="chip ec-voirfaits" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;"><input type="checkbox" id="voirFaits" onchange="rendre()"> Voir ce qui est fait</label>
+      </div>
+      <div id="host"><div class="ec-liste" aria-busy="true"><div class="skl" style="height:90px"></div><div class="skl" style="height:90px"></div></div></div>
+    </div>
+
+    <div id="panDecisions" role="tabpanel" aria-labelledby="ongDecisions" hidden>
+      <div class="ec-bar">
+        <input class="input rech" id="rechDec" type="search" placeholder="Chercher une décision, un client…" oninput="rendreDecisions()">
+      </div>
+      <div id="decHost"></div>
+    </div>
   </main>
 
   <script src="../assets/js/ui.js"></script>
@@ -287,9 +351,12 @@
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/echanges.js"></script>
   <script>
     const SS = window.SS;
+    const EC = window.SSEchanges;
     const { el, icon, toast, escHtml, fmtDate, relTime, qp } = window.SSUI;
+    const jsAttr = window.SSUI.jsAttr;
     const SELLER_LABELS = window.SSUI.SELLER_LABELS;   // source unique du vocabulaire : ui.js
     window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
@@ -302,7 +369,7 @@
       idee:     { label: 'Idée',       icone: 'sparkle', couleur: 'var(--accent-2)' },
       attente:  { label: 'En attente', icone: 'clock',   couleur: 'var(--text-subtle)' },
     };
-    const PERSONNES = ['nicolas', 'yannick'];
+    const PERSONNES = EC.PERSONNES;
 
     const A = window.SSAttente;
     let SUJETS = [];
@@ -311,14 +378,21 @@
     let PLIE_AUTRE = true;    // ce qui est chez l'autre : replié par défaut, ce n'est pas mon travail
     let MOI = { key: '', name: '' };
     let CLIENTS = [];
+    let DEVIS = [];           // pour proposer les dossiers d'un client (E)
     let P_KIND = 'afaire';
     let P_POUR = '';
     let F_KIND = '';                 // filtre de nature, vide = toutes
-    let REPOND = '';                 // sujet dont la zone de réponse est ouverte
+    let REPOND = '';                 // sujet dont la zone de réponse est ouverte (dans la carte)
     let DECIDE = '';                 // sujet dont la zone « ce qui a été décidé » est ouverte
+    let AT_REPOND = '', AT_DECIDE = '';   // D — les mêmes zones, ouvertes dans « ce qui attend »
+    const OUVERTES = new Set();      // A — les cartes dépliées
+    const PLUS = new Set();          // les cartes dont « Plus » est ouvert
+    const AVERT = {};                // le message d'un conflit, affiché DANS la carte concernée
 
-    function autre(k) { return k === 'nicolas' ? 'yannick' : 'nicolas'; }
+    const autre = EC.autre;
     function nomDe(k) { return SELLER_LABELS[k] || k || '—'; }
+    function sujetDe(id) { return SUJETS.filter(function (x) { return x.id === id; })[0] || null; }
+    function rafraichirMenu() { try { if (window.SSNav && SSNav.rafraichirCompteurs) SSNav.rafraichirCompteurs().catch(function () {}); } catch (e) {} }
 
     async function charger() {
       try { MOI = await window.SSNav.getIdentity(); } catch (e) { MOI = { key: '' }; }
@@ -333,28 +407,66 @@
       if (!P_POUR) P_POUR = MOI.key ? autre(MOI.key) : '';
       rendre();
       chargerClients();
-      prefixerDepuisUrl();
-      allerAuSujet();
+    }
+    /** Relit sujets ET attentes après un geste : la ligne de « ce qui attend » doit suivre la carte. */
+    async function recharger() {
+      let paquet = null;
+      try { paquet = await A.charger(); } catch (e) { paquet = null; }
+      if (paquet && paquet.items) ATTENTES = paquet.items;
+      SUJETS = (paquet && paquet.sources && paquet.sources.sujets) || (await SS.listSujets()) || SUJETS;
+      rendre();
+      rafraichirMenu();
     }
 
-    // Arriver depuis la recherche globale (Ctrl+K). Une décision vit sur un sujet CLASSÉ, donc
-    // masqué par défaut : il faut décocher le filtre avant de chercher à faire défiler, sinon on
-    // atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
-    function allerAuSujet() {
-      const cible = qp('sujet');
-      if (!cible) return;
-      const x = SUJETS.filter(function (y) { return y.id === cible; })[0];
+    /* ── B — LES ONGLETS ─────────────────────────────────────────────────────────────────────
+       Retenus par appareil (`ss_echanges_onglet`). Arriver sur un sujet précis (recherche globale,
+       lien « Ouvrir ») ouvre « Les échanges ». Aucune étape d'historique. */
+    const ONGLETS = { attente: ['ongAttente', 'panAttente'], echanges: ['ongEchanges', 'panEchanges'], decisions: ['ongDecisions', 'panDecisions'] };
+    let ONGLET = (function () { try { const o = localStorage.getItem('ss_echanges_onglet'); return ONGLETS[o] ? o : 'attente'; } catch (e) { return 'attente'; } })();
+    if (qp('sujet') || /^#suj-/.test(location.hash)) ONGLET = 'echanges';
+    window.choisirOnglet = function (o, sansMemoire) {
+      ONGLET = ONGLETS[o] ? o : 'attente';
+      Object.keys(ONGLETS).forEach(function (k) {
+        const actif = k === ONGLET;
+        el(ONGLETS[k][0]).setAttribute('aria-selected', actif ? 'true' : 'false');
+        el(ONGLETS[k][0]).tabIndex = actif ? 0 : -1;
+        el(ONGLETS[k][1]).hidden = !actif;
+      });
+      if (!sansMemoire) { try { localStorage.setItem('ss_echanges_onglet', ONGLET); } catch (e) {} }
+    };
+    document.querySelector('.ec-onglets').addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const l = Object.keys(ONGLETS), i = l.indexOf(ONGLET);
+      choisirOnglet(l[(i + (e.key === 'ArrowRight' ? 1 : l.length - 1)) % l.length]);
+      el(ONGLETS[ONGLET][0]).focus();
+    });
+    choisirOnglet(ONGLET, true);
+
+    // Arriver depuis la recherche globale (Ctrl+K) ou un lien « Ouvrir ». Une décision vit sur un sujet
+    // CLASSÉ, donc masqué par défaut : il faut décocher le filtre avant de chercher à faire défiler,
+    // sinon on atterrit sur une page qui semble ne pas contenir ce qu'on vient d'y chercher.
+    window.allerAuSujet = function (cible) {
+      const x = sujetDe(cible);
       if (!x) { toast('Ce sujet n’existe plus.', 'warn'); return; }
-      if (x.statut === 'fait' && !el('voirFaits').checked) { el('voirFaits').checked = true; rendre(); }
+      choisirOnglet('echanges', true);
+      if (x.statut === 'fait' && !el('voirFaits').checked) el('voirFaits').checked = true;
+      // Un filtre ou une recherche qui le cache ne doit pas faire croire qu'il n'existe pas.
+      if (F_KIND && x.kind !== F_KIND) F_KIND = '';
+      if (el('rech').value && !EC.correspond(x, el('rech').value, nomDe)) el('rech').value = '';
+      OUVERTES.add(cible);
+      rendre();
       const noeud = document.getElementById('suj-' + cible);
       if (!noeud) return;
       noeud.classList.add('vise');
       setTimeout(function () { noeud.classList.remove('vise'); }, 2600);
-      // Différé d'un tick : le bandeau des attentes et les compteurs finissent de se poser juste
-      // après, et un défilement lancé avant eux vise une position qui n'existe déjà plus.
-      // Instantané et non « smooth » : une animation de défilement s'annule au moindre changement
-      // de hauteur, et ici c'est un saut vers une cible, pas un effet.
+      // Différé d'un tick : un défilement lancé avant que la page se pose vise une position qui
+      // n'existe déjà plus. Instantané et non « smooth » : c'est un saut vers une cible, pas un effet.
       setTimeout(function () { noeud.scrollIntoView({ block: 'center' }); }, 0);
+    };
+    function allerAuSujetDeLAdresse() {
+      const cible = qp('sujet') || (/^#suj-/.test(location.hash) ? decodeURIComponent(location.hash.slice(5)) : '');
+      if (cible) allerAuSujet(cible);
     }
 
     // Arriver ici depuis un dossier, une demande ou un ticket : le contexte est deja pose et le
@@ -372,16 +484,19 @@
       const titre = qp('titre');
       if (titre) el('pTitre').value = titre;
       if (!DEVIS_LIE && !c && !titre) return;
+      ouvrirPoster();
       rendrePuces();
+      majDossiersPoster();
       el('pTitre').focus();
-      if (DEVIS_LIE) {
-        el('pContexte').innerHTML = icon('window', 12) + ' Rattaché au dossier #' + escHtml(DEVIS_LIE) +
-          ' <button type="button" class="at-plie" onclick="detacherDossier()">détacher</button>';
-      }
     }
-    window.detacherDossier = function () { DEVIS_LIE = ''; el('pContexte').innerHTML = ''; };
+    function majContexte() {
+      el('pContexte').innerHTML = DEVIS_LIE && el('pDossier').hidden
+        ? icon('window', 12) + ' Rattaché au dossier #' + escHtml(DEVIS_LIE) + ' <button type="button" class="at-plie" onclick="detacherDossier()">détacher</button>'
+        : '';
+    }
+    window.detacherDossier = function () { DEVIS_LIE = ''; majContexte(); };
 
-    /** Annuaire pour le champ « lié à un client » — les clients des devis suffisent. */
+    /** Annuaire pour le champ « lié à un client » — et les devis, pour proposer leurs dossiers (E). */
     async function chargerClients() {
       // LES DEUX SOURCES. La liste ne venait que des DEVIS : un client du CRM qui n'a pas encore
       // de devis n'apparaissait jamais dans la saisie, alors que c'est justement sur lui qu'on a
@@ -390,7 +505,9 @@
         SS.listDevis().catch(function () { return []; }),
         SS.listClients ? SS.listClients().catch(function () { return []; }) : Promise.resolve([]),
       ]);
+      DEVIS = devis || [];
       const vus = new Set();
+      CLIENTS = [];
       const ajouter = function (prenom, nom) {
         const complet = ((prenom || '') + ' ' + (nom || '')).trim();
         if (!complet || vus.has(complet)) return;
@@ -401,25 +518,146 @@
       };
       // Le CRM d'abord : c'est la liste de reference, les devis ne font que la completer.
       (fiches || []).forEach(function (c) { ajouter(c.prenom, c.nom); });
-      (devis || []).forEach(function (d) { const c = d.client || {}; ajouter(c.prenom, c.nom); });
+      DEVIS.forEach(function (d) { const c = d.client || {}; ajouter(c.prenom, c.nom); });
       CLIENTS.sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
       el('dlClients').innerHTML = CLIENTS.map(function (c) { return '<option value="' + escHtml(c.nom) + '"></option>'; }).join('');
+      prefixerDepuisUrl();
+      allerAuSujetDeLAdresse();
+    }
+
+    /** Un nom tapé → le client de la liste, s'il existe. Un nom inconnu reste écrit TEL QUEL
+     *  mais sans clé : le lien vers le CRM ne marchera pas, et c'est voulu — mieux vaut garder
+     *  ce que la personne a écrit que de l'effacer parce qu'on ne le reconnaît pas.
+     *  Vider le champ détache le client : c'est la seule façon de revenir en arrière. */
+    function clientDepuisNom(nom) {
+      const propre = (nom || '').trim();
+      const lie = CLIENTS.filter(function (c) { return c.nom.toLowerCase() === propre.toLowerCase(); })[0];
+      return { client_nom: propre, client_key: (lie && lie.key) || '' };
+    }
+
+    /* ── E — LE DOSSIER DU CLIENT ────────────────────────────────────────────────────────────
+       En choisissant le client, ses dossiers sont proposés (avec leur résumé, règle 9). Le menu
+       n'apparaît que s'il y a quelque chose à choisir. `courant` : le dossier déjà rattaché. */
+    function optionsDossiers(nomClient, courant) {
+      const cl = clientDepuisNom(nomClient);
+      const l = EC.dossiersDuClient(DEVIS, cl.client_key, cl.client_nom);
+      if (courant && !l.some(function (d) { return d.id === courant; })) l.unshift({ id: courant, libelle: 'Dossier #' + courant });
+      return l.length
+        ? '<option value="">Aucun dossier en particulier</option>' + l.map(function (d) {
+            return '<option value="' + escHtml(d.id) + '"' + (d.id === courant ? ' selected' : '') + '>' + escHtml(d.libelle) + '</option>';
+          }).join('')
+        : '';
+    }
+    function majDossiersPoster() {
+      const s = el('pDossier');
+      const html = optionsDossiers(el('pClient').value, DEVIS_LIE);
+      s.innerHTML = html;
+      s.hidden = !html;
+      majContexte();
+    }
+    el('pClient').addEventListener('input', majDossiersPoster);
+    el('pDossier').addEventListener('change', majContexte);
+    window.majDossiersEdition = function (id) {
+      const s = el('ed-dos-' + id), c = el('ec-' + id);
+      if (!s || !c) return;
+      const x = sujetDe(id);
+      const html = optionsDossiers(c.value, (x && x.devis_id) || '');
+      s.innerHTML = html;
+      s.hidden = !html;
+    };
+
+    /* ── C — LA ZONE D'ÉCRITURE QUI S'OUVRE AU PREMIER MOT ───────────────────────────────── */
+    function ouvrirPoster() { el('poster').classList.add('ouvert'); }
+    function posterVide() {
+      return !el('pTitre').value.trim() && !el('pClient').value.trim() && !el('pEcheance').value && !PHOTOS_EN_ATTENTE.length && !DEVIS_LIE;
+    }
+    el('pTitre').addEventListener('focus', ouvrirPoster);
+    el('pTitre').addEventListener('input', ouvrirPoster);
+    // On la referme quand elle est vide et que le focus la QUITTE (un clic sur une puce reste dedans).
+    el('poster').addEventListener('focusout', function () {
+      setTimeout(function () {
+        if (el('poster').contains(document.activeElement)) return;
+        if (posterVide()) el('poster').classList.remove('ouvert');
+      }, 150);
+    });
+
+    /* ── LES BROUILLONS NE SE PERDENT PLUS ───────────────────────────────────────────────────
+       Chaque rendu réécrit les cartes : une correction en cours REVENAIT au texte enregistré dès
+       qu'on choisissait « Pour Yannick », et une réponse tapée disparaissait si l'on touchait à la
+       recherche ou à un filtre. On relève ce qui est en train d'être écrit avant chaque rendu, et on
+       le repose après (le curseur compris). Les brouillons sont GARDÉS tant que leur zone est ouverte,
+       même si la carte disparaît un instant (une recherche qui ne la trouve plus) : ils reviennent
+       avec elle. Une zone fermée (envoyée, annulée) emporte son brouillon. */
+    const CHAMPS_BROUILLON = /^(et|ec|ee|ed-dos|rt|rl|dt|re|art|arl|adt)-(.+)$/;
+    const BROUILLONS = {};
+    function brouillonVivant(id) {
+      const m = CHAMPS_BROUILLON.exec(id);
+      if (!m) return false;
+      const z = m[1], cle = m[2];
+      if (z === 'et' || z === 'ec' || z === 'ee' || z === 'ed-dos') return EDITE === cle;
+      if (z === 'rt' || z === 'rl') return REPOND === cle;
+      if (z === 'dt') return DECIDE === cle;
+      if (z === 're') return EDITE_REP === cle;
+      if (z === 'art' || z === 'arl') return AT_REPOND === cle;
+      return AT_DECIDE === cle;
+    }
+    function relever() {
+      document.querySelectorAll('main textarea[id], main input[id], main select[id]').forEach(function (c) {
+        if (!CHAMPS_BROUILLON.test(c.id)) return;
+        BROUILLONS[c.id] = c.type === 'checkbox' ? { coche: c.checked } : { v: c.value };
+      });
+      Object.keys(BROUILLONS).forEach(function (id) { if (!brouillonVivant(id)) delete BROUILLONS[id]; });
+      const a = document.activeElement;
+      return { champs: BROUILLONS, focus: a && a.id && CHAMPS_BROUILLON.test(a.id) ? { id: a.id, s: a.selectionStart, e: a.selectionEnd } : null };
+    }
+    function reposer(b) {
+      const ids = Object.keys(b.champs).filter(brouillonVivant);
+      ids.forEach(function (id) {
+        const c = document.getElementById(id);
+        if (!c || c.tagName === 'SELECT') return;
+        if ('coche' in b.champs[id]) c.checked = b.champs[id].coche;
+        else c.value = b.champs[id].v;
+      });
+      // Les dossiers proposés suivent le client EN COURS de saisie, pas celui enregistré : on les
+      // recalcule avant de reposer le dossier choisi.
+      if (EDITE) majDossiersEdition(EDITE);
+      ids.forEach(function (id) {
+        const c = document.getElementById(id);
+        if (!c || c.tagName !== 'SELECT') return;
+        if ([].some.call(c.options, function (o) { return o.value === b.champs[id].v; })) c.value = b.champs[id].v;
+      });
+      if (b.focus) {
+        const f = document.getElementById(b.focus.id);
+        if (f) { f.focus(); try { if (b.focus.s != null) f.setSelectionRange(b.focus.s, b.focus.e); } catch (e) {} }
+      }
     }
 
     // ── Rendu ────────────────────────────────────────────────────────────────────────────────
     function rendre() {
+      const b = relever();
       rendrePuces();
       rendreAttentes();
       rendreRevue();
-      const q = (el('rech').value || '').trim().toLowerCase();
+      rendreListe();
+      rendreDecisions();
+      rendreCompteurs();
+      reposer(b);
+    }
+    function rendreCompteurs() {
+      const c = EC.compteurs(SUJETS, ATTENTES, MOI.key);
+      el('nAttente').textContent = c.attente ? '· ' + c.attente : '';
+      el('nEchanges').textContent = c.echanges ? '· ' + c.echanges : '';
+      el('nDecisions').textContent = c.decisions ? '· ' + c.decisions : '';
+    }
+    function rendreListe() {
+      const q = el('rech').value || '';
       const voirFaits = el('voirFaits').checked;
-      let liste = SUJETS.filter(function (s) {
-        if (!voirFaits && s.statut === 'fait') return false;
+      const liste = SUJETS.filter(function (s) {
+        // Un sujet que l'autre vient de classer pendant qu'on y travaillait (conflit) reste à l'écran :
+        // la carte dit ce qui s'est passé — il ne disparaît pas sous nos yeux.
+        if (!voirFaits && s.statut === 'fait' && !AVERT[s.id]) return false;
         if (F_KIND && s.kind !== F_KIND) return false;
-        if (!q) return true;
-        const foin = [s.titre, s.corps, s.client_nom, s.decision, nomDe(s.auteur),
-          (s.reponses || []).map(function (r) { return r.texte; }).join(' ')].join(' ').toLowerCase();
-        return foin.indexOf(q) >= 0;
+        return EC.correspond(s, q, nomDe);
       });
       // Ce qui m'attend passe devant : c'est la seule question qu'on se pose en ouvrant la page.
       liste.sort(function (a, b) {
@@ -458,15 +696,12 @@
         }).join('');
     }
 
-    // Les compteurs portent désormais sur TOUT l'ERP, pas seulement sur les sujets écrits ici :
-    // c'est ce qui fait de cet écran la bible de qui fait quoi plutôt qu'un chat de plus.
-
     // ── Revue des idées ───────────────────────────────────────────────────────
     // SSAttente écarte volontairement un sujet que personne n'attend et qui n'a pas d'échéance :
     // c'est une idée en réserve, pas quelque chose qui bloque. Sans contrepartie, ces sujets-là ne
     // remontent JAMAIS — or ce sont justement les « choses à mettre en place », celles qu'on dépose
-    // ici parce qu'elles n'ont pas de client. Ce bandeau est cette contrepartie : au bout de deux
-    // mois il les ressort avec la seule question qui compte, on en fait quoi ?
+    // ici parce qu'elles n'ont pas de client. Ce bandeau est cette contrepartie : passé le seuil il
+    // les ressort avec la seule question qui compte, on en fait quoi ?
     // « Garder » écrit `revu_le` et repousse d'autant : sans ça le bandeau harcèlerait pour une idée
     // qu'on veut précisément laisser mûrir, et on apprendrait à ne plus le lire.
     // Seuil abaisse a 14 jours LE TEMPS DE PRENDRE LE PLI : a 60 jours, un module tout neuf
@@ -496,7 +731,7 @@
         '<div class="at-bloc"><div class="at-titre">' + icon('sparkle', 14) +
         ' En réserve depuis plus de ' + libelleSeuil() + ' <span class="at-nom">— on en fait quoi ?</span></div>' +
         '<div class="at-liste">' + liste.map(function (x) {
-          const id = window.SSUI.jsAttr(x.id);
+          const id = jsAttr(x.id);
           const n = NATURES[x.kind] || NATURES.idee;
           return '<div class="at-item">' +
             '<span class="at-src">' + escHtml(n.label) + '</span>' +
@@ -504,68 +739,123 @@
             (x.corps ? '<div class="at-detail">' + escHtml(x.corps.slice(0, 140)) + '</div>' : '') +
             '<div class="at-age">' + escHtml(nomDe(x.auteur)) + ' · ' + relTime(x.revu_le || x.date_creation) + '</div></div>' +
             '<div class="at-actions">' +
-              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + window.SSUI.jsAttr(MOI.key) + ')">' + icon('check', 13) + ' Je prends</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + window.SSUI.jsAttr(lautre) + ')">' + icon('user', 13) + ' Pour ' + escHtml(nomDe(lautre)) + '</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + jsAttr(MOI.key) + ')">' + icon('check', 13) + ' Je prends</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="revuePour(' + id + ', ' + jsAttr(lautre) + ')">' + icon('user', 13) + ' Pour ' + escHtml(nomDe(lautre)) + '</button>' +
               '<button class="btn btn-ghost btn-sm" onclick="revueGarder(' + id + ')">' + icon('clock', 13) + ' Garder</button>' +
-              '<button class="btn btn-ghost btn-sm" onclick="marquerFait(' + id + ')">' + icon('x', 13) + ' Classer</button>' +
+              '<button class="btn btn-ghost btn-sm" onclick="classerDepuisRevue(' + id + ')">' + icon('x', 13) + ' Classer</button>' +
             '</div></div>';
         }).join('') + '</div></div>';
     }
     // Prendre une idée, c'est en faire une TÂCHE avec un nom dessus : une chose sans nom n'avance
     // pas, c'est tout le principe du module. Le serveur en déduit `awaiting` et elle remonte.
     window.revuePour = async function (id, qui) {
-      const x = SUJETS.filter(function (y) { return y.id === id; })[0];
+      const x = sujetDe(id);
       if (!x) return;
-      const res = await SS.saveSujet(Object.assign({}, x, { pour: qui, kind: 'afaire' }));
-      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      if (!(await enregistrer(x, { pour: qui, kind: 'afaire' }))) return;
       toast(qui === MOI.key ? 'C’est pour toi' : 'Pour ' + nomDe(qui), 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
     window.revueGarder = async function (id) {
-      const x = SUJETS.filter(function (y) { return y.id === id; })[0];
+      const x = sujetDe(id);
       if (!x) return;
-      const res = await SS.saveSujet(Object.assign({}, x, { revu_le: window.SSUI.aujourdhui() }));
-      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
-      toast('Gardée — on en reparle dans deux mois', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      if (!(await enregistrer(x, { revu_le: window.SSUI.aujourdhui() }))) return;
+      toast('Gardée — on en reparle dans ' + libelleSeuil(), 'ok');
+      recharger();
     };
 
+    /* ── ENREGISTRER UN SUJET, EN DISANT CE QU'ON A LU ──────────────────────────────────────
+       Chaque geste renvoie le sujet tel que l'écran l'a lu : sans « _attendu », une page restée
+       ouverte rouvrait en silence un sujet que l'autre venait de classer (règle 52). En cas de
+       conflit, la version de l'autre remplace la nôtre À L'ÉCRAN, on le dit DANS la carte, et le
+       texte qu'on était en train d'écrire reste là : recommencer, c'est enregistrer en connaissance
+       de cause. */
+    async function enregistrer(base, patch) {
+      const res = await SS.saveSujet(Object.assign({}, base, patch, { _attendu: base.edite_le || '' }));
+      if (res && res.conflict) {
+        if (res.actuel && res.actuel.id) SUJETS = SUJETS.map(function (x) { return x.id === res.actuel.id ? res.actuel : x; });
+        AVERT[base.id] = res.error || 'L’autre vient de modifier ce sujet.';
+        toast(AVERT[base.id], 'warn', 9000);
+        rendre();
+        return null;
+      }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non enregistré.', 'error', 7000); return null; }
+      delete AVERT[base.id];
+      return res;
+    }
+
     // ── Ce qui attend ────────────────────────────────────────────────────────────────────────
+    /* D — Une ligne « Échange » se répond ou se classe SUR PLACE : la carte du sujet était 1 400 px
+       plus bas, dans un autre bloc. La boîte s'ouvre dans la ligne ; c'est la même réponse, la même
+       décision, par les mêmes routes. */
+    function boiteAttente(it) {
+      const s = sujetDe(it.sujet_id);
+      if (!s) return '';
+      const id = jsAttr(s.id), k = escHtml(s.id);
+      if (AT_REPOND === s.id) {
+        return '<div class="at-boite">' +
+          '<textarea class="textarea" id="art-' + k + '" placeholder="Ta réponse…" style="min-height:58px"></textarea>' +
+          '<div class="ec-fin" style="margin-top:0.4rem">' +
+            '<label class="chip" style="cursor:pointer"><input type="checkbox" id="arl-' + k + '" style="vertical-align:-1px"> Et je lui redemande</label>' +
+            '<button class="btn btn-ghost btn-sm" onclick="fermerBoitesAttente()">Annuler</button>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="envoyerReponse(' + id + ', \'a\')">Envoyer</button>' +
+          '</div></div>';
+      }
+      if (AT_DECIDE === s.id) {
+        return '<div class="at-boite">' +
+          '<textarea class="textarea" id="adt-' + k + '" style="min-height:58px" placeholder="' +
+            (s.kind === 'question' ? 'Ce qui a été décidé (obligatoire sur une question)…' : 'Ce qui a été décidé, ou fait (facultatif)…') + '"></textarea>' +
+          '<div class="ec-fin" style="margin-top:0.4rem">' +
+            '<button class="btn btn-ghost btn-sm" onclick="fermerBoitesAttente()">Annuler</button>' +
+            '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="classerAvecDecision(' + id + ', \'a\')">Classer</button>' +
+          '</div></div>';
+      }
+      return '';
+    }
     function ligneAttente(it) {
       const s = A.SOURCES[it.source] || {};
       const j = A.joursDepuis(it.depuis);
       const clAge = j >= A.SEUILS.ATTENTE_TRES_LONGUE_J ? 'tresvieux' : (j >= A.SEUILS.ATTENTE_LONGUE_J ? 'vieux' : '');
-      const id = window.SSUI.jsAttr(it.id);
+      const id = jsAttr(it.id);
       // `data-crit` est ce que vise le bandeau : un marqueur de STRUCTURE, pas une classe de
       // style, pour que changer l'apparence de la pastille ne casse jamais le saut.
       const crit = estCritique(it);
+      const suj = it.source === 'echange' ? sujetDe(it.sujet_id) : null;
       // Attribuer d'un clic, sans quitter l'écran : c'est le saut vers une autre page qui casse
       // le geste et fait qu'on remet à plus tard. Ce qui n'est pas attribuable renvoie à sa fiche.
       let actions = '';
       if (it.peutPrendre && !it.qui) {
-        actions = '<button class="btn btn-primary btn-sm" onclick="attribuer(' + id + ',\'' + MOI.key + '\')">Je prends</button>' +
-          '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',\'' + autre(MOI.key) + '\')">Pour ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+        actions = '<button class="btn btn-primary btn-sm" onclick="attribuer(' + id + ',' + jsAttr(MOI.key) + ')">Je prends</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',' + jsAttr(autre(MOI.key)) + ')">Pour ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
       } else if (it.peutPrendre && it.qui === MOI.key) {
-        actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',\'' + autre(MOI.key) + '\')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
+        actions = '<button class="btn btn-ghost btn-sm" onclick="attribuer(' + id + ',' + jsAttr(autre(MOI.key)) + ')">Passer à ' + escHtml(nomDe(autre(MOI.key))) + '</button>';
       }
-      if (it.href) actions += '<button class="btn btn-ghost btn-sm" onclick="location.href=\'' + it.href + '\'">Ouvrir</button>';
+      if (suj && suj.statut !== 'fait' && it.qui === MOI.key) {
+        // D — répondre ou classer d'ici.
+        actions = '<button class="btn btn-primary btn-sm" onclick="ouvrirReponse(' + jsAttr(suj.id) + ', \'a\')">' + icon('message', 13) + ' Répondre</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="ouvrirDecision(' + jsAttr(suj.id) + ', \'a\')">' + icon('check', 13) + ' C’est fait</button>';
+      }
+      if (suj && EC.peutRappeler(suj, MOI.key)) {
+        actions += '<button class="btn btn-ghost btn-sm" onclick="rappeler(' + jsAttr(suj.id) + ')">' + icon('clock', 13) + ' Lui rappeler</button>';
+      }
+      if (suj) actions += '<button class="btn btn-ghost btn-sm" onclick="allerAuSujet(' + jsAttr(suj.id) + ')">Ouvrir</button>';
+      else if (it.href) actions += '<button class="btn btn-ghost btn-sm" onclick="location.href=' + jsAttr(it.href) + '">Ouvrir</button>';
       return '<div class="at-item ' + (it.qui ? '' : 'orphelin') + '"' + (crit ? ' data-crit="1"' : '') +
+        (suj ? ' data-sujet="' + escHtml(suj.id) + '"' : '') +
         ' style="--uc:' + (s.couleur || 'var(--accent)') + '">' +
         '<div class="at-corps">' +
           '<div class="at-l1">' +
             // Le mot vient de `attente.js` et pas d'ici : le vocabulaire vit à un seul endroit
             // (règle 10), sinon l'écran et le moteur finissent par ne plus dire la même chose.
             (crit ? '<span class="at-urg">' + escHtml(A.URGENCE_LABEL[A.URGENCE.CRITIQUE]) + '</span>' : '') +
-            '<span class="at-src" style="--sc:' + (s.couleur || 'var(--accent)') + '">' + escHtml(s.label || it.source) + '</span>' +
-            '<span class="at-quoi">' + escHtml(it.quoi) + '</span>' +
-            '<span class="at-nom">' + escHtml(it.titre) + '</span>' +
+            '<span class="at-src" style="--sc:' + (s.couleur || 'var(--accent)') + '">' + escHtml(s.label || it.source) + '</span> ' +
+            '<span class="at-quoi">' + escHtml(it.quoi) + '</span> ' +
+            '<span class="at-nom">' + escHtml(it.titre) + '</span> ' +
             '<span class="at-age ' + clAge + '">' + escHtml(A.delai(it.depuis)) + '</span>' +
           '</div>' +
           (it.detail ? '<div class="at-detail">' + escHtml(it.detail) + '</div>' : '') +
         '</div>' +
         '<div class="at-actions">' + actions + '</div>' +
+        (suj ? boiteAttente(it) : '') +
         '</div>';
     }
 
@@ -574,9 +864,8 @@
       const miennes = A.pourQui(ATTENTES, MOI.key);
       const autres = A.pourQui(ATTENTES, autre(MOI.key));
       let html = '';
-      // « Critique » était le seul des quatre compteurs à ne pas être répété par un titre de bande :
-      // il survit ici, mais seulement QUAND IL Y EN A. Un gros « 0 » permanent n'apprend rien et
-      // occupe la place de ce qui compte.
+      // « Critique » survit ici, mais seulement QUAND IL Y EN A. Un gros « 0 » permanent n'apprend
+      // rien et occupe la place de ce qui compte.
       const nbCritique = A.compter(ATTENTES).critique;
       if (nbCritique) {
         html += '<button type="button" class="at-critique" onclick="voirCritique()">' +
@@ -611,7 +900,8 @@
       }
       el('attenteHost').innerHTML = html;
     }
-    window.basculerAutre = function () { PLIE_AUTRE = !PLIE_AUTRE; rendreAttentes(); };
+    window.basculerAutre = function () { PLIE_AUTRE = !PLIE_AUTRE; rendre(); };
+    window.fermerBoitesAttente = function () { AT_REPOND = ''; AT_DECIDE = ''; rendre(); };
 
     /* Le seuil vit dans `attente.js` — ici on ne fait que le lire. Écrire `>= 3` en dur, c'est
        la garantie que l'écran et le compteur divergeront le jour où l'échelle bougera. */
@@ -626,7 +916,7 @@
          être tenable. Le rendu qui suit recrée les lignes, donc on cherche APRÈS. */
       if (PLIE_AUTRE && A.pourQui(ATTENTES, autre(MOI.key)).some(estCritique)) {
         PLIE_AUTRE = false;
-        rendreAttentes();
+        rendre();
       }
       const cibles = [].slice.call(document.querySelectorAll('#attenteHost .at-item[data-crit]'));
       if (!cibles.length) return;
@@ -666,9 +956,10 @@
           // clé l'effacerait.
           res = await SS.saveSavTicket(it.devis_id, Object.assign({}, t, { pour: qui }));
         } else if (it.source === 'echange') {
-          const s = SUJETS.filter(function (x) { return x.id === it.sujet_id; })[0];
+          const s = sujetDe(it.sujet_id);
           if (!s) { toast('Sujet introuvable — recharge la page.', 'error'); return; }
-          res = await SS.saveSujet(Object.assign({}, s, { pour: qui }));
+          if (!(await enregistrer(s, { pour: qui }))) return;
+          res = { ok: true };
         } else if (it.source === 'planning') {
           const d = await SS.getDevis(it.devis_id);
           if (!d || !d.id) { toast('Dossier introuvable — recharge la page.', 'error'); return; }
@@ -692,7 +983,7 @@
       if (res && res.ok === false) { toast(res.error || 'Non enregistré — réessaie.', 'error', 7000); return; }
       if (res && res.conflict) { window.SSUI.showSaveConflict(function () { location.reload(); }); return; }
       toast(qui === MOI.key ? 'C’est pour toi' : 'Confié à ' + nomDe(qui), 'ok');
-      charger();
+      recharger();
     };
 
     function avatar(k) {
@@ -700,16 +991,25 @@
       return '<span class="ec-ava" style="--ac:' + couleur + '">' + escHtml(nomDe(k).slice(0, 1)) + '</span>';
     }
 
+    /* ── A — UNE CARTE ───────────────────────────────────────────────────────────────────────
+       Repliée : la nature, le titre, qui a la balle ; qui, quand, pour qui, le client, le dossier ;
+       et la dernière parole du fil. Dépliée (toucher la tête) : le détail, les photos, la décision,
+       le fil et les gestes — les secondaires (Modifier, Le dossier, Supprimer) derrière « Plus ».
+       Une carte dont une zone est ouverte reste dépliée. */
     function carte(s) {
       const n = NATURES[s.kind] || NATURES.afaire;
-      const pourMoi = s.awaiting === MOI.key && s.statut !== 'fait';
-      const id = window.SSUI.jsAttr(s.id);
+      const r = EC.resume(s, MOI.key);
+      const pourMoi = r.balle === 'moi';
+      const id = jsAttr(s.id), k = escHtml(s.id);
+      const ouverte = OUVERTES.has(s.id) || REPOND === s.id || DECIDE === s.id || EDITE === s.id ||
+        (s.reponses || []).some(function (x) { return x && x.id === EDITE_REP; }) || !!AVERT[s.id];
       const enRetard = s.echeance && s.echeance < window.SSUI.aujourdhui() && s.statut !== 'fait';
+      // Repliée, la carte ne répète pas « pour … » : la pastille de la balle le dit déjà.
       const meta = [
         nomDe(s.auteur),
         relTime(s.date_creation),
-        s.pour ? 'pour ' + nomDe(s.pour) : 'pour nous deux',
-        s.echeance ? (enRetard ? '⚠ ' : '') + 'pour le ' + fmtDate(s.echeance) : '',
+        ouverte ? (s.pour ? 'pour ' + nomDe(s.pour) : 'pour nous deux') : '',
+        s.echeance ? (enRetard ? 'en retard, ' : '') + 'pour le ' + fmtDate(s.echeance) : '',
         // Une correction se VOIT. Deux personnes partagent ce fil : pouvoir reecrire un message
         // sans que rien ne le dise transformerait une memoire commune en terrain mouvant.
         s.modifie_le ? 'modifié ' + relTime(s.modifie_le) + (s.modifie_par && s.modifie_par !== s.auteur ? ' par ' + nomDe(s.modifie_par) : '') : '',
@@ -717,15 +1017,28 @@
       const lienClient = s.client_nom
         ? ' · <a class="ec-lien" href="clients.html?q=' + encodeURIComponent(s.client_nom) + '">' + escHtml(s.client_nom) + '</a>'
         : '';
-      return '<div class="ec-suj ' + (pourMoi ? 'pour-moi' : '') + ' ' + (s.statut === 'fait' ? 'est-fait' : '') + '" style="--kc:' + n.couleur + '" id="suj-' + escHtml(s.id) + '">' +
-        '<div class="ec-tete">' +
-          '<span class="ec-nat">' + escHtml(n.label) + '</span>' +
-          '<span class="ec-titre">' + escHtml(s.titre) + '</span>' +
-          (s.statut === 'fait'
-            ? '<span class="ec-balle" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)">Fait</span>'
-            : (s.awaiting ? '<span class="ec-balle ' + (pourMoi ? 'moi' : '') + '">' + (pourMoi ? 'À toi de jouer' : 'Chez ' + escHtml(nomDe(s.awaiting))) + '</span>' : '')) +
-        '</div>' +
-        '<div class="ec-meta">' + escHtml(meta) + lienClient + '</div>' +
+      const lienDossier = s.devis_id
+        ? ' · <a class="ec-lien" href="vue.html?id=' + encodeURIComponent(s.devis_id) + '">dossier #' + escHtml(s.devis_id) + '</a>'
+        : '';
+      const balle = s.statut === 'fait'
+        ? '<span class="ec-balle" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)">Fait</span>'
+        : (s.awaiting ? '<span class="ec-balle ' + (pourMoi ? 'moi' : '') + '">' + (pourMoi ? 'À toi de jouer' : 'Chez ' + escHtml(nomDe(s.awaiting)) + ' · ' + escHtml(String(A.delai(r.depuis)).replace(/^depuis /, ''))) + '</span>' : '');
+      const d = r.derniere;
+      const dernier = d
+        ? '<div class="ec-dernier"><b>' + escHtml(nomDe(d.auteur)) + '</b> : « ' + escHtml(String(d.texte || '').replace(/\s+/g, ' ').slice(0, 140)) + ' » · ' +
+          escHtml(relTime(d.date)) + (r.nbReponses > 1 ? ' · ' + r.nbReponses + ' réponses' : '') + '</div>'
+        : (s.corps ? '<div class="ec-dernier">' + escHtml(s.corps.replace(/\s+/g, ' ').slice(0, 140)) + '</div>' : '');
+      let html = '<div class="ec-suj ' + (pourMoi ? 'pour-moi ' : '') + (s.statut === 'fait' ? 'est-fait ' : '') + (ouverte ? 'ouverte' : 'repliee') +
+        '" style="--kc:' + n.couleur + '" id="suj-' + k + '" data-id="' + k + '">' +
+        '<button type="button" class="ec-tete" aria-expanded="' + (ouverte ? 'true' : 'false') + '" onclick="basculerCarte(' + id + ')">' +
+          '<span class="ec-chev">' + icon('chevronright', 14) + '</span>' +
+          '<span class="ec-nat">' + escHtml(n.label) + '</span> ' +
+          '<span class="ec-titre">' + escHtml(s.titre) + '</span> ' + balle +
+        '</button>' +
+        '<div class="ec-meta">' + escHtml(meta) + lienClient + lienDossier + '</div>';
+      if (!ouverte) return html + dernier + '</div>';
+
+      html += (AVERT[s.id] ? '<div class="ec-avert">' + icon('warning', 12) + ' ' + escHtml(AVERT[s.id]) + '</div>' : '') +
         (s.corps ? '<div class="ec-corps">' + escHtml(s.corps) + '</div>' : '') +
         ((s.photos || []).length
           ? '<div class="ec-vign">' + s.photos.map(function (ph, i) {
@@ -734,92 +1047,130 @@
               return '<div class="ec-ph"><button type="button" class="ec-ph-voir" title="Ouvrir en grand" ' +
                 'onclick="voirPhotos(' + id + ', ' + i + ')">' +
                 '<img src="' + escHtml(ph.url) + '" alt="" loading="lazy"></button>' +
-                '<button type="button" class="ec-ph-suppr" title="Supprimer cette photo" onclick="supprimerPhoto(' + id + ', ' + window.SSUI.jsAttr(ph.id) + ')">✕</button></div>';
+                '<button type="button" class="ec-ph-suppr" title="Supprimer cette photo" onclick="supprimerPhoto(' + id + ', ' + jsAttr(ph.id) + ')">✕</button></div>';
             }).join('') + '</div>'
           : '') +
         (s.decision ? '<div class="ec-decision">' + icon('check', 13) +
           '<div><b>Décidé :</b> ' + escHtml(s.decision) +
           '<div class="qd">' + escHtml(nomDe(s.decision_par) + (s.decision_le ? ' · ' + relTime(s.decision_le) : '')) + '</div></div></div>' : '') +
-        ((s.reponses || []).length ? '<div class="ec-fil">' + s.reponses.map(function (r) {
-          const rid = window.SSUI.jsAttr(r.id);
+        ((s.reponses || []).length ? '<div class="ec-fil">' + s.reponses.map(function (rp) {
+          const rid = jsAttr(rp.id);
           // ⚠️ Le bouton n'apparait QUE sur ses propres reponses — et le serveur le verifie de son
           // cote (403), parce qu'une garde qui ne vit que dans l'ecran n'est pas une garde.
           // Corriger sa faute de frappe est normal ; reecrire ce que l'autre a dit ne l'est pas.
-          const sien = r.auteur === MOI.key && r.id;
-          if (EDITE_REP === r.id) {
-            return '<div class="ec-rep">' + avatar(r.auteur) + '<div style="flex:1;min-width:0">' +
-              '<textarea class="textarea" id="re-' + escHtml(r.id) + '" style="min-height:58px">' + escHtml(r.texte) + '</textarea>' +
+          const sien = rp.auteur === MOI.key && rp.id;
+          if (EDITE_REP === rp.id) {
+            return '<div class="ec-rep">' + avatar(rp.auteur) + '<div style="flex:1;min-width:0">' +
+              '<textarea class="textarea" id="re-' + escHtml(rp.id) + '" style="min-height:58px">' + escHtml(rp.texte) + '</textarea>' +
               '<div class="ec-fin" style="margin-top:0.4rem">' +
                 '<button class="btn btn-ghost btn-sm" onclick="annulerEditionReponse()">Annuler</button>' +
                 '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="enregistrerReponse(' + id + ', ' + rid + ')">Enregistrer</button>' +
               '</div></div></div>';
           }
-          return '<div class="ec-rep">' + avatar(r.auteur) + '<div><div class="txt">' + escHtml(r.texte) + '</div>' +
-            '<div class="qd">' + escHtml(nomDe(r.auteur) + ' · ' + relTime(r.date) + (r.modifie_le ? ' · modifié ' + relTime(r.modifie_le) : '')) +
-            (sien ? ' · <button type="button" class="ec-lien-bouton" onclick="editerReponse(' + rid + ')">Modifier</button>' : '') +
+          return '<div class="ec-rep' + (rp.rappel ? ' rappel' : '') + '">' + avatar(rp.auteur) + '<div><div class="txt">' + escHtml(rp.texte) + '</div>' +
+            '<div class="qd">' + escHtml((rp.rappel ? 'Rappel de ' : '') + nomDe(rp.auteur) + ' · ' + relTime(rp.date) + (rp.modifie_le ? ' · modifié ' + relTime(rp.modifie_le) : '')) +
+            (sien && !rp.rappel ? ' · <button type="button" class="ec-lien-bouton" onclick="editerReponse(' + rid + ')">Modifier</button>' : '') +
             '</div></div></div>';
-        }).join('') + '</div>' : '') +
-        '<div class="ec-actions">' +
+        }).join('') + '</div>' : '');
+
+      // Les gestes : les deux qu'on fait tous les jours, le rappel quand il a lieu d'être, et « Plus ».
+      const plus = PLUS.has(s.id);
+      html += '<div class="ec-actions">' +
           (s.statut === 'fait'
             ? '<button class="btn btn-ghost btn-sm" onclick="rouvrir(' + id + ')">' + icon('reply', 13) + ' Rouvrir</button>'
             : '<button class="btn btn-ghost btn-sm" onclick="ouvrirReponse(' + id + ')">' + icon('message', 13) + ' Répondre</button>' +
               '<button class="btn btn-ghost btn-sm" onclick="marquerFait(' + id + ')">' + icon('check', 13) + ' C’est fait</button>') +
-          '<button class="btn btn-ghost btn-sm" onclick="ouvrirEdition(' + id + ')">' + icon('edit', 13) + ' Modifier</button>' +
-          (s.devis_id ? '<button class="btn btn-ghost btn-sm" onclick="location.href=\'vue.html?id=' + encodeURIComponent(s.devis_id) + '\'">' + icon('window', 13) + ' Le dossier</button>' : '') +
-          '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(' + id + ')">Supprimer</button>' +
+          (EC.peutRappeler(s, MOI.key) ? '<button class="btn btn-ghost btn-sm" onclick="rappeler(' + id + ')">' + icon('clock', 13) + ' Lui rappeler</button>' : '') +
+          '<button class="btn btn-ghost btn-sm" aria-expanded="' + (plus ? 'true' : 'false') + '" onclick="basculerPlus(' + id + ')">Plus ' + icon(plus ? 'chevrondown' : 'chevronright', 12) + '</button>' +
         '</div>' +
-        /* La boite de correction. Meme convention que la publication : PREMIERE LIGNE = le titre,
-           le reste = le corps. Personne n'a envie de jongler entre deux champs pour corriger une
-           faute, et deux conventions differentes pour la meme chose, c'est une de trop. */
-        '<div class="ec-repbox ' + (EDITE === s.id ? 'on' : '') + '" id="ed-' + escHtml(s.id) + '">' +
-          '<textarea class="textarea" id="et-' + escHtml(s.id) + '" style="min-height:92px" ' +
+        (plus ? '<div class="ec-plusl">' +
+          '<button class="btn btn-ghost btn-sm" onclick="ouvrirEdition(' + id + ')">' + icon('edit', 13) + ' Modifier</button>' +
+          (s.devis_id ? '<button class="btn btn-ghost btn-sm" onclick="location.href=' + jsAttr('vue.html?id=' + encodeURIComponent(s.devis_id)) + '">' + icon('window', 13) + ' Le dossier</button>' : '') +
+          (EC.peutSupprimer(s, MOI.key)
+            ? '<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,transparent)" onclick="supprimer(' + id + ')">Supprimer</button>'
+            : '<span class="at-nom" style="margin-left:auto;align-self:center" title="Ce sujet porte ce que l’autre a écrit : on le classe, on ne le supprime pas.">porte la parole de ' + escHtml(nomDe(autre(MOI.key))) + ' : se classe</span>') +
+        '</div>' : '');
+
+      /* La boite de correction. Meme convention que la publication : PREMIERE LIGNE = le titre,
+         le reste = le corps. Personne n'a envie de jongler entre deux champs pour corriger une
+         faute, et deux conventions differentes pour la meme chose, c'est une de trop. */
+      if (EDITE === s.id) {
+        const courant = EDITE_POUR !== null ? EDITE_POUR : (s.pour || '');
+        const dossiers = optionsDossiers(s.client_nom || '', s.devis_id || '');
+        html += '<div class="ec-repbox">' +
+          '<textarea class="textarea" id="et-' + k + '" style="min-height:92px" ' +
             'placeholder="Première ligne : le titre. Les suivantes : le détail.">' +
             escHtml(s.titre + (s.corps ? '\n' + s.corps : '')) + '</textarea>' +
-          '<input class="input ec-lie" id="ec-' + escHtml(s.id) + '" list="dlClients" autocomplete="off" ' +
-            'style="margin-top:0.5rem" placeholder="Lié à un client (vider pour détacher)" value="' + escHtml(s.client_nom || '') + '">' +
+          '<div class="ec-fin" style="margin-top:0.5rem">' +
+            '<input class="input ec-lie" id="ec-' + k + '" list="dlClients" autocomplete="off" oninput="majDossiersEdition(' + id + ')" ' +
+              'placeholder="Lié à un client (vider pour détacher)" value="' + escHtml(s.client_nom || '') + '">' +
+            '<select class="select ec-dossier" id="ed-dos-' + k + '"' + (dossiers ? '' : ' hidden') + ' aria-label="Dossier du client">' + dossiers + '</select>' +
+          '</div>' +
           /* Destinataire et échéance. Ils ne se posaient qu'à la publication : un sujet créé
              « pour nous deux » ne pouvait plus être confié à quelqu'un, et une échéance oubliée
-             restait oubliée. Or c'est exactement ce qui fait avancer les choses — une chose sans
-             NOM dessus n'avance pas, une chose sans DATE n'est jamais urgente (règle 15). */
+             restait oubliée (règle 15). */
           '<div class="ec-fin" style="margin-top:0.5rem">' +
             ['nicolas', 'yannick', ''].map(function (v) {
-              const courant = (EDITE === s.id && EDITE_POUR !== null) ? EDITE_POUR : (s.pour || '');
               return '<button type="button" class="chip ' + (courant === v ? 'active' : '') + '" ' +
-                'onclick="choisirPourEdition(' + id + ', ' + window.SSUI.jsAttr(v) + ')">' +
+                'onclick="choisirPourEdition(' + id + ', ' + jsAttr(v) + ')">' +
                 (v ? 'Pour ' + nomDe(v) : 'Pour nous deux') + '</button>';
             }).join('') +
-            '<input class="input" type="date" id="ee-' + escHtml(s.id) + '" style="margin-left:auto;max-width:190px" ' +
+            '<input class="input" type="date" id="ee-' + k + '" style="margin-left:auto;max-width:190px" ' +
               'title="Échéance (vider pour l’enlever)" value="' + escHtml(s.echeance || '') + '">' +
           '</div>' +
           '<div class="ec-fin">' +
-            '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ep-' + escHtml(s.id) + '\').click()" title="Joindre une photo à ce sujet">' + icon('camera', 13) + ' Photo</button>' +
-            '<input type="file" id="ep-' + escHtml(s.id) + '" accept="image/*" multiple hidden onchange="joindrePhotos(' + id + ', this)">' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ep-' + k + '\').click()" title="Joindre une photo à ce sujet">' + icon('camera', 13) + ' Photo</button>' +
+            '<input type="file" id="ep-' + k + '" accept="image/*" multiple hidden onchange="joindrePhotos(' + id + ', this)">' +
             '<button class="btn btn-ghost btn-sm" onclick="ouvrirEdition(' + id + ')">Annuler</button>' +
             '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="enregistrerEdition(' + id + ')">Enregistrer</button>' +
           '</div>' +
-        '</div>' +
-        '<div class="ec-repbox ' + (DECIDE === s.id ? 'on' : '') + '" id="dec-' + escHtml(s.id) + '">' +
-          '<textarea class="textarea" id="dt-' + escHtml(s.id) + '" style="min-height:58px" placeholder="' +
+        '</div>';
+      }
+      if (DECIDE === s.id) {
+        html += '<div class="ec-repbox">' +
+          '<textarea class="textarea" id="dt-' + k + '" style="min-height:58px" placeholder="' +
             (s.kind === 'question' ? 'Ce qui a été décidé (obligatoire sur une question)…' : 'Ce qui a été décidé, ou fait (facultatif)…') + '"></textarea>' +
           '<div class="ec-fin">' +
             '<button class="btn btn-ghost btn-sm" onclick="ouvrirDecision(' + id + ')">Annuler</button>' +
             '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="classerAvecDecision(' + id + ')">Classer</button>' +
           '</div>' +
-        '</div>' +
-        '<div class="ec-repbox ' + (REPOND === s.id ? 'on' : '') + '" id="rep-' + escHtml(s.id) + '">' +
-          '<textarea class="textarea" id="rt-' + escHtml(s.id) + '" placeholder="Ta réponse…" style="min-height:58px"></textarea>' +
+        '</div>';
+      }
+      if (REPOND === s.id) {
+        html += '<div class="ec-repbox">' +
+          '<textarea class="textarea" id="rt-' + k + '" placeholder="Ta réponse…" style="min-height:58px"></textarea>' +
           '<div class="ec-fin">' +
-            '<label class="chip" style="cursor:pointer"><input type="checkbox" id="rl-' + escHtml(s.id) + '" style="vertical-align:-1px"> Et je lui redemande</label>' +
+            '<label class="chip" style="cursor:pointer"><input type="checkbox" id="rl-' + k + '" style="vertical-align:-1px"> Et je lui redemande</label>' +
             '<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="envoyerReponse(' + id + ')">Envoyer</button>' +
           '</div>' +
-        '</div>' +
         '</div>';
+      }
+      return html + '</div>';
     }
+
+    // ── G — Le registre des décisions ─────────────────────────────────────────────────────
+    window.rendreDecisions = function () {
+      const l = EC.decisions(SUJETS, el('rechDec').value || '');
+      el('decHost').innerHTML = l.length
+        ? '<div class="ec-liste">' + l.map(function (x) {
+            return '<div class="ec-dec" data-id="' + escHtml(x.id) + '"><div class="txt">' + escHtml(x.decision) + '</div>' +
+              '<div class="qd">' + escHtml([nomDe(x.par), x.le ? fmtDate(x.le) : '', x.client_nom].filter(Boolean).join(' · ')) +
+              ' · <button type="button" class="ec-lien-bouton" onclick="allerAuSujet(' + jsAttr(x.id) + ')">« ' + escHtml(x.titre.slice(0, 80)) + ' »</button></div></div>';
+          }).join('') + '</div>'
+        : '<div class="empty"><div class="big">' + icon('check', 40) + '</div>' +
+          (EC.decisions(SUJETS, '').length ? 'Aucune décision ne correspond.' : 'Aucune décision écrite pour l’instant.<br>Elles s’écrivent en classant un sujet (« C’est fait »).') + '</div>';
+    };
 
     // ── Actions ──────────────────────────────────────────────────────────────────────────────
     window.setKind = function (k) { P_KIND = k; rendrePuces(); };
     window.setPour = function (p) { P_POUR = p; rendrePuces(); };
     window.setFiltre = function (k) { F_KIND = k; rendre(); };
+    window.basculerCarte = function (id) {
+      if (OUVERTES.has(id)) { OUVERTES.delete(id); if (REPOND === id) REPOND = ''; if (DECIDE === id) DECIDE = ''; if (EDITE === id) EDITE = ''; }
+      else OUVERTES.add(id);
+      rendre();
+    };
+    window.basculerPlus = function (id) { if (PLUS.has(id)) PLUS.delete(id); else PLUS.add(id); rendre(); };
 
     // Sujet et reponse en cours de correction. Un seul a la fois, comme REPOND et DECIDE :
     // deux boites ouvertes en meme temps, on ne sait plus laquelle on est en train de remplir.
@@ -847,22 +1198,24 @@
 
     window.publier = async function () {
       const brut = el('pTitre').value.trim();
-      if (!brut) { toast('Écris quelque chose d’abord.', 'warn'); return; }
+      if (!brut) { toast('Écris quelque chose d’abord.', 'warn'); el('pTitre').focus(); return; }
       // Première ligne = titre, le reste = corps. Personne n'a envie de remplir deux champs pour
       // noter une idée en dix secondes. La fabrique vit dans ui.js : le tableau de bord écrit
       // aussi des sujets (« un mot à l'autre »), et les deux doivent poser les mêmes champs.
       const cl = clientDepuisNom(el('pClient').value);
+      // Le menu, quand il est là, fait foi — « Aucun dossier en particulier » compris.
+      const dossier = !el('pDossier').hidden ? el('pDossier').value : DEVIS_LIE;
       const s = window.SSUI.nouveauSujet(brut, {
         kind: P_KIND, pour: P_POUR,
-        client_nom: cl.client_nom, client_key: cl.client_key, devis_id: DEVIS_LIE,
+        client_nom: cl.client_nom, client_key: cl.client_key, devis_id: dossier,
         echeance: el('pEcheance').value || '',
       });
       const btn = el('btnPublier'); btn.disabled = true;
       const res = await SS.saveSujet(s);
       btn.disabled = false;
-      if (res.ok === false) { toast(res.error || 'Non publié.', 'error', 7000); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non publié.', 'error', 7000); return; }
       el('pTitre').value = ''; el('pClient').value = ''; el('pEcheance').value = '';
-      DEVIS_LIE = ''; el('pContexte').innerHTML = '';
+      DEVIS_LIE = ''; majDossiersPoster();
       // Les photos partent MAINTENANT : la route ciblée a besoin de l'identifiant, qui n'existait
       // pas avant l'enregistrement. Chaque échec est dit — une photo qu'on croit jointe et qui ne
       // l'est pas vaut moins que pas de photo du tout.
@@ -877,20 +1230,10 @@
         PHOTOS_EN_ATTENTE = [];
         rendreVignettes();
       }
+      el('poster').classList.remove('ouvert');
       toast(P_POUR ? 'Envoyé à ' + nomDe(P_POUR) : 'Publié', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
-
-    /** Un nom tapé → le client de la liste, s'il existe. Un nom inconnu reste écrit TEL QUEL
-     *  mais sans clé : le lien vers le CRM ne marchera pas, et c'est voulu — mieux vaut garder
-     *  ce que la personne a écrit que de l'effacer parce qu'on ne le reconnaît pas.
-     *  Vider le champ détache le client : c'est la seule façon de revenir en arrière. */
-    function clientDepuisNom(nom) {
-      const propre = (nom || '').trim();
-      const lie = CLIENTS.filter(function (c) { return c.nom.toLowerCase() === propre.toLowerCase(); })[0];
-      return { client_nom: propre, client_key: (lie && lie.key) || '' };
-    }
 
     /* Le destinataire en cours de correction. Il ne peut pas vivre dans le DOM comme les autres
        champs : c'est un groupe de boutons, pas un input, donc il n'a pas de `value` à relire.
@@ -902,6 +1245,7 @@
       EDITE_POUR = null;
       EDITE = EDITE === id ? '' : id;
       EDITE_REP = '';
+      if (EDITE) OUVERTES.add(id);
       rendre();
       const t = el('et-' + id);
       if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
@@ -911,24 +1255,25 @@
       const champ = el('et-' + id);
       const brut = (champ && champ.value.trim()) || '';
       if (!brut) { toast('Il faut au moins une phrase.', 'warn'); return; }
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      const s = sujetDe(id);
       if (!s) return;
       const lignes = brut.split('\n');
       // ⚠️ On ETALE le sujet existant (règle 2 du guide) : une énumération de champs perdrait en
       // silence tout ce qu'elle ne connaît pas — l'échéance, le client lié, la décision déjà prise.
       const champClient = el('ec-' + id);
       const champEcheance = el('ee-' + id);
-      const res = await SS.saveSujet(Object.assign({}, s, {
+      const champDossier = el('ed-dos-' + id);
+      const res = await enregistrer(s, Object.assign({
         titre: lignes[0].trim().slice(0, 200),
         corps: lignes.slice(1).join('\n').trim(),
       }, champClient ? clientDepuisNom(champClient.value) : {},
+         champDossier && !champDossier.hidden ? { devis_id: champDossier.value || '' } : (champClient && !champClient.value.trim() ? { devis_id: '' } : {}),
          champEcheance ? { echeance: champEcheance.value || '' } : {},
          EDITE_POUR === null ? {} : { pour: EDITE_POUR }));
-      if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
+      if (!res) return;
       EDITE = ''; EDITE_POUR = null;
       toast('Corrigé', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
 
     /** Joindre des photos à un sujet DÉJÀ publié. Pas de file d'attente ici, contrairement à la
@@ -947,8 +1292,7 @@
         const r = await SS.addSujetPhoto(id, { url: url });
         if (r.ok === false) toast(r.error || 'Photo non jointe.', 'error', 6000);
       }
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
 
     window.editerReponse = function (rid) { EDITE_REP = rid; EDITE = ''; rendre(); const t = el('re-' + rid); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } };
@@ -959,52 +1303,64 @@
       const texte = (champ && champ.value.trim()) || '';
       if (!texte) { toast('Une réponse vide ne corrige rien.', 'warn'); return; }
       const res = await SS.modifierReponse(id, rid, texte);
-      if (res.ok === false) { toast(res.error || 'Correction non enregistrée.', 'error', 7000); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Correction non enregistrée.', 'error', 7000); return; }
       EDITE_REP = '';
       toast('Corrigé', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
 
-    window.ouvrirReponse = function (id) {
-      REPOND = REPOND === id ? '' : id;
-      EDITE = ''; EDITE_REP = '';
+    /** Ouvre la zone de réponse — dans la carte, ou (`zone` = 'a') dans la ligne de « ce qui attend ». */
+    window.ouvrirReponse = function (id, zone) {
+      if (zone === 'a') { AT_REPOND = AT_REPOND === id ? '' : id; AT_DECIDE = ''; }
+      else { REPOND = REPOND === id ? '' : id; EDITE = ''; EDITE_REP = ''; DECIDE = ''; if (REPOND) OUVERTES.add(id); }
       rendre();
-      const t = el('rt-' + id);
+      const t = el((zone === 'a' ? 'art-' : 'rt-') + id);
       if (t) t.focus();
     };
 
-    window.envoyerReponse = async function (id) {
-      const champ = el('rt-' + id);
+    window.envoyerReponse = async function (id, zone) {
+      const p = zone === 'a' ? 'a' : '';
+      const champ = el(p + 'rt-' + id);
       const texte = (champ && champ.value.trim()) || '';
-      if (!texte) { toast('Ta réponse est vide.', 'warn'); return; }
-      const relanceCase = el('rl-' + id);
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      if (!texte) { toast('Ta réponse est vide.', 'warn'); if (champ) champ.focus(); return; }
+      const relanceCase = el(p + 'rl-' + id);
+      const s = sujetDe(id);
       // « Et je lui redemande » repasse explicitement la balle. Sans cette case, répondre libère
       // l'attente : c'est le comportement voulu neuf fois sur dix.
       const relance = (relanceCase && relanceCase.checked && s) ? (s.auteur === MOI.key ? autre(MOI.key) : s.auteur) : '';
       const res = await SS.repondreSujet(id, { texte: texte, relance: relance });
-      if (res.ok === false) { toast(res.error || 'Réponse non enregistrée.', 'error', 7000); return; }
-      REPOND = '';
+      if (!res || res.ok === false) { toast((res && res.error) || 'Réponse non enregistrée.', 'error', 7000); return; }
+      if (zone === 'a') AT_REPOND = ''; else REPOND = '';
       toast('Réponse envoyée', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
+    };
+
+    /* F — « Lui rappeler » : un rappel daté et signé dans le fil, la balle reste chez l'autre. Il
+       remonte le sujet dans sa liste ; l'ancienneté, elle, continue de courir (« balle_le »). */
+    window.rappeler = async function (id) {
+      const s = sujetDe(id);
+      if (!s || !EC.peutRappeler(s, MOI.key)) return;
+      const res = await SS.repondreSujet(id, { texte: EC.TEXTE_RAPPEL, rappel: true });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Rappel non enregistré.', 'error', 7000); return; }
+      toast('Rappel ajouté au fil — c’est toujours chez ' + nomDe(s.awaiting), 'ok');
+      recharger();
     };
 
     // ── La décision ──────────────────────────────────────────────────────────────────────────
     // C'est elle qui fait la différence entre une messagerie et une mémoire commune : « on avait
     // dit quoi pour les coulisses de Depaepe ? » doit avoir une réponse dans l'ERP, pas dans un
     // SMS perdu. On la demande AU MOMENT de classer — après, personne ne revient l'écrire.
-    window.ouvrirDecision = function (id) {
-      DECIDE = DECIDE === id ? '' : id;
+    window.ouvrirDecision = function (id, zone) {
+      if (zone === 'a') { AT_DECIDE = AT_DECIDE === id ? '' : id; AT_REPOND = ''; }
+      else { DECIDE = DECIDE === id ? '' : id; REPOND = ''; EDITE = ''; if (DECIDE) OUVERTES.add(id); }
       rendre();
-      const t = el('dt-' + id);
+      const t = el((zone === 'a' ? 'adt-' : 'dt-') + id);
       if (t) t.focus();
     };
-    window.classerAvecDecision = async function (id) {
-      const champ = el('dt-' + id);
+    window.classerAvecDecision = async function (id, zone) {
+      const champ = el((zone === 'a' ? 'adt-' : 'dt-') + id);
       const texte = (champ && champ.value.trim()) || '';
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      const s = sujetDe(id);
       if (!s) return;
       // Sur une QUESTION, la décision est le résultat même : la classer sans rien noter, c'est
       // perdre exactement ce qu'on voulait garder. Ailleurs elle reste facultative.
@@ -1013,31 +1369,31 @@
         if (champ) champ.focus();
         return;
       }
-      DECIDE = '';
-      await majStatut(id, 'fait', texte);
+      if (await majStatut(id, 'fait', texte)) { if (zone === 'a') AT_DECIDE = ''; else DECIDE = ''; recharger(); }
     };
 
     async function majStatut(id, statut, decision) {
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
-      if (!s) return;
+      const s = sujetDe(id);
+      if (!s) return false;
       // On étale le sujet et on ne change que le statut : une énumération de champs perdrait
       // silencieusement ce qu'elle ne connaît pas (règle 2 du guide). Les RÉPONSES, elles, ne
       // passent jamais par ici — le serveur les conserve et elles ont leur propre route.
       const patch = { statut: statut };
       if (decision) patch.decision = decision;
-      const res = await SS.saveSujet(Object.assign({}, s, patch));
-      if (res.ok === false) { toast(res.error || 'Non enregistré.', 'error', 7000); return; }
+      if (!(await enregistrer(s, patch))) return false;
       toast(statut === 'fait' ? 'Classé' : 'Rouvert', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      return true;
     }
     window.marquerFait = function (id) { ouvrirDecision(id); };
-    window.rouvrir = function (id) { majStatut(id, 'ouvert'); };
+    // La revue vit dans « Ce qui attend » ; la décision s'écrit sur la carte, dans « Les échanges » :
+    // on y emmène, sinon la zone s'ouvrirait dans un onglet caché et le bouton aurait l'air mort.
+    window.classerDepuisRevue = function (id) { allerAuSujet(id); ouvrirDecision(id); };
+    window.rouvrir = async function (id) { if (await majStatut(id, 'ouvert')) recharger(); };
 
     // On passe TOUTES les photos du sujet et l index du clic : les fleches servent alors a passer
     // d une photo a l autre sans refermer -- c est le geste naturel quand il y en a plusieurs.
     window.voirPhotos = function (id, index) {
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
+      const s = sujetDe(id);
       if (!s) return;
       window.SSUI.ouvrirPhotos((s.photos || []).map(function (p) { return p.url; }), index);
     };
@@ -1045,20 +1401,18 @@
     window.supprimerPhoto = async function (id, photoId) {
       if (!confirm('Supprimer cette photo ?')) return;
       const res = await SS.removeSujetPhoto(id, photoId);
-      if (res.ok === false) { toast(res.error || 'Non supprimée.', 'error', 7000); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Non supprimée.', 'error', 7000); return; }
       toast('Photo supprimée', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
 
     window.supprimer = async function (id) {
-      const s = SUJETS.filter(function (x) { return x.id === id; })[0];
-      if (!s || !confirm('Supprimer « ' + s.titre +' » et toutes ses réponses ?')) return;
+      const s = sujetDe(id);
+      if (!s || !confirm('Supprimer « ' + s.titre + ' » ?')) return;
       const res = await SS.deleteSujet(id);
-      if (res.ok === false) { toast(res.error || 'Suppression impossible.', 'error', 7000); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Suppression impossible.', 'error', 9000); return; }
       toast('Supprimé', 'ok');
-      SUJETS = (await SS.listSujets()) || [];
-      rendre();
+      recharger();
     };
 
     // Ctrl+Entrée publie : on note une idée en passant, sans lâcher le clavier.

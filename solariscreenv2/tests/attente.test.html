@@ -206,6 +206,16 @@
     check('E6 … et 7 j, critique', A.depuisSujets([
       { id: 'S', statut: 'ouvert', titre: 'x', awaiting: 'yannick', date_modification: ilYaH(200) },
     ])[0].urgence, A.URGENCE.CRITIQUE);
+    /* ⚠️ L'ANCIENNETÉ PART DE LA BALLE, PAS DE LA DERNIÈRE ÉCRITURE (règle 52) : une photo, une
+       correction ou un rappel avancent date_modification ; une question qui dort depuis neuf jours ne
+       doit pas redevenir « à l'instant ». */
+    check('E7 « balle_le » fait foi : une écriture récente ne remet pas l’ancienneté à zéro', A.depuisSujets([
+      { id: 'S', statut: 'ouvert', titre: 'x', awaiting: 'yannick', balle_le: ilYaH(220), date_modification: ilYaH(1) },
+    ]).map((i) => [i.urgence, i.depuis === ilYaH(220) || A.joursDepuis(i.depuis) >= 9]), [[A.URGENCE.CRITIQUE, true]]);
+    check('E8 Sans « balle_le » (sujets d’avant) : la dernière réponse qui a passé la balle — pas un rappel — sinon la création',
+      [A.depuisBalle({ awaiting: 'nicolas', date_creation: ilYaH(300), reponses: [{ auteur: 'yannick', date: ilYaH(100) }, { auteur: 'yannick', date: ilYaH(2), rappel: true }] }) === ilYaH(100) || A.joursDepuis(A.depuisBalle({ awaiting: 'nicolas', date_creation: ilYaH(300), reponses: [{ auteur: 'yannick', date: ilYaH(100) }, { auteur: 'yannick', date: ilYaH(2), rappel: true }] })) === 4,
+        A.joursDepuis(A.depuisBalle({ awaiting: 'yannick', date_creation: ilYaH(300), date_modification: ilYaH(1) }))],
+      [true, 12]);
 
     // ══════════ 4. Planning ══════════
     const REG = { planning: { heures: { debut: '08:00', midi: '12:00', reprise: '13:00', fin: '17:00' },
