@@ -83,6 +83,23 @@
     check('R12 rappel daté échu', quoi(A.depuisRdv([
       { id: 'R', statut: 'a_contacter', assigned_to: 'nicolas', client: cli('D'), rappel_date: AUJ, date_creation: ilYaH(2), date_rdv: DEMAIN },
     ])), ['Rappel prévu aujourd’hui']);
+    // Règle 54 : c'est le DERNIER CONTACT qui dit depuis quand on attend le client.
+    const contacte = (h) => ({ id: 'RC', statut: 'a_contacter', assigned_to: 'nicolas', client: cli('D'), date_creation: ilYaH(200),
+      contacts: [{ id: 'c1', canal: 'sms', type: 'creneaux', par: 'nicolas', date: ilYaH(h) }] });
+    const vieux = contacte(80);
+    const relance = A.depuisRdv([vieux])[0] || {};
+    check('R13 contactée hier → pas de relance réclamée ; il y a 3 jours → « Contacté sans réponse — relancer », depuis le CONTACT (pas la création)',
+      [A.depuisRdv([contacte(20)]).length, relance.quoi, relance.depuis === vieux.contacts[0].date],
+      [0, 'Contacté sans réponse — relancer', true]);
+    const visiteDemain = { id: 'RD', statut: 'rdv_fixe', assigned_to: 'nicolas', client: cli('D'), date_rdv: DEMAIN + 'T10:00', date_creation: ilYaH(200), date_modification: ilYaH(150) };
+    check('R14 « Visite demain » : l’échéance est la VISITE (« dans … », pas « depuis 6 j ») ; le rappel PARTI, plus rien à faire',
+      [(A.depuisRdv([visiteDemain])[0] || {}).depuis, /^dans /.test(A.delai((A.depuisRdv([visiteDemain])[0] || {}).depuis)),
+        A.depuisRdv([Object.assign({}, visiteDemain, { contacts: [{ id: 'c', canal: 'sms', type: 'rappel', par: 'nicolas', date: ilYaH(1) }] })]).length,
+        A.depuisRdv([Object.assign({}, visiteDemain, { contacts: [{ id: 'c', canal: 'sms', type: 'creneaux', par: 'nicolas', date: ilYaH(1) }] })]).length],
+      [DEMAIN + 'T10:00', true, 0, 1]);
+    check('R15 dernierContact : le plus récent, quel que soit l’ordre de la liste ; aucun → null',
+      [A.dernierContact({ contacts: [{ id: 'b', date: ilYaH(1) }, { id: 'a', date: ilYaH(30) }] }).id, A.dernierContact({}), A.dernierContact({ contacts: [] })],
+      ['b', null, null]);
 
     // ══════════ 1 bis. Apres la visite : ou en est le DEVIS ? ══════════
     // Sans ce rapprochement, une demande visitee dont le devis avait ete fait au simulateur

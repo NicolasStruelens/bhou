@@ -33,9 +33,19 @@
        le trouve sans quitter des yeux le tableau. DéPLACÉ et non dupliqué — deux boutons pour le
        même geste, c'est le défaut qu'on vient de corriger ailleurs. */
     .rdv-nouvelle { margin-left: auto; }
-    /* Sous 560 px la barre se replie : le bouton prend toute la largeur plutôt que de se
-       retrouver seul sur une ligne, colle à droite. */
-    @media (max-width: 560px) { .rdv-nouvelle { margin-left: 0; width: 100%; justify-content: center; } }
+    /* Sur téléphone la barre faisait 263 px (cinq rangées) et le premier dossier tombait à 600 px.
+       La recherche et « Nouvelle » partagent la première rangée, les puces la deuxième, la vue et
+       « Annulés » la troisième (règle 54). */
+    .rdv-nouvelle .lc { display: none; }
+    @media (max-width: 700px) {
+      .rdv-toolbar { gap: var(--sp-2); }
+      .rdv-search { order: -2; flex: 1 1 0; min-width: 0; }
+      .rdv-nouvelle { order: -1; margin-left: 0; }
+      .rdv-nouvelle .ll { display: none; }
+      .rdv-nouvelle .lc { display: inline; }
+      .seller-chips { flex-basis: 100%; flex-wrap: wrap; order: 1; }
+      .view-toggle, .chip-annules { order: 2; }
+    }
     /* Un tableau à cinq colonnes n'est pas une page de texte : le plafond de lecture à 1240 px
        laissait 660 px de marges sur un écran de 1900, pendant que chaque colonne se contentait de
        226 px. 1600 px : au-delà, l’œil fait trop de chemin de gauche à droite entre deux colonnes. */
@@ -50,8 +60,13 @@
     .rdv-brief { border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); --tick-color: var(--warn); }
     .rdv-brief h3 { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--warn); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: 0.4rem; }
     .rdv-brief ul { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
-    .rdv-brief li { font-size: var(--fs-sm); display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-    .rdv-brief li:hover { color: var(--accent-2); }
+    .rdv-brief li { font-size: var(--fs-sm); }
+    /* Un BOUTON, pas un « li » cliquable : il se tabule, et « Entrée » l'ouvre. */
+    .rdv-brief .rb { display: flex; align-items: center; gap: 0.5rem; width: 100%; background: none; border: 0; padding: 0.15rem 0;
+      font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .rdv-brief .rb:hover { color: var(--accent-2); }
+    .rdv-brief .rb-plus { margin-top: 0.3rem; background: none; border: 0; padding: 0; font: inherit; font-size: var(--fs-2xs);
+      color: var(--warn); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
     .rdv-brief li .rb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: none; }
 
     /* ── Statut (pastille) ── */
@@ -222,6 +237,136 @@
     .lead-age { font-family: var(--font-mono); font-size: var(--fs-2xs); padding: 0.1rem 0.4rem; border-radius: var(--r-sm); border: 1px solid currentColor; }
     .lead-age.warn { color: var(--warn); }
     .lead-age.danger { color: var(--danger); }
+
+    /* ══════════ Revue du 27/10/2026 (règle 54) ══════════ */
+    /* La couleur d'une action, partout la même : carte, bandeau de la fiche. */
+    .ton-danger { --ton: var(--danger); } .ton-warn { --ton: var(--warn); } .ton-accent { --ton: var(--accent); }
+    .ton-ok { --ton: var(--ok); } .ton-neutre { --ton: var(--text-muted); }
+
+    /* E — Les visites d'aujourd'hui et de demain, à l'heure, en tête de page. */
+    .rdv-prochaines { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+    .rdv-prochaines .rp-t { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    .rp { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.15rem 0.45rem; max-width: 100%; text-align: left; cursor: pointer;
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent);
+      color: var(--text); border-radius: var(--r-sm); padding: 0.35rem 0.6rem; font: inherit; font-size: var(--fs-sm); }
+    .rp b { font-family: var(--font-mono); color: var(--accent); }
+    .rp .rp-v { color: var(--text-muted); font-size: var(--fs-2xs); }
+
+    /* A — Une étape à la fois quand le kanban ne tient pas : des onglets, la colonne choisie en pleine
+       largeur. 5 colonnes de 205 px ne tiennent qu'au-delà de 1 100 px ; en dessous, trois colonnes sur
+       cinq étaient hors de l'écran, à faire défiler de côté. La feuille de style seule décide (règle 24). */
+    .etapes { display: none; }
+    .etapes .lc { display: none; }
+    @media (max-width: 1100px) {
+      .etapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 4px; margin-bottom: var(--sp-3); }
+      .etapes button { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: var(--r-sm);
+        padding: 0.4rem 0.25rem; font: inherit; font-size: var(--fs-2xs); display: flex; flex-direction: column; align-items: center;
+        gap: 2px; cursor: pointer; min-height: 44px; min-width: 0; }
+      .etapes button b { font-family: var(--font-mono); color: var(--text); }
+      .etapes button[aria-selected="true"] { border-color: var(--accent); color: var(--text);
+        background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 -2px 0 var(--accent); }
+      .kanban { display: block; overflow: visible; padding-bottom: 0; }
+      .kanban .kcol { display: none; }
+      .kanban .kcol.actif { display: flex; }
+      .kanban .kcol-head { display: none; }
+    }
+    @media (max-width: 700px) { .etapes .ll { display: none; } .etapes .lc { display: inline; } }
+
+    /* Carte : ce qu'il faut faire ensuite, en une phrase et dans la couleur de l'action. */
+    .rc-next { margin-top: 0.4rem; font-size: var(--fs-2xs); font-weight: 700; color: var(--ton, var(--text-muted)); }
+    .rc-contact { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-muted); border: 1px solid var(--border-strong);
+      border-radius: var(--r-sm); padding: 1px 5px; }
+    .rc-devis-btn, .rc-prendre { display: flex; align-items: center; justify-content: center; gap: 0.35rem; width: 100%; margin-top: 0.5rem;
+      padding: 0.35rem 0.5rem; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em; border-radius: var(--r-sm); transition: all var(--t-fast);
+      color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+    .rc-prendre { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+    /* E — Appeler / Y aller : sur téléphone seulement (règle 33), là où un appui compte. */
+    .rc-terrain { display: none; gap: 0.4rem; margin-top: 0.5rem; }
+    .rc-terrain .btn { flex: 1 1 0; justify-content: center; min-height: 38px; }
+    @media (max-width: 560px) { .rc-terrain { display: flex; } }
+    /* F — « Converti » et « Annulé » : les 30 derniers jours, le reste derrière ce bouton. */
+    .kcol-plus { margin: 0 var(--sp-2) var(--sp-2); background: none; border: 1px dashed var(--border-strong); border-radius: var(--r-sm);
+      color: var(--text-muted); font: inherit; font-size: var(--fs-2xs); padding: 0.4rem; cursor: pointer; }
+
+    /* B — La fiche dans l'ordre du travail : où en est la demande et ce qu'il faut faire, en tête. */
+    /* ⚠️ Pas de « --ton » par défaut ICI : déclaré sur la même classe, il écrasait celui de « .ton-warn »
+       (même spécificité, écrit plus bas) et le bandeau restait gris. Le repli passe par var(--ton, …). */
+    .fiche-etat { border: 1px solid color-mix(in srgb, var(--ton, var(--text-muted)) 40%, transparent);
+      background: color-mix(in srgb, var(--ton, var(--text-muted)) 7%, transparent); border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+    .fe-l1 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; font-size: var(--fs-2xs); color: var(--text-muted); }
+    .fe-next { font-weight: 700; margin-top: 0.4rem; color: var(--ton, var(--text-muted)); }
+    .fe-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+    /* G — Le devis lié, dans la fiche. */
+    .fe-devis { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; margin-top: var(--sp-2); padding-top: var(--sp-2);
+      border-top: 1px dashed var(--border); font-size: var(--fs-sm); }
+    .fe-devis .mt { font-family: var(--font-mono); font-weight: 700; }
+    .fe-devis .fe-prob { font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .fiche-conflit { border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent);
+      border-radius: var(--r-sm); padding: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); line-height: 1.5; }
+    .fiche-conflit .btn { margin-top: var(--sp-2); }
+    /* D — Un doublon se DIT à la saisie, avec de quoi l'ouvrir. */
+    .doublon { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.6rem; padding: 0.45rem 0.6rem; margin-bottom: var(--sp-2);
+      border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent);
+      border-radius: var(--r-sm); font-size: var(--fs-sm); }
+    .doublon > svg { color: var(--warn); flex: none; }
+    .doublon > span { flex: 1 1 200px; min-width: 0; }
+    /* Le client, replié une fois rempli : ses coordonnées se lisent dans le titre. */
+    details.fiche-client { border: 1px solid var(--border); border-radius: var(--r-sm); margin-top: var(--sp-4); }
+    details.fiche-client > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: var(--sp-3);
+      font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    details.fiche-client > summary::-webkit-details-marker { display: none; }
+    details.fiche-client > summary .fc-r { text-transform: none; letter-spacing: 0; color: var(--text-muted); min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    details.fiche-client > summary::after { content: ''; margin-left: auto; width: 7px; height: 7px; flex: none;
+      border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); }
+    details.fiche-client[open] > summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+    details.fiche-client[open] > summary { border-bottom: 1px solid var(--border); }
+    .fc-corps { padding: var(--sp-3); }
+    /* C — La trace des contacts avec le client. */
+    .ct-list { margin: var(--sp-2) 0; }
+    .ct { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; padding: 0.3rem 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-2xs); }
+    .ct-c { font-family: var(--font-mono); font-weight: 700; color: var(--accent); }
+    .ct-d { font-family: var(--font-mono); color: var(--text-subtle); }
+    .ct-x { margin-left: auto; position: relative; background: none; border: 0; color: var(--text-subtle); cursor: pointer; padding: 0 0.3rem; font: inherit; }
+    .ct-x:hover { color: var(--danger); }
+    .ct-plus { background: none; border: 0; padding: 0.3rem 0 0; font: inherit; font-size: var(--fs-2xs); color: var(--accent); cursor: pointer; text-decoration: underline; }
+    /* Message retouché : on ne le réécrit plus ; on propose. */
+    .msg-maj { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; margin-top: 0.4rem; font-size: var(--fs-2xs); color: var(--warn); }
+    .msg-maj[hidden] { display: none; }
+    /* Le pied : une rangée. « Annuler » et « Supprimer » derrière « Plus » (ils étaient collés aux autres). */
+    .plus-wrap { position: relative; }
+    .plus-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; min-width: 240px; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); box-shadow: var(--shadow); padding: 4px; }
+    .plus-menu[hidden] { display: none; }
+    .plus-menu button { text-align: left; background: none; border: 0; padding: 0.6rem 0.7rem; font: inherit; font-size: var(--fs-sm);
+      color: var(--text); border-radius: var(--r-sm); cursor: pointer; }
+    .plus-menu button:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+    .plus-menu .pm-warn { color: var(--warn); } .plus-menu .pm-danger { color: var(--danger); }
+    .mfoot .lc { display: none; }
+    /* Sur téléphone, la fiche prend tout l'écran : 2 541 px de formulaire dans une boîte de 514. */
+    @media (max-width: 700px) {
+      .modal-bg { padding: 0; align-items: stretch; }
+      .modal { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; border: 0; }
+      .mhead { padding: var(--sp-3) var(--sp-4); }
+      .mbody { padding: var(--sp-3) var(--sp-4); flex: 1 1 auto; }
+      .mfoot { padding: var(--sp-2) var(--sp-3); flex-wrap: nowrap; gap: var(--sp-2); }
+      .mfoot .ll { display: none; }
+      .mfoot .lc { display: inline; }
+    }
+    /* La vue Liste sur téléphone : une demande par bloc, plus de tableau de 596 px à faire défiler. */
+    @media (max-width: 700px) {
+      .rdv-table thead { display: none; }
+      .rdv-table, .rdv-table tbody, .rdv-table tr, .rdv-table td { display: block; width: 100%; }
+      .rdv-table tr { border-bottom: 1px solid var(--border); padding: var(--sp-2) var(--sp-3); }
+      .rdv-table td { border: 0; padding: 2px 0; }
+      .rdv-table td[data-l]::before { content: attr(data-l) ' · '; color: var(--text-subtle); font-family: var(--font-mono); font-size: var(--fs-3xs); }
+    }
+    @media (pointer: coarse) {
+      .rp, .kcol-plus { min-height: 44px; }
+      .ct-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+      .rdv-brief .rb { min-height: 36px; }
+    }
   </style>
 </head>
 <body>
@@ -244,6 +389,7 @@
 
   <main class="container">
     <div id="briefHost"></div>
+    <div id="prochainesHost"></div>
 
     <div class="rdv-toolbar">
       <div class="view-toggle" id="viewToggle">
@@ -252,8 +398,8 @@
       </div>
       <input class="input rdv-search" id="search" type="search" placeholder="Rechercher un client, un tél, un e-mail…" oninput="render()">
       <div class="seller-chips" id="sellerChips"></div>
-      <label class="chip" style="cursor:pointer;"><input type="checkbox" id="showAnnules" onchange="render()" style="vertical-align:-1px;"> Voir annulés</label>
-      <button class="btn btn-primary btn-sm rdv-nouvelle" onclick="openNew()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nouvelle demande</button>
+      <label class="chip chip-annules" style="cursor:pointer;"><input type="checkbox" id="showAnnules" onchange="render()" style="vertical-align:-1px;"> Voir annulés</label>
+      <button class="btn btn-primary btn-sm rdv-nouvelle" onclick="openNew()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> <span class="ll">Nouvelle demande</span><span class="lc">Nouvelle</span></button>
     </div>
 
     <div id="viewHost"></div>
@@ -270,10 +416,14 @@
       </div>
       <div class="mbody" id="mBody"></div>
       <div class="mfoot">
-        <button class="btn btn-ghost btn-sm" id="btnDelete" onclick="deleteCurrent()" style="color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,transparent);">Supprimer</button>
-        <button class="btn btn-ghost btn-sm" id="btnCancelRdv" onclick="cancelCurrent()" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);">Annuler le RDV</button>
+        <div class="plus-wrap" id="plusWrap">
+          <button type="button" class="btn btn-ghost btn-sm" id="btnPlus" onclick="basculerPlus()" aria-haspopup="true" aria-expanded="false">Plus ▾</button>
+          <div class="plus-menu" id="plusMenu" hidden>
+            <button type="button" class="pm-warn" id="btnCancelRdv" onclick="cancelCurrent()">Annuler le RDV (le client se désiste)</button>
+            <button type="button" class="pm-danger" id="btnDelete" onclick="deleteCurrent()">Supprimer définitivement</button>
+          </div>
+        </div>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm" id="btnVisiteOk" onclick="visiteFaiteModal()" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);">Visite faite</button>
         <button class="btn btn-terrain btn-sm" id="btnConvert" onclick="convertToDevis()">Créer le devis</button>
         <button class="btn btn-primary btn-sm" id="btnSave" onclick="saveCurrent()">Enregistrer</button>
       </div>
@@ -291,9 +441,11 @@
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/rdv.js"></script>
   <script>
     const SS = window.SS;
     const A = window.SSAttente;   // source unique du « qui doit agir » (assets/js/attente.js)
+    const R = window.SSRdv;       // les règles de cette page (assets/js/rdv.js, règle 54)
     const { mountThemeToggle } = window.SSTheme;
     const { fmtDate, el, toast, qp, icon, compressImage, generateDevisId, clientKeyOf, jsAttr } = window.SSUI;
     mountThemeToggle(document.getElementById('themeToggle'));
@@ -338,6 +490,23 @@
     let CLIENT_DIRECTORY = [];  // annuaire clients (base CRM + clients des devis) pour l'autocomplétion
     let DEVIS_IDS = new Set();  // ids des devis existants → détecte un devis lié qui a été supprimé
     let DEVIS_LISTE = [];       // les devis eux-mêmes : on a besoin de leur STATUT, pas juste de leur id
+    // A — l'étape affichée quand le kanban ne tient pas (onglets) : retenue par appareil, jamais dans
+    // l'historique (« retour » quitte la page, il ne promène pas d'une étape à l'autre).
+    let ETAPE = (function () { try { return localStorage.getItem('ss_rdv_etape') || ''; } catch (e) { return ''; } })();
+    const VOIR_ANCIENS = {};    // F — « plus anciennes » dépliées, par colonne
+    let BRIEF_TOUT = false;     // « À traiter » : tout, ou les 5 premières
+    const auj = () => window.SSUI.aujourdhui();
+    const WHO_COURT = { nicolas: 'Nicolas', yannick: 'Yannick' };
+    const COURT = { nouveau: 'Nouveau', a_contacter: 'Contact', rdv_fixe: 'Fixé', visite: 'Visité', converti: 'Converti', annule: 'Annulé' };
+    /** Le devis de la demande (explicite ou probable — règle 17). */
+    function lienDe(r) { return A && r ? A.devisDeRdv(r, DEVIS_LISTE) : null; }
+    /** Un devis est RATTACHÉ à cette demande (pas seulement « même client »). Tant que la liste des
+     *  devis n'est pas arrivée, on croit `devis_id` sur parole : rien ne doit clignoter au chargement. */
+    function lienExplicite(r) {
+      if (!r) return false;
+      if (r.devis_id && (DEVIS_IDS.size === 0 || DEVIS_IDS.has(String(r.devis_id)))) return true;
+      return DEVIS_LISTE.some(d => d && String(d.rdv_id || '') === String(r.id));
+    }
 
     // ── Chargement ──
     async function load() {
@@ -365,7 +534,7 @@
         try { history.replaceState(null, '', location.pathname + '?open=' + encodeURIComponent(openId)); } catch (e) {}
       }
       if (openId) setTimeout(async () => {
-        await window.openEdit(openId);
+        await window.openEdit(openId, { arrivee: true });
         if (!creneauDate || !CURRENT || String(CURRENT.id) !== String(openId)) return;
         CURRENT.creneaux = CURRENT.creneaux || [];
         const deja = CURRENT.creneaux.some(c => c.date === creneauDate && c.moment === creneauMoment);
@@ -378,7 +547,7 @@
          ça, recharger la page ou y revenir par « précédent » rouvrait une demande vierge. */
       if (qp('nouvelle')) {
         try { history.replaceState(null, '', location.pathname); } catch (e) {}
-        setTimeout(() => window.openNew(), 120);
+        setTimeout(() => window.openNew({ arrivee: true }), 120);
       }
     }
 
@@ -389,6 +558,12 @@
       DEVIS_IDS = new Set((devisList || []).map(d => String(d.id)));
       DEVIS_LISTE = devisList || [];
       render();   // le brief et les badges dépendent de l'état des devis, arrivé après le 1er rendu
+      // Une fiche déjà ouverte : le devis lié, les doublons et le pied dépendent aussi des devis.
+      if (CURRENT && el('modalBg').classList.contains('open')) {
+        renderEtat(); renderDoublons();
+        const isNew = !rdvEnregistre();
+        el('btnConvert').style.display = (isNew || lienExplicite(CURRENT) || ['visite', 'converti'].includes(CURRENT.statut)) ? 'none' : '';
+      }
       const map = new Map();
       (devisList || []).forEach(d => {
         const prenom = d.client_prenom || (d.client && d.client.prenom) || '';
@@ -455,11 +630,8 @@
       return RDV.filter(r => {
         if (!showAnnules && r.statut === 'annule') return false;
         if (SELLER !== 'tous' && (r.assigned_to || '') !== SELLER) return false;
-        if (q) {
-          const c = r.client || {};
-          const hay = `${c.prenom || ''} ${c.nom || ''} ${c.telephone || ''} ${c.email || ''} ${(c.adresse && c.adresse.ville) || ''}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
+        // Sans accents, mot à mot, le téléphone écrit d'un bloc, le projet et la source (règle 54).
+        if (q && !R.correspond(r, q)) return false;
         return true;
       });
     }
@@ -470,21 +642,39 @@
     // ailleurs, ce qui obligeait à ouvrir cette page pour savoir qu'un contact attendait. Les
     // déménager, c'est garantir que cet écran, celui des Échanges et le badge du menu ne pourront
     // jamais se contredire — la leçon déjà payée par TYPE_LABEL et par l'argent dû.
+    // ⚠️ Il coupait à 8 lignes SANS dire qu'il en restait, et affichait l'ÂGE de chaque ligne — « Visite
+    // demain · 6 j » (la dernière modification de la demande). On montre les 5 plus urgentes, on dit
+    // combien il en reste, et un rendez-vous à venir se lit « dans 18 h » (`delai`, comme les Échanges).
     function renderBrief() {
       const host = el('briefHost');
       if (!A) { host.innerHTML = ''; return; }
-      const items = A.concerne(A.depuisRdv(RDV, DEVIS_LISTE), IDENTITY.key || '');
+      const items = A.trier(A.concerne(A.depuisRdv(RDV, DEVIS_LISTE), IDENTITY.key || ''));
       if (!items.length) { host.innerHTML = ''; return; }
+      const vus = BRIEF_TOUT ? items : items.slice(0, 5);
       host.innerHTML = `<div class="rdv-brief">
         <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
-        <ul>${items.slice(0, 8).map(it => `<li onclick="openEdit('${esc(it.rdv_id)}')"><span class="rb-dot"></span>${esc(it.titre + ' — ' + it.quoi + (it.qui ? '' : ' (personne)') + ' · ' + A.age(it.depuis))}</li>`).join('')}</ul>
+        <ul>${vus.map(it => `<li><button type="button" class="rb" onclick="openEdit(${jsAttr(it.rdv_id)})"><span class="rb-dot"></span><span>${esc(it.titre + ' — ' + it.quoi + (it.qui ? '' : ' (personne)') + ' · ' + A.delai(it.depuis))}</span></button></li>`).join('')}</ul>
+        ${items.length > 5 ? `<button type="button" class="rb-plus" onclick="basculerBrief()">${BRIEF_TOUT ? 'Moins' : 'Voir les ' + (items.length - 5) + ' autres'}</button>` : ''}
       </div>`;
+    }
+    window.basculerBrief = () => { BRIEF_TOUT = !BRIEF_TOUT; renderBrief(); };
+
+    /* E — Les visites d'aujourd'hui et de demain, à l'heure : ce qu'on cherche en premier en ouvrant la
+       page le matin. Elles étaient dans la colonne « RDV fixé », mêlées aux visites de la semaine prochaine. */
+    function renderProchaines() {
+      const host = el('prochainesHost'); if (!host) return;
+      const l = R.visitesProches(RDV, auj());
+      host.innerHTML = l.length ? `<div class="rdv-prochaines"><span class="rp-t">Visites</span>${l.map(x => {
+        const c = x.r.client || {}, ville = (c.adresse && c.adresse.ville) || '';
+        return `<button type="button" class="rp" onclick="openEdit(${jsAttr(x.r.id)})"><b>${esc(x.jour + (x.heure ? ' ' + x.heure : ''))}</b> <span>${esc(clientName(x.r))}</span> ${ville ? `<span class="rp-v">${esc(ville)}</span> ` : ''}<span class="rp-v">${esc(WHO_COURT[x.r.assigned_to] || 'personne')}</span></button>`;
+      }).join('')}</div>` : '';
     }
 
     // ── Rendu principal ──
     function render() {
       if (window.__chatPopReset) window.__chatPopReset();   // ferme un aperçu ouvert avant de réécrire
       renderBrief();
+      renderProchaines();
       const rows = filtered();
       const host = el('viewHost');
       if (VIEW === 'kanban') host.innerHTML = renderKanban(rows);
@@ -495,7 +685,11 @@
       const c = r.client || {};
       const tel = c.telephone ? `${icon('phone', 11)} ${esc(c.telephone)}` : '';
       const ville = (c.adresse && c.adresse.ville) ? `${icon('pin', 11)} ${esc(c.adresse.ville)}` : '';
-      const rdvDate = r.date_rdv ? `${icon('calendar', 11)} ${esc(fmtDate(r.date_rdv.slice(0, 10)))}` : '';
+      // L'heure aussi : « 28/10 » ne dit pas s'il faut partir à 8 h ou à 14 h.
+      const rdvDate = r.date_rdv ? `${icon('calendar', 11)} ${esc(fmtDate(R.jour(r.date_rdv)).slice(0, 5) + (R.heure(r.date_rdv) ? ' ' + R.heure(r.date_rdv) : ''))}` : '';
+      const lien = lienDe(r);
+      const pa = R.prochaineAction(r, lien, auj());
+      const contact = R.resumeContact(r, auj());
       const badges = [];
       // Ancienneté d'un contact entrant que PERSONNE n'a encore pris : visible d'un coup d'œil,
       // vire à l'orange puis au rouge. C'est le principal levier de conversion sur un lead web.
@@ -504,6 +698,8 @@
         const cls = h >= A.SEUILS.LEAD_CRITIQUE_H ? 'danger' : (h >= A.SEUILS.LEAD_ATTENTION_H ? 'warn' : '');
         badges.push(`<span class="lead-age ${cls}" title="Personne n'a encore pris cette demande en charge">${icon('clock', 10)} ${esc(A.age(r.date_creation))}</span>`);
       }
+      // C — le dernier contact avec le client (canal et moment) : « SMS hier ».
+      if (contact) badges.push(`<span class="rc-contact" title="${esc(contact.nombre + ' contact(s) noté(s)')}">${esc(contact.texte)}</span>`);
       if ((r.creneaux || []).some(cr => cr.statut === 'accepte')) badges.push('<span class="badge badge-ok">Créneau retenu</span>');
       if (r.pref_contact === 'tel') badges.push('<span class="badge badge-cyan">Préf. tél</span>');
       if (r.pref_contact === 'email') badges.push('<span class="badge badge-cyan">Préf. e-mail</span>');
@@ -515,32 +711,85 @@
         const mine = r.awaiting === (IDENTITY.key || 'nicolas');
         badges.push(`<span class="rb-await ${mine ? 'me' : ''}" title="${mine ? 'On attend TA réponse' : 'En attente de la réponse de ' + (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}">${icon('clock', 10)} ${mine ? 'à toi de répondre' : (r.awaiting === 'yannick' ? 'Yannick' : 'Nicolas')}</span>`);
       }
-      // « Devis lié » ne disait pas l'essentiel : établi ? envoyé ? signé ? C'est pourtant la seule
-      // chose qu'on veut savoir après une visite. L'état vient du devis lui-même, jamais ressaisi.
-      const lienDevis = A ? A.devisDeRdv(r, DEVIS_LISTE) : null;
-      if (lienDevis) {
-        const d = lienDevis.devis;
-        const st = String(d.statut || 'brouillon');
-        const cls = st === 'brouillon' ? 'badge-warn' : (['signe', 'termine'].includes(st) ? 'badge-ok' : 'badge-accent');
-        const txt = st === 'brouillon' ? 'Devis à envoyer' : 'Devis ' + (window.SSUI.STATUT_DEVIS_LABEL[st] || st).toLowerCase();
-        badges.push(`<span class="badge ${cls}" title="Devis #${esc(d.id)}${lienDevis.lien === 'probable' ? ' — rapproché par le nom du client' : ''}">${txt}</span>`);
-      } else if (r.devis_id) {
-        badges.push('<span class="badge badge-ok">Devis lié</span>');
-      }
+      // L'état du devis lié se lit dans la phrase d'action (« Devis envoyé — à suivre ») : un badge le
+      // répétait juste en dessous (règle 40 bis : chaque chose dite une fois). Reste le cas où la demande
+      // désigne un devis qui n'existe plus.
+      if (!lien && r.devis_id && DEVIS_IDS.size > 0) badges.push('<span class="badge badge-warn" title="Le devis lié a été supprimé">Devis supprimé</span>');
       // « Visite faite » en UN clic, directement sur la carte : le glisser-déposer vers la colonne
       // « Visité » existe mais personne ne le devine — résultat, les visites passées restaient
       // coincées en « RDV fixé » (constaté en prod avec une vraie visite du 20/07).
+      const id = jsAttr(r.id);
       const visiteBtn = r.statut === 'rdv_fixe'
-        ? `<button type="button" class="rc-visite-btn" onclick="marquerVisite(event,'${r.id}')" title="La visite a eu lieu — passer en « Visité »">${icon('check', 12)} Visite faite</button>`
+        ? `<button type="button" class="rc-visite-btn" onclick="marquerVisite(event,${id})" title="La visite a eu lieu — passer en « Visité »">${icon('check', 12)} Visite faite</button>`
         : '';
-      return `<div class="rdv-card" draggable="true" data-id="${r.id}"
-          ondragstart="dragStart(event,'${r.id}')" ondragend="dragEnd(event)" onclick="openEdit('${r.id}')">
-        <div class="rc-top"><span class="rc-name">${esc(clientName(r))}</span>${whoAva(r.assigned_to)}</div>
-        <div class="rc-meta">${[tel, ville, rdvDate].filter(Boolean).join('')}</div>
-        ${badges.length ? `<div class="rc-badges">${badges.join('')}</div>` : ''}
-        ${visiteBtn}
+      // G — « Créer le devis » directement sur la carte d'une demande visitée qui n'en a pas.
+      const devisBtn = colonneDe(r) === 'visite' && !lien && !lienExplicite(r)
+        ? `<button type="button" class="rc-devis-btn" onclick="creerDevisCarte(event,${id})" title="Créer le devis de cette visite">${icon('filetext', 12)} Créer le devis</button>`
+        : '';
+      // Personne dessus : la prendre d'un geste, sans ouvrir la fiche (règle 15).
+      const prendreBtn = !r.assigned_to && IDENTITY.key && !['converti', 'annule'].includes(r.statut)
+        ? `<button type="button" class="rc-prendre" onclick="prendreCarte(event,${id})">${icon('check', 12)} Je prends</button>`
+        : '';
+      return `<div class="rdv-card" draggable="true" data-id="${esc(r.id)}"
+          ondragstart="dragStart(event,${id})" ondragend="dragEnd(event)" onclick="openEdit(${id})">
+        <div class="rc-top"><span class="rc-name">${esc(clientName(r))}</span> ${whoAva(r.assigned_to)}</div>
+        <div class="rc-meta">${[tel, ville, rdvDate].filter(Boolean).join(' ')}</div>
+        ${pa.texte ? `<div class="rc-next ton-${pa.ton}">${esc(pa.texte)}</div>` : ''}
+        ${badges.length ? `<div class="rc-badges">${badges.join(' ')}</div>` : ''}
+        ${prendreBtn}${visiteBtn}${devisBtn}${terrainHtml(r)}
       </div>`;
     }
+    /** E — Appeler / Y aller, sur téléphone seulement (règle 33 ; la feuille de style décide). */
+    function terrainHtml(r) {
+      const c = r.client || {}, a = c.adresse || {};
+      const tel = String(c.telephone || '').split(',')[0].trim();
+      const adr = [String(a.rue || '').trim(), ((a.code_postal || '') + ' ' + (a.ville || '')).trim()].filter(Boolean).join(', ');
+      const b = [];
+      // ⚠️ jsAttr et jamais des quotes écrites à la main : « Rue de l'Église » (CLAUDE.md, pièges).
+      if (tel) b.push(`<button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();location.href=${jsAttr('tel:' + tel.replace(/[^\d+]/g, ''))}">${icon('phone', 13)} Appeler</button>`);
+      if (adr) b.push(`<button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(${jsAttr(adr)}), '_blank', 'noopener')">${icon('route', 13)} Y aller</button>`);
+      return b.length ? `<div class="rc-terrain">${b.join('')}</div>` : '';
+    }
+
+    /* Une écriture depuis la LISTE (glisser-déposer, « Visite faite », « Je prends ») : la demande telle
+       qu'elle a été lue, avec `_attendu` (règle 54). Refus, conflit : l'écran revient en arrière et le DIT
+       — « Statut mis à jour ✓ » s'affichait même quand le serveur refusait (règle 6). */
+    async function enregistrerCarte(r, patch, msgOk) {
+      const avant = JSON.parse(JSON.stringify(r));
+      Object.assign(r, patch, { date_modification: new Date().toISOString() });
+      render();
+      const res = await SS.saveRdv(Object.assign({}, r, { _attendu: avant.edite_le || '' }));
+      if (res && res.conflict) {
+        const i = RDV.findIndex(x => x.id === r.id);
+        if (i !== -1 && res.actuel) RDV[i] = res.actuel; else Object.assign(r, avant);
+        render();
+        toast(res.error || 'L’autre vient de modifier cette demande.', 'warn', 8000);
+        return false;
+      }
+      if (!res || res.ok === false) {
+        Object.assign(r, avant);
+        render();
+        toast((res && res.error) || 'NON enregistré — réessaie.', 'error', 6000);
+        return false;
+      }
+      if (res.edite_le) r.edite_le = res.edite_le;
+      if (patch.statut && patch.statut !== avant.statut) r.statut_le = res.edite_le || r.date_modification;
+      render();
+      toast(res.offline ? 'Enregistré (hors-ligne)' : (msgOk || 'Enregistré ✓'), res.offline ? 'warn' : 'ok', 2500);
+      return true;
+    }
+    window.prendreCarte = async (e, id) => {
+      if (e) e.stopPropagation();
+      const r = RDV.find(x => x.id === id);
+      if (!r || !IDENTITY.key) return;
+      await enregistrerCarte(r, { assigned_to: IDENTITY.key, statut: r.statut === 'nouveau' ? 'a_contacter' : r.statut },
+        'Prise en charge ✓ — ' + clientName(r));
+    };
+    window.creerDevisCarte = async (e, id) => {
+      if (e) e.stopPropagation();
+      await window.openEdit(id, { arrivee: true });
+      if (CURRENT && CURRENT.id === id) window.convertToDevis();
+    };
 
     // Passe une demande en « Visité » (depuis la carte Kanban ou la fiche). Rollback si le
     // serveur refuse : le statut ne doit jamais avancer à l'écran sans être persisté.
@@ -548,19 +797,8 @@
       if (e) e.stopPropagation();
       const r = RDV.find(x => x.id === id);
       if (!r || r.statut === 'visite') return;
-      const prev = r.statut;
-      r.statut = 'visite';
-      r.date_modification = new Date().toISOString();
-      render();
-      const res = await SS.saveRdv(r);
-      if (res.ok === false) {
-        r.statut = prev;
-        render();
-        toast(res.error || 'Statut NON enregistré — réessaie.', 'error', 6000);
-        return;
-      }
+      if (!(await enregistrerCarte(r, { statut: 'visite' }, 'Visite marquée ✓ — pense au devis !'))) return;
       if (SS.logActivity) SS.logActivity({ action: 'rdv.visite', entity_type: 'rdv', entity_id: r.id, label: `Visite effectuée — ${clientName(r)}` });
-      toast('Visite marquée ✓ — pense au devis !', 'ok', 3000);
     };
 
     // La colonne d'une demande VISITÉE suit l'existence d'un devis, pas le bouton par lequel on est
@@ -573,8 +811,13 @@
     // déduit pas une donnée à partir d'une heuristique.
     // Restreint à `visite` : une demande encore « Nouveau » ne doit pas sauter en « Converti »
     // parce que le client a un vieux devis sans rapport.
+    // ⚠️ Et l'inverse (règle 54) : une demande glissée en « Converti » SANS devis disparaissait de toutes
+    // les alertes et perdait son bouton « Créer le devis », pour toujours. Elle est montrée en « Visité »,
+    // avec « Converti sans devis — créer le devis ». Tant que la liste des devis n'est pas arrivée, on croit
+    // `devis_id` sur parole.
     function colonneDe(r) {
-      if (r.statut === 'visite' && A && A.devisDeRdv(r, DEVIS_LISTE)) return 'converti';
+      if (r.statut === 'visite' && lienDe(r)) return 'converti';
+      if (r.statut === 'converti' && !lienDe(r) && !(r.devis_id && DEVIS_IDS.size === 0)) return 'visite';
       return r.statut;
     }
 
@@ -582,16 +825,36 @@
       // Colonne "Annulé" ajoutée seulement si la case "Voir annulés" est cochée (sinon les annulés
       // n'ont nulle part où apparaître en Kanban → la case n'avait aucun effet dans cette vue).
       const order = el('showAnnules').checked ? KANBAN_ORDER.concat('annule') : KANBAN_ORDER;
-      return `<div class="kanban">${order.map(st => {
+      // F — chaque colonne du plus urgent au moins urgent.
+      const parCol = {};
+      order.forEach(st => { parCol[st] = R.trierColonne(rows.filter(r => colonneDe(r) === st), st); });
+      // A — l'étape affichée en onglets : celle qu'on a choisie, sinon la première qui a quelque chose.
+      const etape = order.indexOf(ETAPE) >= 0 ? ETAPE : (order.find(st => parCol[st].length) || 'nouveau');
+      const onglets = `<div class="etapes" role="tablist" aria-label="Étapes">${order.map(st =>
+        `<button type="button" role="tab" id="etape-${st}" aria-selected="${st === etape}" onclick="choisirEtape('${st}')"><span class="ll">${STATUSES[st].label}</span><span class="lc">${COURT[st]}</span><b>${parCol[st].length}</b></button>`).join('')}</div>`;
+      return onglets + `<div class="kanban">${order.map(st => {
         const s = STATUSES[st];
-        const cards = rows.filter(r => colonneDe(r) === st);
-        return `<div class="kcol" data-statut="${st}" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropCard(event,'${st}')">
+        let cards = parCol[st], plus = '';
+        // F — « Converti » et « Annulé » : les 30 derniers jours, le reste derrière un bouton qui le compte.
+        if (st === 'converti' || st === 'annule') {
+          const p = R.recents(cards, auj(), 30);
+          if (!VOIR_ANCIENS[st]) cards = p.recents;
+          if (p.anciens.length) plus = `<button type="button" class="kcol-plus" onclick="basculerAnciens('${st}')">${VOIR_ANCIENS[st] ? 'Masquer les plus anciennes' : 'Plus anciennes (' + p.anciens.length + ')'}</button>`;
+        }
+        return `<div class="kcol${st === etape ? ' actif' : ''}" data-statut="${st}" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropCard(event,'${st}')">
           <div class="kcol-head"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${s.color};display:inline-block;"></span>
-            <strong style="font-size:var(--fs-sm);">${s.label}</strong><span class="k-count">${cards.length}</span></div>
+            <strong style="font-size:var(--fs-sm);">${s.label}</strong><span class="k-count">${parCol[st].length}</span></div>
           <div class="kcol-body">${cards.map(cardHtml).join('') || '<div style="padding:var(--sp-3);color:var(--text-subtle);font-size:var(--fs-2xs);text-align:center;">—</div>'}</div>
+          ${plus}
         </div>`;
       }).join('')}</div>`;
     }
+    window.choisirEtape = (st) => {
+      ETAPE = st;
+      try { localStorage.setItem('ss_rdv_etape', st); } catch (e) {}
+      render();
+    };
+    window.basculerAnciens = (st) => { VOIR_ANCIENS[st] = !VOIR_ANCIENS[st]; render(); };
 
     function renderList(rows) {
       if (!rows.length) return `<div class="empty"><div class="big">${icon('calendar', 40)}</div>Aucune demande de RDV.<br><button class="btn btn-ghost btn-sm" onclick="openNew()">${icon('plus', 13)} Nouvelle demande</button></div>`;
@@ -608,14 +871,14 @@
           <thead><tr><th>Client</th><th>Statut</th><th>Chargé</th><th>Échange</th><th>Visite</th><th>Contact</th><th>Source</th></tr></thead>
           <tbody>${sorted.map(r => {
             const c = r.client || {};
-            return `<tr onclick="openEdit('${r.id}')">
+            return `<tr onclick="openEdit(${jsAttr(r.id)})">
               <td><div class="r-name">${esc(clientName(r))}</div><div class="r-sub">${esc((c.adresse && c.adresse.ville) || '')}</div></td>
               <td>${stPill(r.statut)}</td>
-              <td>${whoAva(r.assigned_to)}</td>
-              <td>${chatCell(r)}</td>
-              <td class="r-sub">${r.date_rdv ? esc(fmtDate(r.date_rdv.slice(0, 10))) : '—'}</td>
-              <td class="r-sub">${esc(c.telephone || c.email || '—')}${r.pref_contact ? ` · ${r.pref_contact === 'tel' ? 'préf. tél' : 'préf. e-mail'}` : ''}</td>
-              <td class="r-sub">${esc(r.source || '—')}</td>
+              <td data-l="Chargé">${whoAva(r.assigned_to)}</td>
+              <td data-l="Échange">${chatCell(r)}</td>
+              <td class="r-sub" data-l="Visite">${r.date_rdv ? esc(fmtDate(R.jour(r.date_rdv)) + (R.heure(r.date_rdv) ? ' ' + R.heure(r.date_rdv) : '')) : '—'}</td>
+              <td class="r-sub" data-l="Contact">${esc(c.telephone || c.email || '—')}${r.pref_contact ? ` · ${r.pref_contact === 'tel' ? 'préf. tél' : 'préf. e-mail'}` : ''}</td>
+              <td class="r-sub" data-l="Source">${esc(r.source || '—')}</td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>`;
@@ -648,12 +911,14 @@
       e.currentTarget.classList.remove('drag-over');
       const r = RDV.find(x => x.id === DRAG_ID);
       DRAG_ID = null;
-      if (!r || r.statut === statut) return;
-      r.statut = statut;
-      r.date_modification = new Date().toISOString();
-      render();
-      const res = await SS.saveRdv(r);
-      toast(res.offline ? 'Statut enregistré (hors-ligne)' : 'Statut mis à jour ✓', res.offline ? 'warn' : 'ok', 1400);
+      if (!r || colonneDe(r) === statut) return;
+      // « Converti » veut dire « le devis existe » : glissée là sans devis, la demande perdait son bouton
+      // « Créer le devis » et sortait de toutes les alertes (règle 54).
+      if (statut === 'converti' && !lienDe(r)) {
+        toast('« Converti » veut dire « le devis existe » : ouvre la demande et clique « Créer le devis ».', 'warn', 7000);
+        return;
+      }
+      await enregistrerCarte(r, { statut }, 'Étape mise à jour ✓');
     };
 
     // ── Modale : nouvelle / édition ──
@@ -663,22 +928,43 @@
         dates_proposees: '', creneaux: [], date_rdv: '', rappel_date: '', projet: '', comments: [], photos: [],
         date_creation: new Date().toISOString(), date_modification: new Date().toISOString() };
     }
-    window.openNew = () => { CURRENT = blankRdv(); PENDING_PHOTOS = []; renderModal(true); };
+    /* Sur téléphone, « retour » ferme la fiche au lieu de quitter la page (règle 13 bis) : une étape
+       d'historique à l'ouverture, retirée à la fermeture. Il quittait la page, fiche ouverte, et la saisie
+       partait sans un mot. Pas d'étape quand on ARRIVE sur une fiche (?open=, ?nouvelle=, « Créer le
+       devis » d'une carte) : « retour » ramène alors d'où l'on vient. */
+    let FICHE_ETAPE = false;
+    function poserEtape() {
+      try { if (!FICHE_ETAPE && matchMedia('(max-width: 900px)').matches) { history.pushState({ rdvFiche: 1 }, ''); FICHE_ETAPE = true; } } catch (e) {}
+    }
+    window.openNew = (opts) => {
+      CURRENT = blankRdv(); PENDING_PHOTOS = [];
+      renderModal(true);
+      if (!(opts && opts.arrivee)) poserEtape();
+    };
     let OPEN_TOKEN = 0;
-    window.openEdit = async (id) => {
+    window.openEdit = async (id, opts) => {
+      const o = opts || {};
       const token = ++OPEN_TOKEN;               // anti-course : deux clics rapides → seul le dernier gagne
       let r = RDV.find(x => x.id === id);
       try { const full = await SS.getRdv(id); if (full) r = full; } catch (e) {}
       if (token !== OPEN_TOKEN) return;          // un autre openEdit a démarré pendant le fetch
       if (!r) { toast('Demande introuvable', 'error'); return; }
+      const dejaOuverte = el('modalBg').classList.contains('open');
       CURRENT = JSON.parse(JSON.stringify(r));
       CURRENT.client = CURRENT.client || {}; CURRENT.client.adresse = CURRENT.client.adresse || {};
       PENDING_PHOTOS = (CURRENT.photos || []).slice();
       renderModal(false);
+      // Une fiche ouverte depuis une autre (un doublon) la RELAIE : pas d'étape de plus.
+      if (!o.arrivee && !o.relais && !dejaOuverte) poserEtape();
     };
     // Fermeture BRUTE : réservée aux sorties volontaires (enregistrement, suppression, annulation),
-    // où la demande vient d'être traitée et où il n'y a plus rien à perdre.
-    window.closeModal = () => { el('modalBg').classList.remove('open'); CURRENT = null; MODAL_TOUCHE = false; };
+    // où la demande vient d'être traitée et où il n'y a plus rien à perdre. Elle retire l'étape
+    // d'historique posée à l'ouverture, sauf quand c'est « retour » qui vient de la consommer.
+    window.closeModal = (depuisRetour) => {
+      el('modalBg').classList.remove('open'); CURRENT = null; MODAL_TOUCHE = false; MSG_TOUCHE = false; fermerPlus();
+      const etape = FICHE_ETAPE; FICHE_ETAPE = false;
+      if (etape && depuisRetour !== true) { try { if (history.state && history.state.rdvFiche) history.back(); } catch (e) {} }
+    };
 
     // « Quelque chose a-t-il été tapé depuis l'ouverture ? » Mis à vrai par le moindre input/change
     // dans la modale, remis à faux à chaque ouverture (renderModal) et à chaque fermeture.
@@ -692,140 +978,295 @@
       closeModal();
     }
     window.fermerModale = fermerModale;
+    window.addEventListener('popstate', () => {
+      if (!FICHE_ETAPE || !el('modalBg').classList.contains('open')) return;
+      FICHE_ETAPE = false;   // l'étape vient d'être consommée par « retour »
+      if (MODAL_TOUCHE && !confirm('Tu as commencé à remplir cette demande.\n\nOK = fermer et PERDRE la saisie\nAnnuler = revenir au formulaire')) { poserEtape(); return; }
+      closeModal(true);
+    });
+    // Quitter la page, fiche ouverte et saisie entamée : on DEMANDE. Pas pour un tel:, sms: ou mailto:
+    // (SORTIE_EXTERNE) : l'application de messagerie s'ouvre, la page reste.
+    let SORTIE_EXTERNE = false;
+    window.addEventListener('beforeunload', (e) => {
+      if (SORTIE_EXTERNE || !MODAL_TOUCHE || !el('modalBg').classList.contains('open')) return;
+      e.preventDefault(); e.returnValue = '';
+    });
+    function sortieExterne(fn) { SORTIE_EXTERNE = true; try { fn(); } finally { setTimeout(() => { SORTIE_EXTERNE = false; }, 1500); } }
+    /** Quitter la page depuis la fiche (le simulateur) : l'étape de la fiche est REMPLACÉE, sinon « retour »
+     *  ramènerait sur une étape vide (règle 49). */
+    function partir(url) {
+      MODAL_TOUCHE = false;
+      if (FICHE_ETAPE && history.state && history.state.rdvFiche) location.replace(url); else location.href = url;
+    }
+    // « Plus ▾ » : annuler et supprimer, à l'écart d'« Enregistrer ».
+    window.basculerPlus = () => { const m = el('plusMenu'); m.hidden = !m.hidden; el('btnPlus').setAttribute('aria-expanded', String(!m.hidden)); };
+    function fermerPlus() { const m = el('plusMenu'); if (m && !m.hidden) { m.hidden = true; el('btnPlus').setAttribute('aria-expanded', 'false'); } }
+    document.addEventListener('click', (e) => { if (!(e.target.closest && e.target.closest('#plusWrap'))) fermerPlus(); });
 
     function renderModal(isNew) {
       const r = CURRENT, c = r.client, a = c.adresse || {};
       el('mIcon').innerHTML = icon('calendar', 18);
       el('mTitle').textContent = isNew ? 'Nouvelle demande de RDV' : clientName(r);
       el('mId').textContent = '#' + r.id;
-      el('btnDelete').style.display = isNew ? 'none' : '';
-      // « Créer le devis » n'a AUCUN sens sur une demande qu'on est en train de saisir : à ce stade on
-      // enregistre un contact entrant (qui le prend en charge, quand le visiter). Le bouton n'apparaît
-      // donc qu'une fois la demande enregistrée — et disparaît si elle est déjà convertie (pas de 2e devis).
-      // Un devis lié PUIS SUPPRIMÉ laissait la demande verrouillée à vie (bouton masqué, aucun moyen
-      // de refaire un devis) — cas constaté sur 2 demandes réelles. Si l'id ne correspond à aucun
-      // devis existant, on considère la demande comme NON convertie et on rend le bouton.
-      const devisPerdu = !!r.devis_id && DEVIS_IDS.size > 0 && !DEVIS_IDS.has(String(r.devis_id));
-      const dejaConverti = (!!r.devis_id && !devisPerdu) || (r.statut === 'converti' && !devisPerdu);
-      el('btnConvert').style.display = (isNew || dejaConverti) ? 'none' : '';
-      el('btnConvert').innerHTML = `${icon('filetext', 14)} Créer le devis`;
-      el('btnSave').innerHTML = isNew ? `${icon('save', 14)} Enregistrer la demande` : `${icon('save', 14)} Enregistrer`;
-      // « Annuler le RDV » : caché sur une nouvelle demande, un RDV déjà annulé, ou déjà converti en devis.
-      el('btnCancelRdv').style.display = (isNew || r.statut === 'annule' || r.statut === 'converti') ? 'none' : '';
-      // « Visite faite » : uniquement quand une visite est fixée — le raccourci du retour de terrain.
-      el('btnVisiteOk').style.display = (!isNew && r.statut === 'rdv_fixe') ? '' : 'none';
+      // « Plus » (annuler, supprimer) : rien de tout ça sur une demande qu'on est en train de saisir.
+      el('plusWrap').style.display = isNew ? 'none' : '';
+      el('btnCancelRdv').style.display = (r.statut === 'annule' || r.statut === 'converti') ? 'none' : '';
+      fermerPlus();
+      // « Créer le devis » dans le pied : une demande enregistrée, sans devis RATTACHÉ, avant la visite.
+      // Après la visite c'est la prochaine action du bandeau — un seul bouton pour un seul geste.
+      // (Un devis lié PUIS SUPPRIMÉ ne verrouille plus rien : lienExplicite ne croit que les devis qui existent.)
+      el('btnConvert').style.display = (isNew || lienExplicite(r) || ['visite', 'converti'].includes(r.statut)) ? 'none' : '';
+      el('btnConvert').innerHTML = `${icon('filetext', 14)} <span class="ll">Créer le devis</span><span class="lc">Devis</span>`;
+      el('btnSave').innerHTML = isNew ? `${icon('save', 14)} <span class="ll">Enregistrer la demande</span><span class="lc">Enregistrer</span>` : `${icon('save', 14)} Enregistrer`;
       const statusOpts = Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${r.statut === k ? 'selected' : ''}>${v.label}</option>`).join('');
       const sourceOpts = SOURCES.map(s => `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`).join('');
-      el('mBody').innerHTML = `
-        ${isNew ? `<div class="field" style="margin-bottom:var(--sp-2);">
-          <label class="label" for="rdvClientSearch">Client déjà enregistré ?</label>
-          <input class="input" id="rdvClientSearch" placeholder="Rechercher par nom, prénom, tél, ville…" oninput="renderRdvClientHits()" autocomplete="off">
-          <div id="rdvClientHits" style="margin-top:var(--sp-2);"></div>
-        </div>` : ''}
-        <div class="form-sec">Client potentiel</div>
-        <div class="grid grid-2">
-          <div class="field"><label class="label">Prénom</label><input class="input" id="f_prenom" value="${esc(c.prenom)}"></div>
-          <div class="field"><label class="label">Nom</label><input class="input" id="f_nom" value="${esc(c.nom)}"></div>
-          <div class="field"><label class="label">Téléphone</label><input class="input" id="f_tel" value="${esc(c.telephone)}"></div>
-          <div class="field"><label class="label">Email(s)</label><input class="input" id="f_email" type="email" multiple value="${esc(c.email)}" placeholder="email@exemple.be"></div>
-          <div class="field"><label class="label">Rue et n°</label><input class="input" id="f_rue" value="${esc((a.rue || '') + (a.numero ? ' ' + a.numero : ''))}" placeholder="ex. Rue des Fleurs 12"></div>
-          <div class="field"><label class="label">Code postal + ville</label><input class="input" id="f_ville" value="${esc(((a.code_postal || '') + ' ' + (a.ville || '')).trim())}" placeholder="ex. 7000 Mons" oninput="renderProximite()" onchange="renderProximite()"></div>
-        </div>
 
-        <div class="form-sec">Suivi de la demande</div>
+      /* B — LA FICHE DANS L'ORDRE DU TRAVAIL. Une demande enregistrée s'ouvre sur ce qu'il faut faire :
+         le bandeau, le suivi, le rendez-vous, le contact, l'échange entre nous — et le client, REPLIÉ une
+         fois rempli (ses coordonnées se lisent dans le titre). Sur téléphone, il fallait 1 000 px de
+         défilement pour atteindre la date de visite. Une demande NOUVELLE commence par le client. */
+      const resume = [(c.prenom || c.nom) ? clientName(r) : '', c.telephone || '', a.ville || ''].filter(Boolean).join(' · ');
+      const clientOuvert = isNew || (!c.nom && !c.prenom);
+      const client = `<details class="fiche-client" id="ficheClient" ${clientOuvert ? 'open' : ''}>
+          <summary>Client et projet ${!clientOuvert && resume ? `<span class="fc-r">— ${esc(resume)}</span>` : ''}</summary>
+          <div class="fc-corps">
+          ${isNew ? `<div class="field" style="margin-bottom:var(--sp-2);">
+            <label class="label" for="rdvClientSearch">Client déjà enregistré ?</label>
+            <input class="input" id="rdvClientSearch" placeholder="Rechercher par nom, prénom, tél, ville…" oninput="renderRdvClientHits()" autocomplete="off">
+            <div id="rdvClientHits" style="margin-top:var(--sp-2);"></div>
+          </div>` : ''}
+          <div class="grid grid-2">
+            <div class="field"><label class="label" for="f_prenom">Prénom</label><input class="input" id="f_prenom" value="${esc(c.prenom)}" oninput="planifierDoublons()"></div>
+            <div class="field"><label class="label" for="f_nom">Nom</label><input class="input" id="f_nom" value="${esc(c.nom)}" oninput="planifierDoublons()"></div>
+            <div class="field"><label class="label" for="f_tel">Téléphone</label><input class="input" id="f_tel" value="${esc(c.telephone)}" oninput="planifierDoublons()"></div>
+            <div class="field"><label class="label" for="f_email">Email(s)</label><input class="input" id="f_email" type="email" multiple value="${esc(c.email)}" placeholder="email@exemple.be" oninput="planifierDoublons()"></div>
+            <div class="field"><label class="label" for="f_rue">Rue et n°</label><input class="input" id="f_rue" value="${esc((a.rue || '') + (a.numero ? ' ' + a.numero : ''))}" placeholder="ex. Rue des Fleurs 12"></div>
+            <div class="field"><label class="label" for="f_ville">Code postal + ville</label><input class="input" id="f_ville" value="${esc(((a.code_postal || '') + ' ' + (a.ville || '')).trim())}" placeholder="ex. 7000 Mons" oninput="renderProximite()" onchange="renderProximite()"></div>
+            <div class="field"><label class="label" for="f_source">Source de la demande</label><select class="select" id="f_source">${sourceOpts}</select></div>
+          </div>
+          <div class="field"><label class="label" for="f_projet">Projet / besoin</label><textarea class="textarea" id="f_projet" placeholder="Ce que le client souhaite (produits, pièces, contexte…)">${esc(r.projet)}</textarea></div>
+          <div class="form-sec">Photos envoyées par le client</div>
+          <input type="file" id="f_photoInput" accept="image/*" multiple style="display:none;" onchange="addPhotos(this.files)">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="el('f_photoInput').click()">${icon('camera', 14)} Ajouter des photos</button>
+          <div class="rdv-photos" id="photosHost"></div>
+          </div>
+        </details>`;
+      const suivi = `<div class="form-sec">Suivi de la demande</div>
         <div class="grid grid-2">
-          <div class="field"><label class="label">Statut</label><select class="select" id="f_statut">${statusOpts}</select></div>
-          <div class="field"><label class="label">Pris en charge par</label><select class="select" id="f_assigned">
+          <div class="field"><label class="label" for="f_statut">Étape</label><select class="select" id="f_statut">${statusOpts}</select></div>
+          <div class="field"><label class="label" for="f_assigned">Pris en charge par</label><select class="select" id="f_assigned">
             <option value="" ${!r.assigned_to ? 'selected' : ''}>— Non attribué —</option>
             <option value="nicolas" ${r.assigned_to === 'nicolas' ? 'selected' : ''}>Nicolas</option>
             <option value="yannick" ${r.assigned_to === 'yannick' ? 'selected' : ''}>Yannick</option>
           </select>
-          ${(IDENTITY.key && r.assigned_to !== IDENTITY.key) ? `<button type="button" class="btn btn-ghost btn-sm mt-1" onclick="takeCharge()">${icon('check', 13)} Je prends en charge</button>` : ''}
+          ${(IDENTITY.key && r.assigned_to && r.assigned_to !== IDENTITY.key) ? `<button type="button" class="btn btn-ghost btn-sm mt-1" onclick="takeCharge()">${icon('check', 13)} Je la reprends</button>` : ''}
           <div id="proximiteHost"></div>
           </div>
-          <div class="field"><label class="label">Source de la demande</label><select class="select" id="f_source">${sourceOpts}</select></div>
-          <div class="field"><label class="label">Préférence de contact</label>
-            <div class="radio-row" style="padding-top:0.4rem;">
-              <label><input type="radio" name="prefc" value="tel" ${r.pref_contact === 'tel' ? 'checked' : ''}> Téléphone</label>
-              <label><input type="radio" name="prefc" value="email" ${r.pref_contact === 'email' ? 'checked' : ''}> E-mail</label>
-              <label><input type="radio" name="prefc" value="" ${!r.pref_contact ? 'checked' : ''}> Indifférent</label>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-sec">Rendez-vous</div>
+        </div>`;
+      const rdv = `<div class="form-sec" id="secRdv">Rendez-vous</div>
         <div class="grid grid-2">
-          <div class="field" style="grid-column:span 2;"><label class="label">Préférence de visite du client</label><input class="input" id="f_prefv" value="${esc(r.pref_visite)}" placeholder="Ex : en semaine après 17h, samedi matin…"></div>
-          <div class="field" style="grid-column:span 2;">
+          <div class="field" style="grid-column:1 / -1;"><label class="label" for="f_prefv">Préférence de visite du client</label><input class="input" id="f_prefv" value="${esc(r.pref_visite)}" placeholder="Ex : en semaine après 17h, samedi matin…"></div>
+          <div class="field" style="grid-column:1 / -1;">
             <label class="label">Créneaux proposés au client</label>
             <div id="creneauxHost"></div>
             <button type="button" class="btn btn-ghost btn-sm" onclick="addCreneau()">${icon('plus', 13)} Ajouter un créneau</button>
             <button type="button" class="btn btn-terrain btn-sm" onclick="proposerLibres()" title="Remplit avec les prochaines disponibilités réelles de la personne en charge">${icon('clock', 13)} Mes créneaux libres</button>
             ${r.dates_proposees ? `<div class="msg-hint">Ancienne saisie libre : ${esc(r.dates_proposees)}</div>` : ''}
           </div>
-          <div class="field"><label class="label">Date de visite fixée</label><input class="input" id="f_daterdv" type="datetime-local" value="${esc(r.date_rdv || '')}"></div>
-          <div class="field"><label class="label">Rappel le (optionnel)</label><input class="input" id="f_rappel" type="date" value="${esc(r.rappel_date || '')}"></div>
-        </div>
-
-        <div class="form-sec">Échange interne — Nicolas &amp; Yannick</div>
-        <div id="chatHost"></div>
-
-        <div class="form-sec">Contacter le client</div>
+          <div class="field"><label class="label" for="f_daterdv">Date de visite fixée</label><input class="input" id="f_daterdv" type="datetime-local" value="${esc(r.date_rdv || '')}"></div>
+          <div class="field"><label class="label" for="f_rappel">Rappel le (optionnel)</label><input class="input" id="f_rappel" type="date" value="${esc(r.rappel_date || '')}"></div>
+        </div>`;
+      const contact = `<div class="form-sec" id="secContact">Contacter le client</div>
         <div class="msg-box">
           <div class="grid grid-2">
             <div class="field"><label class="label" for="msgType">Message à envoyer</label>
-              <select class="select" id="msgType" onchange="fillMsg()">
+              <select class="select" id="msgType" onchange="changerMessage()">
                 <option value="creneaux">Proposer des créneaux</option>
                 <option value="confirmation">Confirmer le rendez-vous</option>
                 <option value="rappel">Rappel la veille</option>
                 <option value="relance">Relance (sans réponse)</option>
               </select>
             </div>
-            <div class="field"><label class="label">Canal préféré du client</label><div id="msgReco" style="padding-top:0.55rem;font-size:var(--fs-sm);"></div></div>
+            <div class="field"><label class="label">Préférence de contact</label>
+              <div class="radio-row" style="padding-top:0.4rem;">
+                <label><input type="radio" name="prefc" value="tel" ${r.pref_contact === 'tel' ? 'checked' : ''} onchange="fillMsg()"> Téléphone</label>
+                <label><input type="radio" name="prefc" value="email" ${r.pref_contact === 'email' ? 'checked' : ''} onchange="fillMsg()"> E-mail</label>
+                <label><input type="radio" name="prefc" value="" ${!r.pref_contact ? 'checked' : ''} onchange="fillMsg()"> Indifférent</label>
+              </div>
+            </div>
           </div>
-          <textarea class="textarea" id="msgText" style="min-height:130px;margin-top:var(--sp-2);"></textarea>
+          <textarea class="textarea" id="msgText" style="min-height:130px;margin-top:var(--sp-2);" oninput="messageRetouche()"></textarea>
+          <div class="msg-maj" id="msgMaj" hidden>Tu as retouché ce message : il n’a pas été réécrit avec les derniers changements.
+            <button type="button" class="btn btn-ghost btn-sm" onclick="fillMsg(true)">Le régénérer</button></div>
           <div class="msg-chan">
             <button type="button" class="btn btn-ghost btn-sm" onclick="copyMsg()">${icon('copy', 13)} Copier</button>
             <button type="button" class="btn btn-ghost btn-sm" id="msgBtnMail" onclick="sendMsg('email')">E-mail</button>
             <button type="button" class="btn btn-ghost btn-sm" id="msgBtnSms" onclick="sendMsg('sms')">SMS</button>
             <button type="button" class="btn btn-ghost btn-sm" id="msgBtnWa" onclick="sendMsg('wa')">WhatsApp</button>
           </div>
-          <div class="msg-hint">Le texte est modifiable avant envoi — les créneaux saisis ci-dessus y sont repris automatiquement.</div>
-        </div>
-
-        <div class="form-sec">Projet / besoin</div>
-        <div class="field"><textarea class="textarea" id="f_projet" placeholder="Ce que le client souhaite (produits, pièces, contexte…)">${esc(r.projet)}</textarea></div>
-
-        <div class="form-sec">Photos envoyées par le client</div>
-        <input type="file" id="f_photoInput" accept="image/*" multiple style="display:none;" onchange="addPhotos(this.files)">
-        <button class="btn btn-ghost btn-sm" onclick="el('f_photoInput').click()">${icon('camera', 14)} Ajouter des photos</button>
-        <div class="rdv-photos" id="photosHost"></div>
-
-        `;
+          <div class="msg-hint">Le texte est modifiable avant envoi — les créneaux saisis ci-dessus y sont repris. Chaque envoi d’ici est noté ci-dessous.</div>
+          <div id="contactsHost"></div>
+        </div>`;
+      const chat = `<div class="form-sec">Entre nous — Nicolas &amp; Yannick</div>
+        <div id="chatHost"></div>`;
+      el('mBody').innerHTML = `<div id="ficheConflit"></div><div id="ficheEtat"></div><div id="doublonsHost"></div>`
+        + (isNew ? client + suivi + rdv + contact + chat : suivi + rdv + contact + chat + client);
       renderCreneaux();
       // Saisie assistée : « 1440 » se complète en « 1440 Braine-le-Château », ce qui alimente
       // directement le calcul de proximité Nicolas / Yannick juste en dessous.
       window.SSPostal && SSPostal.bindCombined(el('f_ville'));
       renderProximite();
-      fillMsg();
+      MSG_TOUCHE = false;
+      fillMsg(true);
       renderPhotos();
       renderChat();   // remplace l'ancien bloc « Notes internes » (même champ `comments`, rien n'est perdu)
+      renderContacts();
+      renderEtat();
+      renderDoublons();
       el('modalBg').classList.add('open');
-      // On repart d'une ardoise propre à chaque ouverture. C'est juste ici parce que renderModal
-      // n'est appelée QUE par les deux points d'entrée (openNew et openRdv) : si elle venait un
-      // jour à être rappelée pendant l'édition, cette ligne annulerait la protection en silence.
+      el('mBody').scrollTop = 0;
+      // On repart d'une ardoise propre à chaque ouverture (nouvelle, édition, relais d'un doublon,
+      // « reprendre sa version ») : c'est voulu, la fiche affichée est alors celle de la base.
       MODAL_TOUCHE = false;
       if (!el('modalBg').dataset.ecoute) {
         el('modalBg').dataset.ecoute = '1';
         el('modalBg').addEventListener('input', () => { MODAL_TOUCHE = true; });
-        el('modalBg').addEventListener('change', () => { MODAL_TOUCHE = true; });
+        el('modalBg').addEventListener('change', (e) => {
+          MODAL_TOUCHE = true;
+          // Le bandeau suit l'étape, la personne et la date telles qu'on vient de les choisir.
+          if (['f_statut', 'f_assigned', 'f_daterdv'].includes(e.target && e.target.id)) renderEtat();
+        });
       }
     }
 
+    /** La demande telle que la fiche la montre à l'instant : l'enregistré, plus l'étape, la personne et la
+     *  date choisies dans le formulaire. */
+    function vueFiche() {
+      if (!CURRENT) return null;
+      const v = Object.assign({}, CURRENT);
+      if (el('f_statut')) v.statut = el('f_statut').value;
+      if (el('f_assigned')) v.assigned_to = el('f_assigned').value;
+      if (el('f_daterdv')) v.date_rdv = el('f_daterdv').value;
+      return v;
+    }
+    /* B — LE BANDEAU : où en est la demande, ce qu'il faut faire, et le geste. G — le devis lié. */
+    function renderEtat() {
+      const host = el('ficheEtat'); if (!host || !CURRENT) return;
+      if (!rdvEnregistre()) { host.innerHTML = ''; return; }
+      const r = vueFiche(), lien = lienDe(CURRENT), pa = R.prochaineAction(r, lien, auj());
+      const st = STATUSES[r.statut] || STATUSES.nouveau;
+      const visite = r.date_rdv ? fmtDate(R.jour(r.date_rdv)) + (R.heure(r.date_rdv) ? ' à ' + R.heure(r.date_rdv) : '') : '';
+      const n = (r.contacts || []).length, rc = R.resumeContact(r, auj());
+      const contact = rc ? 'contacté' + (n > 1 ? ' ' + n + ' fois' : '') + ' (dernier : ' + rc.texte + ')' : 'jamais contacté';
+      const b = (txt, js, cls, id) => `<button type="button" class="btn ${cls || 'btn-ghost'} btn-sm"${id ? ' id="' + id + '"' : ''} onclick="${js}">${txt}</button>`;
+      const acts = [];
+      if (!r.assigned_to && IDENTITY.key) acts.push(b(icon('check', 13) + ' Je prends', 'takeCharge()', 'btn-primary'));
+      if (['nouveau', 'a_contacter'].includes(r.statut) && !r.date_rdv) acts.push(b(icon('clock', 13) + ' Proposer mes créneaux libres', 'creneauxDepuisEtat()'));
+      if (r.statut === 'rdv_fixe' && r.date_rdv) {
+        const dans = R.ecartJours(auj(), R.jour(r.date_rdv));
+        if (dans === 1 && !A.rappelEnvoye(r)) acts.push(b('Envoyer le rappel de la veille', "choisirMessage('rappel')", 'btn-primary'));
+        else if (dans > 1 && !(r.contacts || []).some(x => x.type === 'confirmation')) acts.push(b('Confirmer le rendez-vous', "choisirMessage('confirmation')"));
+        if (dans <= 0) acts.push(b(icon('check', 13) + ' Visite faite', 'visiteFaiteModal()', 'btn-primary', 'btnVisiteOk'));
+        else acts.push(b(icon('check', 13) + ' Visite faite', 'visiteFaiteModal()', 'btn-ghost', 'btnVisiteOk'));
+      }
+      if (['visite', 'converti'].includes(r.statut) && !lien && !lienExplicite(CURRENT)) acts.push(b(icon('filetext', 13) + ' Créer le devis', 'convertToDevis()', 'btn-primary'));
+      let devis = '';
+      if (lien) {
+        const d = lien.devis, ds = String(d.statut || 'brouillon');
+        devis = `<div class="fe-devis">${icon('filetext', 14)} <span>Devis <strong>#${esc(d.id)}</strong> · ${esc((window.SSUI.STATUT_DEVIS_LABEL || {})[ds] || ds)}${d.total_ttc ? ` · <span class="mt">${esc(window.SSUI.fmtEur(d.total_ttc))}</span>` : ''}</span>
+          ${lien.lien === 'probable' ? '<span class="fe-prob">rapproché par le nom du client</span>' : ''}
+          <a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(d.id)}">Ouvrir le devis</a></div>`;
+      }
+      host.innerHTML = `<div class="fiche-etat ton-${pa.ton}">
+        <div class="fe-l1"><span class="st-pill" style="--st:${st.color}"><span class="dot"></span>${st.label}</span>
+          ${visite ? `<span>visite ${esc(visite)}</span> ` : ''}<span>· ${esc(WHO_COURT[r.assigned_to] || 'personne dessus')}</span> <span>· ${esc(contact)}</span></div>
+        ${pa.texte ? `<div class="fe-next">${esc(pa.texte)}</div>` : ''}
+        ${acts.length ? `<div class="fe-actions">${acts.join('')}</div>` : ''}
+        ${devis}
+      </div>`;
+    }
+    window.creneauxDepuisEtat = () => { const s = el('secRdv'); if (s) s.scrollIntoView({ block: 'start' }); proposerLibres(); };
+
+    /* D — LES DOUBLONS : même téléphone, même e-mail ou nom proche qu'une autre demande ou qu'un devis.
+       Dit au moment de la saisie, avec de quoi l'ouvrir ; rien n'est fusionné. */
+    let DOUBLONS_T = 0;
+    window.planifierDoublons = () => { clearTimeout(DOUBLONS_T); DOUBLONS_T = setTimeout(renderDoublons, 250); };
+    function renderDoublons() {
+      const host = el('doublonsHost'); if (!host || !CURRENT) return;
+      const v = (id) => (el(id) ? el(id).value.trim() : '');
+      const saisie = { id: CURRENT.id, prenom: v('f_prenom'), nom: v('f_nom'), telephone: v('f_tel'), email: v('f_email') };
+      // Le devis déjà lié à cette demande n'est pas un doublon : le bandeau le montre.
+      const lien = rdvEnregistre() ? lienDe(CURRENT) : null;
+      const l = R.doublons(saisie, RDV, DEVIS_LISTE, lien ? [lien.devis.id] : []);
+      host.innerHTML = l.map(x => {
+        const debut = /^même/.test(x.raison) ? x.raison.charAt(0).toUpperCase() + x.raison.slice(1) + ' que' : x.raison.charAt(0).toUpperCase() + x.raison.slice(1) + ' :';
+        const quoi = x.type === 'rdv'
+          ? 'demande ' + ((STATUSES[x.statut] || {}).label || x.statut).toLowerCase() + ' (' + (WHO_COURT[x.qui] || 'personne') + ')'
+          : 'devis #' + x.id + ' (' + (((window.SSUI.STATUT_DEVIS_LABEL || {})[x.statut]) || x.statut).toLowerCase() + (x.archive ? ', archivé' : '') + ')';
+        const ouvrir = x.type === 'rdv'
+          ? `<button type="button" class="btn btn-ghost btn-sm" onclick="ouvrirAutre(${jsAttr(x.id)})">Ouvrir</button>`
+          : `<a class="btn btn-ghost btn-sm" href="vue.html?id=${encodeURIComponent(x.id)}">Ouvrir</a>`;
+        return `<div class="doublon">${icon('warning', 13)} <span>${esc(debut)} « ${esc(x.nom)} » — ${esc(quoi)}</span> ${ouvrir}</div>`;
+      }).join('');
+    }
+    window.ouvrirAutre = (id) => {
+      if (MODAL_TOUCHE && !confirm('Ouvrir l’autre demande sans enregistrer celle-ci ?')) return;
+      window.openEdit(id, { relais: true });
+    };
+
+    /* C — LES CONTACTS AVEC LE CLIENT : chaque SMS, e-mail, WhatsApp, copie ou appel, daté et signé par le
+       serveur (route ciblée). C'est le dernier contact qui dit depuis quand on attend le client. */
+    let CONTACTS_TOUT = false;
+    function renderContacts() {
+      const host = el('contactsHost'); if (!host || !CURRENT) return;
+      const l = (CURRENT.contacts || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const me = IDENTITY.key || '';
+      const vus = CONTACTS_TOUT ? l : l.slice(0, 4);
+      host.innerHTML = (l.length
+        ? `<div class="ct-list">${vus.map(x => `<div class="ct"><span class="ct-c">${esc(R.CANAUX[x.canal] || x.canal)}</span> <span>${esc(R.TYPES[x.type] || '')}</span> <span class="ct-d">${esc(fmtDateTimeShort(x.date))}${x.par ? ' · ' + esc(WHO_COURT[x.par] || x.par) : ''}</span>${(!x.par || x.par === me) ? `<button type="button" class="ct-x" onclick="retirerContact(${jsAttr(x.id)})" title="Retirer ce contact (erreur de bouton)" aria-label="Retirer ce contact">✕</button>` : ''}</div>`).join('')}
+            ${l.length > 4 ? `<button type="button" class="ct-plus" onclick="basculerContacts()">${CONTACTS_TOUT ? 'Moins' : 'et ' + (l.length - 4) + ' plus ancien(s)'}</button>` : ''}</div>`
+        : `<div class="cm-empty" style="margin:var(--sp-2) 0;">${rdvEnregistre() ? 'Aucun contact noté pour l’instant.' : 'Les contacts se notent une fois la demande enregistrée.'}</div>`)
+        + `<button type="button" class="btn btn-ghost btn-sm" onclick="appelFait()">${icon('phone', 13)} J’ai appelé</button>`;
+    }
+    window.basculerContacts = () => { CONTACTS_TOUT = !CONTACTS_TOUT; renderContacts(); };
+    async function noterContact(canal, type) {
+      if (!CURRENT) return;
+      if (!rdvEnregistre()) { toast('Enregistre d’abord la demande : le contact sera noté ensuite.', 'warn', 6000); return; }
+      const cur = CURRENT;
+      const avant = { statut: cur.statut, assigned_to: cur.assigned_to || '' };
+      const res = await SS.addRdvContact(cur.id, { canal, type: type || ((el('msgType') || {}).value) || 'creneaux' });
+      if (!res || res.ok === false) { toast((res && res.error) || 'Contact NON noté.', 'error', 6000); return; }
+      cur.contacts = (cur.contacts || []).concat([res.contact]);
+      cur.edite_le = res.edite_le;
+      // Le serveur a pu passer la demande « À contacter » et la donner à celui qui contacte : on le reporte
+      // dans la fiche, sauf si l'on venait d'y toucher soi-même.
+      if (el('f_statut') && el('f_statut').value === avant.statut) el('f_statut').value = res.statut;
+      if (el('f_assigned') && (el('f_assigned').value || '') === avant.assigned_to) el('f_assigned').value = res.assigned_to;
+      if (avant.statut !== res.statut) cur.statut_le = res.edite_le;
+      cur.statut = res.statut; cur.assigned_to = res.assigned_to;
+      const i = RDV.findIndex(x => x.id === cur.id);
+      if (i !== -1) Object.assign(RDV[i], { contacts: cur.contacts, edite_le: cur.edite_le, statut: cur.statut, assigned_to: cur.assigned_to, statut_le: cur.statut_le || RDV[i].statut_le });
+      if (CURRENT === cur) { renderContacts(); renderEtat(); }
+      render();
+      toast('Contact noté : ' + (R.CANAUX[canal] || canal) + ' ✓', 'ok', 2500);
+    }
+    window.appelFait = () => noterContact('appel', 'appel');
+    window.retirerContact = async (cid) => {
+      if (!CURRENT || !confirm('Retirer ce contact de la liste ?')) return;
+      const res = await SS.deleteRdvContact(CURRENT.id, cid);
+      if (!res || res.ok === false) { toast((res && res.error) || 'Contact NON retiré.', 'error', 6000); return; }
+      CURRENT.contacts = (CURRENT.contacts || []).filter(x => String(x.id) !== String(cid));
+      const i = RDV.findIndex(x => x.id === CURRENT.id);
+      if (i !== -1) RDV[i].contacts = CURRENT.contacts;
+      renderContacts(); renderEtat(); render();
+    };
+
+    // Une photo s'ouvre DANS la page (règle 26) : elle ne s'agrandissait pas du tout.
     function renderPhotos() {
       el('photosHost').innerHTML = PENDING_PHOTOS.map((src, i) =>
-        `<div class="rdv-ph"><img src="${esc(src)}" alt=""><button onclick="removePhoto(${i})" title="Retirer">✕</button></div>`).join('');
+        `<div class="rdv-ph"><img src="${esc(src)}" alt="" style="cursor:zoom-in;" onclick="voirPhoto(${i})"><button type="button" onclick="removePhoto(${i})" title="Retirer" aria-label="Retirer la photo">✕</button></div>`).join('');
     }
+    window.voirPhoto = (i) => { if (window.SSUI.ouvrirPhotos) window.SSUI.ouvrirPhotos(PENDING_PHOTOS.slice(), i); };
     window.addPhotos = async (files) => {
       const ownerId = (CURRENT && CURRENT.id) || 'rdv-tmp';
       for (const f of files) {
@@ -1012,37 +1453,61 @@
       }
       return `${hello}\n\nMerci pour votre demande. Je vous propose de passer chez vous pour prendre les mesures et vous conseiller — c'est gratuit et sans engagement.\n\n${cr ? 'Voici mes disponibilités :\n' + cr + '\n\nQuel créneau vous conviendrait le mieux ?' : 'Quelles seraient vos disponibilités dans les prochains jours ?'}${sig}`;
     }
-    window.fillMsg = () => {
+    // ⚠️ UN MESSAGE RETOUCHÉ N'EST PLUS RÉÉCRIT EN SILENCE (règle 54) : ajouter un créneau ou changer la
+    // personne en charge régénérait le texte et effaçait ce qu'on venait d'y écrire. On le dit, et on
+    // propose de le régénérer. Choisir un autre message, lui, est un geste explicite (avec confirmation).
+    let MSG_TOUCHE = false, MSG_TYPE = 'creneaux';
+    window.fillMsg = (force) => {
       const sel = el('msgType'); if (!sel) return;
-      el('msgText').value = buildMsg(sel.value);
+      if (MSG_TOUCHE && force !== true) { const m = el('msgMaj'); if (m) m.hidden = false; }
+      else {
+        el('msgText').value = buildMsg(sel.value);
+        MSG_TOUCHE = false; MSG_TYPE = sel.value;
+        const m = el('msgMaj'); if (m) m.hidden = true;
+      }
       // Canal préféré du client : on MET EN AVANT le bouton correspondant, sans jamais bloquer les autres.
       const pref = (document.querySelector('input[name="prefc"]:checked') || {}).value || '';
-      const reco = el('msgReco');
-      if (reco) reco.textContent = pref === 'tel' ? 'Téléphone / SMS' : (pref === 'email' ? 'E-mail' : 'Indifférent');
       ['msgBtnMail', 'msgBtnSms', 'msgBtnWa'].forEach(id => { const b = el(id); if (b) b.classList.remove('reco'); });
       if (pref === 'email' && el('msgBtnMail')) el('msgBtnMail').classList.add('reco');
       if (pref === 'tel' && el('msgBtnSms')) el('msgBtnSms').classList.add('reco');
     };
+    window.messageRetouche = () => { MSG_TOUCHE = true; };
+    window.changerMessage = () => {
+      const sel = el('msgType');
+      if (MSG_TOUCHE && !confirm('Remplacer le message que tu as retouché ?')) { sel.value = MSG_TYPE; return; }
+      fillMsg(true);
+    };
+    /** Le geste du bandeau (« Envoyer le rappel de la veille ») : le bon message, prêt, sous les yeux. */
+    window.choisirMessage = (type) => {
+      const sel = el('msgType'); if (!sel) return;
+      if (MSG_TOUCHE && sel.value !== type && !confirm('Remplacer le message que tu as retouché ?')) return;
+      sel.value = type; fillMsg(true);
+      const s = el('secContact'); if (s) s.scrollIntoView({ block: 'start' });
+      setTimeout(() => { const t = el('msgText'); if (t) t.focus({ preventScroll: true }); }, 200);
+    };
     window.copyMsg = async () => {
-      try { await navigator.clipboard.writeText(el('msgText').value); toast('Message copié ✓', 'ok'); }
+      try { await navigator.clipboard.writeText(el('msgText').value); toast('Message copié ✓', 'ok'); noterContact('copie'); }
       catch (e) { el('msgText').select(); toast('Sélectionné — fais Ctrl+C', 'warn'); }
     };
     window.sendMsg = (chan) => {
       const body = el('msgText').value;
       const email = (el('f_email').value || '').split(',')[0].trim();   // 1re adresse si plusieurs
       const tel = (el('f_tel').value || '').split(',')[0].replace(/[^\d+]/g, '');
+      // C — chaque envoi est NOTÉ (canal, message, qui, quand) : l'alerte de relance part du dernier contact.
       if (chan === 'email') {
         if (!email) { toast('Pas d’adresse e-mail sur cette demande.', 'warn'); return; }
         const subj = encodeURIComponent('Votre projet de protection solaire — SolariScreen');
-        window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subj}&body=${encodeURIComponent(body)}`;
+        sortieExterne(() => { window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subj}&body=${encodeURIComponent(body)}`; });
+        noterContact('email');
         return;
       }
       if (!tel) { toast('Pas de numéro de téléphone sur cette demande.', 'warn'); return; }
-      if (chan === 'sms') { window.location.href = `sms:${tel}?&body=${encodeURIComponent(body)}`; return; }
+      if (chan === 'sms') { sortieExterne(() => { window.location.href = `sms:${tel}?&body=${encodeURIComponent(body)}`; }); noterContact('sms'); return; }
       // WhatsApp (wa.me) veut l'international sans « + » ni « 0 » initial (Belgique = 32).
       let wa = tel.replace(/^\+/, '');
       if (wa.startsWith('0')) wa = '32' + wa.slice(1);
       window.open(`https://wa.me/${wa}?text=${encodeURIComponent(body)}`, '_blank');
+      noterContact('wa');
     };
     // ── Qui est le plus proche ? ────────────────────────────────────────────────────────────
     // Aide à la décision « qui fait quoi » : distance à vol d'oiseau depuis la base de chaque
@@ -1097,6 +1562,8 @@
       if (!IDENTITY.key) { toast('Identité inconnue — choisis dans la liste déroulante.', 'warn'); return; }
       el('f_assigned').value = IDENTITY.key;
       if (el('f_statut').value === 'nouveau') el('f_statut').value = 'a_contacter';
+      MODAL_TOUCHE = true;
+      renderEtat();
       fillMsg();
       toast('Attribué à ' + (IDENTITY.key === 'yannick' ? 'Yannick' : 'Nicolas') + ' — pense à enregistrer.', 'ok');
     };
@@ -1321,28 +1788,70 @@
       r.date_modification = new Date().toISOString();
     }
 
+    /* ⚠️ CONFLIT ENTRE DEUX ÉCRANS (règle 54) : la fiche envoie la version qu'elle a lue (`_attendu`). Si
+       l'autre a enregistré entre-temps, le serveur refuse et rend la sienne : la fiche le DIT, garde la
+       saisie, et un second clic enregistre en connaissance de cause. La liste n'est mise à jour qu'APRÈS
+       l'accord du serveur — elle montrait une saisie refusée comme enregistrée. */
+    let ENREG_EN_COURS = false;
     window.saveCurrent = async () => {
-      if (!CURRENT) return;
+      if (!CURRENT || ENREG_EN_COURS) return;
       collect();
       const cur = CURRENT;   // capturé AVANT l'await : fermer la modale (Échap/clic) met CURRENT=null
+      if (cur.statut === 'converti' && !lienDe(cur) && !lienExplicite(cur)) {
+        toast('« Converti » veut dire « le devis existe » : clique « Créer le devis », ou choisis une autre étape.', 'warn', 7000);
+        return;
+      }
       const idx = RDV.findIndex(x => x.id === cur.id);
       const isNewRdv = idx === -1;
+      ENREG_EN_COURS = true;
+      const res = await SS.saveRdv(isNewRdv ? cur : Object.assign({}, cur, { _attendu: cur.edite_le || '' }));
+      ENREG_EN_COURS = false;
+      if (res && res.conflict) { afficherConflit(res); return; }
+      if (!res || res.ok === false) { toast((res && res.error) || 'Demande NON enregistrée — réessaie.', 'error', 6000); return; }
+      if (res.edite_le) cur.edite_le = res.edite_le;
+      if (isNewRdv || RDV[idx].statut !== cur.statut) cur.statut_le = res.edite_le || cur.date_modification;
       if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
-      const res = await SS.saveRdv(cur);
-      if (res.ok === false) { toast(res.error || 'Demande NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré (hors-ligne)' : 'Demande enregistrée ✓', res.offline ? 'warn' : 'ok');
       if (isNewRdv) SS.logActivity({ action: 'rdv.create', entity_type: 'rdv', entity_id: cur.id, label: `Nouvelle demande de RDV — ${clientName(cur)}${cur.source ? ' (' + cur.source + ')' : ''}` });
-      closeModal();
+      if (CURRENT === cur) closeModal();
       render();
+    };
+    function afficherConflit(res) {
+      const a = res.actuel || {};
+      if (!CURRENT) return;
+      CURRENT.edite_le = a.edite_le || '';    // le prochain clic enregistre en connaissance de cause
+      // Ce qui ne s'écrit que par les routes ciblées suit la base.
+      CURRENT.comments = a.comments || CURRENT.comments; CURRENT.contacts = a.contacts || []; CURRENT.awaiting = a.awaiting || '';
+      const i = RDV.findIndex(x => x.id === a.id);
+      if (i !== -1 && a.id) RDV[i] = a;
+      render();
+      const st = (STATUSES[a.statut] || {}).label || a.statut || '—';
+      const vis = a.date_rdv ? 'visite le ' + fmtDate(R.jour(a.date_rdv)) + (R.heure(a.date_rdv) ? ' à ' + R.heure(a.date_rdv) : '') : 'pas de visite fixée';
+      el('ficheConflit').innerHTML = `<div class="fiche-conflit"><strong>${esc(res.error || 'L’autre vient de modifier cette demande.')}</strong><br>
+        Sa version : ${esc(st)} · ${esc(WHO_COURT[a.assigned_to] || 'personne dessus')} · ${esc(vis)}. Ta saisie est gardée : « Enregistrer » la fera passer.
+        <br><button type="button" class="btn btn-ghost btn-sm" onclick="reprendreVersion()">Reprendre sa version</button></div>`;
+      el('mBody').scrollTop = 0;
+      toast(res.error || 'Conflit — relis la fiche.', 'warn', 8000);
+    }
+    window.reprendreVersion = () => {
+      const i = CURRENT ? RDV.findIndex(x => x.id === CURRENT.id) : -1;
+      if (i === -1) return;
+      CURRENT = JSON.parse(JSON.stringify(RDV[i]));
+      CURRENT.client = CURRENT.client || {}; CURRENT.client.adresse = CURRENT.client.adresse || {};
+      PENDING_PHOTOS = (CURRENT.photos || []).slice();
+      renderModal(false);
     };
 
     window.deleteCurrent = async () => {
       const cur = CURRENT;
+      fermerPlus();
       if (!cur || !confirm('Supprimer définitivement cette demande de RDV ?')) return;
-      await SS.deleteRdv(cur.id);
+      const res = await SS.deleteRdv(cur.id);
+      // « Demande supprimée » s'affichait même quand le serveur refusait : elle revenait au rechargement.
+      if (!res || res.ok === false) { toast((res && res.error) || 'Demande NON supprimée — réessaie.', 'error', 6000); return; }
       RDV = RDV.filter(x => x.id !== cur.id);
-      toast('Demande supprimée', 'ok');
-      closeModal();
+      toast(res.offline ? 'Demande supprimée (hors-ligne)' : 'Demande supprimée', 'ok');
+      if (CURRENT === cur) closeModal();
       render();
     };
 
@@ -1350,17 +1859,22 @@
     // au lieu de la supprimer. Réversible : il suffit de rouvrir la fiche et de changer le statut.
     window.cancelCurrent = async () => {
       if (!CURRENT) return;
+      fermerPlus();
       if (!confirm('Le client s\'est désisté ? Marquer cette demande comme ANNULÉE (elle ira dans les « annulés »).')) return;
       collect();
       const cur = CURRENT;              // capturé AVANT l'await (voir saveCurrent)
+      const etapeAvant = cur.statut;
       cur.statut = 'annule';
+      const res = await SS.saveRdv(Object.assign({}, cur, { _attendu: cur.edite_le || '' }));
+      if (res && res.conflict) { cur.statut = etapeAvant; afficherConflit(res); return; }
+      if (!res || res.ok === false) { cur.statut = etapeAvant; toast((res && res.error) || 'Annulation NON enregistrée — réessaie.', 'error', 6000); return; }
+      if (res.edite_le) cur.edite_le = res.edite_le;
+      cur.statut_le = res.edite_le || cur.date_modification;
       const idx = RDV.findIndex(x => x.id === cur.id);
       if (idx !== -1) RDV[idx] = cur; else RDV.unshift(cur);
-      const res = await SS.saveRdv(cur);
-      if (res.ok === false) { toast(res.error || 'Annulation NON enregistrée — réessaie.', 'error', 6000); return; }
       if (SS.logActivity) SS.logActivity({ action: 'rdv.cancel', entity_type: 'rdv', entity_id: cur.id, label: `RDV annulé (désistement) — ${clientName(cur)}` });
       toast(res.offline ? 'RDV annulé (hors-ligne)' : 'RDV annulé', 'warn');
-      closeModal();
+      if (CURRENT === cur) closeModal();
       render();
     };
 
@@ -1371,8 +1885,8 @@
       collect();
       const cur = CURRENT;   // capturé AVANT tout await (voir saveCurrent)
       if (!cur.client.nom && !cur.client.prenom) { toast('Renseigne au moins le nom du client avant de créer le devis.', 'warn'); return; }
-      // Même règle que l'affichage du bouton : un devis lié mais SUPPRIMÉ ne doit plus bloquer.
-      if (cur.devis_id && !(DEVIS_IDS.size > 0 && !DEVIS_IDS.has(String(cur.devis_id)))) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
+      // Un devis RATTACHÉ bloque (pas un devis lié puis supprimé, ni un simple « même client »).
+      if (lienExplicite(cur)) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
       CONVERTING = true;   // verrou synchrone : devis_id n'est posé qu'APRÈS l'await → sans lui, un double-clic crée 2 devis orphelins
       const devisId = generateDevisId();
       const now = new Date().toISOString();
@@ -1394,16 +1908,21 @@
         toast(rDevis.error || 'Devis NON créé — réessaie.', 'error', 7000);
         return;
       }
+      DEVIS_LISTE.push(devis); DEVIS_IDS.add(String(devisId));
       // Lie le RDV au devis + passe en "converti"
       cur.devis_id = devisId;
       cur.statut = 'converti';
       cur.date_modification = now;
-      await SS.saveRdv(cur);
+      const rRdv = await SS.saveRdv(Object.assign({}, cur, { _attendu: cur.edite_le || '' }));
+      const lie = !!rRdv && rRdv.ok !== false;
       const idx = RDV.findIndex(x => x.id === cur.id);
-      if (idx !== -1) RDV[idx] = cur;
+      if (lie && idx !== -1) RDV[idx] = cur;
       SS.logActivity({ action: 'devis.create', entity_type: 'devis', entity_id: devisId, label: `Devis #${devisId} créé depuis la demande de RDV — ${clientName(cur)}` });
-      toast(rDevis.offline ? 'Devis créé (hors-ligne)' : 'Devis créé — ouverture du simulateur…', rDevis.offline ? 'warn' : 'ok', 1600);
-      setTimeout(() => { location.href = 'simulateur.html?id=' + encodeURIComponent(devisId); }, 500);
+      // ⚠️ La demande n'a pas pu être mise à jour (conflit, réseau) : on le DIT. Le devis porte le lien
+      // (`rdv_id`) : la demande le retrouve, et aucun second devis ne peut naître d'elle.
+      if (!lie) toast('Devis #' + devisId + ' créé, mais la demande n’a pas été mise à jour (' + ((rRdv && rRdv.error) || 'connexion') + '). Le devis garde le lien avec elle.', 'warn', 6000);
+      else toast(rDevis.offline ? 'Devis créé (hors-ligne)' : 'Devis créé — ouverture du simulateur…', rDevis.offline ? 'warn' : 'ok', 1600);
+      setTimeout(() => { partir('simulateur.html?id=' + encodeURIComponent(devisId)); }, lie ? 500 : 2500);
     };
 
     // Le clic sur le fond ne ferme que si le geste a COMMENCÉ sur le fond. Sans cette condition,

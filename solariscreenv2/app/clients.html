@@ -322,26 +322,9 @@
        La clé d'un client est « nom|prénom » : une faute de frappe, un accent ou un prénom et un
        nom inversés suffisent à créer deux clients pour une seule personne (« Depptre Quentin » et
        « Détrempé Quentin » dans la vraie liste). L'ERP ne fusionne RIEN tout seul : il signale. */
-    function bigrammes(t) { const x = sansAccent(t).replace(/[^a-z]/g, ''); const b = []; for (let i = 0; i < x.length - 1; i++) b.push(x.slice(i, i + 2)); return b; }
-    function ressemblance(a, b) {
-      const A = bigrammes(a), B = bigrammes(b);
-      if (!A.length || !B.length) return sansAccent(a) && sansAccent(a) === sansAccent(b) ? 1 : 0;
-      const reste = B.slice(); let n = 0;
-      A.forEach(x => { const i = reste.indexOf(x); if (i >= 0) { n++; reste.splice(i, 1); } });
-      return 2 * n / (A.length + B.length);
-    }
-    function raisonDoublon(a, b) {
-      const ap = sansAccent(a.prenom), an = sansAccent(a.nom), bp = sansAccent(b.prenom), bn = sansAccent(b.nom);
-      const ta = chiffresSeuls(String(a.telephone || '').split(',')[0]).slice(-9), tb = chiffresSeuls(String(b.telephone || '').split(',')[0]).slice(-9);
-      const ea = sansAccent(String(a.email || '').split(',')[0]), eb = sansAccent(String(b.email || '').split(',')[0]);
-      // Un numéro bouche-trou (« 0470 00 00 00 ») n'identifie personne : six chiffres identiques de suite, on l'ignore.
-      if (ta.length >= 8 && ta === tb && !/(\d)\1{5,}/.test(ta)) return 'même téléphone';
-      if (ea && ea === eb) return 'même e-mail';
-      if (ap && an && ap === bn && an === bp) return 'prénom et nom inversés';
-      if (an && bn && ap && bp && an === bn && ressemblance(ap, bp) >= 0.4) return 'même nom, prénom proche';
-      if (ap && bp && an && bn && ap === bp && ressemblance(an, bn) >= 0.4) return 'même prénom, nom proche';
-      return '';
-    }
+    // La règle vit dans ui.js depuis le 27/10/2026 : les demandes de RDV signalent les mêmes doublons
+    // (règle 54), et deux copies d'une règle finissent par ne plus dire la même chose (règle 10).
+    const raisonDoublon = window.SSUI.raisonDoublon;
     function doublonsProbables() {
       const out = [];
       for (let i = 0; i < DIRECTORY.length; i++) for (let j = i + 1; j < DIRECTORY.length; j++) {
