@@ -120,7 +120,7 @@
 
   // Les caches locaux qu'api.js écrit : sauvés au chargement, rendus tels quels à la fin (même
   // origine que les autres tests et que l'ERP ouvert dans un autre onglet).
-  B.CLES = ['ss_devis_cache', 'ss_clients_cache', 'ss_factures_cache', 'ss_rdv_cache', 'ss_dispos_cache', 'ss_sujets_cache', 'ss_outbox', 'ss_identite'];
+  B.CLES = ['ss_devis_cache', 'ss_clients_cache', 'ss_factures_cache', 'ss_rdv_cache', 'ss_dispos_cache', 'ss_sujets_cache', 'ss_outbox', 'ss_identite', 'ss_outillage_cache', 'ss_kits_cache'];
   const SAUVE = {};
   B.CLES.forEach((k) => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
   B.remettre = () => B.CLES.forEach((k) => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });

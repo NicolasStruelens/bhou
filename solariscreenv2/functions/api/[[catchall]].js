@@ -1935,10 +1935,44 @@ export async function onRequest(context) {
       return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
     }
     if (path === '/api/outillage' && method === 'POST') {
-      const o = await request.json();
+      const o = await request.json().catch(() => ({}));
       if (!o.id) return json({ ok: false, error: 'ID manquant' }, 400);
-      await upsertOutillage(env.DB, o);
-      return json({ ok: true, id: o.id });
+      if (!String(o.nom || '').trim()) return json({ ok: false, error: 'Donne au moins un nom à la référence.' }, 400);
+      const d = await upsertOutillage(env.DB, o);
+      return json({ ok: true, id: o.id, data: d });
+    }
+    /* ── À RACHETER (écriture CIBLÉE, règle 3 — CLAUDE.md, règle 48) ──
+       « Il n'y a plus de vis de 40 » se dit au moment où l'on s'en aperçoit, souvent sur un chantier,
+       et Yannick peut corriger la même fiche au même moment : une route qui n'écrit QUE `$.racheter`
+       (et `$.dernier_achat`), signée par l'identité Access. L'enregistrement complet d'une référence
+       ne les touche jamais (upsertOutillage les reprend de la base). */
+    m = path.match(/^\/api\/outillage\/([^/]+)\/racheter$/);
+    if (m && (method === 'POST' || method === 'DELETE')) {
+      const id = decodeURIComponent(m[1]);
+      const row = await env.DB.prepare('SELECT data FROM outillage WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Référence introuvable' }, 404);
+      const qui = (parseAccessEmail(request) && IDENTITIES[String(parseAccessEmail(request)).toLowerCase()]) || null;
+      const now = new Date().toISOString();
+      const body = await request.json().catch(() => ({}));
+      if (method === 'POST') {
+        const qte = Number(body.qte);
+        if (!Number.isInteger(qte) || qte < 1 || qte > 999) return json({ ok: false, error: 'Quantité entre 1 et 999.' }, 400);
+        const racheter = { qte: qte, note: String(body.note || '').trim().slice(0, 200), par: qui, le: now };
+        await env.DB.prepare(`UPDATE outillage SET data = json_set(data, '$.racheter', json(?1)), date_modification = ?2 WHERE id = ?3`)
+          .bind(JSON.stringify(racheter), now, id).run();
+        return json({ ok: true, racheter });
+      }
+      // « Acheté » vide la ligne ET le dit (qui, quand, combien) : « Yannick en a racheté hier » évite
+      // un second achat. Retirer sans acheter (une erreur) ne laisse pas de trace d'achat.
+      const avant = (safeParse(row.data) || {}).racheter || null;
+      if (body.achete && avant) {
+        const achat = { le: now, par: qui, qte: avant.qte || null };
+        await env.DB.prepare(`UPDATE outillage SET data = json_set(json_remove(data, '$.racheter'), '$.dernier_achat', json(?1)), date_modification = ?2 WHERE id = ?3`)
+          .bind(JSON.stringify(achat), now, id).run();
+        return json({ ok: true, dernier_achat: achat });
+      }
+      await env.DB.prepare(`UPDATE outillage SET data = json_remove(data, '$.racheter'), date_modification = ?1 WHERE id = ?2`).bind(now, id).run();
+      return json({ ok: true });
     }
     m = path.match(/^\/api\/outillage\/([^/]+)$/);
     if (m) {
@@ -1953,6 +1987,45 @@ export async function onRequest(context) {
         await env.DB.prepare('DELETE FROM outillage WHERE id = ?').bind(id).run();
         return json({ ok: true });
       }
+    }
+
+    // ══════════ KITS DE POSE (règle 48) ══════════
+    // « Pose screen sur béton » : quelles références emporter, et combien par ouverture ou par
+    // chantier. Table créée à la volée, comme l'outillage. Un kit ne porte que des IDENTIFIANTS de
+    // références : renommer une vis ne casse aucun kit.
+    if (path === '/api/kits' || path.indexOf('/api/kits/') === 0) {
+      await env.DB.prepare("CREATE TABLE IF NOT EXISTS kits (id TEXT PRIMARY KEY, nom TEXT NOT NULL DEFAULT '', date_modification TEXT, data TEXT NOT NULL)").run();
+    }
+    if (path === '/api/kits' && method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT data FROM kits ORDER BY nom').all();
+      return json({ ok: true, data: results.map(r => safeParse(r.data)).filter(Boolean) });
+    }
+    if (path === '/api/kits' && method === 'POST') {
+      const k = await request.json().catch(() => ({}));
+      if (!k.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      const nom = String(k.nom || '').trim().slice(0, 120);
+      if (!nom) return json({ ok: false, error: 'Donne un nom au kit.' }, 400);
+      const POUR_KIT = ['', 'screen', 'volet_roulant', 'tente_solaire'];
+      const lignes = (Array.isArray(k.lignes) ? k.lignes : []).map(l => ({
+        ref: String((l && l.ref) || '').slice(0, 80),
+        qte: Math.round(Number(l && l.qte) * 100) / 100,
+        par: l && l.par === 'chantier' ? 'chantier' : 'ouverture',
+      })).filter(l => l.ref && l.qte > 0).slice(0, 60);
+      const now = new Date().toISOString();
+      const row = await env.DB.prepare('SELECT data FROM kits WHERE id = ?').bind(k.id).first();
+      const ex = row ? (safeParse(row.data) || {}) : {};
+      // On étale l'existant (règle 2) : un champ que cet écran ne connaît pas encore survit.
+      const d = Object.assign({}, ex, k, { nom, pour: POUR_KIT.includes(k.pour) ? k.pour : '', lignes,
+        notes: String(k.notes || '').slice(0, 1000), date_creation: ex.date_creation || now, date_modification: now });
+      await env.DB.prepare(`INSERT INTO kits (id, nom, date_modification, data) VALUES (?1, ?2, ?3, ?4)
+        ON CONFLICT(id) DO UPDATE SET nom = excluded.nom, date_modification = excluded.date_modification, data = excluded.data`)
+        .bind(k.id, nom, now, JSON.stringify(d)).run();
+      return json({ ok: true, id: k.id, data: d });
+    }
+    m = path.match(/^\/api\/kits\/([^/]+)$/);
+    if (m && method === 'DELETE') {
+      await env.DB.prepare('DELETE FROM kits WHERE id = ?').bind(decodeURIComponent(m[1])).run();
+      return json({ ok: true });
     }
 
     // ══════════ JOURNAL D'ACTIVITÉ ══════════
@@ -2305,12 +2378,20 @@ async function upsertRdv(db, r) {
 
 async function upsertOutillage(db, o) {
   const now = new Date().toISOString();
+  // On ÉTALE l'existant (règle 2) : un champ que l'écran ne renvoie pas survit. Et « à racheter » /
+  // « dernier achat » ne s'écrivent QUE par leur route ciblée (règle 48) : corriger une note depuis
+  // une fiche restée ouverte ne doit pas effacer la mention que l'autre vient de poser.
+  const row = await db.prepare('SELECT data FROM outillage WHERE id = ?').bind(o.id).first();
+  const ex = row ? (safeParse(row.data) || {}) : null;
+  const d = Object.assign({}, ex || {}, o);
+  ['racheter', 'dernier_achat'].forEach(k => { if (ex && ex[k]) d[k] = ex[k]; else delete d[k]; });
   await db.prepare(`
     INSERT INTO outillage (id, nom, categorie, date_modification, data)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET nom=excluded.nom, categorie=excluded.categorie,
       date_modification=excluded.date_modification, data=excluded.data
-  `).bind(o.id, o.nom || '', o.categorie || '', o.date_modification || now, JSON.stringify(o)).run();
+  `).bind(d.id, d.nom || '', d.categorie || '', d.date_modification || now, JSON.stringify(d)).run();
+  return d;
 }
 
 async function upsertFacture(db, f) {

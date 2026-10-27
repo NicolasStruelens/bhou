@@ -97,8 +97,10 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
-| `tests/bac-a-sable.test.html` | Les 29 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html` et `sav.test.html` (règles 46 et 47). |
+| `tests/bac-a-sable.test.html` | Les 30 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
+| `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
+| `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
@@ -675,12 +677,13 @@ Partir sur un autre onglet fait perdre sa place dans la liste et oblige à reven
 continuer à lire. Fermeture par la croix, par Échap ou par le fond ; flèches clavier et boutons
 pour passer d’une photo à l’autre, masqués quand il n’y en a qu’une — elles ne mèneraient nulle part.
 Le défilement du fond est bloqué à l’ouverture, sinon on retrouve la liste ailleurs en fermant.
-⚠️ Trois pages (`vue`, `outillage`, `devis-review`) portent ENCORE leur propre
+⚠️ Deux pages (`vue`, `devis-review`) portent ENCORE leur propre
 visionneuse en copie locale (le portfolio n'en a plus depuis le 26/10/2026 : son mode présentation
-l'a remplacée, règle 45) — leur STYLE, lui, était déjà dédoublonné dans `base.css`. Le helper
+l'a remplacée, règle 45 ; l'outillage non plus depuis le 27/10/2026, règle 48) — leur STYLE, lui,
+était déjà dédoublonné dans `base.css`. Le helper
 partagé utilise donc l’identifiant `ssLightbox` et non `lightbox` : deux éléments de même id dans
 un document, c’est le genre de collision qu’on ne voit qu’un jour de malchance. Toute nouvelle page
-passe par le helper ; les trois copies restent à ramener dessus, quand on y touchera pour autre chose.
+passe par le helper ; les deux copies restent à ramener dessus, quand on y touchera pour autre chose.
 Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
 
 **26 bis. UNE IMAGE QUI RATE UNE FOIS RESTE CASSÉE POUR TOUJOURS — une page web ne réessaie
@@ -2340,7 +2343,10 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   exceptions de planning et un quasi-doublon de fiche. Côté SAV (règle 47, tests R14 à R16) : une pièce
   commandée (ESSAI-11), un ticket réparé avec son passage (ESSAI-12), un ticket confié (ESSAI-17) et un
   ticket HORS garantie sans personne depuis neuf jours (ESSAI-21) — écrit dans le devis et non par la
-  route, parce que le serveur date un ticket « maintenant » et que c'est son ANCIENNETÉ qu'il faut voir. Le test R10 vérifie CHAQUE dossier avec la vraie règle
+  route, parce que le serveur date un ticket « maintenant » et que c'est son ANCIENNETÉ qu'il faut voir.
+  Côté outillage (règle 48, test R17) : six références (deux fournisseurs dont un prix ancien, une sans
+  catégorie, une apostrophe, une photo laissée dans la base pour essayer « Alléger »), deux kits, et des
+  chevilles « à racheter » par la route ciblée — la pose de l'école (ESSAI-10) remplit « À emporter ». Le test R10 vérifie CHAQUE dossier avec la vraie règle
   (`SSActions`) sur la liste telle que le serveur la projette. Noms à apostrophe (L'Hoest,
   Braine-l'Alleud), accents, TVA 21 %.
 • **Faux par construction** : e-mails en `@exemple.invalid` (ne peut rien recevoir, RFC 2606),
@@ -2432,6 +2438,51 @@ dans `assets/js/sav.js` (`window.SSSav`, fonctions pures) ; protégé par `tests
   test qui passe « parfois » a le même défaut que celui qui ne passe jamais** : `cadre.branche` le
   vérifie (test P1). ⚠️ Un document ÉCRIT n'a pas d'entrée d'historique à lui : « retour » y change
   l'état sans déclencher `popstate`. « Retour » se teste donc par une VRAIE navigation (tests T4 à T6).
+
+**48. L'OUTILLAGE SERT AU COMPTOIR ET AVANT UNE POSE** (27/10/2026 — revue de la page, propositions A à
+G choisies par Nicolas sur maquette). Les règles vivent dans `assets/js/outillage.js` (`window.SSOutil`,
+fonctions pures) ; protégé par `tests/outillage.test.html`.
+• **A — Retrouver une référence comme on la lit.** Une ligne de résumé remplace les trois tuiles (252 px
+  sur téléphone). La recherche ignore les accents et l'ordre des mots, et une référence se tape d'un bloc :
+  « 0179440 » trouve « 0179 4 40 » (`compacte`, à partir de trois caractères).
+• **B — Rien de coupé, rien de caché sur téléphone.** Une colonne, la vignette à gauche ; les actions
+  PASSENT À LA LIGNE (sur deux colonnes de 141 px, Modifier et Supprimer étaient coupés hors de la carte,
+  donc inatteignables) ; les notes restent visibles (elles étaient masquées sous 560 px) ; les
+  catégories tiennent dans UN menu (quatre rangées de pastilles poussaient la première référence sous le
+  premier écran). La feuille de style seule décide (règle 24).
+• **C — Les photos dans R2** (règle 25) : envoyées dès qu'on les choisit, la base ne garde que l'adresse.
+  Avant, chaque photo vivait en clair dans la ligne : chaque ouverture de la page téléchargeait toutes les
+  photos de toutes les références, et le cache du téléphone saturait en silence. « Alléger » déplace
+  celles qui y sont encore — en n'envoyant que l'identifiant, le nom et les photos : le serveur étale le
+  reste. La visionneuse locale est partie : `SSUI.ouvrirPhotos` (règle 26).
+• **D — À racheter, par une route CIBLÉE** (`POST|DELETE /api/outillage/:id/racheter`, règle 3), signée
+  par l'identité Access : on s'en aperçoit sur un chantier, et l'autre peut corriger la fiche au même
+  moment. La liste de courses est groupée par FOURNISSEUR (là où l'on va), « Acheté » vide la ligne et le
+  dit (`dernier_achat` : qui, combien), « Retirer » (une erreur) ne laisse pas de trace d'achat.
+  ⚠️ `upsertOutillage` ÉTALE l'existant (règle 2) ET reprend `racheter` / `dernier_achat` de la base :
+  réenregistrer une fiche, même avec `racheter: null`, ne touche jamais à la liste (test R5).
+• **E — Kits de pose et « à emporter »** (table `kits`, route `/api/kits`) : un kit dit, pour un type
+  d'ouverture ou pour tout chantier, quelles références emporter, « par ouverture » ou « par chantier ».
+  « À emporter » (depuis les poses des trois semaines, ou `?pose=<devis>` — le planning le propose sur
+  chaque pose de la vue Jour) multiplie par les ouvertures du chantier, comptées avec
+  `SSRemu.ouverturesParType` : la règle de l'argent (`quantiteDe`), pas une copie. Une même vis dans deux
+  kits fait UNE ligne ; une référence supprimée reste listée et nommée. Ce qui est chargé se coche SUR
+  L'APPAREIL (`ss_emporter_<devis>`) ; « Il en manque » l'envoie dans « À racheter ».
+• **F — Prix datés, deux fournisseurs** (`autre`) : la date d'un prix change quand le PRIX change, pas
+  quand on corrige une note (`datePrix`) ; au-delà de six mois, il est « à revérifier » ; le moins cher
+  est marqué et « Commander » y va. ⚠️ « 1 234,50 » valait 1 € (la lecture s'arrêtait à l'espace des
+  milliers) : `lirePrix` lit la virgule et les milliers, et REFUSE ce qu'il ne sait pas lire.
+• **G — Montrer au comptoir** : la photo et la référence en grand, la page figée derrière ; Échap ou
+  « retour » ferme.
+• ⚠️ **AUCUNE ÉCRITURE HORS-LIGNE.** L'ancien « Enregistré (hors-ligne) » n'avait aucune file d'envoi :
+  la référence n'arrivait jamais au serveur et disparaissait au chargement suivant, une suppression
+  revenait (règle 6). La fiche reste ouverte, on réessaie. Le cache, lui, est réécrit à chaque lecture
+  réussie : sans réseau, au fond d'un magasin, on CONSULTE la dernière liste connue.
+• **La catégorie affichée est celle qui sera enregistrée** : une référence sans catégorie s'ouvrait sur
+  « Visserie & boulonnerie » et l'écrivait au premier enregistrement. Elle est rangée dans « Autre »,
+  partout (`categorieDe`).
+• Les fenêtres (fiche, kit, à emporter, comptoir) suivent la règle 13 bis ; « Créer un kit » depuis
+  « À emporter » RELAIE la fenêtre sans toucher à l'historique.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -2717,7 +2768,9 @@ dans `assets/js/sav.js` (`window.SSSav`, fonctions pures) ; protégé par `tests
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
-   `tests/bac-a-sable.test.html`, exiger « 29/29 », par le serveur (il charge sql.js depuis cdnjs).
+   `tests/bac-a-sable.test.html`, exiger « 30/30 », par le serveur (il charge sql.js depuis cdnjs).
+   Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
+   `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
    `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
