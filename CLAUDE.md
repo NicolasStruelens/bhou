@@ -71,7 +71,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 121 tests (`window.SSPlanning`) |
-| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 102 tests de sa suite (`window.SSAttente`) |
+| `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 105 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
@@ -80,7 +80,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
-| `tests/attente.test.html` | Les 102 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
+| `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
@@ -100,6 +100,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/echanges.js` | **La page Échanges** (règle 52) : recherche sans accents, ce qu'une carte repliée dit, quand « Lui rappeler », ce qu'on peut supprimer, le registre des décisions, les dossiers d'un client, les nombres des onglets. Fonctions pures (`window.SSEchanges`) ; « qui doit agir » reste dans `attente.js`. |
 | `tests/echanges.test.html` | Les 33 tests des Échanges : règles pures, les ROUTES (la balle qui ne revient pas chez celui qui a répondu, le conflit entre deux écrans, la suppression gardée, le rappel), la vraie page remplie par le bac à sable et cliquée (onglets, écriture en une ligne, dossier du client, cartes repliées, brouillon gardé, conflit dit dans la carte, réponse sur place, rappel, registre des décisions, recherche), le téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/parametres.js` | **La page Paramètres** (règle 53) : ce qui a changé (et la valeur qu'on avait sous les yeux), le contrôle d'une valeur saisie, comment se lit une valeur (avec son unité), ce qu'un réglage change sur un cas concret (devis type par `calc.js`). Fonctions pures (`window.SSParam`) ; les valeurs par défaut restent dans `config.js`. |
+| `assets/js/rdv.js` | **Les demandes de RDV** (règle 54) : chercher (sans accents, téléphone d'un bloc, projet), la prochaine action d'une demande, une colonne par urgence, « Converti » sur 30 jours, les visites d'aujourd'hui et de demain, le résumé des contacts avec le client, les doublons à la saisie. Fonctions pures (`window.SSRdv`) ; « qui doit agir » reste dans `attente.js`, la règle des doublons dans `ui.js` (`SSUI.raisonDoublon`). |
+| `tests/rdv.test.html` | Les 39 tests des Demandes de RDV : règles pures, les ROUTES (conflit entre deux écrans, messages, balle et contacts protégés, champ inconnu gardé, contacts signés, retirés par leur seul auteur), la vraie page remplie par le bac à sable et cliquée (« À traiter » et visites proches, colonnes par urgence, « Je prends », glisser-déposer gardé, la fiche dans l'ordre et sa couleur, rappel de la veille noté, message retouché, conflit dans la fiche, « Converti » sans devis refusé, devis lié, doublons, photo, recherche, suppression refusée, « Créer le devis » depuis la carte), le téléphone et la tablette (onglets d'étape, fiche plein écran, vue Liste, tactile) et « retour ». Vérifié par 34 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
@@ -2220,7 +2222,8 @@ par Nicolas). Protégé par `tests/clients.test.html`.
   (date de modification avancée, faux « modifié par quelqu'un d'autre » chez l'autre).
 • **Doublons : l'ERP SIGNALE, il ne fusionne rien** (panneau « À ranger », et alerte dans « Nouveau
   client »). La clé « nom|prénom » ne pardonne ni faute ni accent. Un numéro bouche-trou (six chiffres
-  identiques de suite) n'identifie personne.
+  identiques de suite) n'identifie personne. La règle vit dans `ui.js` (`SSUI.raisonDoublon`) depuis le 27/10/2026 :
+  la demande de RDV signale les mêmes doublons à la saisie (règle 54).
 • **Pas d'étiquette « À relancer » ni « Chaud » en raccourci** : l'ERP les calcule. Les étiquettes
   existantes restent affichées.
 • **Téléphone : « retour » revient à la liste** (étape d'historique à l'ouverture d'une fiche ; pas
@@ -2754,6 +2757,59 @@ page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent
 • ⚠️ Mesurer un libellé de menu AVANT `document.fonts.ready`, c'est mesurer la police de repli : le test passait à 345 px, et
   la vraie police le coupait de 7 px.
 
+**54. LES DEMANDES DE RDV : UNE ÉTAPE À LA FOIS, ET CE QU'ON A DIT AU CLIENT SE NOTE** (27/10/2026 — revue de la page,
+propositions A à G choisies par Nicolas sur maquette). Les règles de la page vivent dans `assets/js/rdv.js` (`window.SSRdv`,
+fonctions pures) ; « qui doit agir » reste dans `attente.js` (règle 15), le lien avec le devis aussi (règle 17). Protégé par
+`tests/rdv.test.html` et `tests/attente.test.html` (R13 à R15).
+• ⚠️ **UNE FICHE RESTÉE OUVERTE N'ÉCRASE PLUS CE QUE L'AUTRE A CHANGÉ.** Le serveur réécrivait la demande entière : l'étape, la
+  prise en charge ou la date de visite que Yannick venait de poser revenaient en arrière. La fiche, le glisser-déposer,
+  « Visite faite » et « Je prends » envoient `_attendu` (le `edite_le` lu) ; si un enregistrement complet ou un contact est passé
+  entre-temps, refus 409 avec sa version. La fiche le DIT (sa version, « Reprendre sa version »), garde la saisie, et un second
+  clic enregistre en connaissance de cause. Sans `_attendu` (Planning, Échanges, bac à sable, restauration), comme avant.
+  ⚠️ Les messages internes, la balle (`awaiting`) et les contacts ne s'écrivent QUE par leurs routes : `upsertRdv` les reprend de
+  la base, et il ÉTALE l'existant (règle 2). Une fiche ouverte avant une question la renvoyait avec `awaiting` vide.
+• ⚠️ **« CONVERTI » VEUT DIRE « LE DEVIS EXISTE ».** Glissée dans « Converti » sans devis (ou choisie dans la fiche), une demande
+  perdait son bouton « Créer le devis » pour toujours et sortait de toutes les alertes (`attente.js` considère qu'elle a quitté le
+  circuit). C'est refusé, et une demande déjà dans ce cas s'affiche en « Visité » avec « Converti sans devis — créer le devis ».
+  Le bouton du pied ne regarde plus que les devis RATTACHÉS qui existent (`lienExplicite`) : un devis lié puis supprimé ne verrouille rien.
+• ⚠️ **UN REFUS DU SERVEUR SE DIT** (règle 6) : le glisser-déposer annonçait « Statut mis à jour ✓ » et la suppression « Demande
+  supprimée » même refusés ; la liste montrait une saisie refusée comme enregistrée. L'écran revient en arrière.
+• **A — Une étape à la fois** quand le kanban ne tient pas (≤ 1 100 px : 5 colonnes de 205 px, trois étaient hors de l'écran, à
+  faire défiler de côté) : des onglets avec leur nombre, la colonne choisie pleine largeur, retenue par appareil
+  (`ss_rdv_etape`), AUCUNE étape d'historique. La feuille de style seule décide (règle 24). La vue Liste se lit en blocs sur
+  téléphone ; la barre d'outils y tient en trois rangées courtes (263 px → 148).
+• **B — La fiche dans l'ordre du travail** : un bandeau (étape, visite, qui, contacts, prochaine action dans la couleur de
+  l'action, et le geste : « Je prends », « Proposer mes créneaux libres », « Envoyer le rappel de la veille », « Confirmer le
+  rendez-vous », « Visite faite », « Créer le devis »), puis Suivi, Rendez-vous, Contacter, Entre nous, et le client REPLIÉ une
+  fois rempli (lisible dans son titre). Une demande nouvelle commence par le client. Pied à une rangée, « Annuler le RDV » et
+  « Supprimer » derrière « Plus ». Sur téléphone la fiche prend tout l'écran (2 541 px de formulaire dans une boîte de 514, pied
+  de 173 px) et « retour » la ferme (une étape d'historique ; aucune quand on ARRIVE par `?open=`, `?nouvelle=` ou la carte).
+  ⚠️ La couleur du bandeau passe par `var(--ton, …)` : un `--ton` déclaré sur `.fiche-etat` écrasait celui de `.ton-warn`
+  (même spécificité, écrit plus bas) et le bandeau restait gris (test P7b).
+• **C — Les contacts avec le client** (`POST /api/rdv/:id/contact`, ciblée) : chaque SMS, e-mail, WhatsApp, copie ou appel
+  (« J'ai appelé »), daté et SIGNÉ par le serveur, avec le message envoyé (créneaux, confirmation, rappel, relance). Celui qui
+  contacte une demande que personne n'a prise la prend ; « Nouveau » passe « À contacter ». On ne retire que SA trace (403 sinon).
+  `attente.js` compte la relance depuis le DERNIER contact (« Contacté sans réponse — relancer ») et se tait sur « Visite demain »
+  quand le rappel est parti — dont l'échéance est la visite (« dans 13 h »), plus « · 6 j » (l'âge de la dernière modification).
+  ⚠️ Un contact touche `edite_le` : une fiche ouverte ailleurs est alors périmée, et c'est voulu (l'étape a pu changer).
+• **D — Les doublons à la saisie** (`SSRdv.doublons`, règle de `SSUI.raisonDoublon`) : même téléphone (jamais un bouche-trou),
+  même e-mail, nom proche — une autre demande ou un devis, avec « Ouvrir ». Rien n'est fusionné.
+• **E — Terrain** : les visites d'aujourd'hui et de demain en tête, à l'heure ; Appeler / Y aller sur les cartes, sur téléphone
+  seulement (règle 33).
+• **F — Des colonnes qui restent lisibles** : le plus urgent d'abord (personne dessus puis le plus ancien ; la visite la plus
+  proche) ; « Converti » et « Annulé » sur 30 jours d'après `statut_le` (posé par le serveur quand l'étape change — une photo
+  ajoutée ne rajeunit rien), le reste derrière « Plus anciennes (N) ».
+• **G — Le devis dans la fiche** (numéro, statut, montant, « Ouvrir le devis ») et « Créer le devis » sur la carte d'une visite.
+  Si la demande ne peut pas être liée après la création (conflit, réseau), on le DIT : le devis porte `rdv_id`, aucun second
+  devis ne peut naître d'elle.
+• Aussi : « À traiter » montrait 8 lignes sans dire qu'il en restait (5, puis « Voir les N autres ») ; un message RETOUCHÉ n'est
+  plus réécrit par l'ajout d'un créneau (« Le régénérer ») ; la recherche ignore les accents et lit le téléphone d'un bloc ; les
+  photos du client s'ouvrent dans la page (règle 26).
+• ⚠️ **Tester « retour » sur une page qui pose une étape d'historique** : dans un cadre ÉCRIT par le banc, `history.back()`
+  ramène le CADRE sur sa page vierge (règle 47) ; par une vraie navigation, un « retour » de trop sort de la page de test et
+  emporte l'onglet. Des étapes de garde l'absorbent et le comptent, et le test ne tente pas un second « retour » si le premier
+  n'a pas fermé la fiche (T8).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3025,7 +3081,7 @@ page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
-   `tests/attente.test.html`, exiger « 102/102 ».
+   `tests/attente.test.html`, exiger « 105/105 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
    quatre de ses cas chargent `tests/amorce-theme.html` en iframe pour mesurer le premier rendu.
@@ -3059,6 +3115,9 @@ page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
+   Et dès qu'on touche aux Demandes de RDV (`app/rdv.html`, `rdv.js`, `/api/rdv`) : `tests/rdv.test.html`, exiger « 39/39 », par
+   le serveur — ET `attente.test.html`, `clients.test.html` (la règle des doublons), `planning-page.test.html`,
+   `echanges.test.html` et `bac-a-sable.test.html` (ils écrivent des demandes).
    Et dès qu'on touche aux Paramètres (`app/parametres.html`, `parametres.js`, `/api/settings`, `SSConf.enregistrerChangements`) :
    `tests/parametres.test.html`, exiger « 36/36 », par le serveur — ET `mails.test.html` (la section E-mails),
    `assistant.test.html` (Soli au-dessus de la barre), `themes.test.html`, `planning-page.test.html` (la trame) et

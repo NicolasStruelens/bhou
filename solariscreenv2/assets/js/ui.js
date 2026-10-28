@@ -2088,7 +2088,37 @@
       .map(v => '<option value="' + String(v).replace(/"/g, '&quot;') + '">').join('');
   }
 
+  /* ── DOUBLONS PROBABLES ENTRE DEUX CONTACTS (règles 42 et 54) ──────────────────────────────────
+     La clé d'un client est « nom|prénom » : une faute de frappe, un accent ou un prénom et un nom
+     inversés suffisent à créer deux clients pour une seule personne (« Depptre Quentin » et
+     « Détrempé Quentin » dans la vraie liste). L'ERP ne fusionne RIEN tout seul : il signale.
+     Venue de la page Clients ; la demande de RDV la lit aussi, pour dire « ce client a déjà une
+     demande ouverte » au moment où on la saisit. */
+  function sansAccentDoublon(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+  function bigrammes(t) { const x = sansAccentDoublon(t).replace(/[^a-z]/g, ''); const b = []; for (let i = 0; i < x.length - 1; i++) b.push(x.slice(i, i + 2)); return b; }
+  function ressemblance(a, b) {
+    const A = bigrammes(a), B = bigrammes(b);
+    if (!A.length || !B.length) return sansAccentDoublon(a) && sansAccentDoublon(a) === sansAccentDoublon(b) ? 1 : 0;
+    const reste = B.slice(); let n = 0;
+    A.forEach(function (x) { const i = reste.indexOf(x); if (i >= 0) { n++; reste.splice(i, 1); } });
+    return 2 * n / (A.length + B.length);
+  }
+  function raisonDoublon(a, b) {
+    const s = sansAccentDoublon, ch = function (t) { return String(t || '').replace(/\D/g, ''); };
+    const ap = s(a.prenom), an = s(a.nom), bp = s(b.prenom), bn = s(b.nom);
+    const ta = ch(String(a.telephone || '').split(',')[0]).slice(-9), tb = ch(String(b.telephone || '').split(',')[0]).slice(-9);
+    const ea = s(String(a.email || '').split(',')[0]), eb = s(String(b.email || '').split(',')[0]);
+    // Un numéro bouche-trou (« 0470 00 00 00 ») n'identifie personne : six chiffres identiques de suite, on l'ignore.
+    if (ta.length >= 8 && ta === tb && !/(\d)\1{5,}/.test(ta)) return 'même téléphone';
+    if (ea && ea === eb) return 'même e-mail';
+    if (ap && an && ap === bn && an === bp) return 'prénom et nom inversés';
+    if (an && bn && ap && bp && an === bn && ressemblance(ap, bp) >= 0.4) return 'même nom, prénom proche';
+    if (ap && bp && an && bn && ap === bp && ressemblance(an, bn) >= 0.4) return 'même prénom, nom proche';
+    return '';
+  }
+
   window.SSUI = {
+    raisonDoublon: raisonDoublon,
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,

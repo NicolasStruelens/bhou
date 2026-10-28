@@ -56,6 +56,26 @@
     const d = new Date(); d.setDate(d.getDate() + 1);
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  /** Le jour LOCAL d'un instant ISO (« 2026-10-27 »). */
+  function jourLocal(iso) {
+    const d = new Date(iso);
+    if (!iso || !isFinite(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  /* ── Les contacts avec le client d'une demande de RDV (règle 54) ─────────────────────────────
+     Un SMS, un e-mail, un appel : noté par sa route. C'est le DERNIER contact qui dit depuis quand
+     on attend le client — compter depuis la création réclamait une relance le lendemain d'un SMS. */
+  function dernierContact(r) {
+    return ((r && r.contacts) || []).filter(function (c) { return c && c.date; })
+      .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); }).slice(-1)[0] || null;
+  }
+  /** Le rappel de la veille est-il parti (hier, aujourd'hui ou après) ? */
+  function rappelEnvoye(r) {
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    const hier = jourLocal(d.toISOString());
+    return ((r && r.contacts) || []).some(function (c) { return c && c.type === 'rappel' && jourLocal(c.date) >= hier; });
+  }
   function heuresDepuis(iso) {
     if (!iso) return 0;
     const t = new Date(iso).getTime();
@@ -182,22 +202,29 @@
           depuis: (dernier && dernier.date) || r.date_modification, href: href, urgence: URGENCE.HAUTE,
         }));
       }
-      if (r.statut === 'rdv_fixe' && r.date_rdv && String(r.date_rdv).slice(0, 10) === dem) {
+      // Le rappel PARTI (noté par la fiche), il n'y a plus rien à faire. Et l'échéance est la VISITE :
+      // « depuis 6 j » (la dernière modification de la demande) ne disait rien d'un rendez-vous demain.
+      if (r.statut === 'rdv_fixe' && r.date_rdv && String(r.date_rdv).slice(0, 10) === dem && !rappelEnvoye(r)) {
         out.push(item({
           id: 'rdv:' + r.id + ':demain', source: 'rdv', ref: r.id, rdv_id: r.id,
           qui: r.assigned_to || '', titre: nom, quoi: 'Visite demain — penser au rappel',
-          depuis: r.date_modification, href: href, urgence: URGENCE.HAUTE,
+          depuis: r.date_rdv, href: href, urgence: URGENCE.HAUTE,
         }));
       }
       // « À recontacter » ne vaut que si QUELQU'UN s'en occupe déjà. Sans personne dessus, la ligne
       // ci-dessus dit la même chose et appelle le même geste : deux lignes pour un seul client
       // font douter de toute la liste.
+      // Depuis le DERNIER CONTACT quand il y en a un (règle 54) : un SMS envoyé hier n'appelle pas de
+      // relance aujourd'hui.
       if (r.assigned_to && ['nouveau', 'a_contacter'].indexOf(r.statut) >= 0 && !r.date_rdv) {
-        if (joursDepuis(r.date_creation) >= SEUILS.CONTACT_RELANCE_J) {
+        const contact = dernierContact(r);
+        const depuisContact = contact ? contact.date : r.date_creation;
+        if (joursDepuis(depuisContact) >= SEUILS.CONTACT_RELANCE_J) {
           out.push(item({
             id: 'rdv:' + r.id + ':recontacter', source: 'rdv', ref: r.id, rdv_id: r.id,
-            qui: r.assigned_to, titre: nom, quoi: 'À recontacter — aucun rendez-vous fixé',
-            depuis: r.date_creation, href: href, urgence: URGENCE.HAUTE,
+            qui: r.assigned_to, titre: nom,
+            quoi: contact ? 'Contacté sans réponse — relancer' : 'À recontacter — aucun rendez-vous fixé',
+            depuis: depuisContact, href: href, urgence: URGENCE.HAUTE,
           }));
         }
       }
@@ -465,7 +492,7 @@
     aujourdhui: aujourdhui, demain: demain,
     heuresDepuis: heuresDepuis, joursDepuis: joursDepuis, age: age, delai: delai,
     depuisRdv: depuisRdv, depuisSav: depuisSav, depuisPlanning: depuisPlanning, depuisSujets: depuisSujets, depuisBalle: depuisBalle,
-    devisDeRdv: devisDeRdv, cleClient: cleClient,
+    devisDeRdv: devisDeRdv, cleClient: cleClient, dernierContact: dernierContact, rappelEnvoye: rappelEnvoye, jourLocal: jourLocal,
     construire: construire, trier: trier,
     pourQui: pourQui, sansPersonne: sansPersonne, concerne: concerne, compter: compter,
     charger: charger,

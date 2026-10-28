@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Demandes de RDV</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la page Demandes de RDV</h1>
+  <p class="note">
+    La page Demandes de RDV (règle 54, revue du 27/10/2026) : les règles PURES de <code>assets/js/rdv.js</code>, les ROUTES du
+    vrai serveur (<code>tests/banc-serveur.js</code>) — le conflit entre deux écrans, ce qui ne s'écrit que par les routes
+    ciblées, les contacts avec le client — puis la VRAIE page remplie par le bac à sable et cliquée : « À traiter » et les
+    visites proches, les colonnes par urgence, « Je prends », le glisser-déposer qui refuse « Converti » sans devis, la fiche
+    dans l'ordre du travail, le rappel de la veille noté, le message retouché, les doublons, le conflit dit dans la fiche, le
+    devis lié, « Créer le devis » depuis la carte, le téléphone (onglets d'étape, fiche plein écran, tactile) et « retour ».
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/planning.js"></script>
+  <script src="../assets/js/actions.js"></script>
+  <script src="../assets/js/attente.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/rdv.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 800) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 800) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests rdv';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const R = window.SSRdv, U = window.SSUI, SS = window.SS, BANC = window.SSBanc, A = window.SSAttente;
+    const AUJ = U.aujourdhui();
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const ilYaJ = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const CLES = ['ss_rdv_etape', 'ss_rdv_view'];
+    const SAUVE = {}; CLES.forEach((k) => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    const rdvB = (id) => BANC.donnee('rdv', 'id', id) || {};
+    async function comme(qui, fn) { const avant = BANC.ident; BANC.ident = qui === 'yannick' ? BANC.YANNICK : BANC.NICOLAS; try { return await fn(); } finally { BANC.ident = avant; } }
+    const cli = (prenom, nom, tel, ville) => ({ prenom, nom, telephone: tel || '', email: '', adresse: { rue: 'Rue de l’Essai 1', numero: '', code_postal: '1300', ville: ville || 'Wavre' } });
+    async function poser(o) {
+      const r = Object.assign({ statut: 'nouveau', assigned_to: '', source: 'Téléphone', pref_contact: 'tel', creneaux: [], date_rdv: '', projet: '', photos: [],
+        date_creation: ilYaJ(1), date_modification: ilYaJ(1) }, o);
+      await comme(o.par || 'nicolas', () => SS.saveRdv(r));
+      return rdvB(r.id);
+    }
+    async function ouvrirPage(largeur, hauteur, suffixe) {
+      const f = await BANC.cadre('../app/rdv.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
+      const w = f.contentWindow;
+      await attendreQue(() => w.eval('RDV.length') && w.eval('DEVIS_LISTE.length') && w.eval('IDENTITY.key') && f.contentDocument.querySelector('.rdv-card, .rdv-table'), 9000);
+      await attendre(150);
+      return f;
+    }
+    const tape = (c, v) => { c.value = v; c.dispatchEvent(new Event('input', { bubbles: true })); };
+    const choisir = (c, v) => { c.value = v; c.dispatchEvent(new Event('change', { bubbles: true })); };
+    const carte = (d, id) => d.querySelector('.rdv-card[data-id="' + id + '"]');
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures (rdv.js)');
+        const rh = { client: { prenom: 'Hélène', nom: 'Charlier', telephone: '0477 12 34 56', adresse: { ville: 'Louvain-la-Neuve' } }, projet: 'Tente pour la véranda', source: 'Site web' };
+        check('S1 Chercher : sans accents, mot à mot, le téléphone d’un bloc, le projet et la source',
+          [R.correspond(rh, 'helene'), R.correspond(rh, 'CHARLIER louvain'), R.correspond(rh, '0477123'), R.correspond(rh, 'veranda'), R.correspond(rh, 'site web'), R.correspond(rh, 'helene wavre'), R.correspond(rh, '')],
+          [true, true, true, true, true, false, true]);
+        const ct = (canal, type, j) => ({ id: canal + j, canal, type, par: 'nicolas', date: ilYaJ(j) });
+        check('S2 Le dernier contact se résume en canal + moment ; aucun → rien',
+          [R.resumeContact({ contacts: [ct('sms', 'creneaux', 1), ct('appel', 'appel', 4)] }, AUJ), R.resumeContact({ contacts: [ct('wa', 'creneaux', 0)] }, AUJ).texte, R.resumeContact({}, AUJ)],
+          [{ texte: 'SMS hier', nombre: 2, jours: 1 }, 'WhatsApp aujourd’hui', null]);
+        const pa = (r, lien) => { const x = R.prochaineAction(r, lien || null, AUJ); return x.texte + ' / ' + x.ton; };
+        check('S3 La prochaine action, en une phrase et une couleur — de la demande neuve au devis',
+          [pa({ statut: 'nouveau', assigned_to: '' }), pa({ statut: 'a_contacter', assigned_to: 'nicolas' }),
+            pa({ statut: 'a_contacter', assigned_to: 'nicolas', contacts: [ct('sms', 'creneaux', 0)] }), pa({ statut: 'a_contacter', assigned_to: 'nicolas', contacts: [ct('sms', 'creneaux', 3)] }),
+            pa({ statut: 'rdv_fixe', assigned_to: 'nicolas', date_rdv: J(1) + 'T10:00' }), pa({ statut: 'rdv_fixe', assigned_to: 'nicolas', date_rdv: J(1) + 'T10:00', contacts: [ct('sms', 'rappel', 0)] }),
+            pa({ statut: 'rdv_fixe', assigned_to: 'nicolas', date_rdv: J(-1) + 'T10:00' }), pa({ statut: 'visite', assigned_to: 'nicolas' }),
+            pa({ statut: 'visite' }, { devis: { id: 'D', statut: 'brouillon' } }), pa({ statut: 'converti' }), pa({ statut: 'annule' })],
+          ['Personne dessus — à prendre / danger', 'À contacter / warn', 'En attente du client / neutre', 'Sans réponse — relancer / warn',
+            'Visite demain à 10:00 — envoyer le rappel / warn', 'Visite demain à 10:00 — rappel envoyé / neutre', 'Visite passée — la marquer faite / warn',
+            'Créer le devis / accent', 'Devis à envoyer / warn', 'Converti sans devis — créer le devis / warn', 'Annulée / neutre']);
+        const col = [{ id: 'a', assigned_to: 'nicolas', date_creation: ilYaJ(9) }, { id: 'b', assigned_to: '', date_creation: ilYaJ(1) }, { id: 'c', assigned_to: '', date_creation: ilYaJ(5) }];
+        const fixes = [{ id: 'x', date_rdv: J(5) + 'T09:00' }, { id: 'y', date_rdv: '' }, { id: 'z', date_rdv: J(1) + 'T14:00' }];
+        const conv = [{ id: 'p', statut_le: ilYaJ(40) }, { id: 'q', date_modification: ilYaJ(2) }, { id: 'r', statut_le: ilYaJ(10), date_modification: ilYaJ(50) }];
+        check('S4 F — Une colonne du plus urgent au moins urgent : personne dessus puis le plus ancien ; la visite la plus proche ; le changement d’étape le plus récent',
+          [R.trierColonne(col, 'nouveau').map((x) => x.id), R.trierColonne(fixes, 'rdv_fixe').map((x) => x.id), R.trierColonne(conv, 'converti').map((x) => x.id)],
+          [['c', 'b', 'a'], ['z', 'x', 'y'], ['q', 'r', 'p']]);
+        const rc = R.recents(conv, AUJ, 30);
+        check('S5 F — « Converti » garde les 30 derniers jours, d’après le CHANGEMENT d’étape (une photo ajoutée ne rajeunit rien)',
+          [rc.recents.map((x) => x.id), rc.anciens.map((x) => x.id)], [['q', 'r'], ['p']]);
+        const vp = R.visitesProches([{ id: '1', statut: 'rdv_fixe', date_rdv: J(1) + 'T09:00' }, { id: '2', statut: 'rdv_fixe', date_rdv: AUJ + 'T14:00' },
+          { id: '3', statut: 'visite', date_rdv: AUJ + 'T08:00' }, { id: '4', statut: 'rdv_fixe', date_rdv: J(2) + 'T08:00' }], AUJ);
+        check('S6 E — Les visites d’aujourd’hui et de demain, dans l’ordre, à l’heure (ni les visites faites ni celles d’après-demain)',
+          vp.map((x) => x.r.id + ' ' + x.jour + ' ' + x.heure), ['2 Aujourd’hui 14:00', '1 Demain 09:00']);
+        const RDVS = [{ id: 'R1', statut: 'a_contacter', assigned_to: 'yannick', date_creation: ilYaJ(2), client: { prenom: 'Anne', nom: 'L’Hoest', telephone: '+32 477 12 34 56' } },
+          { id: 'R2', statut: 'nouveau', date_creation: ilYaJ(1), client: { prenom: 'Bob', nom: 'Bouche', telephone: '0000 00 00 21' } }];
+        const DEV = [{ id: 'D1', statut: 'envoye_client', client_nom: 'Martin', client_prenom: 'Julie' }, { id: 'D2', statut: 'brouillon', client: { prenom: 'Anne', nom: 'L’Hoest' } }];
+        check('S7 D — Doublons : même téléphone (0477… = +32 477…), jamais un bouche-trou ; nom proche d’un devis ; la demande elle-même et le devis déjà lié ne comptent pas',
+          [R.doublons({ id: 'N', telephone: '0477 12 34 56' }, RDVS, []).map((x) => x.id + ':' + x.raison), R.doublons({ id: 'N', telephone: '0000000021' }, RDVS, []).length,
+            R.doublons({ id: 'N', prenom: 'Julie', nom: 'Martin' }, RDVS, DEV).map((x) => x.type + ':' + x.id), R.doublons({ id: 'R1', prenom: 'Anne', nom: 'L’Hoest', telephone: '0477123456' }, RDVS, DEV, ['D2']).length,
+            R.doublons({ id: 'N', prenom: 'Anne', nom: 'L’Hoest' }, RDVS, DEV).map((x) => x.type + ':' + x.id), R.doublons({}, RDVS, DEV)],
+          [['R1:même téléphone'], 0, ['devis:D1'], 0, ['rdv:R1', 'devis:D2'], []]);
+
+        // ══════════ R — LES ROUTES ══════════
+        titre('R — Les routes du serveur (vrai fichier, vraie base)');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        let r = await poser({ id: 'RR1', client: cli('Anne', 'Lambert', '0477 11 22 33'), assigned_to: 'nicolas', statut: 'a_contacter', projet: 'Screens', inconnu: 'garde-moi' });
+        const lue = rdvB('RR1');
+        await comme('yannick', () => SS.saveRdv(Object.assign({}, lue, { statut: 'rdv_fixe', date_rdv: J(3) + 'T10:00' })));
+        let res = await SS.saveRdv(Object.assign({}, lue, { projet: 'Screens + volets', _attendu: lue.edite_le }));
+        check('R1 CONFLIT : une fiche restée ouverte ne remet plus en silence l’étape et la date que Yannick vient de poser — refus, on dit qui, on rend sa version',
+          [!!lue.edite_le, lue.edite_par, res.ok, res.conflict, /^Yannick vient de modifier/.test(res.error || ''), res.actuel && res.actuel.statut, rdvB('RR1').statut, rdvB('RR1').projet],
+          [true, 'nicolas', false, true, true, 'rdv_fixe', 'rdv_fixe', 'Screens']);
+        // L'écran ne connaît pas « inconnu » : il ne le renvoie pas (c'est ce qui effaçait les champs, règle 2).
+        const sansInconnu = Object.assign({}, rdvB('RR1'), { projet: 'Screens + volets', _attendu: rdvB('RR1').edite_le });
+        delete sansInconnu.inconnu;
+        res = await SS.saveRdv(sansInconnu);
+        check('R2 Avec la bonne version, ça passe ; `_attendu` n’est pas stocké ; un champ inconnu de l’écran survit ; l’étape a sa date de changement',
+          [res.ok, !!res.edite_le, rdvB('RR1').projet, '_attendu' in rdvB('RR1'), rdvB('RR1').inconnu, rdvB('RR1').statut_le === rdvB('RR1').statut_le && !!rdvB('RR1').statut_le],
+          [true, true, 'Screens + volets', false, 'garde-moi', true]);
+        await SS.addRdvComment('RR1', { author: 'nicolas', text: 'Tu peux y aller ?', ask: 'yannick', kind: 'question' });
+        await SS.addRdvContact('RR1', { canal: 'appel', type: 'appel' });
+        const avantMsg = rdvB('RR1');
+        res = await SS.saveRdv(Object.assign({}, lue, { awaiting: '', comments: [], contacts: [], projet: 'Écrasé ?' }));
+        check('R3 Les messages internes, la balle (`awaiting`) et les contacts ne s’écrivent QUE par leurs routes : un enregistrement complet ne les efface pas',
+          [res.ok, rdvB('RR1').awaiting, (rdvB('RR1').comments || []).length, (rdvB('RR1').contacts || []).length, avantMsg.edite_le === lue.edite_le], [true, 'yannick', 1, 1, false]);
+        await poser({ id: 'RR2', client: cli('Bea', 'Neuve', '0477 22 33 44'), statut: 'nouveau', assigned_to: '' });
+        const avantC = rdvB('RR2');
+        const rc1 = await SS.addRdvContact('RR2', { canal: 'sms', type: 'creneaux' });
+        const apresC = rdvB('RR2');
+        const stale = await SS.saveRdv(Object.assign({}, avantC, { projet: 'x', _attendu: avantC.edite_le }));
+        check('R4 C — Un contact noté par sa route : signé et daté par le serveur ; la demande « Nouveau » passe « À contacter » et va à celui qui a contacté ; une fiche ouverte avant devient périmée',
+          [rc1.ok, rc1.contact.canal + '/' + rc1.contact.type + '/' + rc1.contact.par, apresC.statut, apresC.assigned_to, (apresC.contacts || []).length, apresC.edite_le === rc1.edite_le, stale.conflict],
+          [true, 'sms/creneaux/nicolas', 'a_contacter', 'nicolas', 1, true, true]);
+        const bad = await SS.addRdvContact('RR2', { canal: 'pigeon' }), absent = await SS.addRdvContact('NEXISTE', { canal: 'sms' });
+        const ry = await comme('yannick', () => SS.addRdvContact('RR2', { canal: 'appel' }));
+        const delAutre = await SS.deleteRdvContact('RR2', ry.contact.id), delMoi = await SS.deleteRdvContact('RR2', rc1.contact.id);
+        check('R5 Un canal inconnu est refusé, une demande absente aussi ; on retire SON contact (erreur de bouton), jamais celui de l’autre ; un appel garde son type',
+          [bad.ok, absent.ok, ry.contact.type, rdvB('RR2').assigned_to, delAutre.ok, /Yannick|yannick/.test(delAutre.error || ''), delMoi.ok, (rdvB('RR2').contacts || []).map((x) => x.par)],
+          [false, false, 'appel', 'nicolas', false, true, true, ['yannick']]);
+
+        // ══════════ P — LA PAGE, AU BUREAU ══════════
+        titre('P — La vraie page (1500 px)');
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        CLES.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+        const rem = await window.SSBacASable.remplir(SS, {});
+        // Quatre leads de plus, personne dessus, pour que « À traiter » dépasse 5 lignes ; un avec un vrai numéro (doublon).
+        for (let i = 1; i <= 4; i++) await poser({ id: 'P-LEAD-' + i, client: cli('Lead', 'Numéro' + i, '', 'Namur'), date_creation: ilYaJ(i), date_modification: ilYaJ(i) });
+        await poser({ id: 'P-DOUBLE', client: cli('Zoé', 'Doublon', '0478 98 76 54', 'Ottignies'), statut: 'a_contacter', assigned_to: 'yannick', par: 'yannick', photos: ['data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="orange"/></svg>')] });
+        const RDVS0 = await SS.listRdv();
+        const id = (prenom) => (RDVS0.find((x) => x.client && x.client.prenom === prenom) || {}).id;
+        const ID_LAURA = id('Laura'), ID_PAUL = id('Paul'), ID_HELENE = id('Hélène'), ID_DAMIEN = id('Damien'), ID_MARC = id('Marc');
+        BANC.viderCaches();
+        let f = await ouvrirPage(1500, 900);
+        let w = f.contentWindow, d = f.contentDocument;
+        check('P0 Le cadre parle au banc ; le bac à sable est rempli sans erreur ; les cinq demandes d’essai sont là',
+          [f.branche, rem.erreurs, [ID_LAURA, ID_PAUL, ID_HELENE, ID_DAMIEN, ID_MARC].every(Boolean)], [true, [], true]);
+        const brief = [...d.querySelectorAll('#briefHost .rb')].map(txt);
+        check('P1 « À traiter » : 5 lignes et « Voir les N autres » (il coupait à 8 sans le dire) ; ce sont des boutons ; ce que personne n’a pris passe devant',
+          [brief.length, /^Voir les \d+ autres$/.test(txt(d.querySelector('#briefHost .rb-plus'))), d.querySelector('#briefHost .rb').tagName, /\(personne\)/.test(brief[0])],
+          [5, true, 'BUTTON', true]);
+        d.querySelector('#briefHost .rb-plus').click(); await attendre(20);
+        const briefTous = [...d.querySelectorAll('#briefHost .rb')].map(txt);
+        const briefHelene = briefTous.find((t) => /Hélène Charlier/.test(t)) || '';
+        check('P2 « Voir les autres » déplie TOUT ; « Visite demain » se lit « dans … » (c’était « · 6 j ») ; E — les visites d’aujourd’hui et de demain en tête, à l’heure',
+          [briefTous.length > 5, txt(d.querySelector('#briefHost h3')).indexOf('(' + briefTous.length + ')') > 0, /^Hélène Charlier — Visite demain — penser au rappel · dans \d+ (h|j)$/.test(briefHelene), [...d.querySelectorAll('#prochainesHost .rp')].map(txt)],
+          [true, true, true, ['Demain 10:00 Hélène Charlier Louvain-la-Neuve Nicolas']]);
+        const colIds = (st) => [...d.querySelectorAll('.kcol[data-statut="' + st + '"] .rdv-card')].map((c) => c.getAttribute('data-id'));
+        const nouveaux = colIds('nouveau');
+        check('P3 Au bureau : les cinq colonnes, pas d’onglets ; F — « Nouveau » du plus ancien au plus récent, personne dessus d’abord',
+          [w.getComputedStyle(d.querySelector('.etapes')).display, [...d.querySelectorAll('.kcol')].filter((c) => c.offsetParent).length, nouveaux[0] === 'P-LEAD-4' && nouveaux.indexOf(ID_LAURA) === nouveaux.length - 1],
+          ['none', 5, true]);
+        const cL = carte(d, ID_LAURA), cD = carte(d, ID_DAMIEN), cM = carte(d, ID_MARC);
+        check('P4 Chaque carte dit la prochaine action (dans sa couleur) ; « Je prends » sur celle que personne n’a prise ; « Créer le devis » sur la visite sans devis ; le devis lié se lit une fois',
+          [txt(cL.querySelector('.rc-next')), cL.querySelector('.rc-next').classList.contains('ton-danger'), !!cL.querySelector('.rc-prendre'), !!cD.querySelector('.rc-devis-btn'),
+            /^Devis .* à suivre$|^Devis /.test(txt(cM.querySelector('.rc-next'))), cM.querySelectorAll('.badge').length === [...cM.querySelectorAll('.badge')].filter((b) => !/Devis/.test(txt(b))).length,
+            w.getComputedStyle(cL.querySelector('.rc-terrain') || d.body).display === 'none' || !cL.querySelector('.rc-terrain')],
+          ['Personne dessus — à prendre', true, true, true, true, true, true]);
+        cL.querySelector('.rc-prendre').click();
+        await attendreQue(() => rdvB(ID_LAURA).assigned_to === 'nicolas', 4000);
+        check('P5 « Je prends » sur la carte : enregistré (Nicolas, « À contacter ») sans ouvrir la fiche',
+          [rdvB(ID_LAURA).assigned_to, rdvB(ID_LAURA).statut, txt(carte(d, ID_LAURA).querySelector('.rc-next'))], ['nicolas', 'a_contacter', 'À contacter']);
+        // Glisser-déposer
+        const drop = async (rid, st) => { w.eval('DRAG_ID = ' + JSON.stringify(rid)); await w.dropCard({ preventDefault() {}, currentTarget: { classList: { remove() {} } } }, st); await attendre(60); };
+        await drop(ID_LAURA, 'converti');
+        const apresConv = rdvB(ID_LAURA).statut;
+        await comme('yannick', async () => { const x = rdvB(ID_PAUL); return SS.saveRdv(Object.assign({}, x, { statut: 'rdv_fixe', date_rdv: J(4) + 'T15:00' })); });
+        await drop(ID_PAUL, 'visite');
+        check('P6 Glisser en « Converti » SANS devis est refusé (la demande perdait « Créer le devis » pour toujours) ; glisser une demande que Yannick vient de changer : refus, sa version s’affiche',
+          [apresConv, rdvB(ID_PAUL).statut, w.eval('RDV.find(x => x.id === ' + JSON.stringify(ID_PAUL) + ').statut'), colIds('rdv_fixe').indexOf(ID_PAUL) >= 0], ['a_contacter', 'rdv_fixe', 'rdv_fixe', true]);
+        // La fiche d'une visite fixée demain
+        await w.openEdit(ID_HELENE); await attendre(60);
+        const secs = [...d.querySelectorAll('#mBody .form-sec')].map(txt).slice(0, 4);
+        const etat = d.querySelector('#ficheEtat .fiche-etat');
+        check('P7 B — La fiche s’ouvre sur ce qu’il faut faire : le bandeau (étape, visite, qui, contacts, prochaine action), puis Suivi, Rendez-vous, Contacter, Entre nous ; le client est replié, lisible dans le titre',
+          [/RDV fixé/.test(txt(etat.querySelector('.fe-l1'))), /jamais contacté/.test(txt(etat)), txt(etat.querySelector('.fe-next')), secs,
+            d.getElementById('ficheClient').open, /Hélène Charlier · 0000 00 00 23 · Louvain-la-Neuve/.test(txt(d.querySelector('#ficheClient summary'))), w.getComputedStyle(d.getElementById('btnConvert')).display !== 'none'],
+          [true, true, 'Visite demain à 10:00 — envoyer le rappel', ['Suivi de la demande', 'Rendez-vous', 'Contacter le client', 'Entre nous — Nicolas & Yannick'], false, true, true]);
+        const couleur = (v) => { const s = d.createElement('span'); s.style.color = v; d.body.appendChild(s); const c = w.getComputedStyle(s).color; s.remove(); return c; };
+        check('P7b Le bandeau prend la couleur de l’action (ambre : à toi de pousser) — une règle déclarée plus bas le laissait gris',
+          [w.getComputedStyle(etat.querySelector('.fe-next')).color === couleur('var(--warn)'), w.getComputedStyle(etat.querySelector('.fe-next')).color === couleur('var(--text-muted)')], [true, false]);
+        [...etat.querySelectorAll('.fe-actions button')].find((b) => /rappel de la veille/.test(txt(b))).click(); await attendre(250);
+        const msgRappel = d.getElementById('msgText').value;
+        w.open = () => null;   // WhatsApp ouvrirait une fenêtre
+        d.getElementById('msgBtnWa').click();
+        await attendreQue(() => (rdvB(ID_HELENE).contacts || []).length === 1, 4000); await attendre(100);
+        const etat2 = d.querySelector('#ficheEtat .fiche-etat');
+        check('P8 C — « Envoyer le rappel de la veille » prépare le bon message ; l’envoi est NOTÉ (canal, message, qui) ; le bandeau dit « rappel envoyé » et « À traiter » ne le réclame plus',
+          [d.getElementById('msgType').value, /^Bonjour Hélène,/.test(msgRappel) && /rappel/i.test(msgRappel), (rdvB(ID_HELENE).contacts || []).map((x) => x.canal + '/' + x.type + '/' + x.par),
+            txt(etat2.querySelector('.fe-next')), [...etat2.querySelectorAll('.fe-actions button')].map(txt), /^WhatsApp rappel de la veille \d\d\/\d\d \d\d:\d\d · Nicolas ✕$/.test(txt(d.querySelector('#contactsHost .ct'))), [...d.querySelectorAll('#briefHost .rb')].some((b) => /Hélène/.test(txt(b)))],
+          ['rappel', true, ['wa/rappel/nicolas'], 'Visite demain à 10:00 — rappel envoyé', ['Visite faite'], true, false]);
+        // Message retouché
+        choisir(d.getElementById('msgType'), 'creneaux'); await attendre(20);
+        tape(d.getElementById('msgText'), 'Bonjour Hélène, mon texte à moi.');
+        w.addCreneau(); await attendre(30);
+        const garde = d.getElementById('msgText').value, majVisible = !d.getElementById('msgMaj').hidden;
+        d.querySelector('#msgMaj button').click(); await attendre(20);
+        check('P9 Un message RETOUCHÉ n’est plus réécrit par l’ajout d’un créneau : la fiche le dit et propose de le régénérer',
+          [garde, majVisible, /Voici mes disponibilités/.test(d.getElementById('msgText').value), d.getElementById('msgMaj').hidden], ['Bonjour Hélène, mon texte à moi.', true, true, true]);
+        w.closeModal(); await attendre(30);
+        // Conflit dans la fiche
+        await w.openEdit(ID_DAMIEN); await attendre(60);
+        await comme('yannick', async () => { const x = rdvB(ID_DAMIEN); return SS.saveRdv(Object.assign({}, x, { assigned_to: 'yannick' })); });
+        tape(d.getElementById('f_projet'), 'Deux screens pour le bureau, toile 86-2044.');
+        d.getElementById('btnSave').click();
+        await attendreQue(() => d.querySelector('#ficheConflit .fiche-conflit'), 4000);
+        const conflit = txt(d.querySelector('#ficheConflit .fiche-conflit')), garde2 = d.getElementById('f_projet').value;
+        d.getElementById('btnSave').click();
+        await attendreQue(() => /86-2044/.test(rdvB(ID_DAMIEN).projet || ''), 4000); await attendre(100);
+        check('P10 CONFLIT dans la fiche : Yannick a changé la demande ; la fiche le DIT (sa version), garde ma saisie ; un second clic enregistre en connaissance de cause',
+          [/Yannick vient de modifier/.test(conflit), /Yannick/.test(conflit), garde2, rdvB(ID_DAMIEN).projet, d.getElementById('modalBg').classList.contains('open')],
+          [true, true, 'Deux screens pour le bureau, toile 86-2044.', 'Deux screens pour le bureau, toile 86-2044.', false]);
+        // « Converti » sans devis depuis la fiche
+        await w.openEdit(ID_PAUL); await attendre(60);
+        choisir(d.getElementById('f_statut'), 'converti');
+        d.getElementById('btnSave').click(); await attendre(150);
+        check('P11 Choisir « Converti » dans la fiche sans devis : refusé, rien n’est écrit, la fiche reste ouverte',
+          [rdvB(ID_PAUL).statut, d.getElementById('modalBg').classList.contains('open')], ['rdv_fixe', true]);
+        w.closeModal(); await attendre(30);
+        // G — le devis lié
+        await w.openEdit(ID_MARC); await attendre(60);
+        const dv = d.querySelector('#ficheEtat .fe-devis');
+        check('P12 G — La fiche montre le devis lié (numéro, statut, montant) et y mène ; pas de « Créer le devis » dans le pied',
+          [/Devis #ESSAI-02/.test(txt(dv)), /€/.test(txt(dv)), dv.querySelector('a').getAttribute('href'), w.getComputedStyle(d.getElementById('btnConvert')).display],
+          [true, true, 'vue.html?id=ESSAI-02', 'none']);
+        w.closeModal(); await attendre(30);
+        // D — doublons à la saisie
+        w.openNew(); await attendre(60);
+        tape(d.getElementById('f_tel'), '0478987654');
+        await attendreQue(() => d.querySelector('#doublonsHost .doublon'), 2000);
+        const dbl1 = [...d.querySelectorAll('#doublonsHost .doublon')].map(txt);
+        tape(d.getElementById('f_tel'), '0000 00 00 23'); tape(d.getElementById('f_prenom'), 'Julie'); tape(d.getElementById('f_nom'), 'Martin');
+        await attendre(400);
+        const dbl2 = [...d.querySelectorAll('#doublonsHost .doublon')].map(txt);
+        check('P13 D — Nouvelle demande : le même téléphone qu’une demande ouverte est SIGNALÉ, avec de quoi l’ouvrir ; un bouche-trou ne signale rien ; un nom proche d’un client qui a un devis aussi ; la nouvelle demande commence par le client',
+          [dbl1.length, /^Même téléphone que « Zoé Doublon » — demande à contacter \(Yannick\) Ouvrir$/.test(dbl1[0] || ''), dbl2.some((t) => /Zoé/.test(t)), dbl2.some((t) => /Julie Martin.*devis #ESSAI-/.test(t)),
+            d.querySelector('#mBody .fiche-client') === d.querySelector('#mBody details'), d.getElementById('ficheClient').open, d.getElementById('plusWrap').style.display],
+          [1, true, false, true, true, true, 'none']);
+        w.closeModal(); await attendre(30);
+        // Photos, recherche, suppression refusée
+        await w.openEdit('P-DOUBLE'); await attendre(60);
+        d.querySelector('#photosHost img').click(); await attendre(80);
+        const lb = d.getElementById('ssLightbox');
+        check('P14 Une photo du client s’ouvre DANS la page (elle ne s’agrandissait pas)', !!lb && (lb.classList.contains('open') || w.getComputedStyle(lb).display !== 'none'), true);
+        if (window.SSUI && w.SSUI.fermerPhotos) w.SSUI.fermerPhotos();
+        w.closeModal(); await attendre(30);
+        tape(d.getElementById('search'), 'helene'); await attendre(30);
+        const trouves = [...d.querySelectorAll('.rdv-card')].map((c) => c.getAttribute('data-id'));
+        tape(d.getElementById('search'), ''); await attendre(30);
+        const vraiDel = w.SS.deleteRdv; w.SS.deleteRdv = async () => ({ ok: false, error: 'Refus du serveur (test)' });
+        w.confirm = () => true;
+        await w.openEdit('P-LEAD-1'); await attendre(40);
+        await w.deleteCurrent(); await attendre(40);
+        w.SS.deleteRdv = vraiDel;
+        check('P15 La recherche ignore les accents (« helene ») ; une suppression REFUSÉE n’est plus annoncée « supprimée » : la demande reste',
+          [trouves, !!rdvB('P-LEAD-1').id, !!carte(d, 'P-LEAD-1'), d.getElementById('modalBg').classList.contains('open')], [[ID_HELENE], true, true, true]);
+        w.closeModal(); await attendre(30);
+        check('P16 Tous les gestionnaires de la page compilent (apostrophes : « Rue de l’Essai », L’Hoest)', compiles(d), []);
+        // G — « Créer le devis » depuis la carte d'une visite (la page part vers le simulateur)
+        carte(d, ID_DAMIEN).querySelector('.rc-devis-btn').click();
+        await attendreQue(() => rdvB(ID_DAMIEN).statut === 'converti', 5000);
+        const nouveau = BANC.sqlL("SELECT data FROM devis WHERE json_extract(data, '$.rdv_id') = '" + ID_DAMIEN + "'").map((x) => JSON.parse(x[0]));
+        check('P17 G — « Créer le devis » sur la carte d’une visite : un devis rattaché (rdv_id), la demande convertie et liée',
+          [nouveau.length, rdvB(ID_DAMIEN).devis_id === (nouveau[0] || {}).id, rdvB(ID_DAMIEN).statut], [1, true, 'converti']);
+        await attendre(700);
+        f.remove();
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px) et tablette (900 px)');
+        f = await ouvrirPage(375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const L = d.documentElement.clientWidth;
+        const deborde = () => [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.id || e.className || e.tagName).slice(0, 6);
+        const visibles = [...d.querySelectorAll('.kcol')].filter((c) => c.offsetParent);
+        const premiere = d.querySelector('.kcol.actif .rdv-card');
+        check('T1 A — Une étape à la fois : des onglets avec leur nombre, une seule colonne, pleine largeur ; rien ne dépasse (3 colonnes sur 5 étaient hors de l’écran) ; barre d’outils courte (263 px avant) ; le premier dossier dans le premier écran',
+          [w.getComputedStyle(d.querySelector('.etapes')).display, [...d.querySelectorAll('.etapes [role=tab]')].map((b) => txt(b.querySelector('.lc')) + ' ' + txt(b.querySelector('b'))).length, visibles.length,
+            Math.round(visibles[0].getBoundingClientRect().width) >= L - 40, deborde(), Math.round(d.querySelector('.rdv-toolbar').getBoundingClientRect().height) < 190, !!premiere && Math.round(premiere.getBoundingClientRect().top) < 812],
+          ['grid', 5, 1, true, [], true, true]);
+        let poussees = 0;
+        const pousser = w.history.pushState.bind(w.history);
+        // ⚠️ Un document ÉCRIT par le banc n'a pas d'historique à lui : son « history.back() » ramènerait le CADRE
+        // sur sa page vierge (règle 47). On compte les étapes sans les poser ; « retour » se teste en T8, par une
+        // vraie navigation.
+        w.history.pushState = function () { poussees++; };
+        d.getElementById('etape-rdv_fixe').click(); await attendre(30);
+        check('T2 Changer d’étape : la colonne suit, l’étape est retenue par appareil, AUCUNE étape d’historique',
+          [d.querySelector('.kcol.actif').getAttribute('data-statut'), localStorage.getItem('ss_rdv_etape'), poussees, d.getElementById('etape-rdv_fixe').getAttribute('aria-selected')],
+          ['rdv_fixe', 'rdv_fixe', 0, 'true']);
+        const cH = d.querySelector('.kcol.actif .rdv-card');
+        check('T3 E — Sur téléphone, Appeler et Y aller sur la carte', [...cH.querySelectorAll('.rc-terrain button')].map(txt), ['Appeler', 'Y aller']);
+        await w.openEdit(ID_HELENE); await attendre(80);
+        const m = d.querySelector('.modal').getBoundingClientRect(), pied = d.querySelector('.mfoot');
+        const piedBtns = [...pied.querySelectorAll(':scope > button, :scope > .plus-wrap > button')].filter((b) => b.offsetParent).map((b) => b.innerText.replace(/\s+/g, ' ').trim());
+        d.getElementById('btnPlus').click(); await attendre(20);
+        const plus = [...d.querySelectorAll('#plusMenu button')].filter((b) => b.offsetParent).map(txt);
+        const debFiche = [...d.querySelectorAll('.modal *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.id || e.className).slice(0, 5);
+        check('T4 B — Sur téléphone la fiche prend tout l’écran ; le pied tient sur UNE rangée (173 px avant) ; « Annuler » et « Supprimer » sont derrière « Plus » ; rien ne dépasse',
+          [Math.round(m.width), Math.round(m.height), Math.round(pied.getBoundingClientRect().height) < 70, piedBtns, plus, debFiche],
+          [L, 812, true, ['Plus ▾', 'Devis', 'Enregistrer'], ['Annuler le RDV (le client se désiste)', 'Supprimer définitivement'], []]);
+        w.closeModal(); await attendre(30);
+        w.setView('list'); await attendre(40);
+        check('T5 La vue Liste sur téléphone : une demande par bloc, rien ne dépasse (le tableau faisait 596 px)', [deborde(), d.querySelectorAll('.rdv-table tbody tr').length > 4], [[], true]);
+        w.setView('kanban'); await attendre(20);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE.test(x.media.mediaText)) blocsT.push(x); if (x.cssRules) parc(x.cssRules); } };
+        for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); }
+        blocsT.forEach((x) => { x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        await attendre(40);
+        const h = (sel) => { const e = d.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
+        check('T6 Écran tactile (blocs « pointer: coarse » forcés) : les onglets d’étape, les visites proches et les lignes de « À traiter » se touchent',
+          [h('.etapes button') >= 44, h('#prochainesHost .rp') >= 44, h('#briefHost .rb') >= 36], [true, true, true]);
+        f.remove();
+        f = await ouvrirPage(900, 800);
+        w = f.contentWindow; d = f.contentDocument;
+        const k = d.querySelector('.kanban');
+        check('T7 Tablette (900 px) : les onglets d’étape plutôt qu’un kanban qui défile de côté (il débordait de 280 px à 855)',
+          [w.getComputedStyle(d.querySelector('.etapes')).display, k.scrollWidth <= k.clientWidth + 1, [...d.querySelectorAll('.etapes [role=tab] .ll')].map(txt)],
+          ['grid', true, ['Nouveau', 'À contacter', 'RDV fixé', 'Visité', 'Converti']]);
+        f.remove();
+        // « Retour » par une VRAIE navigation (un document écrit n'a pas d'historique à lui, règle 47) : ce cadre
+        // n'est pas branché sur le banc, il lit le cache local — on y pose la demande juste avant.
+        await poser({ id: 'T-RETOUR', client: cli('Rita', 'Retour', '', 'Wavre'), statut: 'a_contacter', assigned_to: 'nicolas' });
+        // Les cadres partagent l'historique de CETTE page : un « retour » de trop quitterait la page de test au lieu
+        // d'échouer proprement. Trois étapes de garde l'absorbent, et le comptent (même montage que l'assistant).
+        let fuites = 0;
+        const gardeRetour = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', gardeRetour);
+        f = await cadreNavigue('../app/rdv.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => w.eval('RDV.some(x => x.id === "T-RETOUR")'), 9000); await attendre(200);
+        await w.openEdit('T-RETOUR'); await attendre(80);
+        const etapeFiche = !!(w.history.state && w.history.state.rdvFiche);
+        w.history.back(); await attendreQue(() => !d.getElementById('modalBg').classList.contains('open'), 3000);
+        const fermeParRetour = !d.getElementById('modalBg').classList.contains('open');
+        // Si « retour » n'a PAS fermé la fiche, on n'en tente pas un second : il sortirait de la page.
+        let resteOuverte = false, etapeRemise = false;
+        if (fermeParRetour && etapeFiche) {
+          await w.openEdit('T-RETOUR'); await attendre(80);
+          tape(d.getElementById('f_projet'), 'Saisie en cours');
+          w.confirm = () => false;
+          w.history.back(); await attendre(400);
+          resteOuverte = d.getElementById('modalBg').classList.contains('open'); etapeRemise = !!(w.history.state && w.history.state.rdvFiche);
+        }
+        window.removeEventListener('popstate', gardeRetour);
+        check('T8 « Retour » ferme la fiche (une étape d’historique) ; saisie entamée et « Annuler » à la question : la fiche reste, l’étape est remise ; aucun « retour » ne s’échappe de la page',
+          [etapeFiche, fermeParRetour, resteOuverte, etapeRemise, (d.getElementById('f_projet') || {}).value, fuites], [true, true, true, true, 'Saisie en cours', 0]);
+        w.confirm = () => true; w.eval('MODAL_TOUCHE = false');
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        BANC.retirer();
+        BANC.remettre();
+        CLES.forEach((k) => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>
