@@ -170,9 +170,11 @@
     let _saveTimer = null;
     async function saveSteps() {
       if (!DEVIS) return;
-      DEVIS.rapport_visite_notes = el('stepsInput').value;
-      DEVIS.date_modification = new Date().toISOString();
-      const res = await SS.saveDevis(DEVIS);
+      // Relu juste avant d'écrire, et seules les notes de visite sont posées (SS.modifierDevis, règle 3) :
+      // le devis entier tel qu'à l'ouverture de la page écrasait ce que les autres écrans y avaient mis.
+      const notes = el('stepsInput').value;
+      const res = await SS.modifierDevis(DEVIS.id, (d) => { d.rapport_visite_notes = notes; });
+      if (res.devis) DEVIS = res.devis;
       if (res.ok === false) { toast(res.error || 'Notes NON enregistrées — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Enregistré ✓', res.offline ? 'warn' : 'ok', 1400);
       renderPaperSteps();

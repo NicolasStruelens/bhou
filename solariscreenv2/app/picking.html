@@ -234,9 +234,12 @@
 
     async function saveMateriel(showToast) {
       if (!DEVIS) return;
-      DEVIS.picking_items = MATERIEL;
-      DEVIS.date_modification = new Date().toISOString();
-      const res = await SS.saveDevis(DEVIS);
+      // Relu juste avant d'écrire, et seule la liste de pose est posée (SS.modifierDevis) : enregistrée à
+      // chaque frappe depuis une page ouverte le matin, elle renvoyait le devis ENTIER — la commande passée
+      // « Reçu » entre-temps revenait en arrière (règle 3, audit du 28/10/2026).
+      const liste = MATERIEL.map(m => Object.assign({}, m));
+      const res = await SS.modifierDevis(DEVIS.id, (d) => { d.picking_items = liste; });
+      if (res.devis) { DEVIS = res.devis; DEVIS.picking_items = MATERIEL; }
       // Toujours signaler un échec, même en enregistrement automatique silencieux : sans ça, une
       // liste de matériel patiemment remplie disparaît au rechargement sans le moindre avertissement.
       if (res.ok === false) { toast(res.error || 'Liste NON enregistrée — réessaie.', 'error', 6000); return; }

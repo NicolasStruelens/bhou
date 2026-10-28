@@ -40,12 +40,16 @@
       return facs.some(f => window.SSUI.duFacture(f, FACT()) > 0.005 && f.echeance && f.echeance < today);
     }
     // Devis signé (chantier pas encore posé) dont l'acompte n'a pas été intégralement reçu.
-    function isAcompteUnpaid(d) {
-      if (d.statut !== 'signe') return false;
+    function isAcompteUnpaid(d) { return acompteRestant(d) > 0.005; }
+    /** Ce qui RESTE à encaisser sur l'acompte (0 s'il n'y a rien à réclamer) : la règle de
+     *  `isAcompteUnpaid`, chiffrée. La fiche devis l'affiche — elle la recalculait à sa façon, sans
+     *  les notes de crédit ni l'exception du dépannage (audit du 28/10/2026). */
+    function acompteRestant(d) {
+      if (d.statut !== 'signe') return 0;
       /* ⚠️ JAMAIS D'ACOMPTE SUR UN DÉPANNAGE (règle 7). Un dépannage signé sortait pourtant en
          « Acompte à encaisser » — 30 % d'un montant qui se règle en une fois — et gonflait le
          compteur des acomptes non payés. Trouvé en enquêtant sur le tableau de bord, 25/10/2026. */
-      if (estDepannage(d)) return false;
+      if (estDepannage(d)) return 0;
       const facs = FACT().filter(f => f.devis_id === d.id);
       // L'acompte a pu être encaissé sur N'IMPORTE quelle facture (acompte dédiée, solde, totale, ou
       // via l'ancien ERP — ex. Ecole Du Bonheur : 9 539,05 € payés sur une facture « Solde »). On
@@ -60,7 +64,7 @@
       const due = acompteFacs.length
         ? acompteFacs.reduce((s, f) => s + (Number(f.total_ttc) || 0) - window.SSUI.avoirsSur(FACT(), f.id), 0)
         : (d.ttc || 0) * ((d.acompte_pct != null) ? d.acompte_pct : 30) / 100;             // sinon, % attendu du TTC
-      return due > 0 && totalPaid < due - 0.005;
+      return due > 0 ? Math.max(0, due - totalPaid) : 0;
     }
     // Devis signé avec une pose planifiée dans les 7 prochains jours (bientôt sur le terrain).
     /* ⚠️ UNE POSE À VENIR N'EST PAS FAITE, MÊME SI UN PV EXISTE DÉJÀ. Un chantier posé en deux fois
@@ -410,7 +414,7 @@
 
     return {
       bilanDevis,
-      paidSum, isPaymentOverdue, isAcompteUnpaid, poseAVenir, isChantierAPreparer, isSoldeUnpaid,
+      paidSum, isPaymentOverdue, isAcompteUnpaid, acompteRestant, poseAVenir, isChantierAPreparer, isSoldeUnpaid,
       daysSinceSent, isDevisExpire, isPaidFull, estDepannage, FAM, prochaineAction, poidsAction,
       SEUIL_CHAUD, boutonAction, actionsDuJour, chiffres, totalEncaisse, estSolde, estClos, estActif,
     };

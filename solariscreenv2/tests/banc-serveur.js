@@ -64,6 +64,14 @@
     B.ENV = { DB: d1(B.DB) };
     return B.DB;
   };
+  /** Une photo de la base, et son retour tel quel : l'audit clique partout (suppressions comprises) et
+   *  repart du même jeu à chaque page, sans rejouer le remplissage. */
+  B.photo = () => B.DB.export();
+  B.restaurer = function (octets) {
+    B.DB = new B.SQL.Database(octets);
+    B.ENV = { DB: d1(B.DB) };
+    return B.DB;
+  };
   B.sql1 = (q) => { const r = B.DB.exec(q); return r.length ? r[0].values[0][0] : null; };
   B.sqlL = (q) => { const r = B.DB.exec(q); return r.length ? r[0].values : []; };
   /** Le blob JSON d'une ligne, relu dans la base (pas dans un cache du navigateur). */

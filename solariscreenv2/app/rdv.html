@@ -1888,7 +1888,7 @@
       // Un devis RATTACHÉ bloque (pas un devis lié puis supprimé, ni un simple « même client »).
       if (lienExplicite(cur)) { toast('Un devis est déjà lié à cette demande.', 'warn'); return; }
       CONVERTING = true;   // verrou synchrone : devis_id n'est posé qu'APRÈS l'await → sans lui, un double-clic crée 2 devis orphelins
-      const devisId = generateDevisId();
+      let devisId = generateDevisId();
       const now = new Date().toISOString();
       const devis = {
         id: devisId,
@@ -1900,7 +1900,8 @@
         pricing_v2: cur.projet ? { note: 'Projet (via demande de RDV) : ' + cur.projet } : {},
         date_creation: now, date_modification: now,
       };
-      const rDevis = await SS.saveDevis(devis);
+      const rDevis = await SS.saveDevis(devis, { creation: true });
+      devisId = devis.id;   // un numéro déjà pris a été remplacé à la création (SS.saveDevis)
       // Si le devis n'a pas été créé côté serveur, NE PAS marquer la demande « convertie » : elle
       // serait verrouillée (bouton masqué) et liée à un devis inexistant, sans retour arrière possible.
       if (rDevis.ok === false) {
