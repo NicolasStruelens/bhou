@@ -175,6 +175,14 @@
     check('C8 le prix saisi fait revenir la pose', pleine.total_installation_ht, 280);
     check('C8 … et le total est complet', pleine.total_ttc, 1356.8);
 
+    // C9 — Une quantité de poste à ZÉRO vaut zéro (elle valait 1 : une main-d'œuvre mise à 0 h sur un dépannage sous
+    // garantie était facturée 1 h). Absente ou illisible, elle vaut 1 ; négative, elle vaut 0 — jamais un montant retiré.
+    const poste = (qty) => computeDevis({ items: [], extras: [{ label: 'Main-d’œuvre', qty: qty, unit_price_ht: 55 }], tva_pct: 21 }).total_extras_ht;
+    check('C9 une quantité 0 vaut 0 € (elle était facturée 1)', poste(0), 0);
+    check('C9 absente ou vide, elle vaut 1', poste(undefined) + poste(''), 110);
+    check('C9 « 1,5 » h se facture 1,5', poste(1.5), 82.5);
+    check('C9 négative, elle vaut 0 — jamais un montant retiré', poste(-2), 0);
+
     document.getElementById('out').innerHTML =
       `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
     const s = document.getElementById('summary');

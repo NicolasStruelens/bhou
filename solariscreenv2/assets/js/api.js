@@ -208,9 +208,12 @@
         // d'`opts`, jamais du devis lui-même.
         const { _expected_date_modification: _rebut, ...propre } = devis;
         if (_rebut) console.warn('[SS] champ de contrôle parasite retiré du devis', devis.id, '— il bloquait tout enregistrement');
-        const payload = (!opts.force && opts.expectedDateModification !== undefined)
+        let payload = (!opts.force && opts.expectedDateModification !== undefined)
           ? Object.assign({}, propre, { _expected_date_modification: opts.expectedDateModification })
           : propre;
+        // `opts.creation` : un devis NEUF ne doit jamais se fondre dans un devis existant (numéro tiré au hasard,
+        // voir la route). Numéro déjà pris → on en tire un autre, sur l'objet de l'appelant, qui lit `devis.id`.
+        if (opts.creation) payload = Object.assign({}, payload, { _creation: true });
         // Poids réellement envoyé. Sert UNIQUEMENT à expliquer un échec : un devis de plusieurs Mo
         // (photos restées en clair faute d'envoi vers R2) se heurte aux limites de la base, et le
         // message brut du serveur — « string or blob too big » — ne dit rien à personne.
@@ -219,6 +222,11 @@
         try {
           rep = await req('/devis', { method: 'POST', body: corps });
         } catch (eReq) {
+          if (opts.creation && eReq && eReq.data && eReq.data.code === 'id_pris' && (opts._essais || 0) < 3 && window.SSUI && window.SSUI.generateDevisId) {
+            local.delete && local.delete(devis.id);
+            devis.id = window.SSUI.generateDevisId();
+            return this.saveDevis(devis, Object.assign({}, opts, { _essais: (opts._essais || 0) + 1 }));
+          }
           // Le serveur refuse : si le devis est énorme, on nomme la vraie cause. Le message brut
           // (« string or blob too big ») n'apprend rien et laisse croire à une panne.
           if (eReq && eReq.serverRejected && corps.length > 900000) {
@@ -295,6 +303,36 @@
       devis.statut_history = devis.statut_history || [];
       devis.statut_history.push({ statut, date: devis.date_modification, by: by || null });
       return this.saveDevis(devis);
+    },
+
+    /**
+     * Modifier QUELQUES clés d'un devis sans réécrire ce que les autres écrans y ont mis entre-temps.
+     * Trouvé par l'audit du 28/10/2026 : la liste de pose (enregistrée à chaque frappe), le rapport de
+     * visite, le PV de réception et la signature renvoyaient le devis ENTIER tel qu'il était à
+     * l'ouverture de la page — la commande passée « Reçu » par Yannick, ou le refus que le client venait
+     * de donner en ligne, revenaient en arrière en silence (règle 3).
+     * On relit donc juste avant d'écrire (`getDevisForMutation` : jamais un vieux cache sur un rejet
+     * serveur), `appliquer(devis)` pose les clés de l'appelant sur CETTE version, et l'enregistrement
+     * passe le contrôle de conflit ; si quelqu'un écrit entre les deux, on relit et on réapplique.
+     * `appliquer` peut renvoyer un texte : la modification est alors refusée (l'état a changé entre-temps).
+     * Hors-ligne réel, la relecture rend la copie locale et la file d'envoi fait le reste.
+     * @returns {{ok, devis?, error?, offline?}} — `devis` est la version enregistrée, que l'écran adopte.
+     */
+    async modifierDevis(id, appliquer) {
+      for (let essai = 0; essai < 3; essai++) {
+        let devis;
+        try { devis = await getDevisForMutation(id); }
+        catch (e) { return { ok: false, error: e.message }; }
+        if (!devis) return { ok: false, error: 'Devis introuvable' };
+        const version = devis.date_modification;
+        const refus = appliquer(devis);
+        if (typeof refus === 'string' && refus) return { ok: false, error: refus, refuse: true };
+        devis.date_modification = new Date().toISOString();
+        const res = await this.saveDevis(devis, { expectedDateModification: version });
+        if (res && res.conflict) continue;
+        return Object.assign({}, res, { devis: devis });
+      }
+      return { ok: false, error: 'Le devis vient d’être modifié plusieurs fois — réessaie dans un instant.' };
     },
 
     // ── COMMENTAIRES INTERNES (fil de discussion Nicolas / Yannick sur un devis) ──
@@ -498,6 +536,31 @@
     async getClient(key) {
       try { return (await req('/clients/' + encodeURIComponent(key))).data; }
       catch (e) { return localClients.get(key); }
+    },
+    /**
+     * Modifier QUELQUES champs d'une fiche client sans réécrire ce que l'autre y a corrigé entre-temps —
+     * la même discipline que `modifierDevis`. La fiche devis renvoyait la fiche CRM ENTIÈRE telle qu'elle
+     * l'avait lue à l'ouverture : un téléphone corrigé par Yannick dans le CRM revenait en arrière au
+     * premier clic sur « Amical » (audit du 28/10/2026). Relecture STRICTE (un rejet serveur ne retombe
+     * jamais sur le cache), `appliquer(fiche)` pose ses champs sur CETTE version, puis on enregistre.
+     * `appliquer` qui rend `false` ne fait que relire (rien n'est écrit).
+     * @returns {{ok, client?, error?, absente?}} — `absente` : aucune fiche n'existe sous cette clé.
+     */
+    async modifierClient(key, appliquer) {
+      let fiche;
+      try { fiche = (await req('/clients/' + encodeURIComponent(key))).data; }
+      catch (e) {
+        if (e && e.status === 404) return { ok: false, absente: true, error: 'Fiche client introuvable' };
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        fiche = localClients.get(key);   // vrai hors-ligne : la file d'envoi fera le reste
+      }
+      if (!fiche) return { ok: false, absente: true, error: 'Fiche client introuvable' };
+      // `appliquer` qui rend `false` : on voulait seulement RELIRE la fiche (rien n'est écrit).
+      if (appliquer(fiche) === false) return { ok: true, client: fiche };
+      fiche.date_modification = new Date().toISOString();
+      const res = await this.saveClient(fiche);
+      return Object.assign({}, res, { client: fiche });
     },
     // Même discipline que saveDevis (voir le commentaire détaillé plus haut) : un rejet SERVEUR
     // ou une session Access expirée ne doivent JAMAIS être présentés comme un enregistrement réussi.

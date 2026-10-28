@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — documents</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests des documents</h1>
+  <p class="note">
+    Le devis existe en DEUX exemplaires (CLAUDE.md, règle 7) : celui qu'on imprime depuis l'ERP (<code>app/devis.html</code>) et
+    celui que le CLIENT imprime depuis son lien (<code>devis-review.html</code>, « Voir le devis complet — imprimer / PDF »,
+    <code>buildPaperHtml</code>). C'est le même client qui lit les deux : ils doivent dire la même chose, mot pour mot et au centime.
+    Pour chacun des devis du bac à sable, on rend les deux, et on compare leur texte. Le 28/10/2026, l'exemplaire du client
+    plantait sur tout devis à encadré de configuration (volets VR150) : le bouton ouvrait un onglet vide.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle.
+  </p>
+  <div id="summary">Tests en cours…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 900) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 900) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests documents';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 8000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(50); }
+      return null;
+    }
+    const SS = window.SS, BANC = window.SSBanc;
+    // Le texte d'une feuille, sans le filigrane (il porte l'ÉTAT du document, pas son contenu) et sans les
+    // blancs : on compare ce que le client LIT.
+    const texteDe = (p) => {
+      const c = p.cloneNode(true);
+      c.querySelectorAll('.watermark').forEach((x) => x.remove());
+      return c.textContent.replace(/\s+/g, ' ').trim();
+    };
+    /** TOUTES les feuilles du document — le devis, puis ses annexes (CGV, attestation TVA) —, son filigrane
+     *  et la réserve de son bloc de clôture : ce que le client imprime, page par page. */
+    const feuilles = (d) => {
+      const l = [...d.querySelectorAll('.paper')].filter((p) => p.textContent.trim());
+      if (!l.length) return null;
+      return {
+        textes: l.map(texteDe),
+        filigrane: l[0].querySelector('.watermark') ? l[0].querySelector('.watermark').textContent.trim() : '',
+        reserve: l[0].style.getPropertyValue('--close-reserve'),
+      };
+    };
+    /** Les mots qui diffèrent entre deux textes (le premier écart, avec son contexte). */
+    function ecart(a, b) {
+      if (a === b) return null;
+      let i = 0; while (i < a.length && a[i] === b[i]) i++;
+      return ['…' + a.slice(Math.max(0, i - 50), i + 60) + '…', '…' + b.slice(Math.max(0, i - 50), i + 60) + '…'];
+    }
+
+    (async () => {
+      try {
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const rem = await window.SSBacASable.remplir(SS, {});
+        // Tout devis reçoit un lien client, pour que les deux exemplaires se comparent sur TOUT le jeu.
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
+        const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
+        check('D0 Le bac à sable se remplit ; chaque devis a son lien client', [rem.erreurs, ids.length > 20, ids.every((r) => !!r[1])], [[], true, true]);
+
+        titre('D — Les deux exemplaires du devis disent la même chose');
+        for (const [id, tok] of ids) {
+          // 1. L'exemplaire de l'ERP.
+          const fa = await BANC.cadre('../app/devis.html?id=' + encodeURIComponent(id), 1100, 900);
+          await attendreQue(() => fa.contentDocument.querySelector('#paper .doc-head, #paper .doc-table'), 10000);
+          await attendre(150);
+          const erp = feuilles(fa.contentDocument);
+          fa.remove();
+          // 2. L'exemplaire du client : la page de son lien, puis le bouton « Voir le devis complet », capturé.
+          const fb = await BANC.cadre('../devis-review.html?t=' + encodeURIComponent(tok), 1100, 900);
+          const wb = fb.contentWindow;
+          // La page est prête quand « Chargement… » a disparu (le total s'écrit avant la réponse).
+          await attendreQue(() => !/Chargement…/.test(wb.document.body.innerText) && /Bonjour|Votre/.test(wb.document.getElementById('greeting').textContent), 10000);
+          let capture = '', erreur = null;
+          wb.open = () => ({ document: { write: (h) => { capture += h; }, close() {} }, focus() {}, print() {} });
+          try { wb.printDevis(); } catch (e) { erreur = e.message; }
+          fb.remove();
+          // Un devis SANS calculs enregistrés (données abîmées, très vieux devis) : le client reçoit un
+          // récapitulatif simple — jamais une page blanche ; il n'y a pas de devis complet à comparer.
+          const sansCalculs = !((BANC.donnee('devis', 'id', id) || {}).calculs || {}).total_ttc && ((BANC.donnee('devis', 'id', id) || {}).calculs || {}).total_ttc !== 0;
+          if (sansCalculs) {
+            check('D-' + id + ' Sans calculs enregistrés, le client imprime un récapitulatif simple (jamais une page blanche)',
+              [erreur, /SolariScreen — Devis/.test(capture), /Total TVAC/.test(capture)], [null, true, true]);
+            continue;
+          }
+          // Rien à capturer : ce que la page du client affiche à la place (le diagnostic du cas).
+          if (!/class="paper"/.test(capture)) erreur = erreur || ('pas de devis complet : ' + (capture.slice(0, 80) || 'rien'));
+          let client = null;
+          if (capture) {
+            const fc = document.createElement('iframe');
+            fc.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;'; fc.width = 1100; fc.height = 900;
+            document.body.appendChild(fc);
+            fc.contentWindow.print = () => {};
+            fc.contentDocument.open(); fc.contentDocument.write(capture); fc.contentDocument.close();
+            await attendreQue(() => fc.contentDocument.querySelector('.paper'), 5000);
+            client = feuilles(fc.contentDocument);
+            fc.remove();
+          }
+          const e = erp || { textes: [] }, k = client || { textes: [] };
+          check('D-' + id + ' Le client imprime son devis sans erreur ; les deux exemplaires ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose',
+            [erreur, !!erp, k.textes.length, k.filigrane, k.reserve, e.textes.map((t, i) => ecart(t, k.textes[i] || '')).filter(Boolean)],
+            [null, true, e.textes.length, e.filigrane, e.reserve, []]);
+        }
+      } catch (e) {
+        check('Exception', String(e && (e.stack || e.message)), null);
+      }
+      BANC.remettre(); BANC.retirer();
+      rendreRes();
+    })();
+  </script>
+</body>
+</html>

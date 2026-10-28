@@ -65,7 +65,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 
 | Fichier | Rôle |
 |---|---|
-| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 58 tests. |
+| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 62 tests. |
 | `assets/js/api.js` | Client API, cache local, file d'envoi hors-ligne (`window.SS`) |
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
@@ -73,7 +73,13 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 121 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 105 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 58 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/calc.test.html` | Les 62 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). **Par le serveur de test.** |
+| `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
+| `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
+| `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
+| `tests/documents.test.html` | Les 24 tests des DEUX exemplaires du devis (règle 7) : pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 20 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception, le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
@@ -173,6 +179,12 @@ effacer tout l'historique des e-mails.
 **3. Les collections se modifient par écriture CIBLÉE, jamais en réécrivant l'objet entier.**
 Notes, encaissements, photos de chantier, tickets SAV ont chacun leur route serveur, qui écrit sur
 la valeur *actuelle* de la ligne. Réécrire l'objet complet écrase le travail simultané de l'autre.
+⚠️ Depuis le 28/10/2026 (règle 56), `upsertDevis` GARDE `sav_tickets`, `chantier_photos`, `documents` et `review_views`
+tels qu'en base, comme les notes et les attentes, sauf si l'enregistrement PROUVE qu'il part de la dernière version
+(`_expected_date_modification`) — « Alléger » le fait. Une route interne qui relit puis écrit passe `{ verifie: true }`.
+Pour modifier QUELQUES clés d'un devis ou d'une fiche client : `SS.modifierDevis(id, appliquer)` /
+`SS.modifierClient(key, appliquer)` (relecture stricte, puis contrôle de conflit). Une création passe `{ creation: true }` :
+un numéro de devis déjà pris est refusé (409 `id_pris`) et `SS.saveDevis` en tire un autre.
 
 **4. Tout calcul d'argent dû vit à un seul endroit** (`SSUI.duFacture`). Trois écrans le calculaient
 séparément : ils ont fini par annoncer trois créances différentes.
@@ -2874,6 +2886,67 @@ fonctions pures) ; les champs qui bloquent une commande restent dans `products.j
   l'événement), le vrai « retour » se joue par une vraie navigation (T3). Et un AUTRE onglet du Mode Terrain ouvert sur la même
   origine écrit SES saisies dans le même stockage : un test ne compare que les siennes (vu : « Test Uid » laissé ouvert).
 
+**56. L'AUDIT DE TOUTES LES PAGES : ON LE REJOUE, ON NE LE REFAIT PAS** (28/10/2026 — demande de Nicolas : « un audit complet
+avec test réel en mode PC et téléphone de toutes les possibilités, l'édition des PDF aussi, zéro bug »). Quatre outils, tous dans
+`tests/`, tous sur le banc rempli par le bac à sable (règle 46) :
+• **`audit.html`** : 145 adresses (chaque page, chaque fiche, chaque document, chaque lien client) × bureau et téléphone. Ce qu'il
+  relève est dans son en-tête. ⚠️ Ses pièges, payés en l'écrivant : le contenu d'un `<details>` FERMÉ garde une boîte (Chrome le
+  masque par `content-visibility`) — `checkVisibility()` seul dit s'il est rendu ; une fenêtre ouverte recouvre la page EXPRÈS (on
+  ne compare que ce qui est dedans), un menu déroulant aussi ; un lien qui passe à la ligne se mesure ligne par ligne
+  (`getClientRects`) ; un champ défilé hors du corps d'une fenêtre est caché par ce corps ; `document.open()` EFFACE les écouteurs de
+  la fenêtre — les témoins se posent après lui, avant `write`. Un cadre hors écran mesure parfois en retard (le bandeau sur deux
+  rangées, la barre du Mode Terrain sous Soli) : ce qu'il trouve là se vérifie sur une vraie page avant d'être corrigé.
+• **`audit-clics.html`** : le robot clique sur tout (1 186 clics la première fois), deux boutons au plus par libellé, l'écran remesuré
+  seulement si le clic l'a changé. Chaque fenêtre ouverte reçoit des saisies PIÉGÉES — `<img onerror>`, apostrophes, guillemets,
+  texte très long, nombres négatifs — puis son bouton d'enregistrement : une balise exécutée est une faille, un texte qui casse un
+  bouton est un bug. ⚠️ « Retour » dans un cadre parcourt l'historique COMMUN avec la page de l'audit (il l'emporterait) : il est
+  noté, jamais joué ; de même l'impression, le choix de fichier, le plein écran, la position, le partage, les téléchargements et
+  « Quitter la page ? ». Et l'onglet de l'audit doit rester au PREMIER PLAN : en arrière-plan, ses minuteries ralentissent tout.
+• **`impression.html`** + un Chrome sans écran piloté par son protocole : 63 vrais PDF (23 devis, 12 factures et notes de crédit, bons
+  de pose, PV, rapports de visite, l'exemplaire CLIENT, bordereau, relevé de paie, portfolio), relus par `pymupdf` : format A4, aucune
+  page blanche, rien hors des marges, pas de lignes qui se chevauchent (le filigrane mis à part). ⚠️ Imprimer « au bout d'un délai »
+  (`--virtual-time-budget`) sortait un PDF sur trois avant le document — barre d'outils seule, au format Letter : on n'imprime qu'au
+  signal `__imprimable`, posé après la PREMIÈRE requête du document puis le calme (ses scripts attendent les polices Google). Un profil
+  Chrome NEUF par lot : partagé, il gardait le stockage du précédent et un Chrome qui se fermait le verrouillait.
+• **Deux suites nées de l'audit** : `documents.test.html` (les deux exemplaires du devis, règle 7) et `fiche.test.html` (la fiche devis).
+CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites existantes :
+• **Le client ne pouvait pas imprimer** un devis à encadré de configuration (volets VR150) depuis son lien : `buildPaperHtml(doc)` lisait
+  `d.items` — une ReferenceError, un onglet vide. Et son exemplaire n'était PAS celui de l'ERP : la liste blanche du document complet
+  (`document.items`) n'avait pas les clés client de la règle 31 ter (lame, alimentation, « Commande murale Somfy individuelle incluse »
+  disparaissaient), il annonçait une attestation TVA 6 % « en annexe » qu'il n'imprimait pas, ses CGV n'avaient pas de signatures, son
+  pied n'était pas ancré, et un devis sans acompte chiffré y disait « 0 % » (l'ERP : 50 %). Le serveur envoie désormais `null` pour
+  « absent ». « BROUILLON » ne filigrane plus qu'un devis pas encore envoyé (il marquait aussi un devis EN RELANCE renvoyé au client).
+• **Les enregistrements complets effaçaient le travail des autres** (règle 3, ci-dessus) : la fiche devis (quinze gestes), le bon de
+  pose (à chaque frappe), le rapport de visite, le PV de réception et la signature renvoyaient le devis tel qu'à l'ouverture. La fiche
+  passe maintenant TOUT enregistrement du devis affiché par une enveloppe de `SS.saveDevis` qui y met sa version (`VERSION_FICHE`,
+  tenue à jour après chaque route ciblée, document fournisseur compris) et ouvre le dialogue commun en cas de conflit ; les quatre
+  autres pages passent par `SS.modifierDevis` ; le PV et la signature relisent le statut au moment d'écrire. La fiche client n'est plus
+  réécrite en entier depuis la fiche devis (`SS.modifierClient`), et une fiche qu'on n'a pas pu LIRE n'est plus « recréée » à vide.
+• **Un numéro de devis pouvait tomber sur celui d'un autre** (date + 4 chiffres au hasard) et la création se fondait dans l'existant.
+• **La prochaine action de la fiche devis** avait sa propre règle (règle 41) : elle suit maintenant `actions.js` (chargé par la page) —
+  un dépannage n'a ni acompte ni commande ni pose (la réglette dit « Planifié » / « Réalisé »), un chantier jamais commandé se commande
+  avant de se planifier, un acompte réduit par une note de crédit n'est plus réclamé (`acompteRestant`, partagé), un chantier posé en
+  deux fois propose une facture PARTIELLE. Le statut des factures de la fiche vient de `SSUI.badgeFacture` (une note de crédit sortait
+  « Soldée »), et le jalon « Payé » compte les notes de crédit.
+• **L'argent** : une quantité de poste à 0 était facturée 1 (`|| 1`, `calc.js` et le simulateur) ; changer de vendeur recalculait avec
+  les taux du CODE (règle 1) — le recalcul passe `rates: SSConf.tauxPour(d)` et `seller_parts`, comme le simulateur, dont la pose nette
+  suit aussi le diviseur du devis.
+• **Les saisies** : le simulateur réinjectait sept valeurs dans `value="…"` sans échappement — un guillemet coupait la valeur, perdue au
+  premier enregistrement.
+• **Le téléphone** : la barre du Mode Terrain recouvrait le pied du rail au-delà de 1400 px (`nav.js` décale `.wiz-bar` et
+  `[data-barre-bas]` comme le bandeau) ; Soli restait 1,5 s sur « Continuer » (une `ResizeObserver` le relève) ; le logo du bandeau
+  pouvait tomber à 2 px et se dessiner sur le statut — la marque garde la place du logo, le nom se tait sous 56 px
+  (`@container`), et ce sont les pastilles qui passent à la ligne ; le badge de garantie a une forme courte.
+• **Les détails** : le délai de commande s'affichait « 8 » sans être enregistré et le calcul comptait 0 (livraison « aujourd'hui », puis
+  « Retard ») — vide se montre vide, `SSUI.livraisonEstimee` rend `null` sans délai, et le suivi client aussi ; le suivi client disait
+  « la suite sera planifiée » sous une frise toute verte ; « Facturer » sur un brouillon présélectionnait le devis d'un autre client (la
+  Facturation refuse désormais un devis demandé qui n'a rien à facturer) ; la fenêtre de relance perdait sa saisie (Échap depuis un
+  champ date, fermeture sans demander) ; un échec de changement de statut ne remettait que le statut ; trois gestes ignoraient la
+  réponse du serveur (règle 6) ; une modification du journal décalait les photos SAV dans la visionneuse ; `<img src="">` redemandait
+  la page entière à chaque ouverture de la fiche devis et du lien client.
+⚠️ **CE QUI RESTE UN CHOIX, PAS UN BUG** : sur téléphone, le tableau d'un devis ou d'une facture défile de côté DANS la feuille (les
+colonnes P.U. et Total sont hors de l'écran). C'est une décision de présentation à prendre avec Nicolas.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3141,8 +3214,8 @@ fonctions pures) ; les champs qui bloquent une commande restent dans `products.j
 
 ## Comment vérifier son travail
 
-1. **Les 58 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
-   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 58/58 ».
+1. **Les 62 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
+   `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 62/62 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
    `tests/attente.test.html`, exiger « 105/105 ».
@@ -3179,6 +3252,13 @@ fonctions pures) ; les champs qui bloquent une commande restent dans `products.j
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
+   Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 20/20 », par le serveur — ET
+   `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
+   Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
+   `/api/devis-review`) : `tests/documents.test.html`, exiger « 24/24 », par le serveur.
+   Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
+   PDF par le banc d'impression.
    Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le
    serveur, au bureau ET en émulation tactile — ET `tactile.test.html`, `assistant.test.html` (Soli au-dessus de la barre),
    `nav.test.html`, `signal.test.html` et `rdv.test.html` (il convertit des demandes).

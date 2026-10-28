@@ -168,7 +168,7 @@
     <div class="rv-lb-count" id="rvLbCount"></div>
     <button class="rv-lb-close" onclick="rvLbClose()" aria-label="Fermer la photo">✕</button>
     <button class="rv-lb-nav rv-lb-prev" onclick="rvLbNav(-1)" aria-label="Photo précédente">‹</button>
-    <img id="rvLbImg" src="" alt="Photo agrandie">
+    <img id="rvLbImg" alt="Photo agrandie">
     <button class="rv-lb-nav rv-lb-next" onclick="rvLbNav(1)" aria-label="Photo suivante">›</button>
   </div>
 
@@ -459,7 +459,7 @@
          sur un vrai devis, le 10/10/2026. Même correctif que le PDF — c est le MÊME client qui
          lit les deux documents (règle 7). */
       const ligneRemise = c.remise_catalogue > 0
-        ? `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`
+        ? `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${dep ? '' : '<td></td>'}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`
         : '';
       const dernierItem = (doc.items || []).length - 1;
       let rows = '';
@@ -471,7 +471,10 @@
       const specBoxHtml = (g) => {
         if (!g || !g.resume.length) return '';
         // Les ouvertures sont nécessaires : l'intitulé compte des PRODUITS, pas des lignes.
-        const t = window.SSVolet.titreGroupe(g.indices, d.items);
+        // ⚠️ `doc`, pas `d` : recopiée de app/devis.html (où `d` est le devis), cette ligne levait une
+        // ReferenceError ici — le client qui demandait « Voir le devis complet » d'un devis à encadré de
+        // configuration (volets VR150) n'obtenait qu'un onglet vide (trouvé par l'audit du 28/10/2026).
+        const t = window.SSVolet.titreGroupe(g.indices, doc.items);
         return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
           <div class="spec-box">
             <div class="spec-box-t">Configuration retenue${t ? ' — ' + esc(t) : ''}</div>
@@ -538,9 +541,16 @@
       if (c.surplus_difficulte > 0) {
         presta += `<tr>${cellNum()}<td class="desc"><strong>Supplément accès difficile</strong></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td><td class="num">${esc(fmtEur(c.surplus_difficulte))}</td></tr>`;
       }
-      const solde = c.total_ttc - c.acompte_montant;
+      /* ⚠️ LE MÊME REPLI QUE app/devis.html (règle 7) : un devis sans acompte chiffré annonce 50 %. Le serveur
+         envoyait 0 pour « absent » : le PDF de l'ERP disait « Acompte de 50 % », celui du client « 0 % ». */
+      const acomptePct = (c.acompte_pct != null && !isNaN(c.acompte_pct)) ? c.acompte_pct : 50;
+      const acompteMontant = (c.acompte_montant != null && !isNaN(c.acompte_montant) && c.acompte_montant > 0)
+        ? c.acompte_montant : ((c.total_ttc || 0) * acomptePct / 100);
+      const solde = (c.total_ttc || 0) - acompteMontant;
+      // Le filigrane « BROUILLON » : la MÊME règle que l'ERP — un devis pas encore envoyé, et lui seul.
+      const draft = !doc.statut || doc.statut === 'brouillon';
       const paper = `
-        ${info ? '<div class="watermark informatif">INFORMATIF</div>' : ''}
+        ${info ? '<div class="watermark informatif">INFORMATIF</div>' : (draft ? '<div class="watermark draft">BROUILLON</div>' : '')}
         <div class="doc-head">
           <div class="brand-block">
             <div class="logo"><img src="assets/img/logo-solariscreen.svg" alt="SolariScreen"></div>
@@ -606,11 +616,12 @@
         <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
         ${suiteHtml(doc)}` : `
         <div class="pay-note">
-          Acompte de <strong>${c.acompte_pct} %</strong> à la commande : <strong>${esc(fmtEur(c.acompte_montant))}</strong> —
+          Acompte de <strong>${acomptePct} %</strong> à la commande : <strong>${esc(fmtEur(acompteMontant))}</strong> —
           solde de <strong>${esc(fmtEur(solde))}</strong> à la livraison / pose.
           <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(doc.id)}.</span>
         </div>
         <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`)}
+        <div class="doc-close">
         <div class="partners">
           <span class="lbl">Partenaires</span>
           <span class="partner-chip"><img src="assets/img/logo-harol.png" alt="Harol"></span>
@@ -626,7 +637,11 @@
           </div>
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">${fait ? 'Technicien intervenant' : 'Pour acceptation'}</div></div>
         </div>`}
-        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>`;
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
+        </div>`;
+      // La réserve du bloc de clôture, mesurée pour l'ERP : 47 mm avec signatures, 21 mm sans.
+      const reserve = info ? '21mm' : '47mm';
+      const refDoc = (dep ? (fait ? 'Intervention n° ' : 'Dépannage n° ') : 'Devis N° ') + esc(doc.id);
       const cgv = (info || fait) ? '' : `<div class="paper">
         <div class="doc-head"><div class="co-name"><span class="b">Conditions</span> <span class="g">générales de vente</span></div><div class="doc-meta"><div class="doc-num">${dep ? 'Dépannage n° ' : 'Devis N° '}${esc(doc.id)}</div></div></div>
         <div class="cgv-body">
@@ -645,8 +660,30 @@
           <h5>7. Litiges</h5>
           Les présentes conditions sont soumises au droit belge. Tout litige relève des tribunaux de ${esc(COMPANY.court)}.
         </div>
+        <div class="signatures" style="margin-top:var(--sp-4);">
+          <div class="sig-box"><h4>Le client</h4><div class="hint">Mention « Lu et approuvé », date et signature</div></div>
+          <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">Pour acceptation</div></div>
+        </div>
       </div>`;
-      return { paper, cgv };
+      /* 5. L'attestation TVA 6 % que le devis annonce « en annexe » : elle manquait à l'exemplaire du client, qui
+            renvoyait donc à une page qui n'existait pas (même texte que tvaPaper() de app/devis.html). */
+      const adrC = (doc.client && doc.client.adresse) || {};
+      const adresseComplete = [((adrC.rue || '') + ' ' + (adrC.numero || '')).trim(), ((adrC.code_postal || '') + ' ' + (adrC.ville || '')).trim()].filter(Boolean).join(', ');
+      const tva = (info || c.tva_pct !== 6) ? '' : `<div class="paper">
+        <div class="doc-head"><div class="co-name"><span class="b">Attestation</span> <span class="g">TVA 6 %</span></div><div class="doc-meta"><div class="doc-num">${refDoc}</div></div></div>
+        <div class="cgv-body" style="font-size:var(--fs-sm);color:var(--text);margin-top:var(--sp-6);">
+          Je soussigné(e) <strong>${esc(cl.prenom)} ${esc(cl.nom)}</strong>, propriétaire ou locataire du bâtiment situé
+          ${adresseComplete ? '<strong>' + esc(adresseComplete) + '</strong>' : '……………………………………………'},
+          déclare que ce bâtiment est principalement affecté à l'habitation privée et qu'il a été achevé depuis plus de 10 ans.
+          <br><br>
+          Je confirme que les travaux commandés concernent la rénovation, transformation, amélioration, réparation ou entretien de ce bâtiment et peuvent donc bénéficier du taux réduit de TVA à 6 % conformément à la législation belge en vigueur.
+        </div>
+        <div class="signatures" style="margin-top:var(--sp-7);">
+          <div class="sig-box"><h4>Date</h4><div class="hint">……… / ……… / ……………</div></div>
+          <div class="sig-box"><h4>Signature du client</h4><div class="hint">Précédée de la mention « Lu et approuvé »</div></div>
+        </div>
+      </div>`;
+      return { paper, cgv: cgv + tva, reserve };
     }
 
     // Impression : document DÉDIÉ généré dans une fenêtre propre (fond blanc, texte noir) —
@@ -696,7 +733,7 @@
         const base = new URL('.', location.href).href;
         const types = [...new Set((doc.items || []).map(it => TYPE_LABEL[it.type] || it.type))].join(' + ');
         const titre = ['SolariScreen', types || 'Devis', [doc.client.prenom, doc.client.nom].filter(Boolean).join(' ') || 'Client', doc.id].join(' - ');
-        const { paper, cgv } = buildPaperHtml(doc);
+        const { paper, cgv, reserve } = buildPaperHtml(doc);
         w.document.write(`<!DOCTYPE html><html lang="fr" data-theme="light"><head>
           <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
           <base href="${base}">
@@ -709,7 +746,7 @@
           <link rel="stylesheet" href="assets/css/base.css">
           <link rel="stylesheet" href="assets/css/document.css">
         </head><body>
-          <div class="paper-wrap"><div class="paper">${paper}</div></div>
+          <div class="paper-wrap"><div class="paper" style="--close-reserve:${reserve}">${paper}</div></div>
           ${cgv ? '<div class="annex">' + cgv + '</div>' : ''}
           <script>
             // Impression une fois styles + polices + logos chargés (sinon mise en page faussée).

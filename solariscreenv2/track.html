@@ -197,14 +197,17 @@
       }).join('');
 
       let etaTxt = "L'installateur planifiera prochainement la suite de votre commande.";
-      if (cc.date_commande) {
+      /* ⚠️ « Reçu » et « posé » se disent qu'il y ait une date de commande ou non : le PV de réception passe la
+         commande à « posé » sans en poser — la frise du client était toute verte et, juste dessous, on lui
+         annonçait que « la suite sera planifiée » (audit du 28/10/2026). */
+      if (['recu', 'pose'].includes(cc.statut)) {
+        etaTxt = cc.statut === 'pose' ? 'Installation terminée — merci de votre confiance !' : 'Matériel reçu, la pose sera bientôt planifiée.';
+      } else if (cc.date_commande && isFinite(parseFloat(cc.delai_semaines))) {
+        // Sans délai annoncé, pas d'estimation : compter 0 semaine annonçait au client une livraison le jour
+        // même de la commande (même règle que SSUI.livraisonEstimee).
         const eta = new Date(cc.date_commande);
-        eta.setDate(eta.getDate() + (cc.delai_semaines || 0) * 7);
-        if (!isNaN(eta) && !['recu', 'pose'].includes(cc.statut)) {
-          etaTxt = `Livraison estimée : <strong>${eta.toLocaleDateString('fr-BE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>`;
-        } else if (['recu', 'pose'].includes(cc.statut)) {
-          etaTxt = cc.statut === 'pose' ? 'Installation terminée — merci de votre confiance !' : 'Matériel reçu, la pose sera bientôt planifiée.';
-        }
+        eta.setDate(eta.getDate() + Math.round(parseFloat(cc.delai_semaines) * 7));
+        if (!isNaN(eta)) etaTxt = `Livraison estimée : <strong>${eta.toLocaleDateString('fr-BE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>`;
       }
       document.getElementById('trackEta').innerHTML = etaTxt;
 

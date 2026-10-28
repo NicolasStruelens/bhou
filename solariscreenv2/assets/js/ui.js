@@ -710,8 +710,11 @@
     const dep = String(cc.date_commande || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dep)) return null;
     const semaines = parseFloat(cc.delai_semaines);
+    // Sans délai annoncé, on ne SAIT pas : compter 0 semaine annonçait la livraison le jour de la commande,
+    // puis « Retard » dès le lendemain (audit du 28/10/2026).
+    if (!isFinite(semaines)) return null;
     const t = new Date(dep + 'T12:00:00');
-    t.setDate(t.getDate() + Math.round((isFinite(semaines) ? semaines : 0) * 7));
+    t.setDate(t.getDate() + Math.round(semaines * 7));
     return isNaN(t) ? null : isoDate(t);
   }
 

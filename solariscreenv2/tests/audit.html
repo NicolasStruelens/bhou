@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Audit — toutes les pages</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; } h2 { font-size: 15px; margin: 18px 0 6px; color: #00ff9c; }
+    .note { color: #97a4cc; max-width: 960px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; } .info { color: #ffb020; }
+    #summary { font-size: 18px; margin: 12px 0; } #avance { color: #97a4cc; font-size: 13px; }
+    code { color: #ffd23f; } .k { white-space: nowrap; color: #97a4cc; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Audit de toutes les pages</h1>
+  <p class="note">
+    Pas un test d’une page : l’AUDIT de toutes. Le vrai serveur (<code>[[catchall]].js</code>) sur une base SQLite en mémoire
+    (<code>tests/banc-serveur.js</code>), remplie par le bac à sable (<code>tests/bac-a-sable.js</code>, règle 46) ; puis chaque page de
+    l’ERP — et chaque fiche, chaque document, chaque lien client — ouverte au bureau (1500 px) et sur téléphone (390 px), avec les
+    paramètres qu’elle lit (<code>?id=</code>, <code>?open=</code>, <code>?devis=</code>…). Sur chacune on relève : les erreurs de script, les
+    requêtes refusées, les fichiers introuvables, les gestionnaires <code>on*</code> qui ne compilent pas, les liens vers une page qui
+    n’existe pas, « undefined », « NaN » ou « [object Object] » affichés, ce qui déborde de la page ou de sa boîte, ce qui est coupé
+    au bord de l’écran, le texte écrasé lettre par lettre, les boutons qui se chevauchent et les boutons sans nom.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches locaux sont remis
+    en état à la fin. <code>?seul=vue</code> n’audite que les adresses qui contiennent « vue ».
+  </p>
+  <div id="summary">Audit en cours…</div>
+  <div id="avance"></div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script src="audit-outils.js"></script>
+  <script>
+  (async function () {
+    'use strict';
+    const SS = window.SS, U = window.SSUI, BANC = window.SSBanc, AU = window.SSAudit;
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const SEUL = new URLSearchParams(location.search).get('seul') || '';
+    // `?reel=1` : EN VRAI, sur un aperçu Cloudflare (sa base d'ESSAI, règle 46), sans banc et sans rien
+    // écrire — les écrans tels que Cloudflare les sert, sur l'appareil émulé (tactile compris).
+    // `?ecrans=telephone` ou `?ecrans=bureau` : une seule largeur.
+    const REEL = new URLSearchParams(location.search).get('reel') === '1';
+    const ECRANS = new URLSearchParams(location.search).get('ecrans') || '';
+    const LARGEURS = [{ nom: 'bureau', w: 1500, h: 900 }, { nom: 'téléphone', w: 390, h: 844 }].filter((l) => !ECRANS || l.nom.indexOf(ECRANS.slice(0, 3)) === 0);
+    const RAPPORT = [];      // { url, ecran, sorte, detail }
+    let pages = 0;
+
+    // Les outils (le cadre et ses témoins, l’attente, la relève de l’écran) : tests/audit-outils.js.
+    const ouvrir = AU.ouvrir, poser = AU.poser, existe = AU.existe, relever = AU.relever;
+
+    // ══════════ LE JEU : le bac à sable dans le banc ══════════
+    let rem = { erreurs: [] };
+    if (REEL) {
+      if (!window.SSUI.hoteBacASable || !window.SSUI.hoteBacASable()) throw new Error('le mode réel ne tourne que sur un aperçu de branche (base d’essai) — jamais en production');
+    } else {
+      await BANC.demarrer();
+      BANC.installer(window);
+      BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+      rem = await window.SSBacASable.remplir(SS, {});
+      // Un lien de suivi (`track.html`) : le jeu n'en pose pas, il ne naît qu'à l'envoi du lien depuis la fiche.
+      BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.track_token', 'essai-trk-10') WHERE id = 'ESSAI-10'");
+    }
+    const devis = (await SS.listDevis()) || [], factures = (await SS.listFactures()) || [], rdvs = (await SS.listRdv()) || [];
+    const sujets = (await SS.listSujets()) || [], clients = (await SS.listClients()) || [];
+    const ids = devis.map((d) => d.id).sort();
+    // En vrai, on n'ouvre pas les liens CLIENT : une consultation y compte une vue.
+    const toks = REEL ? [] : BANC.sqlL("SELECT json_extract(data, '$.review_token') FROM devis WHERE json_extract(data, '$.review_token') IS NOT NULL").map((r) => r[0]);
+
+    const A = (p) => '../app/' + p;
+    const URLS = [
+      A('dashboard.html'), A('clients.html'), A('planning.html'), A('planning.html?vue=jour&date=' + U.aujourdhui()), A('carte.html'),
+      A('portfolio.html'), A('sav.html'), A('outillage.html'), A('factures.html'), A('depenses.html'), A('stats.html'), A('stats.html#connexions'),
+      A('echanges.html'), A('parametres.html'), A('parametres.html#appareil'), A('rdv.html'), A('rdv.html?nouvelle=1'), A('terrain.html'),
+      A('simulateur.html'), A('simulateur.html?type=depannage'), '../index.html', '../track.html?t=essai-trk-10', '../track.html?t=inconnu',
+      '../devis-review.html?t=inconnu', A('sav.html?nouveau=1&devis=ESSAI-10'), A('outillage.html?pose=ESSAI-10'),
+      A('factures.html?devis=ESSAI-22&type=acompte'), A('factures.html?devis=ESSAI-10&type=solde'),
+      A('vue.html?id=inconnu'), A('devis.html?id=inconnu'), A('facture.html?id=inconnu'),
+    ];
+    ids.forEach((id) => { URLS.push(A('vue.html?id=' + id)); URLS.push(A('devis.html?id=' + id)); URLS.push(A('simulateur.html?id=' + id)); });
+    ['ESSAI-01', 'ESSAI-07', 'ESSAI-10', 'ESSAI-11'].forEach((id) => { URLS.push(A('picking.html?id=' + id)); URLS.push(A('reception.html?id=' + id)); URLS.push(A('terrain.html?id=' + id)); });
+    factures.forEach((f) => URLS.push(A('facture.html?id=' + encodeURIComponent(f.id))));
+    rdvs.forEach((r) => URLS.push(A('rdv.html?open=' + encodeURIComponent(r.id))));
+    // Le rapport de visite est celui d'un DEVIS (le bouton « Rapport visite » de la fiche).
+    ['ESSAI-01', 'ESSAI-07', 'ESSAI-10'].forEach((id) => URLS.push(A('visite.html?id=' + id)));
+    sujets.slice(0, 3).forEach((s) => URLS.push(A('echanges.html?sujet=' + encodeURIComponent(s.id))));
+    clients.filter((c) => !c.essai).slice(0, 6).forEach((c) => URLS.push(A('clients.html?key=' + encodeURIComponent(c.key))));
+    toks.forEach((t) => URLS.push('../devis-review.html?t=' + encodeURIComponent(t)));
+    const LISTE = URLS.filter((u) => !SEUL || SEUL.split('|').some((s) => u.indexOf(s) >= 0));
+
+    const LIENS = new Map();   // lien → première page qui le porte
+    let n = 0;
+    for (const url of LISTE) {
+      for (const L of LARGEURS) {
+        n++;
+        document.getElementById('avance').textContent = n + ' / ' + (LISTE.length * LARGEURS.length) + ' — ' + url + ' (' + L.nom + ')';
+        let f = null;
+        try {
+          f = await ouvrir(url, L.w, L.h, { reel: REEL });
+          await poser(f);
+          pages++;
+          const t = f.temoins, w = f.contentWindow;
+          const court = url.replace(/^\.\.\//, '');
+          const ajoute = (sorte, detail) => RAPPORT.push({ url: court, ecran: L.nom, sorte, detail });
+          const ici = (() => { try { return w.location.href; } catch (e) { return '?'; } })();
+          // Une VRAIE navigation (un autre document) : la page est partie ailleurs, et ce qui s'y affiche
+          // n'est plus branché sur le banc. Un paramètre retiré de l'adresse (`replaceState`), lui, est voulu.
+          const partie = f.contentDocument !== f.doc;
+          if (partie) ajoute('navigue', ici.replace(location.origin, ''));
+          t.erreurs.forEach((e) => ajoute('erreur', e));
+          t.api.forEach((e) => ajoute('requête refusée', e));
+          t.fichiers.forEach((e) => ajoute('fichier introuvable', e));
+          t.alertes.forEach((e) => ajoute('fenêtre du navigateur', e));
+          t.ouvertes.forEach((e) => ajoute('fenêtre ouverte', e));
+          if (!partie && w.document && w.document.body) {
+            const r = relever(w);
+            r.defauts.forEach(([s, dd]) => ajoute(s, dd));
+            r.liens.forEach((l) => { if (!LIENS.has(l)) LIENS.set(l, court + ' (' + L.nom + ')'); });
+          }
+        } catch (e) {
+          RAPPORT.push({ url, ecran: L.nom, sorte: 'audit', detail: 'impossible d’auditer : ' + (e && e.message) });
+        } finally { if (f) f.remove(); }
+      }
+    }
+    for (const [l, ou] of LIENS) if (!(await existe(l))) RAPPORT.push({ url: ou, ecran: '—', sorte: 'lien mort', detail: l.replace(location.origin, '') });
+
+    if (!REEL) { BANC.remettre(); BANC.retirer(); }
+
+    // ══════════ LE RAPPORT ══════════
+    const parSorte = {};
+    RAPPORT.forEach((r) => { parSorte[r.sorte] = (parSorte[r.sorte] || 0) + 1; });
+    const parPage = new Map();
+    RAPPORT.forEach((r) => { const k = r.url; if (!parPage.has(k)) parPage.set(k, []); parPage.get(k).push(r); });
+    let html = '<p>Remplissage : ' + (rem.erreurs.length ? '<span class="fail">' + esc(rem.erreurs.join(' · ')) + '</span>' : '<span class="pass">0 erreur</span>') +
+      ' · ' + ids.length + ' devis, ' + factures.length + ' factures, ' + rdvs.length + ' demandes · ' + pages + ' pages ouvertes · ' + LIENS.size + ' liens vérifiés</p>';
+    html += '<p>' + Object.keys(parSorte).sort().map((k) => '<span class="k">' + esc(k) + '</span> ' + parSorte[k]).join(' · ') + '</p>';
+    for (const [url, l] of parPage) {
+      html += '<h2>' + esc(url) + '</h2><table>' + l.map((r) => '<tr><td class="k">' + esc(r.ecran) + '</td><td class="k">' + esc(r.sorte) + '</td><td>' + esc(r.detail) + '</td></tr>').join('') + '</table>';
+    }
+    document.getElementById('out').innerHTML = html;
+    document.getElementById('avance').textContent = '';
+    document.getElementById('summary').innerHTML = (RAPPORT.length ? '<span class="fail">' + RAPPORT.length + ' relevés</span>' : '<span class="pass">0 relevé</span>') + ' sur ' + pages + ' pages';
+    document.title = (RAPPORT.length ? 'RELEVÉS ' + RAPPORT.length : 'OK 0') + ' — Audit';
+    window.RAPPORT = RAPPORT;
+  })().catch((e) => { document.getElementById('summary').innerHTML = '<span class="fail">Audit interrompu : ' + String(e && (e.stack || e.message)).replace(/</g, '&lt;') + '</span>'; document.title = 'INTERROMPU — Audit'; });
+  </script>
+</body>
+</html>

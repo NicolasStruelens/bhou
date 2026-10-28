@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Impression — banc</title>
+</head>
+<body style="font-family: system-ui, sans-serif;">
+  <!--
+    Pas une suite — le BANC D'IMPRESSION. Il remplit le banc (le vrai serveur sur une base en mémoire) avec le
+    bac à sable, puis ÉCRIT à sa place, dans CETTE fenêtre, le document demandé : un navigateur sans écran peut
+    alors l'imprimer en PDF (`chrome --headless --print-to-pdf`), exactement comme « Enregistrer en PDF ».
+    Une page blanche, un pied seul sur une deuxième feuille, un fond qui disparaît : ça n'existe qu'au moment
+    où le moteur d'impression pagine (CLAUDE.md, règle 31 septies) — un aperçu à l'écran ne le montre pas.
+
+      impression.html?page=app/devis.html%3Fid%3DESSAI-07
+      impression.html?page=devis-review.html%3Ft%3Dessai-tok-02&action=client     (le PDF que le CLIENT imprime)
+      impression.html?page=app/depenses.html&action=bordereau
+      impression.html?page=app/stats.html&action=releve
+      impression.html?page=app/portfolio.html&action=portfolio
+
+    Le document prêt, la page pose `window.__imprimable = true` : le pilote d'impression (Chrome sans écran
+    piloté par son protocole, `Page.printToPDF`) n'imprime qu'à ce signal. Imprimer « au bout d'un délai »
+    (`--virtual-time-budget`) sortait un PDF sur trois avant que le document ne soit là.
+
+    ⚠️ `page` est une adresse de l'ERP et rien d'autre, `action` un nom de la liste ci-dessous : ce banc est publié
+    avec le reste du dossier, et une page qui exécuterait ce qu'on lui passe dans l'adresse serait une faille.
+    Il n'écrit JAMAIS dans la vraie base : le banc est posé avant la première écriture.
+  -->
+  <p id="etat">Préparation du banc…</p>
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+  (async function () {
+    'use strict';
+    const P = new URLSearchParams(location.search);
+    const page = P.get('page') || '', action = P.get('action') || '';
+    const etat = (t) => { const e = document.getElementById('etat'); if (e) e.textContent = t; };
+    if (!/^(app\/)?[a-z-]+\.html(\?[A-Za-z0-9=&%._-]*)?$/.test(page) || !/^(|client|bordereau|releve|portfolio)$/.test(action)) { etat('Adresse refusée.'); window.__imprimable = 'adresse refusée'; return; }
+    const BANC = window.SSBanc, SS = window.SS;
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    /* ⚠️ Attendre d'abord la PREMIÈRE requête du document : ses scripts attendent ses feuilles de style
+       (les polices Google comprises), et un banc « calme » parce que la page n'a pas encore commencé
+       imprimait la barre d'outils seule, au format Letter. */
+    async function poser(n0) {
+      const t1 = Date.now();
+      while (BANC.appels === n0 && Date.now() - t1 < 30000) await attendre(100);
+      const t0 = Date.now(); let n = BANC.appels, calme = Date.now();
+      await attendre(400);
+      while (Date.now() - t0 < 10000) {
+        await attendre(100);
+        if (BANC.appels !== n) { n = BANC.appels; calme = Date.now(); } else if (Date.now() - calme > 600) break;
+      }
+      try { await document.fonts.ready; } catch (e) {}
+      await attendre(200);
+    }
+    async function images() {
+      await Promise.all([...document.images].map((im) => (im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; setTimeout(r, 4000); }))));
+    }
+
+    await BANC.demarrer();
+    BANC.installer(window);
+    BANC.nouvelleBase(true); BANC.viderCaches();
+    BANC.ident = P.get('qui') === 'yannick' ? BANC.YANNICK : BANC.NICOLAS;
+    const rem = await window.SSBacASable.remplir(SS, {});
+    if (rem.erreurs.length) { etat('Remplissage : ' + rem.erreurs.join(' · ')); window.__imprimable = 'remplissage'; return; }
+    BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.track_token', 'essai-trk-10') WHERE id = 'ESSAI-10'");
+
+    const adresse = new URL('../' + page, location.href).href;
+    const html = await (await BANC.vraiFetch(adresse, { cache: 'no-store' })).text();
+    // L'impression est celle du moteur sans écran : la boîte de dialogue n'existe pas ici.
+    const sansDialogue = () => { window.print = function () {}; window.alert = function () {}; window.confirm = function () { return true; }; };
+    // Le chargement se guette par un écouteur posé APRÈS l'ouverture (qui efface les écouteurs de la
+    // fenêtre) et AVANT l'écriture : lire `readyState` juste après `close()` peut répondre trop tôt.
+    let charge = false;
+    const ecrire = (h) => {
+      charge = false;
+      document.open();
+      window.addEventListener('load', () => { charge = true; }, { once: true });
+      document.write(h);
+      document.close();
+    };
+    const chargee = async () => { const t = Date.now(); while (!charge && Date.now() - t < 30000) await attendre(100); };
+    const n0 = BANC.appels;
+    history.replaceState(null, '', adresse);
+    window.fetch = BANC.fetch;
+    sansDialogue();
+    ecrire(html);
+    await chargee();
+    await poser(n0);
+
+    if (action === 'bordereau') { window.ouvrirRemise('nicolas'); await attendre(100); window.imprimerBordereau(); }
+    if (action === 'releve') { window.imprimerReleve(); }
+    if (action === 'portfolio') { await window.printDoc(); }
+    if (action === 'client') {
+      // Le document que le CLIENT imprime naît dans une fenêtre neuve : on le capture et on l'écrit ici.
+      let capture = '';
+      window.open = () => ({ document: { write: (h) => { capture += h; }, close() {} }, focus() {}, print() {} });
+      window.printDevis();
+      ecrire(capture);
+      sansDialogue();
+      await chargee();
+      try { await document.fonts.ready; } catch (e) {}
+    }
+    await images();
+    await attendre(300);
+    // Le signal que le pilote d'impression attend (`Runtime.evaluate`) : il n'imprime qu'à ce moment-là.
+    window.__imprimable = true;
+  })().catch((e) => { window.__imprimable = 'échec : ' + (e && e.message); });
+  </script>
+</body>
+</html>

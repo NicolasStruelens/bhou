@@ -138,11 +138,17 @@
        dans le document), l'historique des statuts (consultation d'archive, pas un geste de
        terrain) et le LIBELLÉ de la probabilité (la pastille de couleur suffit, le menu reste
        accessible d'un doigt). */
+    /* Écrite AVANT la media query : à spécificité égale, la dernière règle gagne. */
+    #garantieBadge .g-court { display: none; }
     @media (max-width: 560px) {
       #devisIdBadge, #historyBtn { display: none !important; }
       /* font-size: 0 efface le libellé « Probabilité ? » ; la pastille et le chevron sont des
          éléments dimensionnés en propre, ils restent visibles et cliquables. */
       #probaBadge { font-size: 0; padding-left: 0.45rem; padding-right: 0.45rem; }
+      #garantieBadge .g-long { display: none; }
+      #garantieBadge .g-court { display: inline; }
+      /* Sans ses crochets décoratifs, la pastille courte tient sur la rangée du statut à 375 px. */
+      #garantieBadge::before, #garantieBadge::after { content: none; }
     }
 
     /* ── Prochaine action : LA consigne du dossier, juste sous le total. --nc = couleur d'urgence. ── */
@@ -1062,7 +1068,7 @@
     <div class="lb-count" id="lbCount"></div>
     <button class="lb-btn lb-close" onclick="lbClose()" aria-label="Fermer">✕</button>
     <button class="lb-btn lb-prev" onclick="lbNav(-1)" aria-label="Photo précédente">‹</button>
-    <img id="lbImg" src="" alt="Photo du chantier">
+    <img id="lbImg" alt="Photo du chantier">
     <button class="lb-btn lb-next" onclick="lbNav(1)" aria-label="Photo suivante">›</button>
     <div class="lb-cap" id="lbCap"></div>
   </div>
@@ -1172,6 +1178,8 @@
   <!-- planning.js AVANT remuneration.js : c'est lui qui porte le vocabulaire des équipes
        (SSPlanning.quiDeEquipe), et le moteur n'attribue rien sans lui. -->
   <script src="../assets/js/planning.js"></script>
+  <!-- La prochaine action suit les règles du tableau de bord (acompte, dépannage, commande, pose en deux fois). -->
+  <script src="../assets/js/actions.js"></script>
   <script src="../assets/js/remuneration.js"></script>
   <script>
     const SS = window.SS;
@@ -1243,13 +1251,15 @@
       const motorEnd = new Date(poseDate); motorEnd.setFullYear(motorEnd.getFullYear() + motorYears);
       const today = new Date();
       const structureActive = today < structureEnd, motorActive = today < motorEnd;
-      let cls, label;
-      if (structureActive && motorActive) { cls = 'badge-ok'; label = 'Garantie active'; }
-      else if (motorActive) { cls = 'badge-warn'; label = 'Garantie moteur active'; }
-      else { cls = ''; label = 'Garantie expirée'; }
+      let cls, label, court;
+      if (structureActive && motorActive) { cls = 'badge-ok'; label = 'Garantie active'; court = 'Garantie ✓'; }
+      else if (motorActive) { cls = 'badge-warn'; label = 'Garantie moteur active'; court = 'Gar. moteur'; }
+      else { cls = ''; label = 'Garantie expirée'; court = 'Gar. expirée'; }
       badge.className = 'badge ' + cls;
       badge.title = `Structure : jusqu'au ${fmtDate(structureEnd.toISOString())} (5 ans)\nMoteur : jusqu'au ${fmtDate(motorEnd.toISOString())} (${motorYears} ans)`;
-      badge.textContent = label;
+      // Deux libellés, la feuille de style choisit (règle 24) : sur téléphone, « Garantie active » en
+      // capitales prenait 148 px et écrasait le logo du bandeau (audit du 28/10/2026).
+      badge.innerHTML = '<span class="g-long">' + label + '</span><span class="g-court">' + court + '</span>';
       badge.classList.remove('hidden');
     }
     const PHOTO_CATEGORIES = ['Façade', 'Détail mesure', 'Accès', 'Obstacle', 'Avant', 'Après'];
@@ -1263,6 +1273,7 @@
     const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     let DEVIS = null, CALC = null, PHOTOS = [], CLIENT_FICHE = null, FACTURES = [];
+    let RELANCE_TAPEE = false;   // la fenêtre de relance porte une saisie (motif, message) — voir closeRelance
 
     /* ═══════════════════════════════════════════════════════════════════════════════════════════
        ⚠️ BUG CORRIGÉ — « le changement de statut ne fonctionne pas »
@@ -1285,10 +1296,38 @@
       if (typeof origine !== 'function') return;
       SS[nom] = async function () {
         const res = await origine.apply(SS, arguments);
-        if (res && res.date_modification && DEVIS) DEVIS.date_modification = res.date_modification;
+        if (res && res.date_modification && DEVIS) adopterVersion(res.date_modification);
         return res;
       };
     });
+
+    /* ═══ TOUT ENREGISTREMENT COMPLET DE LA FICHE EST CONTRÔLÉ (règle 3, audit du 28/10/2026) ═══
+       Une quinzaine de gestes — étape de commande, planification, checklist, relances, probabilité,
+       catégorie de photo, lien client, vendeur, « informatif »… — renvoyaient le DEVIS entier tel que la
+       fiche l'avait lu, sans contrôle : le refus que le client venait de donner en ligne, la commande que
+       Yannick venait de passer « Reçu » revenaient en arrière, en silence.
+       `VERSION_FICHE` est la version que la fiche SAIT être celle du serveur : posée au chargement, après
+       chaque enregistrement réussi et après chaque route ciblée (notes, tickets, journal, documents). Tout
+       enregistrement du devis affiché qui ne fournit pas sa propre version reçoit celle-là ; un conflit
+       ouvre le dialogue commun — recharger (sûr) ou écraser en connaissance de cause. Une seule enveloppe
+       plutôt qu'à chacun des appels : le prochain geste ajouté serait forcément oublié. Les collections
+       des routes ciblées (tickets SAV, journal, documents, vues) sont de toute façon gardées par le serveur. */
+    let VERSION_FICHE = null;
+    function adopterVersion(v) { if (!v || !DEVIS) return; DEVIS.date_modification = v; VERSION_FICHE = v; }
+    const saveDevisOrigine = SS.saveDevis.bind(SS);
+    SS.saveDevis = async function (devis, opts) {
+      const o = Object.assign({}, opts || {});
+      const auto = !!DEVIS && devis === DEVIS && !o.force && o.expectedDateModification === undefined && VERSION_FICHE != null;
+      if (auto) o.expectedDateModification = VERSION_FICHE;
+      let res = await saveDevisOrigine(devis, o);
+      if (auto && res && res.conflict) {
+        // `showSaveConflict` recharge la page (OK) ou rappelle pour écraser (Annuler).
+        const ecraser = await new Promise((ok) => window.SSUI.showSaveConflict(() => ok(true)));
+        if (ecraser) res = await saveDevisOrigine(devis, { force: true });
+      }
+      if (devis === DEVIS && res && res.ok !== false && !res.conflict && !res.offline) VERSION_FICHE = devis.date_modification;
+      return res;
+    };
     let CONNECTED_KEY = '';   // « nicolas » / « yannick » — sert à signer les messages clients
     const paidSum = f => (f.paiements || []).reduce((s, p) => s + (Number(p.montant) || 0), 0);
 
@@ -1297,6 +1336,11 @@
       const p = d.pricing_v2 || {};
       return computeDevis({
         items: d.items || [],
+        // ⚠️ RÈGLE 1 : les taux FIGÉS du devis et ses parts vendeurs, comme le simulateur. Sans eux, un recalcul
+        // (devis sans calculs enregistrés, changement de vendeur) prenait les taux du code — et un devis chiffré
+        // avec d'autres réglages changeait de montants (audit du 28/10/2026).
+        rates: window.SSConf ? window.SSConf.tauxPour(d) : undefined,
+        seller_parts: p.seller_parts || undefined,
         sellers: (p.material && p.material.sellers) || {},
         installation: Object.assign({}, (p.installation && p.installation.per_opening) || {}, {
           install_qty: p.installation && p.installation.install_qty,
@@ -1355,6 +1399,9 @@
       // Une facture de dépannage se fait en une fois : on vise directement le bon type,
       // au lieu d'ouvrir sur un acompte qui n'a pas lieu d'être.
       el('btnFacturer').href = 'factures.html?devis=' + d.id + '&type=' + (depFiche ? 'totale' : 'acompte');
+      // On ne facture qu'un devis signé ou terminé : sur un brouillon, la page Facturation présélectionnait
+      // en silence le premier devis éligible — celui d'un AUTRE client (audit du 28/10/2026).
+      el('btnFacturer').classList.toggle('hidden', !['signe', 'termine'].includes(d.statut));
       const btnRec = el('btnReception');
       btnRec.href = 'reception.html?id=' + d.id;
       btnRec.classList.toggle('hidden', !['signe', 'termine'].includes(d.statut));
@@ -1763,20 +1810,17 @@
         el('paiementsList').innerHTML = `<div class="text-muted">Aucune facture générée pour ce devis. Utilise le bouton « Facturer » ci-dessus.</div>`;
         return;
       }
-      const TYPE_LABEL_FAC = { acompte: 'Acompte', solde: 'Solde', totale: 'Totale' };
-      const todayStr = SSUI.aujourdhui();
+      /* ⚠️ LE STATUT D'UNE FACTURE VIT DANS ui.js (règles 4 bis et 49), comme sur les pages Clients et
+         Facturation. La copie locale comparait les paiements au total brut : une note de crédit (total
+         négatif) s'affichait « Soldée », la facture qu'elle annule « Impayée » puis « En retard », et une
+         facture partielle ou une note de crédit tombaient sur le libellé « Facture » (audit du 28/10/2026). */
       el('paiementsList').innerHTML = facs.map(f => {
-        const paid = paidSum(f);
         const due = f.total_ttc || 0;
-        let statusBadge;
-        if (paid >= due - 0.005) statusBadge = `<span class="badge badge-ok">${icon('coin', 10)} Soldée</span>`;
-        else if (f.echeance && f.echeance < todayStr) statusBadge = `<span class="badge badge-danger">${icon('warning', 10)} En retard</span>`;
-        else if (paid > 0) statusBadge = `<span class="badge badge-warn">${icon('coin', 10)} Partiel</span>`;
-        else statusBadge = `<span class="badge">${icon('coin', 10)} Impayée</span>`;
+        const statusBadge = window.SSUI.badgeFacture(f, FACTURES);
         return `
           <div class="pay-row">
             <div class="pay-head">
-              <span class="pay-type">${TYPE_LABEL_FAC[f.type] || 'Facture'}</span>
+              <span class="pay-type">${window.SSUI.TYPE_FACTURE_LABEL[f.type] || 'Facture'}</span>
               <span class="pay-num">#${esc(f.id)}</span>
               <span class="pay-amount">${fmtEur(due)}</span>
               ${statusBadge}
@@ -1803,43 +1847,65 @@
       el('ccSteps').innerHTML = CC_STAGES.map((s, i) => `<div class="cc-step ${i < idx ? 'done' : ''} ${i === idx ? 'active' : ''}" onclick="setCommandeStage('${s.k}')">${s.l}</div>`).join('');
       setText('ccSummary', CC_STAGES[idx].l);
       el('ccDate').value = cc.date_commande || '';
-      el('ccDelai').value = cc.delai_semaines ?? 8;
+      /* ⚠️ UN CHAMP VIDE SE MONTRE VIDE (piège « un formulaire qui affiche un défaut non enregistré ment ») :
+         le délai s'affichait « 8 » alors qu'aucun n'était enregistré, et le calcul en comptait 0 — livraison
+         estimée le jour de la commande, « Retard » le lendemain. Le 8 n'est plus qu'une suggestion
+         (placeholder), et l'estimation vient de la règle commune (`SSUI.livraisonEstimee`). */
+      el('ccDelai').value = (cc.delai_semaines != null && cc.delai_semaines !== '') ? cc.delai_semaines : '';
+      el('ccDelai').placeholder = '8';
       let etaTxt = 'Renseigne la date de commande pour estimer la livraison.', retard = false;
       if (cc.date_commande) {
-        const eta = new Date(cc.date_commande);
-        eta.setDate(eta.getDate() + (cc.delai_semaines || 0) * 7);
-        if (!isNaN(eta)) {
-          etaTxt = 'Livraison estimée : ' + fmtDate(eta.toISOString());
-          if (eta < new Date() && !['recu', 'pose'].includes(cc.statut)) retard = true;
+        const liv = window.SSUI.livraisonEstimee(DEVIS);
+        if (!liv) etaTxt = 'Renseigne le délai annoncé par le fournisseur pour estimer la livraison.';
+        else {
+          etaTxt = 'Livraison estimée : ' + fmtDate(liv);
+          if (liv < SSUI.aujourdhui() && !['recu', 'pose'].includes(cc.statut)) retard = true;
         }
       }
       el('ccEta').textContent = etaTxt;
       el('ccRetard').classList.toggle('hidden', !retard);
     }
-    async function persistCommande() {
+    async function persistCommande(avant) {
+      const prevDate = DEVIS.date_modification;
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
-      if (res.ok === false) { toast(res.error || 'Suivi NON enregistré — réessaie.', 'error', 6000); return; }
+      if (res.ok === false) {
+        // L'étape revient à celle qui est ENREGISTRÉE (elle restait affichée, et partait au prochain
+        // enregistrement — audit du 28/10/2026).
+        if (avant !== undefined) DEVIS.commande = avant;
+        DEVIS.date_modification = prevDate;
+        toast(res.error || 'Suivi NON enregistré — réessaie.', 'error', 6000);
+        renderCommande();
+        return;
+      }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Suivi mis à jour ✓', res.offline ? 'warn' : 'ok');
       renderCommande();
     }
     window.setCommandeStage = async (stage) => {
+      const avant = DEVIS.commande ? JSON.parse(JSON.stringify(DEVIS.commande)) : DEVIS.commande;
       DEVIS.commande = DEVIS.commande || {};
       DEVIS.commande.statut = stage;
       if (stage === 'commande' && !DEVIS.commande.date_commande) DEVIS.commande.date_commande = SSUI.aujourdhui();
+      // Le délai que le formulaire AFFICHE par défaut (8 semaines) est celui qu'on enregistre : affiché 8 mais
+      // compté 0, la livraison était estimée le jour même et le chantier passait « en retard » le lendemain.
+      if (stage === 'commande' && (DEVIS.commande.delai_semaines == null || DEVIS.commande.delai_semaines === '')) DEVIS.commande.delai_semaines = 8;
       /* Le jour où le matériel arrive. Sans lui, « pose à planifier » comptait son ancienneté depuis
          la dernière MODIFICATION du devis : une note ou une photo la remettait à zéro, et un chantier
          en attente depuis trois semaines s'affichait « depuis à l'instant » (bac à sable, 27/10/2026).
          Revenir à une étape antérieure efface la date : le matériel n'est plus là. */
       if (stage === 'recu' && !DEVIS.commande.recu_le) DEVIS.commande.recu_le = SSUI.aujourdhui();
       if (['a_commander', 'commande', 'fabrication'].includes(stage)) delete DEVIS.commande.recu_le;
-      await persistCommande();
+      await persistCommande(avant);
     };
     window.saveCommande = async () => {
+      const avant = DEVIS.commande ? JSON.parse(JSON.stringify(DEVIS.commande)) : DEVIS.commande;
       DEVIS.commande = DEVIS.commande || {};
       DEVIS.commande.date_commande = el('ccDate').value;
-      DEVIS.commande.delai_semaines = parseInt(el('ccDelai').value) || 0;
-      await persistCommande();
+      // Vide = « pas encore annoncé » (null), jamais 0 : zéro semaine est une réponse, et elle ferait croire le
+      // matériel livré le jour de la commande.
+      const delai = parseInt(el('ccDelai').value, 10);
+      DEVIS.commande.delai_semaines = isNaN(delai) ? null : delai;
+      await persistCommande(avant);
     };
     // ── Planification de pose (uniquement une fois le devis signé) ──
     const EQUIPE_LABEL = { nicolas: 'Nicolas', yannick: 'Yannick', nicolas_yannick: 'Nicolas + Yannick', sous_traitant: 'Sous-traitant' };
@@ -2178,7 +2244,10 @@
       el('jCount').textContent = entries0.length ? `${entries0.length} photo(s)` : '';
       // Photos du journal dans la lightbox partagée : on retire d'abord nos entrées d'un rendu
       // précédent (marquées .chantier) pour ne pas les dupliquer, sans toucher aux ouvertures ni au SAV.
-      PHOTOS = PHOTOS.filter(p => !p.chantier);
+      // ⚠️ …et celles du SAV aussi, qui viennent APRÈS le journal dans la visionneuse : rendu seul, le journal
+      // remettait ses photos en fin de tableau et les vignettes SAV gardaient leurs anciens numéros — une
+      // vignette de ticket ouvrait une photo du journal (audit du 28/10/2026). Le SAV se renumérote à la fin.
+      PHOTOS = PHOTOS.filter(p => !p.chantier && !p.sav);
       // Tri antéchronologique (date ; date_creation départage le même jour).
       const entries = entries0.slice().sort((a, b) => String((b.date || '') + (b.date_creation || '')).localeCompare(String((a.date || '') + (a.date_creation || ''))));
       el('journalList').innerHTML = entries.length ? entries.map(e => {
@@ -2201,6 +2270,7 @@
           </div>
         </div>`;
       }).join('') : '<div class="text-muted" style="font-size:var(--fs-sm);">Aucune photo de chantier pour l’instant. Prends la première ci-dessous — pendant ou après la pose, avec une annotation. Idéal pour un gros chantier posé en plusieurs passages.</div>';
+      renderSav();   // les photos SAV se renumérotent APRÈS celles du journal (voir le filtre plus haut)
     }
     function renderJournalPending() {
       // En mode édition la photo est FIXE (on ne modifie que l'annotation) : pas de bouton retirer.
@@ -2328,6 +2398,7 @@
         let res; try { res = await r.json(); } catch (e2) { throw new Error('HTTP ' + r.status + ' — réponse non-JSON'); }
         if (!res.ok) throw new Error(res.error || ('HTTP ' + r.status));
         DEVIS.documents = res.data;
+        adopterVersion(res.date_modification);   // sinon l'enregistrement suivant passait pour un conflit
         toast('Document ajouté ✓', 'ok');
         renderDocs();
       } catch (e) {
@@ -2343,6 +2414,7 @@
         let res; try { res = await r.json(); } catch (e2) { throw new Error('HTTP ' + r.status + ' — réponse non-JSON'); }
         if (!res.ok) throw new Error(res.error || ('HTTP ' + r.status));
         DEVIS.documents = (DEVIS.documents || []).filter(d => d.id !== docId);
+        adopterVersion(res.date_modification);
         toast('Document supprimé ✓', 'ok');
         renderDocs();
       } catch (e) {
@@ -2363,10 +2435,15 @@
         return h.length ? h[0] : null;
       };
       const totalPaye = FACTURES.filter(f => f.devis_id === d.id).reduce((s, f) => s + paidSum(f), 0);
-      const ttc = (CALC && CALC.total_ttc) || 0;
+      // Ce que le client doit EN TOUT : le devis, moins les notes de crédit (règle 4 bis). Sans elles, un
+      // dossier réduit par une note de crédit puis payé pour le reste n'atteignait jamais « Payé ».
+      const avoirs = FACTURES.filter(f => f.devis_id === d.id && f.type === 'avoir').reduce((s, f) => s - (Number(f.total_ttc) || 0), 0);
+      const ttc = Math.max(0, ((CALC && CALC.total_ttc) || 0) - avoirs);
       const cc = d.commande || {};
       const poseDate = (d.reception && d.reception.date) || (d.chantier && d.chantier.date_pose) || null;
       const nbRelances = (d.relances || []).reduce((m, r) => Math.max(m, r.n || 0), 0);
+      const dep = d.type_document === 'depannage', depFait = dep && (d.depannage_mode || 'realise') === 'realise';
+      const dateInterv = dep && d.depannage ? String(d.depannage.date_intervention || '').slice(0, 10) : '';
       const derniereRelance = (d.relances || []).slice().sort((a, b) => (b.n || 0) - (a.n || 0))[0];
 
       const jalons = [
@@ -2374,8 +2451,12 @@
         { lab: 'Envoyé', date: d.date_envoi || hist('envoye_client'), done: !!(d.date_envoi || hist('envoye_client')) || ['envoye_client', 'relance_1', 'relance_2', 'signe', 'termine'].includes(d.statut) },
         { lab: nbRelances ? 'Relance ' + nbRelances : 'Relance', date: derniereRelance ? derniereRelance.date : null, done: nbRelances > 0 },
         { lab: 'Signé', date: hist('signe') || (d.signature && d.signature.date) || null, done: ['signe', 'termine'].includes(d.statut) },
-        { lab: 'Commandé', date: cc.date_commande || null, done: !!cc.date_commande || ['commande', 'fabrication', 'recu', 'pose'].includes(cc.statut) },
-        { lab: 'Posé', date: poseDate, done: window.SSUI.isPoseDone(d) },
+        /* ⚠️ UN DÉPANNAGE N'A NI COMMANDE NI POSE (règle 7) : la réglette d'un dépannage signé annonçait
+           « à commander ». Ses deux jalons sont l'intervention : planifiée (une date), puis réalisée. */
+        dep ? { lab: 'Planifié', date: dateInterv || null, done: depFait || !!dateInterv }
+            : { lab: 'Commandé', date: cc.date_commande || null, done: !!cc.date_commande || ['commande', 'fabrication', 'recu', 'pose'].includes(cc.statut) },
+        dep ? { lab: 'Réalisé', date: depFait ? (dateInterv || null) : null, done: depFait }
+            : { lab: 'Posé', date: poseDate, done: window.SSUI.isPoseDone(d) },
         { lab: 'Payé', date: null, done: ttc > 0 && totalPaye >= ttc - 0.005 },
       ];
       // Le jalon COURANT suit le DERNIER jalon franchi — surtout pas « le premier non franchi » :
@@ -2450,10 +2531,16 @@
             return { f: clamp01(n / 3), etat: 'wait', sub: 'attente client' };
           }
           case 3: { // Signé → Commandé (pas d'échéance métier : repère indicatif sur 5 jours)
+            if (dep) return { f: 0.5, etat: 'wait', sub: 'date à fixer' };
             const a = j(jalons[3].date) || 0;
             return { f: clamp01(a / 5) * 0.9, etat: a >= 5 ? 'now' : 'wait', sub: 'à commander' };
           }
           case 4: { // Commandé → Posé — ÉTAT RÉEL de la commande fournisseur (+ livraison estimée)
+            if (dep) {   // Planifié → Réalisé : la date de l'intervention
+              const reste = /^\d{4}-\d{2}-\d{2}$/.test(dateInterv) ? jEntre(aujourdhui, dateInterv) : null;
+              return { f: reste == null ? 0.5 : clamp01(1 - reste / 7), etat: reste != null && reste < 0 ? 'late' : 'wait',
+                sub: reste == null ? 'à réaliser' : (reste < 0 ? 'prévue il y a ' + (-reste) + ' j' : 'intervention ' + enJours(reste)) };
+            }
             const ord = ['a_commander', 'commande', 'fabrication', 'recu', 'pose'];
             const idx = Math.max(1, ord.indexOf(cc.statut || 'commande'));
             let etat = 'wait', sub = ({ commande: 'en commande', fabrication: 'en fabrication', recu: 'reçu — à poser', pose: 'posé' })[ord[idx]] || 'en commande';
@@ -2598,6 +2685,10 @@
         ${alerte ? `<div class="pricing-note" style="margin-top:var(--sp-3);">${icon('warning', 15)}<div class="txt">${alerte}</div></div>` : ''}`;
     }
 
+    // Les règles partagées du tableau de bord, sur les factures de CETTE page (lues à l'appel : `FACTURES` est
+    // rechargée après un encaissement, une copie passée une fois garderait les anciennes).
+    let _ACT = null;
+    const ACT = () => (_ACT = _ACT || window.SSActions.creer({ factures: () => FACTURES }));
     function renderNextAction() {
       const host = el('nextCard');
       if (!host) return;
@@ -2608,6 +2699,7 @@
       const poseFaite = window.SSUI.isPoseDone(d);
       const datePose = d.chantier && d.chantier.date_pose;
       const attente = ['envoye_client', 'relance_1', 'relance_2'].includes(d.statut);
+      const n = window.SSUI.normDevis(d);   // la forme que lisent les règles partagées
       let nc;   // { color, text, sub, btn: { label, on } }
 
       if (['refuse', 'annule'].includes(d.statut)) {
@@ -2634,15 +2726,42 @@
                          : `prévue le ${fmtDate(st.due)}${st.joursRetard > 0 ? ' — retard de ' + st.joursRetard + ' j' : ''}`,
           btn: { label: 'Préparer la relance', on: 'openRelance()' } };
         else nc = { color: 'var(--accent)', text: 'En attente de réponse client', sub: st.step ? `Relance ${st.step.n} prévue le ${fmtDate(st.due)}` : '' };
-      } else if (d.statut === 'signe' && !poseFaite && acompte > 0 && totalPaye < acompte - 0.005) {
-        nc = { color: 'var(--warn)', text: 'Encaisser l’acompte', sub: `${fmtEur(Math.max(0, acompte - totalPaye))} attendus avant de commander`, btn: { label: 'Facturer l’acompte', on: `location.href='factures.html?devis=${d.id}&type=acompte'` } };
+      /* ⚠️ À PARTIR D'ICI, LES RÈGLES DU TABLEAU DE BORD (`actions.js`, règle 41) — la fiche les recalculait à sa
+         façon et ne disait pas la même chose (audit du 28/10/2026) : un DÉPANNAGE signé réclamait un acompte puis
+         une date de pose (règle 7) ; un chantier jamais commandé réclamait sa date de pose (règle 15 ter) ; un
+         acompte réduit par une note de crédit restait « à encaisser » (règle 4 bis) ; un chantier posé en deux
+         fois proposait « Facturer le solde », qui facturerait aussi ce qui n'est pas encore posé. */
+      } else if (ACT().estDepannage(n)) {
+        const facs = FACTURES.filter(f => f.devis_id === d.id && f.type !== 'avoir');
+        const du = facs.reduce((s, f) => s + window.SSUI.duFacture(f, FACTURES), 0);
+        if (d.statut === 'signe' && d.depannage_mode === 'a_realiser') {
+          const quand = d.depannage && d.depannage.date_intervention;
+          nc = { color: 'var(--accent-3)', text: 'Intervention à réaliser', sub: quand ? 'Prévue le ' + fmtDate(quand) + '.' : 'Aucune date d’intervention fixée.' };
+        } else if (['signe', 'termine'].includes(d.statut) && !facs.length) {
+          nc = { color: 'var(--warn)', text: 'Facturer l’intervention', sub: 'Aucun acompte sur un dépannage : il se règle en une fois.', btn: { label: 'Facturer l’intervention', on: `location.href='factures.html?devis=${d.id}&type=totale'` } };
+        } else if (du > 0.005) {
+          nc = { color: 'var(--warn)', text: 'Encaisser l’intervention', sub: `${fmtEur(du)} restants à percevoir` };
+        } else {
+          nc = { color: 'var(--ok)', text: 'Dossier en ordre ✓', sub: 'Rien à faire pour le moment.' };
+        }
+      } else if (d.statut === 'signe' && !poseFaite && ACT().isAcompteUnpaid(n)) {
+        nc = { color: 'var(--warn)', text: 'Encaisser l’acompte', sub: `${fmtEur(ACT().acompteRestant(n))} attendus avant de commander`, btn: { label: 'Facturer l’acompte', on: `location.href='factures.html?devis=${d.id}&type=acompte'` } };
+      } else if (d.statut === 'signe' && !poseFaite && !datePose && window.SSUI.etatCommande(d) === 'a_commander') {
+        nc = { color: 'var(--accent-2)', text: 'Commander le matériel', sub: 'Pas encore commandé chez le fournisseur : la date de pose viendra avec la livraison.', btn: { label: 'Suivi de commande', on: `openCardAndScroll('commandeCard')` } };
+      } else if (d.statut === 'signe' && !poseFaite && !datePose && !window.SSUI.materielRecu(d)) {
+        const liv = window.SSUI.livraisonEstimee(d);
+        nc = { color: 'var(--accent)', text: 'Matériel en commande', sub: (liv ? 'Livraison estimée le ' + fmtDate(liv) + '. ' : '') + 'La date de pose se fixe à la réception.' };
       } else if (d.statut === 'signe' && !poseFaite && !datePose) {
-        nc = { color: 'var(--accent-2)', text: 'Planifier la pose', sub: 'Aucune date de pose fixée.', btn: { label: 'Planifier', on: `openCardAndScroll('chantierCard')` } };
+        nc = { color: 'var(--accent-2)', text: 'Planifier la pose', sub: 'Matériel reçu — aucune date de pose fixée.', btn: { label: 'Planifier', on: `openCardAndScroll('chantierCard')` } };
       } else if (isChantierAPreparerFiche()) {
         nc = { color: 'var(--accent-2)', text: 'Préparer le chantier', sub: `Pose le ${fmtDate(datePose)}.`, btn: { label: 'Ouvrir la checklist', on: `openCardAndScroll('checklistCard')` } };
       } else if (d.statut === 'signe' && !poseFaite) {
         nc = { color: 'var(--accent)', text: 'Pose prévue le ' + fmtDate(datePose), sub: 'Rien d’urgent d’ici là.' };
-      } else if (poseFaite && ttc > 0 && totalPaye < ttc - 0.005) {
+      } else if (poseFaite && ACT().poseAVenir(n)) {
+        // Posé en deux fois : la première pose a son PV, la seconde est à venir. Le solde facturerait aussi
+        // ce qui n'est pas encore posé — c'est une facture PARTIELLE qu'il faut (CLAUDE.md, facturation).
+        nc = { color: 'var(--accent)', text: 'Seconde pose le ' + fmtDate(datePose), sub: 'Ce qui est déjà posé se facture en facture partielle — pas en solde.', btn: { label: 'Facture partielle', on: `location.href='factures.html?devis=${d.id}&type=partielle'` } };
+      } else if (poseFaite && ACT().isSoldeUnpaid(n)) {
         nc = { color: 'var(--warn)', text: 'Encaisser le solde', sub: `${fmtEur(ttc - totalPaye)} restants à percevoir`, btn: { label: 'Facturer le solde', on: `location.href='factures.html?devis=${d.id}&type=solde'` } };
       } else {
         nc = { color: 'var(--ok)', text: 'Dossier en ordre ✓', sub: 'Rien à faire pour le moment.' };
@@ -2940,6 +3059,7 @@
        un appelant en aurait oublié un et la fenêtre se serait contredite à nouveau — c'est
        exactement le défaut qu'on vient de corriger. */
     function renderRelanceSuivi() {
+      RELANCE_TAPEE = false;   // la fenêtre est reconstruite après un geste réussi
       if (!el('relanceSuivi')) return;
       const st = relanceState(DEVIS);
       const att = window.SSUI.attenteClient(DEVIS);
@@ -3234,7 +3354,7 @@
       }
       SS.logActivity && SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id} classé sans réponse après 3 relances` });
       toast('Dossier classé — pas de réponse', 'warn');
-      closeRelance();
+      closeRelance(true);
       render();
     };
     // `opts.auto` = déclenché par un bouton d'envoi (Email / SMS / WhatsApp) : silencieux quand il
@@ -3337,6 +3457,7 @@
       window.fillRelanceText();
     };
     window.fillRelanceText = () => {
+      RELANCE_TAPEE = false;   // le message est réécrit : rien de tapé ne reste à perdre
       const type = el('relanceType').value;
       if (type !== 'libre') el('relanceText').value = relanceTemplate(type, DEVIS);
       const st = relanceState(DEVIS);
@@ -3401,10 +3522,20 @@
       renderRelanceSuivi();
       window.fillRelanceText();
       el('relanceObjet').value = 'SolariScreen — devis ' + DEVIS.id;
+      RELANCE_TAPEE = false;
       el('relanceModal').classList.add('open');
       chargerEtatMail();
     };
-    window.closeRelance = () => el('relanceModal').classList.remove('open');
+    /* ⚠️ FERMER SANS ENREGISTRER SE DEMANDE dès qu'un caractère a été tapé (règle des fenêtres, 13 bis) :
+       le motif d'une mise en attente ou le message retouché se perdaient à la fermeture — la réouverture
+       reconstruit tout. `closeRelance(true)` = fermeture voulue par le code (après un envoi, un classement). */
+    // Seul ce qu'on TAPE compte (un texte, un motif) : changer de relance dans le menu n'est pas une saisie à perdre.
+    el('relanceModal').addEventListener('input', (e) => { if (e.target && e.target.matches('textarea, input[type=text], input:not([type])')) RELANCE_TAPEE = true; });
+    window.closeRelance = (force) => {
+      if (force !== true && RELANCE_TAPEE && !confirm('Fermer sans enregistrer ? Ce que tu as tapé sera perdu.')) return;
+      RELANCE_TAPEE = false;
+      el('relanceModal').classList.remove('open');
+    };
     // Ne ferme que si le geste a COMMENCÉ sur le fond : sélectionner du texte dans un champ et
     // relâcher la souris en dehors adresse le `click` au plus proche ancêtre commun, c'est-à-dire au
     // fond — et la saisie partait avec. Même correctif que la modale de demande de RDV.
@@ -3418,9 +3549,16 @@
     window.setPhotoCategory = async (itemIndex, photoIndex, categorie) => {
       const it = DEVIS.items[itemIndex];
       it.photo_categories = it.photo_categories || [];
+      const prev = it.photo_categories[photoIndex], prevDate = DEVIS.date_modification;
       it.photo_categories[photoIndex] = categorie;
       DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
+      const res = await SS.saveDevis(DEVIS);
+      // Règle 6 : un échec se dit, et le menu revient à la catégorie enregistrée.
+      if (!res || res.ok === false || res.conflict) {
+        it.photo_categories[photoIndex] = prev; DEVIS.date_modification = prevDate;
+        toast((res && res.error) || 'Catégorie NON enregistrée — réessaie.', 'error', 6000);
+        render();
+      }
     };
     // ── Espace client (revoir le devis, accepter/refuser, poser une question) ──
     // Dernière QUESTION du client restée sans réponse (aucune note « visible client » postée
@@ -3466,6 +3604,11 @@
       const pick = (a, b) => (a !== undefined && a !== null) ? a : b;
       return computeDevis({
         items: d.items || [],
+        // ⚠️ RÈGLE 1 : les taux FIGÉS du devis et ses parts vendeurs, comme le simulateur. Sans eux, un recalcul
+        // (devis sans calculs enregistrés, changement de vendeur) prenait les taux du code — et un devis chiffré
+        // avec d'autres réglages changeait de montants (audit du 28/10/2026).
+        rates: window.SSConf ? window.SSConf.tauxPour(d) : undefined,
+        seller_parts: p.seller_parts || undefined,
         sellers: (p.material && p.material.sellers) || {},
         installation: {
           install_gross: inst.install_gross, tech1_gross: inst.tech1_gross, tech2_gross: inst.tech2_gross, tools_gross: inst.tools_gross,
@@ -3487,10 +3630,10 @@
       const prev = sellers.principal, prevCalc = DEVIS.calculs;
       if (prev === key) return;
       sellers.principal = key;
-      // Les pourcentages suivent le vendeur principal (mêmes valeurs que le simulateur : 18 % / 5 %).
-      if (key === 'nicolas') { sellers.nicolas_pct = 18; sellers.yannick_pct = 5; }
-      else if (key === 'yannick') { sellers.nicolas_pct = 5; sellers.yannick_pct = 18; }
       DEVIS.calculs = recomputeDevis(DEVIS);
+      // Les pourcentages suivent le vendeur principal — ceux que le moteur vient d'appliquer (parts du devis,
+      // 18 / 5 par défaut) et non un 18 / 5 écrit en dur, qui pouvait contredire les parts enregistrées.
+      sellers.nicolas_pct = DEVIS.calculs.nicolas_pct; sellers.yannick_pct = DEVIS.calculs.yannick_pct;
       DEVIS.date_modification = new Date().toISOString();
       const res = await SS.saveDevis(DEVIS);
       if (res.ok === false) { sellers.principal = prev; DEVIS.calculs = prevCalc; toast(res.error || 'Non enregistré', 'error'); render(); return; }
@@ -3498,25 +3641,35 @@
       toast('Vendeur principal : ' + (SELLER_LB[key] || key) + ' ✓ — commissions recalculées', res.offline ? 'warn' : 'ok');
       render();
     };
+    /* ⚠️ LA FICHE CLIENT SE MODIFIE CHAMP PAR CHAMP (SS.modifierClient, règles 2 et 3) : ces trois gestes
+       renvoyaient la fiche CRM ENTIÈRE telle qu'à l'ouverture de la page — la correction que Yannick venait
+       de faire dans le CRM revenait en arrière au premier clic (audit du 28/10/2026). L'affichage change
+       tout de suite ; la fiche enregistrée, relue, remplace ensuite celle de la page. */
     window.setPrefContact = async (v) => {
       if (!CLIENT_FICHE) return;
       const prev = CLIENT_FICHE.pref_contact || '';
-      CLIENT_FICHE.pref_contact = (prev === v) ? '' : v;   // re-cliquer désélectionne
-      CLIENT_FICHE.date_modification = new Date().toISOString();
+      const nouveau = (prev === v) ? '' : v;   // re-cliquer désélectionne
+      CLIENT_FICHE.pref_contact = nouveau;
       renderSalutation();
-      const res = await SS.saveClient(CLIENT_FICHE);
-      if (res.ok === false) { CLIENT_FICHE.pref_contact = prev; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); }
+      const res = await SS.modifierClient(CLIENT_FICHE.key, (c) => { c.pref_contact = nouveau; });
+      if (res.ok === false) { CLIENT_FICHE.pref_contact = prev; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); return; }
+      CLIENT_FICHE = res.client; renderSalutation();
     };
     window.toggleClientTag = async (tag) => {
       if (!CLIENT_FICHE) return;
       const tags = CLIENT_FICHE.tags = Array.isArray(CLIENT_FICHE.tags) ? CLIENT_FICHE.tags : [];
-      const i = tags.findIndex(t => String(t).toLowerCase() === tag.toLowerCase());
+      const meme = (t) => String(t).toLowerCase() === tag.toLowerCase();
+      // L'INTENTION se lit sur ce que l'écran montre (poser ou retirer), puis s'applique à la fiche relue.
+      const poser = !tags.some(meme);
       const before = tags.slice();
-      if (i !== -1) tags.splice(i, 1); else tags.push(tag);
-      CLIENT_FICHE.date_modification = new Date().toISOString();
+      CLIENT_FICHE.tags = poser ? tags.concat([tag]) : tags.filter(t => !meme(t));
       renderSalutation();
-      const res = await SS.saveClient(CLIENT_FICHE);
+      const res = await SS.modifierClient(CLIENT_FICHE.key, (c) => {
+        const l = (Array.isArray(c.tags) ? c.tags : []).filter(t => !meme(t));
+        c.tags = poser ? l.concat([tag]) : l;
+      });
       if (res.ok === false) { CLIENT_FICHE.tags = before; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); return; }
+      CLIENT_FICHE = res.client;
       render();   // les étiquettes s'affichent aussi dans l'en-tête client
     };
 
@@ -3578,16 +3731,23 @@
       if ((CLIENT_FICHE.ton || 'pro') === ton) return;
       const prev = CLIENT_FICHE.ton;
       CLIENT_FICHE.ton = ton;
-      CLIENT_FICHE.date_modification = new Date().toISOString();
       renderSalutation();   // retour visuel immédiat
-      const res = await SS.saveClient(CLIENT_FICHE);
+      const res = await SS.modifierClient(CLIENT_FICHE.key, (c) => { c.ton = ton; });
       if (res.ok === false) { CLIENT_FICHE.ton = prev; renderSalutation(); toast(res.error || 'Non enregistré', 'error'); return; }
+      CLIENT_FICHE = res.client;
       toast('Salutation : ' + (ton === 'pro' ? 'Professionnel' : 'Amical') + ' ✓', res.offline ? 'warn' : 'ok');
     };
     window.createClientFiche = async () => {
       const cl = DEVIS.client || {};
       const key = clientKeyOf(cl.prenom, cl.nom);
       if (!key || key === '|') { toast('Nom/prénom manquant sur le devis.', 'warn'); return; }
+      /* ⚠️ ON NE CRÉE QU'UNE FICHE QUI N'EXISTE PAS. Cette fiche « vierge » (civilité, étiquettes et notes vides)
+         s'écrivait aussi quand la fiche n'avait seulement pas pu être LUE au chargement (session expirée) —
+         et l'envoi d'une relance par mail l'appelle tout seul : la vraie fiche était vidée (audit du
+         28/10/2026). On relit d'abord, strictement ; une fiche trouvée est reprise telle quelle. */
+      const existe = await SS.modifierClient(key, () => false);   // relecture seule
+      if (existe.ok !== false && existe.client) { CLIENT_FICHE = existe.client; renderSalutation(); return; }
+      if (!existe.absente) { toast(existe.error || 'Fiche client illisible — réessaie.', 'error', 6000); return; }
       const adr = cl.adresse || {};
       const now = new Date().toISOString();
       const fiche = {
@@ -3790,6 +3950,15 @@
       stMenuEl.classList.add('open');
     };
     const RAISON_REFUS = ['Prix', 'Délai', 'Concurrent', 'Projet reporté', 'Pas de réponse', 'Autre'];
+    /* ⚠️ UN ÉCHEC REMET TOUT EN L'ÉTAT, pas seulement le statut (audit du 28/10/2026) : l'entrée fantôme
+       d'historique, « informatif » perdu, l'acceptation en ligne effacée restaient en mémoire après un échec,
+       et partaient au prochain enregistrement — un changement de probabilité suffisait. */
+    const CLES_STATUT = ['statut', 'date_modification', 'statut_history', 'relances', 'raison_refus', 'client_declined', 'informatif', 'client_accepted', 'client_accepted_at'];
+    function instantaneStatut() {
+      const avant = {};
+      CLES_STATUT.forEach(k => { avant[k] = DEVIS[k] === undefined ? undefined : JSON.parse(JSON.stringify(DEVIS[k])); });
+      return () => CLES_STATUT.forEach(k => { if (avant[k] === undefined) delete DEVIS[k]; else DEVIS[k] = avant[k]; });
+    }
     window.pickStatus = async (statut) => {
       if (statut === 'refuse' && DEVIS.statut !== 'refuse') {
         // Nudge : on demande TOUJOURS une raison (100 % des refus étaient sans raison → stats faussées).
@@ -3808,7 +3977,7 @@
         if (!confirm("La pose n'est pas encore enregistrée (commande ≠ « Posé », aucun PV de réception). Marquer quand même « Terminé » ?")) return;
       }
       const wasSigne = DEVIS.statut === 'signe';
-      const prev = DEVIS.statut;
+      const restaurer = instantaneStatut();
       const expected = DEVIS.date_modification;   // baseline connu AVANT mutation (détection de conflit)
       const identity = await window.SSNav.getIdentity();
       // Sauvegarde cohérente en un seul écrit : statut + historique + nettoyages liés.
@@ -3818,7 +3987,6 @@
       // ⚠️ BUG CORRIGÉ (le plus visible de tous) : passer le statut à « Relance 1 » ne nourrissait pas
       // la cadence, seule source de la carte « Prochaine action ». La fiche réclamait donc la relance 1
       // pour l'éternité alors qu'on venait de dire qu'elle était partie. Même écriture, aucun aller-retour.
-      const prevRelances = (DEVIS.relances || []).slice();
       const nStatut = STATUT_RELANCE_N[statut] || 0;
       if (nStatut) DEVIS.relances = relancesUpTo(DEVIS, nStatut, identity.key);
       if (statut === 'signe') {
@@ -3833,7 +4001,7 @@
       const finishSave = async (force) => {
         const res = await SS.saveDevis(DEVIS, force ? { force: true } : { expectedDateModification: expected });
         if (res.conflict) { window.SSUI.showSaveConflict(() => finishSave(true)); return; }
-        if (res.ok === false) { DEVIS.statut = prev; DEVIS.relances = prevRelances; toast(res.error || 'Erreur', 'error'); return; }
+        if (res.ok === false) { restaurer(); toast(res.error || 'Erreur', 'error'); render(); return; }
         CALC = getCalc(DEVIS);
         toast(res.offline ? 'Statut mis à jour (hors-ligne)'
           : (statut === 'signe' && !wasSigne ? 'Devis signé 🎉'
@@ -3856,7 +4024,7 @@
       if (stMenuEl) stMenuEl.classList.remove('open');
       const identity = await window.SSNav.getIdentity();
       const expected = DEVIS.date_modification;   // baseline connu AVANT mutation (détection de conflit)
-      const prev = DEVIS.statut;
+      const restaurer = instantaneStatut();
       // Statut + historique + raison_refus fusionnés en UNE seule mutation locale + UN seul écrit
       // (au lieu d'un updateStatus() suivi d'un re-fetch puis d'un second saveDevis() : le re-fetch
       // intermédiaire pouvait renvoyer une version D1 pas encore à jour et écraser silencieusement
@@ -3872,7 +4040,7 @@
       const finishSave = async (force) => {
         const res = await SS.saveDevis(DEVIS, force ? { force: true } : { expectedDateModification: expected });
         if (res.conflict) { window.SSUI.showSaveConflict(() => finishSave(true)); return; }
-        if (res.ok === false) { DEVIS.statut = prev; toast(res.error || 'Erreur', 'error'); return; }
+        if (res.ok === false) { restaurer(); toast(res.error || 'Erreur', 'error'); render(); return; }
         CALC = getCalc(DEVIS);
         toast('Statut mis à jour ✓', 'ok');
         render();
@@ -3917,9 +4085,12 @@
     };
     window.pickProba = async (val) => {
       probaMenuEl.classList.remove('open');
+      const prev = DEVIS.probabilite, prevDate = DEVIS.date_modification;
       DEVIS.probabilite = val;
       DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
+      const res = await SS.saveDevis(DEVIS);
+      // Règle 6 : la réponse se lit. Une session expirée affichait la nouvelle valeur sans rien enregistrer.
+      if (!res || res.ok === false || res.conflict) { DEVIS.probabilite = prev; DEVIS.date_modification = prevDate; toast((res && res.error) || 'Probabilité NON enregistrée — réessaie.', 'error', 6000); }
       renderProba();
     };
 
@@ -3974,10 +4145,13 @@
     };
     window.toggleInformatif = async () => {
       if (!confirm('Repasser ce devis en devis formel (signature + conditions de vente sur le PDF) ?')) return;
+      const prevDate = DEVIS.date_modification;
       DEVIS.informatif = false;
       DEVIS.date_modification = new Date().toISOString();
-      await SS.saveDevis(DEVIS);
-      toast('Devis repassé en formel ✓', 'ok');
+      const res = await SS.saveDevis(DEVIS);
+      // Règle 6 : « repassé en formel ✓ » s'affichait même quand rien n'était enregistré.
+      if (!res || res.ok === false || res.conflict) { DEVIS.informatif = true; DEVIS.date_modification = prevDate; toast((res && res.error) || 'NON enregistré — réessaie.', 'error', 6000); render(); return; }
+      toast('Devis repassé en formel ✓', res.offline ? 'warn' : 'ok');
       render();
     };
     // Bascule visuelle du composeur : « note interne » (défaut) vs « réponse visible par le client ».
@@ -4322,7 +4496,14 @@
     })();
     el('vizModal').addEventListener('click', (e) => { if (e.target === el('vizModal')) closeViz(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('vizModal').classList.contains('open')) closeViz(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('relanceModal').classList.contains('open')) window.closeRelance(); });
+    // Échap qui referme le petit calendrier d'un champ date, ou un menu déroulant, ne ferme PAS la fenêtre
+    // (piège déjà payé, règle 13 bis) : il emportait le motif et la date qu'on était en train de choisir.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !el('relanceModal').classList.contains('open')) return;
+      const t = e.target;
+      if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(date|time|datetime-local|month|week)$/.test(t.type)))) return;
+      window.closeRelance();
+    });
 
     // ── Chargement ──
     // ── Cartes repliables de la colonne latérale — repliées par défaut, mémorisées
@@ -4357,6 +4538,7 @@
       if (!id) { el('loading').textContent = 'Aucun devis spécifié.'; return; }
       DEVIS = await SS.getDevis(id);
       if (!DEVIS) { el('loading').textContent = 'Devis introuvable (#' + id + ').'; return; }
+      VERSION_FICHE = DEVIS.date_modification || null;
       CALC = getCalc(DEVIS);
       const cl = DEVIS.client || {};
       CLIENT_FICHE = await SS.getClient(clientKeyOf(cl.prenom, cl.nom)).catch(() => null);

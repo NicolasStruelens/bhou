@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — fiche devis</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests de la fiche devis et des écritures qui la touchent</h1>
+  <p class="note">
+    Trouvés par l'audit du 28/10/2026 (règle 56) : la fiche devis (<code>app/vue.html</code>), le bon de pose, le PV de réception,
+    le simulateur et le suivi client écrivaient le devis ENTIER tel qu'ils l'avaient lu — un ticket SAV, une commande passée
+    « Reçu », un refus du client revenaient en arrière en silence. On rejoue ici, sur le VRAI serveur (banc) rempli par le bac à
+    sable : ce que le serveur protège, la relecture avant écriture, la création qui ne se fond jamais dans un autre devis, la
+    fiche client modifiée champ par champ — puis la vraie fiche dans des cadres : la prochaine action (dépannage, commande, notes
+    de crédit, pose en deux fois), la réglette d'un dépannage, le délai de commande, la fenêtre de relance, « Facturer »,
+    le vendeur et ses taux figés, l'enregistrement sur une fiche restée ouverte.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle.
+  </p>
+  <div id="summary">Tests en cours…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 900) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 900) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests fiche devis';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 8000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const SS = window.SS, U = window.SSUI, BANC = window.SSBanc;
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const lire = (id) => BANC.donnee('devis', 'id', id) || {};
+    // Écrire DANS la base, comme un autre écran (ou l'autre personne) le ferait pendant que la page est ouverte.
+    const ecrireBase = (id, chemin, valeurJson) => {
+      const now = new Date(Date.now() + 5).toISOString();
+      BANC.DB.exec("UPDATE devis SET data = json_set(data, '" + chemin + "', json('" + JSON.stringify(valeurJson).replace(/'/g, "''") + "'), '$.date_modification', '" + now + "'), date_modification = '" + now + "' WHERE id = '" + id + "'");
+    };
+    async function fiche(id, largeur) {
+      const f = await BANC.cadre('../app/vue.html?id=' + encodeURIComponent(id), largeur || 1500, 900);
+      await attendreQue(() => f.contentDocument.getElementById('nextCard') && txt(f.contentDocument.getElementById('nextCard')), 10000);
+      await attendre(200);
+      return f;
+    }
+
+    (async () => {
+      try {
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const rem = await window.SSBacASable.remplir(SS, {});
+        check('F0 Le bac à sable se remplit', rem.erreurs, []);
+
+        // ══════════ S — LE SERVEUR ══════════
+        titre('S — Ce que le serveur protège, et la création');
+        // S1 : un ticket SAV ouvert par Yannick pendant qu'une copie ANCIENNE du devis est en mémoire.
+        const vieux = JSON.parse(JSON.stringify(lire('ESSAI-07')));
+        BANC.ident = BANC.YANNICK;
+        const rt = await SS.saveSavTicket('ESSAI-07', { probleme: 'moteur', description: 'Le screen ne descend plus.', pour: '', echeance: '' });
+        BANC.ident = BANC.NICOLAS;
+        vieux.checklist = { mesures: true }; vieux.date_modification = new Date().toISOString();
+        const rs = await SS.saveDevis(vieux);   // sans contrôle de version, comme les écrans d'avant
+        check('S1 Un enregistrement COMPLET non contrôlé ne peut plus effacer un ticket SAV ouvert entre-temps ; sa propre modification passe',
+          [rt.ok, rs.ok, (lire('ESSAI-07').sav_tickets || []).length, lire('ESSAI-07').checklist], [true, true, 1, { mesures: true }]);
+        // S2 : un enregistrement CONTRÔLÉ (« Alléger » : il relit puis réécrit les photos) fait foi.
+        const frais = lire('ESSAI-07');
+        frais.sav_tickets[0].photos = ['https://exemple.invalid/photo.jpg'];
+        const versionS2 = frais.date_modification; frais.date_modification = new Date(Date.now() + 10).toISOString();
+        const rs2 = await SS.saveDevis(frais, { expectedDateModification: versionS2 });
+        check('S2 Un enregistrement CONTRÔLÉ (version prouvée) peut réécrire les tickets : c’est ainsi qu’« Alléger » déplace leurs photos',
+          [rs2.ok, !!rs2.conflict, (lire('ESSAI-07').sav_tickets[0].photos || [])], [true, false, ['https://exemple.invalid/photo.jpg']]);
+        // S3 : les vues du lien client survivent à un enregistrement d'une copie qui n'en avait aucune.
+        const vues = lire('ESSAI-02').review_views || [];
+        const sansVues = Object.assign({}, lire('ESSAI-02'), { review_views: [], probabilite: 'chaud' });
+        await SS.saveDevis(sansVues);
+        check('S3 Les vues du lien client ne sont pas remises à zéro par une copie qui n’en avait pas',
+          [JSON.stringify(lire('ESSAI-02').review_views || []) === JSON.stringify(vues), vues.length > 0, lire('ESSAI-02').probabilite], [true, true, 'chaud']);
+        // S4 : une CRÉATION sur un numéro déjà pris ne se fond jamais dans l'autre devis.
+        const nouveau = { id: 'ESSAI-08', client: { prenom: 'Autre', nom: 'Client' }, statut: 'brouillon', items: [], date_creation: U.aujourdhui(), date_modification: new Date().toISOString() };
+        const rc = await SS.saveDevis(nouveau, { creation: true });
+        check('S4 Une création sur un numéro DÉJÀ PRIS en reçoit un autre ; le devis existant garde son client',
+          [rc.ok !== false, nouveau.id !== 'ESSAI-08', !!lire(nouveau.id).id, (lire('ESSAI-08').client || {}).nom !== 'Client', (lire(nouveau.id).client || {}).nom],
+          [true, true, true, true, 'Client']);
+        // S5 : modifierDevis relit avant d'écrire, et refuse quand l'état a changé.
+        ecrireBase('ESSAI-09', '$.commande.statut', 'recu');
+        const rm = await SS.modifierDevis('ESSAI-09', (d) => { d.picking_items = [{ label: 'silicone', qty: 2 }]; });
+        const rr = await SS.modifierDevis('ESSAI-09', (d) => (d.statut !== 'brouillon' ? 'refusé exprès' : undefined));
+        check('S5 SS.modifierDevis : la clé de l’appelant posée sur la version RELUE (la commande « Reçu » posée ailleurs reste) ; un refus n’écrit rien',
+          [rm.ok, lire('ESSAI-09').picking_items, lire('ESSAI-09').commande.statut, rr.ok, rr.refuse, rr.error], [true, [{ label: 'silicone', qty: 2 }], 'recu', false, true, 'refusé exprès']);
+        // S6 : modifierClient — un champ, sur la fiche relue ; une fiche absente se dit.
+        const cle = (BANC.sqlL("SELECT key FROM clients WHERE json_extract(data, '$.nom') = 'Meunier'")[0] || [])[0];
+        BANC.DB.exec("UPDATE clients SET data = json_set(data, '$.telephone', '0000 99 99 99') WHERE key = '" + String(cle).replace(/'/g, "''") + "'");
+        const rcl = await SS.modifierClient(cle, (c) => { c.ton = 'amical'; });
+        const absente = await SS.modifierClient('personne|inconnue', (c) => { c.ton = 'amical'; });
+        const fc = JSON.parse(BANC.sql1("SELECT data FROM clients WHERE key = '" + String(cle).replace(/'/g, "''") + "'"));
+        check('S6 SS.modifierClient : la formule posée, le téléphone corrigé ailleurs GARDÉ ; une fiche absente le dit sans rien créer',
+          [rcl.ok, fc.ton, fc.telephone, absente.ok, absente.absente, BANC.sql1("SELECT COUNT(*) FROM clients WHERE key = 'personne|inconnue'")],
+          [true, 'amical', '0000 99 99 99', false, true, 0]);
+
+        // ══════════ P — LA FICHE ══════════
+        titre('P — La prochaine action suit les règles du tableau de bord');
+        // P1 : un dépannage RÉALISÉ et signé — ni acompte, ni commande, ni pose.
+        let f = await fiche('ESSAI-15'), d = f.contentDocument;
+        const ruler15 = [...d.querySelectorAll('#rulerHost .rl-mile')].map((m) => txt(m.querySelector('.rl-lab, .lab, b, strong')) || txt(m)).join(' | ');
+        check('P1 Dépannage réalisé : « Facturer l’intervention » (jamais « Encaisser l’acompte » ni « Planifier la pose ») ; la réglette parle d’intervention, pas de commande',
+          [/Facturer l’intervention|Encaisser l’intervention|Dossier en ordre/.test(txt(d.getElementById('nextCard'))), /Encaisser l’acompte|Planifier la pose|Commander/.test(txt(d.getElementById('nextCard'))), /Commandé|Posé/.test(ruler15), /Réalisé/.test(ruler15)],
+          [true, false, false, true]);
+        f.remove();
+        // P2 : un chantier jamais commandé — commander d'abord.
+        ecrireBase('ESSAI-08', '$.commande', { statut: 'a_commander' });
+        BANC.DB.exec("UPDATE devis SET data = json_remove(data, '$.chantier.date_pose') WHERE id = 'ESSAI-08'");
+        f = await fiche('ESSAI-08'); d = f.contentDocument;
+        const p2 = txt(d.getElementById('nextCard'));
+        f.remove();
+        ecrireBase('ESSAI-08', '$.commande', { statut: 'commande', date_commande: U.aujourdhui() });
+        f = await fiche('ESSAI-08'); d = f.contentDocument;
+        const p2b = txt(d.getElementById('nextCard')), eta = txt(d.getElementById('ccEta')), delai = d.getElementById('ccDelai');
+        check('P2 Jamais commandé → « Commander le matériel » ; commandé sans délai → « Matériel en commande », et le délai se montre VIDE (8 en suggestion), sans livraison inventée',
+          [/Commander le matériel/.test(p2), /Matériel en commande/.test(p2b), /Planifier la pose/.test(p2 + p2b), delai.value, delai.placeholder, /Renseigne le délai/.test(eta)],
+          [true, true, false, '', '8', true]);
+        f.remove();
+        // P3 : l'acompte réduit par une note de crédit et payé pour le reste n'est plus réclamé ; la note de crédit se nomme.
+        f = await fiche('ESSAI-23'); d = f.contentDocument;
+        const pay = txt(d.getElementById('paiementsList'));
+        check('P3 Note de crédit : plus de « Encaisser l’acompte » ; l’acompte est « Payée », la note de crédit porte son nom (elle sortait « Soldée »)',
+          [/Encaisser l’acompte/.test(txt(d.getElementById('nextCard'))), /Payée/.test(pay), /Note de crédit/.test(pay), /Soldée/.test(pay)], [false, true, true, false]);
+        f.remove();
+        // P4 : posé en deux fois — une facture partielle, pas le solde.
+        const demain = U.isoDate(new Date(Date.now() + 3 * 86400000));
+        ecrireBase('ESSAI-11', '$.chantier', { date_pose: demain, equipe: 'nicolas' });
+        ecrireBase('ESSAI-11', '$.commande', { statut: 'pose' });
+        f = await fiche('ESSAI-11'); d = f.contentDocument;
+        const p4 = txt(d.getElementById('nextCard')), b4 = d.querySelector('#nextCard button');
+        check('P4 Posé en deux fois (PV de la 1re pose, 2e à venir) : « Seconde pose », et le bouton propose la facture PARTIELLE',
+          [/Seconde pose/.test(p4), /Facturer le solde/.test(p4), b4 && /partielle/.test(b4.getAttribute('onclick'))], [true, false, true]);
+        f.remove();
+
+        titre('P — Écrire depuis une fiche restée ouverte');
+        f = await fiche('ESSAI-09'); let w = f.contentWindow; d = f.contentDocument;
+        let confirms = 0; w.confirm = () => { confirms++; return false; };   // « Annuler » = écraser en connaissance de cause
+        w.toggleChecklist('mesures', true); await attendre(300);
+        const sansConflit = confirms;
+        // Yannick ouvre un ticket pendant que la fiche est ouverte, puis Nicolas coche une autre case.
+        BANC.ident = BANC.YANNICK;
+        await SS.saveSavTicket('ESSAI-09', { probleme: 'toile', description: 'Toile déchirée côté gauche.', pour: '', echeance: '' });
+        BANC.ident = BANC.NICOLAS;
+        w.toggleChecklist('acces', true); await attendre(500);
+        check('P5 Une case cochée sur une fiche à jour passe sans question ; après une écriture de l’autre, le conflit est DIT, et écraser garde son ticket',
+          [sansConflit, confirms, lire('ESSAI-09').checklist, (lire('ESSAI-09').sav_tickets || []).some((t) => /déchirée/.test(t.description))],
+          [0, 1, { mesures: true, acces: true }, true]);
+        f.remove();
+
+        titre('P — La fiche, au détail');
+        f = await fiche('ESSAI-01'); d = f.contentDocument;
+        const fact01 = d.getElementById('btnFacturer').classList.contains('hidden');
+        f.remove();
+        f = await fiche('ESSAI-07'); w = f.contentWindow; d = f.contentDocument;
+        const fact07 = d.getElementById('btnFacturer').classList.contains('hidden');
+        check('P6 « Facturer » n’existe que sur un devis signé ou terminé (sur un brouillon, la Facturation présélectionnait le devis d’un autre client)', [fact01, fact07], [true, false]);
+        // P7 : la fenêtre de relance garde ce qu'on y tape.
+        w.openRelance(); await attendre(100);
+        let conf7 = 0; w.confirm = () => { conf7++; return false; };
+        const date = d.querySelector('#relanceModal input[type=date]');
+        if (date) date.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        const ouverteApresDate = d.getElementById('relanceModal').classList.contains('open');
+        const ta = d.getElementById('relanceText');
+        ta.value += ' — merci'; ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+        d.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        check('P7 Fenêtre de relance : Échap dans un champ date ne ferme rien ; une saisie tapée demande « Fermer sans enregistrer ? » (refus = elle reste)',
+          [!!date, ouverteApresDate, conf7, d.getElementById('relanceModal').classList.contains('open')], [true, true, 1, true]);
+        w.closeRelance(true);
+        f.remove();
+        // P8 : changer de vendeur garde les taux FIGÉS du devis (règle 1).
+        ecrireBase('ESSAI-22', '$.pricing_v2.rates', { supplier_rate: 0.77, material_margin: 0.23, net_divisor: 3 });
+        f = await fiche('ESSAI-22'); w = f.contentWindow;
+        w.confirm = () => true;
+        const avant22 = ((lire('ESSAI-22').pricing_v2.material || {}).sellers || {}).principal || 'nicolas';
+        const autre = avant22 === 'yannick' ? 'nicolas' : 'yannick';
+        await w.setSellerPrincipal(autre); await attendre(300);
+        const c22 = lire('ESSAI-22').calculs || {};
+        check('P8 Changer de vendeur recalcule avec les taux FIGÉS du devis (diviseur 3), et les parts appliquées par le moteur',
+          [(c22.rates || {}).net_divisor, c22.seller_principal, (lire('ESSAI-22').pricing_v2.material.sellers || {})[autre + '_pct']], [3, autre, 18]);
+        f.remove();
+
+        titre('P — Les autres pages qui écrivent le devis');
+        // P9 : le bon de pose n'efface plus la commande passée « Reçu » ailleurs.
+        const fp = await BANC.cadre('../app/picking.html?id=ESSAI-10', 1100, 900);
+        await attendreQue(() => fp.contentDocument.querySelector('.materiel-row, #materielEditor, [onclick*="addMateriel"]'), 8000);
+        await attendre(200);
+        // Une valeur que la page n'a PAS : sinon une page qui réécrit sa copie passerait le test par chance.
+        const avantP9 = (lire('ESSAI-10').commande || {}).statut;
+        ecrireBase('ESSAI-10', '$.commande.statut', 'pose');
+        fp.contentWindow.addMateriel(); await attendre(600);
+        check('P9 Bon de pose : l’article s’enregistre, et l’étape de commande changée ailleurs entre-temps (« Posé ») n’est pas remise à la sienne',
+          [(lire('ESSAI-10').picking_items || []).length >= 1, avantP9 !== 'pose', lire('ESSAI-10').commande.statut], [true, true, 'pose']);
+        fp.remove();
+        // P10 : le PV de réception relit le statut au moment d'écrire.
+        const fr = await BANC.cadre('../app/reception.html?id=ESSAI-17', 1100, 900);
+        const wr = fr.contentWindow, dr = fr.contentDocument;
+        await attendreQue(() => dr.getElementById('sigCanvas') && dr.getElementById('btnConfirmSig'), 8000);
+        await attendre(200);
+        ecrireBase('ESSAI-17', '$.statut', 'annule');
+        const cv = dr.getElementById('sigCanvas'), rc2 = cv.getBoundingClientRect();
+        cv.dispatchEvent(new wr.MouseEvent('mousedown', { clientX: rc2.left + 10, clientY: rc2.top + 10, bubbles: true }));
+        cv.dispatchEvent(new wr.MouseEvent('mousemove', { clientX: rc2.left + 60, clientY: rc2.top + 40, bubbles: true }));
+        wr.dispatchEvent(new wr.MouseEvent('mouseup', { bubbles: true }));
+        await wr.confirmReception(); await attendre(300);
+        check('P10 PV de réception : un devis ANNULÉ entre-temps ne se réceptionne pas (rien d’écrit, le statut reste « annulé »)',
+          [lire('ESSAI-17').statut, !!(lire('ESSAI-17').reception && lire('ESSAI-17').reception.image)], ['annule', false]);
+        fr.remove();
+        // P11 : une valeur avec des guillemets survit à la réouverture du simulateur.
+        const it0 = lire('ESSAI-03').items[0];
+        ecrireBase('ESSAI-03', '$.items[0].emplacement', 'Chambre "parents"');
+        const fs = await BANC.cadre('../app/simulateur.html?id=ESSAI-03', 1500, 900);
+        await attendreQue(() => fs.contentDocument.querySelector('[data-f="emplacement"]'), 8000);
+        await attendre(200);
+        check('P11 Simulateur : « Chambre "parents" » se relit en entier (le guillemet coupait la valeur, perdue au premier enregistrement)',
+          [fs.contentDocument.querySelector('[data-f="emplacement"]').value, !!it0], ['Chambre "parents"', true]);
+        fs.remove();
+        // P12 : le suivi client ne contredit pas sa frise.
+        ecrireBase('ESSAI-10', '$.commande', { statut: 'pose' });
+        const ft = await BANC.cadre('../track.html?t=' + encodeURIComponent((BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.track_token', 'trk-fiche') WHERE id = 'ESSAI-10'"), 'trk-fiche')), 900, 900);
+        await attendreQue(() => txt(ft.contentDocument.getElementById('trackEta')), 8000);
+        check('P12 Suivi client : une installation terminée le DIT, même sans date de commande (« la suite sera planifiée » sous une frise toute verte)',
+          txt(ft.contentDocument.getElementById('trackEta')), 'Installation terminée — merci de votre confiance !');
+        ft.remove();
+        // P13 : la Facturation ne présélectionne plus le devis d'un autre client.
+        const ff = await BANC.cadre('../app/factures.html?devis=ESSAI-01&type=acompte', 1500, 900);
+        await attendre(1500);
+        const dlg = ff.contentDocument.querySelector('.fa-dialog');
+        const ouverte = !!dlg && ff.contentWindow.getComputedStyle(dlg.closest('[class*="modal"], .fa-overlay, .fa-fond') || dlg).display !== 'none' && dlg.getBoundingClientRect().height > 0;
+        check('P13 Facturation : un devis demandé qui n’a rien à facturer n’ouvre RIEN (le premier devis éligible, d’un autre client, était présélectionné)', ouverte, false);
+        ff.remove();
+      } catch (e) {
+        check('Exception', String(e && (e.stack || e.message)), null);
+      }
+      BANC.remettre(); BANC.retirer();
+      rendreRes();
+    })();
+  </script>
+</body>
+</html>
