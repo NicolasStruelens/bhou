@@ -1425,8 +1425,77 @@ export async function onRequest(context) {
     if (path === '/api/rdv' && method === 'POST') {
       const r = await request.json();
       if (!r.id) return json({ ok: false, error: 'ID manquant' }, 400);
-      await upsertRdv(env.DB, r);
-      return json({ ok: true, id: r.id });
+      const emailRdv = parseAccessEmail(request);
+      const acteurRdv = (emailRdv && IDENTITIES[emailRdv.toLowerCase()]) || '';
+      /* ⚠️ CONFLIT ENTRE DEUX ÉCRANS (règle 54). La page renvoie la demande ENTIÈRE telle qu'elle l'a
+         lue : une fiche restée ouverte remettait le statut, la prise en charge ou la date de visite
+         que l'autre venait de changer. Elle envoie désormais `_attendu` = le `edite_le` qu'elle a lu ;
+         si un autre enregistrement complet (ou un contact noté) est passé entre-temps, refus 409 et on
+         rend sa version. Les messages internes ne touchent pas `edite_le` : pas de faux conflit.
+         Sans `_attendu` (Planning, Échanges, bac à sable, restauration), on enregistre comme avant. */
+      const ligne = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(r.id).first();
+      const ex = ligne ? safeParse(ligne.data) : null;
+      if (r._attendu !== undefined && ex && String(ex.edite_le || '') !== String(r._attendu || '')) {
+        const par = ex.edite_par ? String(ex.edite_par).charAt(0).toUpperCase() + String(ex.edite_par).slice(1) : 'L’autre';
+        return json({ ok: false, conflict: true, actuel: ex,
+          error: par + ' vient de modifier cette demande : relis, puis enregistre à nouveau si tu veux garder ta version.' }, 409);
+      }
+      delete r._attendu;
+      const now = new Date().toISOString();
+      r.edite_le = now;
+      r.edite_par = acteurRdv;
+      // Le moment où la demande a changé d'étape (« Converti » et « Annulé » ne gardent que les 30
+      // derniers jours à l'écran) : la date de modification bouge pour une note ou une photo.
+      if (!ex || ex.statut !== r.statut) r.statut_le = now;
+      else if (ex.statut_le) r.statut_le = ex.statut_le;
+      await upsertRdv(env.DB, r, ex);
+      return json({ ok: true, id: r.id, edite_le: now });
+    }
+    /* ── LES CONTACTS AVEC LE CLIENT (règle 54, C) ──────────────────────────────────────────────────
+       Un SMS, un e-mail, un WhatsApp ou un appel : noté, daté et SIGNÉ par le serveur. Sans trace, une
+       demande « À contacter » le restait après le premier message, et l'alerte de relance comptait les
+       jours depuis la création, pas depuis le dernier contact. Écriture ciblée sur la valeur actuelle de
+       la ligne. Celui qui contacte une demande que personne n'a prise la prend : une chose sans nom
+       n'avance pas (règle 15). Une demande « Nouveau » passe « À contacter ». */
+    let mRdvContact = path.match(/^\/api\/rdv\/([^/]+)\/contact$/);
+    if (mRdvContact && method === 'POST') {
+      const id = decodeURIComponent(mRdvContact[1]);
+      const body = await request.json().catch(() => ({}));
+      const CANAUX_RDV = ['sms', 'email', 'wa', 'appel', 'copie'];
+      const TYPES_RDV = ['creneaux', 'confirmation', 'rappel', 'relance', 'appel'];
+      if (CANAUX_RDV.indexOf(body.canal) < 0) return json({ ok: false, error: 'Canal inconnu' }, 400);
+      const type = TYPES_RDV.indexOf(body.type) >= 0 ? body.type : (body.canal === 'appel' ? 'appel' : 'creneaux');
+      const emailC = parseAccessEmail(request);
+      const par = (emailC && IDENTITIES[emailC.toLowerCase()]) || '';
+      const row = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Demande introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const now = new Date().toISOString();
+      const contact = { id: crypto.randomUUID(), canal: body.canal, type, par, date: now, note: String(body.note || '').slice(0, 300) };
+      d.contacts = (Array.isArray(d.contacts) ? d.contacts : []).concat([contact]);
+      if (!d.assigned_to && par) d.assigned_to = par;
+      if (!d.statut || d.statut === 'nouveau') { d.statut = 'a_contacter'; d.statut_le = now; }
+      d.edite_le = now; d.edite_par = par; d.date_modification = now;
+      await env.DB.prepare('UPDATE rdv SET data = ?1, statut = ?2, assigned_to = ?3, date_modification = ?4 WHERE id = ?5')
+        .bind(JSON.stringify(d), d.statut, d.assigned_to || null, now, id).run();
+      return json({ ok: true, contact, statut: d.statut, assigned_to: d.assigned_to || '', edite_le: now });
+    }
+    let mRdvContactDel = path.match(/^\/api\/rdv\/([^/]+)\/contact\/([^/]+)$/);
+    if (mRdvContactDel && method === 'DELETE') {
+      const id = decodeURIComponent(mRdvContactDel[1]);
+      const cid = decodeURIComponent(mRdvContactDel[2]);
+      const emailC = parseAccessEmail(request);
+      const qui = (emailC && IDENTITIES[emailC.toLowerCase()]) || '';
+      const row = await env.DB.prepare('SELECT data FROM rdv WHERE id = ?').bind(id).first();
+      if (!row) return json({ ok: false, error: 'Demande introuvable' }, 404);
+      const d = safeParse(row.data) || {};
+      const c = (d.contacts || []).filter(x => String(x.id) === String(cid))[0];
+      if (!c) return json({ ok: false, error: 'Contact introuvable' }, 404);
+      // On retire SA trace (une erreur de bouton), jamais celle de l'autre.
+      if (c.par && c.par !== qui) return json({ ok: false, error: 'Ce contact a été noté par ' + c.par + ' : lui seul peut le retirer.' }, 403);
+      d.contacts = (d.contacts || []).filter(x => String(x.id) !== String(cid));
+      await env.DB.prepare('UPDATE rdv SET data = ?1 WHERE id = ?2').bind(JSON.stringify(d), id).run();
+      return json({ ok: true });
     }
     // ── ÉCHANGE INTERNE SUR UNE DEMANDE DE RDV (Nicolas ↔ Yannick) ──────────────────────────────
     // Écriture CIBLÉE (json_insert sur la seule ligne) : deux personnes peuvent commenter en même
@@ -2555,7 +2624,7 @@ async function upsertClient(db, c) {
   `).bind(c.key, c.nom || '', c.prenom || '', c.date_modification || now, JSON.stringify(data)).run();
 }
 
-async function upsertRdv(db, r) {
+async function upsertRdv(db, r, existant) {
   const now = new Date().toISOString();
   const cl = r.client || {};
   // ⚠️ INVARIANT COMMENTAIRES — il manquait ici, alors qu'il existe pour les devis et les fiches
@@ -2564,15 +2633,24 @@ async function upsertRdv(db, r) {
   // de la page et l'enregistrement (typiquement par l'autre personne) disparaissait sans un mot.
   // Vérifié en exécutant le Worker : un devis conservait sa note, une demande de RDV la perdait.
   // Les commentaires ne sont modifiés QUE par les routes ciblées /api/rdv/:id/comment.
+  // Même invariant, depuis le 27/10/2026 (règle 54), pour `awaiting` (posé par la route des messages :
+  // une fiche ouverte avant la question la renvoyait vide) et pour `contacts` (route ciblée). Et on
+  // ÉTALE l'existant (règle 2) : un champ que l'écran ne connaît pas survit.
   let comments = Array.isArray(r.comments) ? r.comments : [];
-  try {
-    const row = await db.prepare('SELECT data FROM rdv WHERE id = ?').bind(r.id).first();
-    if (row && row.data) {
-      const ex = safeParse(row.data);
-      if (ex && Array.isArray(ex.comments)) comments = ex.comments;
-    }
-  } catch (e) { /* lecture impossible : on garde ce qu'on a, jamais bloquant */ }
-  const data = Object.assign({}, r, { comments, comments_count: comments.length });
+  let ex = existant;
+  if (ex === undefined) {
+    try {
+      const row = await db.prepare('SELECT data FROM rdv WHERE id = ?').bind(r.id).first();
+      ex = row && row.data ? safeParse(row.data) : null;
+    } catch (e) { ex = null; /* lecture impossible : on garde ce qu'on a, jamais bloquant */ }
+  }
+  const garde = {};
+  if (ex) {
+    if (Array.isArray(ex.comments)) comments = ex.comments;
+    garde.awaiting = ex.awaiting || '';
+    garde.contacts = Array.isArray(ex.contacts) ? ex.contacts : [];
+  }
+  const data = Object.assign({}, ex || {}, r, garde, { comments, comments_count: comments.length });
   await db.prepare(`
     INSERT INTO rdv (id, client_nom, client_prenom, statut, assigned_to, date_rdv, devis_id, date_creation, date_modification, data)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

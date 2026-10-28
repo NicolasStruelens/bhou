@@ -802,9 +802,14 @@
       catch (e) { return localRdv.get(id); }
     },
     async saveRdv(rdv) {
-      localRdv.save(rdv);
+      // `_attendu` (règle 54) ne va PAS dans le cache : rejouée plus tard par la file hors-ligne, la
+      // demande serait refusée en conflit contre sa propre version.
+      const pourCache = Object.assign({}, rdv); delete pourCache._attendu;
+      localRdv.save(pourCache);
       try { return await req('/rdv', { method: 'POST', body: JSON.stringify(rdv) }); }
       catch (e) {
+        // Un CONFLIT (règle 54) rend la version de l'autre : l'écran la montre au lieu d'écraser.
+        if (e && e.serverRejected && e.data && e.data.conflict) return { ok: false, conflict: true, actuel: e.data.actuel, error: e.message };
         if (e && e.serverRejected) { console.warn('[SS] saveRdv rejeté par le serveur:', e.message); return { ok: false, error: e.message }; }
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         console.warn('[SS] saveRdv hors-ligne:', e.message);
@@ -845,6 +850,25 @@
         if (e && e.serverRejected) return { ok: false, error: e.message };
         if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
         return { ok: false, error: 'Hors-ligne : le message sera à renvoyer une fois la connexion revenue.' };
+      }
+    },
+    // ── LES CONTACTS AVEC LE CLIENT (règle 54) : SMS, e-mail, WhatsApp, appel — notés et signés par le
+    // serveur. Pas de file hors-ligne : une trace qui n'existerait que sur ce téléphone ferait relancer
+    // l'autre un client déjà contacté.
+    async addRdvContact(rdvId, payload) {
+      try { return await req('/rdv/' + encodeURIComponent(rdvId) + '/contact', { method: 'POST', body: JSON.stringify(payload || {}) }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : le contact n’a pas été noté.' };
+      }
+    },
+    async deleteRdvContact(rdvId, contactId) {
+      try { return await req('/rdv/' + encodeURIComponent(rdvId) + '/contact/' + encodeURIComponent(contactId), { method: 'DELETE' }); }
+      catch (e) {
+        if (e && e.serverRejected) return { ok: false, error: e.message };
+        if (!(await isReallyOffline())) return { ok: false, error: MSG_SESSION };
+        return { ok: false, error: 'Hors-ligne : impossible de retirer ce contact pour le moment.' };
       }
     },
     async deleteRdvComment(rdvId, commentId) {
