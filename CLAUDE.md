@@ -2951,6 +2951,20 @@ CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites 
   agrandit avec deux doigts. ⚠️ Les anciennes règles de petit écran (colonnes empilées, tableau défilant) ne s'appliquent plus que
   sans cette classe (`html:not(.feuille-reduite)`) : c'est le filet si le script ne tourne pas. Les annexes se réduisent par leur
   conteneur `.annex`, jamais feuille par feuille (le facteur s'appliquerait deux fois). Écran seulement : le PDF ne bouge pas.
+• **EN VRAI, SUR L'APERÇU, EN TACTILE** (`audit.html?reel=1&ecrans=tel`, onglet en émulation mobile, 28/10/2026) : 139 pages,
+  236 liens, aucune erreur — et un défaut que le banc ne pouvait pas voir. Les commandes posées SUR les photos de la fiche devis
+  (menu de catégorie à 8,8 px de texte et 19 px de haut, simulateur de 24 px) n'existent qu'en `pointer: coarse` : au bureau elles
+  n'apparaissent qu'au survol, et un cadre dans un onglet de bureau n'est JAMAIS tactile. Le menu passe sous la photo, à 16 px
+  (`--fs-champ`) réduit à 75 % à l'écran par `transform` — Safari décide du zoom sur la taille CALCULÉE, que `transform` ne change
+  pas — pour garder deux vignettes par rangée ; le simulateur fait 40 px dans l'angle. `tactile.test.html` donne une photo à sa fiche
+  pour que ce menu soit contrôlé. ⚠️ **L'audit local se rejoue AUSSI dans un onglet en émulation tactile** (préréglage mobile du
+  panneau) : c'est le seul endroit où il voit les règles `pointer: coarse`. Il comprend désormais qu'un bouton posé en absolu sur la
+  vignette voisine (même conteneur) est voulu, comme un bouton dans son champ.
+  Balayé à 320 et 360 px, toutes fiches : les en-têtes de carte passent leur partie droite à la ligne sur téléphone (« Planification
+  de pose » + date + « En retard » débordait de 56 px à 320 px, la carte « Interne » de 16 px, chevron hors de l'écran).
+  Deux défauts de l'outil, trouvés en le lançant en vrai : la garde du mode réel appelait `hoteBacASable()` sans le nom d'hôte (elle
+  refusait l'aperçu même), et `?ecrans=telephone` ne trouvait pas « téléphone » (accents). Le lien de suivi posé par le banc
+  (`essai-trk-10`) n'est plus ouvert en vrai : il n'existe pas dans la base d'essai, et son 404 était un faux défaut.
 
 ## Pièges déjà payés — ne pas les repayer
 

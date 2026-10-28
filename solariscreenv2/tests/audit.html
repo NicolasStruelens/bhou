@@ -52,7 +52,9 @@
     // `?ecrans=telephone` ou `?ecrans=bureau` : une seule largeur.
     const REEL = new URLSearchParams(location.search).get('reel') === '1';
     const ECRANS = new URLSearchParams(location.search).get('ecrans') || '';
-    const LARGEURS = [{ nom: 'bureau', w: 1500, h: 900 }, { nom: 'téléphone', w: 390, h: 844 }].filter((l) => !ECRANS || l.nom.indexOf(ECRANS.slice(0, 3)) === 0);
+    // Sans accents : « ?ecrans=telephone » doit trouver « téléphone » (sinon aucune largeur, et « 0 relevé sur 0 pages »).
+    const nu = (x) => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const LARGEURS = [{ nom: 'bureau', w: 1500, h: 900 }, { nom: 'téléphone', w: 390, h: 844 }].filter((l) => !ECRANS || nu(l.nom).indexOf(nu(ECRANS).slice(0, 3)) === 0);
     const RAPPORT = [];      // { url, ecran, sorte, detail }
     let pages = 0;
 
@@ -62,7 +64,9 @@
     // ══════════ LE JEU : le bac à sable dans le banc ══════════
     let rem = { erreurs: [] };
     if (REEL) {
-      if (!window.SSUI.hoteBacASable || !window.SSUI.hoteBacASable()) throw new Error('le mode réel ne tourne que sur un aperçu de branche (base d’essai) — jamais en production');
+      // ⚠️ Le NOM D'HÔTE se passe à la fonction : appelée sans, elle répondait « production » partout, et le mode réel
+      // refusait de tourner sur l'aperçu même (trouvé en le lançant pour la première fois, 28/10/2026).
+      if (!window.SSUI.hoteBacASable || !window.SSUI.hoteBacASable(location.hostname)) throw new Error('le mode réel ne tourne que sur un aperçu de branche (base d’essai) — jamais en production');
     } else {
       await BANC.demarrer();
       BANC.installer(window);
@@ -82,11 +86,13 @@
       A('dashboard.html'), A('clients.html'), A('planning.html'), A('planning.html?vue=jour&date=' + U.aujourdhui()), A('carte.html'),
       A('portfolio.html'), A('sav.html'), A('outillage.html'), A('factures.html'), A('depenses.html'), A('stats.html'), A('stats.html#connexions'),
       A('echanges.html'), A('parametres.html'), A('parametres.html#appareil'), A('rdv.html'), A('rdv.html?nouvelle=1'), A('terrain.html'),
-      A('simulateur.html'), A('simulateur.html?type=depannage'), '../index.html', '../track.html?t=essai-trk-10', '../track.html?t=inconnu',
+      A('simulateur.html'), A('simulateur.html?type=depannage'), '../index.html', '../track.html?t=inconnu',
       '../devis-review.html?t=inconnu', A('sav.html?nouveau=1&devis=ESSAI-10'), A('outillage.html?pose=ESSAI-10'),
       A('factures.html?devis=ESSAI-22&type=acompte'), A('factures.html?devis=ESSAI-10&type=solde'),
       A('vue.html?id=inconnu'), A('devis.html?id=inconnu'), A('facture.html?id=inconnu'),
     ];
+    // Le lien de suivi que le banc pose sur ESSAI-10 n'existe que dans le banc : en vrai il répondait 404, un faux défaut.
+    if (!REEL) URLS.push('../track.html?t=essai-trk-10');
     ids.forEach((id) => { URLS.push(A('vue.html?id=' + id)); URLS.push(A('devis.html?id=' + id)); URLS.push(A('simulateur.html?id=' + id)); });
     ['ESSAI-01', 'ESSAI-07', 'ESSAI-10', 'ESSAI-11'].forEach((id) => { URLS.push(A('picking.html?id=' + id)); URLS.push(A('reception.html?id=' + id)); URLS.push(A('terrain.html?id=' + id)); });
     factures.forEach((f) => URLS.push(A('facture.html?id=' + encodeURIComponent(f.id))));

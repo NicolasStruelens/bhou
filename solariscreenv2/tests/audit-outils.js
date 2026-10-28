@@ -261,9 +261,12 @@
       // le contenu qui passe sous le bandeau en défilant, c'est normal.
       if (fa !== fb && (!fa || !fb)) continue;
       if (fa !== fb && (w.getComputedStyle(fa).position !== 'fixed' || w.getComputedStyle(fb).position !== 'fixed')) continue;   // un menu ouvert recouvre exprès
-      // Un bouton posé DANS son champ (copier, effacer) : un recouvrement voulu.
-      const champ = (x) => x.matches('input, textarea, select');
-      const posé = (x, y) => champ(x) && y.matches('button') && w.getComputedStyle(y).position === 'absolute' && x.parentElement === y.parentElement;
+      // Un bouton posé DANS son champ (copier, effacer), ou SUR la vignette voisine (le simulateur dans l'angle
+      // d'une photo de la fiche devis) : un recouvrement voulu. Seulement entre frères d'un même conteneur, et
+      // seulement si c'est le bouton qui est en absolu — deux éléments du flux qui se recouvrent restent un défaut.
+      const abs = (x) => w.getComputedStyle(x).position === 'absolute';
+      const champ = (x) => x.matches('input, textarea, select') || (x.matches('button') && !abs(x));
+      const posé = (x, y) => champ(x) && y.matches('button') && abs(y) && x.parentElement === y.parentElement;
       if (posé(a, b) || posé(b, a)) continue;
       let pire = null;
       for (const ra of la) for (const rb of lb) {
