@@ -137,6 +137,28 @@
             [erreur, !!erp, k.textes.length, k.filigrane, k.reserve, e.textes.map((t, i) => ecart(t, k.textes[i] || '')).filter(Boolean)],
             [null, true, e.textes.length, e.filigrane, e.reserve, []]);
         }
+        titre('T — Sur téléphone, la feuille entière réduite, comme un PDF (choix de Nicolas, 28/10/2026)');
+        // Sur un écran plus étroit que 210 mm, la feuille garde sa mise en page A4 et se réduit d'un bloc : le tableau
+        // défilait de côté DANS la feuille, colonnes P.U. et Total hors de l'écran, sans que rien ne le dise.
+        const docs = ['../app/devis.html?id=ESSAI-03', '../app/devis.html?id=ESSAI-15', '../app/facture.html?id=F2026-006', '../app/picking.html?id=ESSAI-07'];
+        const tel = [];
+        for (const u of docs) {
+          const f = await BANC.cadre(u, 390, 844);
+          const d = f.contentDocument;
+          await attendreQue(() => d.querySelector('.paper-wrap > .paper table'), 10000);
+          await attendre(150);
+          const pp = d.querySelector('.paper-wrap > .paper'), t = pp.querySelector('table'), b = pp.getBoundingClientRect();
+          const dernier = t.querySelector('thead th:last-child, tr:first-child > *:last-child').getBoundingClientRect();
+          tel.push([d.documentElement.classList.contains('feuille-reduite'), Math.round(b.left) >= 0 && Math.round(b.right) <= 390,
+            t.scrollWidth - t.clientWidth <= 1, Math.round(dernier.right) <= 390, d.documentElement.scrollWidth <= 390]);
+          f.remove();
+        }
+        const fb = await BANC.cadre('../app/devis.html?id=ESSAI-03', 1100, 900);
+        await attendreQue(() => fb.contentDocument.querySelector('.paper-wrap > .paper table'), 10000);
+        const bureau = [fb.contentDocument.documentElement.classList.contains('feuille-reduite'), Math.round(fb.contentDocument.querySelector('.paper-wrap > .paper').getBoundingClientRect().width)];
+        fb.remove();
+        check('T1 À 390 px, chaque document (devis, dépannage, facture, bon de pose) : feuille réduite, entière dans l’écran, son tableau ne défile pas, sa dernière colonne se voit, la page ne déborde pas ; au bureau, la feuille A4 telle quelle',
+          [tel, bureau], [docs.map(() => [true, true, true, true, true]), [false, 794]]);
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }

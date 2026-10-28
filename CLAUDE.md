@@ -78,7 +78,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 24 tests des DEUX exemplaires du devis (règle 7) : pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 25 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 20 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception, le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -2944,8 +2944,13 @@ CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites 
   champ date, fermeture sans demander) ; un échec de changement de statut ne remettait que le statut ; trois gestes ignoraient la
   réponse du serveur (règle 6) ; une modification du journal décalait les photos SAV dans la visionneuse ; `<img src="">` redemandait
   la page entière à chaque ouverture de la fiche devis et du lien client.
-⚠️ **CE QUI RESTE UN CHOIX, PAS UN BUG** : sur téléphone, le tableau d'un devis ou d'une facture défile de côté DANS la feuille (les
-colonnes P.U. et Total sont hors de l'écran). C'est une décision de présentation à prendre avec Nicolas.
+• **Sur téléphone, LA FEUILLE ENTIÈRE, RÉDUITE COMME UN PDF** (choix de Nicolas, sur question, le 28/10/2026). Le tableau d'un devis ou
+  d'une facture défilait de côté DANS la feuille : les colonnes P.U. et Total étaient hors de l'écran, sans que rien ne le dise. Sous
+  210 mm d'écran, `SSUI.ajusterFeuille` (ui.js) pose `html.feuille-reduite` et `--feuille-zoom` ; `document.css` garde alors la mise en
+  page A4 et la réduit d'UN bloc (`zoom`, qui réduit aussi la place — `transform` laisserait 794 px de large à faire défiler). On
+  agrandit avec deux doigts. ⚠️ Les anciennes règles de petit écran (colonnes empilées, tableau défilant) ne s'appliquent plus que
+  sans cette classe (`html:not(.feuille-reduite)`) : c'est le filet si le script ne tourne pas. Les annexes se réduisent par leur
+  conteneur `.annex`, jamais feuille par feuille (le facteur s'appliquerait deux fois). Écran seulement : le PDF ne bouge pas.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -3256,7 +3261,7 @@ colonnes P.U. et Total sont hors de l'écran). C'est une décision de présentat
    `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 20/20 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`) : `tests/documents.test.html`, exiger « 24/24 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 25/25 », par le serveur.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
    Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le

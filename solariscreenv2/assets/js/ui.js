@@ -2122,7 +2122,33 @@
     return '';
   }
 
+  /* ═══ SUR TÉLÉPHONE, LA FEUILLE ENTIÈRE, RÉDUITE COMME UN PDF (choix de Nicolas, 28/10/2026) ═══
+     Un devis, une facture, un bon : 210 mm de large. Sur un écran plus étroit, la feuille se réarrangeait
+     (colonnes empilées) et son tableau DÉFILAIT de côté à l'intérieur — les colonnes P.U. et Total étaient
+     hors de l'écran sans que rien ne le dise (audit, règle 56). La feuille garde maintenant sa mise en page
+     A4 et se RÉDUIT à la largeur de l'écran (`zoom`, document.css), comme dans une visionneuse PDF : tout
+     se voit d'un coup d'œil, on agrandit avec deux doigts. L'impression ne change pas (règles `screen`).
+     Le facteur se calcule ici : `zoom` attend un nombre, et « largeur de l'écran ÷ 210 mm » ne s'écrit pas
+     en CSS. Sans ce script, les anciennes règles de petit écran restent le filet. */
+  const LARGEUR_FEUILLE = 210 * 96 / 25.4;   // 210 mm en pixels CSS
+  function ajusterFeuille() {
+    const html = document.documentElement;
+    if (!document.querySelector('.paper-wrap')) return null;
+    const dispo = html.clientWidth - 16;     // 8 px de marge de chaque côté (document.css)
+    const reduire = dispo > 0 && dispo < LARGEUR_FEUILLE;
+    html.classList.toggle('feuille-reduite', reduire);
+    if (reduire) html.style.setProperty('--feuille-zoom', (dispo / LARGEUR_FEUILLE).toFixed(4));
+    else html.style.removeProperty('--feuille-zoom');
+    return reduire;
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ajusterFeuille);
+    else ajusterFeuille();
+    window.addEventListener('resize', ajusterFeuille);
+  } catch (e) {}
+
   window.SSUI = {
+    ajusterFeuille: ajusterFeuille,
     raisonDoublon: raisonDoublon,
     fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
