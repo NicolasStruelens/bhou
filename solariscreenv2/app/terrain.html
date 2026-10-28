@@ -715,6 +715,9 @@
             : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" ${NUM} data-f="hauteur" value="${item.hauteur || ''}"></div>`}
         </div>
         <div class="mesure-avis-zone">${avisHtml(item)}</div>
+        ${/* ⚠️ Ce qui manque s'affiche SOUS les mesures, pas au-dessus de la carte : il apparaît à la première
+             mesure tapée (règle 36), et au-dessus il faisait sauter de 100 px le champ en cours de frappe. */ ''}
+        <div class="manque-zone">${manqueBlocHtml(item)}</div>
         <div class="field mt-3">
           <label class="label">Photos</label>
           <div class="photo-zone">${photosHtml(item)}</div>
@@ -959,7 +962,6 @@
           </div>
           <div class="ouv-tiles">${tuiles}</div>
         </div>
-        ${manqueBlocHtml(item)}
         ${itemCardHtml(item)}`;
       bindItemCard(item, c);
       // Une carte fraîchement dessinée n'a déclenché aucune frappe : sans ceci, rien ne
@@ -984,7 +986,7 @@
          VR150 de 38 champs répartis en six groupes, lire « Caisson » puis le retrouver au doigt
          coûte plus cher que l'information ne rapporte — donc on ne le fait pas, donc le bandeau
          ne servait à rien. Elles sautent maintenant sur le champ, qui s'allume une seconde. */
-      return `<div class="manque-bloc mb-4">
+      return `<div class="manque-bloc mt-3">
         <div class="manque-tete">${icon('warning', 12)} ${m.length} info(s) à compléter</div>
         <div class="manque-ouv">${m.map(x => `<button type="button" class="ch" onclick="viserChamp(${SSUI.jsAttr(x.k)})" title="Aller à « ${esc(x.l)} »">${esc(x.l)}</button>`).join('')}</div>
       </div>`;
@@ -1013,12 +1015,8 @@
     function majManque() {
       const it = state.items[currentItemIdx];
       const host = el('itemsBody');
-      const actuel = host.querySelector('.manque-bloc');
-      const neuf = manqueBlocHtml(it);
-      const pager = host.querySelector('.ouv-pager');
-      if (!neuf) { if (actuel) actuel.remove(); }
-      else if (actuel) { actuel.outerHTML = neuf; }
-      else if (pager) pager.insertAdjacentHTML('afterend', neuf);
+      const zone = host.querySelector('.manque-zone');
+      if (zone) zone.innerHTML = manqueBlocHtml(it);
       const tuile = host.querySelectorAll('.ouv-tile')[currentItemIdx];
       if (tuile) tuile.classList.toggle('incomplet', commencee(it) && !!SSProducts.champsManquants(it).length);
       majAvis();
@@ -1151,18 +1149,26 @@
     };
 
     // ── ÉTAPES ──
+    /* ⚠️ Le bouton principal de la barre est au MÊME endroit d'une étape à l'autre : un double appui sautait
+       une étape — et « Voir le récap » enchaînait sur « Enregistrer ». Un appui qui arrive moins de 450 ms
+       après un changement d'étape est ignoré. */
+    let ETAPE_LE = 0;
+    window.appuiBarre = function (quoi) {
+      if (Date.now() - ETAPE_LE < 450) return;
+      if (quoi === 'enregistrer') finalizeSave(); else goStep(quoi);
+    };
     function renderBar() {
       const bar = el('wizBar');
       const annuler = ANNULER ? `<div class="annuler" role="status"><span>${esc(ANNULER.texte)}</span> <button type="button" class="btn btn-ghost btn-sm" onclick="annulerRetrait()">Annuler</button></div>` : '';
       if (step === 'client') {
-        bar.innerHTML = annuler + `<button class="btn btn-primary grow2" onclick="goStep('items')">Continuer → Ouvertures</button>`;
+        bar.innerHTML = annuler + `<button class="btn btn-primary grow2" onclick="appuiBarre('items')">Continuer → Ouvertures</button>`;
       } else if (step === 'items') {
-        bar.innerHTML = annuler + `<button class="btn btn-ghost" onclick="goStep('client')">${icon('arrowleft', 14)} Client</button><button class="btn btn-primary grow2" onclick="goStep('recap')">Voir le récap →</button>`;
+        bar.innerHTML = annuler + `<button class="btn btn-ghost" onclick="appuiBarre('client')">${icon('arrowleft', 14)} Client</button><button class="btn btn-primary grow2" onclick="appuiBarre('recap')">Voir le récap →</button>`;
       } else if (step === 'recap') {
         // Un double appui envoyait le devis deux fois : le bouton se verrouille et DIT ce qu'il fait.
         const lib = ENREGISTREMENT ? (EN_COURS.size ? 'Envoi des photos…' : 'Enregistrement…') : 'Enregistrer';
         const off = ENREGISTREMENT ? ' disabled aria-busy="true"' : '';
-        bar.innerHTML = annuler + `<button class="btn btn-ghost" onclick="goStep('items')"${off}>${icon('arrowleft', 14)} Ouvertures</button><button class="btn btn-primary grow2" id="btnEnregistrer" onclick="finalizeSave()"${off}>${icon('save', 14)} ${lib}</button>`;
+        bar.innerHTML = annuler + `<button class="btn btn-ghost" onclick="appuiBarre('items')"${off}>${icon('arrowleft', 14)} Ouvertures</button><button class="btn btn-primary grow2" id="btnEnregistrer" onclick="appuiBarre('enregistrer')"${off}>${icon('save', 14)} ${lib}</button>`;
       } else {
         bar.innerHTML = '';
       }
@@ -1198,6 +1204,7 @@
       if (step === 'items' && s !== 'items') {
         try { const c = document.querySelector('.item-card'); if (c && state.items[currentItemIdx]) collectItem(state.items[currentItemIdx], c); } catch (e) {}
       }
+      if (s !== step) ETAPE_LE = Date.now();
       step = s;
       document.querySelectorAll('.wiz-screen').forEach(sc => sc.classList.toggle('active', sc.dataset.step === s));
       document.querySelector('.wiz-steps').hidden = (s === 'charge' || s === 'refus');

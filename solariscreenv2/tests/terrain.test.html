@@ -272,12 +272,14 @@
         // P6 — mesures, bandeau, retrait
         w.addItemAndGo(); await attendre(20);
         const neuveSansBandeau = [d.querySelector('#itemsBody .manque-bloc'), d.querySelector('.ouv-tile.active').classList.contains('incomplet')];
+        const hautAvant = Math.round(champ(d, 'largeur').getBoundingClientRect().top);
         tape(champ(d, 'largeur'), '250'); await attendre(20);
+        const neBougePas = Math.round(champ(d, 'largeur').getBoundingClientRect().top) === hautAvant;
         const avis = txt(d.querySelector('.mesure-avis')), bandeau = txt(d.querySelector('#itemsBody .manque-tete'));
         d.querySelector('.mesure-avis button').click(); await attendre(20);
-        check('P6 B / C — Une ouverture NEUVE ne réclame rien (règle 36) ; la première mesure l’allume ; « 250 mm, c’est 25 cm » se corrige d’un appui',
-          [neuveSansBandeau, avis, bandeau, champ(d, 'largeur').value, w.eval('state.items[currentItemIdx].largeur'), d.querySelector('.mesure-avis')],
-          [[null, false], '250 mm, c’est 25 cm. C’était 2 500 mm ?', '6 info(s) à compléter', '2500', 2500, null]);
+        check('P6 B / C — Une ouverture NEUVE ne réclame rien (règle 36) ; la première mesure l’allume SOUS les mesures (au-dessus, le champ en cours de frappe sautait de 100 px) ; « 250 mm, c’est 25 cm » se corrige d’un appui',
+          [neuveSansBandeau, avis, bandeau, neBougePas, champ(d, 'largeur').value, w.eval('state.items[currentItemIdx].largeur'), d.querySelector('.mesure-avis')],
+          [[null, false], '250 mm, c’est 25 cm. C’était 2 500 mm ?', '6 info(s) à compléter', true, '2500', 2500, null]);
         const nAvant = w.eval('state.items.length');
         w.removeCurrentItem(); await attendre(20);
         const barreRetrait = [w.eval('state.items.length'), txt(d.querySelector('#wizBar .annuler')), parseInt(w.getComputedStyle(d.body).paddingBottom, 10) >= d.getElementById('wizBar').offsetHeight];
@@ -451,6 +453,15 @@
         check('T1 B — Sur téléphone : rien ne dépasse ; le type tient en UNE rangée ; les saisies gardées restent à l’étape Client ; la largeur est dans le premier écran, au-dessus de la barre (elle était à 779 px, sous six « à compléter ») ; la barre du bas n’est plus floutée (iPhone)',
           [debClient, deborde(), new Set(tuiles).size, saisiesCachees, Math.round(larg.bottom) < Math.round(barre), w.getComputedStyle(d.getElementById('wizBar')).backdropFilter],
           [[], [], 1, true, true, 'none']);
+        // Un double appui sur le bouton principal de la barre ne saute pas deux étapes (il est au même endroit d'une
+        // étape à l'autre : « Voir le récap » enchaînait sur « Enregistrer ») ; un appui posé passe.
+        w.goStep('client'); await attendre(500);
+        d.querySelector('#wizBar .btn-primary').click(); d.querySelector('#wizBar .btn-primary').click();
+        const apresDouble = w.eval('step');
+        await attendre(500); d.querySelector('#wizBar .btn-primary').click();
+        check('T1b Un DOUBLE appui sur la barre n’avance que d’une étape ; l’appui suivant, posé, passe',
+          [apresDouble, w.eval('step')], ['items', 'recap']);
+        w.goStep('items'); await attendre(30);
         const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
         const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE.test(x.media.mediaText)) blocsT.push(x); if (x.cssRules) parc(x.cssRules); } };
         for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); }
@@ -484,7 +495,7 @@
           auClient = w.eval('step') === 'client' && !(w.history.state && w.history.state.terrainEtape);
         }
         // Le bouton « ← Client » retire la garde : un « retour » de là quitte la page du premier coup.
-        w.goStep('items'); await attendre(30);
+        w.goStep('items'); await attendre(500);   // un appui sur la barre juste après un changement d'étape est ignoré
         d.querySelector('#wizBar .btn-ghost').click(); await attendre(250);
         const apresBouton = [w.eval('step'), !!(w.history.state && w.history.state.terrainEtape), w.eval('GARDE')];
         // Visionneuse ouverte : « retour » la ferme, on reste à l'étape.
