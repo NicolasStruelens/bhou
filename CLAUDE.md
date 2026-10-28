@@ -102,6 +102,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/parametres.js` | **La page Paramètres** (règle 53) : ce qui a changé (et la valeur qu'on avait sous les yeux), le contrôle d'une valeur saisie, comment se lit une valeur (avec son unité), ce qu'un réglage change sur un cas concret (devis type par `calc.js`). Fonctions pures (`window.SSParam`) ; les valeurs par défaut restent dans `config.js`. |
 | `assets/js/rdv.js` | **Les demandes de RDV** (règle 54) : chercher (sans accents, téléphone d'un bloc, projet), la prochaine action d'une demande, une colonne par urgence, « Converti » sur 30 jours, les visites d'aujourd'hui et de demain, le résumé des contacts avec le client, les doublons à la saisie. Fonctions pures (`window.SSRdv`) ; « qui doit agir » reste dans `attente.js`, la règle des doublons dans `ui.js` (`SSUI.raisonDoublon`). |
 | `tests/rdv.test.html` | Les 39 tests des Demandes de RDV : règles pures, les ROUTES (conflit entre deux écrans, messages, balle et contacts protégés, champ inconnu gardé, contacts signés, retirés par leur seul auteur), la vraie page remplie par le bac à sable et cliquée (« À traiter » et visites proches, colonnes par urgence, « Je prends », glisser-déposer gardé, la fiche dans l'ordre et sa couleur, rappel de la veille noté, message retouché, conflit dans la fiche, « Converti » sans devis refusé, devis lié, doublons, photo, recherche, suppression refusée, « Créer le devis » depuis la carte), le téléphone et la tablette (onglets d'étape, fiche plein écran, vue Liste, tactile) et « retour ». Vérifié par 34 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `assets/js/terrain.js` | **Le Mode Terrain** (règle 55) : retrouver un client (sans accents, téléphone d'un bloc) et ses doublons, les saisies gardées PAR visite, des identifiants d'ouverture uniques, les mesures qui sortent de l'ordinaire, ce qui manque (pour y aller), les visites du jour et le devis lié à une demande, ce qu'un devis existant permet ici (un devis chiffré ne se réécrit pas d'ici). Fonctions pures (`window.SSTerrain`). |
+| `tests/terrain.test.html` | Les 32 tests du Mode Terrain : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
@@ -2801,7 +2803,8 @@ fonctions pures) ; « qui doit agir » reste dans `attente.js` (règle 15), le l
   ajoutée ne rajeunit rien), le reste derrière « Plus anciennes (N) ».
 • **G — Le devis dans la fiche** (numéro, statut, montant, « Ouvrir le devis ») et « Créer le devis » sur la carte d'une visite.
   Si la demande ne peut pas être liée après la création (conflit, réseau), on le DIT : le devis porte `rdv_id`, aucun second
-  devis ne peut naître d'elle.
+  devis ne peut naître d'elle. ⚠️ Ce n'était vrai qu'à moitié : la LISTE des devis ne projetait pas `rdv_id`, donc la page
+  ne retrouvait le lien que par `rdv.devis_id` — projeté (et gardé par `normDevis`) depuis le 28/10/2026, règle 55.
 • Aussi : « À traiter » montrait 8 lignes sans dire qu'il en restait (5, puis « Voir les N autres ») ; un message RETOUCHÉ n'est
   plus réécrit par l'ajout d'un créneau (« Le régénérer ») ; la recherche ignore les accents et lit le téléphone d'un bloc ; les
   photos du client s'ouvrent dans la page (règle 26).
@@ -2809,6 +2812,67 @@ fonctions pures) ; « qui doit agir » reste dans `attente.js` (règle 15), le l
   ramène le CADRE sur sa page vierge (règle 47) ; par une vraie navigation, un « retour » de trop sort de la page de test et
   emporte l'onglet. Des étapes de garde l'absorbent et le comptent, et le test ne tente pas un second « retour » si le premier
   n'a pas fermé la fiche (T8).
+• ⚠️ Le banc écrit en mémoire : deux écritures dans la MÊME milliseconde portent le même `edite_le`, et un conflit ne peut pas
+  s'y voir (R1 et R4 échouaient une fois sur quelques passages). Entre deux personnes au travers du réseau ça n'arrive pas ;
+  le test laisse passer l'horloge (`attendre(3)`) avant l'écriture qui doit entrer en conflit.
+
+**55. LE MODE TERRAIN : ON RELÈVE CHEZ LE CLIENT, ON CHIFFRE AU BUREAU — ET RIEN NE SE PERD** (28/10/2026 — revue de la
+page, propositions A à G choisies par Nicolas sur maquette). Les règles vivent dans `assets/js/terrain.js` (`window.SSTerrain`,
+fonctions pures) ; les champs qui bloquent une commande restent dans `products.js` (`CHAMPS_REQUIS`), les doublons dans
+`ui.js` (`SSUI.raisonDoublon`). Protégé par `tests/terrain.test.html`.
+• ⚠️ **RÈGLE 1 : UN DEVIS CHIFFRÉ NE SE RÉÉCRIT PAS D'ICI.** Rouvert par `?id=`, un devis était recalculé aux réglages DU JOUR,
+  avec Nicolas en vendeur (écrit en dur), sans les lignes ajoutées au bureau, et sa note remplacée par « Créé via Mode
+  Terrain » : un devis chiffré changeait de montant en l'enregistrant d'ici. Un devis chiffré (un prix, une ligne du bureau, un
+  total), envoyé, signé — ou un dépannage — s'ouvre sur un écran qui le DIT et mène au simulateur (`SSTerrain.modifiableIci`).
+  Un brouillon pas encore chiffré se complète, et son chiffrage est ÉTALÉ (règle 2) : taux, note, parts, vendeur, civilité du
+  client survivent. Il est RELU juste avant d'écrire : chiffré au bureau pendant la visite, il est refusé et la saisie reste
+  gardée sur le téléphone.
+• ⚠️ **UNE OUVERTURE EN MODIFIAIT UNE AUTRE.** Les identifiants venaient d'un compteur qui repartait de zéro à chaque
+  chargement : la nouvelle ouverture d'une saisie reprise s'appelait « it1 » comme la première — sa tuile « Tente » transformait
+  le volet du salon, sa photo partait sur l'ouverture 1. `nouvelId` tire au hasard et vérifie ; toute ouverture venue d'ailleurs
+  (base, saisie gardée) reçoit un identifiant neuf (`identifier`).
+• ⚠️ **L'ÉCRAN D'ABORD.** L'étape Client n'apparaissait qu'après les réglages ET la liste de tous les devis et clients : en 4G
+  faible, une page vide, sans même le bandeau des saisies gardées. L'écran s'affiche tout de suite, chaque morceau se dessine
+  quand il arrive ; un devis demandé par `?id=` montre « Chargement du devis… », jamais une page vide.
+• ⚠️ **RÈGLE 6 : L'ÉCRAN DE FIN DIT CE QUI S'EST PASSÉ.** « Devis enregistré » en vert s'affichait aussi quand le devis n'était
+  que gardé dans le téléphone faute de réseau : c'est « Gardé sur ce téléphone », et pourquoi. La fiche client refusée se dit
+  (elle passait en silence) ; un double appui sur « Enregistrer » n'envoie plus deux fois.
+• **A — Les visites du jour** en tête de l'étape Client : les demandes « RDV fixé » d'aujourd'hui à l'heure, puis celles des deux
+  jours d'avant qui n'ont pas de devis. Un appui remplit le client et LIE le devis (`rdv_id`, règle 17) ; à l'enregistrement la
+  demande passe « Converti » (le devis existe, règle 54) et pointe vers lui, avec `_attendu` : modifiée entre-temps, on repart
+  de SA version et l'on n'y pose que le lien ; annulée ou liée à un autre devis, on le DIT. Une demande déjà « Converti » dont
+  le devis est VIDE (créé depuis la demande) revient dans la liste : on complète CE devis — une demande, un devis.
+  ⚠️ La liste des devis ne projetait pas `rdv_id` : projeté par `/api/devis` et gardé par `normDevis` depuis (voir règle 54, G).
+• **B — L'ordre du relevé** : pièce et étage, le type en UNE rangée, largeur × hauteur — dans le premier écran sur téléphone
+  (elle était à 779 px, sous six « à compléter » et deux rangées de tuiles) —, la photo, puis la configuration. Une ouverture
+  NEUVE ne réclame rien : le bandeau « à compléter » et la vignette cornée suivent la règle du halo (règle 36, `commencee`).
+  ⚠️ Le bandeau vit SOUS les mesures (`.manque-zone`) : au-dessus de la carte, il apparaissait à la première mesure tapée et
+  faisait sauter de 100 px le champ en cours de frappe (vu sur l'aperçu, en tapant la largeur).
+• **C — Les mesures vérifiées** (`avisMesure`) : des centimètres tapés pour des millimètres (« 250 mm, c'est 25 cm. C'était
+  2 500 mm ? », corrigé d'un appui), un zéro de trop, le maximum du caisson VR ou de la tente. On avertit, on ne bloque jamais
+  (règle 13) : une baie de 280 mm existe.
+• **D — Les doublons à la saisie** (même règle que Clients et RDV) avec « Utiliser sa fiche » ; la recherche ignore les accents
+  et lit un téléphone tapé d'un bloc. ⚠️ Chercher n'est pas une saisie : partir après une recherche demandait « Quitter la page ? ».
+• **E — Une saisie gardée PAR visite** (`ss_terrain_saisies`). Il n'y avait qu'un emplacement : commencer un autre client sans
+  répondre au bandeau écrasait, dès la première lettre, une visite jamais enregistrée. Rien n'est gardé sans nom ni ouverture
+  entamée (taper dans la recherche faisait proposer « 0 ouverture »). Le bandeau les liste à l'étape Client SEULEMENT : au-delà
+  il poussait la carte hors du premier écran. L'ancien emplacement unique (`ss_terrain_brouillon`) est repris dans la liste.
+• **F — Photos et retraits** : la vignette s'ouvre en grand (règle 26) ; « 1 photo en cours d'envoi… » se voit et « Enregistrer »
+  l'attend (arrivée après, elle n'entrait jamais dans le devis, sans un mot) ; seul le bloc des photos se redessine (la carte
+  entière faisait perdre le clavier). Retirer une ouverture ou une photo se DÉFAIT : « Annuler » dans la barre du bas, dix
+  secondes ; la croix fait 32 px (40 sur écran tactile) — à 20 px sur la vignette, agrandir retirait la photo.
+• **G — Le récap qui mène** : chaque manque est un bouton vers son champ (règle 36) ; il compte les ouvertures RELEVÉES (sa tuile
+  disait « 0 ouvertures » : elle comptait celles qui ont un prix, la règle de la pose, et rien ne se chiffre ici) ; le vendeur est la personne connectée,
+  modifiable (Yannick sur le terrain = devis de Yannick) ; l'écran de fin propose « Chiffrer au simulateur ».
+• **« Retour » sur téléphone = l'étape d'avant** : il quittait le Mode Terrain (sur iPhone sans même demander). Une étape
+  d'historique au-delà du client ; « ← Client » la retire ; visionneuse ouverte, « retour » la ferme d'abord ; quitter la page
+  depuis une étape REMPLACE l'étape (`partir`). La barre du bas est opaque, sans `backdrop-filter` (texte flou sur iPhone), et le
+  bas de page suit sa hauteur réelle quand elle porte « Annuler ».
+  ⚠️ Son bouton principal est au MÊME endroit d'une étape à l'autre : un double appui sautait une étape, et « Voir le récap »
+  enchaînait sur « Enregistrer ». Un appui moins de 450 ms après un changement d'étape est ignoré (`appuiBarre`).
+• ⚠️ Pour les tests : dans un cadre ÉCRIT par le banc, la page simule son étape d'historique (`pushState` muet, `back` qui rend
+  l'événement), le vrai « retour » se joue par une vraie navigation (T3). Et un AUTRE onglet du Mode Terrain ouvert sur la même
+  origine écrit SES saisies dans le même stockage : un test ne compare que les siennes (vu : « Test Uid » laissé ouvert).
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -3115,6 +3179,9 @@ fonctions pures) ; « qui doit agir » reste dans `attente.js` (règle 15), le l
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
+   Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le
+   serveur, au bureau ET en émulation tactile — ET `tactile.test.html`, `assistant.test.html` (Soli au-dessus de la barre),
+   `nav.test.html`, `signal.test.html` et `rdv.test.html` (il convertit des demandes).
    Et dès qu'on touche aux Demandes de RDV (`app/rdv.html`, `rdv.js`, `/api/rdv`) : `tests/rdv.test.html`, exiger « 39/39 », par
    le serveur — ET `attente.test.html`, `clients.test.html` (la règle des doublons), `planning-page.test.html`,
    `echanges.test.html` et `bac-a-sable.test.html` (ils écrivent des demandes).
