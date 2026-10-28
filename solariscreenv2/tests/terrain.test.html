@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Mode Terrain</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du Mode Terrain</h1>
+  <p class="note">
+    Le Mode Terrain (règle 55, revue du 28/10/2026) : les règles PURES de <code>assets/js/terrain.js</code>, la liste des
+    devis qui porte le lien avec la demande de RDV, puis la VRAIE page branchée sur le vrai serveur
+    (<code>tests/banc-serveur.js</code>) : l'écran d'abord (réseau lent), les visites du jour et le devis lié à la demande,
+    la recherche et les doublons, le devis déjà chiffré qui ne se réécrit pas (règle 1), le vendeur, les saisies gardées
+    par visite, les identifiants des ouvertures, les mesures vérifiées, les photos qui partent avant le devis, les retraits
+    qui se défont, le récap qui mène, l'écran de fin qui dit ce qui s'est passé — puis le téléphone, le tactile et « retour ».
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle ; les caches
+    locaux du navigateur sont remis en état à la fin.
+  </p>
+  <div id="summary">Exécution…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/terrain.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 900) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 900) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests terrain';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 6000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const T = window.SSTerrain, U = window.SSUI, SS = window.SS, BANC = window.SSBanc, P = window.SSProducts;
+    const AUJ = U.aujourdhui();
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return U.isoDate(d); };
+    const ilYaH = (n) => new Date(Date.now() - n * 3600000).toISOString();
+    // Les nombres s'écrivent avec une espace insécable : on compare en espaces simples.
+    const NE = (s) => (s == null ? s : String(s).replace(/[  ]/g, ' '));
+    const txt = (n) => (n ? NE(n.textContent.replace(/\s+/g, ' ').trim()) : null);
+    const compiles = (d) => [...d.querySelectorAll('*')].flatMap((e) => [...e.attributes]
+      .filter((a) => a.name.startsWith('on') && a.name.length > 2)
+      .map((a) => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 80) + ' → ' + err.message; } })
+      .filter(Boolean));
+    function cadreNavigue(url, largeur, hauteur) {
+      return new Promise((resolve) => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        f.width = largeur; f.height = hauteur;
+        f.addEventListener('load', () => resolve(f), { once: true });
+        f.src = url;
+        document.body.appendChild(f);
+      });
+    }
+    const CLES = ['ss_terrain_saisies', 'ss_terrain_brouillon'];
+    const SAUVE = {}; CLES.forEach((k) => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
+    const saisies = () => { try { return JSON.parse(localStorage.getItem('ss_terrain_saisies') || '[]'); } catch (e) { return []; } };
+    const devisB = (id) => BANC.donnee('devis', 'id', id) || {};
+    const rdvB = (id) => BANC.donnee('rdv', 'id', id) || {};
+    async function comme(qui, fn) { const avant = BANC.ident; BANC.ident = qui === 'yannick' ? BANC.YANNICK : BANC.NICOLAS; try { return await fn(); } finally { BANC.ident = avant; } }
+    const cli = (prenom, nom, tel, ville) => ({ prenom, nom, telephone: tel || '', email: '', adresse: { rue: 'Rue de l’Essai', numero: '1', code_postal: '1300', ville: ville || 'Wavre' } });
+    const tape = (c, v) => { c.value = v; c.dispatchEvent(new Event('input', { bubbles: true })); };
+    const choisir = (c, v) => { c.value = v; c.dispatchEvent(new Event('change', { bubbles: true })); };
+    const carte = (d) => d.querySelector('.item-card');
+    const champ = (d, k) => d.querySelector('.item-card [data-f="' + k + '"]');
+    const PHOTO = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="teal"/></svg>');
+
+    // Le réseau du banc, avec trois leviers : bloqué (réseau lent), hors-ligne, fiche client refusée.
+    const RESEAU = { bloque: null, horsLigne: false, ficheKo: false, posts: 0 };
+    let bancFetch = null;
+    function brancherReseau() {
+      bancFetch = BANC.fetch;
+      BANC.fetch = async function (url, opts) {
+        const u = new URL(String(url), location.href);
+        const api = u.origin === location.origin && u.pathname.indexOf('/api/') === 0;
+        const m = ((opts && opts.method) || 'GET').toUpperCase();
+        if (RESEAU.horsLigne) throw new TypeError('Failed to fetch');
+        if (api && RESEAU.bloque) await RESEAU.bloque;
+        if (api && u.pathname === '/api/devis' && m === 'POST') RESEAU.posts++;
+        if (api && RESEAU.ficheKo && u.pathname === '/api/clients' && m === 'POST') {
+          return new Response(JSON.stringify({ ok: false, error: 'refus test' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+        return bancFetch(url, opts);
+      };
+      BANC.installer(window);
+    }
+    /* ⚠️ Un document ÉCRIT par le banc n'a pas d'historique à lui : son « history.back() » ramènerait le CADRE
+       sur sa page vierge (règle 47). On y simule donc l'étape d'historique : poser ne fait rien, « retour » rend
+       l'événement que le navigateur rendrait. « Retour » se teste pour de vrai en T3, par une vraie navigation. */
+    function simulerHistorique(w) {
+      w.history.pushState = function () {};
+      w.history.back = function () { setTimeout(() => w.dispatchEvent(new w.PopStateEvent('popstate', { state: null })), 0); };
+    }
+    async function ouvrir(suffixe, largeur, hauteur) {
+      const f = await BANC.cadre('../app/terrain.html' + (suffixe || '?t=' + Date.now()), largeur || 390, hauteur || 844);
+      const w = f.contentWindow;
+      simulerHistorique(w);
+      await attendreQue(() => w.eval('ANNUAIRE_PRET') && w.eval('IDENT && IDENT.key'), 9000);
+      await attendre(120);
+      w.confirm = () => true;
+      return f;
+    }
+
+    (async function () {
+      try {
+        // ══════════ S — LES RÈGLES PURES ══════════
+        titre('S — Les règles, en fonctions pures (terrain.js)');
+        const hc = { prenom: 'Hélène', nom: 'Charlier', telephone: '0477 12 34 56', email: 'h@exemple.invalid', adresse: { rue: 'Rue de l’Église 3', ville: 'Louvain-la-Neuve' } };
+        check('S1 D — Retrouver un client : sans accents, mot à mot, le téléphone tapé d’un bloc, la rue et la ville',
+          [T.correspond(hc, 'helene'), T.correspond(hc, 'CHARLIER louvain'), T.correspond(hc, '0477123456'), T.correspond(hc, '12 34'), T.correspond(hc, 'eglise'), T.correspond(hc, 'helene wavre'), T.correspond(hc, '')],
+          [true, true, true, true, true, false, false]);
+        const annu = [
+          { key: U.clientKeyOf('Martine', 'Dubois'), prenom: 'Martine', nom: 'Dubois', telephone: '0478 11 22 33', email: 'm@exemple.invalid', adresse: { ville: 'Wavre' } },
+          { key: U.clientKeyOf('Jean', 'Bouchetrou'), prenom: 'Jean', nom: 'Bouchetrou', telephone: '0470 00 00 00', email: '', adresse: {} },
+        ];
+        check('S2 D — Les doublons à la saisie : même téléphone (jamais un bouche-trou), prénom et nom inversés ; la fiche de MÊME clé n’en est pas un ; rien saisi → rien',
+          [T.doublons({ prenom: 'Marie', nom: 'Durand', telephone: '0478112233' }, annu).map((x) => x.nom + ' / ' + x.raison + ' / ' + x.ville),
+            T.doublons({ prenom: 'Martine', nom: 'Dubois', telephone: '0478 11 22 33' }, annu).length,
+            T.doublons({ prenom: 'Paul', nom: 'Autre', telephone: '0470 00 00 00' }, annu).length,
+            T.doublons({ prenom: 'Dubois', nom: 'Martine' }, annu).map((x) => x.raison), T.doublons({}, annu)],
+          [['Martine Dubois / même téléphone / Wavre'], 0, 0, ['prénom et nom inversés'], []]);
+        const ids = T.identifier([{ _id: 'it1', type: 'screen' }, { _id: 'it1', type: 'volet_roulant', photos: null }]);
+        const neuf = T.nouvelId(ids);
+        check('S3 Les identifiants : une ouverture reprise reçoit un identifiant NEUF et unique (deux « it1 » faisaient modifier l’une par l’autre) ; un nouveau ne reprend aucun des existants',
+          [ids.length, ids[0]._id !== ids[1]._id, ids.every((x) => x._id !== 'it1'), Array.isArray(ids[1].photos), ids.some((x) => x._id === neuf), /^it[a-z0-9]+$/.test(neuf)],
+          [2, true, true, true, false, true]);
+        const sa = (id, nom, items, h) => ({ v: 2, quand: ilYaH(h || 0),etape: 'items', itemIdx: 0, state: { id, items: items || [] }, client: { prenom: '', nom: nom || '' } });
+        const ouvVide = { type: 'screen', quantite: 1, photos: [] }, ouvL = { type: 'screen', quantite: 1, photos: [], largeur: 1200 };
+        let liste = T.avecSaisie([], sa('A', 'Alpha', [ouvL], 3));
+        liste = T.avecSaisie(liste, sa('B', 'Bravo', [], 1));
+        liste = T.avecSaisie(liste, sa('A', 'Alpha', [ouvL, ouvL], 0));
+        const ancien = JSON.stringify(sa('OLD', 'Ancien', [ouvL], 5));
+        check('S4 E — Une saisie PAR devis (une nouvelle n’écrase plus l’autre), la plus récente d’abord ; rien de gardé sans nom ni ouverture entamée ; l’ancien emplacement unique est repris',
+          [liste.map((x) => x.state.id), T.resumeSaisie(liste[0]), T.significatif(sa('X', '', [ouvVide])), T.significatif(sa('X', 'Nom', [ouvVide])), T.significatif(sa('X', '', [ouvL])),
+            T.lireSaisies(JSON.stringify(liste), ancien).map((x) => x.state.id), T.sansSaisie(liste, 'A').map((x) => x.state.id), T.saisiesAProposer(liste, 'B').map((x) => x.state.id),
+            T.avecSaisie(Array.from({ length: 8 }, (_, i) => sa('Z' + i, 'z', [], i + 1)), sa('N', 'n', [], 0)).length],
+          [['A', 'B'], 'Alpha · 2 ouvertures', false, true, true, ['A', 'B', 'OLD'], ['B'], ['B'], T.MAX_SAISIES]);
+        const av = (o, k) => { const a = T.avisMesure(o, k); return a ? NE(a.niveau + ' | ' + a.texte + ' | ' + a.propose) : null; };
+        check('S5 C — Les mesures qui sortent de l’ordinaire : des centimètres tapés pour des millimètres, un zéro de trop, le maximum du caisson ou de la tente ; une mesure normale ne dit rien',
+          [av({ type: 'screen', largeur: 250 }, 'largeur'), av({ type: 'screen', hauteur: 25 }, 'hauteur'), av({ type: 'screen', largeur: 12000 }, 'largeur'),
+            av({ type: 'volet_roulant', hauteur: 1900, caisson_mesure: '165' }, 'hauteur'), av({ type: 'tente_solaire', modele: 'BX270', largeur: 7200 }, 'largeur'),
+            av({ type: 'screen', largeur: 1500 }, 'largeur'), T.avisOuverture({ type: 'tente_solaire', largeur: 250, projection: 280, hauteur: 100 }).map((a) => a.champ)],
+          ['petit | 250 mm, c’est 25 cm. | 2500', 'petit | 25 mm, c’est 2,5 cm. | 2500', 'grand | 12 000 mm, c’est 12 m. | 1200',
+            'max | 1 900 mm : au-delà du maximum du caisson 165 (1 870 mm). | null', 'max | 7 200 mm : au-delà du maximum de la BX270 (7 000 mm). | null', null, ['largeur', 'projection']]);
+        check('S6 Règle 1 — Ce qu’un devis existant permet ici : un brouillon sans prix se complète ; un prix, une ligne du bureau, un statut « envoyé » ou un dépannage le renvoient au bureau ; la liste ne porte que son total',
+          [T.modifiableIci(null).ok, T.modifiableIci({ statut: 'brouillon', items: [{ largeur: 1000 }] }).ok,
+            T.modifiableIci({ statut: 'brouillon', items: [{ prix_catalogue_ht: 1500 }], calculs: { total_ttc: 2100 } }), T.modifiableIci({ statut: 'brouillon', items: [], pricing_v2: { extras: [{ label: 'Main-d’œuvre' }] } }).raison,
+            T.modifiableIci({ statut: 'envoye_client' }), T.modifiableIci({ type_document: 'depannage' }).raison, T.modifiableIci({ statut: 'brouillon', total_ttc: 900 }).raison],
+          [true, true, { ok: false, raison: 'chiffre', total: 2100 }, 'chiffre', { ok: false, raison: 'statut', statut: 'envoye_client' }, 'depannage', 'chiffre']);
+        const rv = (id, statut, j, h, extra) => Object.assign({ id, statut, date_rdv: J(j) + 'T' + h, client: cli('C' + id, 'N' + id) }, extra || {});
+        const lst = [{ id: 'DV', rdv_id: 'V4', statut: 'brouillon', total_ttc: 0, item_types_json: '[]' }, { id: 'DC', statut: 'brouillon', total_ttc: 1800, item_types_json: '["screen"]' },
+          { id: 'DF', rdv_id: 'V8', statut: 'brouillon', total_ttc: 0, item_types_json: '["screen"]' }, { id: 'DH', rdv_id: 'V3', statut: 'brouillon', total_ttc: 0, item_types_json: '["volet_roulant"]' }];
+        const vs = T.visites([rv('V1', 'rdv_fixe', 0, '10:00'), rv('V2', 'rdv_fixe', -1, '14:30'), rv('V3', 'visite', -1, '09:00'), rv('V4', 'converti', 0, '16:00', { devis_id: 'DV' }),
+          rv('V5', 'rdv_fixe', 0, '08:30', { devis_id: 'DC' }), rv('V6', 'annule', 0, '11:00'), rv('V7', 'rdv_fixe', 1, '10:00'), rv('V8', 'converti', 0, '12:00'), rv('V9', 'rdv_fixe', -3, '10:00')], lst, AUJ);
+        check('S7 A — Les visites du jour : aujourd’hui à l’heure, puis hier sans devis ; une demande « Converti » seulement si son devis est VIDE ; ni annulée, ni demain, ni il y a trois jours ; le vendeur est celui qui visite',
+          [vs.map((v) => v.rdv.id + ':' + (v.ecart === 0 ? v.heure : v.quand) + ':' + (v.etat || '-')), T.vendeurDe({ key: 'yannick' }), T.vendeurDe(null), T.etatDevisLie({ statut: 'brouillon', items: [{ largeur: 1 }] })],
+          [['V5:08:30:chiffre', 'V1:10:00:-', 'V4:16:00:vide', 'V2:hier:-'], 'yannick', 'nicolas', 'commence']);
+        const mq = T.manques([{ type: 'screen', largeur: 1000, hauteur: 1000, variante: 'Standard', collection: 'x', couleur: '7016', caisson_mesure: '90x95' }, { type: 'volet_roulant', emplacement: 'Salon' }]);
+        check('S8 G — Ce qui manque porte son ouverture et son champ (pour être un bouton)', [mq[0], mq.length], [{ i: 0, k: 'moteur_ref', l: 'Moteur', ou: '' }, 7]);
+
+        // ══════════ R — LA ROUTE ══════════
+        titre('R — La liste des devis porte le lien avec la demande (vrai serveur)');
+        await BANC.demarrer();
+        brancherReseau();
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        CLES.forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
+        await SS.saveDevis({ id: 'R-LIEN', statut: 'brouillon', client: cli('Rémi', 'Lien'), items: [], rdv_id: 'RDV-R', date_creation: AUJ, date_modification: new Date().toISOString() });
+        const lr = (await SS.listDevis()).find((x) => x.id === 'R-LIEN');
+        check('R1 La liste projette `rdv_id` et `normDevis` le garde : sans lui, une demande dont la mise à jour avait échoué ne retrouvait plus son devis (et « Créer le devis » réapparaissait)',
+          [lr && lr.rdv_id, U.normDevis(lr).rdv_id], ['RDV-R', 'RDV-R']);
+
+        // ══════════ P — LA PAGE ══════════
+        titre('P — La vraie page, branchée sur le banc (390 px)');
+        BANC.nouvelleBase(true); BANC.viderCaches();
+        await SS.saveClient({ key: U.clientKeyOf('Martine', 'Dubois'), prenom: 'Martine', nom: 'Dubois', telephone: '0478 11 22 33', email: 'martine@exemple.invalid', adresse: { rue: 'Rue Haute', numero: '4', code_postal: '1300', ville: 'Wavre' } });
+        await SS.saveClient({ key: U.clientKeyOf('Jean', "L'Hoest"), prenom: 'Jean', nom: "L'Hoest", telephone: '0476 98 76 54', email: '', adresse: { rue: "Rue de l'Église", numero: '9', code_postal: '1420', ville: "Braine-l'Alleud" } });
+        await SS.saveClient({ key: U.clientKeyOf('Hélène', 'Charlier'), prenom: 'Hélène', nom: 'Charlier', telephone: '0477 12 34 56', email: '', adresse: { rue: 'Rue de l’Église', numero: '3', code_postal: '1348', ville: 'Louvain-la-Neuve' } });
+        const poserRdv = (o) => comme(o.par || 'nicolas', () => SS.saveRdv(Object.assign({ assigned_to: 'nicolas', source: 'Téléphone', creneaux: [], photos: [], projet: '', date_creation: ilYaH(48), date_modification: ilYaH(48) }, o)));
+        await poserRdv({ id: 'TV-1', statut: 'rdv_fixe', date_rdv: AUJ + 'T10:00', client: cli('Gaëlle', 'Terrain', '0479 21 43 65', 'Namur') });
+        await poserRdv({ id: 'TV-2', statut: 'rdv_fixe', date_rdv: J(-1) + 'T14:30', client: cli('Bruno', 'Hier', '', 'Gembloux'), assigned_to: 'yannick', par: 'yannick' });
+        await SS.saveDevis({ id: 'D-TV4', statut: 'brouillon', rdv_id: 'TV-4', items: [], client: Object.assign({ civilite: 'M.' }, cli('Denis', 'Vide', '0471 55 66 77', 'Wavre')),
+          pricing_v2: { note: 'Projet (via demande de RDV) : Volets cuisine' }, date_creation: AUJ, date_modification: new Date().toISOString() });
+        await poserRdv({ id: 'TV-4', statut: 'converti', devis_id: 'D-TV4', date_rdv: AUJ + 'T16:00', client: cli('Denis', 'Vide', '0471 55 66 77', 'Wavre') });
+        await SS.saveDevis({ id: 'D-TV5', statut: 'brouillon', items: [{ type: 'screen', largeur: 2000, hauteur: 1800, prix_catalogue_ht: 1500, quantite: 1 }], calculs: { total_ttc: 2235.6 },
+          client: cli('Eva', 'Chiffre', '0472 10 20 30', 'Namur'), date_creation: AUJ, date_modification: new Date().toISOString() });
+        await poserRdv({ id: 'TV-5', statut: 'rdv_fixe', devis_id: 'D-TV5', date_rdv: AUJ + 'T08:30', client: cli('Eva', 'Chiffre', '0472 10 20 30', 'Namur') });
+        await poserRdv({ id: 'TV-6', statut: 'annule', date_rdv: AUJ + 'T11:00', client: cli('Anne', 'Annulée') });
+        await poserRdv({ id: 'TV-7', statut: 'rdv_fixe', date_rdv: J(1) + 'T10:00', client: cli('Demain', 'Plus Tard') });
+        BANC.viderCaches();
+
+        // P1 — L'écran d'abord : le réseau ne répond pas, la page s'affiche quand même, avec la saisie gardée.
+        localStorage.setItem('ss_terrain_brouillon', JSON.stringify({ v: 1, quand: ilYaH(2), etape: 'items', itemIdx: 0,
+          state: { id: 'DEV-OLD', version: '3.0', date_creation: AUJ, statut: 'brouillon', isExisting: false,
+            items: [{ _id: 'it1', type: 'volet_roulant', quantite: 1, photos: [], largeur: 1200, hauteur: 1400, emplacement: 'Salon' }, { _id: 'it2', type: 'screen', quantite: 1, photos: [], largeur: 2000, hauteur: 1800, emplacement: 'Cuisine' }] },
+          client: { prenom: 'Olga', nom: 'Ancienne', adresse: {} }, params: { tva: '6', acompte: '50' } }));
+        let lacher; RESEAU.bloque = new Promise((r) => { lacher = r; });
+        let f = await BANC.cadre('../app/terrain.html?t=' + Date.now(), 390, 844);
+        let w = f.contentWindow, d = f.contentDocument;
+        simulerHistorique(w);
+        await attendre(500);
+        // Un autre onglet du Mode Terrain ouvert sur cette origine peut y garder SA saisie : on ne lit que la nôtre.
+        const olga = [...d.querySelectorAll('#terrSaisies .sa-n')].map(txt).find((s) => /^Olga/.test(s)) || null;
+        const avantReseau = [w.eval('step'), !!d.querySelector('.wiz-screen.active[data-step="client"]'), olga, txt(d.getElementById('wizBar')), w.eval('ANNUAIRE_PRET')];
+        lacher(); RESEAU.bloque = null;
+        await attendreQue(() => w.eval('ANNUAIRE_PRET') && w.eval('IDENT && IDENT.key'), 9000); await attendre(150);
+        w.confirm = () => true;
+        check('P1 L’ÉCRAN D’ABORD : réseau muet, l’étape Client et la saisie gardée (l’ancien emplacement repris) s’affichent quand même — c’était une page vide ; le reste arrive ensuite',
+          [f.branche, avantReseau, w.eval('ANNUAIRE_PRET')], [true, ['client', true, 'Olga Ancienne · 2 ouvertures · il y a 2 h', 'Continuer → Ouvertures', false], true]);
+        const vis = [...d.querySelectorAll('#visitesDuJour .vi-l')].map(txt);
+        check('P2 A — Les visites du jour en tête de l’étape Client, à l’heure : la demande au devis chiffré le dit, celle au devis vide aussi, celle d’hier de Yannick est nommée ; ni l’annulée, ni demain',
+          [txt(d.querySelector('#visitesDuJour .vi-t')), vis, compiles(d)],
+          ['Visites à encoder', ['08:30 Eva Chiffre Namur · devis déjà chiffré', '10:00 Gaëlle Terrain Namur', '16:00 Denis Vide Wavre · devis à compléter', 'hier Bruno Hier Gembloux · Yannick'], []]);
+        // P3 — la recherche et les doublons
+        tape(d.getElementById('clientSearch'), 'helene');
+        const r1 = [...d.querySelectorAll('#clientHits .client-hit .ci-name')].map(txt);
+        tape(d.getElementById('clientSearch'), '0477123456');
+        const r2 = [...d.querySelectorAll('#clientHits .client-hit .ci-name')].map(txt);
+        tape(d.getElementById('clientSearch'), 'hoest');
+        const r3 = [...d.querySelectorAll('#clientHits .client-hit .ci-name')].map(txt), c3 = compiles(d);
+        d.querySelector('#clientHits .client-hit').click(); await attendre(20);
+        const pris = d.getElementById('tVille').value;
+        ['tPrenom', 'tNom', 'tTel', 'tEmail', 'tRue', 'tNumero', 'tCp', 'tVille'].forEach((id) => { d.getElementById(id).value = ''; });
+        w.eval('dirty = false');
+        tape(d.getElementById('clientSearch'), '');
+        check('P3 D — La recherche ignore les accents et lit un téléphone tapé d’un bloc ; un nom à apostrophe (L’Hoest) se choisit ; chercher n’est pas une saisie (rien gardé, rien à « quitter »)',
+          [r1, r2, r3, c3, pris, w.eval('dirty'), d.querySelector('#clientHits .client-hit') === null], [['Hélène Charlier'], ['Hélène Charlier'], ["Jean L'Hoest"], [], "Braine-l'Alleud", false, true]);
+        tape(d.getElementById('tPrenom'), 'Marie'); tape(d.getElementById('tNom'), 'Durand'); tape(d.getElementById('tTel'), '0478112233');
+        const dbl = txt(d.querySelector('#doublonsClient .doublon-bloc'));
+        const btnFiche = d.querySelector('#doublonsClient .doublon-bloc button'); if (btnFiche) btnFiche.click(); await attendre(30);
+        check('P4 D — Un client qui existe peut-être déjà se DIT à la saisie (même téléphone), et « Utiliser sa fiche » reprend ses coordonnées ; le bandeau se tait ensuite',
+          [dbl, [d.getElementById('tPrenom').value, d.getElementById('tNom').value, d.getElementById('tVille').value], d.querySelector('#doublonsClient .doublon-bloc')],
+          ['Ce client existe peut-être déjà Martine Dubois · même téléphone · Wavre Utiliser sa fiche', ['Martine', 'Dubois', 'Wavre'], null]);
+        // P5 — la saisie retrouvée, puis une ouverture ajoutée : l'identifiant ne se répète plus
+        w.reprendreBrouillon('DEV-OLD'); await attendre(30);
+        w.addItemAndGo(); await attendre(20);
+        const neuve = w.eval('state.items[2]._id');
+        d.querySelector('.item-card .type-tile[onclick*="tente_solaire"]').click(); await attendre(20);
+        w.SSUI.compressAndUploadPhoto = () => Promise.resolve(PHOTO);
+        w.addPhotos(w.eval('state.items[2]._id'), { files: [new File([new Uint8Array([1])], 'p.png', { type: 'image/png' })], value: '' });
+        await attendreQue(() => w.eval('state.items[2].photos.length'), 2000);
+        check('P5 La saisie reprise garde ses ouvertures ; la NOUVELLE a son propre identifiant : sa tuile « Tente » et sa photo vont sur elle (avant : le volet du salon devenait une tente, la photo partait sur l’ouverture 1)',
+          [w.eval('state.id'), w.eval('state.items.map(i => i.type)'), w.eval('state.items.map(i => i.photos.length)'), new Set(w.eval('state.items.map(i => i._id)')).size, w.eval('state.items[2]._id') === neuve],
+          ['DEV-OLD', ['volet_roulant', 'screen', 'tente_solaire'], [0, 0, 1], 3, true]);
+        // P6 — mesures, bandeau, retrait
+        w.addItemAndGo(); await attendre(20);
+        const neuveSansBandeau = [d.querySelector('#itemsBody .manque-bloc'), d.querySelector('.ouv-tile.active').classList.contains('incomplet')];
+        tape(champ(d, 'largeur'), '250'); await attendre(20);
+        const avis = txt(d.querySelector('.mesure-avis')), bandeau = txt(d.querySelector('#itemsBody .manque-tete'));
+        d.querySelector('.mesure-avis button').click(); await attendre(20);
+        check('P6 B / C — Une ouverture NEUVE ne réclame rien (règle 36) ; la première mesure l’allume ; « 250 mm, c’est 25 cm » se corrige d’un appui',
+          [neuveSansBandeau, avis, bandeau, champ(d, 'largeur').value, w.eval('state.items[currentItemIdx].largeur'), d.querySelector('.mesure-avis')],
+          [[null, false], '250 mm, c’est 25 cm. C’était 2 500 mm ?', '6 info(s) à compléter', '2500', 2500, null]);
+        const nAvant = w.eval('state.items.length');
+        w.removeCurrentItem(); await attendre(20);
+        const barreRetrait = [w.eval('state.items.length'), txt(d.querySelector('#wizBar .annuler')), parseInt(w.getComputedStyle(d.body).paddingBottom, 10) >= d.getElementById('wizBar').offsetHeight];
+        const btnAnnuler = d.querySelector('#wizBar .annuler button'); if (btnAnnuler) btnAnnuler.click(); await attendre(20);
+        check('P7 F — Retirer une ouverture se DÉFAIT : « Annuler » sous le pouce la remet à sa place, avec ce qu’on avait saisi ; le bas de page suit la barre qui grandit',
+          [nAvant, barreRetrait, w.eval('state.items.length'), w.eval('state.items[currentItemIdx].largeur'), d.querySelector('#wizBar .annuler')], [4, [3, 'Ouverture 4 retirée Annuler', true], 4, 2500, null]);
+        // photos : voir en grand, retirer, annuler
+        w.goToItem(2); await attendre(20);
+        d.querySelector('.item-card .ph-voir').click(); await attendre(20);
+        const lb = d.getElementById('ssLightbox');
+        const lbOuverte = !!lb && lb.classList.contains('open');
+        w.SSUI.fermerPhotos();
+        d.querySelector('.item-card .ph-x').click(); await attendre(20);
+        const apresX = [w.eval('state.items[2].photos.length'), txt(d.querySelector('#wizBar .annuler'))];
+        w.annulerRetrait(); await attendre(20);
+        check('P8 F — Une photo s’ouvre en grand dans la page (règle 26) ; la retirer se défait',
+          [lbOuverte, apresX, w.eval('state.items[2].photos.length'), d.querySelectorAll('.item-card .photo-thumb').length], [true, [0, 'Photo retirée Annuler'], 1, 1]);
+        // la saisie suivante ne remplace plus la précédente
+        w.resetWizard(); await attendre(20);
+        tape(d.getElementById('tPrenom'), 'Nina'); tape(d.getElementById('tNom'), 'Nouvelle');
+        await attendreQue(() => saisies().some((x) => x.client.prenom === 'Nina'), 2500);
+        // Martine Dubois aussi : choisie en P4, elle a été gardée avant que « Reprendre » ne la remplace à l'écran.
+        const NOS_SAISIES = ['Martine Dubois', 'Nina Nouvelle', 'Olga Ancienne'];
+        check('P9 E — Une visite commencée sans répondre au bandeau ne remplace plus les saisies gardées : chacune garde la sienne, l’ancien emplacement unique est repris',
+          [saisies().map((x) => (x.client.prenom || '') + ' ' + (x.client.nom || '')).filter((n) => NOS_SAISIES.includes(n)).sort(), localStorage.getItem('ss_terrain_brouillon')], [NOS_SAISIES, null]);
+        // P10 — la visite de 10:00 : client rempli, devis lié, demande convertie
+        w.resetWizard(); await attendre(20);
+        await w.choisirVisite('TV-1'); await attendre(30);
+        const lie = [d.getElementById('tPrenom').value + ' ' + d.getElementById('tNom').value, d.getElementById('tVille').value, txt(d.querySelector('#visitesDuJour .visite-liee'))];
+        w.goStep('items'); await attendre(20);
+        d.querySelector('.item-card .type-tile[onclick*="volet_roulant"]').click(); await attendre(20);
+        tape(champ(d, 'emplacement'), 'Séjour'); tape(champ(d, 'largeur'), '1200'); tape(champ(d, 'hauteur'), '1400');
+        w.goStep('recap'); await attendre(20);
+        const boutons = [...d.querySelectorAll('#trSummary .manque-ouv .ch')].map((b) => b.tagName + ' ' + txt(b));
+        const compilesEtapes = compiles(d);
+        const vendeurRecap = txt(d.querySelector('.rc-client .text-muted'));
+        d.querySelector('#trSummary .manque-ouv .ch').click(); await attendre(120);
+        const mene = [w.eval('step'), w.eval('currentItemIdx'), d.activeElement && d.activeElement.getAttribute('data-f')];
+        w.goStep('recap'); await attendre(20);
+        // Pendant la visite, Yannick touche à la demande : la page la tient d'avant (règle 54, conflit).
+        await comme('yannick', () => SS.saveRdv(Object.assign({}, rdvB('TV-1'), { projet: 'Changé par Yannick', _attendu: rdvB('TV-1').edite_le })));
+        RESEAU.posts = 0;
+        const p1 = w.finalizeSave(), p2 = w.finalizeSave();
+        const libelle = txt(d.getElementById('btnEnregistrer'));
+        await p1; await p2;
+        await attendreQue(() => w.eval('step') === 'done', 4000);
+        const idTV1 = w.eval('state.savedId');
+        check('P10 A — Un appui sur la visite remplit le client et la LIE ; le récap mène au champ qui manque ; le vendeur est celui qui visite ; tous les gestionnaires générés des trois étapes compilent',
+          [lie, boutons.slice(0, 2), vendeurRecap, mene, compilesEtapes], [['Gaëlle Terrain', 'Namur', 'Visite liée : Gaëlle Terrain · ' + U.fmtDate(AUJ + 'T10:00') + ' 10:00 Délier'],
+            ['BUTTON Type de lame →', 'BUTTON Caisson →'], 'Vendeur : Nicolas · visite liée à sa demande', ['items', 0, 'lame_type'], []]);
+        check('P11 G — Enregistrer : un double appui n’envoie qu’UNE fois ; le devis porte la demande et le vendeur ; la demande passe « Converti » et pointe vers lui, SANS écraser ce que Yannick y a changé pendant la visite ; l’écran de fin le dit ; la saisie gardée de ce devis s’efface',
+          [RESEAU.posts, libelle, devisB(idTV1).rdv_id, devisB(idTV1).pricing_v2.material.sellers.principal, devisB(idTV1).pricing_v2.note, rdvB('TV-1').statut, rdvB('TV-1').devis_id === idTV1, rdvB('TV-1').projet,
+            txt(d.getElementById('doneTitre')), [...d.querySelectorAll('#doneEtat .fin-l')].map(txt), saisies().some((x) => x.state.id === idTV1)],
+          [1, 'Enregistrement…', 'TV-1', 'nicolas', 'Créé via Mode Terrain', 'converti', true, 'Changé par Yannick', 'Devis enregistré', ['Demande de Gaëlle Terrain : passée en « Converti », devis lié.'], false]);
+        // P12 — la demande au devis VIDE : on complète celui-là
+        w.resetWizard(); await attendre(20);
+        await w.choisirVisite('TV-4'); await attendre(30);
+        w.goStep('items'); await attendre(20);
+        tape(champ(d, 'largeur'), '1800'); tape(champ(d, 'hauteur'), '1600');
+        w.goStep('recap'); await attendre(20);
+        await w.finalizeSave(); await attendreQue(() => w.eval('step') === 'done', 4000);
+        const lies = BANC.sqlL("SELECT id FROM devis WHERE json_extract(data, '$.rdv_id') = 'TV-4'").map((x) => x[0]);
+        check('P12 A — Une demande déjà « Converti » au devis vide : on COMPLÈTE ce devis (une demande, un devis) ; sa note du bureau et la civilité du client survivent',
+          [w.eval('state.savedId'), lies, (devisB('D-TV4').items || []).length, devisB('D-TV4').pricing_v2.note, devisB('D-TV4').client.civilite, rdvB('TV-4').devis_id, [...d.querySelectorAll('#doneEtat .fin-l')].map(txt)],
+          ['D-TV4', ['D-TV4'], 1, 'Projet (via demande de RDV) : Volets cuisine', 'M.', 'D-TV4', ['Demande de Denis Vide : passée en « Converti », devis lié.']]);
+        // P13 — la demande au devis CHIFFRÉ : refusé, rien de chargé
+        w.resetWizard(); await attendre(20);
+        await w.choisirVisite('TV-5'); await attendre(30);
+        check('P13 Règle 1 — La demande au devis déjà chiffré : on le DIT et l’on ne charge rien (ses prix vivent au simulateur)',
+          [w.eval('state.id') === 'D-TV5', w.eval('state.rdvId'), /déjà un devis chiffré \(n° D-TV5\)/.test(txt(d.getElementById('toasts')) || ''), d.getElementById('tNom').value], [false, null, true, '']);
+        f.remove();
+
+        // P14 — ?id= d'un devis chiffré : l'écran l'explique, et rien ne peut l'enregistrer d'ici
+        const avant5 = JSON.stringify(devisB('D-TV5'));
+        f = await ouvrir('?id=D-TV5&t=' + Date.now());
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => w.eval('step') === 'refus', 4000);
+        check('P14 Règle 1 — Rouvrir un devis chiffré : il était recalculé aux réglages du jour, Nicolas en vendeur, sans ses lignes du bureau ; maintenant l’écran dit pourquoi il se modifie au simulateur, et rien n’est écrit',
+          [w.eval('step'), txt(d.getElementById('refusTitre')), /déjà chiffré \(2 235,60 € TVAC\)/.test(txt(d.getElementById('refusTexte'))), d.querySelector('.wiz-steps').hidden, txt(d.getElementById('wizBar')), JSON.stringify(devisB('D-TV5')) === avant5],
+          ['refus', 'Devis n° D-TV5 — Eva Chiffre', true, true, '', true]);
+        f.remove();
+
+        // P15 — ?id= d'un brouillon pas chiffré : ses taux, sa note, son vendeur, sa civilité restent
+        await comme('yannick', () => SS.saveDevis({ id: 'D-RATES', statut: 'brouillon', client: Object.assign({ civilite: 'Mme' }, cli('Inès', 'Taux', '0473 44 55 66', 'Ottignies')),
+          items: [{ type: 'screen', largeur: 1000, hauteur: 1000, quantite: 1 }],
+          pricing_v2: { rates: { supplier_rate: 0.7, material_margin: 0.3, net_divisor: 2.5 }, note: 'Note du bureau', seller_parts: { principal: 20, second: 5 }, material: { sellers: { mode: 'fixed', principal: 'yannick' } }, projet_bureau: 'garde-moi' },
+          date_creation: AUJ, date_modification: new Date().toISOString() }));
+        f = await ouvrir('?id=D-RATES&t=' + Date.now());
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => w.eval('step') === 'client', 4000);
+        const charge = [d.getElementById('tPrenom').value, d.getElementById('terrVendeur').value, w.eval('state.isExisting')];
+        w.goStep('recap'); await attendre(20);
+        await w.finalizeSave(); await attendreQue(() => w.eval('step') === 'done', 4000);
+        const pr = devisB('D-RATES').pricing_v2;
+        check('P15 Règle 1 — Un brouillon pas encore chiffré se complète, et ce que le bureau avait posé SURVIT : ses taux, sa note, ses parts, son vendeur, une clé que la page ne connaît pas, la civilité',
+          [charge, [pr.rates.supplier_rate, pr.rates.material_margin], pr.note, pr.seller_parts, pr.material.sellers.principal, pr.projet_bureau, devisB('D-RATES').client.civilite],
+          [['Inès', 'yannick', true], [0.7, 0.3], 'Note du bureau', { principal: 20, second: 5 }, 'yannick', 'garde-moi', 'Mme']);
+        f.remove();
+
+        // P16 — chiffré au bureau PENDANT la visite : on ne réécrit pas, la saisie reste gardée
+        await SS.saveDevis({ id: 'D-LATE', statut: 'brouillon', client: cli('Léa', 'Tardive', '', 'Wavre'), items: [{ type: 'screen', largeur: 1500, hauteur: 1500, quantite: 1 }], date_creation: AUJ, date_modification: new Date().toISOString() });
+        f = await ouvrir('?id=D-LATE&t=' + Date.now());
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => w.eval('step') === 'client', 4000);
+        w.goStep('items'); await attendre(20);
+        tape(champ(d, 'emplacement'), 'Bureau');
+        const auBureau = Object.assign({}, devisB('D-LATE'), { items: [{ type: 'screen', largeur: 1500, hauteur: 1500, quantite: 1, prix_catalogue_ht: 900 }], calculs: { total_ttc: 1350 } });
+        await comme('yannick', () => SS.saveDevis(auBureau));
+        w.goStep('recap'); await attendre(20);
+        await w.finalizeSave(); await attendre(200);
+        check('P16 Règle 1 — Chiffré au bureau pendant la visite : l’enregistrement d’ici est REFUSÉ et le dit ; le prix du bureau reste ; la saisie reste gardée sur le téléphone',
+          [w.eval('step'), /chiffré ou envoyé entre-temps/.test(txt(d.getElementById('toasts')) || ''), devisB('D-LATE').items[0].prix_catalogue_ht, devisB('D-LATE').items[0].emplacement || '', saisies().some((x) => x.state.id === 'D-LATE')],
+          ['recap', true, 900, '', true]);
+        f.remove();
+
+        // P17 — Yannick sur le terrain : le devis est à son nom ; photo en route attendue ; hors-ligne dit tel quel
+        BANC.ident = BANC.YANNICK;
+        f = await ouvrir();
+        w = f.contentWindow; d = f.contentDocument;
+        tape(d.getElementById('tPrenom'), 'Yves'); tape(d.getElementById('tNom'), 'Photo');
+        w.goStep('items'); await attendre(20);
+        tape(champ(d, 'largeur'), '2000'); tape(champ(d, 'hauteur'), '2000');
+        let livrer; w.SSUI.compressAndUploadPhoto = () => new Promise((r) => { livrer = () => r(PHOTO); });
+        w.addPhotos(w.eval('state.items[0]._id'), { files: [new File([new Uint8Array([1])], 'p.png', { type: 'image/png' })], value: '' });
+        const enRoute = txt(d.querySelector('.item-card .envoi-photos'));
+        w.goStep('recap'); await attendre(20);
+        const vendeurY = [d.getElementById('terrVendeur').value, txt(d.querySelector('.rc-client .text-muted'))];
+        RESEAU.posts = 0;
+        const sauve = w.finalizeSave(); await attendre(60);
+        const pendant = [txt(d.getElementById('btnEnregistrer')), RESEAU.posts];
+        livrer(); await sauve; await attendreQue(() => w.eval('step') === 'done', 4000);
+        const idY = w.eval('state.savedId');
+        check('P17 G / F — Yannick sur le terrain : le devis est à SON nom (« nicolas » était écrit en dur) ; une photo encore en route est attendue et entre dans le devis (elle arrivait après, perdue)',
+          [enRoute, vendeurY, pendant, (devisB(idY).items || [])[0] && devisB(idY).items[0].photos.length, devisB(idY).pricing_v2.material.sellers.principal],
+          ['1 photo en cours d’envoi…', ['yannick', 'Vendeur : Yannick'], ['Envoi des photos…', 0], 1, 'yannick']);
+        w.resetWizard(); await attendre(20);
+        tape(d.getElementById('tPrenom'), 'Hugo'); tape(d.getElementById('tNom'), 'Horsligne');
+        w.goStep('items'); await attendre(20); tape(champ(d, 'largeur'), '1500'); tape(champ(d, 'hauteur'), '1500');
+        w.goStep('recap'); await attendre(20);
+        RESEAU.horsLigne = true;
+        await w.finalizeSave(); await attendreQue(() => w.eval('step') === 'done', 4000);
+        RESEAU.horsLigne = false;
+        check('P18 Règle 6 — Sans réseau, l’écran de fin ne dit plus « Devis enregistré » en vert : « Gardé sur ce téléphone », et pourquoi',
+          [txt(d.getElementById('doneTitre')), d.getElementById('doneIco').classList.contains('attente'), /^Pas de réseau : le devis partira tout seul dès son retour/.test(txt(d.querySelector('#doneEtat .fin-l')) || '')],
+          ['Gardé sur ce téléphone', true, true]);
+        w.resetWizard(); await attendre(20);
+        tape(d.getElementById('tPrenom'), 'Fanny'); tape(d.getElementById('tNom'), 'Fiche');
+        w.goStep('items'); await attendre(20); tape(champ(d, 'largeur'), '1000');
+        w.goStep('recap'); await attendre(20);
+        RESEAU.ficheKo = true;
+        await w.finalizeSave(); await attendreQue(() => w.eval('step') === 'done', 4000);
+        RESEAU.ficheKo = false;
+        check('P19 Règle 6 — La fiche client refusée se DIT (elle passait en silence) ; le devis, lui, est enregistré',
+          [txt(d.getElementById('doneTitre')), [...d.querySelectorAll('#doneEtat .fin-l')].map(txt), !!devisB(w.eval('state.savedId')).id],
+          ['Devis enregistré', ['La fiche client n’a pas été mise à jour (refus test) — le devis, lui, est enregistré.'], true]);
+        f.remove();
+        BANC.ident = BANC.NICOLAS;
+
+        // ══════════ T — TÉLÉPHONE ══════════
+        titre('T — Sur téléphone (375 px), tactile, et « retour »');
+        f = await ouvrir('?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        const L = d.documentElement.clientWidth;
+        const deborde = () => [...d.querySelectorAll('main *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.right > L + 1; }).map((e) => e.id || e.className || e.tagName).slice(0, 6);
+        const debClient = deborde();
+        w.goStep('items'); await attendre(30);
+        const tuiles = [...d.querySelectorAll('.type-tile')].map((t) => Math.round(t.getBoundingClientRect().top));
+        const saisiesCachees = !!d.getElementById('terrSaisies') && !d.getElementById('terrSaisies').offsetParent;
+        const barre = d.getElementById('wizBar').getBoundingClientRect().top;
+        const larg = champ(d, 'largeur').getBoundingClientRect();
+        check('T1 B — Sur téléphone : rien ne dépasse ; le type tient en UNE rangée ; les saisies gardées restent à l’étape Client ; la largeur est dans le premier écran, au-dessus de la barre (elle était à 779 px, sous six « à compléter ») ; la barre du bas n’est plus floutée (iPhone)',
+          [debClient, deborde(), new Set(tuiles).size, saisiesCachees, Math.round(larg.bottom) < Math.round(barre), w.getComputedStyle(d.getElementById('wizBar')).backdropFilter],
+          [[], [], 1, true, true, 'none']);
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
+        const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE.test(x.media.mediaText)) blocsT.push(x); if (x.cssRules) parc(x.cssRules); } };
+        for (const sh of d.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); }
+        blocsT.forEach((x) => { x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
+        w.SSUI.compressAndUploadPhoto = () => Promise.resolve(PHOTO);
+        w.addPhotos(w.eval('state.items[0]._id'), { files: [new File([new Uint8Array([1])], 'p.png', { type: 'image/png' })], value: '' });
+        await attendreQue(() => d.querySelector('.item-card .ph-x'), 2000);
+        tape(champ(d, 'largeur'), '250'); await attendre(20);
+        const hh = (sel) => { const e = d.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
+        check('T2 Écran tactile (blocs « pointer: coarse » forcés) : la croix d’une photo, la correction d’une mesure et les tuiles de type se touchent au doigt',
+          [hh('.item-card .ph-x') >= 40, hh('.mesure-avis .btn') >= 40, hh('.type-tile') >= 44], [true, true, true]);
+        f.remove();
+        // « Retour » par une VRAIE navigation (un document écrit n'a pas d'historique à lui, règle 47) ; les étapes de garde
+        // de CETTE page absorbent et comptent un « retour » qui s'échapperait.
+        let fuites = 0;
+        const gardeRetour = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', gardeRetour);
+        f = await cadreNavigue('../app/terrain.html?t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => w.eval('step') === 'client', 6000); await attendre(150);
+        w.confirm = () => true;
+        const etats = [];
+        w.goStep('items'); etats.push(!!(w.history.state && w.history.state.terrainEtape));
+        w.goStep('recap'); etats.push(!!(w.history.state && w.history.state.terrainEtape));
+        w.history.back(); await attendreQue(() => w.eval('step') === 'items', 2000); await attendre(80);
+        etats.push(w.eval('step'), !!(w.history.state && w.history.state.terrainEtape));
+        let auClient = false, sortie = 0;
+        if (w.eval('step') === 'items') {
+          w.history.back(); await attendreQue(() => w.eval('step') === 'client', 2000); await attendre(80);
+          auClient = w.eval('step') === 'client' && !(w.history.state && w.history.state.terrainEtape);
+        }
+        // Le bouton « ← Client » retire la garde : un « retour » de là quitte la page du premier coup.
+        w.goStep('items'); await attendre(30);
+        d.querySelector('#wizBar .btn-ghost').click(); await attendre(250);
+        const apresBouton = [w.eval('step'), !!(w.history.state && w.history.state.terrainEtape), w.eval('GARDE')];
+        // Visionneuse ouverte : « retour » la ferme, on reste à l'étape.
+        w.goStep('items'); await attendre(30);
+        w.SSUI.ouvrirPhotos([PHOTO], 0);
+        w.history.back(); await attendreQue(() => !d.getElementById('ssLightbox').classList.contains('open'), 2000); await attendre(80);
+        const lbFerme = [d.getElementById('ssLightbox').classList.contains('open'), w.eval('step'), !!(w.history.state && w.history.state.terrainEtape)];
+        w.goStep('client'); await attendre(250);
+        sortie = fuites;
+        window.removeEventListener('popstate', gardeRetour);
+        check('T3 « Retour » sur téléphone = l’étape d’avant (il quittait le Mode Terrain) : récap → ouvertures → client ; « ← Client » retire l’étape ; visionneuse ouverte, « retour » la ferme d’abord ; aucun « retour » ne s’échappe',
+          [etats, auClient, apresBouton, lbFerme, sortie], [[true, true, 'items', true], true, ['client', false, false], [false, 'items', true], 0]);
+        f.remove();
+      } catch (e) {
+        check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      } finally {
+        if (bancFetch) BANC.fetch = bancFetch;
+        BANC.retirer();
+        BANC.remettre();
+        CLES.forEach((k) => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
+        rendreRes();
+      }
+    })();
+  </script>
+</body>
+</html>

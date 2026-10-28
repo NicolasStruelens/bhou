@@ -156,6 +156,10 @@
         BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
         let r = await poser({ id: 'RR1', client: cli('Anne', 'Lambert', '0477 11 22 33'), assigned_to: 'nicolas', statut: 'a_contacter', projet: 'Screens', inconnu: 'garde-moi' });
         const lue = rdvB('RR1');
+        // ⚠️ Le banc écrit en mémoire : deux écritures dans la MÊME milliseconde portent le même `edite_le`, et le
+        // conflit ne peut pas se voir (le cas échouait une fois sur quelques passages). Entre deux personnes, au
+        // travers du réseau, ça n'arrive pas ; ici on laisse passer l'horloge.
+        await attendre(3);
         await comme('yannick', () => SS.saveRdv(Object.assign({}, lue, { statut: 'rdv_fixe', date_rdv: J(3) + 'T10:00' })));
         let res = await SS.saveRdv(Object.assign({}, lue, { projet: 'Screens + volets', _attendu: lue.edite_le }));
         check('R1 CONFLIT : une fiche restée ouverte ne remet plus en silence l’étape et la date que Yannick vient de poser — refus, on dit qui, on rend sa version',
@@ -176,6 +180,7 @@
           [res.ok, rdvB('RR1').awaiting, (rdvB('RR1').comments || []).length, (rdvB('RR1').contacts || []).length, avantMsg.edite_le === lue.edite_le], [true, 'yannick', 1, 1, false]);
         await poser({ id: 'RR2', client: cli('Bea', 'Neuve', '0477 22 33 44'), statut: 'nouveau', assigned_to: '' });
         const avantC = rdvB('RR2');
+        await attendre(3);   // même raison qu'en R1 : le contact doit porter un autre `edite_le`
         const rc1 = await SS.addRdvContact('RR2', { canal: 'sms', type: 'creneaux' });
         const apresC = rdvB('RR2');
         const stale = await SS.saveRdv(Object.assign({}, avantC, { projet: 'x', _attendu: avantC.edite_le }));

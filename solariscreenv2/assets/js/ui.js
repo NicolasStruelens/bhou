@@ -396,6 +396,8 @@
       // bon d'intervention sans rien réécrire sur le ticket.
       sav_origine_devis: (d.sav_origine && d.sav_origine.devis_id) || d.sav_origine_devis || '',
       sav_origine_ticket: (d.sav_origine && d.sav_origine.ticket_id) || d.sav_origine_ticket || '',
+      // Le lien explicite avec la demande de RDV (règle 17) — projeté par la liste depuis la règle 55.
+      rdv_id: d.rdv_id || '',
       chantier_photos_count: d.chantier_photos_count || (d.chantier_photos ? d.chantier_photos.length : 0),
       date_envoi: d.date_envoi || '',
       relances: d.relances || [],
