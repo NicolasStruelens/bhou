@@ -72,6 +72,10 @@ class Serveur(ThreadingHTTPServer):
     # C'est le piège « un pkill ne tue pas toujours le serveur de test sous
     # Windows » de CLAUDE.md. On le neutralise ici : le démarrage doit ÉCHOUER.
     allow_reuse_address = False
+    # La file d'attente des connexions vaut 5 par défaut : l'audit (des dizaines de pages dans des
+    # cadres) et l'impression des PDF en parallèle la débordaient, et un script refusé laissait une
+    # page à moitié chargée — un faux défaut de plus à trier (28/10/2026).
+    request_queue_size = 128
 
 
 def main():

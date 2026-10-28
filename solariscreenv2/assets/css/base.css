@@ -195,6 +195,22 @@ a:hover { text-decoration: underline; }
      marque et `flex: 0 1 auto` sur les actions (plus bas) donnent aux boutons leur largeur
      réelle d'abord, le titre occupant ce qui reste et s'abrégeant en « … » si besoin. */
   .brand { --brand-gap: var(--sp-2); flex: 1 1 auto; }
+  /* ⚠️ LE LOGO NE S'ÉCRASE JAMAIS. Avec `min-width: 0`, la marque pouvait tomber à 2 px quand les
+     pastilles prenaient toute la rangée (fiche devis d'un chantier terminé : statut + « Garantie
+     active ») : le logo, qui ne rétrécit pas, se dessinait alors PAR-DESSUS le statut, et le nom de la
+     page disparaissait (trouvé par l'audit du 28/10/2026). La marque garde la place du logo et rogne
+     ce qui dépasse (nom, décor de fête) ; `padding: 1px` laisse passer les coins du logo, posés à −1 px.
+     C'est le titre qui cède en premier (`flex-shrink` 1000) ; s'il n'y a VRAIMENT plus de place, ce
+     sont les pastilles qui passent à la ligne (`flex: 0 1 auto` plus bas), jamais un chevauchement.
+     `.app-header .brand` et pas `.brand` : la règle de base (`min-width: 0`) est écrite PLUS BAS dans
+     cette feuille, à spécificité égale elle gagnerait — et le logo sortait coupé en deux. */
+  .app-header .brand { flex: 1 1000 auto; min-width: 40px; overflow: hidden; padding: 1px; }
+  /* Le nom de la page prend la place qui RESTE à côté du logo, et se tait quand elle ne suffit plus à le lire :
+     réduit à quelques pixels, il ne montrait qu'un « … » ou un « F… » (fiche devis chargée de pastilles,
+     audit du 28/10/2026). `container-type` fait mesurer cette place au conteneur du nom ; il ne dépend plus de
+     son texte, d'où `flex: 1 1 auto` pour qu'il reçoive l'espace libre. */
+  .app-header .brand > div { flex: 1 1 auto; container-type: inline-size; }
+  @container (max-width: 56px) { .app-header .brand .module { visibility: hidden; } }
   /* `min-width: 0` doit être posé sur le conteneur du texte AUSSI : sans lui, sa largeur
      minimale vaut celle du titre entier (« Portfolio de réalisations » = 234 px), le bandeau
      n'a plus la place pour ses boutons et les renvoie sur une seconde rangée. */
@@ -204,11 +220,12 @@ a:hover { text-decoration: underline; }
   /* `--ha-gap` plutôt que `gap` en dur : la règle `.header-actions` de base est écrite PLUS BAS
      dans cette feuille, à spécificité égale — elle gagnerait donc sur cette media query. Une
      variable lue par la règle de base est le seul moyen sûr de la surcharger d'ici. */
-  /* `flex: 0 0 auto` : les boutons ne rétrécissent JAMAIS pour laisser de la place au titre —
-     c'est l'inverse qui doit se produire. `max-width: 100%` garde le filet de sécurité : si un
-     jour la rangée dépasse à elle seule la largeur de l'écran, elle se replie à l'intérieur au
-     lieu de faire déborder la page entière. */
-  .header-actions { flex: 0 0 auto; max-width: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--sp-1); --ha-gap: var(--sp-1); }
+  /* Les boutons ne rétrécissent pas pour laisser de la place au titre — c'est l'inverse : la marque
+     cède d'abord (`flex-shrink` 1000, plus haut). `flex: 0 1 auto` ne sert qu'au dernier cas, quand
+     le titre est déjà à la largeur du seul logo : la rangée se replie alors à l'intérieur (pastilles
+     sur une seconde ligne) au lieu de pousser le logo sous elles. `max-width: 100%` garde le filet de
+     sécurité si la rangée dépasse à elle seule la largeur de l'écran. */
+  .header-actions { flex: 0 1 auto; max-width: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--sp-1); --ha-gap: var(--sp-1); }
   /* Boutons du bandeau : des CARRÉS IDENTIQUES de 44 px avec une icône de 20 px.
      Pourquoi 44 : sur un écran tactile, `@media (pointer: coarse)` (plus haut dans ce
      fichier) impose déjà `min-height: 44px` à tout `.btn` — les boutons faisaient donc

@@ -2576,7 +2576,7 @@
       copy.date_creation = SSUI.aujourdhui();
       copy.date_modification = new Date().toISOString();
       if (copy.client) copy.client.nom = (copy.client.nom || '') + ' (copie)';
-      const resDup = await SS.saveDevis(copy);
+      const resDup = await SS.saveDevis(copy, { creation: true });   // un numéro déjà pris est remplacé (copy.id suit)
       // Sans ce garde, on redirigeait vers un devis qui n'existe que dans le cache du navigateur.
       if (resDup.ok === false) { toast(resDup.error || 'Duplication NON enregistrée — réessaie.', 'error', 6000); return; }
       toast('Devis dupliqué', 'ok');
@@ -3098,11 +3098,16 @@
             else { figes[lourds[i].id] = lourds[i].poids; }   // rien de déportable : on n'y revient plus
             continue;
           }
+          // Le contrôle de conflit n'est pas une précaution de plus : sans lui, le serveur garde les
+          // tickets SAV et le journal de chantier tels qu'en base (ils n'appartiennent qu'à leurs routes),
+          // et les photos déplacées vers R2 ne seraient jamais écrites dans le devis.
+          const version = d.date_modification;
           d.date_modification = new Date().toISOString();
-          const res = await SS.saveDevis(d);
-          // Si l'enregistrement échoue, les photos sont DÉJÀ dans R2 mais le devis pointe encore
-          // sur ses images en clair : rien n'est perdu, la prochaine tentative les renverra.
-          if (res.ok === false) { echecs++; continue; }
+          const res = await SS.saveDevis(d, { expectedDateModification: version });
+          // Si l'enregistrement échoue (ou que quelqu'un a modifié le devis entre-temps), les photos sont
+          // DÉJÀ dans R2 mais le devis pointe encore sur ses images en clair : rien n'est perdu, la
+          // prochaine tentative les renverra.
+          if (res.ok === false || res.conflict) { echecs++; continue; }
           ok++; gagnes += r.octets;
         } catch (e) { echecs++; }
       }

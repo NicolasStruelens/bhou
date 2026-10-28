@@ -87,6 +87,8 @@
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/calc.js"></script>
+  <!-- Les taux FIGÉS d'un devis (SSConf.tauxPour, règle 1) pour le recalcul de secours d'un devis sans calculs. -->
+  <script src="../assets/js/config.js"></script>
   <!-- Le configurateur VR150 : le document rend son résumé CLIENT (products.js d'abord). -->
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/volet.js"></script>
@@ -120,6 +122,11 @@
       const p = d.pricing_v2 || {};
       return computeDevis({
         items: d.items || [],
+        // ⚠️ RÈGLE 1 : les taux FIGÉS du devis et ses parts vendeurs, comme le simulateur. Sans eux, un recalcul
+        // (devis sans calculs enregistrés, changement de vendeur) prenait les taux du code — et un devis chiffré
+        // avec d'autres réglages changeait de montants (audit du 28/10/2026).
+        rates: window.SSConf ? window.SSConf.tauxPour(d) : undefined,
+        seller_parts: p.seller_parts || undefined,
         sellers: (p.material && p.material.sellers) || {},
         installation: Object.assign({}, (p.installation && p.installation.per_opening) || {}, {
           install_qty: p.installation && p.installation.install_qty,
@@ -202,7 +209,10 @@
       const cl = d.client || {};
       const adr = cl.adresse || {};
       const adresseComplete = [((adr.rue || '') + ' ' + (adr.numero || '')).trim(), ((adr.code_postal || '') + ' ' + (adr.ville || '')).trim()].filter(Boolean).join(', ');
-      const draft = !['signe', 'termine', 'envoye_client'].includes(d.statut);
+      /* ⚠️ « BROUILLON » = pas encore envoyé, et rien d'autre. La liste « tout sauf signé, terminé, envoyé »
+         filigranait aussi un devis EN RELANCE (relance_1, relance_2) : régénéré pour être renvoyé au client,
+         il partait marqué « BROUILLON » (audit du 28/10/2026). L'exemplaire du client suit la même règle. */
+      const draft = !d.statut || d.statut === 'brouillon';
 
       /* L'ENCADRÉ DE CONFIGURATION, sous la ligne du produit.
          Un volet VR150 se commande sur une trentaine d'options, et la ligne de devis n'en
@@ -615,28 +625,24 @@
         return;
       }
       const now = new Date().toISOString();
-      // Instantané AVANT mutation : si l'enregistrement échoue (session Access expirée…), on remet
-      // la fiche dans son état d'origine — un devis affiché « signé » mais jamais enregistré est
-      // le pire des scénarios (le client est reparti en croyant avoir signé).
-      const snapshot = {
-        signature: DEVIS.signature, statut: DEVIS.statut, raison_refus: DEVIS.raison_refus,
-        client_declined: DEVIS.client_declined, informatif: DEVIS.informatif,
-        client_accepted: DEVIS.client_accepted, statut_history: DEVIS.statut_history,
-        date_modification: DEVIS.date_modification,
-      };
-      DEVIS.signature = { accepted_terms: true, image: canvas.toDataURL('image/png'), date: now };
-      DEVIS.statut = 'signe';
-      // Un devis signé est contractuel : on efface un refus précédent + le flag « informatif », on marque
-      // l'acceptation et on trace la transition dans l'historique (sinon la signature n'y apparaît pas).
-      DEVIS.raison_refus = ''; DEVIS.client_declined = false; DEVIS.informatif = false; DEVIS.client_accepted = true;
-      DEVIS.statut_history = (DEVIS.statut_history || []).concat([{ statut: 'signe', date: now, by: null }]);
-      DEVIS.date_modification = now;
-      const res = await SS.saveDevis(DEVIS);
+      const image = canvas.toDataURL('image/png');
+      // Relu juste avant d'écrire (SS.modifierDevis, règle 3) : la page renvoyait le devis ENTIER tel qu'à
+      // son ouverture, et écrasait ce que les autres écrans y avaient mis entre-temps. Rien n'est posé sur
+      // la copie de la page tant que le serveur n'a pas accepté — un devis affiché « signé » mais jamais
+      // enregistré est le pire des scénarios (le client est reparti en croyant avoir signé).
+      const res = await SS.modifierDevis(DEVIS.id, (d) => {
+        d.signature = { accepted_terms: true, image: image, date: now };
+        d.statut = 'signe';
+        // Un devis signé est contractuel : on efface un refus précédent + le flag « informatif », on marque
+        // l'acceptation et on trace la transition dans l'historique (sinon la signature n'y apparaît pas).
+        d.raison_refus = ''; d.client_declined = false; d.informatif = false; d.client_accepted = true;
+        d.statut_history = (d.statut_history || []).concat([{ statut: 'signe', date: now, by: null }]);
+      });
       if (res.ok === false) {
-        Object.assign(DEVIS, snapshot);   // rien n'a été enregistré : on annule la mutation locale
         toast(res.error || 'Signature NON enregistrée — réessaie avant que le client ne parte.', 'error', 8000);
         return;
       }
+      DEVIS = res.devis;
       toast(res.offline ? 'Signature enregistrée hors-ligne.' : 'Devis signé ✓', res.offline ? 'warn' : 'ok');
       if (window.ssConfetti) window.ssConfetti();
       renderPaper();

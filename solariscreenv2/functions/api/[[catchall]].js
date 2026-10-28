@@ -241,6 +241,14 @@ export async function onRequest(context) {
           adresse: cl.adresse || {}, telephone: cl.telephone || '', email: cl.email || '',
         },
         items: (d.items || []).map(it => ({
+          // ⚠️ Les MÊMES clés de niveau client que la liste du dessus (règle 31 ter). Le document complet
+          // avait sa propre liste, plus étroite : le devis que le client imprime perdait la lame,
+          // l'alimentation et « Commande murale Somfy individuelle incluse » (émetteur, télécommande),
+          // que le PDF de l'ERP porte — deux documents qui se contredisent (règle 7). Trouvé par
+          // `tests/documents.test.html` le 28/10/2026. Étalées EN PREMIER : les clés écrites ensuite
+          // (moteur d'un screen lu dans `moteur_ref`, toile lue dans `collection`) gardent leur lecture.
+          ...Object.fromEntries(VR_CLES_CLIENT.map(k => [k, it[k] === undefined ? null : it[k]])),
+          ...Object.fromEntries(AUTRES_CLES_CLIENT.map(k => [k, it[k] === undefined ? null : it[k]])),
           type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
           projection: it.projection || null, quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
           variante: it.variante || '', combinaison: it.combinaison || '', manoeuvre: it.manoeuvre || '',
@@ -253,7 +261,10 @@ export async function onRequest(context) {
           total_ht: calc.total_ht || 0, total_tva: calc.total_tva || 0,
           tva_pct: calc.tva_pct != null ? calc.tva_pct : 6,
           total_ttc: calc.total_ttc || 0,
-          acompte_pct: calc.acompte_pct || 0, acompte_montant: calc.acompte_montant || 0,
+          // `null` quand le devis n'a pas d'acompte chiffré : le document du client applique alors le MÊME
+          // repli que celui de l'ERP (50 %). Envoyer 0 lui faisait imprimer « Acompte de 0 % ».
+          acompte_pct: calc.acompte_pct != null ? calc.acompte_pct : null,
+          acompte_montant: calc.acompte_montant != null ? calc.acompte_montant : null,
           install_total_brut: calc.install_total_brut || 0,
           remise_catalogue: (calc.remise_catalogue && calc.remise_catalogue.amount) || 0,
           remise_installation: ((calc.remise_installation && calc.remise_installation.amount) || 0)
@@ -505,8 +516,17 @@ export async function onRequest(context) {
     }
     if (path === '/api/devis' && method === 'POST') {
       const body = await request.json();
-      const { _expected_date_modification, ...devis } = body;
+      const { _expected_date_modification, _creation, ...devis } = body;
       if (!devis.id) return json({ ok: false, error: 'ID manquant' }, 400);
+      /* ⚠️ UNE CRÉATION NE SE FOND JAMAIS DANS UN DEVIS EXISTANT. Le numéro est tiré au hasard (date du jour +
+         4 chiffres, `SSUI.generateDevisId`) : deux devis créés le même jour ont une chance sur 9 000 de tomber
+         sur le même — et la fusion d'upsertDevis versait alors le nouveau client, ses ouvertures et ses montants
+         dans le devis de l'autre, signature et lien client compris (audit du 28/10/2026). L'écran qui crée le dit
+         (`_creation`) ; un numéro déjà pris est refusé, et `SS.saveDevis` en tire un autre. */
+      if (_creation) {
+        const pris = await env.DB.prepare('SELECT id FROM devis WHERE id = ?').bind(devis.id).first();
+        if (pris) return json({ ok: false, code: 'id_pris', error: 'Ce numéro de devis existe déjà.' }, 409);
+      }
       // ⚠️ Les routes CIBLÉES (commentaire, ticket SAV, photo de chantier) font AVANCER
       // date_modification. Un écran resté ouvert qui vient d'en utiliser une garderait sinon
       // une référence périmée, et SON PROPRE enregistrement suivant (typiquement un changement
@@ -522,7 +542,7 @@ export async function onRequest(context) {
         }
       }
       stampSignatureIp(devis, request);
-      const res = await upsertDevis(env.DB, devis);
+      const res = await upsertDevis(env.DB, devis, { verifie: !!_expected_date_modification });
       // Journalisation AUTOMATIQUE de ce qui a bougé, avec l'auteur réel de la session. Rien à
       // instrumenter côté écrans : ils enregistrent, le journal se remplit tout seul et juste.
       // Silencieux si rien de significatif n'a changé (une simple réouverture de fiche ne doit
@@ -966,8 +986,12 @@ export async function onRequest(context) {
       d.documents = d.documents || [];
       d.documents.push(doc);
       d.date_modification = new Date().toISOString();
-      await upsertDevis(env.DB, d);
-      return json({ ok: true, data: d.documents });
+      // `verifie` : cette route relit la ligne et l'écrit aussitôt — c'est ELLE qui fait foi pour
+      // `documents` (sans ça, la protection d'upsertDevis remettait l'ancienne liste). Elle rend la
+      // nouvelle date_modification, que la fiche adopte : sinon son enregistrement suivant passait
+      // pour un conflit, alors que personne d'autre n'avait touché au devis (audit du 28/10/2026).
+      await upsertDevis(env.DB, d, { verifie: true });
+      return json({ ok: true, data: d.documents, date_modification: d.date_modification });
     }
     m = path.match(/^\/api\/devis\/([^/]+)\/documents\/([^/]+)$/);
     if (m) {
@@ -995,8 +1019,8 @@ export async function onRequest(context) {
         await env.DOCS.delete(doc.r2_key);
         d.documents = (d.documents || []).filter(x => x.id !== docId);
         d.date_modification = new Date().toISOString();
-        await upsertDevis(env.DB, d);
-        return json({ ok: true });
+        await upsertDevis(env.DB, d, { verifie: true });   // la route fait foi (voir l'ajout, plus haut)
+        return json({ ok: true, date_modification: d.date_modification });
       }
     }
 
@@ -2537,7 +2561,7 @@ async function allouerNumeroFacture(db, serie) {
   }
 }
 
-async function upsertDevis(db, devis) {
+async function upsertDevis(db, devis, opts) {
   const id = devis.id;
   const now = new Date().toISOString();
 
@@ -2580,6 +2604,21 @@ async function upsertDevis(db, devis) {
   // un onglet resté ouvert l'effacerait en silence, et la cadence se remettrait à réclamer.
   let attentes = Array.isArray(merged.attentes) ? merged.attentes : [];
   if (existing && Array.isArray(existing.attentes)) attentes = existing.attentes;
+
+  /* ⚠️ MÊME PROTECTION POUR CE QU'ÉCRIVENT LES AUTRES ROUTES CIBLÉES — tickets SAV, journal de chantier,
+     documents fournisseur, vues du lien client — tant que l'enregistrement ne PROUVE pas qu'il part de
+     la dernière version (`_expected_date_modification`, contrôlé plus haut). Trouvé par l'audit du
+     28/10/2026 : la fiche devis réenregistre son DEVIS complet à une quinzaine d'endroits (statut,
+     checklist, probabilité, catégorie de photo…) sans ce contrôle, et la fusion ci-dessus donnait raison
+     à sa copie : le ticket SAV que Yannick venait d'ouvrir, la photo de chantier, le bon de commande
+     joint disparaissaient au premier clic sur une fiche restée ouverte. Les pages ne font que RECOPIER
+     ces collections depuis les réponses de leurs routes ; une seule les réécrit exprès (« Alléger » du
+     tableau de bord, photos déplacées vers R2) — elle relit le devis et passe le contrôle de conflit. */
+  if (existing && !(opts && opts.verifie)) {
+    ['sav_tickets', 'chantier_photos', 'documents', 'review_views'].forEach(function (k) {
+      if (existing[k] !== undefined) merged[k] = existing[k];
+    });
+  }
 
   const photosCount = (merged.items || []).reduce((s, i) => s + ((i.photos || []).length), 0);
   const commentsCount = comments.length;

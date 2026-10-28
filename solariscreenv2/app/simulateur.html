@@ -522,7 +522,10 @@
     const { computeDevis, totalSurface } = window.SSCalc;
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
-    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon, clientKeyOf, jsAttr } = window.SSUI;
+    const { fmtEur, r2, el, setText, setVal, getVal, getNum, getInt, toast, generateDevisId, qp, icon, clientKeyOf, jsAttr, escHtml } = window.SSUI;
+    // ⚠️ Toute valeur SAISIE réinjectée dans un `value="…"` passe par escHtml : un guillemet (« Chambre "parents" »,
+    // « gaine 3/4" ») coupait la valeur à la réouverture, et le recalcul initial recopiait la valeur tronquée dans
+    // le devis — perdue au premier enregistrement, sans un mot (audit du 28/10/2026).
     window.SSNav.mount(document.getElementById('quickNav'));
 
     mountThemeToggle(document.getElementById('themeToggle'));
@@ -572,7 +575,7 @@
         return `<div class="field"><label class="label">Modèle</label><select class="select" data-f="modele" onchange="onTSModeleChange('${item._id}')"><option value="">—</option>${opts}</select></div>`;
       }
       // Tablier de volet : pas de référence catalogue fixée pour l'instant (à confirmer)
-      return `<div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${item.modele || ''}" placeholder="Référence du tablier"></div>`;
+      return `<div class="field"><label class="label">Modèle</label><input class="input" data-f="modele" value="${escHtml(item.modele)}" placeholder="Référence du tablier"></div>`;
     }
 
     // Champ « Moteur » générique — masqué pour Screen, Tente solaire et Volet (chacun a son propre bloc moteur précis)
@@ -601,8 +604,8 @@
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field" style="grid-column:span 2;"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(CS8_COLLECTIONS, item.collection)}</select></div>
-          <div class="field"><label class="label">N° de toile</label><input class="input" data-f="toile_num" value="${item.toile_num || ''}" placeholder="Ex: 0101"></div>
-          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: grey / grey"></div>
+          <div class="field"><label class="label">N° de toile</label><input class="input" data-f="toile_num" value="${escHtml(item.toile_num)}" placeholder="Ex: 0101"></div>
+          <div class="field"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${escHtml(item.toile_couleur)}" placeholder="Ex: grey / grey"></div>
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field"><label class="label">Caisson — mesure</label><select class="select" data-f="caisson_mesure" id="cms-${item._id}"><option value="">—</option>${mesureOpts}</select></div>
@@ -668,7 +671,7 @@
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field" style="grid-column:span 2;"><label class="label">Collection toile</label><select class="select" data-f="collection"><option value="">—</option>${opt(TS_COLLECTIONS, item.collection)}</select></div>
-          <div class="field" style="grid-column:span 2;"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${item.toile_couleur || ''}" placeholder="Ex: gris"></div>
+          <div class="field" style="grid-column:span 2;"><label class="label">Couleur toile</label><input class="input" data-f="toile_couleur" value="${escHtml(item.toile_couleur)}" placeholder="Ex: gris"></div>
         </div>
         <div class="grid grid-4 mt-4">
           <div class="field field-check"><label><input type="checkbox" data-f="telecommande" ${item.telecommande ? 'checked' : ''}> Commande murale Somfy incluse</label></div>
@@ -747,8 +750,8 @@
             // carte feraient que collectItem ne garderait que le dernier du DOM).
             ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
             : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
-          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" data-memo="emplacement" list="dl-emplacements" value="${item.emplacement || ''}" placeholder="Ex: Salon"></div>
-          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" data-memo="etage" list="dl-etages" value="${item.etage || ''}" placeholder="RDC"></div>
+          <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" data-memo="emplacement" list="dl-emplacements" value="${escHtml(item.emplacement)}" placeholder="Ex: Salon"></div>
+          <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" data-memo="etage" list="dl-etages" value="${escHtml(item.etage)}" placeholder="RDC"></div>
         </div>
         ${item.type !== 'screen' ? `
         <div class="grid grid-auto mt-4">
@@ -757,14 +760,14 @@
             // Pas de « Toile / finition » en texte libre pour les tentes solaires : leur bloc de
             // configuration a déjà « Collection toile » (liste fermée du fabricant). Le champ reste
             // pour tablier_volet (et les anciens types), qui n'ont aucun configurateur.
-            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" data-memo="toile" list="dl-toiles" value="${item.toile || ''}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
+            ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" data-memo="toile" list="dl-toiles" value="${escHtml(item.toile)}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
         </div>` : ''}
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}
         ${voletBlockHtml(item)}
         <div class="grid grid-2 mt-4">
           <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
-          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${item.notes || ''}"></div>
+          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${escHtml(item.notes)}"></div>
         </div>
         <div class="field mt-4">
           <label class="label">Photos</label>
@@ -947,7 +950,9 @@
     function collectExtras() {
       return [...document.querySelectorAll('.extra-row')].map(r => ({
         label: r.querySelector('[data-ex="label"]').value.trim(),
-        qty: parseFloat(r.querySelector('[data-ex="qty"]').value) || 1,
+        // Vide → 1 ; « 0 » reste 0 (une heure offerte sous garantie n'est pas une heure facturée) : `|| 1`
+        // confondait les deux (audit du 28/10/2026, même règle que calc.js).
+        qty: (q => isNaN(q) ? 1 : Math.max(0, q))(parseFloat(r.querySelector('[data-ex="qty"]').value)),
         unit_price_ht: parseFloat(r.querySelector('[data-ex="unit_price_ht"]').value) || 0,
       }));
     }
@@ -1167,7 +1172,10 @@
       // Le diviseur brut→net est une CONSTANTE MÉTIER qui vit dans calc.js. Elle était recopiée en
       // dur ici (quatre fois) : le jour où elle change, le simulateur aurait affiché des nets faux
       // en silence, alors que les totaux, eux, auraient suivi. On lit la source.
-      const NET = (window.SSCalc && SSCalc.NET_DIVISOR) || 2.5;
+      // ⚠️ …et la source, c'est le diviseur FIGÉ du devis (règle 1), celui que le moteur vient d'appliquer aux
+      // commissions : la constante affichait la pose nette à ÷ 2,5 à côté de commissions nettes à ÷ 3 sur un
+      // devis chiffré avec un autre réglage (audit du 28/10/2026).
+      const NET = (c.rates && c.rates.net_divisor) || (window.SSCalc && SSCalc.NET_DIVISOR) || 2.5;
       setText('iInstallGross', fmtEur(c.install_total)); setText('iInstallNet', fmtEur(c.install_total / NET));
       setText('iTech1Gross', fmtEur(c.tech1_total)); setText('iTech1Net', fmtEur(c.tech1_total / NET));
       setText('iTech2Gross', fmtEur(c.tech2_total)); setText('iTech2Net', fmtEur(c.tech2_total / NET));
@@ -1328,8 +1336,10 @@
       // Détection de conflit : si Nicolas et Yannick ont ce devis ouvert en même temps, la sauvegarde la
       // plus récente ne doit pas écraser silencieusement l'autre — on demande à l'utilisateur de trancher.
       const finish = async (force) => {
-        const res = await SS.saveDevis(devis, force ? { force: true } : { expectedDateModification: state.isExisting ? state.loadedDateModification : undefined });
+        const res = await SS.saveDevis(devis, force ? { force: true } : { expectedDateModification: state.isExisting ? state.loadedDateModification : undefined, creation: !state.isExisting });
         if (res.conflict) { window.SSUI.showSaveConflict(() => finish(true)); return; }
+        // Un numéro déjà pris a été remplacé à la création (SS.saveDevis) : la page suit le nouveau.
+        if (devis.id !== state.id) { state.id = devis.id; try { history.replaceState(history.state, '', 'simulateur.html?id=' + encodeURIComponent(devis.id)); } catch (e) {} }
         // Échec réel (session Access expirée, rejet serveur) : surtout NE PAS remettre dirty=false,
         // sinon l'avertissement « modifications non enregistrées » disparaît et le travail est perdu
         // en fermant l'onglet.

@@ -149,7 +149,11 @@
 
     // ── Extras ──
     const extraLines = extrasIn.map(function (e) {
-      const qty = num(e.qty) || 1;
+      /* ⚠️ « ABSENT » N'EST PAS « ZÉRO » (piège `|| 1`, CLAUDE.md) : une main-d'œuvre mise à 0 h — un dépannage
+         sous garantie — était facturée 1 h, sans un mot (audit du 28/10/2026). Champ absent ou illisible → 1 ;
+         sinon la valeur, et jamais un négatif. */
+      const brut = parseFloat(e.qty);
+      const qty = isNaN(brut) ? 1 : Math.max(0, brut);
       const unit = num(e.unit_price_ht);
       return { label: e.label || '', qty: qty, unit_price_ht: unit, total_ht: r2(qty * unit) };
     }).filter(function (e) { return e.label && e.unit_price_ht > 0; });

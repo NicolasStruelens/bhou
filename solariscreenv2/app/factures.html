@@ -537,7 +537,15 @@
       const conf = (window.SSConf && window.SSConf.get()) || null;
       el('mEcheance').value = conf ? conf.usage.echeance_facture : 15;
       el('mRefExterne').value = '';
-      if (devisId && liste.some(d => d.id === devisId)) el('mDevis').value = devisId;
+      // ⚠️ Un devis DEMANDÉ (lien « Facturer » d'une fiche) qui n'a plus rien à facturer — pas signé, ou déjà
+      // entièrement facturé — ne se remplace PAS par le premier de la liste : on présélectionnait en silence
+      // le devis d'un autre client (audit du 28/10/2026). On le dit, et on n'ouvre rien.
+      if (devisId && !liste.some(d => d.id === devisId)) {
+        const dd = devisDe(devisId);
+        toast(dd && !['signe', 'termine'].includes(dd.statut) ? 'Ce devis n’est pas signé : rien à facturer.' : 'Ce devis est déjà entièrement facturé.', 'warn', 6000);
+        return;
+      }
+      if (devisId) el('mDevis').value = devisId;
       const d = devisDe(el('mDevis').value) || {};
       el('mType').value = type || (d.type_document === 'depannage' ? 'totale' : 'acompte');
       setUnite('pct', true);

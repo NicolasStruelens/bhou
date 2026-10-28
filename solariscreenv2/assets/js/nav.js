@@ -85,6 +85,11 @@
            donc le recaler a la main, sinon il recouvre le rail. */
         .app-header { left: 212px; }
         html.ss-rail-reduit .app-header { left: 60px; }
+        /* Même chose pour une barre collée en BAS d'écran (la barre du Mode Terrain) : partant de 0, elle
+           recouvrait le pied du rail — « Paramètres » et la ligne « qui » ne se cliquaient plus au-delà de
+           1400 px (trouvé par l'audit du 28/10/2026). */
+        .wiz-bar, [data-barre-bas] { left: 212px; }
+        html.ss-rail-reduit .wiz-bar, html.ss-rail-reduit [data-barre-bas] { left: 60px; }
         .ssnav { display: none; }
         html.ss-rail-reduit .ssrail { width: 60px; align-items: stretch; }
         html.ss-rail-reduit body { padding-left: 60px; }
@@ -476,6 +481,12 @@
     window.addEventListener('scroll', planifierLevee, { passive: true, capture: true });
     // Une barre qui apparaît sans défilement (étape suivante du Mode Terrain) : on revérifie.
     setInterval(function () { if (document.visibilityState === 'visible') leverMascotte(); }, 1500);
+    // … et dès qu'une barre change de taille : vide (donc masquée) au montage, la barre du Mode Terrain se
+    // remplit juste après, et Soli restait posé sur « Continuer » jusqu'au prochain passage, 1,5 s plus tard.
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(planifierLevee);
+      document.querySelectorAll(BARRES_BAS).forEach(function (b) { ro.observe(b); });
+    }
   }
 
   // ── Compteurs d'alerte du menu ────────────────────────────────────────────────────────

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Audit — le robot qui clique</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; } h2 { font-size: 15px; margin: 18px 0 6px; color: #00ff9c; }
+    .note { color: #97a4cc; max-width: 960px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; } #avance { color: #97a4cc; font-size: 13px; }
+    code { color: #ffd23f; } .k { white-space: nowrap; color: #97a4cc; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Audit : le robot qui clique</h1>
+  <p class="note">
+    La suite de <code>tests/audit.html</code> : chaque écran de l’ERP, au bureau (1500 px) et sur téléphone (390 px), sur le banc
+    rempli par le bac à sable — <strong>et chaque bouton cliqué</strong>, un par un. Après chaque clic : les erreurs de script, les
+    requêtes refusées, la page d’arrivée (existe-t-elle ?), et l’écran tel qu’il est devenu (une fenêtre ouverte qui dépasse,
+    qui ne défile pas, dont on ne sort pas — Échap puis son bouton « Fermer »). Chaque fenêtre ouverte reçoit des saisies
+    PIÉGÉES (apostrophe, accents, guillemets, <code>&lt;img onerror&gt;</code>, nombres négatifs, texte très long) puis son bouton
+    d’enregistrement : une balise qui s’exécuterait est une faille, un texte qui casse un bouton est un bug.
+    <br><br>
+    Chaque écran repart de la MÊME base (photo du banc), les suppressions confirmées n’en emportent rien. Rien ne sort du cadre :
+    impression, choix de fichier, plein écran, position, partage, téléchargement, « retour » et « Quitter la page ? » sont notés
+    au lieu d’être joués. <code>?seul=rdv</code> ne passe que les adresses qui contiennent « rdv » (plusieurs : <code>rdv|sav</code>).
+    <br><br><strong>⚠️ Par le serveur de test, onglet AU PREMIER PLAN</strong> (un onglet en arrière-plan ralentit ses minuteries).
+  </p>
+  <div id="summary">Audit en cours…</div>
+  <div id="avance"></div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script src="audit-outils.js"></script>
+  <script>
+  (async function () {
+    'use strict';
+    const SS = window.SS, U = window.SSUI, BANC = window.SSBanc, AU = window.SSAudit, attendre = AU.attendre;
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const SEUL = new URLSearchParams(location.search).get('seul') || '';
+    const LARGEURS = [{ nom: 'bureau', w: 1500, h: 900 }, { nom: 'téléphone', w: 390, h: 844 }];
+    const MAX_CLICS = 45;
+    const RAPPORT = [], VUS = new Set();
+    let clics = 0, ecrans = 0;
+    // L'apostrophe DROITE est celle qui casse un gestionnaire `onclick` mal échappé (CLAUDE.md).
+    const APOS = String.fromCharCode(39);
+    const PIEGE = 'L’Hoëst d' + APOS + 'Ici "<img src=x onerror=window.__xss=1>" & Çà — ' + 'très long '.repeat(18);
+
+    // ── Le jeu : rempli UNE fois, photographié, rendu tel quel avant chaque écran. ──
+    await BANC.demarrer();
+    BANC.installer(window);
+    BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+    const rem = await window.SSBacASable.remplir(SS, {});
+    BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.track_token', 'essai-trk-10') WHERE id = 'ESSAI-10'");
+    const PHOTO = BANC.photo();
+    const clientApos = ((await SS.listClients()) || []).find((c) => /'|’/.test(c.nom || '')) || {};
+    // Le stockage local de l'origine : chaque écran le retrouve tel qu'au départ (thème, onglets, rail…).
+    const LS = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); LS[k] = localStorage.getItem(k); }
+    const remettreLS = () => { try { localStorage.clear(); Object.keys(LS).forEach((k) => localStorage.setItem(k, LS[k])); } catch (e) {} };
+
+    const A = (p) => '../app/' + p;
+    const URLS = [
+      A('dashboard.html'), A('clients.html'), A('clients.html?key=' + encodeURIComponent(clientApos.key || '')), A('planning.html'),
+      A('planning.html?vue=jour&date=' + U.aujourdhui()), A('carte.html'), A('portfolio.html'), A('sav.html'), A('outillage.html'),
+      A('factures.html'), A('depenses.html'), A('stats.html'), A('echanges.html'), A('parametres.html'), A('rdv.html'), A('terrain.html'),
+      A('simulateur.html'), A('simulateur.html?id=ESSAI-07'), A('simulateur.html?type=depannage'),
+      A('vue.html?id=ESSAI-01'), A('vue.html?id=ESSAI-06'), A('vue.html?id=ESSAI-07'), A('vue.html?id=ESSAI-11'), A('vue.html?id=ESSAI-12'),
+      A('vue.html?id=ESSAI-15'), A('vue.html?id=ESSAI-19'), A('vue.html?id=ESSAI-23'),
+      A('devis.html?id=ESSAI-07'), A('devis.html?id=ESSAI-01'), A('facture.html?id=F2026-006'), A('picking.html?id=ESSAI-07'),
+      A('reception.html?id=ESSAI-07'), A('visite.html?id=ESSAI-07'), '../devis-review.html?t=essai-tok-02', '../devis-review.html?t=essai-tok-06',
+      '../track.html?t=essai-trk-10',
+    ];
+    const LISTE = URLS.filter((u) => !SEUL || SEUL.split('|').some((s) => u.indexOf(s) >= 0));
+
+    // ── Retrouver un élément d'un écran à l'autre : son chemin d'index depuis <body>, et son texte. ──
+    const cheminDe = (d, e) => { const p = []; for (let x = e; x && x !== d.body; x = x.parentElement) p.unshift([...x.parentElement.children].indexOf(x)); return p.join('/'); };
+    const parChemin = (d, p) => { let x = d.body; for (const i of p.split('/')) { if (!x) return null; x = x.children[+i]; } return x; };
+    const libelle = (e) => ((e.innerText || e.textContent || '').replace(/\s+/g, ' ').trim() || e.getAttribute('aria-label') || e.getAttribute('title') || e.tagName.toLowerCase()).slice(0, 48);
+    const visible = (w, e) => {
+      const r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return false;
+      if (e.checkVisibility && !e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+      return true;
+    };
+    function candidats(w) {
+      const d = w.document;
+      return [...d.querySelectorAll('button, [onclick], [role=button], summary, a[href]')]
+        .filter((e) => visible(w, e) && !e.disabled && !e.closest('[aria-hidden="true"]') && !(e.matches('a[href]') && !e.getAttribute('onclick') && !/^#/.test(e.getAttribute('href') || '')))
+        .filter((e, i, l) => !l.some((x) => x !== e && x.contains(e) && x.matches('button, [role=button]')));
+    }
+
+    function note(url, ecran, sorte, detail) {
+      const cle = url + '|' + ecran + '|' + sorte + '|' + detail.replace(/\d+(?:,\d+)?\s?px/g, '#px');
+      if (VUS.has(cle)) return;
+      VUS.add(cle);
+      RAPPORT.push({ url, ecran, sorte, detail });
+    }
+
+    /** Ouvre un écran sur la base d'origine. */
+    async function ecran(url, L) {
+      BANC.restaurer(PHOTO); BANC.viderCaches(); BANC.ident = BANC.NICOLAS; remettreLS();
+      const f = await AU.ouvrir(url, L.w, L.h, { gardes: true, confirmer: true });
+      // « Retour » dans un cadre parcourt l'historique COMMUN avec la page de l'audit : il l'emporterait.
+      f.contentWindow.history.back = () => { f.temoins.systeme.push('retour'); };
+      f.contentWindow.history.go = () => { f.temoins.systeme.push('retour'); };
+      await AU.poser(f);
+      return f;
+    }
+
+    /** Ce qui s'est passé depuis le dernier bilan (erreurs, requêtes refusées, liens suivis). */
+    async function bilan(f, url, L, apres) {
+      const t = f.temoins;
+      t.erreurs.splice(0).forEach((e) => note(url, L.nom, 'erreur', e + apres));
+      t.api.splice(0).forEach((e) => { if (!/ → 404$/.test(e) || !/inconnu/.test(e)) note(url, L.nom, 'requête refusée', e + apres); });
+      t.fichiers.splice(0).forEach((e) => note(url, L.nom, 'fichier introuvable', e + apres));
+      for (const l of (t.liensSuivis || []).splice(0)) if (!(await AU.existe(l))) note(url, L.nom, 'lien mort', l.replace(location.origin, '') + apres);
+      for (const o of t.ouvertes.splice(0)) if (o && /\.html/.test(o) && !(await AU.existe(new URL(o, f.contentWindow.location.href).href))) note(url, L.nom, 'lien mort', o + apres);
+      if (f.contentWindow.__xss) { note(url, L.nom, 'FAILLE', 'une saisie a été EXÉCUTÉE comme du code' + apres); f.contentWindow.__xss = 0; }
+    }
+
+    /** Une fenêtre ouverte se ferme-t-elle ? Échap d'abord, puis son bouton de sortie. */
+    async function fermer(f, url, L, apres) {
+      const w = f.contentWindow, d = w.document;
+      if (!AU.relever(w).calques) return true;
+      const cible = d.activeElement && d.activeElement !== d.body ? d.activeElement : d;
+      cible.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await attendre(200);
+      if (!AU.relever(w).calques) return true;
+      const sortie = [...d.querySelectorAll('button, a[href], [role=button]')].filter((x) => visible(w, x))
+        .reverse().find((x) => /fermer|annuler|✕|×|close|terminé|retour/i.test((x.innerText || '') + ' ' + (x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('title') || '')));
+      if (sortie) { sortie.click(); await attendre(250); }
+      if (!AU.relever(w).calques) return true;
+      note(url, L.nom, 'fenêtre impossible à fermer', 'ni Échap ni « ' + (sortie ? libelle(sortie) : 'aucun bouton') + ' »' + apres);
+      return false;
+    }
+
+    /** Saisies piégées dans la fenêtre ouverte, puis son bouton d'enregistrement. */
+    async function pieger(f, url, L, apres) {
+      const w = f.contentWindow, d = w.document;
+      const champs = [...d.querySelectorAll('input, textarea')].filter((x) => visible(w, x) && !x.disabled && !x.readOnly && !/^(hidden|file|checkbox|radio|color|range|date|time|datetime-local|month|week)$/.test(x.type));
+      if (!champs.length) return;
+      for (const c of champs) {
+        c.focus();
+        c.value = c.type === 'number' ? '-5' : (c.type === 'email' ? "l'hoest@exemple.invalid" : PIEGE);
+        c.dispatchEvent(new w.Event('input', { bubbles: true }));
+        c.dispatchEvent(new w.Event('change', { bubbles: true }));
+      }
+      await attendre(150);
+      await bilan(f, url, L, apres + ' · saisies piégées');
+      for (const [s, dd] of AU.relever(w).defauts) if (s !== 'chevauchement') note(url, L.nom, s, dd + apres + ' · saisies piégées');
+      const enr = [...d.querySelectorAll('button')].filter((x) => visible(w, x) && !x.disabled)
+        .find((x) => /^(enregistrer|créer|ajouter|publier|valider|générer|envoyer)\b/i.test(libelle(x)));
+      if (enr) {
+        enr.click(); await AU.poser(f, 300, 4000);
+        await bilan(f, url, L, apres + ' · enregistré avec les saisies piégées');
+        for (const [s, dd] of AU.relever(w).defauts) if (s !== 'chevauchement') note(url, L.nom, s, dd + apres + ' · après enregistrement');
+      }
+    }
+
+    for (const url of LISTE) {
+      for (const L of LARGEURS) {
+        ecrans++;
+        const court = url.replace(/^\.\.\//, '');
+        let f = null;
+        try {
+          f = await ecran(url, L);
+          await bilan(f, court, L, '');
+          // Deux boutons au plus par libellé : les 23 « ⋯ » d'une liste font la même chose sur 23 lignes.
+          const parLib = {};
+          const depart = candidats(f.contentWindow).map((e) => [cheminDe(f.contentDocument, e), libelle(e)])
+            .filter(([, lib]) => (parLib[lib] = (parLib[lib] || 0) + 1) <= 2).slice(0, MAX_CLICS);
+          let i = 0;
+          for (const [chemin, lib] of depart) {
+            i++;
+            document.getElementById('avance').textContent = ecrans + ' / ' + (LISTE.length * LARGEURS.length) + ' — ' + court + ' (' + L.nom + ') — clic ' + i + '/' + depart.length + ' « ' + lib + ' »';
+            // L'écran a pu partir (navigation) ou devenir inutilisable : on le rouvre.
+            if (!f || f.contentDocument !== f.doc) { if (f) f.remove(); f = await ecran(url, L); }
+            const w = f.contentWindow, d = f.contentDocument;
+            let e = parChemin(d, chemin);
+            if (!e || libelle(e) !== lib) e = candidats(w).find((x) => libelle(x) === lib) || null;
+            if (!e || !visible(w, e)) continue;
+            const apres = ' — après « ' + lib + ' »';
+            clics++;
+            // Ce que le clic change dans la page : sans changement, inutile de remesurer tout l'écran.
+            let changements = 0;
+            const mo = new w.MutationObserver((l) => { changements += l.length; });
+            mo.observe(d.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style', 'open'] });
+            try { e.scrollIntoView({ block: 'center' }); e.click(); } catch (er) { note(court, L.nom, 'erreur', String(er && er.message) + apres); }
+            await AU.poser(f, 250, 3000);
+            mo.disconnect();
+            if (f.contentDocument !== f.doc) {
+              const ici = f.contentWindow.location.href;
+              if (!(await AU.existe(ici))) note(court, L.nom, 'lien mort', ici.replace(location.origin, '') + apres);
+              continue;
+            }
+            await bilan(f, court, L, apres);
+            if (changements < 3) continue;
+            const r = AU.relever(w);
+            for (const [s, dd] of r.defauts) note(court, L.nom, s, dd + apres);
+            if (r.calques) {
+              await pieger(f, court, L, apres);
+              if (f.contentDocument === f.doc && !(await fermer(f, court, L, apres))) { f.remove(); f = null; }
+            }
+          }
+          if (f) await bilan(f, court, L, ' — en fin d’écran');
+        } catch (e) {
+          note(court, L.nom, 'audit', 'interrompu : ' + (e && (e.stack || e.message)));
+        } finally { if (f) f.remove(); }
+      }
+    }
+    BANC.remettre(); BANC.retirer(); remettreLS();
+
+    // ══════════ LE RAPPORT ══════════
+    const parSorte = {};
+    RAPPORT.forEach((r) => { parSorte[r.sorte] = (parSorte[r.sorte] || 0) + 1; });
+    const parPage = new Map();
+    RAPPORT.forEach((r) => { if (!parPage.has(r.url)) parPage.set(r.url, []); parPage.get(r.url).push(r); });
+    let html = '<p>Remplissage : ' + (rem.erreurs.length ? '<span class="fail">' + esc(rem.erreurs.join(' · ')) + '</span>' : '<span class="pass">0 erreur</span>') +
+      ' · ' + ecrans + ' écrans · ' + clics + ' clics</p>';
+    html += '<p>' + Object.keys(parSorte).sort().map((k) => '<span class="k">' + esc(k) + '</span> ' + parSorte[k]).join(' · ') + '</p>';
+    for (const [url, l] of parPage) {
+      html += '<h2>' + esc(url) + '</h2><table>' + l.map((r) => '<tr><td class="k">' + esc(r.ecran) + '</td><td class="k">' + esc(r.sorte) + '</td><td>' + esc(r.detail) + '</td></tr>').join('') + '</table>';
+    }
+    document.getElementById('out').innerHTML = html;
+    document.getElementById('avance').textContent = '';
+    document.getElementById('summary').innerHTML = (RAPPORT.length ? '<span class="fail">' + RAPPORT.length + ' relevés</span>' : '<span class="pass">0 relevé</span>') + ' · ' + clics + ' clics sur ' + ecrans + ' écrans';
+    document.title = (RAPPORT.length ? 'RELEVÉS ' + RAPPORT.length : 'OK 0') + ' — Audit des clics';
+    window.RAPPORT = RAPPORT;
+  })().catch((e) => { document.getElementById('summary').innerHTML = '<span class="fail">Audit interrompu : ' + String(e && (e.stack || e.message)).replace(/</g, '&lt;') + '</span>'; document.title = 'INTERROMPU — Audit des clics'; });
+  </script>
+</body>
+</html>
