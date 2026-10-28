@@ -135,6 +135,11 @@
     for (const [l, ou] of LIENS) if (!(await existe(l))) RAPPORT.push({ url: ou, ecran: '—', sorte: 'lien mort', detail: l.replace(location.origin, '') });
 
     if (!REEL) { BANC.remettre(); BANC.retirer(); }
+    // Les cas VOULUS : un identifiant inconnu (le serveur répond 404, la page doit le dire) et l'accueil qui renvoie au
+    // tableau de bord. Ils restent affichés, à part : un audit propre se lit « OK 0 ».
+    const VOULU = (r) => /inconnu/.test(r.url) && r.sorte === 'requête refusée' || (/^index\.html/.test(r.url) && r.sorte === 'navigue');
+    const VOULUS = RAPPORT.filter(VOULU);
+    for (let i = RAPPORT.length - 1; i >= 0; i--) if (VOULU(RAPPORT[i])) RAPPORT.splice(i, 1);
 
     // ══════════ LE RAPPORT ══════════
     const parSorte = {};
@@ -144,6 +149,7 @@
     let html = '<p>Remplissage : ' + (rem.erreurs.length ? '<span class="fail">' + esc(rem.erreurs.join(' · ')) + '</span>' : '<span class="pass">0 erreur</span>') +
       ' · ' + ids.length + ' devis, ' + factures.length + ' factures, ' + rdvs.length + ' demandes · ' + pages + ' pages ouvertes · ' + LIENS.size + ' liens vérifiés</p>';
     html += '<p>' + Object.keys(parSorte).sort().map((k) => '<span class="k">' + esc(k) + '</span> ' + parSorte[k]).join(' · ') + '</p>';
+    if (VOULUS.length) html += '<p class="k">Voulus (identifiants inconnus, accueil) : ' + VOULUS.length + ' — ' + esc(VOULUS.map((r) => r.url + ' ' + r.sorte).filter((x, i, l) => l.indexOf(x) === i).join(' · ')) + '</p>';
     for (const [url, l] of parPage) {
       html += '<h2>' + esc(url) + '</h2><table>' + l.map((r) => '<tr><td class="k">' + esc(r.ecran) + '</td><td class="k">' + esc(r.sorte) + '</td><td>' + esc(r.detail) + '</td></tr>').join('') + '</table>';
     }
