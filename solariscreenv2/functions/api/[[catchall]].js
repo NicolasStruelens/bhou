@@ -422,6 +422,10 @@ export async function onRequest(context) {
                -- Nature du document : un dépannage n'a pas d'ouvertures, ce qui autrement le
                -- ferait passer pour un devis vide (« 0 ouverture », aucun type de produit).
                json_extract(data, '$.type_document') AS type_document,
+               -- La demande de RDV dont vient le devis (règle 17, lien EXPLICITE). Sans elle dans la liste,
+               -- un devis dont la demande n'avait pas pu être mise à jour ne la retrouvait plus : « Créer le
+               -- devis » y réapparaissait, et un second devis pouvait naître de la même demande.
+               json_extract(data, '$.rdv_id') AS rdv_id,
                json_extract(data, '$.depannage_mode') AS depannage_mode,
                -- Suite à donner d'un dépannage (pièce commandée, retour à planifier) : c'est ce
                -- qu'on oublie, parce que le dossier a l'air terminé — il est signé et facturé.
