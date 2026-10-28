@@ -321,6 +321,29 @@
       .photo-grid .ph-wrap:hover .ph-cat, .photo-grid .ph-wrap:hover .ph-viz-btn,
       .photo-grid .ph-cat:focus-visible, .photo-grid .ph-viz-btn:focus-visible { opacity: 1; }
     }
+    /* Sur écran tactile, le menu de catégorie posé SUR la photo faisait 8,8 px de texte et 19 px de haut :
+       l'iPhone zoomait la page à chaque appui (moins de 16 px) et le doigt tombait sur la photo. Trouvé par
+       l'audit joué en vrai sur l'aperçu, en tactile (règle 56) — un écran de bureau ne le montre jamais.
+       Le menu passe SOUS la photo et le simulateur devient une cible de 40 px dans l'angle libéré.
+       ⚠️ Deux vignettes par rangée sur téléphone (une seule à 249 px de large : trois photos faisaient ~900 px
+       de fiche). À 113 px de colonne (Android de 360 px), « — catégorie — » en 16 px ne tient pas : le menu
+       GARDE 16 px (c'est ce que lit Safari pour décider du zoom) et il est réduit à 75 % À L'ÉCRAN — `transform`
+       ne change pas la taille de police calculée. Sa boîte fait donc 133 % de large avant réduction, 100 %
+       après, et la marge négative rend les 11 px de hauteur que la réduction libère. Colonne de 108 px au
+       moins : en dessous, le libellé le plus long (112 px) ne tient plus à côté de la flèche. */
+    @media (pointer: coarse) {
+      .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
+      .photo-grid .ph-wrap { width: auto; height: auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .photo-grid .ph { width: 100%; height: auto; aspect-ratio: 1; }
+      .photo-grid .ph-cat {
+        position: static; width: calc(100% / 0.75); max-width: none; min-height: 44px; margin-bottom: -11px; padding: 0.3rem 0.25rem;
+        transform: scale(0.75); transform-origin: 0 0;
+        font-family: var(--font-body); font-size: var(--fs-champ); text-transform: none; letter-spacing: 0;
+        background: var(--input-bg); color: var(--text); border-color: var(--input-border);
+      }
+      .photo-grid .ph-cat option { color: inherit; }
+      .photo-grid .ph-viz-btn { width: 40px; height: 40px; top: 5px; bottom: auto; }
+    }
 
     /* ── Simulateur visuel avant/après ── */
     .viz-modal {
@@ -451,6 +474,17 @@
     .cc-head-row { flex-wrap: wrap; row-gap: 0.3rem; }
     .cc-head-right { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; min-width: 0; }
     .cc-head-right .section-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+    /* Dans une rangée qui passe à la ligne (carte « Interne »), le bloc de droite tombe seul sur sa ligne : il
+       doit alors tenir dans la carte et laisser ses textes s'ellipser. À 320 px il faisait 285 px pour 269 et
+       poussait le chevron hors de l'écran (audit du 28/10/2026). */
+    .cc-head-row .cc-head-right { flex-shrink: 1; max-width: 100%; }
+    /* Même défaut sur les en-têtes ordinaires, sur téléphone : « Planification de pose » + date + « En retard » +
+       chevron débordaient de 56 px à 320 px. La partie droite passe à la ligne quand elle ne tient pas (jamais au
+       bureau : une carte étroite du rail y garde sa mise en page). */
+    @media (max-width: 560px) {
+      .cc-head { flex-wrap: wrap; row-gap: 0.3rem; }
+      .cc-head .cc-head-right { flex-shrink: 1; max-width: 100%; }
+    }
     .cc-chevron { transition: transform var(--t-fast); flex-shrink: 0; color: var(--text-subtle); }
     .commande-card.collapsed .cc-chevron, .interne-card.collapsed .cc-chevron { transform: rotate(-90deg); }
     .commande-card.collapsed .cc-head { margin-bottom: 0; }
