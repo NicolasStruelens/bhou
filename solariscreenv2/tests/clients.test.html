@@ -85,7 +85,8 @@
     ];
     const CLIENTS = [
       { key: 'depptre|quentin', prenom: 'Quentin', nom: 'Depptre', tags: [], notes: '' },
-      { key: 'signe|marc', prenom: 'Marc', nom: 'Signe', telephone: '0471 11 11 11', email: 'marc@exemple.be', tags: ['Chaud'], notes: '', adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' } },
+      { key: 'signe|marc', prenom: 'Marc', nom: 'Signe', telephone: '0471 11 11 11', email: 'marc@exemple.be', tags: ['Chaud'], notes: '', adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' },
+        mails: [{ id: 'm-1', sens: 'recu', objet: 'Re: votre devis', texte: 'Bonjour, c’est d’accord pour le devis.', date: J(-3) }] },
     ];
     const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_clients_cache', 'ss_outbox'];
     const SAUVE = {};
@@ -240,6 +241,49 @@
         check('K4 …et Entrée ouvre la fiche', texte(d.querySelector('.detail-head h2')), 'Anne Avoir');
         f.remove();
 
+        /* ══════════ H — L'ACCUEIL ══════════ */
+        titre('H — « ← Accueil des clients » : revenir à « À ranger » depuis une fiche (bureau), sans perdre une saisie');
+        semer();
+        const fh = await ouvrir(1500, 900, '?key=' + encodeURIComponent('signe|marc') + '&q=Marc&t=' + Date.now());
+        const wh = fh.contentWindow, dh = wh.document;
+        let demandes = 0, reponse = true;
+        wh.confirm = () => { demandes++; return reponse; };
+        const bA = () => dh.getElementById('crmAccueil');
+        const nomOuvert = () => texte(dh.querySelector('.detail-head h2'));
+        const rA = bA().getBoundingClientRect(), rH = dh.querySelector('.detail-head h2').getBoundingClientRect(), rD = dh.getElementById('detail').getBoundingClientRect();
+        check('H1 Une fiche ouverte porte « ← Accueil des clients » en tête de la carte, au-dessus du nom',
+          [texte(bA()), bA().offsetParent !== null, rA.bottom <= rH.top, rA.left >= rD.left && rA.top >= rD.top && rA.right <= rD.right], ['← Accueil des clients', true, true, true]);
+        check('H2 …et « ← Tous les clients » (le bouton du téléphone) reste caché au bureau : une seule porte', wh.getComputedStyle(dh.getElementById('crmRetour')).display, 'none');
+        bA().click(); await attendre(300);
+        check('H3 Un clic : « À ranger », plus aucun client sélectionné, recherche vidée, ni ?key= ni ?q= dans l’adresse, et rien demandé',
+          [!!dh.querySelector('#detail .ar'), dh.querySelectorAll('.crm-item.active').length, dh.getElementById('search').value, /[?&](key|q)=/.test(wh.location.search), demandes],
+          [true, 0, '', false, 0]);
+        wh.renderDetail('signe|marc'); await attendre(250);
+        dh.getElementById('f_tel').value = '0499 00 00 01';
+        reponse = false;
+        dh.querySelector('.crm-item[data-key="avoir|anne"]').click(); await attendre(250);
+        check('H4 Un téléphone tapé mais pas enregistré : choisir un autre client DEMANDE — « non » garde la fiche et la saisie',
+          [demandes, nomOuvert(), dh.getElementById('f_tel').value], [1, 'Marc Signe', '0499 00 00 01']);
+        bA().click(); await attendre(250);
+        check('H5 …« ← Accueil des clients » demande aussi, et « non » ne ferme rien', [demandes, nomOuvert()], [2, 'Marc Signe']);
+        reponse = true;
+        bA().click(); await attendre(250);
+        check('H6 …« oui » ferme la fiche, la saisie abandonnée en connaissance de cause', [demandes, !!dh.querySelector('#detail .ar')], [3, true]);
+        wh.renderDetail('signe|marc'); await attendre(250);
+        dh.getElementById('mailTexte').value = ['De : marc@exemple.be', 'Objet : question', '', 'Et pour la couleur ?'].join(String.fromCharCode(10));
+        reponse = false;
+        bA().click(); await attendre(250);
+        check('H7 Un mail collé et pas archivé compte aussi comme une saisie', [demandes, nomOuvert()], [4, 'Marc Signe']);
+        reponse = true; wh.renderDetail('signe|marc'); await attendre(250);
+        const avantCorr = demandes;
+        wh.modifierMail('m-1'); await attendre(150);
+        dh.querySelector('.crm-item[data-key="avoir|anne"]').click(); await attendre(250);
+        check('H8 Ouvrir la correction d’un échange SANS rien changer n’est pas une saisie : on change de fiche sans question',
+          [demandes - avantCorr, nomOuvert()], [0, 'Anne Avoir']);
+        dh.querySelector('.crm-item[data-key="signe|marc"]').click(); await attendre(250);
+        check('H9 Sans rien modifier, passer d’un client à l’autre ne demande jamais rien', [demandes - avantCorr, nomOuvert()], [0, 'Marc Signe']);
+        fh.remove();
+
         /* ══════════ T — TÉLÉPHONE ══════════ */
         titre('T — Sur téléphone (390 × 760) : la liste dans le premier écran, et « retour » revient à la liste');
         let fuites = 0;
@@ -258,6 +302,8 @@
         check('T4 Rien ne déborde à l’horizontale', dt.documentElement.scrollWidth <= dt.documentElement.clientWidth, true);
         det.click(); await attendre(300);
         check('T5 La fiche remplace la liste (une étape d’historique est ajoutée)', [dt.body.classList.contains('crm-fiche-ouverte'), (wt.history.state || {}).crmFiche], [true, 'détrempé|quentin']);
+        check('T5b …avec « ← Tous les clients » visible et « ← Accueil des clients » (le bouton du bureau) caché : une seule porte',
+          [wt.getComputedStyle(dt.getElementById('crmRetour')).display !== 'none', wt.getComputedStyle(dt.querySelector('.crm-accueil-bar')).display], [true, 'none']);
         wt.history.back(); await attendre(500);
         check('T6 Le geste « retour » REVIENT À LA LISTE, sans quitter la page', [dt.body.classList.contains('crm-fiche-ouverte'), /clients/.test(wt.location.pathname), !!dt.querySelector('.crm-item')], [false, true, true]);
         dt.querySelector('.crm-item[data-key="avoir|anne"]').click(); await attendre(300);
