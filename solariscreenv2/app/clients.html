@@ -42,7 +42,14 @@
        de feuille repasse devant une media query écrite plus haut (piège déjà payé sur ce projet).
        C'est une variable qui porte l'état, pas une réécriture de `display`. */
     .crm-retour { display: none; align-items: center; gap: 0.4rem; margin-bottom: var(--sp-3); }
+    /* Au bureau, la fiche ouverte REMPLAÇAIT « À ranger » sans chemin du retour : il fallait recharger la page
+       (demande de Nicolas, 30/10/2026). Le bouton vit en tête de la fiche, là où l'œil cherche un retour ; sur
+       téléphone c'est « ← Tous les clients », au-dessus de la carte, qui fait ce travail — une seule porte. */
+    .crm-accueil-bar { padding: var(--sp-3) var(--sp-5) 0; }
+    .crm-accueil-bar + .detail-head { padding-top: var(--sp-3); }
     @media (max-width: 920px) {
+      .crm-accueil-bar { display: none; }
+      .crm-accueil-bar + .detail-head { padding-top: var(--sp-5); }
       body.crm-fiche-ouverte .crm-list { display: none; }
       /* Les indicateurs du haut résument TOUS les clients : quand on en modifie un, ils poussent
          sa fiche 440 px plus bas sans rien apprendre. */
@@ -230,7 +237,7 @@
       </div>
 
       <!-- Détail -->
-      <button class="btn btn-ghost btn-sm crm-retour" id="crmRetour" onclick="fermerFiche()">← Tous les clients</button>
+      <button class="btn btn-ghost btn-sm crm-retour" id="crmRetour" onclick="retourAccueil()">← Tous les clients</button>
       <div class="crm-detail ticked empty-detail" id="detail">
         <div class="empty-detail-msg"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Sélectionne un client pour voir sa fiche et son historique.</div>
       </div>
@@ -470,11 +477,11 @@
       }).join('') : '<div class="empty-detail-msg">Aucun client.</div>';
     }
     // Clic ET clavier (Entrée, Espace) : une ligne était un simple bloc cliquable, inatteignable au clavier.
-    el('list').addEventListener('click', (e) => { const it = e.target.closest('.crm-item'); if (it) renderDetail(it.dataset.key); });
+    el('list').addEventListener('click', (e) => { const it = e.target.closest('.crm-item'); if (it && quitterFicheOk()) renderDetail(it.dataset.key); });
     el('list').addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const it = e.target.closest('.crm-item');
-      if (it) { e.preventDefault(); renderDetail(it.dataset.key); }
+      if (it) { e.preventDefault(); if (quitterFicheOk()) renderDetail(it.dataset.key); }
     });
 
     /* ── C · « À RANGER » ── Le grand panneau de droite restait vide tant qu'aucun client n'était
@@ -517,8 +524,55 @@
       fermerFiche({ historique: true });
     });
 
-    /** Retour à la liste (téléphone). Au bureau le bouton n'existe pas : les deux colonnes
-     *  sont côte à côte et il n'y a jamais rien à « fermer ». */
+    /* ── UNE SAISIE ENTAMÉE NE SE PERD PAS SANS UN MOT ── La fiche s'enregistre par son bouton : la quitter
+       (un autre client dans la liste, « ← Tous les clients », « ← Accueil des clients ») jetait les
+       coordonnées tapées et le mail collé, sans rien dire. On compare chaque champ à la valeur qu'il avait à
+       l'ouverture (`defaultValue`, l'attribut du gabarit) : rien n'est retenu à part, donc rien à tenir à jour.
+       ⚠️ Un menu sans option marquée affiche la PREMIÈRE : c'est elle, sa valeur d'ouverture. Et le mail en
+       correction se compare au mail enregistré — le formulaire est rempli par le script, pas par la saisie. */
+    function champChange(x) {
+      if (x.type === 'checkbox' || x.type === 'radio') return x.checked !== x.defaultChecked;
+      if (x.tagName === 'SELECT') { const d = [...x.options].findIndex((o) => o.defaultSelected); return x.selectedIndex !== (d < 0 ? 0 : d); }
+      return x.value !== x.defaultValue;
+    }
+    function ficheModifiee() {
+      const det = el('detail');
+      if (!selectedKey || det.classList.contains('empty-detail')) return false;
+      if ([...det.querySelectorAll('[id^="f_"]')].some(champChange)) return true;
+      const texte = el('mailTexte'), objet = el('mailObjet');
+      if (!texte) return false;
+      if (MAIL_EDITE) {
+        const c = DIRECTORY.find((x) => x.key === CLE_FICHE);
+        const m = ((c && c.contact.mails) || []).find((x) => String(x.id) === String(MAIL_EDITE)) || {};
+        return texte.value !== (m.texte || '') || (objet && objet.value !== (m.objet || ''));
+      }
+      return texte.value.trim() !== '';
+    }
+    function quitterFicheOk() {
+      return !ficheModifiee() || confirm('Quitter cette fiche sans enregistrer ce que tu as modifié ?');
+    }
+    /** « ← Tous les clients » (téléphone) et « ← Accueil des clients » (bureau) : la page telle qu'à
+     *  l'arrivée. Au bureau, l'adresse perd aussi `?key=` / `?q=` / `?mail=` (sinon un rechargement
+     *  rouvrirait la fiche ou remettrait la recherche) et la recherche se vide : c'est l'ACCUEIL. Sur
+     *  téléphone la recherche reste : on revient choisir un autre résultat de la même recherche. */
+    window.retourAccueil = function () {
+      if (!quitterFicheOk()) return;
+      if (!MAITRE_DETAIL()) {
+        try {
+          const u = new URL(location.href);
+          ['key', 'q', 'mail'].forEach((k) => u.searchParams.delete(k));
+          if (u.href !== location.href) history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+        } catch (e) {}
+        const rech = el('search');
+        if (rech && rech.value) rech.value = '';
+        const liste = el('list');
+        if (liste) liste.scrollTop = 0;
+      }
+      fermerFiche();
+    };
+    /** Ferme la fiche : la liste sur téléphone, « À ranger » au bureau. Sans garde — c'est le geste
+     *  « retour » du téléphone (l'étape d'historique est déjà partie) ; les boutons passent par
+     *  `retourAccueil`, qui demande avant de jeter une saisie. */
     window.fermerFiche = function (o) {
       if (!(o && o.historique) && ficheHistorique) { ficheHistorique = false; try { history.back(); } catch (e) {} }
       document.body.classList.remove('crm-fiche-ouverte');
@@ -542,6 +596,7 @@
       if (!c) { det.innerHTML = '<div class="empty-detail-msg">Client introuvable.</div>'; return; }
       const ct = c.contact, adr = ct.adresse || {};
       det.innerHTML = `
+        <div class="crm-accueil-bar"><button type="button" class="btn btn-ghost btn-sm" id="crmAccueil" onclick="retourAccueil()" title="Fermer cette fiche et revenir à l'accueil des clients (« À ranger »)">← Accueil des clients</button></div>
         <div class="detail-head">
           <div class="avatar">${esc(initials(ct.prenom, ct.nom)).toUpperCase()}</div>
           <div>

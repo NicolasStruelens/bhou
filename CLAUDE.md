@@ -127,7 +127,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 128 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
-| `tests/clients.test.html` | Les 51 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger », nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
+| `tests/clients.test.html` | Les 61 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 | `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
@@ -2242,6 +2242,17 @@ par Nicolas). Protégé par `tests/clients.test.html`.
   existantes restent affichées.
 • **Téléphone : « retour » revient à la liste** (étape d'historique à l'ouverture d'une fiche ; pas
   d'étape quand on ARRIVE sur une fiche par `?key=`, pour que « retour » ramène d'où l'on vient).
+• **Au bureau, « ← Accueil des clients »** en tête de la fiche (demande de Nicolas, 30/10/2026) : la fiche ouverte
+  remplaçait « À ranger » sans chemin du retour — il fallait recharger. Il ramène la page telle qu'à l'arrivée :
+  « À ranger », recherche vidée, et l'adresse sans `?key=` / `?q=` / `?mail=` (un rechargement rouvrait la fiche).
+  Caché sur téléphone, où « ← Tous les clients » fait ce travail au-dessus de la carte (une seule porte) — et y
+  GARDE la recherche : on revient choisir un autre résultat.
+• **Une saisie entamée ne se perd plus sans un mot** : la fiche s'enregistre par son bouton, et changer de client
+  (liste, clavier) ou revenir à l'accueil jetait les coordonnées tapées et le mail collé. On demande, en comparant
+  chaque champ à sa valeur d'ouverture (`defaultValue` du gabarit : rien à tenir à jour à part). ⚠️ Un menu sans
+  option marquée affiche la première : c'est elle, sa valeur d'ouverture. ⚠️ La correction d'un mail archivé
+  remplit le formulaire par script : elle se compare au mail enregistré, sinon l'ouvrir sans rien changer
+  passerait pour une saisie. Le « retour » du téléphone, lui, ne demande pas : l'étape d'historique est déjà partie.
 
 **43. LES MAILS DE RELANCE PARTENT DE L'ERP — CONSTRUIT AVANT D'ÊTRE BRANCHÉ** (26/10/2026, demande
 de Nicolas : « mettre les boutons inaccessibles pour l'instant, en construction, comme ça le jour où on
@@ -3267,7 +3278,7 @@ CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites 
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
-   `tests/clients.test.html`, exiger « 51/51 », par le serveur.
+   `tests/clients.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
