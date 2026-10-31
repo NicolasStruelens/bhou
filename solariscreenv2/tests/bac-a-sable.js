@@ -206,7 +206,7 @@
       devis(base, { n: '10', client: 'c10', vendeur: 'nicolas', cree: -60, modifie: -3, statut: 'signe', tva: 21, items: [screens(8, { emplacement: 'Classes du 1er étage', modele: 'SC 110' })],
         role: 'École : pose dans 3 jours, à deux (TVA 21 %, commune avec apostrophe)',
         champs: { date_envoi: J(-56), statut_history: [{ statut: 'signe', date: T(-50) }], commande: { statut: 'recu', date_commande: J(-45), delai_semaines: 5 },
-          chantier: { date_pose: J(3), heure: '08:00', equipe: 'nicolas_yannick' } },
+          chantier: { date_pose: J(3), heure_pose: '08:00', equipe: 'nicolas_yannick' } },
         _factures: [{ type: 'acompte', pct: 30, date: J(-49), echeance: J(-34), paiements: [{ date: J(-40), moyen: 'Virement' }] }] }),
       devis(base, { n: '11', client: 'c11', vendeur: 'yannick', cree: -75, modifie: -19, statut: 'signe', items: [screens(2)],
         role: 'Posé, solde facturé et EN RETARD de paiement',

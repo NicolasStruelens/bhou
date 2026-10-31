@@ -725,6 +725,41 @@
     return recDone || cmdPose;
   }
 
+  /* ── « Pose annulée — retirer la date » (31/10/2026, demande de Nicolas : « on devait placer les
+     screens aujourd'hui, ça a été annulé : comment annuler, et laisser sans date quand on ne sait
+     pas ? ») ──
+     Vider un champ date n'était ni facile ni clair (Chrome n'a pas de bouton pour l'effacer), et le
+     bouton « Annuler » de la fenêtre du planning ne faisait que FERMER la fenêtre. La règle vit ici,
+     une fois, pour la fiche devis et le planning. */
+  /** Une date de pose peut-elle être retirée ? Oui tant qu'elle n'est pas le RELEVÉ d'une pose faite :
+   *  une pose faite (PV, commande « posé ») dont la date est passée garde sa date — la garantie part
+   *  de là (règle 20). Une date À VENIR se retire toujours, même après un PV : c'est la seconde pose
+   *  d'un chantier posé en deux fois. */
+  function peutRetirerDatePose(d) {
+    const p = String((d && d.chantier && d.chantier.date_pose) || '').slice(0, 10);
+    if (!p) return false;
+    return !isPoseDone(d) || p >= aujourdhui();
+  }
+  /** Retire la date (et l'heure, qui n'a plus de sens sans elle). L'ÉQUIPE et la DURÉE restent :
+   *  elles valent pour la prochaine date. `pose_retiree` garde la date retirée, pour que la fiche
+   *  dise « à replanifier » au lieu d'un vide muet. Étale le chantier (règle 2). Rend la date retirée. */
+  function retirerDatePose(d, par) {
+    const ch = (d && d.chantier) || {};
+    const avant = String(ch.date_pose || '').slice(0, 10);
+    d.chantier = Object.assign({}, ch, { date_pose: '', heure_pose: '' },
+      avant ? { pose_retiree: { date: avant, le: new Date().toISOString(), par: par || '' } } : {});
+    return avant;
+  }
+  /** La question posée avant de retirer — la même sur la fiche et dans le planning. */
+  function questionRetirerPose(date) {
+    const j = String(date || '').slice(0, 10);
+    const jour = /^\d{4}-\d{2}-\d{2}$/.test(j)
+      ? new Date(j + 'T12:00:00').toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'prévue';
+    return 'Retirer la pose du ' + jour + ' ?\n\nLe chantier repasse « à planifier » : il réapparaît dans le planning et sur le '
+      + 'tableau de bord jusqu’à ce qu’une nouvelle date soit fixée. L’équipe et la durée sont gardées.';
+  }
+  const REFUS_RETIRER_POSE = 'Cette pose est faite : sa date sert de départ à la garantie, elle ne se retire pas.';
+
   // ── Détection de conflit d'édition (2 utilisateurs sur le même devis) ──
   // Appelée quand SS.saveDevis() renvoie { conflict: true } (voir api.js) : quelqu'un d'autre a déjà
   // enregistré une version plus récente entre le chargement de la fiche et cette sauvegarde. On ne
@@ -2205,7 +2240,9 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp, hoteBacASable: hoteBacASable,
-    normDevis: normDevis, isPoseDone: isPoseDone, isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
+    normDevis: normDevis, isPoseDone: isPoseDone, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
+    questionRetirerPose: questionRetirerPose, REFUS_RETIRER_POSE: REFUS_RETIRER_POSE,
+    isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
     TYPE_LABEL: TYPE_LABEL, TYPE_FORMES: TYPE_FORMES,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
