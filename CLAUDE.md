@@ -85,6 +85,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
+| `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
+| `tests/suivi.test.html` | Les 53 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 7 mutations. **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -179,7 +181,7 @@ effacer tout l'historique des e-mails.
 **3. Les collections se modifient par écriture CIBLÉE, jamais en réécrivant l'objet entier.**
 Notes, encaissements, photos de chantier, tickets SAV ont chacun leur route serveur, qui écrit sur
 la valeur *actuelle* de la ligne. Réécrire l'objet complet écrase le travail simultané de l'autre.
-⚠️ Depuis le 28/10/2026 (règle 56), `upsertDevis` GARDE `sav_tickets`, `chantier_photos`, `documents` et `review_views`
+⚠️ Depuis le 28/10/2026 (règle 56), `upsertDevis` GARDE `sav_tickets`, `chantier_photos`, `documents`, `review_views` et `track_views` (règle 57)
 tels qu'en base, comme les notes et les attentes, sauf si l'enregistrement PROUVE qu'il part de la dernière version
 (`_expected_date_modification`) — « Alléger » le fait. Une route interne qui relit puis écrit passe `{ verifie: true }`.
 Pour modifier QUELQUES clés d'un devis ou d'une fiche client : `SS.modifierDevis(id, appliquer)` /
@@ -714,6 +716,11 @@ partagé utilise donc l’identifiant `ssLightbox` et non `lightbox` : deux él�
 un document, c’est le genre de collision qu’on ne voit qu’un jour de malchance. Toute nouvelle page
 passe par le helper ; les deux copies restent à ramener dessus, quand on y touchera pour autre chose.
 Le clic sur le fond suit la règle des modales : il ne ferme que si le geste a COMMENCÉ sur le fond.
+Depuis le 31/10/2026 (règle 57) : on GLISSE au doigt d'une photo à l'autre (geste nettement horizontal seulement), et deux
+options, `ouvrirPhotos(urls, i, { legendes, retour })` — une légende par photo (texte seul, filtrée AVEC son adresse pour ne
+pas se décaler), et « retour » qui ferme (une étape d'historique ; la croix, Échap ou le fond la retirent). Sans options, rien
+ne change pour les pages qui l'appelaient déjà. ⚠️ Un cadre écrit par le banc (`SSBanc.cadre`, `document.open`) ne reçoit
+JAMAIS `popstate` : un test du geste « retour » se joue dans un cadre chargé normalement (`suivi.test.html`, C7).
 
 **26 bis. UNE IMAGE QUI RATE UNE FOIS RESTE CASSÉE POUR TOUJOURS — une page web ne réessaie
 JAMAIS.** Signalé par Nicolas le 12/10/2026 : une vignette d'Échange sortait en icône de papier
@@ -777,7 +784,8 @@ Trois règles, et ce sont elles qui justifient le module :
 • **JAMAIS SUR CE QUE LE CLIENT VOIT.** Rien dans `.paper`, rien sur `devis-review.html` ni
   `track.html` (les deux pages servies par lien à jeton, hors Access), rien à l'impression. Une
   araignée sur un devis d'école, ce n'est pas drôle : c'est une facture qu'on ne prend pas au
-  sérieux. Le script n'est pas inclus sur ces pages ET le module s'y arrête de lui-même.
+  sérieux. Le script n'est pas inclus sur ces pages ET le module s'y arrête de lui-même. ⚠️ Les SAISONS, elles, habillent
+  le lien de suivi depuis le 31/10/2026 (demande de Nicolas) — ce n'est pas une fête : voir règle 57.
 • **LE DÉCOR NE DIT RIEN.** Ici la couleur porte du sens (règles 21 bis et 22). Les décors se
   reconnaissent à leur FORME et vivent en opacité basse : personne ne prend une citrouille pour
   une alerte, même si son orange est voisin de `--warn`.
@@ -2977,6 +2985,38 @@ CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites 
   refusait l'aperçu même), et `?ecrans=telephone` ne trouvait pas « téléphone » (accents). Le lien de suivi posé par le banc
   (`essai-trk-10`) n'est plus ouvert en vrai : il n'existe pas dans la base d'essai, et son 404 était un faux défaut.
 
+**57. LE LIEN DE SUIVI EST CE QUE LE CLIENT VOIT : une liste blanche au serveur, les règles de l'ERP à l'écran**
+(31/10/2026 — demande de Nicolas : « amélioration complète du lien client, thèmes selon les saisons, vue des photos du chantier
+en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (`window.SSSuivi`), route `/api/track`. Protégé par
+`tests/suivi.test.html`.
+• **La route ne renvoie que ce qu'elle ÉNUMÈRE** (`suiviPublic`) — c'est la seule exception assumée à la règle 2, pour la même
+  raison que `/api/devis-review` (règle 31 ter) : la page est PUBLIQUE, hors Access, et n'importe qui possédant le lien la lit.
+  Jamais de prix, de note de photo, d'auteur, d'équipe, d'image de signature du PV (seulement « signé » et sa date), de
+  référence de commande Harol (`sansReferenceFournisseur`, même règle que `SSVitrine.sansReference`), de coordonnées. La commande
+  aussi passe en liste blanche (`statut`, `date_commande`, `delai_semaines`, `recu_le`) : elle partait ENTIÈRE avant.
+• **Les photos du journal qui sortent : « avant », « pendant », « terminé »** (`SUIVI_PHASES`). Jamais « problème », « réserve » ni
+  « autre » ; jamais une photo masquée au portfolio (`portfolio_masquees`, règle 45 — masquer veut dire « ne pas montrer », au
+  client aussi) ; la couverture choisie passe en tête des photos d'une ouverture. Le commentaire du journal disait « photos
+  INTERNES, jamais exposées » : c'est la décision de Nicolas du 31/10/2026 qui l'a levé, pour ces trois phases seulement.
+• **Une photo de R2 est servie PAR LE JETON** (`/api/track?t=…&photo=…`), et seulement si elle figure dans ce que la page montre
+  (`autorisees`) : le client ne peut charger ni une photo « problème » de son propre chantier, ni celle d'un autre dossier.
+  Le service est commun avec l'espace client (`servirPhotoPublique`).
+• **L'avancement suit les règles de l'ERP, pas les siennes** (`SSUI.etatCommande`, `isPoseDone`, `livraisonEstimee`) : le PV signé
+  suffit à dire « posé ». ⚠️ **POSÉ EN DEUX FOIS** — pose faite ET une date de pose encore à venir (`poseAVenir`, « Seconde pose le … »
+  sur la fiche) : la page disait « Installation terminée » au-dessus d'une moitié de chantier pas posée. Elle dit maintenant « Une
+  première partie est posée — la suite est prévue le … » (test A13, et P12 de `fiche.test.html` est passé sur une pose PASSÉE).
+• **Le rendez-vous ne s'annonce que s'il est À VENIR** : une date de pose passée sans pose enregistrée (reportée ? faite sans PV ?)
+  ne dit rien de sûr, la page se tait. L'heure s'écrit « 8 h 30 », jamais « 08:30 ».
+• **Les consultations du client se comptent** (`track_views`, mêmes règles que `review_views` : 10 s d'anti-rebond, 50 dernières,
+  `staff=1` pour Nicolas et Yannick — marqueur `ss_staff`, bandeau « Aperçu interne »), en écriture CIBLÉE, et `upsertDevis` les
+  garde (règle 3). La fiche devis l'affiche sous « Copier le lien de suivi client ». Un dossier refusé ou annulé répond 410.
+• **UNE SAISON N'EST PAS UNE FÊTE** (règle 28). Les fêtes restent interdites sur cette page (une araignée sur le suivi d'une école) ;
+  la saison parle de lumière et de temps qu'il fait — le métier même de SolariScreen. Elle est sobre : un emblème au coin du logo,
+  une phrase, quatorze motifs qui passent DERRIÈRE les cartes (`z-index: 0`, `pointer-events: none`), immobiles et même absents si
+  le visiteur demande moins d'animations, absents à l'impression. Bornes en `MM-JJ` (20/03, 21/06, 22/09, 21/12, l'hiver enjambe le
+  Nouvel An), teintes `{ sombre, clair }` posées sur tous les thèmes clairs de `SSTheme`, positions déterministes. `?saison=hiver`
+  (printemps, ete, automne) montre une saison hors de sa période, comme l'aperçu des fêtes.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3279,6 +3319,9 @@ CE QUE L'AUDIT A TROUVÉ, et qui ne se voyait ni en relisant ni dans les suites 
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 61/61 », par le serveur.
+   Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
+   (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 53/53 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
+   et, pour la visionneuse, `outillage`, `sav`, `rdv` et `terrain`.
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
