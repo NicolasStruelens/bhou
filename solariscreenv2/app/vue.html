@@ -913,6 +913,7 @@
           </div>
           <div class="cc-eta" id="chantierLivraisonHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierEquipeHint" style="margin-top:0;"></div>
+          <div class="cc-eta" id="chantierDureeHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierInfo"></div>
           <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
           <!-- Pose annulée ou reportée sans nouvelle date : UN geste, nommé par ce qui s'est passé (règle 58).
@@ -1960,7 +1961,13 @@
       if (!show) return;
       const ch = DEVIS.chantier || {};
       el('chDate').value = ch.date_pose || '';
-      el('chDuree').value = ch.duree_h ?? '';
+      /* La durée : celle du chantier, ou RIEN — avec le défaut du planning en indication et une phrase qui le
+         dit (`SSPlanning.dureePose`, source unique). Le champ affichait « 0 » quand le planning comptait 4 h
+         pour le même chantier (signalé par Nicolas le 31/10/2026). */
+      const dp = window.SSPlanning.dureePose(ch);
+      el('chDuree').value = dp.defaut ? '' : ch.duree_h;
+      el('chDuree').placeholder = String(window.SSPlanning.dureePose({}).h);   // ce que le planning comptera si on vide le champ
+      el('chantierDureeHint').textContent = dp.note;
       /* ⚠️ JAMAIS « || 'nicolas' » ICI. Le select affichait « Nicolas » alors que rien n'était
          enregistré : on lisait « Nicolas » à l'écran, donc on ne touchait pas au champ, donc
          saveChantier() n'était jamais appelé et la base restait vide. La fiche annonçait une
