@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — lien de suivi client</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du lien de suivi client (<code>track.html</code>)</h1>
+  <p class="note">
+    La page que le CLIENT ouvre par son lien, hors Cloudflare Access (règle 57). On vérifie d'abord les règles pures
+    (<code>assets/js/suivi.js</code> : saisons, avancement, rendez-vous de pose, photos, produits), puis la ROUTE
+    <code>/api/track</code> sur le VRAI serveur (banc) rempli par le bac à sable : ce qu'elle laisse sortir — et surtout ce
+    qu'elle retient (prix, notes, auteurs, équipe, référence fournisseur, photos « problème », « réserve », masquées) —, les
+    photos servies par le jeton et seulement celles-là, les consultations comptées, le dossier refusé. Enfin la vraie page en
+    cadre : chantier terminé avec ses photos et l'avant / après, pose à venir, saison et thèmes, visionneuse et « retour »,
+    téléphone sans débordement, aperçu interne, et le compteur de la fiche devis.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle.
+  </p>
+  <div id="summary">Tests en cours…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/theme.js"></script>
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/vitrine.js"></script>
+  <script src="../assets/js/suivi.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 900) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 900) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'OK' : 'ÉCHEC') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests suivi client';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 8000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const SS = window.SS, U = window.SSUI, SU = window.SSSuivi, BANC = window.SSBanc;
+    const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const J = (n) => U.isoDate(new Date(Date.now() + n * 86400000));
+    const lire = (id) => BANC.donnee('devis', 'id', id) || {};
+    const ecrireBase = (id, chemin, valeurJson) => {
+      BANC.DB.exec("UPDATE devis SET data = json_set(data, '" + chemin + "', json('" + JSON.stringify(valeurJson).replace(/'/g, "''") + "')) WHERE id = '" + id + "'");
+    };
+    const api = async (q) => { const r = await BANC.fetch('/api/track?' + q); let corps = null; try { corps = await r.clone().json(); } catch (e) {} return { statut: r.status, corps, r }; };
+    let STAFF0 = null;
+    try { STAFF0 = localStorage.getItem('ss_staff'); } catch (e) {}
+    const staff = (v) => { try { if (v) localStorage.setItem('ss_staff', '1'); else localStorage.removeItem('ss_staff'); } catch (e) {} };
+
+    (async () => {
+      try {
+        // ═══════════════ A. Les règles pures (assets/js/suivi.js) ═══════════════
+        titre('A. Les règles pures — saisons, avancement, photos, produits');
+        const sa = (d) => SU.saisonDu(d).k;
+        check('A1 Les bornes des saisons (le 20/03 est le printemps, le 21/12 l’hiver, et l’hiver enjambe le Nouvel An)',
+          ['2026-03-19', '2026-03-20', '2026-06-20', '2026-06-21', '2026-09-21', '2026-09-22', '2026-12-20', '2026-12-21', '2027-01-01', '2026-10-31'].map(sa),
+          ['hiver', 'printemps', 'printemps', 'ete', 'ete', 'automne', 'automne', 'hiver', 'hiver', 'automne']);
+        let changements = 0, prec = sa('2026-01-01');
+        for (let i = 1; i < 366; i++) { const k = sa(new Date(2026, 0, 1 + i)); if (k !== prec) changements++; prec = k; }
+        check('A2 Sur une année entière : exactement quatre changements de saison (aucun trou, aucun chevauchement)', changements, 4);
+        check('A3 Chaque saison a ses teintes { sombre, clair } (règle 28 : calibrée pour les deux familles de thèmes) et ses dessins en currentColor',
+          SU.SAISONS.map((s) => !!(s.teinte.sombre && s.teinte.clair && /currentColor/.test(s.embleme) && /currentColor/.test(s.motif))), [true, true, true, true]);
+        const m1 = SU.motifs(14), m2 = SU.motifs(14);
+        check('A4 Les motifs sont déterministes (mêmes positions à chaque visite) et déjà en route au chargement (délai ≤ 0)',
+          [m1.length, JSON.stringify(m1) === JSON.stringify(m2), m1.every((m) => m.delai <= 0 && m.x >= 0 && m.x <= 100)], [14, true, true]);
+
+        const AUJ = '2026-10-31';
+        const av = (d) => SU.avancement(d, AUJ);
+        const etats = (A) => A.etapes.map((e) => e.etat[0]).join('');
+        const segs = (A) => A.eta.map((s) => s[0]).join('');
+        let A = av({ commande: { statut: '' } });
+        check('A5 Rien de commandé : « À commander » en cours, aucune date, pas de rendez-vous',
+          [etats(A), A.etapes[0].sous, segs(A), A.rdv, A.termine], ['eaaaa', 'Votre commande est en préparation', "L'installateur planifiera prochainement la suite de votre commande.", null, false]);
+        A = av({ commande: { statut: 'fabrication', date_commande: '2026-10-01', delai_semaines: 5 } });
+        check('A6 En fabrication : la date de commande sous « Commandé », livraison estimée en gras (5 semaines après la commande)',
+          [etats(A), A.etapes[1].date, A.eta[1], segs(A)], ['ffeaa', '2026-10-01', ['5 novembre 2026', true], 'Livraison estimée : 5 novembre 2026']);
+        A = av({ commande: { statut: 'fabrication', date_commande: '2026-10-01' } });
+        check('A7 Sans délai annoncé, aucune estimation (même règle que la fiche, `SSUI.livraisonEstimee`)', segs(A), "L'installateur planifiera prochainement la suite de votre commande.");
+        A = av({ commande: { statut: 'recu', recu_le: '2026-10-20' }, chantier: { date_pose: '2026-11-03', heure: '08:30', duree_h: 4.5 } });
+        check('A8 Matériel reçu, pose dans 3 jours : le rendez-vous, l’heure « 8 h 30 » et la durée « 4 h 30 », la date de réception sous « Reçu »',
+          [etats(A), A.etapes[3].date, A.etapes[3].sous, A.rdv && [A.rdv.titre, A.rdv.quand, A.rdv.jour, A.rdv.heure, A.rdv.duree], segs(A)],
+          ['fffea', '2026-10-20', 'Matériel réceptionné — pose prévue le 3 novembre 2026',
+            ['Pose de votre installation', 'Dans 3 jours', 'mardi 3 novembre 2026', 'Arrivée prévue vers 8 h 30', 'Durée estimée : 4 h 30'],
+            'Matériel reçu — pose prévue le mardi 3 novembre 2026.']);
+        check('A9 Demain, aujourd’hui ; « 08:00 » se dit « 8 h » ; une heure illisible se tait',
+          [av({ commande: { statut: 'recu' }, chantier: { date_pose: '2026-11-01', heure: '08:00' } }).rdv.quand,
+           av({ commande: { statut: 'recu' }, chantier: { date_pose: AUJ, heure: '08:00' } }).rdv.quand,
+           av({ commande: { statut: 'recu' }, chantier: { date_pose: AUJ, heure: '08:00' } }).rdv.heure,
+           av({ commande: { statut: 'recu' }, chantier: { date_pose: AUJ, heure: 'matin' } }).rdv.heure],
+          ['Demain', 'Aujourd’hui', 'Arrivée prévue vers 8 h', '']);
+        A = av({ commande: { statut: 'recu' }, chantier: { date_pose: '2026-10-20' } });
+        check('A10 Une date de pose PASSÉE sans pose enregistrée : pas de rendez-vous annoncé (reportée ? faite sans PV ?)',
+          [A.rdv, A.termine, segs(A)], [null, false, 'Matériel reçu, la pose sera bientôt planifiée.']);
+        A = av({ commande: { statut: 'pose', date_commande: '2026-09-01' }, chantier: { date_pose: '2026-10-20' } });
+        check('A11 Posé : tout est vert, « Installation terminée » (le texte exact que lit le test P12 de la fiche), la date de pose sous « Posé »',
+          [etats(A), A.termine, segs(A), A.etapes[4].date, A.posee, A.intro],
+          ['fffff', true, 'Installation terminée — merci de votre confiance !', '2026-10-20', '2026-10-20', 'Votre installation est terminée.']);
+        A = av({ commande: { statut: 'recu' }, reception: { signe: true, date: '2026-10-25' } });
+        check('A12 Le PV signé suffit (règle de l’ERP, `SSUI.isPoseDone`) même si la commande est restée « Reçu » ; la date vient du PV',
+          [etats(A), A.termine, A.etapes[4].date], ['fffff', true, '2026-10-25']);
+        A = av({ commande: { statut: 'pose' }, reception_date: '2026-10-25', chantier: { date_pose: '2026-11-04' } });
+        check('A13 Posé EN DEUX FOIS (pose faite + date à venir, la règle `poseAVenir` de l’ERP) : « Posé » en cours, la suite annoncée — jamais « terminée »',
+          [etats(A), A.termine, A.partielle, A.etapes[4].sous, A.rdv && A.rdv.titre, segs(A)],
+          ['ffffe', false, true, 'Première partie posée — la suite le 4 novembre 2026', 'Suite de votre installation', 'Une première partie est posée — la suite est prévue le mercredi 4 novembre 2026.']);
+        check('A14 Durées : 1,5 → « 1 h 30 », 4 → « 4 h », 0,5 → « 30 min », 0 et vide → rien', [SU.duree(1.5), SU.duree(4), SU.duree(0.5), SU.duree(0), SU.duree('')], ['1 h 30', '4 h', '30 min', '', '']);
+
+        const ph = (src, phase, date) => ({ src, phase, date });
+        const G = SU.galerie([ph('data:image/png;base64,AA', 'avant', '2026-10-01'), ph('/api/track?t=x&photo=a%2Fb', 'pendant', '2026-10-02'),
+          ph('data:image/png;base64,BB', 'apres', '2026-10-03'), ph('data:image/png;base64,CC', 'probleme', '2026-10-03'),
+          ph('javascript:alert(1)', 'apres', '2026-10-03'), ph('https://ailleurs.example/x.jpg', 'apres', '2026-10-03'), ph('data:image/png;base64,DD', 'apres', '2026-10-04')]);
+        check('A15 La galerie : « Terminé » d’abord, puis « Pendant », puis « Avant » ; jamais « problème », jamais une adresse externe ni `javascript:`',
+          [G.groupes.map((g) => g.l + ':' + g.photos.length), G.toutes.map((p) => p.src.slice(-2)), G.toutes[0].libelle],
+          [['Terminé:2', 'Pendant les travaux:1', 'Avant:1'], ['BB', 'DD', 'Fb', 'AA'], 'Terminé']);
+        check('A16 Avant / après : la PREMIÈRE de chaque (comme au portfolio), et rien si l’une manque',
+          [G.paire && [G.paire.avant.src.slice(-2), G.paire.apres.src.slice(-2)], SU.galerie([ph('data:image/png;base64,AA', 'avant')]).paire], [['AA', 'BB'], null]);
+        const P = SU.produits([{ type: 'screen', modele: 'SC 110', quantite: 8, emplacement: 'Classes', toile: 'Gris', couleur: '7016 — Gris anthracite', photos: ['data:image/png;base64,AA', 'javascript:x'] },
+          { type: 'volet_roulant', modele: '', quantite: 1, couleur: '', photos: [] }]);
+        check('A17 Les produits en mots de client : « 8 × Screen — SC 110 », toile, coloris « 7016 Gris anthracite », photos sûres seulement',
+          [P[0].titre, P[0].emplacement, P[0].details, P[0].photos.length, P[1].titre, P[1].details], ['8 × Screen — SC 110', 'Classes', ['Toile Gris', 'Coloris 7016 Gris anthracite'], 1, U.TYPE_LABEL.volet_roulant, []]);
+
+        // ═══════════════ B. La route /api/track sur le vrai serveur ═══════════════
+        titre('B. La route /api/track — ce qui sort, ce qui ne sort jamais');
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const rem = await window.SSBacASable.remplir(SS, {});
+        check('B0 Le bac à sable est rempli sur le banc', !!(rem && rem.ok !== false && lire('ESSAI-12').id), true);
+        // Le dossier terminé reçoit ce que la page ne doit JAMAIS montrer, à côté de ce qu'elle montre.
+        const e12 = lire('ESSAI-12');
+        const cp = (e12.chantier_photos || []).concat([
+          { id: 't-x1', url: '/api/photos/own/ph1', phase: 'apres', date: J(-39), note: 'Belle finition côté jardin', author: 'yannick' },
+          { id: 't-x2', url: '/api/photos/own/ph2', phase: 'probleme', date: J(-40), note: 'fissure interne du linteau', author: 'nicolas' },
+          { id: 't-x3', url: 'data:image/png;base64,UkVTRVJWRQ', phase: 'reserve', date: J(-40), note: 'réserve du client' },
+          { id: 't-x4', url: '/api/photos/own/ph5', phase: 'pendant', date: J(-40) },
+          { id: 't-x5', url: '/api/photos/own/ph6', phase: 'autre', date: J(-40) }]);
+        ecrireBase('ESSAI-12', '$.chantier_photos', cp);
+        ecrireBase('ESSAI-12', '$.items[0].photos', (e12.items[0].photos || []).concat(['/api/photos/own/ph3']));
+        ecrireBase('ESSAI-12', '$.items[1].photos', (e12.items[1].photos || []).concat(['/api/photos/own/ph4']));
+        ecrireBase('ESSAI-12', '$.items[1].couleur', '7016 — Gris anthracite · réf. 7m16st (laque texturée)');
+        ecrireBase('ESSAI-12', '$.portfolio_masquees', ['/api/photos/own/ph4', '/api/photos/own/ph5']);
+        ecrireBase('ESSAI-12', '$.track_token', 'trk-12');
+        ecrireBase('ESSAI-12', '$.reception', { date: J(-40), image: 'data:image/png;base64,U0lHTkFUVVJF', nom: 'Signataire' });
+        ecrireBase('ESSAI-10', '$.track_token', 'trk-10');
+        ecrireBase('ESSAI-13', '$.track_token', 'trk-13');
+        const servies = [];
+        BANC.ENV.PHOTOS = { get: async (k) => { servies.push(k); return /own\/ph[13]\.jpg$/.test(k) ? { body: 'OCTETS', httpMetadata: { contentType: 'image/jpeg' } } : null; } };
+
+        staff(false);
+        const r12 = await api('t=trk-12');
+        const j = JSON.stringify(r12.corps);
+        const interdits = ['prix_catalogue', '"ttc"', 'calculs', 'pricing', 'fissure', 'Belle finition', 'réserve du client', 'UkVTRVJWRQ', 'U0lHTkFUVVJF', '7m16st', 'réf.',
+          'nicolas_yannick', 'equipe', 'author', '"note"', '@exemple.invalid', 'Rue de l', 'portfolio', 'review_token', 'factures', 'sav_tickets', 'comments'];
+        check('B1 La réponse ne contient RIEN de ce qui doit rester à la maison (prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, coordonnées, jetons, SAV, notes)',
+          [r12.statut, interdits.filter((x) => j.indexOf(x) >= 0)], [200, []]);
+        const d12 = (r12.corps && r12.corps.data) || {};
+        const phases = (d12.photos || []).map((p) => p.phase + ':' + (p.src.indexOf('/api/track?t=trk-12&photo=') === 0 ? 'jeton' : p.src.slice(0, 11)));
+        check('B2 Photos du journal : « avant », « pendant », « terminé » dans l’ordre des dates ; ni « problème », ni « réserve », ni « autre », ni la photo masquée ; R2 servie par le JETON',
+          phases, ['avant:data:image/', 'pendant:data:image/', 'apres:data:image/', 'apres:jeton']);
+        const it12 = d12.items || [];
+        check('B3 Produits : couleur SANS référence fournisseur, quantité lue comme la ligne, photo d’ouverture masquée retirée, R2 par le jeton',
+          [it12[1] && it12[1].couleur, it12.map((i) => i.quantite), JSON.stringify(it12).indexOf('ph4') >= 0, ((it12[0] || {}).photos || []).some((u) => /photo=own%2Fph3$/.test(u))],
+          ['7016 — Gris anthracite', (e12.items || []).map((i) => Math.max(1, Number(i.quantite) || 1)), false, true]);
+        check('B4 Dates et PV : la date du PV et « signé », jamais l’image de la signature ; commande en liste blanche',
+          [d12.reception, Object.keys(d12.commande || {}).sort()], [{ date: J(-40), signe: true }, ['date_commande', 'delai_semaines', 'recu_le', 'statut']]);
+        const statutPhoto = async (p) => (await api('t=trk-12&photo=' + encodeURIComponent(p))).statut;
+        check('B5 Le service photo ne sert QUE ce que la page montre : terminé et ouverture (200) ; problème, ouverture masquée, journal masqué, « autre », inconnue, autre jeton (403)',
+          [await statutPhoto('own/ph1'), await statutPhoto('own/ph3'), await statutPhoto('own/ph2'), await statutPhoto('own/ph4'), await statutPhoto('own/ph5'), await statutPhoto('own/ph6'), await statutPhoto('own/zzz'), (await api('t=trk-10&photo=' + encodeURIComponent('own/ph1'))).statut],
+          [200, 200, 403, 403, 403, 403, 403, 403]);
+        check('B6 …et R2 n’est interrogé que pour les deux photos autorisées', servies, ['photos/own/ph1.jpg', 'photos/own/ph3.jpg']);
+        const corpsPhoto = await (await BANC.fetch('/api/track?t=trk-12&photo=' + encodeURIComponent('own/ph1'))).text();
+        check('B7 La photo arrive telle quelle (les octets de R2)', corpsPhoto, 'OCTETS');
+
+        // Consultations
+        const vues = () => (lire('ESSAI-12').track_views || []).length;
+        const n1 = vues();
+        await api('t=trk-12');
+        const n2 = vues();
+        await api('t=trk-12&staff=1');
+        const n3 = vues();
+        const tv = lire('ESSAI-12').track_views || [];
+        ecrireBase('ESSAI-12', '$.track_views', tv.map(() => new Date(Date.now() - 60000).toISOString()));
+        await api('t=trk-12');
+        check('B8 Consultations : la première compte, la même dans les 10 s non, celle de Nicolas / Yannick (staff=1) non, une nouvelle une minute plus tard oui ; une photo ne compte pas',
+          [n1, n2, n3, vues()], [1, 1, 1, 2]);
+        // Une fiche restée ouverte réenregistre le devis complet : les consultations survivent (règle 3).
+        const vieux = Object.assign({}, lire('ESSAI-12'), { track_views: [] });
+        delete vieux._expected_date_modification;
+        const sv = await SS.saveDevis(vieux);
+        check('B9 Un enregistrement complet depuis une fiche restée ouverte ne remet pas les consultations à zéro (gardées comme `review_views`)',
+          [sv.ok !== false, vues()], [true, 2]);
+        const r13 = await api('t=trk-13');
+        check('B10 Un dossier refusé : plus de suivi (410), sans aucune donnée', [r13.statut, r13.corps && r13.corps.ok, r13.corps && r13.corps.error, !!(r13.corps && r13.corps.data)],
+          [410, false, "Ce suivi n'est plus actif.", false]);
+        check('B11 Jeton inconnu (404) et jeton absent (400)', [(await api('t=inconnu')).statut, (await api('t=')).statut], [404, 400]);
+        // L'espace client passe par le MÊME service photo (`servirPhotoPublique`) : il doit répondre comme avant.
+        ecrireBase('ESSAI-12', '$.review_token', 'rv-12');
+        const rv = async (p) => (await BANC.fetch('/api/devis-review?t=rv-12&photo=' + encodeURIComponent(p))).status;
+        check('B12 Espace client : une photo d’ouverture sert (200), une photo du journal non (403) — inchangé', [await rv('own/ph3'), await rv('own/ph1')], [200, 403]);
+
+        // ═══════════════ C. La vraie page ═══════════════
+        titre('C. La vraie page — chantier terminé, pose à venir, saison, téléphone');
+        staff(false);
+        const ouvrir = async (q, w, h) => {
+          const f = await BANC.cadre('../track.html?' + q, w || 900, h || 1000);
+          await attendreQue(() => f.contentDocument.getElementById('main').style.display === '' || /track-error/.test(f.contentDocument.getElementById('loading').innerHTML), 8000);
+          await attendre(150);
+          return f;
+        };
+        let f = await ouvrir('t=trk-12');
+        let doc = f.contentDocument, w = f.contentWindow;
+        const etapesPage = [...doc.querySelectorAll('#trackSteps .tl-step')].map((li) => li.className.replace(/tl-step\s*/, '').trim());
+        check('C1 Chantier terminé : tout est vert, « Installation terminée », la date de pose sous « Posé », pas de rendez-vous',
+          [f.branche, etapesPage, txt(doc.getElementById('trackEta')), txt(doc.querySelector('#trackSteps .tl-step:last-child .tl-date')), doc.getElementById('rdvCard').hidden, txt(doc.getElementById('intro'))],
+          [true, ['done', 'done', 'done', 'done', 'done'], 'Installation terminée — merci de votre confiance !', SU.dateLongue(J(-40)), true, 'Votre installation est terminée.']);
+        check('C2 « Votre réalisation en images » : Terminé (2), Pendant (1), Avant (1), et l’avant / après',
+          [doc.getElementById('photosCard').hidden, txt(doc.getElementById('photosTitre')), [...doc.querySelectorAll('.ph-titre')].map(txt), !!doc.getElementById('aa')],
+          [false, 'Votre réalisation en images', ['Terminé 2', 'Pendant les travaux 1', 'Avant 1'], true]);
+        const srcs = [...doc.querySelectorAll('main img')].map((i) => i.getAttribute('src'));
+        check('C3 Chaque image de la page vient du jeton, d’une image embarquée ou du logo — rien d’autre ; aucun mot « problème » ni note',
+          [srcs.filter((s) => !(/^\/api\/track\?t=trk-12&photo=/.test(s) || /^data:image\//.test(s) || /logo-solariscreen\.svg$/.test(s))), /probl[eè]me|fissure|finition/i.test(doc.body.textContent)], [[], false]);
+        check('C4 La commande en mots de client : coloris sans référence, quantité, emplacement',
+          [[...doc.querySelectorAll('.ti-titre')].map(txt), /réf\.|7m16st/.test(doc.getElementById('trackItems').textContent), txt(doc.querySelector('.track-item:nth-child(2) .ti-details'))],
+          [SU.produits(d12.items).map((p) => p.titre), false, SU.produits(d12.items)[1].details.join(' ')]);
+        // Visionneuse : légende, étape d'historique, croix qui retire l'étape.
+        // L'étape se lit sur `history.state` : `history.length` plafonne à 50 dans Chrome, et un onglet de tests y arrive vite.
+        doc.querySelector('.ph-vignette').click();
+        const vis = doc.getElementById('ssLightbox');
+        const ouverte = () => vis && vis.classList.contains('open');
+        check('C5 Toucher une photo l’ouvre DANS la page, avec sa légende (« Terminé · date »), son rang, et une étape d’historique',
+          [ouverte(), txt(vis && vis.querySelector('.lb-cap')), txt(vis && vis.querySelector('.lb-count')), !!(w.history.state && w.history.state.ssPhotos)],
+          [true, 'Terminé · ' + SU.dateLongue(J(-40)), '1 / 4', true]);
+        w.voirPhoto(2);
+        const cap3 = txt(vis.querySelector('.lb-cap'));
+        vis.querySelector('.lb-close').click();
+        await attendreQue(() => !(w.history.state && w.history.state.ssPhotos), 3000);
+        check('C6 La 3e photo est « Pendant les travaux » ; fermée par la croix, la visionneuse RETIRE son étape (sinon le « retour » suivant ne ferait rien de visible)',
+          [/^Pendant les travaux · /.test(cap3), ouverte(), !!(w.history.state && w.history.state.ssPhotos), doc.body.style.overflow], [true, false, false, '']);
+        f.remove();
+        /* « Retour » : un cadre écrit par le banc (document.open) ne reçoit JAMAIS `popstate` — vérifié le
+           31/10/2026, alors qu'un cadre chargé normalement le reçoit. Le geste se joue donc dans un vrai
+           chargement de la page (le serveur de test n'a pas d'API : elle affiche son erreur, mais la
+           visionneuse partagée est là). Garde sur cette page : aucun « retour » ne doit fuir jusqu'ici. */
+        let fuites = 0;
+        const garde = () => { fuites++; history.pushState({ garde: 1 }, ''); };
+        history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
+        window.addEventListener('popstate', garde);
+        const fn = document.createElement('iframe'); fn.width = 390; fn.height = 760; fn.style.cssText = 'position:absolute;left:-10000px;top:0;border:0;';
+        fn.src = '../track.html?t=sans-api&n=' + Date.now();
+        document.body.appendChild(fn);
+        await new Promise((r) => { fn.addEventListener('load', r, { once: true }); setTimeout(r, 6000); });
+        const wn = fn.contentWindow, dn = fn.contentDocument;
+        await attendreQue(() => wn.SSUI && wn.SSUI.ouvrirPhotos, 4000);
+        const deux = ['data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs=', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='];
+        wn.SSUI.ouvrirPhotos(deux, 0, { legendes: ['Une', 'Deux'], retour: true });
+        const visN = () => dn.getElementById('ssLightbox');
+        const ouvN = () => !!(visN() && visN().classList.contains('open'));
+        const etape = !!(wn.history.state && wn.history.state.ssPhotos);
+        wn.history.back();
+        await attendreQue(() => !ouvN(), 3000);
+        check('C7 Sur un vrai chargement : « retour » FERME la visionneuse et la page reste là',
+          [etape, ouvN(), /track\.html/.test(wn.location.pathname), dn.body.style.overflow], [true, false, true, '']);
+        wn.SSUI.ouvrirPhotos(deux, 1, { legendes: ['Une', 'Deux'], retour: true });
+        const leg2 = txt(visN().querySelector('.lb-cap'));
+        visN().querySelector('.lb-close').click();
+        await attendre(500);
+        wn.SSUI.ouvrirPhotos(deux, 0);
+        const sansOpts = [!!(wn.history.state && wn.history.state.ssPhotos), visN().querySelector('.lb-cap').hidden];
+        wn.SSUI.fermerPhotos();
+        await attendre(300);
+        window.removeEventListener('popstate', garde);
+        fn.remove();
+        check('C8 La croix retire l’étape (aucun « retour » de trop jusqu’à la page de test) ; sans options, la visionneuse des autres pages est inchangée (ni étape, ni légende)',
+          [leg2, fuites, sansOpts], ['Deux', 0, [false, true]]);
+        // Avant / après au doigt ou à la souris, et au clavier.
+        f = await ouvrir('t=trk-12'); doc = f.contentDocument; w = f.contentWindow;
+        const aa = doc.getElementById('aa');
+        const b = aa.getBoundingClientRect();
+        aa.dispatchEvent(new w.PointerEvent('pointerdown', { clientX: b.left + b.width * 0.25, clientY: b.top + 20, pointerId: 7, bubbles: true }));
+        aa.dispatchEvent(new w.PointerEvent('pointermove', { clientX: b.left + b.width * 0.8, clientY: b.top + 20, pointerId: 7, bubbles: true }));
+        const pos1 = aa.style.getPropertyValue('--pos');
+        aa.dispatchEvent(new w.PointerEvent('pointerup', { clientX: b.left + b.width * 0.8, clientY: b.top + 20, pointerId: 7, bubbles: true }));
+        aa.dispatchEvent(new w.PointerEvent('pointermove', { clientX: b.left + b.width * 0.1, clientY: b.top + 20, pointerId: 7, bubbles: true }));
+        const pos2 = aa.style.getPropertyValue('--pos');
+        const rg = aa.querySelector('.aa-range'); rg.value = '30'; rg.dispatchEvent(new w.Event('input', { bubbles: true }));
+        check('C8b Avant / après : on glisse (80 %), relâcher arrête de suivre, le clavier pilote aussi (30 %)', [pos1, pos2, aa.style.getPropertyValue('--pos')], ['80%', '80%', '30%']);
+        // La saison et les thèmes.
+        const S0 = SU.saisonDu(new Date());
+        const racine = doc.documentElement, cs = () => w.getComputedStyle(racine).getPropertyValue('--saison').trim().toLowerCase();
+        racine.setAttribute('data-theme', 'light'); const clair = cs();
+        racine.setAttribute('data-theme', 'dark'); const sombre = cs();
+        check('C9 La saison du jour habille la page : attribut, emblème, phrase, 14 motifs ; teinte CLAIRE sur le thème clair, SOMBRE sur le sombre',
+          [racine.getAttribute('data-saison'), txt(doc.getElementById('saisonChip')), doc.querySelectorAll('#saisonCiel span').length, clair, sombre],
+          [S0.k, S0.l + ' · ' + S0.phrase, 14, S0.teinte.clair.toLowerCase(), S0.teinte.sombre.toLowerCase()]);
+        const ciel = doc.getElementById('saisonCiel'), titreAv = doc.getElementById('titreAvancement').getBoundingClientRect();
+        const dessus = doc.elementFromPoint(titreAv.left + 5, titreAv.top + titreAv.height / 2);
+        check('C10 Les motifs passent DERRIÈRE le contenu : ne captent aucun clic, et sous le texte c’est le texte qu’on touche',
+          [w.getComputedStyle(ciel).pointerEvents, w.getComputedStyle(ciel).zIndex, w.getComputedStyle(doc.getElementById('main')).zIndex, !!(dessus && dessus.closest('#titreAvancement'))],
+          ['none', '0', '1', true]);
+        f.remove();
+        f = await ouvrir('t=trk-12&saison=hiver'); doc = f.contentDocument;
+        check('C11 `?saison=hiver` montre l’hiver hors saison (pour juger un décor avant sa période)',
+          [doc.documentElement.getAttribute('data-saison'), /^Hiver/.test(txt(doc.getElementById('saisonChip')))], ['hiver', true]);
+        f.remove();
+
+        // Pose à venir (école, ESSAI-10).
+        f = await ouvrir('t=trk-10'); doc = f.contentDocument;
+        const A10 = SU.avancement({ commande: lire('ESSAI-10').commande, chantier: lire('ESSAI-10').chantier });
+        check('C12 Pose dans 3 jours : le rendez-vous en tête (quand, jour, heure), « Reçu » en cours, aucune photo encore',
+          [doc.getElementById('rdvCard').hidden, txt(doc.getElementById('rdvQuand')), txt(doc.getElementById('rdvDate')), txt(doc.getElementById('rdvInfos')),
+            [...doc.querySelectorAll('#trackSteps .tl-step')].map((li) => li.classList.contains('active')).indexOf(true), doc.getElementById('photosCard').hidden],
+          [false, 'Dans 3 jours', SU.dateLongue(J(3), true), 'Arrivée prévue vers 8 h', 3, true]);
+        check('C13 La ligne sous la frise annonce la pose, la date en gras', [txt(doc.getElementById('trackEta')), txt(doc.querySelector('#trackEta strong'))],
+          [A10.eta.map((s) => s[0]).join(''), SU.dateLongue(J(3), true)]);
+        check('C14 Les produits de l’école : quantité et emplacement', [txt(doc.querySelector('.ti-titre')), txt(doc.querySelector('.ti-lieu'))], ['8 × Screen — SC 110', 'Classes du 1er étage']);
+        const contact = [...doc.querySelectorAll('#contactActions a')].map((a) => a.getAttribute('href'));
+        check('C15 « Une question ? » : de vrais boutons mail (44 px), sujet prérempli', [contact.length >= 1, contact.every((h) => /^mailto:.+\?subject=/.test(h)),
+          [...doc.querySelectorAll('#contactActions a')].every((a) => a.getBoundingClientRect().height >= 44)], [true, true, true]);
+        f.remove();
+
+        // Téléphone : rien ne déborde.
+        const deb = [];
+        for (const [q, l] of [['t=trk-12', 375], ['t=trk-12', 320], ['t=trk-10', 320], ['t=trk-10&saison=ete', 375]]) {
+          const ft = await ouvrir(q, l, 800);
+          const dt = ft.contentDocument;
+          const trop = dt.documentElement.scrollWidth - l;
+          const cartes = [...dt.querySelectorAll('.track-card, .saison-chip, .track-item, .aa')].filter((n) => n.getBoundingClientRect().right > l + 0.5).length;
+          deb.push(q + '@' + l + ':' + Math.max(0, trop) + '/' + cartes);
+          ft.remove();
+        }
+        check('C16 Téléphone 375 et 320 px : aucun débordement horizontal, aucune carte qui sort de l’écran', deb,
+          ['t=trk-12@375:0/0', 't=trk-12@320:0/0', 't=trk-10@320:0/0', 't=trk-10&saison=ete@375:0/0']);
+
+        // Aperçu interne : le bandeau, et la visite n'est pas comptée. Les visites précédentes sont
+        // vieillies d'une minute : sans ça, l'anti-rebond de 10 s suffirait à expliquer un « 0 ».
+        ecrireBase('ESSAI-12', '$.track_views', [new Date(Date.now() - 60000).toISOString()]);
+        const avant = vues();
+        staff(true);
+        f = await ouvrir('t=trk-12'); doc = f.contentDocument;
+        check('C17 Nicolas ou Yannick (marqueur `ss_staff`) : bandeau « Aperçu interne », et sa visite ne compte pas', [doc.getElementById('staffBanner').hidden, vues() - avant], [false, 0]);
+        f.remove();
+        staff(false);
+        f = await ouvrir('t=trk-12'); doc = f.contentDocument;
+        check('C18 Le client, lui : pas de bandeau, une visite de plus', [doc.getElementById('staffBanner').hidden, vues() - avant], [true, 1]);
+        f.remove();
+        f = await ouvrir('t=trk-13'); doc = f.contentDocument;
+        check('C19 Dossier refusé : le message, et de quoi nous joindre', [/Ce suivi n'est plus actif\./.test(doc.getElementById('loading').textContent), !!doc.querySelector('#loading a[href^="mailto:"]')], [true, true]);
+        f.remove();
+        f = await ouvrir(''); doc = f.contentDocument;
+        check('C20 Sans jeton : « Lien invalide. »', /Lien invalide\./.test(doc.getElementById('loading').textContent), true);
+        f.remove();
+
+        // La fiche devis compte les visites du client.
+        const fv = await BANC.cadre('../app/vue.html?id=ESSAI-12', 1500, 900);
+        await attendreQue(() => txt(fv.contentDocument.getElementById('ccVues')), 10000);
+        check('C21 Fiche devis : « Suivi ouvert N fois par le client » sous le bouton du lien de suivi', txt(fv.contentDocument.getElementById('ccVues')).replace(/ · dernière le .*$/, ''),
+          'Suivi ouvert ' + vues() + ' fois par le client');
+        fv.remove();
+        ecrireBase('ESSAI-10', '$.track_views', []);
+        const fv2 = await BANC.cadre('../app/vue.html?id=ESSAI-10', 1500, 900);
+        await attendreQue(() => txt(fv2.contentDocument.getElementById('ccVues')), 10000);
+        check('C22 …et « pas encore ouvert » tant que le client n’y est pas allé', txt(fv2.contentDocument.getElementById('ccVues')), 'Lien de suivi pas encore ouvert par le client.');
+        fv2.remove();
+      } catch (e) {
+        check('Exception', String(e && (e.stack || e.message)), null);
+      }
+      try { if (STAFF0 == null) localStorage.removeItem('ss_staff'); else localStorage.setItem('ss_staff', STAFF0); } catch (e) {}
+      BANC.remettre(); BANC.retirer();
+      rendreRes();
+    })();
+  </script>
+</body>
+</html>

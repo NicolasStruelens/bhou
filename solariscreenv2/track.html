@@ -18,29 +18,73 @@
   <link rel="stylesheet" href="assets/css/base.css">
   <style>
     body { min-height: 100vh; }
-    .track-wrap { max-width: 600px; margin: 0 auto; padding: var(--sp-7) var(--sp-4) var(--sp-6); }
+    .track-wrap { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: var(--sp-7) var(--sp-4) var(--sp-6); }
+    [hidden] { display: none !important; }
 
     @keyframes trackRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     @media (prefers-reduced-motion: no-preference) {
       .track-hero, .track-card { animation: trackRise 0.55s cubic-bezier(.16,.8,.3,1) both; }
-      .track-card:nth-of-type(2) { animation-delay: 0.08s; }
+      .track-card:nth-of-type(2) { animation-delay: 0.06s; }
+      .track-card:nth-of-type(3) { animation-delay: 0.12s; }
       .tl-step { animation: trackRise 0.5s cubic-bezier(.16,.8,.3,1) both; animation-delay: calc(0.06s * var(--i, 0)); }
       .tl-step.active .dot { animation: tlPulse 2.4s ease-in-out infinite; }
-      .track-items .track-item { animation: trackRise 0.5s cubic-bezier(.16,.8,.3,1) both; }
     }
     @keyframes tlPulse {
       0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-2) 45%, transparent); }
       55% { box-shadow: 0 0 0 7px transparent; }
     }
 
-    .track-hero { text-align: center; margin-bottom: var(--sp-6); }
-    .track-hero .logo { width: 72px; height: 72px; margin: 0 auto var(--sp-4); border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); background: var(--surface); }
-    .track-hero .logo img { width: 100%; height: 100%; object-fit: cover; }
-    .track-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); letter-spacing: 0.01em; }
-    .track-hero p { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
+    /* ── La saison (assets/js/suivi.js) : un emblème, une phrase, et des motifs qui passent DERRIÈRE
+       les cartes — jamais sur un texte. Teintes `--saison` posées par `SSSuivi.styleSaison`. ── */
+    .saison-ciel { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; color: var(--saison, transparent); }
+    .saison-ciel span { position: absolute; top: 0; left: var(--x); width: var(--t); opacity: var(--saison-o, 0.3);
+      animation: saisonTombe var(--d) linear var(--delai) infinite; will-change: transform; }
+    .saison-ciel span svg { display: block; width: 100%; height: auto; }
+    @keyframes saisonTombe {
+      from { transform: translate3d(0, -12vh, 0) rotate(0deg); }
+      to   { transform: translate3d(var(--derive), 112vh, 0) rotate(var(--tour)); }
+    }
+    .saison-ciel.scintille span { top: var(--y); opacity: 0; animation: saisonScintille var(--d) ease-in-out var(--delai) infinite; }
+    @keyframes saisonScintille {
+      0%, 100% { opacity: 0; transform: scale(0.55); }
+      50% { opacity: var(--saison-o, 0.3); transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) { .saison-ciel { display: none; } }
 
-    /* Carte englobante pour la timeline : la sépare visuellement du fond, comme le reste de l'appli */
-    .track-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-5) var(--sp-4) var(--sp-4); margin-bottom: var(--sp-4); box-shadow: var(--shadow); }
+    .track-hero { position: relative; text-align: center; margin-bottom: var(--sp-6); }
+    /* Halo de saison derrière le logo : une lumière, pas une tache. */
+    .track-hero::before { content: ''; position: absolute; left: 50%; top: -30px; width: 260px; height: 200px; transform: translateX(-50%);
+      background: radial-gradient(closest-side, color-mix(in srgb, var(--saison, var(--accent)) 22%, transparent), transparent); pointer-events: none; z-index: -1; }
+    .logo-wrap { position: relative; width: 72px; height: 72px; margin: 0 auto var(--sp-4); }
+    .track-hero .logo { width: 72px; height: 72px; border: 1px solid var(--accent); border-radius: var(--r-lg); display: grid; place-items: center; overflow: hidden; box-shadow: var(--glow-soft); background: var(--surface); }
+    .track-hero .logo img { width: 100%; height: 100%; object-fit: cover; }
+    .saison-embleme { position: absolute; right: -12px; bottom: -10px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--surface); border: 1px solid color-mix(in srgb, var(--saison, var(--border)) 70%, transparent); color: var(--saison, var(--text-muted)); box-shadow: var(--shadow); }
+    .saison-embleme svg { width: 17px; height: 17px; }
+    .track-hero h1 { font-family: var(--font-display); font-size: var(--fs-xl); letter-spacing: 0.01em; overflow-wrap: anywhere; }
+    .track-hero .intro { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--sp-2); }
+    .saison-chip { display: inline-flex; align-items: center; gap: 0.45rem; max-width: 100%; margin-top: var(--sp-4); padding: 0.35rem 0.8rem; border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--saison, var(--border)) 55%, transparent); background: color-mix(in srgb, var(--saison, var(--surface)) 9%, var(--surface));
+      font-size: var(--fs-xs); color: var(--text-muted); text-align: left; }
+    .saison-chip .ico { flex: none; width: 15px; height: 15px; color: var(--saison, var(--text-muted)); }
+    .saison-chip .ico svg { width: 100%; height: 100%; display: block; }
+    .saison-chip strong { color: var(--text); font-weight: 600; }
+
+    .track-staff { background: color-mix(in srgb, var(--accent-2) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); color: var(--accent-2-ink);
+      border-radius: var(--r-sm); padding: 0.55rem 0.8rem; margin-bottom: var(--sp-4); font-size: var(--fs-2xs); font-family: var(--font-mono); text-align: center; }
+
+    /* Carte englobante : la sépare visuellement du fond, comme le reste de l'appli */
+    .track-card { position: relative; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--sp-5) var(--sp-4) var(--sp-4); margin-bottom: var(--sp-4); box-shadow: var(--shadow); min-width: 0; }
+    .track-title { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); font-weight: 600; margin: 0 0 var(--sp-4); }
+
+    /* ── Le rendez-vous de pose ── */
+    .track-rdv { display: grid; grid-template-columns: 46px 1fr; gap: var(--sp-3); align-items: start; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+    .rdv-ico { width: 46px; height: 46px; border-radius: var(--r-md); display: grid; place-items: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .rdv-quand { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; }
+    .rdv-titre { font-size: var(--fs-md); font-weight: 700; margin: 2px 0 0; }
+    .rdv-date { font-size: var(--fs-md); color: var(--text); margin-top: 2px; }
+    .rdv-infos { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-2); }
+    .rdv-infos:empty { display: none; }
 
     /* Timeline VERTICALE : chaque étape est une rangée (pastille + libellé), reliées par un segment
        vertical à gauche. Plus de longue ligne horizontale en travers de la carte (que Nicolas
@@ -57,6 +101,7 @@
     .tl-body { min-width: 0; padding: 5px 0 var(--sp-5) var(--sp-3); }
     .tl-step:last-child .tl-body { padding-bottom: 5px; }
     .tl-lbl { font-family: var(--font-mono); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-subtle); font-weight: 600; line-height: 1.25; }
+    .tl-date { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 3px; }
     .tl-sub { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 3px; }
     /* Étapes franchies */
     .tl-step.done .dot { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
@@ -70,45 +115,123 @@
     .track-eta { text-align: center; font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px dashed var(--border); }
     .track-eta strong { color: var(--text); }
 
+    /* ── Les photos ── */
+    .aa { position: relative; margin: 0 0 var(--sp-2); aspect-ratio: 4 / 3; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border);
+      background: var(--surface-2); touch-action: pan-y; cursor: ew-resize; user-select: none; -webkit-user-select: none; --pos: 50%; }
+    .aa:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .aa-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; -webkit-user-drag: none; }
+    .aa-avant { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
+    .aa-ligne { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,.45); pointer-events: none; }
+    .aa-poignee { position: absolute; top: 50%; left: 50%; width: 42px; height: 42px; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; color: #1d2433;
+      display: grid; place-items: center; font-weight: 700; font-size: 18px; letter-spacing: -2px; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+    .aa-tag { position: absolute; top: 10px; padding: 3px 9px; border-radius: 999px; background: rgba(0,0,0,.58); color: #fff; font-family: var(--font-mono); font-size: var(--fs-2xs);
+      text-transform: uppercase; letter-spacing: 0.06em; pointer-events: none; }
+    .aa-tag.g { left: 10px; } .aa-tag.d { right: 10px; }
+    /* Le curseur sert au CLAVIER (flèches) ; la souris et le doigt passent par le cadre entier. */
+    .aa-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
+    .aa-aide { text-align: center; font-size: var(--fs-2xs); color: var(--text-subtle); margin-bottom: var(--sp-4); }
+    .ph-groupe + .ph-groupe { margin-top: var(--sp-4); }
+    .ph-titre { display: flex; align-items: center; gap: 0.45rem; font-size: var(--fs-sm); font-weight: 600; margin: 0 0 var(--sp-2); }
+    .ph-n { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); font-weight: 600; }
+    .ph-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-2); }
+    .ph-vignette { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden;
+      background: var(--surface-2); cursor: zoom-in; }
+    .ph-vignette img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--t-base); }
+    .ph-vignette:hover img { transform: scale(1.04); }
+    .ph-vignette:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── La commande ── */
     .track-items { display: flex; flex-direction: column; gap: var(--sp-2); }
-    .track-items-title { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); margin-bottom: var(--sp-3); }
-    .track-item { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); }
-    .track-item svg { color: var(--accent); flex: none; }
+    .track-item { display: flex; align-items: center; gap: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-3); background: var(--surface-2); min-width: 0; }
+    .ti-ico { flex: none; width: 52px; height: 52px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+    .ti-photo { position: relative; flex: none; width: 52px; height: 52px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); cursor: zoom-in; }
+    .ti-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ti-photo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ti-n { position: absolute; right: 2px; bottom: 2px; min-width: 18px; padding: 0 4px; border-radius: 9px; background: rgba(0,0,0,.6); color: #fff; font-family: var(--font-mono); font-size: 10px; line-height: 18px; text-align: center; }
+    .ti-corps { min-width: 0; }
+    .ti-titre { font-weight: 600; overflow-wrap: anywhere; }
+    .ti-lieu { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; overflow-wrap: anywhere; }
+    .ti-details { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 3px; }
+    .ti-details span { overflow-wrap: anywhere; }
+
+    /* ── Une question ? ── */
+    .track-contact p { color: var(--text-muted); font-size: var(--fs-sm); margin: 0 0 var(--sp-3); }
+    .contact-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+    .contact-actions a { min-height: 44px; display: inline-flex; align-items: center; gap: 0.45rem; text-decoration: none; max-width: 100%; overflow-wrap: anywhere; }
 
     .track-error { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--text-muted); }
     .track-foot { text-align: center; color: var(--text-subtle); font-size: var(--fs-2xs); margin-top: var(--sp-6); }
+    .track-foot a { color: var(--accent-2-ink); }
+    .track-foot .tag { font-style: italic; margin-top: 4px; }
     .topbar { position: absolute; top: var(--sp-4); right: var(--sp-5); z-index: 2; }
 
-    .track-foot a { color: var(--accent-2-ink); }
     @media (max-width: 420px) {
+      .track-wrap { padding-left: var(--sp-3); padding-right: var(--sp-3); }
       .tl-step { grid-template-columns: 34px 1fr; }
       .tl-rail .dot { width: 30px; height: 30px; }
+      .track-rdv { grid-template-columns: 40px 1fr; }
+      .rdv-ico { width: 40px; height: 40px; }
+      .ph-grille { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+    }
+    @media print {
+      .saison-ciel, .topbar, .saison-chip, .track-contact { display: none !important; }
+      .track-card { box-shadow: none; break-inside: avoid; }
     }
   </style>
+  <style id="saisonStyle"></style>
 </head>
 <body>
   <div class="fx-grid"></div>
+  <div class="saison-ciel" id="saisonCiel" aria-hidden="true"></div>
   <div class="topbar"><span id="themeToggle"></span></div>
 
-  <div class="track-wrap" id="main" style="display:none;">
-    <div class="track-hero">
-      <div class="logo"><img src="assets/img/logo-solariscreen.svg" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
+  <main class="track-wrap" id="main" style="display:none;">
+    <div id="staffBanner" class="track-staff" hidden>👁 Aperçu interne — cette consultation n'est pas comptée dans les vues du client. Le client verra cette page sans ce bandeau.</div>
+    <header class="track-hero">
+      <div class="logo-wrap">
+        <div class="logo"><img src="assets/img/logo-solariscreen.svg" alt="SolariScreen" onerror="this.parentElement.textContent='SS'"></div>
+        <span class="saison-embleme" id="saisonEmbleme" aria-hidden="true"></span>
+      </div>
       <h1 id="greeting">Suivi de votre commande</h1>
-      <p>Voici où en est votre commande SolariScreen.</p>
-    </div>
+      <p class="intro" id="intro">Voici où en est votre commande SolariScreen.</p>
+      <p class="saison-chip" id="saisonChip"></p>
+    </header>
 
-    <div class="track-card">
+    <section class="track-card track-rdv" id="rdvCard" hidden>
+      <div class="rdv-ico" id="rdvIco" aria-hidden="true"></div>
+      <div>
+        <div class="rdv-quand" id="rdvQuand"></div>
+        <h2 class="rdv-titre" id="rdvTitre"></h2>
+        <div class="rdv-date" id="rdvDate"></div>
+        <div class="rdv-infos" id="rdvInfos"></div>
+      </div>
+    </section>
+
+    <section class="track-card" aria-labelledby="titreAvancement">
+      <h2 class="track-title" id="titreAvancement">Avancement</h2>
       <ol class="tl" id="trackSteps"></ol>
       <div class="track-eta" id="trackEta"></div>
-    </div>
+    </section>
 
-    <div class="track-card" id="trackItemsCard" style="display:none;">
-      <div class="track-items-title">Votre commande</div>
+    <section class="track-card" id="photosCard" hidden aria-labelledby="photosTitre">
+      <h2 class="track-title" id="photosTitre">Votre chantier en images</h2>
+      <div id="avantApres"></div>
+      <div id="photosGroupes"></div>
+    </section>
+
+    <section class="track-card" id="trackItemsCard" hidden aria-labelledby="titreCommande">
+      <h2 class="track-title" id="titreCommande">Votre commande</h2>
       <div class="track-items" id="trackItems"></div>
-    </div>
+    </section>
 
-    <div class="track-foot" id="trackFoot"></div>
-  </div>
+    <section class="track-card track-contact" id="contactCard" aria-labelledby="titreContact">
+      <h2 class="track-title" id="titreContact">Une question ?</h2>
+      <p>Une date qui ne vous convient pas, une précision sur votre installation : écrivez-nous, nous vous répondons.</p>
+      <div class="contact-actions" id="contactActions"></div>
+    </section>
+
+    <footer class="track-foot" id="trackFoot"></footer>
+  </main>
 
   <div class="track-wrap" id="loading">
     <div class="track-error">Chargement…</div>
@@ -116,10 +239,32 @@
 
   <script src="assets/js/company.js"></script>
   <script src="assets/js/ui.js"></script>
+  <!-- Catalogue (nuancier RAL) : seulement pour écrire « 7016 Gris anthracite » — aucune donnée de prix. -->
+  <script src="assets/js/products.js"></script>
+  <script src="assets/js/vitrine.js"></script>
+  <script src="assets/js/suivi.js"></script>
   <script>
-    const { icon } = window.SSUI;
+    const U = window.SSUI, SU = window.SSSuivi;
+    const { icon } = U;
     const COMPANY = window.SS_COMPANY;
     window.SSTheme.mountThemeToggle(document.getElementById('themeToggle'));
+    const $ = (id) => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const params = new URLSearchParams(location.search);
+
+    // ── La saison, posée AVANT la réponse du serveur : l'écran de chargement s'habille aussi. ──
+    // `?saison=hiver` (printemps, ete, automne) permet de juger une saison hors de sa période.
+    const SAISON = SU.SAISONS.find((s) => s.k === params.get('saison')) || SU.saisonDu(new Date());
+    (function poserSaison() {
+      document.documentElement.setAttribute('data-saison', SAISON.k);
+      $('saisonStyle').textContent = SU.styleSaison(SAISON);
+      const ciel = $('saisonCiel');
+      ciel.classList.toggle('scintille', SAISON.mouvement === 'scintille');
+      ciel.innerHTML = SU.motifs(14).map((m) =>
+        `<span style="--x:${m.x}%;--y:${m.y}%;--t:${m.taille}px;--d:${m.duree}s;--delai:${m.delai}s;--derive:${m.derive}px;--tour:${m.tour}deg">${SAISON.motif}</span>`).join('');
+      $('saisonEmbleme').innerHTML = SAISON.embleme;
+      $('saisonChip').innerHTML = `<span class="ico" aria-hidden="true">${SAISON.embleme}</span><span><strong>${esc(SAISON.l)}</strong> · ${esc(SAISON.phrase)}</span>`;
+    })();
 
     // Pied de page joignable (présent aussi sur l'écran d'erreur : un lien expiré ne doit pas
     // laisser le client sans moyen de nous contacter).
@@ -131,21 +276,6 @@
       const web = COMPANY.web ? `<a href="https://${esc(COMPANY.web)}" target="_blank" rel="noopener">${esc(COMPANY.web)}</a>` : '';
       return `SolariScreen${web ? ' · ' + web : ''}${mail ? '<br>' + mail + tel : ''}`;
     }
-
-    const TYPE_LABEL = window.SSUI.TYPE_LABEL;   // source unique : assets/js/ui.js
-    // Même source unique que les types de produit, juste au-dessus : ces libellés étaient
-    // recopiés ici ET dans `app/vue.html`. Une divergence se verrait CHEZ LE CLIENT.
-    const STAGES = window.SSUI.COMMANDE_ETAPES.map(k => ({ k: k, l: window.SSUI.COMMANDE_LABEL[k] }));
-    // Micro-statut affiché sous l'étape en cours (uniquement), pour donner du contexte au client.
-    const ACTIVE_SUB = {
-      a_commander: 'Votre commande est en préparation',
-      commande: 'Commande transmise au fournisseur',
-      fabrication: 'Vos produits sont en fabrication',
-      recu: 'Matériel réceptionné — pose à planifier',
-      pose: 'Installation en cours',
-    };
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
     function showError(msg) {
       document.getElementById('loading').innerHTML = `<div class="track-error">${icon('warning', 32)}<div style="margin-top:var(--sp-3);">${esc(msg)}</div>
         <div class="track-foot" style="margin-top:var(--sp-5);">${contactFootHtml()}</div></div>`;
@@ -162,62 +292,146 @@
       return g.prenom ? `${salut} ${g.prenom} !` : `${salut} !`;
     }
 
+    // ── Le rendez-vous de pose (seulement s'il est à venir — `SSSuivi.avancement`) ──
+    function rendreRdv(r) {
+      $('rdvCard').hidden = !r;
+      if (!r) return;
+      $('rdvIco').innerHTML = icon('calendar', 22);
+      $('rdvQuand').textContent = r.quand;
+      $('rdvTitre').textContent = r.titre;
+      $('rdvDate').textContent = r.jour;
+      $('rdvInfos').innerHTML = [r.heure, r.duree].filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('');
+    }
+
+    function rendreFrise(A) {
+      $('trackSteps').innerHTML = A.etapes.map((s, i) => {
+        const cls = s.etat === 'fait' ? 'done' : (s.etat === 'encours' ? 'active' : 'todo');
+        const date = s.date ? `<div class="tl-date">${esc(SU.dateLongue(s.date))}</div>` : '';
+        const sub = s.sous ? `<div class="tl-sub">${esc(s.sous)}</div>` : '';
+        return `<li class="tl-step ${cls}" style="--i:${i}">
+          <div class="tl-rail"><span class="dot">${s.etat === 'fait' ? icon('check', 14) : (i + 1)}</span><span class="bar"></span></div>
+          <div class="tl-body"><div class="tl-lbl">${esc(s.l)}</div>${date}${sub}</div>
+        </li>`;
+      }).join('');
+      // La ligne sous la frise s'écrit en TEXTE, segment par segment (les dates en gras).
+      const eta = $('trackEta');
+      eta.textContent = '';
+      A.eta.forEach(([t, fort]) => {
+        if (!fort) { eta.appendChild(document.createTextNode(t)); return; }
+        const b = document.createElement('strong'); b.textContent = t; eta.appendChild(b);
+      });
+    }
+
+    // ── Les photos du chantier ──
+    let GALERIE = null;
+    window.voirPhoto = (i) => {
+      if (!GALERIE) return;
+      U.ouvrirPhotos(GALERIE.toutes.map((p) => p.src), i, {
+        legendes: GALERIE.toutes.map((p) => p.libelle + (p.date ? ' · ' + SU.dateLongue(p.date) : '')), retour: true });
+    };
+    function rendrePhotos(G, termine) {
+      GALERIE = G;
+      $('photosCard').hidden = !G.toutes.length;
+      if (!G.toutes.length) return;
+      $('photosTitre').textContent = termine ? 'Votre réalisation en images' : 'Votre chantier en images';
+      $('avantApres').innerHTML = G.paire ? `
+        <figure class="aa" id="aa" style="margin:0 0 var(--sp-2);">
+          <img class="aa-img" src="${esc(G.paire.apres.src)}" alt="Après les travaux" draggable="false">
+          <img class="aa-img aa-avant" src="${esc(G.paire.avant.src)}" alt="Avant les travaux" draggable="false">
+          <span class="aa-ligne" aria-hidden="true"><span class="aa-poignee">‹›</span></span>
+          <span class="aa-tag g">Avant</span><span class="aa-tag d">Après</span>
+          <input class="aa-range" type="range" min="0" max="100" value="50" aria-label="Comparer avant et après les travaux">
+        </figure>
+        <div class="aa-aide">Glissez sur la photo pour comparer avant et après.</div>` : '';
+      let k = 0;
+      $('photosGroupes').innerHTML = G.groupes.map((g) => `
+        <div class="ph-groupe">
+          <h3 class="ph-titre">${esc(g.l)} <span class="ph-n">${g.photos.length}</span></h3>
+          <div class="ph-grille">${g.photos.map((p) => {
+            const i = k++;
+            const nom = 'Agrandir la photo — ' + g.l + (p.date ? ', ' + SU.dateLongue(p.date) : '');
+            return `<button type="button" class="ph-vignette" onclick="voirPhoto(${i})" aria-label="${esc(nom)}"><img src="${esc(p.src)}" alt="" loading="lazy"></button>`;
+          }).join('')}</div>
+        </div>`).join('');
+      brancherAvantApres();
+    }
+    /* Le cadre entier se glisse (souris, doigt) ; `touch-action: pan-y` laisse défiler la page à la
+       verticale. Le curseur caché ne sert qu'au clavier — sous le doigt, un curseur invisible ne se
+       saisit que si l'on tombe pile sur son bouton. */
+    function brancherAvantApres() {
+      const f = $('aa');
+      if (!f) return;
+      const r = f.querySelector('.aa-range');
+      const poser = (v) => { const x = Math.max(0, Math.min(100, v)); f.style.setProperty('--pos', x + '%'); r.value = String(Math.round(x)); };
+      const depuis = (e) => { const b = f.getBoundingClientRect(); if (b.width) poser((e.clientX - b.left) / b.width * 100); };
+      let actif = false;
+      f.addEventListener('pointerdown', (e) => { actif = true; try { f.setPointerCapture(e.pointerId); } catch (x) {} depuis(e); });
+      f.addEventListener('pointermove', (e) => { if (actif) depuis(e); });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => f.addEventListener(t, () => { actif = false; }));
+      r.addEventListener('input', () => poser(Number(r.value)));
+    }
+
+    // ── La commande, en mots de client ──
+    let PRODUITS = [];
+    window.voirProduit = (i) => {
+      const p = PRODUITS[i];
+      if (p && p.photos.length) U.ouvrirPhotos(p.photos, 0, { legendes: p.photos.map(() => p.titre), retour: true });
+    };
+    function rendreProduits(P) {
+      PRODUITS = P;
+      $('trackItemsCard').hidden = !P.length;
+      $('trackItems').innerHTML = P.map((p, i) => `
+        <div class="track-item">
+          ${p.photos.length
+            ? `<button type="button" class="ti-photo" onclick="voirProduit(${i})" aria-label="${esc('Voir la photo — ' + p.titre)}"><img src="${esc(p.photos[0])}" alt="" loading="lazy">${p.photos.length > 1 ? `<span class="ti-n">${p.photos.length}</span>` : ''}</button>`
+            : `<span class="ti-ico" aria-hidden="true">${icon('window', 20)}</span>`}
+          <div class="ti-corps">
+            <div class="ti-titre">${esc(p.titre)}</div>
+            ${p.emplacement ? `<div class="ti-lieu">${esc(p.emplacement)}</div>` : ''}
+            ${p.details.length ? `<div class="ti-details">${p.details.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
+          </div>
+        </div>`).join('');
+    }
+
+    function rendreContact() {
+      const sujet = encodeURIComponent('Mon chantier SolariScreen');
+      const liens = [COMPANY.email, COMPANY.email2].filter(Boolean)
+        .map((m) => `<a class="btn btn-ghost btn-sm" href="mailto:${esc(m)}?subject=${sujet}">${icon('mail', 15)} ${esc(m)}</a>`);
+      if (COMPANY.phone) liens.unshift(`<a class="btn btn-primary btn-sm" href="tel:${esc(COMPANY.phone.replace(/\s/g, ''))}">${icon('phone', 15)} ${esc(COMPANY.phone)}</a>`);
+      $('contactActions').innerHTML = liens.join('');
+      $('contactCard').hidden = !liens.length;
+      const web = COMPANY.web ? ` · <a href="https://${esc(COMPANY.web)}" target="_blank" rel="noopener">${esc(COMPANY.web)}</a>` : '';
+      $('trackFoot').innerHTML = `SolariScreen${web}${COMPANY.tagline ? `<div class="tag">${esc(COMPANY.tagline)}</div>` : ''}`;
+    }
+
     (async () => {
-      const token = new URLSearchParams(location.search).get('t');
+      const token = params.get('t');
       if (!token) { showError('Lien invalide.'); return; }
+      // `staff=1` si ce navigateur s'est déjà authentifié dans l'ERP (Nicolas/Yannick) : sa visite
+      // n'est pas comptée parmi celles du client (même marqueur que l'espace client).
+      const staff = (() => { try { return localStorage.getItem('ss_staff') === '1'; } catch (e) { return false; } })();
       let res;
       try {
-        res = await fetch('/api/track?t=' + encodeURIComponent(token), { credentials: 'same-origin' }).then(r => r.json());
+        res = await fetch('/api/track?t=' + encodeURIComponent(token) + (staff ? '&staff=1' : ''), { credentials: 'same-origin' }).then(r => r.json());
       } catch (e) {
         showError('Impossible de charger le suivi pour le moment. Réessayez un peu plus tard.');
         return;
       }
       if (!res || !res.ok) { showError(res && res.error || 'Lien invalide ou expiré.'); return; }
-      const d = res.data;
+      const d = res.data || {};
 
       document.getElementById('loading').style.display = 'none';
       document.getElementById('main').style.display = '';
-      document.getElementById('trackFoot').innerHTML = contactFootHtml();
+      $('staffBanner').hidden = !staff;
+      $('greeting').textContent = computeGreeting(d.greeting || { prenom: d.prenom });
 
-      document.getElementById('greeting').textContent = computeGreeting(d.greeting || { prenom: d.prenom });
-
-      const cc = d.commande || {};
-      const idx = Math.max(0, STAGES.findIndex(s => s.k === (cc.statut || 'a_commander')));
-      // Étape « Posé » atteinte = commande terminée → toutes les étapes en vert (aucune « en cours »).
-      const isComplete = idx >= STAGES.length - 1;
-      document.getElementById('trackSteps').innerHTML = STAGES.map((s, i) => {
-        const done = i < idx || (isComplete && i === idx);
-        const active = !isComplete && i === idx;
-        const cls = done ? 'done' : (active ? 'active' : 'todo');
-        const sub = active ? `<div class="tl-sub">${esc(ACTIVE_SUB[s.k] || 'En cours')}</div>` : '';
-        return `<li class="tl-step ${cls}" style="--i:${i}">
-          <div class="tl-rail"><span class="dot">${done ? icon('check', 14) : (i + 1)}</span><span class="bar"></span></div>
-          <div class="tl-body"><div class="tl-lbl">${esc(s.l)}</div>${sub}</div>
-        </li>`;
-      }).join('');
-
-      let etaTxt = "L'installateur planifiera prochainement la suite de votre commande.";
-      /* ⚠️ « Reçu » et « posé » se disent qu'il y ait une date de commande ou non : le PV de réception passe la
-         commande à « posé » sans en poser — la frise du client était toute verte et, juste dessous, on lui
-         annonçait que « la suite sera planifiée » (audit du 28/10/2026). */
-      if (['recu', 'pose'].includes(cc.statut)) {
-        etaTxt = cc.statut === 'pose' ? 'Installation terminée — merci de votre confiance !' : 'Matériel reçu, la pose sera bientôt planifiée.';
-      } else if (cc.date_commande && isFinite(parseFloat(cc.delai_semaines))) {
-        // Sans délai annoncé, pas d'estimation : compter 0 semaine annonçait au client une livraison le jour
-        // même de la commande (même règle que SSUI.livraisonEstimee).
-        const eta = new Date(cc.date_commande);
-        eta.setDate(eta.getDate() + Math.round(parseFloat(cc.delai_semaines) * 7));
-        if (!isNaN(eta)) etaTxt = `Livraison estimée : <strong>${eta.toLocaleDateString('fr-BE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>`;
-      }
-      document.getElementById('trackEta').innerHTML = etaTxt;
-
-      const items = d.items || [];
-      if (items.length) {
-        document.getElementById('trackItemsCard').style.display = '';
-        document.getElementById('trackItems').innerHTML = items.map(it => `
-          <div class="track-item">${icon('window', 16)}<div>${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}</div></div>
-        `).join('');
-      }
+      const A = SU.avancement(d);
+      $('intro').textContent = A.intro;
+      rendreRdv(A.rdv);
+      rendreFrise(A);
+      rendrePhotos(SU.galerie(d.photos), A.termine);
+      rendreProduits(SU.produits(d.items));
+      rendreContact();
     })();
   </script>
 </body>

@@ -69,6 +69,68 @@ async function resolveGreeting(env, d) {
   return { prenom: cl.prenom || '', nom: cl.nom || '', civilite: civilite || '', ton: ton || 'pro' };
 }
 
+/* ══ CE QUE LE LIEN DE SUIVI A LE DROIT DE MONTRER (CLAUDE.md, règle 57) ══
+   `track.html` est PUBLIQUE, hors Access : tout ce qui sort d'ici, n'importe qui possédant le lien
+   le lit. D'où une LISTE BLANCHE, champ par champ — jamais le devis entier : ni prix, ni note, ni
+   auteur, ni équipe, ni référence fournisseur. Photos : celles des ouvertures, et celles du journal
+   de chantier « avant », « pendant », « terminé » ; JAMAIS « problème », « réserve » ni « autre »,
+   jamais une photo masquée au portfolio (règle 45), jamais la note qui accompagne une photo.
+   `autorisees` est la seule liste des photos que `?photo=` accepte de servir. */
+const SUIVI_PHASES = ['avant', 'pendant', 'apres'];
+// Même règle que `SSVitrine.sansReference` (le serveur ne peut pas charger un script de page) :
+// « 7016 — Gris anthracite · réf. 7m16st (laque texturée) » sort sans sa référence de commande Harol.
+const sansReferenceFournisseur = (v) => String(v == null ? '' : v).replace(/\s*·\s*r[ée]f\..*$/i, '').trim().slice(0, 120);
+function suiviPublic(d, token) {
+  const masquees = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees.map(String) : []);
+  const couv = (d.portfolio_couvertures && typeof d.portfolio_couvertures === 'object') ? d.portfolio_couvertures : {};
+  const autorisees = new Set();
+  const base = (u) => String(u).split('?')[0];
+  const montrable = (u) => typeof u === 'string' && u !== '' && !masquees.has(u) && !masquees.has(base(u));
+  // Une photo de R2 (derrière Access) devient une adresse de CE lien ; une ancienne photo embarquée
+  // (`data:image/…`) passe telle quelle ; tout le reste est écarté.
+  const publique = (u) => {
+    const b = base(u);
+    if (b.startsWith('/api/photos/')) {
+      autorisees.add(b);
+      return '/api/track?t=' + encodeURIComponent(token) + '&photo=' + encodeURIComponent(b.slice('/api/photos/'.length));
+    }
+    return /^data:image\//i.test(u) ? u : '';
+  };
+  const items = (d.items || []).map((it, i) => {
+    const vues = (it.photos || []).filter(montrable);
+    const c = couv['item:' + i], ic = c ? vues.indexOf(c) : -1;
+    if (ic > 0) { vues.splice(ic, 1); vues.unshift(c); }
+    return {
+      // La quantité se lit comme la LIGNE du devis la lit (`quantite || 1`, règle 31 septies).
+      type: it.type || '', modele: String(it.modele || '').slice(0, 120), quantite: Math.max(1, Math.round(Number(it.quantite) || 1)),
+      emplacement: String(it.emplacement || '').slice(0, 120),
+      couleur: sansReferenceFournisseur(it.couleur || it.couleur_lame), toile: sansReferenceFournisseur(it.toile || it.toile_couleur),
+      photos: vues.map(publique).filter(Boolean),
+    };
+  });
+  const photos = (Array.isArray(d.chantier_photos) ? d.chantier_photos : [])
+    .filter((e) => e && SUIVI_PHASES.includes(e.phase) && montrable(e.url))
+    .sort((a, b) => String((a.date || '') + (a.date_creation || '')).localeCompare(String((b.date || '') + (b.date_creation || ''))))
+    .map((e) => ({ src: publique(e.url), phase: e.phase, date: String(e.date || '').slice(0, 10) }))
+    .filter((p) => p.src);
+  return { items, photos, autorisees };
+}
+/** Une photo de R2 servie à un client SANS Access — à n'appeler qu'APRÈS avoir vérifié qu'elle
+ *  appartient au dossier du jeton (lien de suivi, espace client). */
+async function servirPhotoPublique(env, photoParam) {
+  if (!env.PHOTOS) return json({ ok: false, error: 'Stockage non configuré' }, 500);
+  const slash = photoParam.indexOf('/');
+  const ownerId = photoParam.slice(0, slash), photoId = photoParam.slice(slash + 1);
+  const obj = await env.PHOTOS.get(`photos/${ownerId}/${photoId}.jpg`);
+  if (!obj) return json({ ok: false, error: 'Photo introuvable' }, 404);
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/jpeg',
+      'Cache-Control': 'private, max-age=86400',
+    },
+  });
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -80,7 +142,8 @@ export async function onRequest(context) {
   // ══════ SUIVI DE COMMANDE CLIENT (volontairement PUBLIC — pas de gate Access) ══════
   // Route dédiée, accessible via un lien avec jeton non-devinable (devis.track_token),
   // pensée pour être exemptée de la politique Cloudflare Access sur ce domaine (voir
-  // DEPLOIEMENT.md). Ne renvoie jamais de prix ni de coordonnées — seulement l'avancement.
+  // DEPLOIEMENT.md). Ne renvoie jamais de prix ni de coordonnées — l'avancement, les dates, les
+  // produits en mots de client et les photos du chantier, par LISTE BLANCHE (`suiviPublic`).
   if (path === '/api/track' && method === 'GET') {
     const token = (url.searchParams.get('t') || '').trim();
     if (!token) return json({ ok: false, error: 'Lien invalide' }, 400);
@@ -88,12 +151,48 @@ export async function onRequest(context) {
       const row = await env.DB.prepare("SELECT data FROM devis WHERE json_extract(data, '$.track_token') = ?").bind(token).first();
       if (!row) return json({ ok: false, error: 'Lien invalide ou expiré' }, 404);
       const d = safeParse(row.data) || {};
-      const items = (d.items || []).map(it => ({ type: it.type, modele: it.modele || '' }));
+      // Un dossier refusé ou annulé n'a plus rien à suivre : la frise d'une commande qui n'existe plus mentirait.
+      if (d.statut === 'refuse' || d.statut === 'annule') return json({ ok: false, error: "Ce suivi n'est plus actif." }, 410);
+      const pub = suiviPublic(d, token);
+
+      // ── Service PHOTO (?photo=ownerId/photoId) : SEULEMENT une photo que cette page montre. ──
+      const photoParam = url.searchParams.get('photo');
+      if (photoParam) {
+        if (!pub.autorisees.has('/api/photos/' + photoParam)) return json({ ok: false, error: 'Photo non autorisée' }, 403);
+        return await servirPhotoPublique(env, photoParam);
+      }
+
+      // Consultations du CLIENT (mêmes règles que l'espace client : 10 s entre deux, les 50 dernières,
+      // pas celles de Nicolas / Yannick — `staff=1`). Écriture CIBLÉE de la seule clé : une consultation
+      // ne doit jamais pouvoir réécrire le devis. Un échec ici n'empêche pas d'afficher le suivi.
+      if (url.searchParams.get('staff') !== '1') {
+        try {
+          const vues = Array.isArray(d.track_views) ? d.track_views : [];
+          const derniere = vues.length ? new Date(vues[vues.length - 1]) : null;
+          const now = new Date();
+          if (!derniere || isNaN(derniere) || (now - derniere) > 10000) {
+            await env.DB.prepare("UPDATE devis SET data = json_set(data, '$.track_views', json(?1)) WHERE json_extract(data, '$.track_token') = ?2")
+              .bind(JSON.stringify(vues.concat([now.toISOString()]).slice(-50)), token).run();
+          }
+        } catch (e) { /* jamais bloquant */ }
+      }
+
+      const cc = d.commande || {};
+      const ch = d.chantier || {};
+      const rec = d.reception || {};
       return json({ ok: true, data: {
         prenom: (d.client && d.client.prenom) || '',
         greeting: await resolveGreeting(env, d),   // civilité + ton pour la salutation
-        items,
-        commande: d.commande || null,
+        items: pub.items,
+        photos: pub.photos,
+        commande: { statut: cc.statut || '', date_commande: String(cc.date_commande || '').slice(0, 10),
+          delai_semaines: (cc.delai_semaines == null || cc.delai_semaines === '') ? null : cc.delai_semaines,
+          recu_le: String(cc.recu_le || '').slice(0, 10) },
+        chantier: { date_pose: String(ch.date_pose || '').slice(0, 10), heure: String(ch.heure || '').slice(0, 5),
+          duree_h: Number(ch.duree_h) > 0 ? Number(ch.duree_h) : null },
+        // Le PV : sa date et le fait qu'il est signé — jamais l'image de la signature.
+        reception: { date: String(rec.date || '').slice(0, 10), signe: !!rec.image },
+        reception_date: String(d.reception_date || '').slice(0, 10),
         statut: d.statut || 'brouillon',
       } });
     } catch (e) {
@@ -126,17 +225,7 @@ export async function onRequest(context) {
         const wanted = '/api/photos/' + photoParam;
         const allowed = (d.items || []).some(it => (it.photos || []).some(p => typeof p === 'string' && p.split('?')[0] === wanted));
         if (!allowed) return json({ ok: false, error: 'Photo non autorisée' }, 403);
-        if (!env.PHOTOS) return json({ ok: false, error: 'Stockage non configuré' }, 500);
-        const slash = photoParam.indexOf('/');
-        const ownerId = photoParam.slice(0, slash), photoId = photoParam.slice(slash + 1);
-        const obj = await env.PHOTOS.get(`photos/${ownerId}/${photoId}.jpg`);
-        if (!obj) return json({ ok: false, error: 'Photo introuvable' }, 404);
-        return new Response(obj.body, {
-          headers: {
-            'Content-Type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'image/jpeg',
-            'Cache-Control': 'private, max-age=86400',
-          },
-        });
+        return await servirPhotoPublique(env, photoParam);
       }
       // Réécrit une URL de photo interne (/api/photos/owner/id, protégée par Access) en URL publique
       // servie par ce endpoint. Les data:URL (anciennes photos base64) et le reste passent tels quels.
@@ -2615,7 +2704,7 @@ async function upsertDevis(db, devis, opts) {
      ces collections depuis les réponses de leurs routes ; une seule les réécrit exprès (« Alléger » du
      tableau de bord, photos déplacées vers R2) — elle relit le devis et passe le contrôle de conflit. */
   if (existing && !(opts && opts.verifie)) {
-    ['sav_tickets', 'chantier_photos', 'documents', 'review_views'].forEach(function (k) {
+    ['sav_tickets', 'chantier_photos', 'documents', 'review_views', 'track_views'].forEach(function (k) {
       if (existing[k] !== undefined) merged[k] = existing[k];
     });
   }

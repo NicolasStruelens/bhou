@@ -941,7 +941,7 @@
   // Identifiant DISTINCT (ssLightbox) : quatre pages portent encore leur propre #lightbox, et deux
   // éléments de même id dans un document, c'est le genre de collision qu'on ne voit qu'un jour de
   // malchance.
-  let _vis = null, _visUrls = [], _visIdx = 0, _visFond = false;
+  let _vis = null, _visUrls = [], _visIdx = 0, _visFond = false, _visLeg = [], _visEtape = false;
   function _visMonter() {
     if (_vis) return _vis;
     _vis = document.createElement('div');
@@ -954,8 +954,23 @@
       '<button class="lb-btn lb-close" type="button" aria-label="Fermer">\u2715</button>' +
       '<button class="lb-btn lb-prev" type="button" aria-label="Photo pr\u00e9c\u00e9dente">\u2039</button>' +
       '<img alt="">' +
+      '<div class="lb-cap" hidden></div>' +
       '<button class="lb-btn lb-next" type="button" aria-label="Photo suivante">\u203a</button>';
     document.body.appendChild(_vis);
+    // Au doigt, on GLISSE d'une photo \u00e0 l'autre : les fl\u00e8ches de 44 px sont faites pour la souris.
+    // Seul un geste nettement horizontal compte, sinon un d\u00e9filement vertical changerait de photo.
+    let tx = 0, ty = 0;
+    _vis.addEventListener('touchstart', function (e) { tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; }, { passive: true });
+    _vis.addEventListener('touchend', function (e) {
+      const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) _visNav(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    // \u00ab Retour \u00bb (option `retour`) : l'\u00e9tape d'historique pos\u00e9e \u00e0 l'ouverture est consomm\u00e9e \u2014 on ferme.
+    window.addEventListener('popstate', function () {
+      if (!_visEtape) return;
+      _visEtape = false;
+      if (_vis.classList.contains('open')) { _vis.classList.remove('open'); document.body.style.overflow = ''; }
+    });
     _vis.querySelector('.lb-close').addEventListener('click', fermerPhotos);
     _vis.querySelector('.lb-prev').addEventListener('click', function () { _visNav(-1); });
     _vis.querySelector('.lb-next').addEventListener('click', function () { _visNav(1); });
@@ -978,6 +993,10 @@
     const n = _visUrls.length;
     _vis.querySelector('img').src = _visUrls[_visIdx] || '';
     _vis.querySelector('.lb-count').textContent = n > 1 ? (_visIdx + 1) + ' / ' + n : '';
+    // La l\u00e9gende s'\u00e9crit en TEXTE : elle peut venir d'une donn\u00e9e saisie.
+    const cap = _vis.querySelector('.lb-cap'), leg = _visLeg[_visIdx] || '';
+    cap.textContent = leg;
+    cap.hidden = !leg;
     // Une seule photo : pas de fl\u00e8ches, elles ne m\u00e8neraient nulle part.
     _vis.querySelector('.lb-prev').style.display = n > 1 ? '' : 'none';
     _vis.querySelector('.lb-next').style.display = n > 1 ? '' : 'none';
@@ -987,22 +1006,38 @@
     _visIdx = (_visIdx + d + _visUrls.length) % _visUrls.length;
     _visAfficher();
   }
-  /** Ouvre la visionneuse sur `urls[index]`. Les fl\u00e8ches n'apparaissent qu'\u00e0 partir de deux photos. */
-  function ouvrirPhotos(urls, index) {
-    const liste = (urls || []).filter(Boolean);
-    if (!liste.length) return;
+  /** Ouvre la visionneuse sur `urls[index]`. Les fl\u00e8ches n'apparaissent qu'\u00e0 partir de deux photos.
+   *  `opts.legendes` : une l\u00e9gende par photo, dans le m\u00eame ordre (texte seul).
+   *  `opts.retour` : \u00ab retour \u00bb FERME la visionneuse au lieu de quitter la page (une \u00e9tape
+   *  d'historique, comme les fen\u00eatres de la r\u00e8gle 13 bis) ; la fermer autrement retire l'\u00e9tape.
+   *  Sans `opts`, rien ne change pour les pages qui l'appelaient d\u00e9j\u00e0. */
+  function ouvrirPhotos(urls, index, opts) {
+    const o = opts || {};
+    const leg = Array.isArray(o.legendes) ? o.legendes : [];
+    // Filtr\u00e9es ENSEMBLE : une adresse vide retir\u00e9e ne doit pas d\u00e9caler les l\u00e9gendes d'un cran.
+    const paires = (urls || []).map(function (u, i) { return [u, leg[i] ? String(leg[i]) : '']; })
+      .filter(function (p) { return !!p[0]; });
+    if (!paires.length) return;
     _visMonter();
-    _visUrls = liste;
-    _visIdx = Math.min(Math.max(0, index || 0), liste.length - 1);
+    _visUrls = paires.map(function (p) { return p[0]; });
+    _visLeg = paires.map(function (p) { return p[1]; });
+    _visIdx = Math.min(Math.max(0, index || 0), paires.length - 1);
     _visAfficher();
+    const dejaOuverte = _vis.classList.contains('open');
     _vis.classList.add('open');
     // Le fond ne doit pas d\u00e9filer derri\u00e8re la photo : on retrouverait la liste ailleurs en fermant.
     document.body.style.overflow = 'hidden';
+    if (o.retour && !dejaOuverte && !_visEtape) {
+      try { history.pushState({ ssPhotos: true }, ''); _visEtape = true; } catch (e) { /* jamais bloquant */ }
+    }
   }
   function fermerPhotos() {
     if (!_vis) return;
     _vis.classList.remove('open');
     document.body.style.overflow = '';
+    // Ferm\u00e9e par la croix, \u00c9chap ou le fond : on retire l'\u00e9tape pos\u00e9e \u00e0 l'ouverture, sinon le
+    // prochain \u00ab retour \u00bb ne ferait rien de visible.
+    if (_visEtape) { _visEtape = false; try { history.back(); } catch (e) { /* jamais bloquant */ } }
   }
 
   function clientKeyOf(prenom, nom) {
