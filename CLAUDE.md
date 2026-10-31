@@ -79,7 +79,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 25 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 20 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception, le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 24 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (et ses réserves sur la feuille imprimée), le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
@@ -3017,6 +3017,14 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
   Nouvel An), teintes `{ sombre, clair }` posées sur tous les thèmes clairs de `SSTheme`, positions déterministes. `?saison=hiver`
   (printemps, ete, automne) montre une saison hors de sa période, comme l'aperçu des fêtes.
 
+**57 bis. LES RÉSERVES DU PV S'IMPRIMENT TELLES QU'ON LES TAPE, tant qu'il n'est pas signé** (`app/reception.html`,
+31/10/2026 — signalé par Nicolas : réserves tapées, puis « Réserves éventuelles : Aucune. » à l'impression et dans le PDF).
+La feuille lisait `reception.notes`, qui n'est écrit qu'avec la signature (« Confirmer la réception ») : un PV imprimé pour être
+signé À LA MAIN sortait sans ses réserves. Désormais : PV pas signé → la feuille suit la saisie en direct (`majReservesFeuille`),
+retours à la ligne gardés (`white-space: pre-line`), texte seul ; un brouillon par devis reste dans le navigateur
+(`ss_pv_reserves_<id>`) jusqu'à la signature. PV signé → la feuille porte ce qui a été SIGNÉ : « Refaire signer » ne la change
+qu'une fois la nouvelle signature confirmée, sinon une signature attesterait des réserves qu'elle n'a jamais vues. Tests P10b à P10e.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3326,7 +3334,7 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 20/20 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 24/24 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
    `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 25/25 », par le serveur.
