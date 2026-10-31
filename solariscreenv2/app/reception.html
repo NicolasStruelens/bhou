@@ -31,6 +31,8 @@
     #sigCanvas { width: 100%; max-width: 500px; height: 170px; border: 1px dashed var(--border-strong); border-radius: var(--r-sm); background: #fff; touch-action: none; cursor: crosshair; display: block; }
     .sig-actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-top: var(--sp-3); }
     .reserves-field { margin-top: var(--sp-4); }
+    /* Les réserves gardent leurs retours à la ligne sur la feuille (une par ligne, comme on les dicte). */
+    .pv-reserves { white-space: pre-line; }
     @media print { .sign-wrap, .no-print { display: none !important; } }
   </style>
 </head>
@@ -138,7 +140,7 @@
         <div class="terms" style="margin-top:var(--sp-4);">
           <h4>Déclaration de réception</h4>
           Je soussigné(e) <strong>${esc(cl.prenom)} ${esc(cl.nom)}</strong>, reconnais que les travaux d'installation objet du devis N° ${esc(d.id)} ont été exécutés conformément à ce dernier, en bon état de fonctionnement, et déclare en <strong>accepter la réception</strong> à la date indiquée ci-dessus. La présente réception constitue le <strong>point de départ des garanties</strong> (structure 5 ans, motorisation selon les conditions du fabricant).
-          <br><br><strong>Réserves éventuelles :</strong> ${rec.notes ? esc(rec.notes) : 'Aucune.'}
+          <br><br><strong>Réserves éventuelles :</strong> <span class="pv-reserves" id="pvReserves"></span>
         </div>
 
         <div class="signatures" style="margin-top:var(--sp-6);">
@@ -151,7 +153,33 @@
 
         <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web || COMPANY.email)} · TVA ${esc(COMPANY.tva)}</div>
       `;
+      majReservesFeuille();
     }
+
+    /* ── Les réserves sur la FEUILLE ──
+       ⚠️ Elles ne s'enregistrent qu'avec la signature (« Confirmer la réception »). La feuille lisait donc
+       `reception.notes` — vide tant qu'on n'a pas signé dans l'ERP — et un PV imprimé pour être signé À LA
+       MAIN sortait avec « Réserves éventuelles : Aucune. » alors qu'on venait de les taper (signalé par
+       Nicolas le 31/10/2026). Règle : PV pas encore signé → la feuille porte ce qu'on TAPE, en direct ;
+       PV signé → elle porte ce qui a été SIGNÉ, et rien d'autre (« Refaire signer » ne change la feuille
+       qu'une fois la nouvelle signature confirmée — sinon une signature attesterait des réserves qu'elle
+       n'a jamais vues). Le texte s'écrit en `textContent` : jamais de HTML venu d'une saisie. */
+    const estSigne = () => !!(DEVIS && DEVIS.reception && DEVIS.reception.image);
+    function majReservesFeuille() {
+      const n = el('pvReserves');
+      if (!n || !DEVIS) return;
+      const v = estSigne() ? String(DEVIS.reception.notes || '').trim() : el('reserves').value.trim();
+      n.textContent = v || 'Aucune.';
+    }
+    // Brouillon des réserves, par devis et dans CE navigateur : tapées sur le chantier puis la page
+    // rechargée (ou le téléphone verrouillé), elles ne doivent pas disparaître sans un mot.
+    const cleBrouillon = () => 'ss_pv_reserves_' + (DEVIS && DEVIS.id);
+    const lireBrouillon = () => { try { return localStorage.getItem(cleBrouillon()); } catch (e) { return null; } };
+    const ecrireBrouillon = (v) => { try { if (String(v).trim()) localStorage.setItem(cleBrouillon(), v); else localStorage.removeItem(cleBrouillon()); } catch (e) {} };
+    el('reserves').addEventListener('input', function () {
+      majReservesFeuille();
+      if (DEVIS && !estSigne()) ecrireBrouillon(this.value);
+    });
 
     // ── Signature (même mécanique que le devis) ──
     let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null, sigBound = false;
@@ -219,6 +247,7 @@
         return;
       }
       DEVIS = res.devis;
+      ecrireBrouillon('');   // enregistrées avec la signature : le brouillon n'a plus lieu d'être
       toast(res.offline ? 'Réception enregistrée (hors-ligne)' : 'Réception signée ✓', res.offline ? 'warn' : 'ok');
       SS.logActivity({ action: 'devis.reception', entity_type: 'devis', entity_id: DEVIS.id, label: `Chantier réceptionné (signé client) — devis #${DEVIS.id}${(DEVIS.client && (DEVIS.client.prenom || DEVIS.client.nom)) ? ' (' + ((DEVIS.client.prenom || '') + ' ' + (DEVIS.client.nom || '')).trim() + ')' : ''}` });
       if (window.ssConfetti) window.ssConfetti({ count: 110 });
@@ -246,9 +275,11 @@
         el('signedBlock').classList.add('hidden');
         const cl = DEVIS.client || {};
         setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
-        el('reserves').value = rec.notes || '';
+        const brouillon = lireBrouillon();
+        el('reserves').value = brouillon != null ? brouillon : (rec.notes || '');
         initSignatureCanvas();
       }
+      majReservesFeuille();
     }
 
     (async () => {
