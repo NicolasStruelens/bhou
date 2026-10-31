@@ -304,6 +304,47 @@
         const ouverte = !!dlg && ff.contentWindow.getComputedStyle(dlg.closest('[class*="modal"], .fa-overlay, .fa-fond') || dlg).display !== 'none' && dlg.getBoundingClientRect().height > 0;
         check('P13 Facturation : un devis demandé qui n’a rien à facturer n’ouvre RIEN (le premier devis éligible, d’un autre client, était présélectionné)', ouverte, false);
         ff.remove();
+
+        // P14 à P17 : « Pose annulée — retirer la date » (31/10/2026, demande de Nicolas : « on devait placer les screens
+        // aujourd'hui, ça a été annulé : comment annuler, et laisser sans date quand on ne sait pas ? »).
+        const Jf = (n) => U.isoDate(new Date(Date.now() + n * 86400000));
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(2), heure_pose: '09:00', equipe: 'yannick', duree_h: 3, remarque: 'garder' });
+        let fz = await fiche('ESSAI-22'); let wz = fz.contentWindow, dz = fz.contentDocument;
+        const btnR = () => dz.getElementById('chRetirer');
+        const visibleR = () => !!btnR() && !btnR().classList.contains('hidden') && wz.getComputedStyle(btnR()).display !== 'none';
+        const questions = [];
+        wz.confirm = (m) => { questions.push(m); return false; };
+        const visibleAvant = visibleR();
+        btnR().click(); await attendre(300);
+        check('P14 Une pose prévue : le bouton « Pose annulée — retirer la date » est là, il DEMANDE avant (avec le jour), et « non » ne change rien',
+          [visibleAvant, txt(btnR()), questions[0] === U.questionRetirerPose(Jf(2)), /^Retirer la pose du \S+ \d+ \S+ \?/.test(questions[0] || ''), lire('ESSAI-22').chantier.date_pose],
+          [true, 'Pose annulée — retirer la date', true, true, Jf(2)]);
+        wz.confirm = (m) => { questions.push(m); return true; };
+        btnR().click();
+        await attendreQue(() => !(lire('ESSAI-22').chantier || {}).date_pose, 5000); await attendre(300);
+        const chz = lire('ESSAI-22').chantier || {};
+        check('P15 « Oui » : la date ET l’heure partent ; l’équipe, la durée et le reste du chantier restent ; la date retirée est gardée',
+          [chz.date_pose, chz.heure_pose, chz.equipe, chz.duree_h, chz.remarque, (chz.pose_retiree || {}).date], ['', '', 'yannick', 3, 'garder', Jf(2)]);
+        check('P16 La fiche le DIT : « À replanifier », la date retirée nommée, le champ vide, plus de bouton',
+          [txt(dz.getElementById('chantierSummary')), /^Pose du .+ retirée — à replanifier/.test(txt(dz.getElementById('chantierInfo'))), dz.getElementById('chDate').value, visibleR()],
+          ['À replanifier', true, '', false]);
+        fz.remove();
+        // Relue avant d'écrire : posée entre-temps (PV, date passée) → refusé, rien d'écrit.
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(2), equipe: 'yannick' });
+        fz = await fiche('ESSAI-22'); wz = fz.contentWindow; dz = fz.contentDocument;
+        wz.confirm = () => true;
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(-1), equipe: 'yannick' });
+        ecrireBase('ESSAI-22', '$.reception_date', Jf(-1));
+        btnR().click(); await attendre(800);
+        const toastsZ = [...dz.querySelectorAll('#toasts .toast')].map(txt).join(' | ');
+        fz.remove();
+        fz = await fiche('ESSAI-22'); wz = fz.contentWindow; dz = fz.contentDocument;
+        check('P17 Une pose FAITE garde sa date (la garantie en part) : refus si elle l’est devenue entre-temps (rien d’écrit), plus de bouton sur la fiche posée ; une seconde pose À VENIR se retire, un chantier sans date n’a rien à retirer',
+          [lire('ESSAI-22').chantier.date_pose, toastsZ.indexOf(U.REFUS_RETIRER_POSE) >= 0, visibleR(),
+           U.peutRetirerDatePose({ statut: 'termine', reception_date: Jf(-20), chantier: { date_pose: Jf(-20) } }),
+           U.peutRetirerDatePose({ statut: 'termine', reception_date: Jf(-5), chantier: { date_pose: Jf(4) } }), U.peutRetirerDatePose({ statut: 'signe', chantier: {} })],
+          [Jf(-1), true, false, false, true, false]);
+        fz.remove();
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }

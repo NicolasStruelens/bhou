@@ -915,6 +915,9 @@
           <div class="cc-eta" id="chantierEquipeHint" style="margin-top:0;"></div>
           <div class="cc-eta" id="chantierInfo"></div>
           <div class="cc-eta" id="chantierWeather" style="margin-top:0;"></div>
+          <!-- Pose annulée ou reportée sans nouvelle date : UN geste, nommé par ce qui s'est passé (règle 58).
+               Vider le champ date n'était ni facile ni clair — Chrome n'a même pas de bouton pour l'effacer. -->
+          <button type="button" class="btn btn-danger btn-sm mt-3 hidden" id="chRetirer" onclick="retirerPose()" style="width:100%;height:auto;white-space:normal;line-height:1.4;padding-top:0.6rem;padding-bottom:0.6rem;">Pose annulée — retirer la date</button>
         </div>
       </div>
 
@@ -1999,10 +2002,14 @@
         else if (days === 0) infoTxt = "Pose prévue aujourd'hui.";
         else if (days > 0) infoTxt = `Pose prévue dans ${days} jour(s).`;
         else { infoTxt = `Date de pose dépassée depuis ${-days} jour(s).`; retard = true; }
+      } else if (ch.pose_retiree && ch.pose_retiree.date) {
+        // Une date retirée se DIT : un « Non planifié » muet ne laisse pas deviner qu'une pose a sauté.
+        infoTxt = `Pose du ${fmtDate(ch.pose_retiree.date)} retirée — à replanifier dès que la nouvelle date est connue.`;
       }
       el('chantierInfo').textContent = infoTxt;
       el('chantierRetard').classList.toggle('hidden', !retard);
-      setText('chantierSummary', ch.date_pose ? fmtDate(ch.date_pose) : 'Non planifié');
+      setText('chantierSummary', ch.date_pose ? fmtDate(ch.date_pose) : ((ch.pose_retiree && ch.pose_retiree.date) ? 'À replanifier' : 'Non planifié'));
+      el('chRetirer').classList.toggle('hidden', !window.SSUI.peutRetirerDatePose(DEVIS));
       const weatherBox = el('chantierWeather');
       weatherBox.textContent = '';
       if (ch.date_pose && DEVIS.statut !== 'termine') {
@@ -2015,6 +2022,8 @@
     window.saveChantier = async () => {
       DEVIS.chantier = DEVIS.chantier || {};
       DEVIS.chantier.date_pose = el('chDate').value;
+      // Une heure sans date ne veut plus rien dire (et le planning la relirait sur la prochaine date).
+      if (!DEVIS.chantier.date_pose) DEVIS.chantier.heure_pose = '';
       DEVIS.chantier.duree_h = parseFloat(el('chDuree').value) || 0;
       DEVIS.chantier.equipe = el('chEquipe').value;
       DEVIS.date_modification = new Date().toISOString();
@@ -2022,6 +2031,25 @@
       if (res.ok === false) { toast(res.error || 'Planification NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour ✓', res.offline ? 'warn' : 'ok');
       renderChantier();
+    };
+    // « Pose annulée — retirer la date » : la règle est commune avec le planning (`SSUI.retirerDatePose`).
+    // Écriture RELUE (`SS.modifierDevis`, règle 3) : la fiche peut être ouverte depuis le matin.
+    window.retirerPose = async () => {
+      if (!window.SSUI.peutRetirerDatePose(DEVIS)) return;
+      const date = DEVIS.chantier.date_pose;
+      if (!confirm(window.SSUI.questionRetirerPose(date))) return;
+      let par = '';
+      try { const id = await window.SSNav.getIdentity(); par = (id && id.key) || ''; } catch (e) {}
+      const res = await SS.modifierDevis(DEVIS.id, (d) => {
+        if (!window.SSUI.peutRetirerDatePose(d)) return window.SSUI.REFUS_RETIRER_POSE;
+        window.SSUI.retirerDatePose(d, par);
+      });
+      if (res.ok === false) { toast(res.error || 'Date NON retirée — réessaie.', 'error', 7000); return; }
+      DEVIS = res.devis;
+      toast(res.offline ? 'Date retirée (hors-ligne)' : 'Pose retirée — chantier à replanifier ✓', res.offline ? 'warn' : 'ok');
+      const cl = DEVIS.client || {};
+      SS.logActivity({ action: 'devis.pose_retiree', entity_type: 'devis', entity_id: DEVIS.id, label: `Pose du ${fmtDate(date)} retirée (annulée ou reportée) — devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''}` });
+      render();
     };
     // ── Checklist chantier avant pose (uniquement une fois le devis signé) ──
     const CHECKLIST_ITEMS = [
