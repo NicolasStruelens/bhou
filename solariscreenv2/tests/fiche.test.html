@@ -239,6 +239,46 @@
         check('P10 PV de réception : un devis ANNULÉ entre-temps ne se réceptionne pas (rien d’écrit, le statut reste « annulé »)',
           [lire('ESSAI-17').statut, !!(lire('ESSAI-17').reception && lire('ESSAI-17').reception.image)], ['annule', false]);
         fr.remove();
+        // P10b à P10e : les RÉSERVES du PV sur la feuille imprimée (signalé par Nicolas le 31/10/2026 : tapées, puis
+        // « Réserves éventuelles : Aucune. » à l'impression — la feuille ne lisait que ce qui est enregistré à la signature).
+        const cleBr = 'ss_pv_reserves_ESSAI-09';
+        try { localStorage.removeItem(cleBr); } catch (e) {}
+        const ouvrirPv = async () => {
+          const fx = await BANC.cadre('../app/reception.html?id=ESSAI-09', 1100, 900);
+          await attendreQue(() => fx.contentDocument.getElementById('pvReserves') && fx.contentDocument.getElementById('sigCanvas'), 8000);
+          await attendre(200);
+          return fx;
+        };
+        let fpv = await ouvrirPv(), wpv = fpv.contentWindow, dpv = fpv.contentDocument;
+        const feuille = () => dpv.getElementById('pvReserves');
+        const avantSaisie = feuille().textContent;
+        // Toujours le champ de la page OUVERTE (`dpv` change au rechargement) : un champ d'un cadre déjà retiré
+        // laisserait passer P10e sans rien prouver — c'est la mutation « la feuille lit toujours la saisie » qui l'a montré.
+        const tape = (v) => { const t = dpv.getElementById('reserves'); t.value = v; t.dispatchEvent(new wpv.Event('input', { bubbles: true })); };
+        tape('Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>');
+        check('P10b PV pas encore signé : la FEUILLE porte les réserves au fur et à mesure qu’on les tape, une par ligne, en texte (jamais en HTML)',
+          [avantSaisie, feuille().textContent, wpv.getComputedStyle(feuille()).whiteSpace, !!feuille().querySelector('b'), !!feuille().closest('.paper'), !!feuille().closest('.no-print')],
+          ['Aucune.', 'Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', 'pre-line', false, true, false]);
+        fpv.remove();
+        fpv = await ouvrirPv(); wpv = fpv.contentWindow; dpv = fpv.contentDocument;
+        check('P10c Page rechargée avant de signer : les réserves tapées sont toujours là (champ ET feuille)',
+          [dpv.getElementById('reserves').value, feuille().textContent], ['Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', 'Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>']);
+        const cv9 = dpv.getElementById('sigCanvas'), r9 = cv9.getBoundingClientRect();
+        cv9.dispatchEvent(new wpv.MouseEvent('mousedown', { clientX: r9.left + 10, clientY: r9.top + 10, bubbles: true }));
+        cv9.dispatchEvent(new wpv.MouseEvent('mousemove', { clientX: r9.left + 80, clientY: r9.top + 50, bubbles: true }));
+        wpv.dispatchEvent(new wpv.MouseEvent('mouseup', { bubbles: true }));
+        await wpv.confirmReception(); await attendre(300);
+        let brouillonApres = 'x'; try { brouillonApres = localStorage.getItem(cleBr); } catch (e) {}
+        check('P10d Signé : les réserves sont ENREGISTRÉES avec la signature, la feuille les garde, le brouillon disparaît',
+          [(lire('ESSAI-09').reception || {}).notes, feuille().textContent, brouillonApres, !!dpv.querySelector('.paper img[alt="Signature du client"]')],
+          ['Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', 'Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', null, true]);
+        wpv.reopenSignature(); await attendre(100);
+        tape('Autre chose');
+        check('P10e « Refaire signer » puis une autre saisie : la feuille garde ce qui a été SIGNÉ (une signature n’atteste pas des réserves qu’elle n’a pas vues), et rien n’est mis en brouillon',
+          [feuille().textContent, (() => { try { return localStorage.getItem(cleBr); } catch (e) { return 'x'; } })()],
+          ['Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', null]);
+        fpv.remove();
+        try { localStorage.removeItem(cleBr); } catch (e) {}
         // P11 : une valeur avec des guillemets survit à la réouverture du simulateur.
         const it0 = lire('ESSAI-03').items[0];
         ecrireBase('ESSAI-03', '$.items[0].emplacement', 'Chambre "parents"');
@@ -264,6 +304,47 @@
         const ouverte = !!dlg && ff.contentWindow.getComputedStyle(dlg.closest('[class*="modal"], .fa-overlay, .fa-fond') || dlg).display !== 'none' && dlg.getBoundingClientRect().height > 0;
         check('P13 Facturation : un devis demandé qui n’a rien à facturer n’ouvre RIEN (le premier devis éligible, d’un autre client, était présélectionné)', ouverte, false);
         ff.remove();
+
+        // P14 à P17 : « Pose annulée — retirer la date » (31/10/2026, demande de Nicolas : « on devait placer les screens
+        // aujourd'hui, ça a été annulé : comment annuler, et laisser sans date quand on ne sait pas ? »).
+        const Jf = (n) => U.isoDate(new Date(Date.now() + n * 86400000));
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(2), heure_pose: '09:00', equipe: 'yannick', duree_h: 3, remarque: 'garder' });
+        let fz = await fiche('ESSAI-22'); let wz = fz.contentWindow, dz = fz.contentDocument;
+        const btnR = () => dz.getElementById('chRetirer');
+        const visibleR = () => !!btnR() && !btnR().classList.contains('hidden') && wz.getComputedStyle(btnR()).display !== 'none';
+        const questions = [];
+        wz.confirm = (m) => { questions.push(m); return false; };
+        const visibleAvant = visibleR();
+        btnR().click(); await attendre(300);
+        check('P14 Une pose prévue : le bouton « Pose annulée — retirer la date » est là, il DEMANDE avant (avec le jour), et « non » ne change rien',
+          [visibleAvant, txt(btnR()), questions[0] === U.questionRetirerPose(Jf(2)), /^Retirer la pose du \S+ \d+ \S+ \?/.test(questions[0] || ''), lire('ESSAI-22').chantier.date_pose],
+          [true, 'Pose annulée — retirer la date', true, true, Jf(2)]);
+        wz.confirm = (m) => { questions.push(m); return true; };
+        btnR().click();
+        await attendreQue(() => !(lire('ESSAI-22').chantier || {}).date_pose, 5000); await attendre(300);
+        const chz = lire('ESSAI-22').chantier || {};
+        check('P15 « Oui » : la date ET l’heure partent ; l’équipe, la durée et le reste du chantier restent ; la date retirée est gardée',
+          [chz.date_pose, chz.heure_pose, chz.equipe, chz.duree_h, chz.remarque, (chz.pose_retiree || {}).date], ['', '', 'yannick', 3, 'garder', Jf(2)]);
+        check('P16 La fiche le DIT : « À replanifier », la date retirée nommée, le champ vide, plus de bouton',
+          [txt(dz.getElementById('chantierSummary')), /^Pose du .+ retirée — à replanifier/.test(txt(dz.getElementById('chantierInfo'))), dz.getElementById('chDate').value, visibleR()],
+          ['À replanifier', true, '', false]);
+        fz.remove();
+        // Relue avant d'écrire : posée entre-temps (PV, date passée) → refusé, rien d'écrit.
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(2), equipe: 'yannick' });
+        fz = await fiche('ESSAI-22'); wz = fz.contentWindow; dz = fz.contentDocument;
+        wz.confirm = () => true;
+        ecrireBase('ESSAI-22', '$.chantier', { date_pose: Jf(-1), equipe: 'yannick' });
+        ecrireBase('ESSAI-22', '$.reception_date', Jf(-1));
+        btnR().click(); await attendre(800);
+        const toastsZ = [...dz.querySelectorAll('#toasts .toast')].map(txt).join(' | ');
+        fz.remove();
+        fz = await fiche('ESSAI-22'); wz = fz.contentWindow; dz = fz.contentDocument;
+        check('P17 Une pose FAITE garde sa date (la garantie en part) : refus si elle l’est devenue entre-temps (rien d’écrit), plus de bouton sur la fiche posée ; une seconde pose À VENIR se retire, un chantier sans date n’a rien à retirer',
+          [lire('ESSAI-22').chantier.date_pose, toastsZ.indexOf(U.REFUS_RETIRER_POSE) >= 0, visibleR(),
+           U.peutRetirerDatePose({ statut: 'termine', reception_date: Jf(-20), chantier: { date_pose: Jf(-20) } }),
+           U.peutRetirerDatePose({ statut: 'termine', reception_date: Jf(-5), chantier: { date_pose: Jf(4) } }), U.peutRetirerDatePose({ statut: 'signe', chantier: {} })],
+          [Jf(-1), true, false, false, true, false]);
+        fz.remove();
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }

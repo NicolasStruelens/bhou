@@ -79,7 +79,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 25 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 20 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception, le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 28 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (et ses réserves sur la feuille imprimée), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 121 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
@@ -87,7 +87,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
 | `tests/suivi.test.html` | Les 53 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 7 mutations. **Par le serveur de test.** |
-| `tests/planning-page.test.html` | Les 53 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
+| `tests/planning-page.test.html` | Les 55 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
@@ -3017,6 +3017,33 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
   Nouvel An), teintes `{ sombre, clair }` posées sur tous les thèmes clairs de `SSTheme`, positions déterministes. `?saison=hiver`
   (printemps, ete, automne) montre une saison hors de sa période, comme l'aperçu des fêtes.
 
+**57 bis. LES RÉSERVES DU PV S'IMPRIMENT TELLES QU'ON LES TAPE, tant qu'il n'est pas signé** (`app/reception.html`,
+31/10/2026 — signalé par Nicolas : réserves tapées, puis « Réserves éventuelles : Aucune. » à l'impression et dans le PDF).
+La feuille lisait `reception.notes`, qui n'est écrit qu'avec la signature (« Confirmer la réception ») : un PV imprimé pour être
+signé À LA MAIN sortait sans ses réserves. Désormais : PV pas signé → la feuille suit la saisie en direct (`majReservesFeuille`),
+retours à la ligne gardés (`white-space: pre-line`), texte seul ; un brouillon par devis reste dans le navigateur
+(`ss_pv_reserves_<id>`) jusqu'à la signature. PV signé → la feuille porte ce qui a été SIGNÉ : « Refaire signer » ne la change
+qu'une fois la nouvelle signature confirmée, sinon une signature attesterait des réserves qu'elle n'a jamais vues. Tests P10b à P10e.
+
+**58. UNE POSE ANNULÉE SE RETIRE PAR UN BOUTON QUI LE DIT — « Pose annulée — retirer la date »** (31/10/2026, demande
+de Nicolas : « on devait placer les screens aujourd'hui, ça a été annulé : comment annuler, et laisser sans date quand on ne
+sait pas ? Il faut que ce soit facile et clair »). Règle dans `ui.js` (`SSUI.peutRetirerDatePose`, `retirerDatePose`,
+`questionRetirerPose`), lue par la fiche devis (carte « Planification de pose ») ET par la fenêtre d'une pose du planning.
+• **Ce qui manquait** : vider un champ date n'est ni facile ni clair (Chrome n'a pas de bouton pour l'effacer), et la fenêtre du
+  planning avait un bouton « Annuler »… qui ne faisait que FERMER la fenêtre — le mot exact qu'on cherchait, pour autre chose.
+  Il s'appelle désormais « Fermer » ; l'annulation a son propre bouton, rouge, à part.
+• **Ce que fait le bouton** : il DEMANDE d'abord (le jour nommé, et ce qui va se passer), puis retire la date ET l'heure ;
+  l'équipe et la durée RESTENT (elles valent pour la prochaine date) ; `chantier.pose_retiree` garde la date retirée, et la
+  fiche dit « À replanifier — Pose du … retirée » au lieu d'un « Non planifié » muet. Le chantier repasse « à planifier »
+  partout (tableau de bord, planning, lien client) sans rien d'autre à faire. Écriture RELUE (`SS.modifierDevis` sur la fiche).
+• ⚠️ **UNE POSE FAITE GARDE SA DATE** : PV ou commande « posé » avec une date passée, c'est le RELEVÉ de la pose — la garantie
+  en part (règle 20). Le bouton n'apparaît pas, et la règle est revérifiée sur le devis RELU au moment d'écrire (posé
+  entre-temps → refus, rien d'écrit). Une date À VENIR se retire toujours, même après un PV : c'est la seconde pose d'un
+  chantier posé en deux fois.
+• ⚠️ **L'HEURE DE POSE VIT DANS `chantier.heure_pose`** (planning, `SSPlanning`). Le jeu d'essai écrivait `heure`, que l'ERP ne
+  lit nulle part — le lien client (règle 57) le lisait aussi, et n'aurait jamais affiché l'heure d'arrivée en production. Les
+  deux sont corrigés ; vider la date sur la fiche vide aussi l'heure.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3287,7 +3314,7 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
 1. **Les 62 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 62/62 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 121/121 » — et dès qu'on touche à
-   `app/planning.html` : `tests/planning-page.test.html`, exiger « 53/53 », par le serveur. Pour `attente.js` :
+   `app/planning.html` : `tests/planning-page.test.html`, exiger « 55/55 », par le serveur. Pour `attente.js` :
    `tests/attente.test.html`, exiger « 105/105 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
@@ -3326,7 +3353,7 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 20/20 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 28/28 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
    `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 25/25 », par le serveur.

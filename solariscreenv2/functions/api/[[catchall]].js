@@ -188,7 +188,8 @@ export async function onRequest(context) {
         commande: { statut: cc.statut || '', date_commande: String(cc.date_commande || '').slice(0, 10),
           delai_semaines: (cc.delai_semaines == null || cc.delai_semaines === '') ? null : cc.delai_semaines,
           recu_le: String(cc.recu_le || '').slice(0, 10) },
-        chantier: { date_pose: String(ch.date_pose || '').slice(0, 10), heure: String(ch.heure || '').slice(0, 5),
+        // L'heure vit dans `heure_pose` (planning, `SSPlanning`) — `heure` n'est lu nulle part dans l'ERP.
+        chantier: { date_pose: String(ch.date_pose || '').slice(0, 10), heure: String(ch.heure_pose || '').slice(0, 5),
           duree_h: Number(ch.duree_h) > 0 ? Number(ch.duree_h) : null },
         // Le PV : sa date et le fait qu'il est signé — jamais l'image de la signature.
         reception: { date: String(rec.date || '').slice(0, 10), signe: !!rec.image },

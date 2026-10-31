@@ -270,6 +270,24 @@
           [w.__ics && w.__ics[1], /SUMMARY:Pose — Bernadette Windey/.test(w.__ics && w.__ics[0]), /DTSTART:\d{8}T080000/.test(w.__ics && w.__ics[0])],
           ['solariscreen-' + J(5) + '-bernadette-windey.ics', true, true]);
         w.fermerEvenement();
+        // « Pose annulée — retirer la date » (31/10/2026) : le bouton « Annuler » de cette fenêtre ne faisait que la FERMER.
+        w.ouvrirEvenement('rdv:R-1'); await attendre(60);
+        const retirerVisible = () => d.getElementById('btnEvRetirer').style.display !== 'none';
+        const surVisite = retirerVisible();
+        w.fermerEvenement();
+        w.ouvrirEvenement('pose:P-BW'); await attendre(60);
+        check('D6 Fenêtre d’une pose : « Pose annulée — retirer la date » (absent sur une visite), et le bouton qui ferme s’appelle « Fermer »',
+          [retirerVisible(), surVisite, texte(d.getElementById('btnEvRetirer')), texte(d.getElementById('btnEvFermer')),
+            [...d.querySelectorAll('#mEvBg .mfoot button')].some((b) => texte(b) === 'Annuler')],
+          [true, false, 'Pose annulée — retirer la date', 'Fermer', false]);
+        E.confirmes = []; E.reponseConfirm = true;
+        const nDevR = E.devis.length;
+        await w.retirerDateEv(); await attendre(200);
+        const chR = (E.devis[E.devis.length - 1] || {}).chantier || {};
+        check('D7 Retirer : la question d’abord (le jour nommé), puis date et heure vides, équipe et durée gardées, la date retirée notée, fenêtre fermée',
+          [E.confirmes[0] === w.SSUI.questionRetirerPose(J(5)), E.devis.length - nDevR, chR.date_pose, chR.heure_pose, chR.equipe, chR.duree_h, (chR.pose_retiree || {}).date,
+            d.getElementById('mEvBg').classList.contains('open')],
+          [true, 1, '', '', 'nicolas_yannick', 4, J(5), false]);
 
         titre('E — Les fenêtres ne perdent plus la saisie');
         w.ouvrirIndispo(); await attendre(60);

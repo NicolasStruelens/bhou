@@ -408,9 +408,13 @@
       <div class="mhead"><span id="mEvIc"></span><span id="mEvTitre">Rendez-vous</span><span class="mid" id="mEvRef"></span></div>
       <div class="mbody" id="mEvBody"></div>
       <div class="mfoot">
+        <!-- « Pose annulée » : le seul geste qui RETIRE la date (règle 58). Le bouton de fermeture
+             s'appelait « Annuler » : c'était justement le mot qu'on cherche pour annuler une pose, et il
+             ne faisait que fermer la fenêtre. Il s'appelle « Fermer », et l'annulation a SON bouton. -->
+        <button class="btn btn-danger btn-sm" id="btnEvRetirer" onclick="retirerDateEv()" style="margin-right:auto;">Pose annulée — retirer la date</button>
         <button class="btn btn-ghost btn-sm" id="btnEvIcs" onclick="agendaEv()">Ajouter à mon agenda</button>
         <button class="btn btn-ghost btn-sm" id="btnEvFiche" onclick="ouvrirFicheEv()">Ouvrir la fiche</button>
-        <button class="btn btn-ghost btn-sm" onclick="fermerEvenement()">Annuler</button>
+        <button class="btn btn-ghost btn-sm" id="btnEvFermer" onclick="fermerEvenement()">Fermer</button>
         <button class="btn btn-primary btn-sm" onclick="enregistrerEvenement()" id="btnSaveEv">Enregistrer</button>
       </div>
     </div>
@@ -1075,11 +1079,34 @@
       el('mEvTitre').textContent = nature(e) + ' — ' + e.titre;
       el('mEvRef').textContent = e.ref || '';
       el('btnEvFiche').style.display = e.href ? '' : 'none';
+      el('btnEvRetirer').style.display = e.source === 'pose' ? '' : 'none';
       remplirEvenement();
       ouvrirFenetre('mEvBg');
     };
     window.fermerEvenement = function (o) { fermerFenetre('mEvBg', o); EV = null; EV_EDIT = null; };
     window.ouvrirFicheEv = function () { if (EV && EV.href) allerVers(EV.href); };
+    /** « Pose annulée — retirer la date » : même règle que la fiche devis (`SSUI.retirerDatePose`).
+     *  Une pose FAITE garde sa date (la garantie part de là) : vérifié sur le devis RELU, pas sur la grille. */
+    window.retirerDateEv = async function () {
+      const e = EV;
+      if (!e || e.source !== 'pose') return;
+      const d0 = await SS.getDevis(e.ref);
+      if (!d0 || !d0.id) { toast('Devis introuvable — recharge la page.', 'error'); return; }
+      if (!window.SSUI.peutRetirerDatePose(d0)) { toast(window.SSUI.REFUS_RETIRER_POSE, 'error', 7000); return; }
+      const date = d0.chantier.date_pose;
+      if (!confirm(window.SSUI.questionRetirerPose(date))) return;
+      let par = '';
+      try { const id = await window.SSNav.getIdentity(); par = (id && id.key) || ''; } catch (x) {}
+      const d = await ecrireDevis(e.ref, function (x) { window.SSUI.retirerDatePose(x, par); }, 'Pose retirée — chantier à replanifier');
+      if (!d) return;
+      const cl = d.client || {};
+      try {
+        SS.logActivity({ action: 'devis.pose_retiree', entity_type: 'devis', entity_id: d.id, label: 'Pose du ' + fmtDate(date) + ' retirée (annulée ou reportée) — devis #' + d.id
+          + ((cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : '') });
+      } catch (x) { /* jamais bloquant */ }
+      fermerEvenement();
+      charger();
+    };
     window.agendaEv = function () { if (EV) agenda(EV.id); };
     window.basculerTech = function (p) {
       const i = EV_EDIT.techs.indexOf(p);
