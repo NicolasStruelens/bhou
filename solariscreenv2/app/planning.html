@@ -961,7 +961,7 @@
           '<span class="pl-vide">recherche…</span></div>' +
         '<div class="champs">' +
         '<div class="field"><label class="label">Date de pose</label><input class="input" type="date" value="" onchange="fixerPose(' + id + ', this.value)"></div>' +
-        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (ch.duree_h != null ? ch.duree_h : '') + '" onchange="setChantier(' + id + ',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
+        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" value="' + (P.dureePose(ch, REGLAGES).defaut ? '' : escHtml(String(ch.duree_h))) + '" placeholder="' + P.dureePose(ch, REGLAGES).h + '" title="' + escHtml(P.dureePose(ch, REGLAGES).note) + '" onchange="setChantier(' + id + ',\'duree_h\', parseFloat(this.value) || 0)"></div>' +
         '<div class="field plein"><label class="label">Équipe</label><select class="select" onchange="setChantier(' + id + ',\'equipe\', this.value)">' +
         // ⚠️ Option VIDE en tête, et surtout pas de repli sur 'nicolas' : afficher « Nicolas »
         //    quand rien n'est enregistré fait croire que c'est fait, donc on ne touche pas au
@@ -1026,7 +1026,7 @@
       const ch = (d && d.chantier) || {};
       const candidat = {
         id: 'pose:' + id, source: 'pose', date: date, heure: '',
-        duree_h: Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4,
+        duree_h: P.dureePose(ch, REGLAGES).h,
         // Sans équipe, personne n'est mobilisé : on ne vérifie pas Nicolas « par défaut ».
         qui: ch.equipe ? P.quiDeEquipe(ch.equipe) : [], titre: 'ce chantier',
       };
@@ -1152,8 +1152,9 @@
           '<input class="input" type="time" id="ev_heure" value="' + escHtml(e.heure || '') + '"></div>' +
         // `step` décimal obligatoire : sans lui le champ refuse la valeur qu'il affiche, et une
         // main-d'œuvre d'1 h 30 se retrouve tronquée à 1 h à chaque enregistrement.
-        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" id="ev_duree" value="' + escHtml(String(e.duree_h || '')) + '"></div>' +
+        '<div class="field"><label class="label">Durée (h)</label><input class="input input-num" type="number" min="0" step="0.5" id="ev_duree" value="' + escHtml(String(e.duree_defaut ? '' : (e.duree_h || ''))) + '"' + (e.duree_defaut ? ' placeholder="' + escHtml(String(e.duree_h)) + '"' : '') + '></div>' +
         '</div>' +
+        (e.duree_defaut ? '<div class="ev-note" id="evDureeNote">' + escHtml(P.dureePose({}, REGLAGES).note) + '</div>' : '') +
         (note ? '<div class="ev-note">' + escHtml(note) + '</div>' : '');
     }
 
@@ -1175,7 +1176,9 @@
       // sans un mot — une heure que personne n'avait annoncée au client.
       if (e.source === 'visite' && !heure) { toast('Une visite a besoin d’une heure : c’est un rendez-vous chez le client.', 'error'); el('ev_heure').focus(); return; }
       const qui = quiDeEdit(e.source);
-      const candidat = { id: e.id, source: e.source, date: date, heure: heure, duree_h: duree, qui: qui, titre: e.titre };
+      // Une durée de pose laissée VIDE reste inconnue en base (0), mais compte au défaut pour les conflits.
+      const compte = duree || (e.source === 'pose' ? P.dureePose({}, REGLAGES).h : 0);
+      const candidat = { id: e.id, source: e.source, date: date, heure: heure, duree_h: compte, qui: qui, titre: e.titre };
       if (!confirmerMalgre(candidat, 'Enregistrer')) return;
       const btn = el('btnSaveEv'); btn.disabled = true;
       let res = null;
@@ -1450,7 +1453,10 @@
         // L'équipe ENREGISTRÉE si elle existe ; sinon la personne du couloir qu'on vient de
         // cliquer — un geste explicite, visible et modifiable avant de valider.
         c.equipe = ch.equipe || c.qui;
-        c.duree = Number(ch.duree_h) || Number(conf.duree_pose_h) || 4;
+        // La durée ENREGISTRÉE, ou rien : le défaut s'affiche en indication, il ne s'écrit pas (`dureePose`).
+        const dp = P.dureePose(ch, REGLAGES);
+        c.duree = dp.defaut ? '' : dp.h;
+        c.dureeDefaut = dp.defaut ? dp.h : 0;
       } else if (type === 'depannage') {
         c.techs = [c.qui];
         c.duree = Number(conf.duree_depannage_h) || 2;
@@ -1489,7 +1495,7 @@
         groupe('Poses à planifier — matériel reçu', L.poses.map(function (d) {
           const ch = d.chantier || {};
           return opt('pose', d.id, nomDe(d.client), [(window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || '',
-            P.fmtDuree(Number(ch.duree_h) || Number(conf.duree_pose_h) || 4), ch.equipe ? EQUIPES[ch.equipe] : 'équipe à choisir'].filter(Boolean).join(' · '));
+            P.fmtDuree(P.dureePose(ch, REGLAGES).h) + (P.dureePose(ch, REGLAGES).defaut ? ' (par défaut)' : ''), ch.equipe ? EQUIPES[ch.equipe] : 'équipe à choisir'].filter(Boolean).join(' · '));
         })) +
         groupe('Dépannages sans date', L.deps.map(function (d) {
           return opt('depannage', d.id, nomDe(d.client), (window.SSUI.resumeDevis && window.SSUI.resumeDevis(d)) || 'Dépannage');
@@ -1514,7 +1520,7 @@
           '<div class="field"><label class="label">' + (pose ? 'Qui pose' : 'Qui intervient') + '</label><div class="qui-box">' + quiHtml + '</div></div>' +
           '<div class="m2" style="margin-top:var(--sp-3)">' +
           '<div class="field"><label class="label" for="cl_heure">Heure</label><input class="input" type="time" id="cl_heure" value="' + escHtml(c.heure || '') + '"></div>' +
-          '<div class="field"><label class="label" for="cl_duree">Durée (h)</label><input class="input input-num" type="number" min="0.5" step="0.5" id="cl_duree" value="' + escHtml(String(c.duree || '')) + '"></div>' +
+          '<div class="field"><label class="label" for="cl_duree">Durée (h)</label><input class="input input-num" type="number" min="0.5" step="0.5" id="cl_duree" value="' + escHtml(String(c.duree || '')) + '"' + (c.dureeDefaut ? ' placeholder="' + c.dureeDefaut + '"' : '') + '></div>' +
           '</div></div>';
       }
       html += '<div class="cl-bloquer"><button type="button" class="btn btn-ghost btn-sm" onclick="calerBloquer()">' + icon('lock', 13) + ' Plutôt bloquer ce temps</button></div>';
@@ -1542,15 +1548,18 @@
       }
       const pose = c.choix.type === 'pose', id = c.choix.id;
       const duree = parseFloat(c.duree) || 0;
-      if (!duree) { toast('Indique une durée.', 'error'); if (el('cl_duree')) el('cl_duree').focus(); return; }
+      // Une pose sans durée renseignée se cale au défaut (sans l'écrire) ; un dépannage, lui, en exige une.
+      const compte = duree || (pose ? P.dureePose({}, REGLAGES).h : 0);
+      if (!compte) { toast('Indique une durée.', 'error'); if (el('cl_duree')) el('cl_duree').focus(); return; }
       if (!pose && !c.techs.length) { toast('Choisis qui intervient.', 'error'); return; }
       const src = ((pose ? A_PLANIFIER : (SOURCES.devis || [])).filter(function (x) { return x.id === id; })[0]) || {};
       const candidat = { id: (pose ? 'pose:' : 'dep:') + id, source: pose ? 'pose' : 'depannage', date: c.date, heure: c.heure || '',
-        duree_h: duree, qui: pose ? P.quiDeEquipe(c.equipe) : c.techs.slice(), titre: nomDe(src.client) };
+        duree_h: compte, qui: pose ? P.quiDeEquipe(c.equipe) : c.techs.slice(), titre: nomDe(src.client) };
       if (!confirmerMalgre(candidat, 'Caler')) return;
       const btn = el('btnCaler'); btn.disabled = true;
       const fait = await ecrireDevis(id, function (d) {
-        if (pose) d.chantier = Object.assign({}, d.chantier || {}, { date_pose: c.date, heure_pose: c.heure || '', duree_h: duree, equipe: c.equipe });
+        // Une durée laissée vide n'est pas écrite : celle du chantier (ou son absence) reste telle quelle.
+        if (pose) d.chantier = Object.assign({}, d.chantier || {}, { date_pose: c.date, heure_pose: c.heure || '', equipe: c.equipe }, duree ? { duree_h: duree } : {});
         else d.depannage = Object.assign({}, d.depannage || {}, { date_intervention: c.date, heure: c.heure || '', duree_h: duree, techniciens: techniciensAvec(d, c.techs) });
       }, (pose ? 'Pose calée' : 'Dépannage calé') + ' — ' + jourLong(c.date));
       btn.disabled = false;
@@ -1574,7 +1583,7 @@
         const titre = '<span class="pl-prop-t">' + icon('calendar', 12) + ' Dates possibles · ' +
           escHtml(ch.equipe ? EQUIPES[ch.equipe] || ch.equipe : 'à deux, équipe à confirmer') + '</span>';
         if (!qui.length) { hote.innerHTML = titre + '<span class="pl-vide">Sous-traitant : la date se convient avec lui.</span>'; return; }
-        const duree = Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4;
+        const duree = P.dureePose(ch, REGLAGES).h;
         const cands = P.datesPossibles(qui, duree, TOUS_EVS, DISPOS, REGLAGES, { limite: 10, horizon_jours: 60 });
         if (!cands.length) { hote.innerHTML = titre + '<span class="pl-vide">Aucune journée assez libre dans les 60 prochains jours.</span>'; return; }
         const adr = (d.client || {}).adresse || {};
@@ -1604,16 +1613,17 @@
       if (!d) return;
       const ch = d.chantier || {};
       const equipe = ch.equipe || 'nicolas_yannick';
-      const duree = Number(ch.duree_h) || Number(P.conf(REGLAGES).duree_pose_h) || 4;
+      const dp = P.dureePose(ch, REGLAGES), duree = dp.h;
       // Une pose qui commence en début de journée reste « sans heure » : c'est la convention
       // (SSPlanning.occupation la cale au début de journée).
       const heure = debut === P.minHhmm(P.demiJournees(REGLAGES).matin.debut) ? '' : debut;
       if (!confirm('Caler la pose de ' + nomDe(d.client) + ' le ' + jourLong(date) + (heure ? ' à ' + heure : '') + ' ?\n\n' +
-        'Équipe : ' + EQUIPES[equipe] + (ch.equipe ? '' : ' (aucune n’était choisie : la pose est calée à deux)') + '\nDurée : ' + P.fmtDuree(duree))) return;
+        'Équipe : ' + EQUIPES[equipe] + (ch.equipe ? '' : ' (aucune n’était choisie : la pose est calée à deux)') + '\nDurée : ' + P.fmtDuree(duree) + (dp.defaut ? ' (par défaut, non renseignée)' : ''))) return;
       const candidat = { id: 'pose:' + id, source: 'pose', date: date, heure: heure, duree_h: duree, qui: P.quiDeEquipe(equipe), titre: nomDe(d.client) };
       if (!confirmerMalgre(candidat, 'Caler')) return;
       const fait = await ecrireDevis(id, function (x) {
-        x.chantier = Object.assign({}, x.chantier || {}, { date_pose: date, heure_pose: heure, duree_h: duree, equipe: equipe });
+        // La durée n'est PAS écrite : celle du chantier reste telle quelle (le défaut ne devient pas une saisie).
+        x.chantier = Object.assign({}, x.chantier || {}, { date_pose: date, heure_pose: heure, equipe: equipe });
       }, 'Pose calée — ' + jourLong(date));
       if (fait) charger();
     };

@@ -346,6 +346,17 @@
     const SIX = P.chargeSemaines('nicolas', MER, 6, EVS, [], REG);
     check('N32 charge à six semaines : six semaines, à partir du LUNDI', [SIX.length, SIX[0].du, SIX[1].du, SIX[0].capacite], [6, LUN, '2026-03-09', 40]);
 
+    // ══════════ Durée d'une pose : UNE règle (31/10/2026 — la fiche affichait 0 là où le planning comptait 4 h) ══════════
+    const dp = (ch, r) => { const x = P.dureePose(ch, r); return [x.h, x.defaut]; };
+    check('N33 durée de pose : la renseignée (y compris « 2.5 » écrit en texte) ; 0, vide ou absente → le défaut des réglages, MARQUÉ comme défaut',
+      [dp({ duree_h: 3 }, REG), dp({ duree_h: '2.5' }, REG), dp({ duree_h: 0 }, REG), dp({}, REG), dp(null, REG), dp({ duree_h: 0 }, { planning: { duree_pose_h: 6 } }), dp({}, { planning: {} })],
+      [[3, false], [2.5, false], [4, true], [4, true], [4, true], [6, true], [4, true]]);
+    check('N34 le défaut se DIT (une phrase), la durée renseignée se tait ; l’événement de pose porte `duree_defaut`',
+      [P.dureePose({}, REG).note, P.dureePose({ duree_h: 3 }, REG).note,
+       P.construire({ devis: [{ id: 'X', statut: 'signe', chantier: { date_pose: '2026-03-04', equipe: 'nicolas' } }] }, null, REG).filter((e) => e.source === 'pose').map((e) => [e.duree_h, e.duree_defaut])[0],
+       P.construire({ devis: [{ id: 'Y', statut: 'signe', chantier: { date_pose: '2026-03-04', equipe: 'nicolas', duree_h: 2 } }] }, null, REG).filter((e) => e.source === 'pose').map((e) => [e.duree_h, e.duree_defaut])[0]],
+      ['Durée non renseignée : le planning compte 4 h par défaut.', '', [4, true], [2, false]]);
+
     // ══════════ Résultat ══════════
     document.getElementById('out').innerHTML =
       '<table><thead><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th>Verdict</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';

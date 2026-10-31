@@ -345,6 +345,16 @@
            U.peutRetirerDatePose({ statut: 'termine', reception_date: Jf(-5), chantier: { date_pose: Jf(4) } }), U.peutRetirerDatePose({ statut: 'signe', chantier: {} })],
           [Jf(-1), true, false, false, true, false]);
         fz.remove();
+        // P18 : la durée de pose dit la même chose que le planning (31/10/2026 — « 0 » sur la fiche, « 4 » dans le planning).
+        const dureeFiche = async (ch) => {
+          ecrireBase('ESSAI-22', '$.chantier', ch);
+          const fd = await fiche('ESSAI-22'); const dd = fd.contentDocument;
+          const r = [dd.getElementById('chDuree').value, dd.getElementById('chDuree').placeholder, txt(dd.getElementById('chantierDureeHint'))];
+          fd.remove(); return r;
+        };
+        check('P18 Durée de pose : non renseignée (0) → champ vide, 4 en indication et la phrase du planning ; renseignée → sa valeur, sans phrase',
+          [await dureeFiche({ date_pose: Jf(5), equipe: 'yannick', duree_h: 0 }), await dureeFiche({ date_pose: Jf(5), equipe: 'yannick', duree_h: 3 })],
+          [['', '4', 'Durée non renseignée : le planning compte 4 h par défaut.'], ['3', '4', '']]);
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }
