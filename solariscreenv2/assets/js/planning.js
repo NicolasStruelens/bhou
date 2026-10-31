@@ -124,6 +124,19 @@
     return (r.planning) || {};
   }
 
+  /** La durée d'une POSE : celle du chantier si elle est renseignée, sinon celle des réglages (4 h à
+   *  défaut) — et `defaut` le DIT. ⚠️ Source unique (31/10/2026) : la règle vivait en six copies, et la
+   *  fiche devis affichait « 0 » là où le planning affichait « 4 » pour le MÊME chantier (signalé par
+   *  Nicolas). Pire, plusieurs gestes du planning ÉCRIVAIENT ce 4 dans le devis comme si quelqu'un
+   *  l'avait choisi. Une durée inconnue reste inconnue (0 en base) ; on la COMPTE au défaut, on
+   *  l'AFFICHE vide avec le défaut en indication, et on le dit (`note`). */
+  function dureePose(ch, reglages) {
+    const n = Number(ch && ch.duree_h);
+    if (isFinite(n) && n > 0) return { h: n, defaut: false, note: '' };
+    const h = Number(conf(reglages).duree_pose_h) || 4;
+    return { h: h, defaut: true, note: 'Durée non renseignée : le planning compte ' + fmtDuree(h) + ' par défaut.' };
+  }
+
   /** Trame d'une personne : { lun:'journee', …, dim:'non' }. Inconnue → aucune disponibilité,
    *  jamais « toujours libre » : mieux vaut un planning vide qu'un planning qui ment. */
   function trameDe(qui, reglages) {
@@ -189,7 +202,8 @@
         source: 'pose',
         date: String(ch.date_pose).slice(0, 10),
         heure: String(ch.heure_pose || '').slice(0, 5),
-        duree_h: Number(ch.duree_h) || Number(c.duree_pose_h) || 4,
+        duree_h: dureePose(ch, reglages).h,
+        duree_defaut: dureePose(ch, reglages).defaut,
         /* ⚠️ UNE POSE SANS ÉQUIPE N'EST RANGÉE CHEZ PERSONNE (26/10/2026). Elle retombait sur
            Nicolas par « quiDeEquipe('') » : la grille l'affichait « Nic », sa charge montait (25 %
            → 44 % sur un jeudi où il ne travaille pas), et la fenêtre « Qui s'en occupe » cochait
@@ -722,7 +736,7 @@
     indexJour: indexJour, cleJour: cleJour, lundiDe: lundiDe, estWeekend: estWeekend,
     ecartJours: ecartJours, jours: jours,
     hhmmMin: hhmmMin, minHhmm: minHhmm, fmtDuree: fmtDuree,
-    conf: conf, trameDe: trameDe,
+    conf: conf, trameDe: trameDe, dureePose: dureePose,
     /* ⚠️ Exporté pour que la rémunération puisse distinguer « sous-traitant » (une réponse)
        d'une valeur d'équipe qu'on ne connaît pas (une donnée à corriger). « quiDeEquipe »
        renvoie [] dans les deux cas — ici, [] veut dire « Nicolas n'y était pas », donc une

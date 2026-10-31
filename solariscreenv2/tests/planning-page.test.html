@@ -193,16 +193,17 @@
           [...d.querySelectorAll('#mCalerBody .cl-opt .t')].map(texte).concat([texte(d.querySelector('.cl-bloquer'))]),
           ['Anne Planifier', 'Zoé Attente', 'Jean Demande', 'Plutôt bloquer ce temps']);
         d.querySelectorAll('#mCalerBody .cl-opt')[0].click(); await attendre(60);
-        check('B3 Pose choisie : l’équipe part de la personne cliquée (aucune n’était enregistrée), heure et durée remplies',
-          [[...d.querySelectorAll('#mCalerBody .qui-opt.on')].map(texte), d.getElementById('cl_heure').value, d.getElementById('cl_duree').value, texte(d.getElementById('btnCaler'))],
-          [['Nicolas'], '08:00', '4', 'Caler la pose']);
+        // La durée n'est plus PRÉREMPLIE au défaut (31/10/2026) : le chantier n'en a pas, le champ reste vide avec 4 en indication.
+        check('B3 Pose choisie : l’équipe part de la personne cliquée (aucune n’était enregistrée), heure remplie, durée vide avec le défaut en indication',
+          [[...d.querySelectorAll('#mCalerBody .qui-opt.on')].map(texte), d.getElementById('cl_heure').value, d.getElementById('cl_duree').value, d.getElementById('cl_duree').placeholder, texte(d.getElementById('btnCaler'))],
+          [['Nicolas'], '08:00', '', '4', 'Caler la pose']);
         d.getElementById('cl_heure').value = '09:00';
         [...d.querySelectorAll('#mCalerBody .qui-opt')].find(b => /Nicolas \+ Yannick/.test(b.textContent)).click(); await attendre(60);
         check('B4 Changer l’équipe ne perd pas l’heure qu’on vient de taper', d.getElementById('cl_heure').value, '09:00');
         await w.validerCaler(); await attendre(150);
         const ec = E.devis[E.devis.length - 1] || {};
-        check('B5 « Caler la pose » écrit date, heure, durée et équipe — et garde le reste du chantier',
-          [ec.id, ec.chantier], ['P-PLAN', { remarque: 'garder', date_pose: J(6), heure_pose: '09:00', duree_h: 4, equipe: 'nicolas_yannick' }]);
+        check('B5 « Caler la pose » écrit date, heure et équipe — et garde le reste du chantier ; une durée laissée vide n’est PAS écrite (le défaut ne devient pas une saisie)',
+          [ec.id, ec.chantier], ['P-PLAN', { remarque: 'garder', date_pose: J(6), heure_pose: '09:00', equipe: 'nicolas_yannick' }]);
         check('B6 …et la fenêtre se ferme', mc.classList.contains('open'), false);
         cellules(1)[0].querySelector('.pl-dispo').click(); await attendre(80);
         [...d.querySelectorAll('#mCalerBody .cl-opt')].find(b => /Zoé/.test(b.textContent)).click(); await attendre(60);
@@ -241,9 +242,11 @@
         E.confirmes = [];
         prop.querySelector('.pl-pill').click(); await attendre(200);
         const cp = E.devis[E.devis.length - 1] || {};
-        check('C2 Un clic cale la pose — après avoir DIT qu’elle est calée à deux faute d’équipe choisie',
-          [/aucune n’était choisie : la pose est calée à deux/.test(E.confirmes[0] || ''), cp.chantier],
-          [true, { remarque: 'garder', date_pose: J(5), heure_pose: '13:00', duree_h: 4, equipe: 'nicolas_yannick' }]);
+        // ⚠️ La durée n'est plus ÉCRITE (31/10/2026) : le chantier n'en avait pas, le planning comptait 4 h par défaut et
+        // l'enregistrait comme si quelqu'un l'avait choisie — la fiche affichait alors 0 pendant que le planning disait 4.
+        check('C2 Un clic cale la pose — après avoir DIT qu’elle est calée à deux faute d’équipe choisie, et que la durée est celle PAR DÉFAUT (non écrite)',
+          [/aucune n’était choisie : la pose est calée à deux/.test(E.confirmes[0] || ''), /Durée : 4 h \(par défaut, non renseignée\)/.test(E.confirmes[0] || ''), cp.chantier],
+          [true, true, { remarque: 'garder', date_pose: J(5), heure_pose: '13:00', equipe: 'nicolas_yannick' }]);
 
         titre('D — La fenêtre « Rendez-vous »');
         w.ouvrirEvenement('pose:P-SANS'); await attendre(60);
@@ -288,6 +291,13 @@
           [E.confirmes[0] === w.SSUI.questionRetirerPose(J(5)), E.devis.length - nDevR, chR.date_pose, chR.heure_pose, chR.equipe, chR.duree_h, (chR.pose_retiree || {}).date,
             d.getElementById('mEvBg').classList.contains('open')],
           [true, 1, '', '', 'nicolas_yannick', 4, J(5), false]);
+        // Durée : la même chose partout (31/10/2026 — la fiche disait 0, le planning 4 h, pour le même chantier).
+        const champDuree = d.querySelector('input[onchange*="duree_h"][onchange*="P-PLAN"]');
+        check('D8 « À planifier » : un chantier SANS durée montre un champ vide, 4 en indication, et la phrase qui le dit (il affichait « 0 »)',
+          [!!champDuree && champDuree.value, champDuree && champDuree.placeholder, champDuree && champDuree.title], ['', '4', 'Durée non renseignée : le planning compte 4 h par défaut.']);
+        w.ouvrirEvenement('pose:P-NIC'); await attendre(60);
+        check('D9 Fenêtre d’une pose dont la durée est renseignée : sa valeur, sans phrase de défaut', [d.getElementById('ev_duree').value, !!d.getElementById('evDureeNote')], ['3', false]);
+        w.fermerEvenement();
 
         titre('E — Les fenêtres ne perdent plus la saisie');
         w.ouvrirIndispo(); await attendre(60);
