@@ -279,6 +279,36 @@
           ['Fixer les télécommandes au 1er étage\nRégler la fin de course du 3e <b>', null]);
         fpv.remove();
         try { localStorage.removeItem(cleBr); } catch (e) {}
+        // P10f, P10g : PV pas signé dans l'ERP (signé sur papier) — « Enregistrer les réserves » (01/11/2026, demande de
+        // Nicolas : « comment faire pour que les infos apparaissent dans la page client ? »).
+        const cle8 = 'ss_pv_reserves_ESSAI-08';
+        try { localStorage.removeItem(cle8); } catch (e) {}
+        BANC.DB.exec("UPDATE devis SET data = json_remove(data, '$.reception') WHERE id = 'ESSAI-08'");
+        const statut08 = lire('ESSAI-08').statut;
+        const ouvrirPv8 = async () => {
+          const fx = await BANC.cadre('../app/reception.html?id=ESSAI-08', 1100, 900);
+          await attendreQue(() => fx.contentDocument.getElementById('pvReserves') && fx.contentDocument.getElementById('btnReserves'), 8000);
+          await attendre(200);
+          return fx;
+        };
+        let f8 = await ouvrirPv8(), d8 = f8.contentDocument, w8 = f8.contentWindow;
+        const b8 = () => d8.getElementById('btnReserves');
+        const grise8 = b8().disabled;
+        const t8 = d8.getElementById('reserves');
+        t8.value = 'Télécommandes à fixer au 2e étage.'; t8.dispatchEvent(new w8.Event('input', { bubbles: true }));
+        const pret8 = [b8().disabled, txt(d8.getElementById('reservesEtat'))];
+        await w8.enregistrerReserves(); await attendre(300);
+        const r8 = lire('ESSAI-08').reception || {};
+        check('P10f PV pas signé : « Enregistrer les réserves » (grisé tant que rien ne change) les enregistre SEULES — ni signature, ni date, ni statut — et le dit',
+          [grise8, pret8, r8.notes, !!r8.image, !!r8.date, lire('ESSAI-08').statut === statut08, b8().disabled, txt(d8.getElementById('reservesEtat')),
+            (() => { try { return localStorage.getItem(cle8); } catch (e) { return 'x'; } })()],
+          [true, [false, 'Pas encore enregistrées.'], 'Télécommandes à fixer au 2e étage.', false, false, true, true, '✓ Enregistrées — le client les voit sur son lien de suivi.', null]);
+        f8.remove();
+        f8 = await ouvrirPv8(); d8 = f8.contentDocument; w8 = f8.contentWindow;
+        check('P10g Rouverte : les réserves enregistrées sont relues (champ ET feuille), le bouton attend un changement ; la pose n’est pas « faite » pour autant',
+          [d8.getElementById('reserves').value, d8.getElementById('pvReserves').textContent, b8().disabled, U.isPoseDone(lire('ESSAI-08'))],
+          ['Télécommandes à fixer au 2e étage.', 'Télécommandes à fixer au 2e étage.', true, false]);
+        f8.remove();
         // P11 : une valeur avec des guillemets survit à la réouverture du simulateur.
         const it0 = lire('ESSAI-03').items[0];
         ecrireBase('ESSAI-03', '$.items[0].emplacement', 'Chambre "parents"');
