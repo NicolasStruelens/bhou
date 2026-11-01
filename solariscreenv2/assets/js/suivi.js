@@ -98,6 +98,11 @@
     if (avecJour) o.weekday = 'long';
     return midi(j).toLocaleDateString('fr-BE', o);
   }
+  /** « 21 sept. » : la date d'une vignette, assez courte pour tenir SUR la photo. */
+  function dateCourte(v) {
+    const j = jourDe(v);
+    return j ? midi(j).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' }) : '';
+  }
   /** Jours entiers de `de` à `a` (« AAAA-MM-JJ »), à midi : un changement d'heure ne décale rien. */
   function joursEntre(de, a) { return Math.round((midi(a) - midi(de)) / 86400000); }
   /** « Aujourd'hui », « Demain », « Dans 5 jours ». */
@@ -204,20 +209,43 @@
     { k: 'pendant', l: 'Pendant les travaux' },
     { k: 'avant', l: 'Avant' },
   ];
-  /** Les photos du journal rangées par phase, et la comparaison avant / après — seulement si les DEUX
-   *  existent (une moitié vide ne compare rien), la première de chaque, comme au portfolio (règle 45). */
-  function galerie(photos) {
+  /** Les photos du journal rangées par phase — c'est la VITRINE que le client montrera (Nicolas, 01/11/2026).
+   *  Le serveur les envoie dans l'ordre des dates. Ici :
+   *  • « Terminé » : la COUVERTURE choisie au portfolio d'abord, puis les plus RÉCENTES (le résultat final) ;
+   *    « Pendant » et « Avant » : dans l'ordre chronologique — c'est l'avancement qu'on raconte ;
+   *  • `jours` : un groupe pris sur plusieurs jours porte la date sur chaque vignette (« 28 oct. ») ;
+   *  • `paire` : avant / après seulement si les DEUX existent (une moitié vide ne compare rien) — la
+   *    première « Avant », et la première du groupe « Terminé » (couverture ou plus récente) ;
+   *  • `une` : la photo à la une — la couverture ; sinon, chantier terminé, la première « Terminé » ;
+   *    sinon la DERNIÈRE photo prise (le chantier en ce moment). `index` = sa place dans `toutes`.
+   *  `opts.termine` : le chantier est-il fini (`avancement(...).termine`) ? */
+  function galerie(photos, opts) {
+    const o = opts || {};
     const ok = (photos || []).filter(function (p) {
       return p && srcSure(p.src) && PHASES.some(function (x) { return x.k === p.phase; });
     });
     const groupes = PHASES.map(function (ph) {
-      return { k: ph.k, l: ph.l, photos: ok.filter(function (p) { return p.phase === ph.k; }) };
+      let l = ok.filter(function (p) { return p.phase === ph.k; });
+      if (ph.k === 'apres') {
+        l = l.slice().reverse();
+        const ic = l.findIndex(function (p) { return p.couverture; });
+        if (ic > 0) l.unshift(l.splice(ic, 1)[0]);
+      }
+      const jours = [];
+      l.forEach(function (p) { if (p.date && jours.indexOf(p.date) < 0) jours.push(p.date); });
+      return { k: ph.k, l: ph.l, photos: l, jours: jours.length > 1 };
     }).filter(function (g) { return g.photos.length; });
     const av = ok.find(function (p) { return p.phase === 'avant'; });
-    const ap = ok.find(function (p) { return p.phase === 'apres'; });
+    const gAp = groupes.find(function (g) { return g.k === 'apres'; });
+    const ap = gAp ? gAp.photos[0] : null;
     const toutes = [];
     groupes.forEach(function (g) { g.photos.forEach(function (p) { toutes.push(Object.assign({ libelle: g.l }, p)); }); });
-    return { groupes: groupes, paire: (av && ap) ? { avant: av, apres: ap } : null, toutes: toutes };
+    const une = ok.find(function (p) { return p.couverture; }) || (o.termine && ap) || ok[ok.length - 1] || null;
+    const index = une ? toutes.findIndex(function (p) { return p.src === une.src; }) : -1;
+    return {
+      groupes: groupes, paire: (av && ap) ? { avant: av, apres: ap } : null, toutes: toutes,
+      une: une ? { photo: toutes[index], index: index, titre: o.termine ? 'Votre réalisation' : 'Le chantier en ce moment' } : null,
+    };
   }
 
   // ── LA COMMANDE ───────────────────────────────────────────────────────────────────────────────
@@ -242,7 +270,7 @@
 
   window.SSSuivi = {
     SAISONS: SAISONS, saisonDu: saisonDu, styleSaison: styleSaison, motifs: motifs,
-    dateLongue: dateLongue, joursEntre: joursEntre, quand: quand, duree: duree,
+    dateLongue: dateLongue, dateCourte: dateCourte, joursEntre: joursEntre, quand: quand, duree: duree,
     avancement: avancement, PHASES: PHASES, galerie: galerie, srcSure: srcSure, produits: produits,
   };
 })();

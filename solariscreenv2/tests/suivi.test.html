@@ -137,9 +137,20 @@
           ph('javascript:alert(1)', 'apres', '2026-10-03'), ph('https://ailleurs.example/x.jpg', 'apres', '2026-10-03'), ph('data:image/png;base64,DD', 'apres', '2026-10-04')]);
         check('A15 La galerie : « Terminé » d’abord, puis « Pendant », puis « Avant » ; jamais « problème », jamais une adresse externe ni `javascript:`',
           [G.groupes.map((g) => g.l + ':' + g.photos.length), G.toutes.map((p) => p.src.slice(-2)), G.toutes[0].libelle],
-          [['Terminé:2', 'Pendant les travaux:1', 'Avant:1'], ['BB', 'DD', 'Fb', 'AA'], 'Terminé']);
-        check('A16 Avant / après : la PREMIÈRE de chaque (comme au portfolio), et rien si l’une manque',
-          [G.paire && [G.paire.avant.src.slice(-2), G.paire.apres.src.slice(-2)], SU.galerie([ph('data:image/png;base64,AA', 'avant')]).paire], [['AA', 'BB'], null]);
+          [['Terminé:2', 'Pendant les travaux:1', 'Avant:1'], ['DD', 'BB', 'Fb', 'AA'], 'Terminé']);
+        check('A16 Avant / après : la première « Avant » et la première du groupe « Terminé » (la plus récente), et rien si l’une manque',
+          [G.paire && [G.paire.avant.src.slice(-2), G.paire.apres.src.slice(-2)], SU.galerie([ph('data:image/png;base64,AA', 'avant')]).paire], [['AA', 'DD'], null]);
+        // La vitrine (01/11/2026) : couverture, photo à la une, avancement rangé sous ses jours.
+        const G2 = SU.galerie([ph('data:image/png;base64,P1', 'pendant', '2026-10-01'), ph('data:image/png;base64,P2', 'pendant', '2026-10-02'),
+          Object.assign(ph('data:image/png;base64,T1', 'apres', '2026-10-03'), { couverture: true }), ph('data:image/png;base64,T2', 'apres', '2026-10-04')], { termine: true });
+        check('A16b « Terminé » : la COUVERTURE d’abord, puis la plus récente ; « Pendant » : chronologique ; un groupe sur plusieurs jours se range sous ses dates ; la couverture est à la une',
+          [G2.groupes.map((g) => g.photos.map((x) => x.src.slice(-2)).join(',') + (g.jours ? '/jours' : '')), G2.une && [G2.une.photo.src.slice(-2), G2.une.index, G2.une.titre]],
+          [['T1,T2/jours', 'P1,P2/jours'], ['T1', 0, 'Votre réalisation']]);
+        const G3 = SU.galerie([ph('data:image/png;base64,P1', 'pendant', '2026-10-01'), ph('data:image/png;base64,P2', 'pendant', '2026-10-02')], { termine: false });
+        const G4 = SU.galerie([ph('data:image/png;base64,T1', 'apres', '2026-10-03'), ph('data:image/png;base64,T2', 'apres', '2026-10-03'), ph('data:image/png;base64,P1', 'pendant', '2026-10-04')], { termine: true });
+        check('A16c À la une sans couverture : chantier en cours → la DERNIÈRE photo prise ; terminé → la plus récente « Terminé » ; un seul jour → pas de dates ; aucune photo → rien',
+          [[G3.une.photo.src.slice(-2), G3.une.index, G3.une.titre], [G4.une.photo.src.slice(-2), G4.une.index], G4.groupes[0].jours, SU.galerie([]).une],
+          [['P2', 1, 'Le chantier en ce moment'], ['T2', 0], false, null]);
         const P = SU.produits([{ type: 'screen', modele: 'SC 110', quantite: 8, emplacement: 'Classes', toile: 'Gris', couleur: '7016 — Gris anthracite', photos: ['data:image/png;base64,AA', 'javascript:x'] },
           { type: 'volet_roulant', modele: '', quantite: 1, couleur: '', photos: [] }]);
         check('A17 Les produits en mots de client : « 8 × Screen — SC 110 », toile, coloris « 7016 Gris anthracite », photos sûres seulement',
@@ -165,8 +176,11 @@
         ecrireBase('ESSAI-12', '$.items[1].photos', (e12.items[1].photos || []).concat(['/api/photos/own/ph4']));
         ecrireBase('ESSAI-12', '$.items[1].couleur', '7016 — Gris anthracite · réf. 7m16st (laque texturée)');
         ecrireBase('ESSAI-12', '$.portfolio_masquees', ['/api/photos/own/ph4', '/api/photos/own/ph5']);
+        const COUV = (cp.find((e) => e.id === 'essai-cp3') || {}).url;
+        ecrireBase('ESSAI-12', '$.portfolio_couvertures', { chantier: COUV });
         ecrireBase('ESSAI-12', '$.track_token', 'trk-12');
-        ecrireBase('ESSAI-12', '$.reception', { date: J(-40), image: 'data:image/png;base64,U0lHTkFUVVJF', nom: 'Signataire' });
+        const RESERVES = 'Réglage du screen de la classe 2B à revoir.\nTélécommandes à fixer.';
+        ecrireBase('ESSAI-12', '$.reception', { date: J(-40), image: 'data:image/png;base64,U0lHTkFUVVJF', nom: 'Signataire', notes: RESERVES });
         ecrireBase('ESSAI-10', '$.track_token', 'trk-10');
         ecrireBase('ESSAI-13', '$.track_token', 'trk-13');
         const servies = [];
@@ -187,8 +201,10 @@
         check('B3 Produits : couleur SANS référence fournisseur, quantité lue comme la ligne, photo d’ouverture masquée retirée, R2 par le jeton',
           [it12[1] && it12[1].couleur, it12.map((i) => i.quantite), JSON.stringify(it12).indexOf('ph4') >= 0, ((it12[0] || {}).photos || []).some((u) => /photo=own%2Fph3$/.test(u))],
           ['7016 — Gris anthracite', (e12.items || []).map((i) => Math.max(1, Number(i.quantite) || 1)), false, true]);
-        check('B4 Dates et PV : la date du PV et « signé », jamais l’image de la signature ; commande en liste blanche',
-          [d12.reception, Object.keys(d12.commande || {}).sort()], [{ date: J(-40), signe: true }, ['date_commande', 'delai_semaines', 'recu_le', 'statut']]);
+        check('B3b La couverture choisie au portfolio est SIGNALÉE (et elle seule)',
+          (d12.photos || []).filter((x) => x.couverture).map((x) => [x.phase, x.src === COUV]), [['apres', true]]);
+        check('B4 Dates et PV : la date du PV, « signé » et ses RÉSERVES (écrites avec le client), jamais l’image de la signature ; commande en liste blanche',
+          [d12.reception, Object.keys(d12.commande || {}).sort()], [{ date: J(-40), signe: true, notes: RESERVES }, ['date_commande', 'delai_semaines', 'recu_le', 'statut']]);
         const statutPhoto = async (p) => (await api('t=trk-12&photo=' + encodeURIComponent(p))).statut;
         check('B5 Le service photo ne sert QUE ce que la page montre : terminé et ouverture (200) ; problème, ouverture masquée, journal masqué, « autre », inconnue, autre jeton (403)',
           [await statutPhoto('own/ph1'), await statutPhoto('own/ph3'), await statutPhoto('own/ph2'), await statutPhoto('own/ph4'), await statutPhoto('own/ph5'), await statutPhoto('own/ph6'), await statutPhoto('own/zzz'), (await api('t=trk-10&photo=' + encodeURIComponent('own/ph1'))).statut],
@@ -328,6 +344,46 @@
         check('C11 `?saison=hiver` montre l’hiver hors saison (pour juger un décor avant sa période)',
           [doc.documentElement.getAttribute('data-saison'), /^Hiver/.test(txt(doc.getElementById('saisonChip')))], ['hiver', true]);
         f.remove();
+        // La vitrine (01/11/2026). Sans photo « Avant » : pas d'avant / après, la photo à la une prend la tête.
+        ecrireBase('ESSAI-12', '$.chantier_photos', (lire('ESSAI-12').chantier_photos || []).filter((e) => e.phase !== 'avant'));
+        f = await ouvrir('t=trk-12'); doc = f.contentDocument; w = f.contentWindow;
+        const uneEl = doc.getElementById('phUne');
+        check('C11b Sans « Avant » : la photo À LA UNE (la couverture choisie au portfolio) et sa légende ; « Voir les 3 photos » et « Partager »',
+          [!!doc.getElementById('aa'), !!uneEl && uneEl.querySelector('img').getAttribute('src') === COUV, txt(uneEl && uneEl.querySelector('.ph-une-t')), txt(uneEl && uneEl.querySelector('.ph-une-d')),
+            txt(doc.getElementById('btnDiapo')), txt(doc.getElementById('btnPartager'))],
+          [false, true, 'Votre réalisation', 'Terminé · ' + SU.dateLongue(J(-40)), 'Voir les 3 photos', 'Partager']);
+        check('C11c « Terminé », pris sur deux jours, porte la date sur chaque vignette : la couverture d’abord, puis la plus récente',
+          [...[...doc.querySelectorAll('.ph-groupe')][0].querySelectorAll('.ph-vignette')].map((v) => txt(v.querySelector('.ph-date'))),
+          [SU.dateCourte(J(-40)), SU.dateCourte(J(-39))]);
+        // Un cadre hors écran ne charge jamais une image « lazy » : on les demande toutes, pour voir chacune arriver (ou rater).
+        doc.querySelectorAll('.ph-vignette img').forEach((i) => { i.loading = 'eager'; });
+        const toutesVues = await attendreQue(() => [...doc.querySelectorAll('.ph-vignette img, .ph-une img')].every((i) => i.classList.contains('vu')), 6000);
+        doc.getElementById('btnDiapo').click();
+        const visD = doc.getElementById('ssLightbox');
+        check('C11d Les photos apparaissent en fondu une fois arrivées (même ratées : on voit le repère, pas un trou) ; « Voir les photos » lance le diaporama depuis la première',
+          [!!toutesVues, !!visD && visD.classList.contains('open'), txt(visD && visD.querySelector('.lb-count')), txt(visD && visD.querySelector('.lb-cap'))],
+          [true, true, '1 / 3', 'Terminé · ' + SU.dateLongue(J(-40))]);
+        /* Fermer pose un « retour » d'historique, et dans un cadre du BANC (document.open) ce retour finit par recharger le
+           cadre : les gestes suivants partiraient dans une page détachée. Le vrai « retour » est vérifié en C7 et C8 ;
+           ici on repart d'une page neuve. */
+        f.remove();
+        f = await ouvrir('t=trk-12'); doc = f.contentDocument; w = f.contentWindow;
+        let partage = null, copie = null;
+        Object.defineProperty(w.navigator, 'share', { value: async (x) => { partage = x; }, configurable: true });
+        doc.getElementById('btnPartager').click(); await attendre(150);
+        Object.defineProperty(w.navigator, 'share', { value: undefined, configurable: true });
+        Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (t) => { copie = t; } }, configurable: true });
+        doc.getElementById('btnPartager').click(); await attendre(150);
+        const lienNu = w.location.origin + w.location.pathname + '?t=trk-12';
+        check('C11e « Partager » : le partage du téléphone avec le lien NU de la page ; sans partage, le lien copié et c’est dit',
+          [partage && partage.url, partage && partage.title, copie, [...doc.querySelectorAll('#toasts .toast')].map(txt).some((t) => /Lien copié/.test(t))],
+          [lienNu, 'Notre installation SolariScreen', lienNu, true]);
+        check('C11f « Réception des travaux » : le PV signé, sa date, et les réserves notées avec le client, ligne par ligne',
+          [doc.getElementById('pvCard').hidden, txt(doc.getElementById('pvDate')), doc.getElementById('pvNotes').textContent, w.getComputedStyle(doc.getElementById('pvNotes')).whiteSpace],
+          [false, 'Procès-verbal de réception signé le ' + SU.dateLongue(J(-40)) + '.', RESERVES, 'pre-line']);
+        f.remove();
+        // Réserves enregistrées SANS signature dans l'ERP (PV signé sur papier) : la carte les montre, sans date de PV.
+        ecrireBase('ESSAI-10', '$.reception', { notes: 'Télécommandes à fixer au 2e étage.' });
 
         // Pose à venir (école, ESSAI-10).
         f = await ouvrir('t=trk-10'); doc = f.contentDocument;
@@ -339,6 +395,9 @@
         check('C13 La ligne sous la frise annonce la pose, la date en gras', [txt(doc.getElementById('trackEta')), txt(doc.querySelector('#trackEta strong'))],
           [A10.eta.map((s) => s[0]).join(''), SU.dateLongue(J(3), true)]);
         check('C14 Les produits de l’école : quantité et emplacement', [txt(doc.querySelector('.ti-titre')), txt(doc.querySelector('.ti-lieu'))], ['8 × Screen — SC 110', 'Classes du 1er étage']);
+        check('C14b PV pas signé dans l’ERP mais réserves ENREGISTRÉES : la carte les montre, sans date de PV ; la pose reste à venir',
+          [doc.getElementById('pvCard').hidden, doc.getElementById('pvDate').hidden, txt(doc.getElementById('pvNotes')), doc.getElementById('rdvCard').hidden],
+          [false, true, 'Télécommandes à fixer au 2e étage.', false]);
         const contact = [...doc.querySelectorAll('#contactActions a')].map((a) => a.getAttribute('href'));
         check('C15 « Une question ? » : de vrais boutons mail (44 px), sujet prérempli', [contact.length >= 1, contact.every((h) => /^mailto:.+\?subject=/.test(h)),
           [...doc.querySelectorAll('#contactActions a')].every((a) => a.getBoundingClientRect().height >= 44)], [true, true, true]);
