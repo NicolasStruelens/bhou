@@ -150,6 +150,16 @@
           [/Commander le matériel/.test(p2), /Matériel en commande/.test(p2b), /Planifier la pose/.test(p2 + p2b), delai.value, delai.placeholder, /Renseigne le délai/.test(eta)],
           [true, true, false, '', '8', true]);
         f.remove();
+        // P2c : le geste « Commandé » de la carte met la PROCHAINE ACTION et la frise à jour sans recharger (01/11/2026,
+        // bac à sable : la fiche disait encore « Commander le matériel » après le clic).
+        ecrireBase('ESSAI-08', '$.commande', { statut: 'a_commander' });
+        f = await fiche('ESSAI-08'); d = f.contentDocument;
+        const avant2c = txt(d.getElementById('nextCard'));
+        [...d.querySelectorAll('.cc-step')].find((s) => /'commande'/.test(s.getAttribute('onclick') || '')).click();
+        await attendreQue(() => /Matériel en commande/.test(txt(d.getElementById('nextCard'))), 4000);
+        check('P2c « Commandé » cliqué sur la fiche : la prochaine action passe à « Matériel en commande » tout de suite (elle restait « Commander le matériel » jusqu’au rechargement)',
+          [/Commander le matériel/.test(avant2c), /Matériel en commande/.test(txt(d.getElementById('nextCard'))), (lire('ESSAI-08').commande || {}).statut], [true, true, 'commande']);
+        f.remove();
         // P3 : l'acompte réduit par une note de crédit et payé pour le reste n'est plus réclamé ; la note de crédit se nomme.
         f = await fiche('ESSAI-23'); d = f.contentDocument;
         const pay = txt(d.getElementById('paiementsList'));
@@ -318,6 +328,59 @@
         check('P11 Simulateur : « Chambre "parents" » se relit en entier (le guillemet coupait la valeur, perdue au premier enregistrement)',
           [fs.contentDocument.querySelector('[data-f="emplacement"]').value, !!it0], ['Chambre "parents"', true]);
         fs.remove();
+        // P11b / P11c : la quantité de pose d'un devis ROUVERT au simulateur (01/11/2026, trouvé dans le bac à sable :
+        // le devis créé vide depuis une demande de RDV restait à 0 pose, quelles que soient les ouvertures chiffrées).
+        const simuPrix = async (fq, prix) => {
+          const dq = fq.contentDocument;
+          const champ = await attendreQue(() => dq.querySelector('[data-f="prix_catalogue_ht"]'), 8000);
+          champ.focus(); champ.value = String(prix);
+          champ.dispatchEvent(new Event('input', { bubbles: true })); champ.dispatchEvent(new Event('change', { bubbles: true }));
+          await attendre(300);
+          return ['installQty', 'tech1Qty', 'tech2Qty', 'toolsQty'].map((id) => dq.getElementById(id).value);
+        };
+        const maintenant = new Date().toISOString();
+        const vide = { id: 'ESSAI-QTE-1', client: { prenom: 'Élodie', nom: "D'Essai" }, statut: 'brouillon', items: [], rdv_id: 'ESSAI-RDV-4',
+          pricing_v2: {}, date_creation: maintenant, date_modification: maintenant };
+        const rq1 = await SS.saveDevis(vide, { creation: true });
+        let fq = await BANC.cadre('../app/simulateur.html?id=' + encodeURIComponent(vide.id), 1500, 900);
+        check('P11b Simulateur : le devis VIDE de « Créer le devis » (demande de RDV) suit les ouvertures qu’on chiffre (il restait à 0 pose : envoyé sans installation)',
+          [rq1.ok !== false, await simuPrix(fq, 1200)], [true, ['1', '1', '1', '1']]);
+        fq.remove();
+        const retouche = { id: 'ESSAI-QTE-2', client: { prenom: 'Hugo', nom: 'Retouché' }, statut: 'brouillon',
+          items: [{ type: 'screen', modele: 'Coolscreen 8', quantite: 2, largeur: 2000, hauteur: 2000, prix_catalogue_ht: 1000 }],
+          pricing_v2: { installation: { per_opening: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30 }, install_qty: 3, tech1_qty: 3, tech2_qty: 0, tools_qty: 3 } },
+          date_creation: maintenant, date_modification: maintenant };
+        const rq2 = await SS.saveDevis(retouche, { creation: true });
+        fq = await BANC.cadre('../app/simulateur.html?id=' + encodeURIComponent(retouche.id), 1500, 900);
+        check('P11c … mais des quantités RETOUCHÉES à la main (3 poses pour 2 screens, pas de 2e technicien) ne bougent pas quand on change un prix (règle 1)',
+          [rq2.ok !== false, await simuPrix(fq, 1100)], [true, ['3', '3', '0', '3']]);
+        // P11d : le récapitulatif retombe sur son total HTVA, remises comprises (la remise s'y lisait deux fois).
+        const recap = async () => {
+          const dq = fq.contentDocument, eur = (id) => Number(String(dq.getElementById(id).textContent).replace(/[^\d,-]/g, '').replace(',', '.'));
+          const vu = (id) => !dq.getElementById(id).classList.contains('hidden');
+          await attendre(300);
+          const somme = eur('sTotalCatalog') + eur('sTotalInstall') + eur('sTotalExtras') + eur('sSurplus') + (vu('sRemiseLine') ? eur('sTotalRemise') : 0);
+          return [Math.round(somme * 100) / 100, eur('sTotalHT')];
+        };
+        const remiseQ = (id, v) => { const e = fq.contentDocument.getElementById(id); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
+        remiseQ('remiseCatalogueValue', 150); remiseQ('remiseInstallationValue', 40); remiseQ('remiseOutillageValue', 10);
+        const [sommeR, htR] = await recap();
+        check('P11d Simulateur : le récapitulatif retombe sur le total HTVA avec trois remises (catalogue et pose y étaient déjà remisés : la remise comptait deux fois)',
+          [sommeR, sommeR === htR, htR > 0], [htR, true, true]);
+        fq.remove();
+        // P11e : la carte des montants de la FICHE devis, même règle (calculs du vrai moteur, trois remises).
+        const cRem = window.SSCalc.computeDevis({ items: retouche.items, tva_pct: 6, acompte_pct: 50, sellers: { principal: 'nicolas' },
+          installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: 2, tech1_qty: 2, tech2_qty: 2, tools_qty: 2 },
+          extras: [{ label: 'Démontage', qty: 1.5, unit_price_ht: 65 }],
+          remise_catalogue: { mode: 'eur', value: 150 }, remise_installation: { mode: 'eur', value: 40 }, remise_outillage: { mode: 'eur', value: 10 } });
+        ecrireBase('ESSAI-QTE-2', '$.calculs', cRem);
+        const fm = await fiche('ESSAI-QTE-2');
+        const lignes = [...fm.contentDocument.querySelectorAll('#hLines .h-line')].map((l) => [txt(l.querySelector('.k')), Number(txt(l.querySelector('.v, span:last-child')).replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'))]);
+        const val = (k) => (lignes.find((l) => l[0] && l[0].indexOf(k) === 0) || [0, 0])[1];
+        const sommeF = Math.round((val('Catalogue') + val('Installation') + val('Suppléments') + val('Difficulté') + val('Réduction')) * 100) / 100;
+        check('P11e Fiche devis : Catalogue + Installation + Suppléments − Réduction = Total HTVA (catalogue et pose y étaient déjà remisés)',
+          [sommeF, val('Total HTVA'), val('Catalogue'), val('Réduction')], [cRem.total_ht, cRem.total_ht, cRem.total_catalog_ht_brut, -cRem.total_remises]);
+        fm.remove();
         // P12 : le suivi client ne contredit pas sa frise. La date de pose est PASSÉE : posé avec une date
         // encore à venir, c'est une pose en deux fois (règle `poseAVenir`), que `tests/suivi.test.html` couvre (A13).
         ecrireBase('ESSAI-10', '$.commande', { statut: 'pose' });

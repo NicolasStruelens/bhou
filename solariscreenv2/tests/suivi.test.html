@@ -129,6 +129,15 @@
         check('A13 Posé EN DEUX FOIS (pose faite + date à venir, la règle `poseAVenir` de l’ERP) : « Posé » en cours, la suite annoncée — jamais « terminée »',
           [etats(A), A.termine, A.partielle, A.etapes[4].sous, A.rdv && A.rdv.titre, segs(A)],
           ['ffffe', false, true, 'Première partie posée — la suite le 4 novembre 2026', 'Suite de votre installation', 'Une première partie est posée — la suite est prévue le mercredi 4 novembre 2026.']);
+        // A13b / A13c : la pose du JOUR, PV signé dans la foulée (01/11/2026, bac à sable) — le cas de tous les chantiers.
+        A = av({ commande: { statut: 'recu' }, reception: { signe: true, date: AUJ + 'T10:30:00.000Z' }, chantier: { date_pose: AUJ, heure: '08:00' } });
+        check('A13b Posé AUJOURD’HUI, PV signé dans la foulée : terminé — ni « première partie », ni rendez-vous (« date ≥ aujourd’hui » inventait une seconde pose)',
+          [etats(A), A.termine, A.partielle, A.rdv, segs(A)], ['fffff', true, false, null, 'Installation terminée — merci de votre confiance !']);
+        const PA = (d) => window.SSUI.poseAVenir(d, AUJ);
+        check('A13c La règle de l’ERP (`SSUI.poseAVenir`) : PV d’hier + pose aujourd’hui → à venir ; PV du jour → non ; sans PV, aujourd’hui → non, demain → oui ; pose passée → non',
+          [PA({ reception: { date: '2026-10-30T16:00:00.000Z' }, chantier: { date_pose: AUJ } }), PA({ reception_date: AUJ, chantier: { date_pose: AUJ } }),
+           PA({ chantier: { date_pose: AUJ } }), PA({ chantier: { date_pose: '2026-11-01' } }), PA({ reception_date: '2026-10-20', chantier: { date_pose: '2026-10-25' } })],
+          [true, false, false, true, false]);
         check('A14 Durées : 1,5 → « 1 h 30 », 4 → « 4 h », 0,5 → « 30 min », 0 et vide → rien', [SU.duree(1.5), SU.duree(4), SU.duree(0.5), SU.duree(0), SU.duree('')], ['1 h 30', '4 h', '30 min', '', '']);
 
         const ph = (src, phase, date) => ({ src, phase, date });

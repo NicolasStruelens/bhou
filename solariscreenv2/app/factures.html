@@ -528,7 +528,9 @@
     window.ouvrirNouvelle = (devisId, type, pct) => {
       // Les devis signés ou terminés qui ont ENCORE quelque chose à facturer — un devis déjà
       // entièrement facturé finissait sur « Montant nul ». Le reste à facturer s'affiche.
-      const liste = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut) && (Number(d.ttc) || 0) - F.dejaFacture(d.id, FACTURES) > 0.005);
+      // Pas les dossiers ARCHIVÉS (même règle que « à facturer maintenant », `SSFact`) — sauf celui qu'on demande
+      // explicitement depuis sa fiche (01/11/2026, bac à sable : « Jacques Archivé » était proposé à la facturation).
+      const liste = DEVIS.filter(d => ['signe', 'termine'].includes(d.statut) && (!d.archive || d.id === devisId) && (Number(d.ttc) || 0) - F.dejaFacture(d.id, FACTURES) > 0.005);
       if (!liste.length) { toast('Aucun devis signé avec un montant restant à facturer.', 'warn'); return; }
       el('mDevis').innerHTML = liste.map(d => {
         const res = U.resumeDevis(d), reste = r2((Number(d.ttc) || 0) - F.dejaFacture(d.id, FACTURES));

@@ -93,6 +93,10 @@
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
         const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
         check('D0 Le bac à sable se remplit ; chaque devis a son lien client', [rem.erreurs, ids.length > 20, ids.every((r) => !!r[1])], [[], true, true]);
+        // D1 (01/11/2026, bac à sable) : une couleur telle que le nuancier l'écrit (avec son code de COMMANDE Harol) et un
+        // numéro de toile, sur un screen — relus plus bas dans les deux exemplaires.
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.items[0].couleur', '7016 — Gris anthracite · réf. 7m16st (laque texturée)', '$.items[0].toile_num', '86-2044') WHERE id = 'ESSAI-07'");
+        const TEXTES = {};
 
         titre('D — Les deux exemplaires du devis disent la même chose');
         for (const [id, tok] of ids) {
@@ -133,10 +137,14 @@
             fc.remove();
           }
           const e = erp || { textes: [] }, k = client || { textes: [] };
+          TEXTES[id] = [e.textes.join(' '), k.textes.join(' ')];
           check('D-' + id + ' Le client imprime son devis sans erreur ; les deux exemplaires ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose',
             [erreur, !!erp, k.textes.length, k.filigrane, k.reserve, e.textes.map((t, i) => ecart(t, k.textes[i] || '')).filter(Boolean)],
             [null, true, e.textes.length, e.filigrane, e.reserve, []]);
         }
+        const t07 = TEXTES['ESSAI-07'] || ['', ''];
+        check('D1 Un screen : sa couleur SANS code de commande Harol (« réf. 7m16st »), sa couleur de TOILE écrite (« toile 86-2044 Gris ») — dans les DEUX exemplaires',
+          t07.map((x) => [/réf\. 7m16st/.test(x), /7016 — Gris anthracite/.test(x), /toile 86-2044 Gris/.test(x)]), [[false, true, true], [false, true, true]]);
         titre('T — Sur téléphone, la feuille entière réduite, comme un PDF (choix de Nicolas, 28/10/2026)');
         // Sur un écran plus étroit que 210 mm, la feuille garde sa mise en page A4 et se réduit d'un bloc : le tableau
         // défilait de côté DANS la feuille, colonnes P.U. et Total hors de l'écran, sans que rien ne le dise.

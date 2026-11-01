@@ -153,6 +153,16 @@
         extras: c.extra_lines,
       },
       essai: true,
+      /* « Remplir » REMET le dossier dans son état de départ — et pour ça il doit ENVOYER chaque clé qu'un essai peut
+         poser : la fusion du serveur est peu profonde (`Object.assign(existant, envoyé)`, règle 30 ter), donc une clé
+         absente survivait. Une relance faite le 27/10 restait sur ESSAI-03 : « relance 1 due » ne se rejouait plus
+         (01/11/2026). Le scénario les reprend juste en dessous (`champs`) quand il en a besoin. Les collections à
+         route ciblée (notes, tickets SAV, photos, attentes) sont gardées par le serveur, et c'est voulu (rejouable).
+         Les JETONS de lien (`review_token`, `track_token`) ne sont pas un état du scénario : on n'y touche pas (un lien
+         déjà envoyé à un « client » d'essai reste valable, et les suites posent les leurs là où il n'y en a pas). */
+      date_envoi: '', relances: [], statut_history: [], client_accepted: false, client_accepted_at: '', client_declined: false,
+      raison_refus: '', signature: null, reception: null, reception_date: '', commande: {}, chantier: {}, checklist: {},
+      rdv_id: '',
     };
     if (o.depannage) { d.depannage_mode = o.depannage.mode; d.depannage = o.depannage.rapport; }
     // Ce qui ne part pas avec le devis (préfixe « _ », retiré par `sansPrives` avant l'envoi).

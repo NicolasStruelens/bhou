@@ -1677,9 +1677,16 @@
       setText('hTTC', fmtEur(c.total_ttc));
       const surplus = (d.pricing_v2 && d.pricing_v2.surplus_difficulte) || 0;
       const estDep = d.type_document === 'depannage';
+      /* Catalogue et installation AVANT remise, comme sur le devis du client (lignes, puis « Remise commerciale ») :
+         la ligne « Réduction commerciale » les retire juste en dessous. Avec les montants déjà remisés, la remise
+         se lisait deux fois et les lignes ne retombaient pas sur le total HTVA (01/11/2026, bac à sable ; règle
+         30 octies). Un devis calculé avant que le moteur ne rende les bruts les retrouve par sa remise. */
+      const rem = (k) => Number((c[k] || {}).amount) || 0;
+      const catBrut = c.total_catalog_ht_brut != null ? c.total_catalog_ht_brut : (c.total_catalog_ht || 0) + rem('remise_catalogue');
+      const posBrut = c.install_total_brut != null ? c.install_total_brut : (c.total_installation_ht || 0) + rem('remise_installation');
       el('hLines').innerHTML = `
-        ${estDep ? '' : `<div class="h-line"><span class="k">Catalogue HTVA</span>${copyableSpan('Catalogue HTVA', fmtEur(c.total_catalog_ht))}</div>
-        <div class="h-line"><span class="k">Installation</span>${copyableSpan('Installation', fmtEur(c.total_installation_ht))}</div>`}
+        ${estDep ? '' : `<div class="h-line"><span class="k">Catalogue HTVA</span>${copyableSpan('Catalogue HTVA', fmtEur(catBrut))}</div>
+        <div class="h-line"><span class="k">Installation</span>${copyableSpan('Installation', fmtEur(posBrut))}</div>`}
         <div class="h-line"><span class="k">${estDep ? 'Postes' : 'Suppléments'}</span>${copyableSpan(estDep ? 'Postes' : 'Suppléments', fmtEur(c.total_extras_ht))}</div>
         ${surplus > 0 ? `<div class="h-line"><span class="k">Difficulté</span>${copyableSpan('Difficulté', fmtEur(surplus))}</div>` : ''}
         ${c.total_remises > 0 ? `<div class="h-line" style="color:var(--ok);"><span class="k">Réduction commerciale</span>${copyableSpan('Réduction commerciale', '− ' + fmtEur(c.total_remises))}</div>` : ''}
@@ -1925,6 +1932,9 @@
       }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Suivi mis à jour ✓', res.offline ? 'warn' : 'ok');
       renderCommande();
+      // La frise et la PROCHAINE ACTION suivent la commande (01/11/2026, bac à sable : passée à « Commandé »,
+      // la fiche disait encore « Commander le matériel » jusqu'au rechargement).
+      renderRuler(); renderNextAction();
     }
     window.setCommandeStage = async (stage) => {
       const avant = DEVIS.commande ? JSON.parse(JSON.stringify(DEVIS.commande)) : DEVIS.commande;
@@ -2038,6 +2048,7 @@
       if (res.ok === false) { toast(res.error || 'Planification NON enregistrée — réessaie.', 'error', 6000); return; }
       toast(res.offline ? 'Enregistré hors-ligne' : 'Planification mise à jour ✓', res.offline ? 'warn' : 'ok');
       renderChantier();
+      renderRuler(); renderNextAction();   // une date de pose change la prochaine action (même raison que la commande)
     };
     // « Pose annulée — retirer la date » : la règle est commune avec le planning (`SSUI.retirerDatePose`).
     // Écriture RELUE (`SS.modifierDevis`, règle 3) : la fiche peut être ouverte depuis le matin.
