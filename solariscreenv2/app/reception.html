@@ -33,6 +33,8 @@
     .reserves-field { margin-top: var(--sp-4); }
     /* Les réserves gardent leurs retours à la ligne sur la feuille (une par ligne, comme on les dicte). */
     .pv-reserves { white-space: pre-line; }
+    .reserves-actions { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); }
+    .reserves-etat { font-size: var(--fs-xs); color: var(--text-muted); }
     @media print { .sign-wrap, .no-print { display: none !important; } }
   </style>
 </head>
@@ -57,6 +59,12 @@
         <div class="reserves-field field">
           <label class="label" for="reserves">Réserves éventuelles (facultatif)</label>
           <textarea class="textarea" id="reserves" placeholder="Ex : petit réglage de fin de course à revoir la semaine prochaine…" style="min-height:60px;"></textarea>
+          <!-- Sans signature dans l'ERP (PV signé sur papier, client absent) : les réserves s'enregistrent quand même,
+               et le client les retrouve sur son lien de suivi (règle 57 bis). -->
+          <div class="reserves-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnReserves" onclick="enregistrerReserves()" disabled>Enregistrer les réserves</button>
+            <span class="reserves-etat" id="reservesEtat"></span>
+          </div>
         </div>
         <p style="margin-top:var(--sp-4);font-size:var(--fs-sm);">Je soussigné(e) <strong id="sigClientName">—</strong> reconnais que les travaux ont été réalisés conformément au devis et déclare en <strong>accepter la réception</strong> ce jour — mention « Bon pour réception ».</p>
         <canvas id="sigCanvas"></canvas>
@@ -179,7 +187,41 @@
     el('reserves').addEventListener('input', function () {
       majReservesFeuille();
       if (DEVIS && !estSigne()) ecrireBrouillon(this.value);
+      majBoutonReserves();
     });
+    /* « Enregistrer les réserves » SANS signature (01/11/2026, demande de Nicolas : « comment faire pour que les
+       infos apparaissent dans la page client ? »). Elles ne s'enregistraient qu'avec la signature ; un PV signé
+       sur papier, ou pas encore signé, les laissait dans ce seul navigateur — le lien client ne pouvait pas les
+       connaître. Écriture RELUE (`SS.modifierDevis`, règle 3) de la seule clé `reception.notes` : ni signature, ni
+       date, ni statut — un PV n'est pas « signé » parce qu'on a écrit ses réserves. */
+    function majBoutonReserves() {
+      const b = el('btnReserves');
+      if (!b || !DEVIS) return;
+      // PV déjà signé (« Refaire signer ») : les réserves changent AVEC la nouvelle signature, pas sans elle.
+      b.style.display = estSigne() ? 'none' : '';
+      if (estSigne()) { el('reservesEtat').textContent = ''; return; }
+      const saisi = el('reserves').value.trim(), enr = String((DEVIS.reception && DEVIS.reception.notes) || '').trim();
+      b.disabled = saisi === enr;
+      el('reservesEtat').textContent = saisi === enr
+        ? (enr ? '✓ Enregistrées — le client les voit sur son lien de suivi.' : '')
+        : 'Pas encore enregistrées.';
+    }
+    window.enregistrerReserves = async function () {
+      if (!DEVIS || estSigne()) return;
+      const notes = el('reserves').value.trim();
+      const b = el('btnReserves'); b.disabled = true;
+      const res = await SS.modifierDevis(DEVIS.id, (d) => {
+        if (!['signe', 'termine'].includes(d.statut)) return 'Ce devis n’est pas signé — réserves non enregistrées.';
+        if (d.reception && d.reception.image) return 'Le PV vient d’être signé ailleurs — recharge la page.';
+        d.reception = Object.assign({}, d.reception || {}, { notes: notes });
+      });
+      if (res.ok === false) { toast(res.error || 'Réserves NON enregistrées — réessaie.', 'error', 7000); majBoutonReserves(); return; }
+      DEVIS = res.devis;
+      ecrireBrouillon('');
+      toast(res.offline ? 'Réserves enregistrées (hors-ligne)' : 'Réserves enregistrées ✓', res.offline ? 'warn' : 'ok');
+      majReservesFeuille();
+      majBoutonReserves();
+    };
 
     // ── Signature (même mécanique que le devis) ──
     let sigCtx = null, sigDrawing = false, sigHasInk = false, sigLast = null, sigBound = false;
@@ -257,6 +299,7 @@
       el('signedBlock').classList.add('hidden');
       el('signBlock').classList.remove('hidden');
       el('reserves').value = (DEVIS.reception && DEVIS.reception.notes) || '';
+      majBoutonReserves();
       const cl = DEVIS.client || {};
       setText('sigClientName', `${cl.prenom || ''} ${cl.nom || ''}`.trim() || '—');
       initSignatureCanvas();
@@ -280,6 +323,7 @@
         initSignatureCanvas();
       }
       majReservesFeuille();
+      majBoutonReserves();
     }
 
     (async () => {

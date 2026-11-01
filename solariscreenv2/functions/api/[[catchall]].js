@@ -111,7 +111,9 @@ function suiviPublic(d, token) {
   const photos = (Array.isArray(d.chantier_photos) ? d.chantier_photos : [])
     .filter((e) => e && SUIVI_PHASES.includes(e.phase) && montrable(e.url))
     .sort((a, b) => String((a.date || '') + (a.date_creation || '')).localeCompare(String((b.date || '') + (b.date_creation || ''))))
-    .map((e) => ({ src: publique(e.url), phase: e.phase, date: String(e.date || '').slice(0, 10) }))
+    // La COUVERTURE choisie au portfolio (`portfolio_couvertures.chantier`) est signalée : la page la met à la une.
+    .map((e) => Object.assign({ src: publique(e.url), phase: e.phase, date: String(e.date || '').slice(0, 10) },
+      (couv.chantier && base(couv.chantier) === base(e.url)) ? { couverture: true } : {}))
     .filter((p) => p.src);
   return { items, photos, autorisees };
 }
@@ -191,8 +193,9 @@ export async function onRequest(context) {
         // L'heure vit dans `heure_pose` (planning, `SSPlanning`) — `heure` n'est lu nulle part dans l'ERP.
         chantier: { date_pose: String(ch.date_pose || '').slice(0, 10), heure: String(ch.heure_pose || '').slice(0, 5),
           duree_h: Number(ch.duree_h) > 0 ? Number(ch.duree_h) : null },
-        // Le PV : sa date et le fait qu'il est signé — jamais l'image de la signature.
-        reception: { date: String(rec.date || '').slice(0, 10), signe: !!rec.image },
+        // Le PV : sa date, le fait qu'il est signé, et ses RÉSERVES — écrites AVEC le client, imprimées sur le PV
+        // qu'il garde (règle 57 bis) ; enregistrées avec ou sans signature dans l'ERP. Jamais l'image de la signature.
+        reception: { date: String(rec.date || '').slice(0, 10), signe: !!rec.image, notes: String(rec.notes || '').slice(0, 2000) },
         reception_date: String(d.reception_date || '').slice(0, 10),
         statut: d.statut || 'brouillon',
       } });
