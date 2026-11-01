@@ -269,7 +269,9 @@ export async function onRequest(context) {
          Sans elle, en revanche, la mention « Commande murale Somfy incluse » apparaîtrait sur le
          PDF et PAS sur la page que le client ouvre : deux documents qui se contredisent pour le
          même client (règles 7 et 31 ter). */
-      const AUTRES_CLES_CLIENT = ['telecommande'];
+      // Les OPTIONS d'une tente solaire (`SSUI.optionsClient`, 01/11/2026) : payées, donc écrites sur le devis.
+      const AUTRES_CLES_CLIENT = ['telecommande', 'couple', 'lambrequin_fixe', 'lambrequin_vario', 'eclairage_led',
+        'detecteur', 'spots_storelight', 'chauffage_storelight'];
       const items = (d.items || []).map(it => ({
         type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
         // projection : dimension PRINCIPALE d'une tente solaire (avec la largeur) — sans elle,

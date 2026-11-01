@@ -568,8 +568,13 @@
       const m = /(\d{4})\s+([^,]+)$/.exec(String((window.SS_COMPANY || {}).address || '').trim());
       return m ? { cp: m[1], ville: m[2].trim() } : null;
     }
+    /* ⚠️ PAS DE « sec » : le mot disait « moins de 0,5 mm », pas « il ne pleut pas ». Le même jour,
+       la fiche du client annonçait « Bruine, 4° / 9° » (le code météo) pendant que la date proposée
+       disait « sec 9° » — deux écrans, deux météos. On montre ce que montre l'en-tête du jour :
+       l'icône du code météo et la température (HTML), le libellé complet en infobulle. */
     function meteoCourte(w) {
-      return (Number(w.pluie) >= 0.5 ? Math.round(Number(w.pluie)) + ' mm' : 'sec') + ' ' + Math.round(w.tmax) + '°';
+      return icon(window.SSUI.weatherIconName(w.code), 12) + escHtml(Math.round(w.tmax) + '°' +
+        (Number(w.pluie) >= 0.5 ? ' ' + Math.round(Number(w.pluie)) + ' mm' : ''));
     }
     function prevision(lieu) {
       return (lieu && window.SSUI.previsionJours) ? window.SSUI.previsionJours(lieu.ville, lieu.cp) : Promise.resolve(null);
@@ -1606,8 +1611,10 @@
           });
           hote.innerHTML = titre + '<div class="pl-pills">' + bons.map(function (b) {
             return '<button type="button" class="pl-pill" onclick="calerProposition(' + jsAttr(d.id) + ',' + jsAttr(b.c.date) + ',' + jsAttr(b.c.debut) + ')" ' +
-              'title="' + escHtml('Caler la pose le ' + jourLong(b.c.date) + ' — ' + b.c.libre_h + ' h libres') + '">' +
-              escHtml(jourCourt(b.c.date) + (b.c.moment === 'apresmidi' ? ' · après-midi' : '') + (b.w ? ' · ' + meteoCourte(b.w) : '')) + '</button>';
+              'title="' + escHtml('Caler la pose le ' + jourLong(b.c.date) + ' — ' + b.c.libre_h + ' h libres' +
+                (b.w ? ' — prévision : ' + b.w.label + ' ' + Math.round(b.w.tmin) + '° / ' + Math.round(b.w.tmax) + '°' : '')) + '">' +
+              escHtml(jourCourt(b.c.date) + (b.c.moment === 'apresmidi' ? ' · après-midi' : '') + (b.w ? ' · ' : '')) +
+              (b.w ? meteoCourte(b.w) : '') + '</button>';
           }).join('') + '</div>' +
             (ecartees ? '<span class="pl-vide">' + ecartees + ' date' + (ecartees > 1 ? 's' : '') + ' écartée' + (ecartees > 1 ? 's' : '') + ' : pluie ou vent annoncés</span>' : '') +
             (!bons.length ? '<span class="pl-vide">Les prochaines dates libres sont toutes annoncées sous la pluie ou le vent.</span>' : '');

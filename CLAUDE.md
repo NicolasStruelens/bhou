@@ -78,8 +78,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 26 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 36 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 27 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 37 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
@@ -87,7 +87,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
 | `tests/suivi.test.html` | Les 64 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations. **Par le serveur de test.** |
-| `tests/planning-page.test.html` | Les 58 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
+| `tests/planning-page.test.html` | Les 59 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
@@ -127,7 +127,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
-| `tests/assistant.test.html` | Les 128 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
+| `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
 | `tests/clients.test.html` | Les 61 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 | `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
@@ -3101,8 +3101,23 @@ CE QUE SEUL LE PARCOURS COMPLET A MONTRÉ — chaque suite, prise seule, passait
   survivait (une relance d'un essai du 27/10 sur ESSAI-03). Chaque dossier envoie désormais ses clés d'essai à vide. Test R4b.
 • Et : le message prêt à partir CONFIRME un créneau retenu (il reproposait les créneaux, P9b) ; « Nouvelle facture » ne propose
   plus un dossier archivé (P6b) ; « Personne ne l'a prise en charge (personne) » ; « Caler la pose d'Élodie ».
+• **Les petits défauts du même audit, corrigés ensuite** (demande de Nicolas : « corrige aussi les petits défauts restants ») :
+  les OPTIONS PAYÉES d'une tente (lambrequin, éclairage LED, détecteur, spots, chauffage, couplage) sont écrites sur sa ligne dans
+  les deux exemplaires (`SSUI.optionsClient`, clés ajoutées à `AUTRES_CLES_CLIENT` du serveur — test D1b) ; le bon de pose dit la
+  couleur du caisson d'un volet UNE fois (avec la référence Harol, utile pour commander), la commande murale sous le seul nom du
+  devis (`SSUI.MENTION_COMMANDE`, règle 39) et « 1,5 » (test P9b) ; une date proposée au planning ne dit plus « sec » (le mot
+  voulait dire « moins de 0,5 mm » pendant que la fiche annonçait « Bruine ») : icône du temps annoncé, prévision en infobulle
+  (test C1b) ; l'erreur de Soli voyage avec la conversation (`conv.erreur`, jamais envoyée à l'API) — rouvert sur la page
+  suivante, il montrait la question seule, comme une demande encore en route (tests C15b, C16b).
 ⚠️ **L'outil d'audit** comprend qu'un contenu rogné par une boîte DANS l'écran (les tuiles d'une carte Leaflet) n'est pas « coupé au
-bord ». Et un lanceur sans écran (Chrome piloté par son protocole) rejoue toutes les suites en parallèle, un profil neuf par suite :
+bord ». Le robot des clics a un faux stockage R2 en mémoire (« Alléger » répondait 500 « liaison R2 manquante » : le BANC, pas
+l'ERP) ; la question « cette fiche client existe-t-elle déjà ? » posée avant d'en créer une (404) est un cas VOULU ; un menu
+déroulant ouvert (`.status-menu`) qui passe DESSUS une fenêtre — celle de Soli — n'est pas un chevauchement, un menu passé
+DESSOUS en resterait un. Un débordement relevé NOMME désormais l'élément qui dépasse.
+⚠️ **« 400 px pour 390 » quand Soli s'ouvre sur ESSAI-12 n'est PAS un défaut** (intermittent, 2 passages sur 4) : aucun élément ne
+dépasse — c'est la barre de défilement CLASSIQUE (15 px) d'un Chrome de bureau réduit à 390 px qui disparaît quand Soli bloque le
+défilement, pendant que la page se recalcule. En émulation tactile (barres superposées, comme un vrai téléphone) : 0 relevé sur 3
+passages. Rien n'est visible : le défilement de côté est bloqué tant que Soli est ouvert. Et un lanceur sans écran (Chrome piloté par son protocole) rejoue toutes les suites en parallèle, un profil neuf par suite :
 il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERMÉDIAIRE avant ses cadres.
 
 ## Pièges déjà payés — ne pas les repayer
@@ -3375,7 +3390,7 @@ il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERM�
 1. **Les 62 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 62/62 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 123/123 » — et dès qu'on touche à
-   `app/planning.html` : `tests/planning-page.test.html`, exiger « 58/58 », par le serveur. Pour `attente.js` :
+   `app/planning.html` : `tests/planning-page.test.html`, exiger « 59/59 », par le serveur. Pour `attente.js` :
    `tests/attente.test.html`, exiger « 105/105 ».
    Et dès qu'on touche à une COULEUR de thème, ou au défaut de thème de la société :
    `tests/themes.test.html`, exiger « 77/77 ». ⚠️ **Par le serveur de test**, pas en `file://` :
@@ -3399,7 +3414,7 @@ il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERM�
    `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
-   exiger « 128/128 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
+   exiger « 130/130 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
    Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 46/46 »,
    par le serveur — ET `carte.test.html`, puisque la mémoire des adresses est partagée.
@@ -3414,10 +3429,10 @@ il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERM�
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 36/36 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 37/37 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 26/26 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 27/27 », par le serveur.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
    Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le
