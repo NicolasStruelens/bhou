@@ -79,14 +79,14 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 25 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 29 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (et ses réserves sur la feuille imprimée), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 31 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
-| `tests/suivi.test.html` | Les 53 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 7 mutations. **Par le serveur de test.** |
+| `tests/suivi.test.html` | Les 62 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations. **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 57 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -3016,6 +3016,17 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
   le visiteur demande moins d'animations, absents à l'impression. Bornes en `MM-JJ` (20/03, 21/06, 22/09, 21/12, l'hiver enjambe le
   Nouvel An), teintes `{ sombre, clair }` posées sur tous les thèmes clairs de `SSTheme`, positions déterministes. `?saison=hiver`
   (printemps, ete, automne) montre une saison hors de sa période, comme l'aperçu des fêtes.
+• **C'EST UNE VITRINE QUE LE CLIENT MONTRERA** (Nicolas, 01/11/2026). En tête des photos : l'avant / après s'il existe,
+  sinon la photo À LA UNE (`SSSuivi.galerie(...).une`) — la COUVERTURE choisie au portfolio (`portfolio_couvertures.chantier`,
+  signalée par le serveur), sinon la plus récente « Terminé », sinon la dernière prise (« Le chantier en ce moment »).
+  « Terminé » commence par la couverture puis les plus récentes ; « Pendant » et « Avant » restent chronologiques — c'est
+  l'avancement qu'on raconte — et un groupe pris sur plusieurs jours porte la DATE SUR chaque vignette (des titres de jour
+  cassaient la grille en vignettes isolées sur téléphone). « Voir les N photos » (diaporama) et « Partager » (partage du
+  téléphone ; à défaut le lien copié et dit ; on partage le lien NU, `?t=` seul). Les photos apparaissent en fondu une fois
+  arrivées — ou ratées : une photo en échec doit montrer son repère, pas rester invisible.
+• **LES RÉSERVES DU PV SORTENT** (« Réception des travaux ») : écrites AVEC le client et imprimées sur le PV qu'il garde, elles
+  ne sont pas internes. Avec la date du PV s'il est signé dans l'ERP ; seules si elles ont été enregistrées sans signature
+  (règle 57 bis). ⚠️ Si le client partage son lien, ceux à qui il le montre les lisent aussi — c'est son choix.
 
 **57 bis. LES RÉSERVES DU PV S'IMPRIMENT TELLES QU'ON LES TAPE, tant qu'il n'est pas signé** (`app/reception.html`,
 31/10/2026 — signalé par Nicolas : réserves tapées, puis « Réserves éventuelles : Aucune. » à l'impression et dans le PDF).
@@ -3024,6 +3035,12 @@ signé À LA MAIN sortait sans ses réserves. Désormais : PV pas signé → la 
 retours à la ligne gardés (`white-space: pre-line`), texte seul ; un brouillon par devis reste dans le navigateur
 (`ss_pv_reserves_<id>`) jusqu'à la signature. PV signé → la feuille porte ce qui a été SIGNÉ : « Refaire signer » ne la change
 qu'une fois la nouvelle signature confirmée, sinon une signature attesterait des réserves qu'elle n'a jamais vues. Tests P10b à P10e.
+⚠️ **« ENREGISTRER LES RÉSERVES » SANS SIGNATURE** (01/11/2026 — « comment faire pour que les infos apparaissent dans la page
+client ? ») : un PV signé sur papier, ou pas encore signé, laissait les réserves dans le seul navigateur qui les avait tapées.
+Le bouton écrit `reception.notes` SEULE (écriture relue, `SS.modifierDevis`) — ni signature, ni date, ni statut : un PV n'est
+pas « signé » et la pose n'est pas « faite » parce qu'on a écrit ses réserves (`isPoseDone` lit la signature). Grisé tant que
+rien ne change, il dit « ✓ Enregistrées — le client les voit sur son lien de suivi ». Absent sur un PV déjà signé : là, les
+réserves changent AVEC la nouvelle signature. Tests P10f, P10g, et C14b de `suivi.test.html`.
 
 **58. UNE POSE ANNULÉE SE RETIRE PAR UN BOUTON QUI LE DIT — « Pose annulée — retirer la date »** (31/10/2026, demande
 de Nicolas : « on devait placer les screens aujourd'hui, ça a été annulé : comment annuler, et laisser sans date quand on ne
@@ -3357,13 +3374,13 @@ pose n'écrit plus la durée qu'on n'a pas tapée. Tests N33, N34, B3, B5, C2, D
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
-   (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 53/53 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
+   (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 62/62 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
    et, pour la visionneuse, `outillage`, `sav`, `rdv` et `terrain`.
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 29/29 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 31/31 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
    `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 25/25 », par le serveur.
