@@ -718,11 +718,45 @@
     return isNaN(t) ? null : isoDate(t);
   }
 
+  /* ── CE QU'UNE LIGNE DE DEVIS DIT D'UNE COULEUR ET D'UNE TOILE — les DEUX exemplaires (règle 7) ──
+     01/11/2026, bac à sable : la ligne d'un screen ou d'une tente imprimait la couleur telle que le nuancier
+     l'écrit, « 7016 — Gris anthracite · réf. 7m16st (laque texturée) » — un code de COMMANDE Harol sur le
+     document du client (règle 31) — et taisait la couleur de TOILE choisie, que le lien de suivi, lui, montrait.
+     La couleur se lit comme dans l'encadré d'un volet (`SSVolet.normaliserRal`), sans « · réf. … » (même règle
+     que `SSVitrine.sansReference` et le serveur). */
+  function couleurClient(v) {
+    const s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    const n = (window.SSVolet && window.SSVolet.normaliserRal) ? window.SSVolet.normaliserRal(s) : s;
+    return String(n).replace(/\s*·\s*r[ée]f\..*$/i, '').trim();
+  }
+  function toileClient(it) {
+    const t = [it && it.toile_num, it && it.toile_couleur].map((x) => String(x == null ? '' : x).trim()).filter(Boolean).join(' ');
+    return t ? 'toile ' + t : '';
+  }
   function isPoseDone(d) {
     if (!d) return false;
     const recDone = !!(d.reception && d.reception.image) || !!d.reception_date;
     const cmdPose = (d.commande && d.commande.statut === 'pose') || d.commande_statut === 'pose';
     return recDone || cmdPose;
+  }
+  /* ── POSÉ EN DEUX FOIS : une pose encore À VENIR malgré la réception ──
+     Un chantier posé en deux fois (École du Bonheur : 28 screens, puis les 5 restants) porte le PV de la
+     PREMIÈRE pose ; sa date de pose, elle, désigne la SECONDE. Elle n'est « à venir » que si elle tombe APRÈS
+     le jour du PV : un PV signé le jour même de la pose couvre CETTE pose. La règle disait « date de pose ≥
+     aujourd'hui » : le jour de la pose, PV signé dans la foulée, la fiche annonçait « Seconde pose le … —
+     facture partielle, pas le solde », le tableau de bord laissait « Posé » éteint et le lien du client disait
+     « une première partie est posée » (bac à sable, 01/11/2026 — c'est le cas de TOUS les chantiers).
+     Sans date de PV (commande passée à « posé » à la main), une pose datée d'aujourd'hui est faite.
+     Source unique : `SSActions.poseAVenir` et `SSSuivi.avancement` la lisent. `auj` : pour les tests. */
+  function poseAVenir(d, auj) {
+    const p = d && d.chantier && d.chantier.date_pose;
+    if (!p) return false;
+    const jp = String(p).slice(0, 10), jourJ = auj || aujourdhui();
+    if (jp < jourJ) return false;
+    const pv = String((d.reception && d.reception.date) || d.reception_date || '');
+    const jpv = !pv ? '' : (pv.length > 10 ? isoDate(new Date(pv)) : pv.slice(0, 10));
+    return jpv ? jp > jpv : jp > jourJ;
   }
 
   /* ── « Pose annulée — retirer la date » (31/10/2026, demande de Nicolas : « on devait placer les
@@ -2240,7 +2274,7 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp, hoteBacASable: hoteBacASable,
-    normDevis: normDevis, isPoseDone: isPoseDone, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
+    normDevis: normDevis, isPoseDone: isPoseDone, couleurClient: couleurClient, toileClient: toileClient, poseAVenir: poseAVenir, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
     questionRetirerPose: questionRetirerPose, REFUS_RETIRER_POSE: REFUS_RETIRER_POSE,
     isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,

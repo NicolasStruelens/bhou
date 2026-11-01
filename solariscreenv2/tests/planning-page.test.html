@@ -182,6 +182,14 @@
         const casses = [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2)
           .map(a => { try { new Function(a.value); return null; } catch (err) { return e.tagName + ':' + err.message; } }).filter(Boolean));
         check('A14 Tous les gestionnaires de la page compilent (client « D’Hondt »)', casses, []);
+        // A15 : une pose à planifier n'est dite qu'UNE fois — dans « À planifier », avec ses dates — et une alerte qui
+        // a un dossier y emmène (01/11/2026, bac à sable : le filtre cherchait l'ancien libellé « sans date de pose »).
+        w.eval("A_COMMANDER.push({ id: 'P-CMD', client: { prenom: 'Cédric', nom: 'Commande' }, statut: 'signe', items: [] }); rendreAlertes();");
+        const alA15 = d.getElementById('alertes');
+        const lienCmd = [...alA15.querySelectorAll('a.pl-lien')].map(a => a.getAttribute('href'));
+        check('A15 « Pose à planifier » n’est plus en double dans les alertes (elle est dans « À planifier ») ; « matériel pas commandé » mène à la commande du dossier',
+          [/pose à planifier/i.test(texte(alA15)), /Anne Planifier/.test(texte(d.body)), /matériel pas commandé — Cédric Commande/.test(texte(alA15)), lienCmd.indexOf('vue.html?id=P-CMD#commande') >= 0],
+          [false, true, true, true]);
 
         titre('B — « Caler ici » : un créneau libre propose ce qui attend une date');
         const dimMatin = cellules(0)[6].querySelector('.pl-dispo');
@@ -344,10 +352,12 @@
         const cel = premier.querySelector('.pl-cell');
         check('T1 Le premier jour commence dans le premier écran', premier.getBoundingClientRect().top < w.innerHeight - 160, true);
         const plusA = d.getElementById('alertesPlus');
-        check('T1b Quatre alertes : deux visibles, et un bouton qui DIT combien il en reste',
-          [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, plusA.hidden, texte(plusA)], [2, false, 'Voir les 2 autres alertes']);
+        // Trois alertes depuis le 01/11/2026 : la quatrième était « pose à planifier — Anne Planifier », EN DOUBLE avec la
+        // liste « À planifier » (A15). Le bouton dit alors « l'autre » au singulier.
+        check('T1b Trois alertes : deux visibles, et un bouton qui DIT combien il en reste',
+          [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, plusA.hidden, texte(plusA)], [2, false, 'Voir l’autre alerte']);
         plusA.click();
-        check('T1c …un toucher les montre toutes, sans quitter la page', [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, texte(plusA)], [4, 'Réduire les alertes']);
+        check('T1c …un toucher les montre toutes, sans quitter la page', [[...d.querySelectorAll('#alertes .pl-alerte')].filter(a => a.offsetHeight > 0).length, texte(plusA)], [3, 'Réduire les alertes']);
         plusA.click();
         check('T2 Rien ne déborde à l’horizontale ; les six semaines glissent dans leur bande',
           [d.documentElement.scrollWidth <= d.documentElement.clientWidth, d.getElementById('sixSem').scrollWidth > d.getElementById('sixSem').clientWidth], [true, true]);

@@ -211,9 +211,11 @@
         check('P0 Le cadre parle au banc ; le bac à sable est rempli sans erreur ; les cinq demandes d’essai sont là',
           [f.branche, rem.erreurs, [ID_LAURA, ID_PAUL, ID_HELENE, ID_DAMIEN, ID_MARC].every(Boolean)], [true, [], true]);
         const brief = [...d.querySelectorAll('#briefHost .rb')].map(txt);
-        check('P1 « À traiter » : 5 lignes et « Voir les N autres » (il coupait à 8 sans le dire) ; ce sont des boutons ; ce que personne n’a pris passe devant',
-          [brief.length, /^Voir les \d+ autres$/.test(txt(d.querySelector('#briefHost .rb-plus'))), d.querySelector('#briefHost .rb').tagName, /\(personne\)/.test(brief[0])],
-          [5, true, 'BUTTON', true]);
+        // Sans redite (01/11/2026) : « Personne ne l’a prise en charge » ne reçoit plus « (personne) » en plus.
+        check('P1 « À traiter » : 5 lignes et « Voir les N autres » (il coupait à 8 sans le dire) ; ce sont des boutons ; ce que personne n’a pris passe devant, sans « (personne) » redit',
+          [brief.length, /^Voir les \d+ autres$/.test(txt(d.querySelector('#briefHost .rb-plus'))), d.querySelector('#briefHost .rb').tagName,
+            /Personne ne l’a prise en charge|\(personne\)/.test(brief[0]), brief.some((b) => /Personne ne l’a prise en charge \(personne\)/.test(b))],
+          [5, true, 'BUTTON', true, false]);
         d.querySelector('#briefHost .rb-plus').click(); await attendre(20);
         const briefTous = [...d.querySelectorAll('#briefHost .rb')].map(txt);
         const briefHelene = briefTous.find((t) => /Hélène Charlier/.test(t)) || '';
@@ -272,6 +274,12 @@
         d.querySelector('#msgMaj button').click(); await attendre(20);
         check('P9 Un message RETOUCHÉ n’est plus réécrit par l’ajout d’un créneau : la fiche le dit et propose de le régénérer',
           [garde, majVisible, /Voici mes disponibilités/.test(d.getElementById('msgText').value), d.getElementById('msgMaj').hidden], ['Bonjour Hélène, mon texte à moi.', true, true, true]);
+        // P9b (01/11/2026, bac à sable) : un créneau RETENU, et le message prêt à partir confirme — il reproposait les créneaux.
+        w.confirm = () => true;
+        w.acceptCreneau(w.eval('CURRENT.creneaux.length') - 1); await attendre(30);
+        check('P9b Un créneau retenu : le message passe à « Confirmer le rendez-vous » (il reproposait les créneaux, celui qu’on venait de retenir compris)',
+          [d.getElementById('f_statut').value, d.getElementById('msgType').value, /Je vous confirme notre rendez-vous le /.test(d.getElementById('msgText').value), /Voici mes disponibilités/.test(d.getElementById('msgText').value)],
+          ['rdv_fixe', 'confirmation', true, false]);
         w.closeModal(); await attendre(30);
         // Conflit dans la fiche
         await w.openEdit(ID_DAMIEN); await attendre(60);

@@ -71,10 +71,9 @@
        (École du Bonheur : 28 screens, puis les 5 restants le 29/10) porte le PV de la PREMIÈRE pose :
        `isPoseDone` répondait « posé », la frise affichait « soldé ✓ » et personne n'était prévenu de
        préparer la seconde. Une date de pose dans le futur, c'est du travail qui vient. */
-    function poseAVenir(d) {
-      const p = d.chantier && d.chantier.date_pose;
-      return !!p && String(p).slice(0, 10) >= SSUI.aujourdhui();
-    }
+    // La règle vit dans ui.js (`SSUI.poseAVenir`, 01/11/2026) : le lien du client la lit aussi, et un PV signé le
+    // jour même de la pose ne laisse plus croire à une seconde pose.
+    function poseAVenir(d) { return window.SSUI.poseAVenir(d); }
     function isChantierAPreparer(d) {
       if (d.statut !== 'signe' || !d.chantier || !d.chantier.date_pose) return false;
       const days = Math.round((new Date(d.chantier.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);

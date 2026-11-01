@@ -1182,9 +1182,11 @@
       setText('iToolsGross', fmtEur(c.tools_total)); setText('iToolsNet', fmtEur(c.tools_total / NET));
       el('installBalanceWarn').style.display = (ig.install_gross > 0 && !c.install_balance_ok) ? 'block' : 'none';
 
-      // récap
-      setText('sTotalCatalog', fmtEur(c.total_catalog_ht));
-      setText('sTotalInstall', fmtEur(c.total_installation_ht));
+      // récap — catalogue et installation AVANT remise : la ligne « Réduction commerciale » les retire juste en dessous.
+      // Avec les montants déjà remisés, la remise se lisait deux fois et les lignes ne retombaient pas sur le total HTVA
+      // (01/11/2026, bac à sable : 7 223,40 + 1 120 + 97,50 − 150 ≠ 8 440,90 ; règle 30 octies).
+      setText('sTotalCatalog', fmtEur(c.total_catalog_ht_brut));
+      setText('sTotalInstall', fmtEur(c.install_total_brut));
       setText('sTotalExtras', fmtEur(c.total_extras_ht));
       setText('sSurplus', fmtEur(input.surplus_difficulte));
       el('sRemiseLine').classList.toggle('hidden', c.total_remises <= 0);
@@ -1415,7 +1417,14 @@
       setVal('tech2Gross', po.tech2_gross ?? 125); setVal('toolsGross', po.tools_gross ?? 30);
       setVal('installQty', p.installation?.install_qty ?? 0); setVal('tech1Qty', p.installation?.tech1_qty ?? 0);
       setVal('tech2Qty', p.installation?.tech2_qty ?? 0); setVal('toolsQty', p.installation?.tools_qty ?? 0);
-      _qtyManual = true; // devis existant : on respecte les quantités stockées
+      /* Devis existant : on respecte les quantités stockées QUAND ELLES ONT ÉTÉ RETOUCHÉES — c'est-à-dire quand
+         l'une des quatre ne vaut pas le nombre d'ouvertures chiffrées enregistré. Tant qu'elles le suivent, elles
+         continuent de le suivre (01/11/2026, trouvé dans le bac à sable) : un devis créé VIDE par « Créer le devis »
+         d'une demande de RDV (ou le Mode Terrain) arrivait ici avec 0 pose stockée, se croyait « retouché », et
+         restait à 0 pose quelles que soient les ouvertures chiffrées ensuite — un devis envoyé SANS installation.
+         Rien ne bouge à l'ouverture (les quantités valent déjà ce compte) : la règle 1 n'est pas touchée. */
+      const ouvStockees = window.SSCalc.ouverturesReelles(d.items || []), inst = p.installation || {};
+      _qtyManual = [inst.install_qty, inst.tech1_qty, inst.tech2_qty, inst.tools_qty].some((q) => (Number(q) || 0) !== ouvStockees);
       (p.extras || []).forEach(e => addExtra({ label: e.label, qty: e.qty, unit_price_ht: e.unit_price_ht }));
       const tva = p.tva_pct || d.calculs?.tva_pct || 6;
       (document.getElementById(tva === 21 ? 'tva21' : 'tva6')).checked = true;

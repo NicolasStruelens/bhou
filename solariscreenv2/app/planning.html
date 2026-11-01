@@ -703,14 +703,21 @@
       const A = window.SSAttente;
       let html = '';
       if (A) {
+        /* « Pose à planifier » est déjà listé plus bas (« À planifier », avec ses dates possibles) : on l'écarte par
+           son IDENTIFIANT, jamais par son libellé. Le filtre cherchait « sans date de pose » ; le libellé est devenu
+           « Matériel reçu, pose à planifier » le 06/10/2026 et chaque pose s'affichait deux fois — en haut, sans
+           aucun geste (bac à sable, 01/11/2026). */
         const items = A.depuisPlanning(TOUS_EVS, A_PLANIFIER, REGLAGES, { inclureVisites: true }, A_COMMANDER)
-          .filter(function (i) { return i.quoi.indexOf('sans date de pose') < 0; });   // déjà listé plus bas
+          .filter(function (i) { return !/:aplanifier$/.test(String(i.id || '')); });
         html = items.slice(0, 6).map(function (i) {
           const grave = i.urgence >= A.URGENCE.CRITIQUE;
           const qui = i.qui ? (SELLER_LABELS[i.qui] || i.qui) : 'Personne';
+          // Une alerte EMMÈNE là où l'on agit (règle 15 quater) : « matériel pas commandé » vers la commande du
+          // dossier, une visite vers sa demande. Celles qui renvoient au planning lui-même n'ont rien à ouvrir.
+          const lien = (i.href && !/^planning\.html/.test(i.href)) ? ' · <a class="pl-lien" href="' + escHtml(i.href) + '">ouvrir</a>' : '';
           return '<div class="pl-alerte ' + (grave ? '' : 'warn') + '">' + icon(grave ? 'warning' : 'clock', 15) +
             '<div><b>' + escHtml(i.quoi) + ' — ' + escHtml(i.titre) + '</b><br>' +
-            escHtml([qui, i.detail, A.delai(i.depuis)].filter(Boolean).join(' · ')) + '</div></div>';
+            escHtml([qui, i.detail, A.delai(i.depuis)].filter(Boolean).join(' · ')) + lien + '</div></div>';
         }).join('');
       }
       /* « HORS DE SES JOURS » se calcule ICI et pas dans attente.js : il a besoin des exceptions de
@@ -1617,7 +1624,8 @@
       // Une pose qui commence en début de journée reste « sans heure » : c'est la convention
       // (SSPlanning.occupation la cale au début de journée).
       const heure = debut === P.minHhmm(P.demiJournees(REGLAGES).matin.debut) ? '' : debut;
-      if (!confirm('Caler la pose de ' + nomDe(d.client) + ' le ' + jourLong(date) + (heure ? ' à ' + heure : '') + ' ?\n\n' +
+      const nomC = nomDe(d.client);   // « d'Élodie », pas « de Élodie »
+      if (!confirm('Caler la pose ' + (/^[aeiouyàâäéèêëîïôöùûü]/i.test(nomC) ? 'd’' : 'de ') + nomC + ' le ' + jourLong(date) + (heure ? ' à ' + heure : '') + ' ?\n\n' +
         'Équipe : ' + EQUIPES[equipe] + (ch.equipe ? '' : ' (aucune n’était choisie : la pose est calée à deux)') + '\nDurée : ' + P.fmtDuree(duree) + (dp.defaut ? ' (par défaut, non renseignée)' : ''))) return;
       const candidat = { id: 'pose:' + id, source: 'pose', date: date, heure: heure, duree_h: duree, qui: P.quiDeEquipe(equipe), titre: nomDe(d.client) };
       if (!confirmerMalgre(candidat, 'Caler')) return;

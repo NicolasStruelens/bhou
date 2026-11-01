@@ -147,6 +147,9 @@
     const defile = (e, axe) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); const o = axe === 'x' ? s.overflowX : s.overflowY; if (o === 'auto' || o === 'scroll') return true; } return false; };
     // Un ancêtre rangé hors écran (volet replié, tiroir) : ce n'est pas un débordement.
     const fixeHors = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.position === 'fixed' || s.position === 'absolute') && x.getBoundingClientRect().left >= W - 1) return true; if (s.transform && s.transform !== 'none' && x.getBoundingClientRect().right <= 1) return true; } return false; };
+    // Une boîte qui ROGNE (overflow hidden / clip) et finit dans l'écran : ce qui la dépasse est coupé par ELLE, pas par
+    // le bord de l'écran — les tuiles d'une carte Leaflet dépassent exprès leur cadre (relevées à tort le 01/11/2026).
+    const rogneDedans = (e) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().right <= W + 1) return true; } return false; };
     // Un décor (filigrane, toile de fête) : posé exprès par-dessus ou au-delà, il ne se clique pas.
     const decor = (e) => { for (let x = e; x && x !== d.body; x = x.parentElement) { if (x.getAttribute('aria-hidden') === 'true' || /\b(watermark|ssfete|filigrane)/.test(x.className && x.className.baseVal === undefined ? x.className : '')) return true; } return false; };
 
@@ -159,7 +162,7 @@
     for (const e of visibles) {
       const r = e.getBoundingClientRect(), s = w.getComputedStyle(e);
       // 2. Coupé au bord droit de l'écran (en partie dedans, en partie dehors), sans ancêtre qui défile.
-      if (r.right > W + 1 && r.left < W - 1 && r.width < W * 3 && !defile(e, 'x') && !fixeHors(e) && s.position !== 'fixed' && !decor(e))
+      if (r.right > W + 1 && r.left < W - 1 && r.width < W * 3 && !defile(e, 'x') && !fixeHors(e) && s.position !== 'fixed' && !decor(e) && !rogneDedans(e))
         out.push(['coupé au bord', chemin(e) + ' : ' + Math.round(r.left) + '→' + Math.round(r.right) + ' px « ' + texte(e) + ' »']);
       // 3. Du TEXTE rogné par sa boîte : un descendant dans le flux (pas un décor, pas un absolu) qui
       //    dépasse, alors que la boîte ne défile pas et n'a pas de points de suspension.
