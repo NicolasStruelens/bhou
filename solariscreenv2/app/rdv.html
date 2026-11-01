@@ -653,7 +653,7 @@
       const vus = BRIEF_TOUT ? items : items.slice(0, 5);
       host.innerHTML = `<div class="rdv-brief">
         <h3>${icon('warning', 12)} À traiter (${items.length})</h3>
-        <ul>${vus.map(it => `<li><button type="button" class="rb" onclick="openEdit(${jsAttr(it.rdv_id)})"><span class="rb-dot"></span><span>${esc(it.titre + ' — ' + it.quoi + (it.qui ? '' : ' (personne)') + ' · ' + A.delai(it.depuis))}</span></button></li>`).join('')}</ul>
+        <ul>${vus.map(it => `<li><button type="button" class="rb" onclick="openEdit(${jsAttr(it.rdv_id)})"><span class="rb-dot"></span><span>${esc(it.titre + ' — ' + it.quoi + ((it.qui || /^Personne/.test(it.quoi)) ? '' : ' (personne)') + ' · ' + A.delai(it.depuis))}</span></button></li>`).join('')}</ul>
         ${items.length > 5 ? `<button type="button" class="rb-plus" onclick="basculerBrief()">${BRIEF_TOUT ? 'Moins' : 'Voir les ' + (items.length - 5) + ' autres'}</button>` : ''}
       </div>`;
     }
@@ -1416,6 +1416,10 @@
       CURRENT.creneaux.forEach((c, j) => { c.statut = (j === i) ? 'accepte' : (c.statut === 'accepte' ? 'propose' : c.statut); });
       el('f_daterdv').value = cr.date + 'T' + moment(cr.moment).h;
       el('f_statut').value = 'rdv_fixe';
+      // Le rendez-vous est convenu : le message prêt à partir le CONFIRME. Il reproposait les trois créneaux, celui
+      // qu'on venait de retenir compris (bac à sable, 01/11/2026). Un message retouché n'est pas remplacé (règle 54) :
+      // `fillMsg` le dit et propose de le régénérer.
+      if (el('msgType') && el('msgType').value === 'creneaux' && !MSG_TOUCHE) el('msgType').value = 'confirmation';
       renderCreneaux(); fillMsg();
       toast('Créneau retenu → visite fixée le ' + fmtDate(cr.date) + ' (pense à enregistrer)', 'ok', 4000);
     };

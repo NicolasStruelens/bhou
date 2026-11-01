@@ -345,10 +345,14 @@ export async function onRequest(context) {
           type: it.type, modele: it.modele || '', largeur: it.largeur || null, hauteur: it.hauteur || null,
           projection: it.projection || null, quantite: it.quantite || 1, prix_catalogue_ht: it.prix_catalogue_ht || 0,
           variante: it.variante || '', combinaison: it.combinaison || '', manoeuvre: it.manoeuvre || '',
-          moteur: it.moteur || it.moteur_ref || '', couleur: it.couleur || '',
-          couleur_coulisses: it.couleur_coulisses || '', couleur_lame: it.couleur_lame || '',
+          // Les couleurs SANS code de commande Harol (règle 31, `sansReferenceFournisseur`) : la page les affichait
+          // déjà nettoyées, mais la réponse — servie par simple jeton — les portait entières (01/11/2026).
+          moteur: it.moteur || it.moteur_ref || '', couleur: sansReferenceFournisseur(it.couleur || ''),
+          couleur_coulisses: sansReferenceFournisseur(it.couleur_coulisses || ''), couleur_lame: sansReferenceFournisseur(it.couleur_lame || ''),
           // La COLLECTION (liste fabricant) prime sur l'ancien texte libre `toile`.
           toile: it.collection || it.toile || '', emplacement: it.emplacement || '', etage: it.etage || '',
+          // La couleur de TOILE choisie (numéro et coloris) : le client la vérifie avant de signer (`SSUI.toileClient`).
+          toile_num: sansReferenceFournisseur(it.toile_num || ''), toile_couleur: sansReferenceFournisseur(it.toile_couleur || ''),
         })),
         calc: {
           total_ht: calc.total_ht || 0, total_tva: calc.total_tva || 0,

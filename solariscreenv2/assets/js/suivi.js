@@ -145,9 +145,11 @@
     const etat = U.etatCommande(dv);
     const poseFaite = U.isPoseDone(dv);
     const datePose = jourDe(dv.chantier.date_pose);
-    const poseAVenir = !!datePose && datePose >= jour;
-    const partielle = poseFaite && poseAVenir;
-    const termine = poseFaite && !poseAVenir;
+    // `prevue` : une date de pose qui n'est pas passée (aujourd'hui compris) ; `partielle` : la SECONDE pose d'un
+    // chantier posé en deux fois — la règle de l'ERP (`SSUI.poseAVenir`), où un PV du jour même couvre la pose.
+    const prevue = !!datePose && datePose >= jour;
+    const partielle = poseFaite && U.poseAVenir(dv, jour);
+    const termine = poseFaite && !partielle;
     const ETAPES = U.COMMANDE_ETAPES;
     const idx = poseFaite ? ETAPES.length - 1 : Math.max(0, ETAPES.indexOf(etat));
     // Date de pose RÉELLE : le PV, sinon la date de réception notée, sinon la date prévue si elle est passée.
@@ -158,7 +160,7 @@
       const encours = !fait && i === idx;
       let sous = '';
       if (encours) {
-        if (k === 'recu') sous = poseAVenir ? 'Matériel réceptionné — pose prévue le ' + dateLongue(datePose) : 'Matériel réceptionné — pose à planifier';
+        if (k === 'recu') sous = prevue ? 'Matériel réceptionné — pose prévue le ' + dateLongue(datePose) : 'Matériel réceptionné — pose à planifier';
         else if (k === 'pose') sous = 'Première partie posée — la suite le ' + dateLongue(datePose);
         else sous = SOUS[k] || 'En cours';
       }
@@ -171,7 +173,7 @@
     let eta;
     if (termine) eta = [['Installation terminée — merci de votre confiance !']];
     else if (partielle) eta = [['Une première partie est posée — la suite est prévue le '], [dateLongue(datePose, true), true], ['.']];
-    else if (etat === 'recu') eta = poseAVenir ? [['Matériel reçu — pose prévue le '], [dateLongue(datePose, true), true], ['.']] : [['Matériel reçu, la pose sera bientôt planifiée.']];
+    else if (etat === 'recu') eta = prevue ? [['Matériel reçu — pose prévue le '], [dateLongue(datePose, true), true], ['.']] : [['Matériel reçu, la pose sera bientôt planifiée.']];
     else {
       // Sans délai annoncé, pas d'estimation (même règle que la fiche, `SSUI.livraisonEstimee`).
       const liv = U.livraisonEstimee(dv);
@@ -181,7 +183,7 @@
     // Le rendez-vous : seulement s'il est à VENIR. Une date passée sans pose enregistrée ne dit rien
     // de sûr (reportée ? faite sans PV ?) : on se tait plutôt que d'annoncer un passage révolu.
     let rdv = null;
-    if (poseAVenir) {
+    if (prevue && (!poseFaite || partielle)) {   // une pose déjà faite (PV du jour) n'est plus un rendez-vous
       const h = /^(\d{1,2}):(\d{2})$/.exec(String(dv.chantier.heure || ''));
       rdv = {
         titre: partielle ? 'Suite de votre installation' : 'Pose de votre installation',

@@ -117,7 +117,12 @@
         check('R3 Les factures et notes de crédit sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
           [numeros.length, new Set(numeros).size, numeros.every((n) => /^(F|NC)\d{4}-\d{3}$/.test(n)), numeros.filter((n) => /^NC/.test(n)).length], [12, 12, true, 1]);
         const racheterAvant = donnee('outillage', 'id', 'OUT-ESSAI-2').racheter.le;
+        // Un essai est passé par là (01/11/2026) : une relance faite, un statut changé, un PV signé, une pose datée.
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.relances', json('[{\"n\":1,\"date\":\"2026-10-27\"}]'), '$.statut_history', json('[{\"statut\":\"relance_1\"}]'), '$.reception', json('{\"image\":\"data:x\",\"date\":\"2026-10-27\"}'), '$.chantier', json('{\"date_pose\":\"2026-10-28\"}')) WHERE id = 'ESSAI-03'");
         const b2 = await B.remplir(window.SS, {});
+        const e03 = donnee('devis', 'id', 'ESSAI-03');
+        check('R4b « Remplir » REMET le dossier dans son état de départ : la relance, l’historique, le PV et la date de pose laissés par un essai disparaissent (ils survivaient : la fusion du serveur est peu profonde)',
+          [e03.relances, e03.statut_history, e03.reception, (e03.chantier || {}).date_pose || '', e03.statut, e03.review_token], [[], [], null, '', 'envoye_client', 'essai-tok-03']);
         check('R4 REJOUABLE : relancer « Remplir » ne crée ni facture, ni note, ni ticket, ni attente, ni passage de réparation en double',
           [b2.erreurs, compte(), (donnee('devis', 'id', 'ESSAI-04').comments || []).length, (donnee('devis', 'id', 'ESSAI-17').sav_tickets || []).length,
             (donnee('devis', 'id', 'ESSAI-05').attentes || []).filter((a) => !a.levee_le).length,
