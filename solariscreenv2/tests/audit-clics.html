@@ -55,6 +55,14 @@
     // L'apostrophe DROITE est celle qui casse un gestionnaire `onclick` mal échappé (CLAUDE.md).
     const APOS = String.fromCharCode(39);
     const PIEGE = 'L’Hoëst d' + APOS + 'Ici "<img src=x onerror=window.__xss=1>" & Çà — ' + 'très long '.repeat(18);
+    // Un faux stockage R2 (photos, documents), en mémoire. Sans lui, chaque photo envoyée — et « Alléger » —
+    // répondait 500 « liaison R2 manquante » : un défaut du BANC, pas de l'ERP (audit du 01/11/2026).
+    const R2 = new Map();
+    const fauxR2 = (pref) => ({
+      async put(k, corps, o) { R2.set(pref + k, { octets: await new Response(corps).arrayBuffer(), httpMetadata: (o && o.httpMetadata) || {} }); return {}; },
+      async get(k) { const x = R2.get(pref + k); return x ? { body: x.octets, httpMetadata: x.httpMetadata } : null; },
+      async delete(k) { R2.delete(pref + k); },
+    });
 
     // ── Le jeu : rempli UNE fois, photographié, rendu tel quel avant chaque écran. ──
     await BANC.demarrer();
@@ -109,6 +117,7 @@
     /** Ouvre un écran sur la base d'origine. */
     async function ecran(url, L) {
       BANC.restaurer(PHOTO); BANC.viderCaches(); BANC.ident = BANC.NICOLAS; remettreLS();
+      BANC.ENV.PHOTOS = fauxR2('photos:'); BANC.ENV.DOCS = fauxR2('docs:');
       const f = await AU.ouvrir(url, L.w, L.h, { gardes: true, confirmer: true });
       // « Retour » dans un cadre parcourt l'historique COMMUN avec la page de l'audit : il l'emporterait.
       f.contentWindow.history.back = () => { f.temoins.systeme.push('retour'); };
@@ -121,7 +130,11 @@
     async function bilan(f, url, L, apres) {
       const t = f.temoins;
       t.erreurs.splice(0).forEach((e) => note(url, L.nom, 'erreur', e + apres));
-      t.api.splice(0).forEach((e) => { if (!/ → 404$/.test(e) || !/inconnu/.test(e)) note(url, L.nom, 'requête refusée', e + apres); });
+      // Deux 404 VOULUS : un identifiant inconnu, et la question « cette fiche client existe-t-elle déjà ? » posée
+      // AVANT d'en créer une (clients.html « Nouveau client », synchro du simulateur) — sans elle on écraserait une
+      // fiche du même nom. Relevée sept fois par l'audit du 01/11/2026 comme « nom de 300 caractères introuvable ».
+      const voulu = (e) => / → 404$/.test(e) && (/inconnu/.test(e) || /^GET \/api\/clients\/[^/?]+(\?\S*)? → 404$/.test(e));
+      t.api.splice(0).forEach((e) => { if (!voulu(e)) note(url, L.nom, 'requête refusée', e + apres); });
       t.fichiers.splice(0).forEach((e) => note(url, L.nom, 'fichier introuvable', e + apres));
       for (const l of (t.liensSuivis || []).splice(0)) if (!(await AU.existe(l))) note(url, L.nom, 'lien mort', l.replace(location.origin, '') + apres);
       for (const o of t.ouvertes.splice(0)) if (o && /\.html/.test(o) && !(await AU.existe(new URL(o, f.contentWindow.location.href).href))) note(url, L.nom, 'lien mort', o + apres);

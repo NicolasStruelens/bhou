@@ -155,7 +155,14 @@
 
     // 1. La page déborde de côté.
     const sw = Math.max(d.documentElement.scrollWidth, d.body ? d.body.scrollWidth : 0);
-    if (sw > W + 1) out.push(['débordement', 'la page fait ' + sw + ' px de large pour ' + W]);
+    if (sw > W + 1) {
+      // Le relevé NOMME ce qui dépasse (hors boîte qui rogne, hors calque fixe) : « 400 px pour 390 » seul a demandé
+      // une demi-heure de recherche le 01/11/2026.
+      const enFixe = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) if (w.getComputedStyle(x).position === 'fixed') return true; return false; };
+      const qui = [...d.body.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().right > W + 1 && e.getBoundingClientRect().width > 0 && !rogneDedans(e) && !enFixe(e))
+        .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)[0];
+      out.push(['débordement', 'la page fait ' + sw + ' px de large pour ' + W + (qui ? ' — ' + chemin(qui) + ' finit à ' + Math.round(qui.getBoundingClientRect().right) + ' px' : '')]);
+    }
 
     const tous = [...d.body.querySelectorAll('*')].filter((e) => !/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|BR|OPTION)$/.test(e.tagName));
     const visibles = tous.filter(vis);
@@ -274,8 +281,13 @@
       let pire = null;
       for (const ra of la) for (const rb of lb) {
         const ix = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), iy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
-        if (ix > 3 && iy > 3 && (!pire || ix * iy > pire[0] * pire[1])) pire = [ix, iy];
+        if (ix > 3 && iy > 3 && (!pire || ix * iy > pire[0] * pire[1])) pire = [ix, iy, Math.max(ra.left, rb.left) + ix / 2, Math.max(ra.top, rb.top) + iy / 2];
       }
+      // Un menu déroulant OUVERT (`.status-menu`) recouvre exprès ce qui est dessous — la fenêtre de Soli comprise :
+      // il se referme au clic suivant (audit du 01/11/2026). Seulement s'il est bien DESSUS, là où ils se touchent :
+      // un menu passé SOUS une fenêtre, lui, serait un piège.
+      const menu = fa !== fb && [fa, fb].find((x) => x && x.classList.contains('status-menu'));
+      if (pire && menu) { const t = d.elementFromPoint(pire[2], pire[3]); if (t && menu.contains(t)) continue; }
       if (pire) out.push(['chevauchement', chemin(a) + ' « ' + texte(a) + ' » ✕ ' + chemin(b) + ' « ' + texte(b) + ' » (' + Math.round(pire[0]) + '×' + Math.round(pire[1]) + ' px)']);
     }
 
