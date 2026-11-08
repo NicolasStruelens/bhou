@@ -645,5 +645,39 @@
     return bilan;
   }
 
-  window.SSBacASable = { PREFIXE: PREFIXE, cleMarque: cleMarque, construire: construire, verifier: verifier, remplir: remplir, vider: vider };
+  /* ── LE CAS DE LA RÈGLE 60, EN FICTIF ─────────────────────────────────────────────────────────
+     Quatre volets VR150 identiques, sauf les coulisses du 3e (117 au lieu de 118) et l'ajourage resté
+     VIDE sur le 4e — le devis réel qui a fait revoir la saisie et l'encadré du devis (08/11/2026).
+     Un screen glissé en 3e ligne (`avecScreen`) : il n'a pas d'encadré et ne doit rien couper. Perçage
+     et rivets remplis : ils ne sortent jamais chez le client. N'est PAS dans `remplir` (les comptes du
+     jeu ne bougent pas) : `documents.test`, `saisie.test` et le banc d'impression (`exemple=volets4`)
+     le posent eux-mêmes, sur UNE description. */
+  function exempleQuatreVolets(o) {
+    const opt = o || {};
+    const base = { type: 'volet_roulant', modele: 'VR150', quantite: 1, largeur: 1180, hauteur: 1450, prix_catalogue_ht: 612.4,
+      couleur: '7016 — Gris anthracite', combinaison: 'Simple', lame_type: 'alu35', couleur_lame: '38 — 7016 Gris anthracite',
+      ajourage: '0 : sans ajourage', lame_finale_couleur: '7016 — Gris anthracite', montage_type: '3 : type 3 (sur le jour)',
+      alimentation: 'Électrique (filaire)', moteur: 'Secure (RF, standard)', cote_manoeuvre: 'Droite', caisson_mesure: '205',
+      caisson_forme: 'S biseauté', coulisse_type: '118', couleur_coulisses: '7016 — Gris anthracite', emetteur: true,
+      coulisse_percage: 'A168 : forer latérale (droit/gauche)', caisson_rivets: '7038 — Gris', photos: [] };
+    const v = (x) => Object.assign({}, base, x);
+    const items = [v({ emplacement: 'Salon', etage: 'RDC' }), v({ emplacement: 'Salle à manger', etage: 'RDC' }),
+      v({ emplacement: 'Jardin', etage: 'RDC', largeur: 2050, hauteur: 2150, prix_catalogue_ht: 897.1, coulisse_type: '117' }),
+      v({ emplacement: 'Chambre', etage: '1er', largeur: 900, hauteur: 1250, prix_catalogue_ht: 548.9, ajourage: '' })];
+    if (opt.avecScreen) {
+      items.splice(2, 0, { type: 'screen', modele: 'Coolscreen 8', quantite: 1, largeur: 2400, hauteur: 2200, prix_catalogue_ht: 1450,
+        variante: 'Standard', emplacement: 'Terrasse', photos: [] });
+    }
+    const n = items.length;
+    const calculs = window.SSCalc ? window.SSCalc.computeDevis({ items: items, tva_pct: 6, acompte_pct: 50, sellers: { principal: 'nicolas' },
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: n, tech1_qty: n, tech2_qty: n, tools_qty: n } }) : null;
+    const maintenant = new Date().toISOString();
+    return { id: opt.id || 'ESSAI-CFG-4', client: { prenom: 'Gaston', nom: "D'Essai", adresse: { rue: 'Rue des Essais', numero: '4', code_postal: '1400', ville: 'Nivelles' } },
+      statut: opt.statut || 'envoye_client', items: items, calculs: calculs,
+      pricing_v2: { tva_pct: 6, acompte_pct: 50, installation: { per_opening: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30 }, install_qty: n, tech1_qty: n, tech2_qty: n, tools_qty: n } },
+      date_creation: maintenant, date_modification: maintenant };
+  }
+
+  window.SSBacASable = { PREFIXE: PREFIXE, cleMarque: cleMarque, construire: construire, verifier: verifier, remplir: remplir, vider: vider,
+    exempleQuatreVolets: exempleQuatreVolets };
 })();

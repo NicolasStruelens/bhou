@@ -61,6 +61,115 @@
     .item-no { font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: var(--fs-md); }
     .item-sub { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
 
+    /* ══ LISTE + FICHE (variante B, choisie par Nicolas le 08/11/2026 : « B + liste je trouve ça
+       top ») ══════════════════════════════════════════════════════════════════════════════════
+       Avant : les ouvertures s'empilaient en cartes de 39 champs — 1 574 px chacune à 1 500 px de
+       large, 6 300 px pour quatre volets presque identiques. On ne savait plus laquelle on
+       remplissait, et rien ne montrait ce qui les distinguait. Désormais une LISTE nomme chaque
+       ouverture (« Volet 3 · Jardin · RDC », mesures, prix, ce qui reste à remplir, ce qui
+       diffère) et UNE seule fiche est affichée à la fois.
+       ⚠️ Les cartes non choisies restent DANS LA PAGE, masquées (`hidden`) : la collecte, le
+       recalcul, le signal et les champs qu'on lit ailleurs continuent de les voir toutes. Les
+       retirer du DOM aurait obligé à reconstruire chaque carte à chaque clic de la liste, et la
+       reconstruction recharge les photos (règle 31, même raison que le bloc VR150 re-rendu seul).
+       ⚠️ La mise en page suit la largeur de la SECTION (requête de conteneur), pas de l'écran :
+       le récapitulatif prend 360 px, et il ne reste que 742 px de section à 1 500 px d'écran
+       (mesuré). Sous 680 px de section, la liste et la fiche se REMPLACENT (piège « maître/détail
+       replié » : un détail posé SOUS une liste s'ouvre hors de l'écran), et la fiche porte
+       « ← Les ouvertures » pour revenir. */
+    .ouv-lf { container-type: inline-size; container-name: ouvertures; }
+    .ouv-lf-in { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
+    .ouv-liste { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
+    .ouv-fiche { min-width: 0; container-type: inline-size; container-name: fiche;
+      scroll-margin-top: calc(var(--ss-header-h, var(--header-h)) + var(--sp-3)); }
+    @container ouvertures (min-width: 680px) {
+      .ouv-lf-in { grid-template-columns: 210px minmax(0, 1fr); align-items: start; }
+      /* La liste reste sous les yeux pendant qu'on descend dans une fiche de volet. */
+      .ouv-liste { position: sticky; top: calc(var(--ss-header-h, var(--header-h)) + var(--sp-4));
+        max-height: calc(100vh - var(--ss-header-h, var(--header-h)) - var(--sp-6)); overflow-y: auto; padding: 2px; }
+      .ouv-retour { display: none !important; }
+    }
+    @container ouvertures (max-width: 679.98px) {
+      .ouv-lf.vue-liste .ouv-fiche { display: none; }
+      .ouv-lf:not(.vue-liste) .ouv-liste { display: none; }
+    }
+    /* Une fiche plus étroite que l'écran (bureau à deux colonnes) : les grilles du formulaire
+       suivent la FICHE. Les replis de base.css suivent l'écran, donc une grille à 4 colonnes
+       serait restée à 4 dans 575 px — des menus de 130 px qui coupent « 38 — 7016 Gris
+       anthracite ». Trois colonnes gardent les `span 2` du bloc Coolscreen valides. */
+    @container fiche (max-width: 759.98px) { .ouv-fiche .grid-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @container fiche (max-width: 519.98px) { .ouv-fiche .grid-4, .ouv-fiche .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container fiche (max-width: 379.98px) {
+      .ouv-fiche .grid-2, .ouv-fiche .grid-3, .ouv-fiche .grid-4 { grid-template-columns: minmax(0, 1fr); }
+      .ouv-fiche .grid-2 > *, .ouv-fiche .grid-3 > *, .ouv-fiche .grid-4 > * { grid-column: auto !important; }
+    }
+
+    .ol-item { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: var(--sp-2); row-gap: 1px; align-items: center;
+      width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md);
+      background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; transition: border-color var(--t-fast); }
+    .ol-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+    .ol-item[aria-current="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); box-shadow: var(--glow-soft); }
+    .ol-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ol-n, .item-no { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border-radius: var(--r-sm);
+      background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-sm); }
+    .ol-n { grid-row: span 4; align-self: start; }
+    .ol-t { font-weight: 600; font-size: var(--fs-sm); min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+    .ol-s { font-size: var(--fs-2xs); color: var(--text-muted); min-width: 0; overflow-wrap: anywhere; }
+    .ol-m { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .ol-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+    .ol-chips:empty { display: none; }
+    .ol-cmp { border-style: dashed; }
+    /* « ≠ » n'existe pas dans Orbitron (police des numéros) : il tombait sur un glyphe de repli. */
+    .ol-cmp .ol-n, .cmp-badge { background: var(--accent-3); font-family: var(--font-body); }
+    .ol-cmp[disabled] { cursor: default; opacity: 0.7; }
+
+    /* Les deux signes de l'outil des différences. La palette évite le vert et le rouge (règle 36 :
+       ils diraient « c'est bon » / « erreur ») : VIOLET pour une valeur qui DIFFÈRE des autres
+       ouvertures du même type, AMBRE pour un champ VIDE que les autres ont rempli. */
+    .ec-chip { font-family: var(--font-mono); font-size: var(--fs-3xs); letter-spacing: 0.03em; padding: 1px 6px;
+      border-radius: var(--r-sm); border: 1px solid; white-space: nowrap; }
+    .ec-chip-diff { color: var(--accent-3); border-color: color-mix(in srgb, var(--accent-3) 55%, transparent); background: color-mix(in srgb, var(--accent-3) 12%, transparent); }
+    .ec-chip-vide { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+    .ec-diff, .ec-vide { border-radius: var(--r-sm); outline-offset: 3px; }
+    .ec-diff { outline: 1px solid var(--accent-3); background: color-mix(in srgb, var(--accent-3) 8%, transparent); }
+    .ec-vide { outline: 1px dashed var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+    .ec-note { font-size: var(--fs-2xs); line-height: 1.45; margin-top: 0.3rem; overflow-wrap: anywhere; }
+    .ec-note-diff { color: var(--accent-3); }
+    .ec-note-vide { color: var(--warn); }
+    .ec-note .btn { margin-left: 0.3rem; vertical-align: baseline; }
+    .vr-checks .ec-note, .cs8-opts .ec-note { flex-basis: 100%; margin-top: 0; }
+
+    .item-titre { display: flex; flex-direction: column; min-width: 8ch; flex: 1 1 150px; line-height: 1.3; }
+    .item-titre strong { font-size: var(--fs-md); }
+    .item-titre span { font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; }
+    .item-nav { display: inline-flex; gap: 4px; }
+    /* Le retour (section étroite seulement) a sa propre ligne : à côté du numéro, il repoussait le
+       titre de la fiche sur une troisième rangée. */
+    .item-card-head .ouv-retour { flex: 1 0 100%; justify-content: flex-start; }
+    .ic-grp-t { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: .06em; text-transform: uppercase;
+      color: var(--text-subtle); margin: var(--sp-4) 0 var(--sp-2); }
+    .ajout-ouv { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-4); }
+    .ajout-ouv small { color: var(--text-subtle); font-size: var(--fs-2xs); }
+
+    .cmp-bloc { border: 1px solid color-mix(in srgb, var(--accent-3) 40%, var(--border)); border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--accent-3) 6%, var(--surface-2)); padding: var(--sp-3) var(--sp-4); }
+    .cmp-bloc + .cmp-bloc { margin-top: var(--sp-3); }
+    .cmp-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-3); margin-bottom: var(--sp-2); }
+    .cmp-t strong { font-size: var(--fs-sm); }
+    .cmp-t span { font-size: var(--fs-xs); color: var(--text-muted); }
+    .cmp-l { display: grid; grid-template-columns: minmax(0, 160px) minmax(0, 1fr); gap: 4px var(--sp-3); padding: var(--sp-2) 0;
+      border-top: 1px dashed color-mix(in srgb, var(--accent-3) 35%, var(--border)); font-size: var(--fs-xs); }
+    .cmp-k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .05em; color: var(--text-subtle); overflow-wrap: anywhere; }
+    .cmp-v { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+    .cmp-ref { color: var(--text-muted); overflow-wrap: anywhere; }
+    .cmp-aller { font: inherit; font-size: var(--fs-xs); text-align: left; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: var(--r-sm);
+      border: 1px solid color-mix(in srgb, var(--accent-3) 50%, transparent); background: color-mix(in srgb, var(--accent-3) 10%, transparent);
+      color: var(--accent-3); font-weight: 600; overflow-wrap: anywhere; max-width: 100%; }
+    .cmp-aller.vide { border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--warn); }
+    .cmp-rien { font-size: var(--fs-xs); color: var(--text-muted); margin: 0; }
+    @container fiche (max-width: 519.98px) { .cmp-l { grid-template-columns: minmax(0, 1fr); } }
+    @media (pointer: coarse) { .ol-item { min-height: 52px; } .cmp-aller { min-height: 44px; } }
+
     .photos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
     .photo-thumb { position: relative; width: 64px; height: 64px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-strong); }
     .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -111,7 +220,10 @@
     @media (max-width: 560px) { .id-badge { display: none; } }
 
     /* ── Bloc configurateur spécifique produit (ex: Coolscreen 8) ── */
-    .cs8-block { border: 1px dashed var(--accent-3); border-radius: var(--r-md); padding: var(--sp-4); background: color-mix(in srgb, var(--accent-3) 6%, transparent); }
+    /* ⚠️ PLUS DE CADRE AUTOUR DU CONFIGURATEUR (08/11/2026). Le pointillé violet faisait du bloc
+       une deuxième carte DANS la carte : « les encadrés, j'arrive pas bien à tout différencier »
+       (Nicolas). C'est une PARTIE de la fiche, donc un filet et un titre suffisent. */
+    .cs8-block { border-top: 1px solid var(--border); padding-top: var(--sp-4); }
     /* `flex-wrap: wrap`, pour la meme raison que `.item-card-head` et il faut les deux : titre en
        Orbitron majuscules espacees + badge « Portail Harol » insecable = 232,9 px de minimum pour
        213 disponibles. Faire ceder la seule rangee des boutons laissait celle-ci reclamer encore
@@ -256,8 +368,20 @@
           <span class="section-sub" id="itemsCount">0 ouverture · 0,00 m²</span>
         </div>
         <div class="section-body">
-          <div id="itemsContainer"></div>
-          <button class="btn btn-ghost" onclick="markDirty(); addItem();">+ Ajouter une ouverture</button>
+          <div class="ouv-lf" id="ouvLf">
+            <div class="ouv-lf-in">
+              <nav class="ouv-liste" id="ouvListe" aria-label="Les ouvertures du devis"></nav>
+              <div class="ouv-fiche" id="ouvFiche">
+                <div id="ouvComparer" hidden></div>
+                <div id="itemsContainer"></div>
+              </div>
+            </div>
+          </div>
+          <div class="ajout-ouv">
+            <button class="btn btn-primary" id="btnAjouterOuv" onclick="markDirty(); ajouterCommePrecedente();">+ Ajouter une ouverture</button>
+            <button class="btn btn-ghost" id="btnAutreProduit" onclick="markDirty(); ajouterVierge();">+ Autre produit</button>
+            <small id="ajoutAide"></small>
+          </div>
           <!-- Autocomplétion (champs libres, ces listes ne sont que des suggestions) -->
           <datalist id="dl-modeles"></datalist>
           <datalist id="dl-couleurs"></datalist>
@@ -721,16 +845,34 @@
       ui_recalc();
     };
 
+    /* Comment une ouverture se nomme à l'écran : « Volet 3 », le numéro étant celui de la colonne #
+       du devis (c'est aussi lui que cite l'encadré « Différences », `SSVolet.nomLigne`). */
+    function nomOuverture(it, i) {
+      const formes = (SSUI.TYPE_FORMES || {})[it && it.type];
+      return (formes ? formes[0] : (ITEM_TYPES[it && it.type] || 'Ouverture')) + ' ' + (i + 1);
+    }
+    function lieuOuverture(it) {
+      return [String((it && it.emplacement) || '').trim(), SSUI.etageLisible ? SSUI.etageLisible(it && it.etage) : (it && it.etage)]
+        .filter(Boolean).join(' · ');
+    }
+
     function itemTemplate(item, idx) {
       const opt = (o, val, lbl) => `<option value="${val}" ${o===val?'selected':''}>${lbl}</option>`;
       const typeOpts = Object.entries(ITEM_TYPES).map(([v, l]) => opt(item.type, v, l)).join('');
       const photos = (item.photos || []).map((p, pi) =>
         `<div class="photo-thumb"><img src="${p}" alt=""><button title="Retirer" aria-label="Retirer la photo" onclick="removePhoto('${item._id}',${pi})">✕</button></div>`).join('');
+      const n = state.items.length;
       return `
-      <div class="item-card" data-id="${item._id}">
+      <div class="item-card" data-id="${item._id}" ${idx === SEL && !VUE_CMP ? '' : 'hidden'}>
         <div class="item-card-head">
-          <span class="item-no">#${idx + 1}</span>
+          <button class="btn btn-ghost btn-sm ouv-retour" onclick="voirListeOuvertures()">← Les ${n} ouverture${n > 1 ? 's' : ''}</button>
+          <span class="item-no" aria-hidden="true">${idx + 1}</span>
+          <div class="item-titre"><strong data-titre>${escHtml(nomOuverture(item, idx))}</strong><span data-lieu>${escHtml(lieuOuverture(item) || 'Emplacement à préciser')}</span></div>
           <span class="item-sub" data-sub></span>
+          <span class="item-nav">
+            <button class="btn btn-ghost btn-sm" onclick="choisirOuverture(${idx - 1})" ${idx === 0 ? 'disabled' : ''} aria-label="Ouverture précédente" title="Ouverture précédente">‹</button>
+            <button class="btn btn-ghost btn-sm" onclick="choisirOuverture(${idx + 1})" ${idx === n - 1 ? 'disabled' : ''} aria-label="Ouverture suivante" title="Ouverture suivante">›</button>
+          </span>
           <button class="btn btn-ghost btn-sm" onclick="duplicateItem('${item._id}')"
             title="Dupliquer cette ouverture — tout sauf les photos">⧉ Dupliquer</button>
           <button class="btn btn-danger btn-sm" onclick="removeItem('${item._id}')">✕ Retirer</button>
@@ -741,7 +883,8 @@
           ${moteurFieldHtml(item)}
           <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
         </div>
-        <div class="grid grid-4 mt-4">
+        <div class="ic-grp-t">Mesures et prix</div>
+        <div class="grid grid-3">
           <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="largeur" value="${item.largeur || ''}"></div>
           ${item.type === 'tente_solaire'
             // Une tente solaire se mesure en largeur × PROJECTION (l'avancée) : la hauteur n'a
@@ -750,8 +893,13 @@
             // carte feraient que collectItem ne garderait que le dernier du DOM).
             ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
             : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
+          <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
+        </div>
+        <div class="ic-grp-t">Où</div>
+        <div class="grid grid-3">
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" data-memo="emplacement" list="dl-emplacements" value="${escHtml(item.emplacement)}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" data-memo="etage" list="dl-etages" value="${escHtml(item.etage)}" placeholder="RDC"></div>
+          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${escHtml(item.notes)}"></div>
         </div>
         ${item.type !== 'screen' ? `
         <div class="grid grid-auto mt-4">
@@ -765,10 +913,6 @@
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}
         ${voletBlockHtml(item)}
-        <div class="grid grid-2 mt-4">
-          <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
-          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${escHtml(item.notes)}"></div>
-        </div>
         <div class="field mt-4">
           <label class="label">Photos</label>
           <div class="photos">${photos}<label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Photo<input type="file" accept="image/*" multiple hidden onchange="addPhotos('${item._id}', this)"></label></div>
@@ -788,14 +932,55 @@
     };
 
     let _uid = 0;
+    /* L'ouverture affichée dans la fiche (index dans `state.items`), et les deux vues :
+       la comparaison (« ce qui change ») et, sur une section étroite, la liste seule. */
+    let SEL = 0, VUE_CMP = false, VUE_LISTE = false;
     window.addItem = (data = {}) => {
       const item = { _id: 'it' + (++_uid), type: 'screen', quantite: 1, photos: [], ...data };
       if (!item.photos) item.photos = [];
       state.items.push(item);
+      SEL = state.items.length - 1; VUE_CMP = false; VUE_LISTE = false;
       renderItems();
       ui_recalc();
+      return item;
     };
-    window.removeItem = (id) => { markDirty(); state.items = state.items.filter(i => i._id !== id); renderItems(); ui_recalc(); };
+    /** Met la largeur de la fiche affichée sous le curseur : c'est le premier chiffre à saisir
+     *  (« + Ajouter ») ou à revoir (« Dupliquer »). */
+    function largeurSousLeCurseur(id) {
+      const card = document.querySelector(`[data-id="${id}"]`);
+      if (!card) return;
+      voirFicheEnHaut();
+      const l = card.querySelector('[data-f="largeur"]');
+      if (l) { l.focus({ preventScroll: true }); l.select(); }
+    }
+    /**
+     * « + AJOUTER UNE OUVERTURE » reprend la configuration de la PRÉCÉDENTE (la dernière de la
+     * liste), sans mesures, emplacement, notes, photos ni prix. La règle vit dans
+     * `SSProducts.nouvelleOuvertureDepuis` (règle 10) : le Mode Terrain ajoute aussi.
+     * Sans ouverture du tout, on part d'une ouverture vierge, comme avant.
+     */
+    window.ajouterCommePrecedente = () => {
+      const prec = state.items[state.items.length - 1];
+      const item = addItem(prec ? window.SSProducts.nouvelleOuvertureDepuis(prec) : {});
+      largeurSousLeCurseur(item._id);
+      if (prec) toast(`${nomOuverture(item, state.items.length - 1)} : même configuration que la précédente — saisis ses mesures.`, 'ok');
+    };
+    /** « + Autre produit » : une ouverture VIERGE, pour changer de produit (l'ancien « + Ajouter »). */
+    window.ajouterVierge = () => {
+      const item = addItem();
+      const card = document.querySelector(`[data-id="${item._id}"]`);
+      voirFicheEnHaut();
+      const t = card && card.querySelector('[data-f="type"]');
+      if (t) t.focus({ preventScroll: true });
+    };
+    window.removeItem = (id) => {
+      markDirty();
+      const i = state.items.findIndex(x => x._id === id);
+      state.items = state.items.filter(x => x._id !== id);
+      // On reste à la même place dans la liste : l'ouverture suivante prend la fiche.
+      SEL = Math.max(0, Math.min(i, state.items.length - 1));
+      renderItems(); ui_recalc();
+    };
 
     /**
      * DUPLIQUER UNE OUVERTURE — tout le configurateur, aucune photo.
@@ -816,14 +1001,192 @@
       copie._id = 'it' + (++_uid);      // l'identité appartient à cette page, pas au module
       markDirty();
       state.items.splice(i + 1, 0, copie);
+      SEL = i + 1; VUE_CMP = false; VUE_LISTE = false;
       renderItems();
       ui_recalc();
-      const card = document.querySelector(`[data-id="${copie._id}"]`);
-      if (!card) return;
-      card.scrollIntoView({ block: 'nearest' });
-      const l = card.querySelector('[data-f="largeur"]');
-      if (l) { l.focus(); l.select(); }
+      largeurSousLeCurseur(copie._id);
       toast('Ouverture dupliquée — vérifie les mesures.', 'ok');
+    };
+
+    /* ══ LA LISTE, LA FICHE, LA COMPARAISON ══════════════════════════════════════════════════
+       L'analyse vient de `SSProducts.ecartsOuvertures` (règle 10) : c'est la même idée que
+       l'encadré « Différences » du devis, mais sur TOUS les champs — perçage et rivets compris,
+       puisque c'est la commande qu'on prépare ici, pas le document du client. */
+    let ANALYSE = [];
+    function ecartsOuverture(i) { return window.SSProducts.ecartsDe(ANALYSE, i); }
+    /** Ce qui reste à remplir sur une ouverture : les champs BLOQUANTS (règle 36, seulement si
+     *  elle est commencée) et les champs VIDES que les autres ouvertures du type ont remplis. */
+    function aRemplir(it, i) {
+      const cles = new Set();
+      if (window.SSSignal && window.SSSignal.commencee(it)) window.SSProducts.champsManquants(it).forEach(c => cles.add(c.k));
+      ecartsOuverture(i).filter(e => e.etat === 'vide').forEach(e => cles.add(e.k));
+      return cles.size;
+    }
+    function puces(it, i) {
+      const diff = ecartsOuverture(i).filter(e => e.etat === 'diff').length;
+      const vide = aRemplir(it, i);
+      return (vide ? `<span class="ec-chip ec-chip-vide">${vide} à remplir</span>` : '') +
+        (diff ? `<span class="ec-chip ec-chip-diff">≠ ${diff} écart${diff > 1 ? 's' : ''}</span>` : '');
+    }
+    const fmtMm = (v) => (Number(v) > 0 ? Math.round(Number(v)).toLocaleString('fr-BE') : '—');
+    function mesuresCourtes(it) {
+      const d2 = it.type === 'tente_solaire' ? it.projection : it.hauteur;
+      return `${fmtMm(it.largeur)} × ${fmtMm(d2)}${(Number(it.quantite) || 1) > 1 ? ' · ×' + it.quantite : ''} · ${fmtEur((it.prix_catalogue_ht || 0) * (it.quantite || 1))}`;
+    }
+    /** Les numéros en mots : « volets 1, 2 et 4 », « volet 3 ». */
+    function lignesEnMots(type, ix) {
+      const formes = (SSUI.TYPE_FORMES || {})[type] || ['ouverture', 'ouvertures'];
+      const n = ix.map(i => i + 1);
+      return n.length === 1 ? formes[0].toLowerCase() + ' ' + n[0]
+        : formes[1].toLowerCase() + ' ' + n.slice(0, -1).join(', ') + ' et ' + n[n.length - 1];
+    }
+    const valeurLue = (l, v) => (l.check ? (v ? 'coché' : 'non coché') : (v === '' ? 'vide' : v));
+
+    function renderListe() {
+      const L = el('ouvListe');
+      if (!L) return;
+      const focus = document.activeElement && L.contains(document.activeElement) ? document.activeElement.getAttribute('data-ol') : null;
+      const items = state.items.map((it, i) => `
+        <button type="button" class="ol-item" data-ol="${i}" onclick="choisirOuverture(${i})" aria-current="${!VUE_CMP && i === SEL}">
+          <span class="ol-n" aria-hidden="true">${i + 1}</span>
+          <span class="ol-t">${escHtml(nomOuverture(it, i))}</span>
+          <span class="ol-s">${escHtml(lieuOuverture(it) || 'Emplacement à préciser')}</span>
+          <span class="ol-m">${escHtml(mesuresCourtes(it))}</span>
+          <span class="ol-chips">${puces(it, i)}</span>
+        </button>`).join('');
+      const nbEcarts = ANALYSE.reduce((s, b) => s + b.lignes.length, 0);
+      const cmp = `<button type="button" class="ol-item ol-cmp" data-ol="cmp" onclick="voirComparaison()" aria-current="${VUE_CMP}" ${ANALYSE.length ? '' : 'disabled'}>
+          <span class="ol-n" aria-hidden="true">≠</span>
+          <span class="ol-t">Comparer</span>
+          <span class="ol-s">${ANALYSE.length ? (nbEcarts ? `${nbEcarts} réglage${nbEcarts > 1 ? 's' : ''} diffère${nbEcarts > 1 ? 'nt' : ''}` : 'Tout est identique') : 'Il faut deux ouvertures du même type'}</span>
+        </button>`;
+      L.innerHTML = items + (state.items.length > 1 ? cmp : '');
+      if (focus !== null) { const b = L.querySelector(`[data-ol="${focus}"]`); if (b) b.focus({ preventScroll: true }); }
+      const prec = state.items[state.items.length - 1];
+      setText('ajoutAide', prec ? `Reprend la configuration de « ${nomOuverture(prec, state.items.length - 1)} », sans mesures, emplacement ni prix.` : '');
+    }
+
+    function renderComparaison() {
+      const C = el('ouvComparer');
+      if (!C) return;
+      const n = state.items.length;
+      const tete = `<div class="item-card-head"><button class="btn btn-ghost btn-sm ouv-retour" onclick="voirListeOuvertures()">← Les ${n} ouverture${n > 1 ? 's' : ''}</button>
+        <span class="item-no cmp-badge" aria-hidden="true">≠</span>
+        <div class="item-titre"><strong>Ce qui change entre les ouvertures</strong><span>Même type, réglage par réglage — mesures, prix et emplacement à part.</span></div></div>`;
+      if (!ANALYSE.length) {
+        C.innerHTML = tete + '<p class="cmp-rien">Rien à comparer : il faut au moins deux ouvertures du même type, déjà configurées.</p>';
+        return;
+      }
+      C.innerHTML = tete + ANALYSE.map(b => {
+        const formes = (SSUI.TYPE_FORMES || {})[b.type] || ['Ouverture', 'Ouvertures'];
+        const titre = `Les ${b.indices.length} ${formes[1].toLowerCase()} (${b.indices.map(i => i + 1).join(', ')})`;
+        const lignes = b.lignes.map(l => {
+          const pareils = l.ouvertures.filter(o => o.etat === 'pareil').map(o => o.i);
+          const ex = l.ouvertures.filter(o => o.etat !== 'pareil').map(o => {
+            const it = state.items[o.i];
+            const lieu = String(it.emplacement || '').trim();
+            return `<button type="button" class="cmp-aller${o.etat === 'vide' ? ' vide' : ''}" onclick="allerAuChamp(${o.i}, ${jsAttr(l.k)})">${escHtml(valeurLue(l, o.v))} — ${escHtml(nomOuverture(it, o.i))}${lieu ? ' (' + escHtml(lieu) + ')' : ''} →</button>`;
+          }).join('');
+          return `<div class="cmp-l"><span class="cmp-k">${escHtml(l.l)}</span><span class="cmp-v">
+            <span class="cmp-ref">${escHtml(valeurLue(l, l.ref))} — ${escHtml(pareils.length ? lignesEnMots(b.type, pareils) : '')}</span>${ex}</span></div>`;
+        }).join('');
+        return `<div class="cmp-bloc"><div class="cmp-t"><strong>${escHtml(titre)}</strong><span>${b.communs} réglage${b.communs > 1 ? 's' : ''} identique${b.communs > 1 ? 's' : ''} sur toutes</span></div>
+          ${lignes || '<p class="cmp-rien">Exactement la même configuration.</p>'}</div>`;
+      }).join('');
+    }
+
+    /* ⚠️ RETIRER AVANT DE POSER (même discipline que le signal, règle 36) : un écart corrigé ne
+       doit pas garder son liseré jusqu'au prochain rendu de la carte. Et un bloc re-rendu (le
+       VR150 quand un champ pilote change) doit être re-marqué : `majVue` repasse après chaque
+       recalcul, qui suit chaque collecte. */
+    function marquerEcarts(card, i) {
+      if (!card) return;
+      card.querySelectorAll('.ec-diff, .ec-vide').forEach(x => x.classList.remove('ec-diff', 'ec-vide'));
+      card.querySelectorAll('.ec-note').forEach(x => x.remove());
+      ecartsOuverture(i).forEach(e => {
+        const champ = card.querySelector(`[data-f="${e.k}"]`);
+        if (!champ) return;
+        const env = champ.type === 'checkbox' ? (champ.closest('label') || champ.parentElement) : (champ.closest('.field') || champ.parentElement);
+        if (!env) return;
+        env.classList.add(e.etat === 'vide' ? 'ec-vide' : 'ec-diff');
+        const note = document.createElement('div');
+        note.className = 'ec-note ' + (e.etat === 'vide' ? 'ec-note-vide' : 'ec-note-diff');
+        note.textContent = e.etat === 'vide'
+          ? 'Vide ici — les autres ont : ' + valeurLue(e, e.ref)
+          : '≠ Les autres ont : ' + valeurLue(e, e.ref);
+        if (e.etat === 'vide' && !e.check) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = 'Reprendre';
+          b.setAttribute('aria-label', 'Reprendre la valeur des autres : ' + e.ref);
+          b.addEventListener('click', () => reprendreValeur(champ, e.ref));
+          note.append(' ', b);
+        }
+        if (env.tagName === 'LABEL') env.insertAdjacentElement('afterend', note); else env.appendChild(note);
+      });
+      // Le néon suit l'analyse qu'on vient de refaire (la collecte l'a posé sur la précédente).
+      signaler(card, state.items[i]);
+    }
+    /** LE NÉON D'UNE CARTE : les champs qui bloquent la commande (règle 36) ET — décision de Nicolas
+     *  du 08/11/2026, règle 60 — les champs VIDES que la plupart des autres ouvertures du type ont
+     *  remplis. C'est ce qui aurait allumé l'ajourage du 4e volet, sans allumer les vides normaux. */
+    function signaler(card, it) {
+      if (!window.SSSignal || !card || !it) return;
+      const i = state.items.indexOf(it);
+      const vides = i < 0 ? [] : ecartsOuverture(i).filter(e => e.etat === 'vide').map(e => e.k);
+      window.SSSignal.appliquer(card, it, vides);
+    }
+    /** « Reprendre » rejoue le GESTE (règle 31 sexies) : la valeur posée, puis `input` et
+     *  `change`, comme le nuancier — c'est ce qui déclenche la collecte, le RAL et le recalcul. */
+    function reprendreValeur(champ, valeur) {
+      champ.value = valeur;
+      if (champ.value !== valeur) { toast('Cette valeur n’est pas proposée ici — choisis-la dans le menu.', 'warn'); champ.focus(); return; }
+      champ.dispatchEvent(new Event('input', { bubbles: true }));
+      champ.dispatchEvent(new Event('change', { bubbles: true }));
+      markDirty();
+    }
+
+    function majVue() {
+      ANALYSE = window.SSProducts.ecartsOuvertures(state.items);
+      renderListe();
+      const lf = el('ouvLf');
+      if (lf) lf.classList.toggle('vue-liste', VUE_LISTE);
+      const C = el('ouvComparer');
+      if (C) { C.hidden = !VUE_CMP; if (VUE_CMP) renderComparaison(); }
+      document.querySelectorAll('.item-card').forEach(card => {
+        const i = state.items.findIndex(x => x._id === card.dataset.id);
+        card.hidden = VUE_CMP || i !== SEL;
+        if (!card.hidden) {
+          const it = state.items[i];
+          card.querySelector('[data-titre]').textContent = nomOuverture(it, i);
+          card.querySelector('[data-lieu]').textContent = lieuOuverture(it) || 'Emplacement à préciser';
+          marquerEcarts(card, i);
+        }
+      });
+    }
+    /** Remonte au haut de la fiche si on l'a quittée (une fiche de volet fait 1 500 px : choisir
+     *  une autre ouverture dans la liste, restée collée en haut, laissait voir le BAS de la suivante). */
+    function voirFicheEnHaut() {
+      const f = el('ouvLf');
+      if (!f) return;
+      const h = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ss-header-h')) || 60;
+      if (f.getBoundingClientRect().top < h) f.scrollIntoView({ block: 'start' });
+    }
+    window.choisirOuverture = (i) => {
+      if (i < 0 || i >= state.items.length) return;
+      SEL = i; VUE_CMP = false; VUE_LISTE = false;
+      majVue();
+      voirFicheEnHaut();
+    };
+    window.voirComparaison = () => { VUE_CMP = true; VUE_LISTE = false; majVue(); voirFicheEnHaut(); };
+    window.voirListeOuvertures = () => { VUE_LISTE = true; majVue(); voirFicheEnHaut(); };
+    /** Depuis la comparaison : la fiche de l'ouverture, et le champ qui s'écarte sous les yeux. */
+    window.allerAuChamp = (i, k) => {
+      choisirOuverture(i);
+      const card = document.querySelector(`[data-id="${state.items[i] && state.items[i]._id}"]`);
+      const champ = card && card.querySelector(`[data-f="${k}"]`);
+      if (!champ) return;
+      if (window.SSSignal) window.SSSignal.viser(champ);
+      else { champ.scrollIntoView({ block: 'center' }); champ.focus({ preventScroll: true }); }
     };
     window.removePhoto = (id, pi) => { markDirty(); const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
     window.addPhotos = (id, input) => {
@@ -862,7 +1225,7 @@
             // Le bloc volet vient d'être remplacé (règle 31 quinquies) : ses champs sont des
             // ÉLÉMENTS NEUFS, donc sans signal. Même famille que `bind` — ce qui est re-rendu
             // doit être re-décoré, sinon le halo disparaît au premier changement d'alimentation.
-            if (window.SSSignal) window.SSSignal.appliquer(card, it);
+            signaler(card, it);
           }
           RAL_PRECEDENT.set(it._id, it.couleur || '');
           ui_recalc();
@@ -880,8 +1243,10 @@
         brancherCarte(it, carte);
         // Une carte fraîchement dessinée (devis rouvert, ouverture dupliquée) n'a encore
         // déclenché aucune collecte : sans ceci, rien ne s'allumerait avant la première frappe.
-        if (window.SSSignal) window.SSSignal.appliquer(carte, it);
+        signaler(carte, it);
       });
+      if (SEL >= state.items.length) SEL = Math.max(0, state.items.length - 1);
+      majVue();
     }
 
     function collectItem(it, card) {
@@ -895,12 +1260,13 @@
       const dim2 = it.type === 'tente_solaire' ? it.projection : it.hauteur;
       const surf = it.largeur > 0 && dim2 > 0 ? ((it.largeur/1000)*(dim2/1000)).toFixed(2) + ' m²' : '—';
       const sub = card.querySelector('[data-sub]');
-      if (sub) sub.textContent = `${ITEM_TYPES[it.type] || it.type} · ${surf} · ${fmtEur((it.prix_catalogue_ht||0)*(it.quantite||1))}`;
+      // Le type est dans le titre de la fiche (« Volet 3 ») : le sous-titre garde la surface et le prix.
+      if (sub) sub.textContent = `${surf} · ${fmtEur((it.prix_catalogue_ht||0)*(it.quantite||1))}`;
       /* ⚠️ LE SIGNAL SE REPOSE À CHAQUE COLLECTE, pas seulement au rendu de la carte.
          Posé au seul rendu, un champ qu'on vient de remplir gardait son halo jusqu'au prochain
          rendu complet : du néon sur un champ plein, et le signal perd tout son crédit en deux
          minutes. `collectItem` est le seul endroit qui sache ce qui vient d'être saisi. */
-      if (window.SSSignal) window.SSSignal.appliquer(card, it);
+      signaler(card, it);
     }
 
     // ── EXTRAS ──
@@ -1232,6 +1598,9 @@
       document.querySelectorAll('.item-card').forEach(card => {
         const it = state.items.find(i => i._id === card.dataset.id); if (it) collectItem(it, card);
       });
+      // La liste, les écarts et la fiche affichée suivent chaque saisie (emplacement tapé, coulisse
+      // changée) : c'est ici que passent toutes les collectes.
+      majVue();
     };
 
     // ── CLIENT ──
@@ -1500,6 +1869,9 @@
       const CONF = window.SSConf ? await window.SSConf.charger() : null;
       if (qp('id')) {
         await loadExisting(qp('id'));
+        // Un devis rouvert sur téléphone s'ouvre sur la LISTE de ses ouvertures (la vue d'ensemble) ;
+        // au bureau la liste est de toute façon à côté de la fiche.
+        VUE_LISTE = state.items.length > 1;
       } else {
         // Arrivée directe en dépannage (lien « Nouveau dépannage » du tableau de bord).
         if (qp('type') === 'depannage') {

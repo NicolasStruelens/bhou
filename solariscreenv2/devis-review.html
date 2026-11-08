@@ -465,26 +465,18 @@
       let rows = '';
       /* L'encadré de configuration, identique à celui du PDF (voir `app/devis.html`).
          Il ne porte QUE le niveau client : jamais les références de commande Harol. */
-      /* ⚠️ UN SEUL ENCADRÉ POUR DES OUVERTURES IDENTIQUES — même règle que le PDF, et c'est
-         obligatoire : le MÊME client lit les deux documents (règle 7). La règle vit dans
-         `SSVolet.groupesConfig`, jamais recopiée ici. */
+      /* ⚠️ UN ENCADRÉ COMMUN, PUIS LES DIFFÉRENCES — même règle ET même gabarit que le PDF, et
+         c'est obligatoire : le MÊME client lit les deux documents (règle 7). Le regroupement et le
+         HTML de l'encadré vivent dans `SSVolet` (`groupesConfig`, `encadreHtml`), jamais recopiés
+         ici : la copie précédente du gabarit avait déjà levé une ReferenceError (`d` au lieu de
+         `doc`, audit du 28/10/2026 — le client n'obtenait qu'un onglet vide). */
+      const groupesCfg = window.SSVolet ? window.SSVolet.groupesConfig(doc.items) : [];
       const specBoxHtml = (g) => {
-        if (!g || !g.resume.length) return '';
-        // Les ouvertures sont nécessaires : l'intitulé compte des PRODUITS, pas des lignes.
-        // ⚠️ `doc`, pas `d` : recopiée de app/devis.html (où `d` est le devis), cette ligne levait une
-        // ReferenceError ici — le client qui demandait « Voir le devis complet » d'un devis à encadré de
-        // configuration (volets VR150) n'obtenait qu'un onglet vide (trouvé par l'audit du 28/10/2026).
-        const t = window.SSVolet.titreGroupe(g.indices, doc.items);
-        return `<tr class="spec-row"><td></td><td class="desc" colspan="5">
-          <div class="spec-box">
-            <div class="spec-box-t">Configuration retenue${t ? ' — ' + esc(t) : ''}</div>
-            <div class="spec-box-l">${g.resume.map(x => x.coche
-              ? `<span class="spec-box-i spec-box-f">${esc(x.l)}</span>`
-              : `<span class="spec-box-i"><b>${esc(x.l)}</b>${esc(x.v)}</span>`).join('')}</div>
-          </div></td></tr>`;
+        const boite = window.SSVolet.encadreHtml(g, groupesCfg, doc.items);
+        return boite ? `<tr class="spec-row"><td></td><td class="desc" colspan="5">${boite}</td></tr>` : '';
       };
       const groupesSpec = {};
-      (window.SSVolet ? window.SSVolet.groupesConfig(doc.items) : []).forEach(g => {
+      groupesCfg.forEach(g => {
         groupesSpec[g.indices[g.indices.length - 1]] = g;
       });
       (doc.items || []).forEach((it, i) => {

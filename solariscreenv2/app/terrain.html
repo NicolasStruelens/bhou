@@ -764,7 +764,29 @@
       renderItemsStep();
     };
     window.goToItem = function (i) { if (i < 0 || i >= state.items.length) return; currentItemIdx = i; renderItemsStep(); };
-    window.addItemAndGo = function () { markDirty(); addItemSilent(); currentItemIdx = state.items.length - 1; renderItemsStep(); };
+    /* « + » REPREND LA CONFIGURATION DE LA PRÉCÉDENTE (règle 60, « oui » de Nicolas le 08/11/2026) : tout
+       sauf les mesures, l'emplacement, l'étage, les notes, les photos et le prix — la MÊME règle que le
+       simulateur (`SSProducts.nouvelleOuvertureDepuis`). C'est debout chez le client, au doigt, qu'on
+       ressaisit le plus mal un configurateur de trente champs. Le premier chiffre à relever, la largeur,
+       est sous le pouce. Une autre sorte de produit : sa tuile de type, comme avant. */
+    window.addItemAndGo = function () {
+      markDirty();
+      const prec = state.items[state.items.length - 1];
+      addItemSilent(prec ? SSProducts.nouvelleOuvertureDepuis(prec) : {});
+      currentItemIdx = state.items.length - 1;
+      renderItemsStep();
+      if (!prec) return;
+      const l = document.querySelector('.item-card [data-f="largeur"]');
+      if (l) l.focus({ preventScroll: true });
+      toast('Même configuration que l’ouverture précédente — relève ses mesures.', 'ok');
+    };
+    /** Les champs VIDES que la plupart des autres ouvertures du type ont remplis (règle 60) : le signal
+     *  les allume comme un champ bloquant. Le calcul vit dans `products.js`, partagé avec le simulateur. */
+    function videsAutres() {
+      const P = window.SSProducts;
+      if (!P || !P.ecartsOuvertures) return [];
+      return P.ecartsDe(P.ecartsOuvertures(state.items), currentItemIdx).filter(e => e.etat === 'vide').map(e => e.k);
+    }
 
     /**
      * DUPLIQUER L'OUVERTURE AFFICHÉE, et se placer dessus.
@@ -921,7 +943,7 @@
     VOLET_OPTS.bind = (racine) => {
       const it = state.items[currentItemIdx];
       bindItemCard(it, racine);
-      if (window.SSSignal) window.SSSignal.appliquer(racine, it);
+      if (window.SSSignal) window.SSSignal.appliquer(racine, it, videsAutres());
     };
     /** Le sous-titre du bandeau reflète l'emplacement dès qu'on le saisit. */
     function majSousTitre() {
@@ -966,7 +988,7 @@
       bindItemCard(item, c);
       // Une carte fraîchement dessinée n'a déclenché aucune frappe : sans ceci, rien ne
       // s'allumerait avant qu'on touche un champ.
-      if (window.SSSignal) window.SSSignal.appliquer(c, item);
+      if (window.SSSignal) window.SSSignal.appliquer(c, item, videsAutres());
       // La vignette active peut être hors écran quand il y a beaucoup d'ouvertures.
       const active = c.querySelector('.ouv-tile.active');
       if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -1022,7 +1044,7 @@
       majAvis();
       /* Le signal suit la même cadence que le bandeau : c'est la même information, elle ne
          peut pas se mettre à jour à deux rythmes différents sans se contredire à l'écran. */
-      if (window.SSSignal) window.SSSignal.appliquer(host, it);
+      if (window.SSSignal) window.SSSignal.appliquer(host, it, videsAutres());
     }
 
     // ── RÉCAP ──

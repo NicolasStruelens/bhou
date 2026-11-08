@@ -201,11 +201,20 @@
     return manque < tous.length;      // au moins un rempli
   }
 
-  /** @returns {string[]} les clés des champs à allumer — vide tant que l'ouverture est vierge. */
-  function champsASignaler(item) {
+  /**
+   * @param aussi (facultatif) les clés des champs VIDES que les autres ouvertures du même type ont
+   *        remplis (`SSProducts.ecartsDe(…)`, état « vide »). Décision de Nicolas du 08/11/2026 (règle
+   *        60) : sur le devis qui l'a déclenché, l'ajourage du 4e volet était resté vide — il n'est pas
+   *        dans `CHAMPS_REQUIS`, donc rien ne s'allumait, et il s'est noyé parmi cinq vides normaux.
+   *        Ce n'est pas « tout ce qui est vide » (la discipline de la règle 36 tient) : seulement ce
+   *        que LA PLUPART des ouvertures voisines ont rempli, et c'est la page qui le calcule — le
+   *        signal ne connaît qu'une ouverture.
+   * @returns {string[]} les clés des champs à allumer — vide tant que l'ouverture est vierge.
+   */
+  function champsASignaler(item, aussi) {
     if (effet() === 'aucun') return [];
-    if (!commencee(item)) return [];
-    return window.SSProducts.champsManquants(item).map(function (c) { return c.k; });
+    const bloquants = commencee(item) ? window.SSProducts.champsManquants(item).map(function (c) { return c.k; }) : [];
+    return bloquants.concat((aussi || []).filter(function (k) { return bloquants.indexOf(k) < 0; }));
   }
 
   /* ── POSER LE SIGNAL SUR UNE CARTE ────────────────────────────────────────────────────────
@@ -216,9 +225,9 @@
      ⚠️ La classe se pose sur le `.field` (étiquette + contrôle), pas sur le seul `<input>` :
      c'est l'ensemble qui doit se repérer, et plusieurs champs enveloppent leur contrôle dans
      un `.input-unit` (le « € » du prix) qu'un sélecteur sur l'input seul aurait coupé en deux. */
-  function appliquer(racine, item) {
+  function appliquer(racine, item, aussi) {
     if (!racine) return [];
-    const aAllumer = champsASignaler(item);
+    const aAllumer = champsASignaler(item, aussi);
     racine.querySelectorAll('[data-f]').forEach(function (champ) {
       const enveloppe = champ.closest('.field') || champ.parentElement;
       if (!enveloppe) return;
