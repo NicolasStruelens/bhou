@@ -734,6 +734,25 @@
     const t = [it && it.toile_num, it && it.toile_couleur].map((x) => String(x == null ? '' : x).trim()).filter(Boolean).join(' ');
     return t ? 'toile ' + t : '';
   }
+  /* ── LES OPTIONS D'UNE TENTE SOLAIRE, en mots de client — les DEUX exemplaires (règle 7) ──
+     01/11/2026, bac à sable : lambrequin, éclairage LED, détecteur, spots, chauffage se cochent au simulateur et
+     se paient (le prix catalogue saisi les comprend), mais la ligne du devis n'en disait RIEN — le client signait
+     une tente nue et découvrait les options à la pose, ou pire, ne les retrouvait pas. Une tente n'a pas d'encadré
+     de configuration (règle 31) : les options vont sur sa ligne, comme la commande murale (règle 39).
+     ⚠️ Les clés passent la liste blanche du lien client (`AUTRES_CLES_CLIENT` du serveur) : sans elles, le PDF les
+     porterait et pas la page que le client ouvre. */
+  const OPTIONS_CLIENT = [
+    ['couple', 'couplée (raccord jusqu’à 12 m)'], ['lambrequin_fixe', 'lambrequin fixe'], ['lambrequin_vario', 'lambrequin Vario motorisé'],
+    ['eclairage_led', 'éclairage LED'], ['detecteur', 'détecteur soleil / vent / pluie'],
+    ['spots_storelight', 'spots LED Storelight'], ['chauffage_storelight', 'chauffage Storelight'],
+  ];
+  function optionsClient(it) {
+    if (!it) return [];
+    return OPTIONS_CLIENT.filter(([k]) => it[k]).map(([k, l]) => {
+      const v = typeof it[k] === 'string' ? it[k].trim() : '';
+      return k === 'eclairage_led' && v ? l + ' (' + v.charAt(0).toLowerCase() + v.slice(1) + ')' : l;
+    });
+  }
   function isPoseDone(d) {
     if (!d) return false;
     const recDone = !!(d.reception && d.reception.image) || !!d.reception_date;
@@ -2274,7 +2293,7 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp, hoteBacASable: hoteBacASable,
-    normDevis: normDevis, isPoseDone: isPoseDone, couleurClient: couleurClient, toileClient: toileClient, poseAVenir: poseAVenir, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
+    normDevis: normDevis, isPoseDone: isPoseDone, couleurClient: couleurClient, toileClient: toileClient, optionsClient: optionsClient, poseAVenir: poseAVenir, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
     questionRetirerPose: questionRetirerPose, REFUS_RETIRER_POSE: REFUS_RETIRER_POSE,
     isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,

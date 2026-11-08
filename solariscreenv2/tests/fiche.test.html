@@ -235,6 +235,23 @@
         check('P9 Bon de pose : l’article s’enregistre, et l’étape de commande changée ailleurs entre-temps (« Posé ») n’est pas remise à la sienne',
           [(lire('ESSAI-10').picking_items || []).length >= 1, avantP9 !== 'pose', lire('ESSAI-10').commande.statut], [true, true, 'pose']);
         fp.remove();
+        // P9b (audit du 01/11/2026) : la feuille du poseur disait la couleur du caisson DEUX fois sur un volet, la commande
+        // murale sous TROIS noms selon le type, et une main-d'œuvre de 1,5 h « 1.5 ».
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.items[0].couleur', '7016 — Gris anthracite · réf. 7m16st (laque texturée)') WHERE id = 'ESSAI-03'");
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.calculs.extra_lines', json('[{\"label\":\"Supplément main-d’œuvre\",\"qty\":1.5,\"unit_price\":45,\"total\":67.5}]')) WHERE id = 'ESSAI-05'");
+        const feuillePose = async (id) => {
+          const fk = await BANC.cadre('../app/picking.html?id=' + id, 1100, 900);
+          await attendreQue(() => fk.contentDocument.querySelector('#paper td.details'), 8000);
+          await attendre(150);
+          const t = [...fk.contentDocument.querySelectorAll('#paper tr')].map(tr => tr.textContent.replace(/\s+/g, ' '));
+          fk.remove();
+          return t.join(' | ');
+        };
+        const pv = await feuillePose('ESSAI-03'), pt = await feuillePose('ESSAI-05'), ps = await feuillePose('ESSAI-07');
+        check('P9b Bon de pose : la couleur du caisson UNE fois sur un volet (avec sa référence Harol, utile pour commander), la commande murale sous UN seul nom sur les trois types, et « 1,5 »',
+          [(pv.match(/Couleur (du )?caisson/g) || []).length, /réf\. 7m16st/.test(pv), [pv, pt, ps].map(x => /Commande murale Somfy individuelle incluse/.test(x)),
+           [pv, pt, ps].some(x => /Émetteur inclus|Commande à distance/.test(x)), /Supplément main-d’œuvre[\s—]*1,5/.test(pt)],
+          [1, true, [true, true, true], false, true]);
         // P10 : le PV de réception relit le statut au moment d'écrire.
         const fr = await BANC.cadre('../app/reception.html?id=ESSAI-17', 1100, 900);
         const wr = fr.contentWindow, dr = fr.contentDocument;
