@@ -108,8 +108,12 @@
       ['toile', 'Toile'], ['projection', 'Projection (mm)'], ['eclairage_led', 'Éclairage LED'],
       ['panneau_cable', 'Câble panneau solaire'],
     ];
+    /* ⚠️ `emetteur` (volet, screen) et `telecommande` (tente) sont la MÊME chose : la feuille les
+       disait « Émetteur inclus », « Commande à distance » et « Commande murale Somfy incluse »
+       selon le type — trois noms, et le poseur se demande s'il manque une pièce. Une seule phrase,
+       celle du devis (SSUI.MENTION_COMMANDE, règle 39), posée par `technicalDetails`. */
     const FIELD_BOOLS = [
-      ['emetteur', 'Émetteur inclus'], ['panneau_solaire_separe', 'Panneau solaire déporté'], ['telecommande', 'Commande à distance'],
+      ['panneau_solaire_separe', 'Panneau solaire déporté'],
       ['allongement_caisson', 'Allongement caisson'], ['barre_surelevee', 'Barre de charge surélevée (A2416)'], ['couple', 'Couplé (≤12 m)'],
       ['lambrequin_fixe', 'Lambrequin fixe'], ['lambrequin_vario', 'Lambrequin Vario'],
       ['detecteur', 'Détecteur soleil/vent/pluie'], ['spots_storelight', 'Spots Storelight'],
@@ -127,11 +131,19 @@
          commander. `SSVolet.resume(it, 'complet')` sort de la MÊME table que le formulaire de
          saisie — ce qui a été saisi est donc, par construction, ce qui est imprimé ici. */
       const V = window.SSVolet;
+      const commande = window.SSUI.commandeIncluse(it) ? window.SSUI.MENTION_COMMANDE : '';
       if (V && V.estVolet(it)) {
-        V.resume(it, 'complet').forEach(x => parts.push(`<strong>${esc(x.l)}:</strong> ${esc(x.v)}`));
+        /* La couleur du caisson est DÉJÀ dans le résumé (« Couleur du caisson »), mais normalisée
+           pour le client : la référence de commande Harol (« réf. 7m16st ») en est retirée. Ici,
+           feuille interne, c'est elle qu'on veut — on écrit donc la valeur saisie, une seule fois
+           (elle sortait deux fois : « Couleur du caisson » ET « Couleur caisson/RAL »). */
+        V.resume(it, 'complet').forEach(x => {
+          if (x.k === 'emetteur') { if (commande) parts.push(`<strong>${esc(commande)}:</strong> Oui`); return; }
+          const v = x.k === 'couleur' ? it.couleur : x.v;
+          parts.push(`<strong>${esc(x.l)}:</strong> ${esc(v)}`);
+        });
         if (it.emplacement) parts.push(`<strong>Emplacement:</strong> ${esc(it.emplacement)}`);
         if (it.etage) parts.push(`<strong>Étage:</strong> ${esc(it.etage)}`);
-        if (it.couleur) parts.push(`<strong>Couleur caisson/RAL:</strong> ${esc(it.couleur)}`);
         if (it.notes) parts.push(`<strong>Note:</strong> ${esc(it.notes)}`);
         return parts.join(' · ') || '—';
       }
@@ -139,6 +151,7 @@
         if (!it[k] || (VALEURS_MUETTES[k] || []).includes(it[k])) return;
         parts.push(`<strong>${esc(l)}:</strong> ${esc(it[k])}`);
       });
+      if (commande) parts.push(esc(commande));
       FIELD_BOOLS.forEach(([k, l]) => { if (it[k]) parts.push(esc(l)); });
       if (it.emplacement) parts.push(`<strong>Emplacement:</strong> ${esc(it.emplacement)}`);
       if (it.etage) parts.push(`<strong>Étage:</strong> ${esc(it.etage)}`);
@@ -169,7 +182,7 @@
         <td><strong>${esc(e.label)}</strong></td>
         <td class="details">—</td>
         <td>—</td>
-        <td class="num">${e.qty || 1}</td>
+        <td class="num">${window.SSUI.fmtQte(e.qty || 1)}</td>
         <td class="chk"><span class="pick-box"></span></td>
       </tr>`).join('') : '';
 

@@ -318,11 +318,21 @@
         await finTour(w);
         check('C15 La clé manque : le message du serveur s’affiche, sans « Réessayer » (inutile)',
           [w.document.querySelector('.ssa-err') && /Pas de clé/.test(w.document.querySelector('.ssa-err').textContent), !!w.document.querySelector('[data-ssa-reessayer]')], [true, false]);
+        // Audit du 01/11/2026 : sur la page suivante, Soli rouvert montrait la question SANS la réponse
+        // d'erreur — une demande qui semblait encore en route. L'erreur suit la conversation.
+        const fe = await cadre('../app/dashboard.html?t=' + Date.now(), 1500, 900);
+        await fe.contentWindow.SSNav.ouvrirAssistant(); await attendre(250);
+        const errSuiv = fe.contentWindow.document.querySelector('.ssa-err');
+        check('C15b …et la page SUIVANTE la montre encore sous la question (jamais une question qui semble attendre)',
+          [/Première/.test(fe.contentWindow.document.querySelector('.ssa-fil').textContent), !!errSuiv && /Pas de clé/.test(errSuiv.textContent)], [true, true]);
+        fe.contentWindow.SSAssistant.fermer(); fe.remove();
         w.SSAssistant._envoyer('Deuxième');
         await finTour(w);
         const mm = appels[1].messages;
         check('C16 La question suivante COMPLÈTE le message resté sans réponse (jamais deux « user » de suite)',
           [mm.length, mm[0].content.length, formeValide(mm)], [1, 2, 'ok']);
+        check('C16b …l’erreur gardée ne part JAMAIS chez Claude, et s’efface dès qu’une réponse arrive',
+          [JSON.stringify(mm).includes('Pas de clé'), 'erreur' in JSON.parse(sessionStorage.getItem(w.SSAssistant._CLE_CONV) || '{}'), !!w.document.querySelector('.ssa-err')], [false, false, false]);
 
         // Une entrée d'outil coupée par la limite de longueur n'est pas exécutée
         w.SSAssistant._nouvelle();

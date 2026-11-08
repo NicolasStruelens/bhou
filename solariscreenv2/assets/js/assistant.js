@@ -182,7 +182,16 @@
   let controleur = null;        // AbortController de l'appel en cours
   let vivant = null;            // { texte } de la réponse en train d'arriver
   let outilsEnCours = {};       // id d'appel d'outil → true pendant son exécution
-  let erreur = null;            // { message, reessayer: bool }
+  /* ⚠️ L'erreur VOYAGE AVEC LA CONVERSATION (`conv.erreur`, audit du 01/11/2026). Gardée en
+     mémoire seulement, elle disparaissait au changement de page : Soli rouvert montrait la
+     question SANS rien dessous — une demande qui semble encore en route, et qu'on attend. Elle
+     n'est jamais envoyée à l'API (seul `conv.messages` part). */
+  let erreur = conv.erreur || null;   // { message, reessayer: bool }
+  function poserErreur(e) {
+    erreur = e || null;
+    if (erreur) conv.erreur = erreur; else delete conv.erreur;
+    sauver();
+  }
   let avis = '';                // remarque discrète sous la conversation (refus, coupure…)
   let panneau = null, fil = null, zone = null, boutonEnvoi = null, ouvreur = null;
 
@@ -751,7 +760,7 @@
   // une réponse finale ou une carte à confirmer.
   async function tour() {
     if (enCours) return;
-    enCours = true; erreur = null; avis = '';
+    enCours = true; poserErreur(null); avis = '';
     soliPense(true);
     peindre();
     let reponse = false;
@@ -805,7 +814,7 @@
     } catch (e) {
       vivant = null;
       if (e && e.name === 'AbortError') avis = 'Arrêté.';
-      else erreur = { message: (e && e.message) || 'Erreur inconnue', reessayer: !(e && e.definitif) };
+      else poserErreur({ message: (e && e.message) || 'Erreur inconnue', reessayer: !(e && e.definitif) });
     } finally {
       enCours = false; controleur = null; outilsEnCours = {};
       soliPense(false);
@@ -830,7 +839,7 @@
     const t = String(texte || '').trim();
     if (!t || enCours) return;
     if (JSON.stringify(conv.messages).length > MAX_CONV) {
-      erreur = { message: 'La conversation est devenue très longue — commence-en une nouvelle (bouton « Nouvelle »).', reessayer: false };
+      poserErreur({ message: 'La conversation est devenue très longue — commence-en une nouvelle (bouton « Nouvelle »).', reessayer: false });
       peindre(); return;
     }
     const bloc = { type: 'text', text: contexte() + '\n\n' + t };
