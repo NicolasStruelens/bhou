@@ -678,6 +678,17 @@
       date_creation: maintenant, date_modification: maintenant };
   }
 
+  /** Le devis fictif à quatre volets ET sa fiche client : l'audit ouvre la fiche devis, qui lit la fiche client —
+   *  sans elle, une requête refusée (404) que l'audit relevait à bon droit (règle 60 ter). */
+  async function enregistrerExemple(SS, o) {
+    const d = exempleQuatreVolets(o);
+    const rd = await SS.saveDevis(d, { creation: true });
+    const maintenant = new Date().toISOString();
+    const rf = await SS.saveClient({ key: window.SSUI.clientKeyOf(d.client.prenom, d.client.nom), prenom: d.client.prenom, nom: d.client.nom,
+      telephone: '', email: '', adresse: d.client.adresse, type_bien: '', tags: [], essai: true, notes: '', date_creation: maintenant, date_modification: maintenant });
+    return { devis: rd, fiche: rf };
+  }
+
   window.SSBacASable = { PREFIXE: PREFIXE, cleMarque: cleMarque, construire: construire, verifier: verifier, remplir: remplir, vider: vider,
-    exempleQuatreVolets: exempleQuatreVolets };
+    exempleQuatreVolets: exempleQuatreVolets, enregistrerExemple: enregistrerExemple };
 })();
