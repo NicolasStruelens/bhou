@@ -89,6 +89,12 @@
         BANC.installer(window);
         BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
         const rem = await window.SSBacASable.remplir(SS, {});
+        /* D2 (08/11/2026) : le devis qui a fait revoir l'encadré, rejoué avec des données FICTIVES. Quatre volets VR150
+           identiques, sauf les coulisses du 3e (117 au lieu de 118) et l'ajourage resté vide sur le 4e. Le PDF portait
+           trois encadrés presque pareils, et l'ajourage absent ne se voyait nulle part. Un screen entre les volets 2 et 3
+           (il n'a pas d'encadré, il ne doit rien couper) ; perçage et rivets remplis : ils ne sortent JAMAIS chez le client.
+           Une seule description du cas, partagée avec `saisie.test.html` et le banc d'impression (`bac-a-sable.js`). */
+        const rCfg = await SS.saveDevis(window.SSBacASable.exempleQuatreVolets({ avecScreen: true }), { creation: true });
         // Tout devis reçoit un lien client, pour que les deux exemplaires se comparent sur TOUT le jeu.
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
         const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
@@ -99,6 +105,21 @@
         // D1b (01/11/2026, bac à sable) : les options PAYÉES d'une tente solaire, cochées au simulateur.
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.items[0].lambrequin_fixe', json('true'), '$.items[0].detecteur', json('true'), '$.items[0].eclairage_led', 'Direct — caisson', '$.items[0].chauffage_storelight', json('true')) WHERE id = 'ESSAI-05'");
         const TEXTES = {};
+        /** Les encadrés de configuration d'un document, tels qu'on les LIT : intitulé, ce qui est commun, les différences
+         *  (ligne par ligne), et le numéro de la ligne de tableau juste au-dessus de chacun. */
+        const ENCADRES = {};
+        const paire = (i) => { const b = i.querySelector('b'); return b ? [b.textContent, i.textContent.slice(b.textContent.length)] : [i.textContent]; };
+        const encadres = (d) => [...d.querySelectorAll('.spec-box')].map((b) => {
+          const tr = b.closest('tr');
+          let avant = tr && tr.previousElementSibling;
+          while (avant && !/^\d+$/.test(((avant.querySelector('td') || {}).textContent || '').trim())) avant = avant.previousElementSibling;
+          return {
+            sous: avant ? avant.querySelector('td').textContent.trim() : null,
+            t: b.querySelector('.spec-box-t').textContent.trim(),
+            commun: [...b.querySelectorAll('.spec-box-l > .spec-box-i')].map(paire),
+            diffs: [...b.querySelectorAll('.spec-box-dl')].map((dl) => [dl.querySelector('.spec-box-qui').textContent, [...dl.querySelectorAll('.spec-box-i')].map(paire)]),
+          };
+        });
 
         titre('D — Les deux exemplaires du devis disent la même chose');
         for (const [id, tok] of ids) {
@@ -107,6 +128,7 @@
           await attendreQue(() => fa.contentDocument.querySelector('#paper .doc-head, #paper .doc-table'), 10000);
           await attendre(150);
           const erp = feuilles(fa.contentDocument);
+          ENCADRES[id] = [encadres(fa.contentDocument), null];
           fa.remove();
           // 2. L'exemplaire du client : la page de son lien, puis le bouton « Voir le devis complet », capturé.
           const fb = await BANC.cadre('../devis-review.html?t=' + encodeURIComponent(tok), 1100, 900);
@@ -136,6 +158,7 @@
             fc.contentDocument.open(); fc.contentDocument.write(capture); fc.contentDocument.close();
             await attendreQue(() => fc.contentDocument.querySelector('.paper'), 5000);
             client = feuilles(fc.contentDocument);
+            ENCADRES[id][1] = encadres(fc.contentDocument);
             fc.remove();
           }
           const e = erp || { textes: [] }, k = client || { textes: [] };
@@ -151,6 +174,19 @@
         check('D1b Une tente : ses options PAYÉES sont écrites sur sa ligne (lambrequin, détecteur, éclairage LED et son type, chauffage) — dans les DEUX exemplaires',
           t05.map((x) => [/lambrequin fixe/.test(x), /détecteur soleil \/ vent \/ pluie/.test(x), /éclairage LED \(direct — caisson\)/.test(x), /chauffage Storelight/.test(x), /spots LED/.test(x)]),
           [[true, true, true, true, false], [true, true, true, true, false]]);
+        // D2 : UN encadré commun aux 4 volets, sous la DERNIÈRE ligne (la 5e : un screen est en 3e), puis les différences.
+        const eCfg = ENCADRES['ESSAI-CFG-4'] || [[], []];
+        const resumeEnc = (l) => (l || []).map((e) => [e.sous, e.t, e.diffs]);
+        const attenduEnc = [['5', 'Configuration commune aux 4 volets',
+          [['Volet 4 (Jardin)', [['Coulisses', '117']]], ['Volet 5 (Chambre)', [['Ajourage', 'non précisé']]]]]];
+        check('D2 ⚠️ Quatre volets dont deux s’écartent : UN encadré « commun aux 4 volets » sous la dernière ligne, puis « Volet 4 (Jardin) — Coulisses 117 » et « Volet 5 (Chambre) — Ajourage non précisé » — dans les DEUX exemplaires (il y en avait trois, et l’ajourage absent ne se voyait pas)',
+          [rCfg.ok !== false, resumeEnc(eCfg[0]), resumeEnc(eCfg[1])], [true, attenduEnc, attenduEnc]);
+        const communCfg = (eCfg[0][0] || {}).commun || [];
+        const txtCfg = TEXTES['ESSAI-CFG-4'] || ['', ''];
+        check('D2b … la configuration commune porte la valeur de la MAJORITÉ (coulisses 118, sans ajourage) ; ni perçage, ni rivets, ni référence de commande Harol, dans aucun des deux',
+          [communCfg.filter((p) => ['Coulisses', 'Ajourage'].includes(p[0])), txtCfg.map((x) => /A168|forer|Rivets|7038/.test(x))],
+          [[['Ajourage', 'Sans ajourage'], ['Coulisses', '118']], [false, false]]);
+
         titre('T — Sur téléphone, la feuille entière réduite, comme un PDF (choix de Nicolas, 28/10/2026)');
         // Sur un écran plus étroit que 210 mm, la feuille garde sa mise en page A4 et se réduit d'un bloc : le tableau
         // défilait de côté DANS la feuille, colonnes P.U. et Total hors de l'écran, sans que rien ne le dise.

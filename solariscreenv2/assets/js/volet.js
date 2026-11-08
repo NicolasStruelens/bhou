@@ -308,58 +308,121 @@
     return !!neuf;
   }
 
-  /* ── REGROUPER LES OUVERTURES QUI PARTAGENT LA MÊME CONFIGURATION ───────────────────
-     Demande de Nicolas, 10/10/2026 : « quand c'est la même config exacte, que l'encadré soit
-     un seul en dessous des deux, ça permet de gagner de la place ».
-     Sur un vrai devis (Kerremans, deux VR150 d'une même façade), les deux encadrés étaient
-     identiques MOT POUR MOT et pesaient 92 pt chacun : 184 pt de papier pour une information
-     écrite deux fois. Et un client qui lit deux fois la même chose cesse de la lire.
+  /* ── UN ENCADRÉ COMMUN, ET CE QUI DIFFÈRE ───────────────────────────────────────────────
+     Histoire en deux temps.
+     10/10/2026 — « quand c'est la même config exacte, que l'encadré soit un seul en dessous des
+     deux » (Nicolas). Deux VR150 d'une même façade (Kerremans) produisaient deux encadrés
+     identiques MOT POUR MOT : on regroupait alors les ouvertures VOISINES et IDENTIQUES.
+     08/11/2026 — ça ne suffisait pas. Sur un devis de quatre volets identiques sauf les coulisses
+     du troisième (117 au lieu de 118) et l'ajourage oublié du quatrième, le PDF portait TROIS
+     encadrés de quatorze valeurs, presque pareils : 1+2, puis 3 seul, puis 4 seul. Le client (et
+     Nicolas) devaient trouver la différence à l'œil — et l'ajourage absent du quatrième, lui, ne
+     se voyait PAS DU TOUT : une ligne qui manque dans un encadré ne se remarque jamais.
+     Demande de Nicolas : « les encadrés quand il y a plusieurs produits sont très brouillons ».
+     D'où, désormais :
+       • UN encadré « Configuration commune aux 4 volets » — la valeur la plus fréquente de chaque
+         option (à égalité, celle de la première ligne) ;
+       • puis « Différences : Volet 3 (Jardin) — Coulisses : 117 », une ligne par ouverture qui
+         s'en écarte ; une option ABSENTE là où les autres l'ont se DIT (« Ajourage : non
+         précisé ») au lieu de disparaître.
+     ⚠️ PLUS SEULEMENT DES VOISINES. L'encadré se pose sous la DERNIÈRE ligne qu'il couvre et le
+     DIT dans son intitulé ; une ouverture saisie plus bas n'a plus à se ranger à côté de sa
+     jumelle pour partager son encadré.
+     ⚠️ AU-DELÀ DE TROIS ÉCARTS, CE N'EST PLUS UNE VARIANTE (`SEUIL_ECARTS`) : un volet qui
+     diffère de la première ouverture du groupe sur plus de trois options a son PROPRE encadré.
+     Sinon deux produits différents (alu et PVC, solaire et filaire) se liraient comme une
+     « configuration commune » suivie d'une liste plus longue que l'encadré lui-même.
+     ⚠️ Un TYPE par encadré : un screen et un volet ne se comparent pas.
+     ⚠️ LA COMPARAISON PORTE TOUJOURS SUR LE RÉSUMÉ AFFICHÉ (niveau client), pas sur l'objet :
+     deux ouvertures qui ne diffèrent que par le perçage ou les rivets (`client: false`)
+     présentent le même encadré et n'ont aucune « différence » à montrer. Ni les dimensions ni
+     le prix : ils vivent sur la ligne de produit. Et jamais une référence Harol (règle 31). */
+  const SEUIL_ECARTS = 3;
 
-     ⚠️ ON NE REGROUPE QUE DES OUVERTURES CONSÉCUTIVES, et c'est un choix, pas une limite
-     technique. Un encadré posé sous la ligne 3 mais qui couvrirait aussi la ligne 1 obligerait
-     à remonter par-dessus l'encadré de la ligne 2 pour comprendre — on gagnerait du papier en
-     perdant la lecture. Et ça ne coûte rien en pratique : on saisit les ouvertures façade par
-     façade, et surtout **une ouverture DUPLIQUÉE se range juste après son original** (règle 35),
-     donc les identiques sont déjà voisines par construction.
+  function signature(x) { return x ? (x.coche ? 'c|' + x.l : 'v|' + x.l + '|' + x.v) : ''; }
+  function parCle(lignes) {
+    const m = {};
+    (lignes || []).forEach(function (x) { m[x.k] = x; });
+    return m;
+  }
+  function distanceResumes(a, b) {
+    const cles = Object.keys(a).concat(Object.keys(b).filter(function (k) { return !(k in a); }));
+    return cles.filter(function (k) { return signature(a[k]) !== signature(b[k]); }).length;
+  }
+  function typeDe(it) { return it && it.type === 'volet' ? 'volet_roulant' : (it && it.type); }
 
-     ⚠️ LA COMPARAISON PORTE SUR LE RÉSUMÉ AFFICHÉ, pas sur l'objet. Deux ouvertures peuvent
-     différer par des champs que le client ne voit pas (perçage, rivets, embouts : `client:
-     false`) et présenter exactement le même encadré. C'est bien l'ENCADRÉ qu'on dédoublonne,
-     donc c'est lui qu'on compare — comparer les objets laisserait deux cadres identiques côte
-     à côte sans que personne ne comprenne pourquoi.
-     ⚠️ Et jamais les DIMENSIONS ni le PRIX : ils vivent sur la ligne de produit, pas dans
-     l'encadré. Deux fenêtres de tailles différentes peuvent partager une configuration. */
+  /* Le mot de l'écart quand l'option MANQUE ici et que les autres l'ont. Une case : « Sans
+     moustiquaire » (`lSans` dans la spec quand le libellé ne s'y prête pas — « Sans commande
+     murale Somfy individuelle incluse » ne veut rien dire). Une valeur tue d'office (`muets`,
+     « Combinaison : Simple ») : on la redonne, c'est une vraie différence. Sinon : « non précisé ». */
+  function ecartAbsent(champ, item, xRef) {
+    if (xRef.coche) {
+      const sans = champ.lSans || ('Sans ' + String(champ.lCourt || champ.l).charAt(0).toLowerCase() + String(champ.lCourt || champ.l).slice(1));
+      return { k: champ.k, g: champ.g, l: sans, v: '', coche: true };
+    }
+    const brut = item[champ.k];
+    if (brut !== undefined && brut !== null && brut !== '') {
+      return { k: champ.k, g: champ.g, l: xRef.l, v: sansCodeMenu(valeurAffichable(champ, item)), coche: false };
+    }
+    return { k: champ.k, g: champ.g, l: xRef.l, v: 'non précisé', coche: false, vide: true };
+  }
 
-  function signatureResume(lignes) {
-    return JSON.stringify((lignes || []).map(function (x) {
-      return x.coche ? ['c', x.l] : ['v', x.l, x.v];
-    }));
+  function construireGroupe(membres) {
+    const p = P();
+    const ordre = p ? p.VR_CHAMPS.map(function (c) { return c.k; }) : [];
+    const cles = [];
+    membres.forEach(function (m) { m.res.forEach(function (x) { if (cles.indexOf(x.k) < 0) cles.push(x.k); }); });
+    cles.sort(function (a, b) { return ordre.indexOf(a) - ordre.indexOf(b); });
+    const commun = [];
+    const ecarts = membres.map(function (m) { return { i: m.i, bouts: [] }; });
+    cles.forEach(function (k) {
+      const sigs = membres.map(function (m) { return signature(m.map[k]); });
+      const compte = {};
+      sigs.forEach(function (s) { compte[s] = (compte[s] || 0) + 1; });
+      const ref = sigs.reduce(function (a, s) { return compte[s] > compte[a] ? s : a; }, sigs[0]);
+      const porteur = membres.filter(function (m, j) { return sigs[j] === ref && m.map[k]; })[0];
+      const xRef = porteur ? porteur.map[k] : null;
+      if (xRef) commun.push(xRef);
+      membres.forEach(function (m, j) {
+        if (sigs[j] === ref) return;
+        const x = m.map[k];
+        if (x) { ecarts[j].bouts.push(x); return; }
+        // Absente ici : seulement si l'option a un SENS sur cette ouverture (un espace
+        // intermédiaire n'existe pas sur une combinaison simple — la combinaison diffère déjà).
+        const champ = p && p.vrChamps(m.it).filter(function (c) { return c.k === k; })[0];
+        if (champ && xRef) ecarts[j].bouts.push(ecartAbsent(champ, m.it, xRef));
+      });
+    });
+    return {
+      indices: membres.map(function (m) { return m.i; }),
+      resume: commun,
+      ecarts: ecarts.filter(function (e) { return e.bouts.length; }),
+    };
   }
 
   /**
-   * @returns {Array} un groupe par encadré à rendre :
-   *   `{ indices: [0, 1], resume: […] }` — `indices` est 0-basé sur `items`.
-   * Une ouverture sans rien à décrire n'apparaît dans AUCUN groupe : elle n'a pas d'encadré,
-   * et elle ne doit pas non plus couper un groupe en deux (un screen posé entre deux volets
-   * identiques ne doit pas empêcher leur regroupement — il n'insère aucun encadré entre eux,
-   * donc la lecture reste continue).
+   * @returns {Array} un groupe par encadré à rendre, dans l'ordre de leur première ligne :
+   *   `{ indices: [0, 1, 2, 3], resume: [ce qui est commun], ecarts: [{ i: 2, bouts: [{ l, v }] }] }`
+   *   — `indices` est 0-basé sur `items` ; l'encadré se pose sous la DERNIÈRE de ses lignes.
+   * Une ouverture sans rien à décrire (screen, tablier) n'est dans AUCUN groupe.
    */
   function groupesConfig(items, niveau) {
-    const out = [];
-    let dernierDecrit = -2;     // index de la dernière ouverture AYANT un encadré
+    const decrits = [];
     (items || []).forEach(function (it, i) {
       const l = resume(it, niveau || 'client');
-      if (!l.length) return;
-      const sig = signatureResume(l);
-      const prec = out[out.length - 1];
-      if (prec && prec.signature === sig && dernierDecrit === prec.indices[prec.indices.length - 1]) {
-        prec.indices.push(i);
-      } else {
-        out.push({ signature: sig, indices: [i], resume: l });
-      }
-      dernierDecrit = i;
+      if (l.length) decrits.push({ i: i, it: it, type: typeDe(it), res: l, map: parCle(l) });
     });
-    return out;
+    const groupes = [];
+    let reste = decrits;
+    while (reste.length) {
+      const graine = reste[0];
+      const membres = reste.filter(function (d) {
+        return d === graine || (d.type === graine.type && distanceResumes(d.map, graine.map) <= SEUIL_ECARTS);
+      });
+      reste = reste.filter(function (d) { return membres.indexOf(d) < 0; });
+      groupes.push(construireGroupe(membres));
+    }
+    return groupes;
   }
 
   /**
@@ -403,6 +466,56 @@
     return total + ' ' + (total > 1 ? formes[1] : formes[0]).toLowerCase();
   }
 
+  /** Comment une ligne se désigne dans « Différences » : « Volet 3 (Jardin) ». Le numéro est
+   *  celui de la colonne # du devis ; le produit, celui que le client compte (règle 31 septies) ;
+   *  l'emplacement, ce qui fait reconnaître SA fenêtre. Quantité > 1 : « Volets 3 (Jardin, ×2) ». */
+  function nomLigne(i, items) {
+    const it = (items || [])[i] || {};
+    const formes = window.SSUI && window.SSUI.TYPE_FORMES && window.SSUI.TYPE_FORMES[it.type];
+    const q = Number(it.quantite) || 1;
+    const mot = formes ? formes[q > 1 ? 1 : 0] : (q > 1 ? 'Ouvertures' : 'Ouverture');
+    const precis = [String(it.emplacement == null ? '' : it.emplacement).trim(), q > 1 ? '×' + q : ''].filter(Boolean).join(', ');
+    return mot + ' ' + (i + 1) + (precis ? ' (' + precis + ')' : '');
+  }
+
+  /** L'intitulé d'un encadré. Seul : « Configuration retenue » (il est sous SA ligne). Seul
+   *  groupe du devis : « … commune aux 4 volets ». Plusieurs groupes : il nomme ses lignes,
+   *  sinon on ne saurait pas lesquels des volets il couvre (« … aux volets 1, 2 et 4 »). */
+  function titreEncadre(g, groupes, items) {
+    const idx = (g && g.indices) || [];
+    if (idx.length < 2) return 'Configuration retenue';
+    if ((groupes || []).length <= 1) return 'Configuration commune aux ' + titreGroupe(idx, items);
+    const it = (items || [])[idx[0]] || {};
+    const formes = window.SSUI && window.SSUI.TYPE_FORMES && window.SSUI.TYPE_FORMES[it.type];
+    const n = idx.map(function (i) { return i + 1; });
+    const liste = n.slice(0, -1).join(', ') + ' et ' + n[n.length - 1];
+    return 'Configuration commune aux ' + (formes ? formes[1].toLowerCase() : 'ouvertures') + ' ' + liste;
+  }
+
+  function pairesHtml(lignes) {
+    return (lignes || []).map(function (x) {
+      return x.coche
+        ? '<span class="spec-box-i spec-box-f">' + esc(x.l) + '</span>'
+        : '<span class="spec-box-i' + (x.vide ? ' spec-box-vide' : '') + '"><b>' + esc(x.l) + '</b>' + esc(x.v) + '</span>';
+    }).join('');
+  }
+
+  /**
+   * L'ENCADRÉ, en HTML — écrit ICI et nulle part ailleurs : `app/devis.html` et
+   * `devis-review.html` le posaient chacun avec sa copie du gabarit, et c'est le MÊME client
+   * qui lit les deux (règle 7). La page n'écrit plus que la ligne de tableau qui l'accueille.
+   */
+  function encadreHtml(g, groupes, items) {
+    if (!g || (!(g.resume || []).length && !(g.ecarts || []).length)) return '';
+    const diffs = (g.ecarts || []).length
+      ? '<div class="spec-box-d"><div class="spec-box-t">Différences</div>' + g.ecarts.map(function (e) {
+          return '<div class="spec-box-dl"><span class="spec-box-qui">' + esc(nomLigne(e.i, items)) + '</span>' + pairesHtml(e.bouts) + '</div>';
+        }).join('') + '</div>'
+      : '';
+    return '<div class="spec-box"><div class="spec-box-t">' + esc(titreEncadre(g, groupes, items)) + '</div>' +
+      '<div class="spec-box-l">' + pairesHtml(g.resume) + '</div>' + diffs + '</div>';
+  }
+
   window.SSVolet = {
     estVolet: estVolet,
     html: html,
@@ -410,7 +523,11 @@
     resume: resume,
     resumeTexte: resumeTexte,
     groupesConfig: groupesConfig,
+    SEUIL_ECARTS: SEUIL_ECARTS,
     titreGroupe: titreGroupe,
+    titreEncadre: titreEncadre,
+    nomLigne: nomLigne,
+    encadreHtml: encadreHtml,
     LIES_AU_RAL: LIES_AU_RAL,
     normaliserRal: normaliserRal,
     appliquerRal: appliquerRal,
