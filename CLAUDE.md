@@ -75,7 +75,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 62 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). **Par le serveur de test.** |
-| `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
+| `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 30 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
@@ -97,6 +97,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
+| `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
+| `tests/plan.test.html` | Les 36 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `tests/saisie.test.html` | Les 56 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
@@ -3226,6 +3228,54 @@ v2 à douze idées, TOUTES validées : « tout Claude, le plus complet et le mie
   « chevauchements » — le contenu de la fiche qui passe SOUS son en-tête collé en haut, exprès, comme sous le bandeau fixe. Un
   élément `sticky` est désormais un calque ; ses éléments restent comparés entre eux. Et une fenêtre doit avoir un bouton que
   l'audit reconnaît comme une sortie (« Fermer », ✕…) : « Corriger d'abord » n'en était pas un pour lui — d'où le ✕ de la vérification.
+
+**60 ter. LA CARTE « OUVERTURES » DE LA FICHE DEVIS : ON VOIT CHAQUE OUVERTURE AU LIEU DE LA LIRE**
+(08/11/2026 — Nicolas, sur la fiche d'un devis de quatre volets : « j'aimerais aussi une bonne upgrade visualisation design au max,
+étonne-moi, ça doit être bcp plus parlant ». Maquette v3 à trois variantes ; il a choisi la A, « Plan de pose » : « A est génial, fait
+au max et au plus logique et parlant ».) Code : `assets/js/plan-ouvertures.js` (`SSPlan`). Protégé par `tests/plan.test.html`.
+• **CE QUI ÉTAIT FAUX** : 24 tuiles en pointillés par volet, toutes dans la même police de code ; la couleur du caisson écrite deux fois,
+  le moteur deux fois (pastille + tuile) ; « 7016 — Gris anthracite · réf. 7T16 (laque texturée) » recopié trois fois ; quatre volets
+  qui répétaient les mêmes seize valeurs, où la seule vraie différence et l'ajourage oublié étaient noyés.
+• **L'ORDRE DE LA CARTE** : une bande résumé (ouvertures, m², types, et combien sont prêtes / ont un écart / manquent d'une information —
+  chaque état mène à la première fiche concernée) ; la FAÇADE (toutes les ouvertures côte à côte à la MÊME échelle, barre de 1 m, un clic
+  mène à la fiche) ; ce qui manque pour commander ; la CONFIGURATION COMMUNE de chaque groupe, écrite une fois en trois sections
+  (Couleurs, Mécanique, Commande) avec ses exceptions SUR PLACE (« sauf Volet 4 (Jardin) : 117 ») ; puis une FICHE par ouverture : son
+  dessin coté, ses mesures, son prix, « comme la configuration commune, sauf : … », ce qui lui manque (« Compléter → »), sa note, ses photos.
+• **LE DESSIN** est vu de l'INTÉRIEUR (c'est de là que se lit le côté de manœuvre), à l'échelle, dans les VRAIES teintes du caisson, des
+  lames, de la lame finale et des coulisses : moteur du côté de manœuvre, câble (filaire) ou panneau (solaire), commande murale à côté de
+  la fenêtre, ajourage, parties d'une porte-fenêtre DVC, dans le jour (le mur entoure) ou sur le jour (la baie en tirets), cotes. Une
+  tente se dessine VUE DE DESSUS (largeur × projection). Le tablier est à moitié descendu ; il descend au survol (souris) ou d'un appui.
+  ⚠️ **ON NE DESSINE JAMAIS UN CHOIX QUI N'A PAS ÉTÉ FAIT** : un côté de manœuvre non précisé → pas de moteur dessiné (et la légende le
+  dit) ; une couleur absente → HACHURÉE ; sans mesures → « mesures à compléter » au lieu d'un dessin faux. Une teinte hors RAL (« Chêne »,
+  « Bronze ») est approchée d'après son nom et l'écrit (« teinte approchée ») ; la référence Harol n'est affichée que si elle est ÉCRITE
+  dans la valeur, jamais déduite.
+• **AUCUNE RÈGLE NOUVELLE** : les groupes et leurs différences sont ceux de l'encadré du devis (`SSVolet.groupesConfig`, au niveau
+  COMPLET ici — la fiche est interne : perçage, rivets, références) pour les volets, et de l'outil des différences du simulateur
+  (`SSProducts.ecartsOuvertures`) pour les autres types ; ce qui manque, `SSProducts.champsManquants`. Une ouverture seule de son type
+  garde TOUTE sa configuration sur sa fiche. Les champs d'un ANCIEN devis que le catalogue a retirés (barre surélevée, câble, LED…)
+  restent sur la fiche : l'ancienne carte les montrait (test U10/V20). Rien n'est perdu : chaque réglage du résumé complet est dans la
+  configuration commune ou dans les écarts de son ouverture (test U6).
+• **PAGE INTERNE** : les références de commande Harol (réf. 7T16, A168…) restent visibles, à la demande de Nicolas (« ref harol aussi »,
+  choix contestable dans la PR). Le module n'est chargé QUE par `app/vue.html` : jamais par `devis-review.html` ni par le suivi.
+• **AUCUN MONTANT NE CHANGE** : le prix de chaque fiche est le même calcul que l'ancienne carte (prix catalogue × quantité de la ligne) ;
+  la bande résumé ne porte AUCUN total (la colonne de droite a déjà « Catalogue HTVA » et le total : une somme de plus se lirait comme
+  le prix du client).
+• **LES PHOTOS NE BOUGENT PAS DE LA PAGE** : `vue.html` les rend toujours (`photosDe`, appelée une fois par ouverture DANS L'ORDRE : l'index
+  dans `PHOTOS` est celui de la visionneuse, et la vignette du chantier ouvre `PHOTOS[0]`), avec leur catégorie et le simulateur visuel.
+  Une photo CLASSÉE garde son étiquette visible au bureau (seules les non classées attendent le survol). `#photos` mène aux PREMIÈRES
+  photos de la carte. Le DÉPANNAGE garde son rapport, intact.
+• **« COMPLÉTER »** ouvre `simulateur.html?id=…&ouv=N&champ=k` : le simulateur choisit l'ouverture N et vise le champ qui manque
+  (`allerAuChamp`). Sans `ouv`, rien ne change.
+• **TÉLÉPHONE ET LARGEURS** : tout passe par des requêtes de CONTENEUR sur la carte (`container: pl`), pas sur l'écran — la colonne de la
+  fiche va de ~740 px (écran de 1 500) à ~900 px (1 875). Au-dessus de 700 px de carte, la configuration commune met Couleurs et Commande
+  à gauche et Mécanique (la plus longue) à droite ; sous 840 px la colonne du dessin se resserre ; sous 600 px la fiche s'empile (dessin
+  au-dessus), les mesures passent en 2 × 2, les cibles font 44 px. La façade ne descend jamais sous une échelle lisible : elle défile DANS
+  son cadre (« fais glisser → »), jamais la page. Chaque fiche a « ↑ Sur la façade », qui rallume sa baie : on revient toujours.
+• ⚠️ **UNE CLASSE D'ÉTAT N'EST PAS UNE CLASSE DE BLOC** : `.pl-manque` est la COULEUR d'un état (pastille) ; le bloc « à compléter » de la
+  fiche s'appelait d'abord pareil et héritait de ses couleurs, ou l'inverse. Le bloc est `.pl-mq`.
+• ⚠️ **JOUER `plan.test.html` AUSSI EN ÉMULATION TACTILE** : au bureau, « ↑ Sur la façade » faisait bien 44 px ; sur un écran
+  TACTILE, la règle `(pointer: coarse)` des liens (32 px), écrite plus bas avec le même poids, l'emportait. Seule la suite jouée en
+  tactile l'a vu (test V15) — d'où `.pl-lien.pl-retour` (deux classes).
 
 ## Pièges déjà payés — ne pas les repayer
 
