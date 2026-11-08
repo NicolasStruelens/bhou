@@ -1123,6 +1123,17 @@
         }
         if (env.tagName === 'LABEL') env.insertAdjacentElement('afterend', note); else env.appendChild(note);
       });
+      // Le néon suit l'analyse qu'on vient de refaire (la collecte l'a posé sur la précédente).
+      signaler(card, state.items[i]);
+    }
+    /** LE NÉON D'UNE CARTE : les champs qui bloquent la commande (règle 36) ET — décision de Nicolas
+     *  du 08/11/2026, règle 60 — les champs VIDES que la plupart des autres ouvertures du type ont
+     *  remplis. C'est ce qui aurait allumé l'ajourage du 4e volet, sans allumer les vides normaux. */
+    function signaler(card, it) {
+      if (!window.SSSignal || !card || !it) return;
+      const i = state.items.indexOf(it);
+      const vides = i < 0 ? [] : ecartsOuverture(i).filter(e => e.etat === 'vide').map(e => e.k);
+      window.SSSignal.appliquer(card, it, vides);
     }
     /** « Reprendre » rejoue le GESTE (règle 31 sexies) : la valeur posée, puis `input` et
      *  `change`, comme le nuancier — c'est ce qui déclenche la collecte, le RAL et le recalcul. */
@@ -1214,7 +1225,7 @@
             // Le bloc volet vient d'être remplacé (règle 31 quinquies) : ses champs sont des
             // ÉLÉMENTS NEUFS, donc sans signal. Même famille que `bind` — ce qui est re-rendu
             // doit être re-décoré, sinon le halo disparaît au premier changement d'alimentation.
-            if (window.SSSignal) window.SSSignal.appliquer(card, it);
+            signaler(card, it);
           }
           RAL_PRECEDENT.set(it._id, it.couleur || '');
           ui_recalc();
@@ -1232,7 +1243,7 @@
         brancherCarte(it, carte);
         // Une carte fraîchement dessinée (devis rouvert, ouverture dupliquée) n'a encore
         // déclenché aucune collecte : sans ceci, rien ne s'allumerait avant la première frappe.
-        if (window.SSSignal) window.SSSignal.appliquer(carte, it);
+        signaler(carte, it);
       });
       if (SEL >= state.items.length) SEL = Math.max(0, state.items.length - 1);
       majVue();
@@ -1255,7 +1266,7 @@
          Posé au seul rendu, un champ qu'on vient de remplir gardait son halo jusqu'au prochain
          rendu complet : du néon sur un champ plein, et le signal perd tout son crédit en deux
          minutes. `collectItem` est le seul endroit qui sache ce qui vient d'être saisi. */
-      if (window.SSSignal) window.SSSignal.appliquer(card, it);
+      signaler(card, it);
     }
 
     // ── EXTRAS ──

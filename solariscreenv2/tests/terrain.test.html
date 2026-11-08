@@ -277,9 +277,11 @@
         const neBougePas = Math.round(champ(d, 'largeur').getBoundingClientRect().top) === hautAvant;
         const avis = txt(d.querySelector('.mesure-avis')), bandeau = txt(d.querySelector('#itemsBody .manque-tete'));
         d.querySelector('.mesure-avis button').click(); await attendre(20);
-        check('P6 B / C — Une ouverture NEUVE ne réclame rien (règle 36) ; la première mesure l’allume SOUS les mesures (au-dessus, le champ en cours de frappe sautait de 100 px) ; « 250 mm, c’est 25 cm » se corrige d’un appui',
-          [neuveSansBandeau, avis, bandeau, neBougePas, champ(d, 'largeur').value, w.eval('state.items[currentItemIdx].largeur'), d.querySelector('.mesure-avis')],
-          [[null, false], '250 mm, c’est 25 cm. C’était 2 500 mm ?', '6 info(s) à compléter', true, '2500', 2500, null]);
+        // Depuis le 08/11/2026 (règle 60), « + » reprend la configuration de la précédente — ici une tente encore vierge : la
+        // nouvelle est donc une tente vierge, qui ne réclame rien ; sa largeur tapée, il lui manque 5 des 6 champs bloquants.
+        check('P6 B / C — Une ouverture NEUVE (copie d’une ouverture vierge) ne réclame rien (règle 36) ; la première mesure l’allume SOUS les mesures (au-dessus, le champ en cours de frappe sautait de 100 px) ; « 250 mm, c’est 25 cm » se corrige d’un appui',
+          [neuveSansBandeau, w.eval('state.items[currentItemIdx].type'), avis, bandeau, neBougePas, champ(d, 'largeur').value, w.eval('state.items[currentItemIdx].largeur'), d.querySelector('.mesure-avis')],
+          [[null, false], 'tente_solaire', '250 mm, c’est 25 cm. C’était 2 500 mm ?', '5 info(s) à compléter', true, '2500', 2500, null]);
         const nAvant = w.eval('state.items.length');
         w.removeCurrentItem(); await attendre(20);
         const barreRetrait = [w.eval('state.items.length'), txt(d.querySelector('#wizBar .annuler')), parseInt(w.getComputedStyle(d.body).paddingBottom, 10) >= d.getElementById('wizBar').offsetHeight];
@@ -297,6 +299,28 @@
         w.annulerRetrait(); await attendre(20);
         check('P8 F — Une photo s’ouvre en grand dans la page (règle 26) ; la retirer se défait',
           [lbOuverte, apresX, w.eval('state.items[2].photos.length'), d.querySelectorAll('.item-card .photo-thumb').length], [true, [0, 'Photo retirée Annuler'], 1, 1]);
+        // P8b / P8c — « + » reprend la configuration de la précédente, et le néon allume ce que les autres ont rempli (règle 60).
+        const VR8 = { _id: 'itP8b', type: 'volet_roulant', modele: 'VR150', quantite: 2, photos: [], largeur: 900, hauteur: 1100, emplacement: 'Bureau',
+          prix_catalogue_ht: 500, lame_type: 'alu35', couleur_lame: '38 — 7016 Gris anthracite', ajourage: '0 : sans ajourage', caisson_mesure: '205',
+          alimentation: 'Électrique (filaire)', moteur: 'Secure (RF, standard)', couleur: '7016 — Gris anthracite' };
+        w.eval('state.items.push(' + JSON.stringify(VR8) + ')');
+        w.goToItem(w.eval('state.items.length') - 1); await attendre(20);
+        d.querySelector('.ouv-tile.plus').click(); await attendre(30);
+        const n8 = w.eval('state.items[state.items.length - 1]');
+        const allume = (k) => !!(champ(d, k) && champ(d, k).closest('.field').classList.contains('ss-signal'));
+        check('P8b « + » reprend la configuration de l’ouverture précédente (règle 60) : le VR150 sans mesures, emplacement ni prix, quantité 1, la largeur sous le pouce ; commencée, elle allume ses mesures',
+          [n8.type, n8.lame_type, n8.ajourage, n8.moteur, ['largeur', 'hauteur', 'emplacement', 'prix_catalogue_ht'].filter((k) => k in n8), n8.quantite, d.activeElement && d.activeElement.dataset.f, allume('largeur'), allume('hauteur')],
+          ['volet_roulant', 'alu35', '0 : sans ajourage', 'Secure (RF, standard)', [], 1, 'largeur', true, true]);
+        d.querySelector('.ouv-tile.plus').click(); await attendre(30);
+        const aj8 = champ(d, 'ajourage');
+        aj8.value = ''; aj8.dispatchEvent(new Event('input', { bubbles: true })); aj8.dispatchEvent(new Event('change', { bubbles: true })); await attendre(20);
+        const vide8 = allume('ajourage');
+        // ⚠️ Relire le champ : ce premier changement a répercuté le RAL du caisson sur la lame finale et les coulisses
+        // (règle 31 quater), donc RE-RENDU le bloc VR150 — l'ancien menu n'est plus dans la page (règle 31 quinquies).
+        const aj8b = champ(d, 'ajourage');
+        aj8b.value = '0 : sans ajourage'; aj8b.dispatchEvent(new Event('input', { bubbles: true })); aj8b.dispatchEvent(new Event('change', { bubbles: true })); await attendre(20);
+        check('P8c Un champ VIDE que les deux autres volets ont rempli (l’ajourage) s’allume comme un champ bloquant, et s’éteint une fois rempli',
+          [vide8, allume('ajourage')], [true, false]);
         // la saisie suivante ne remplace plus la précédente
         w.resetWizard(); await attendre(20);
         tape(d.getElementById('tPrenom'), 'Nina'); tape(d.getElementById('tNom'), 'Nouvelle');

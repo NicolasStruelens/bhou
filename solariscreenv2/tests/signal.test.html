@@ -185,6 +185,27 @@
     S.appliquer(carte, { type: 'volet_roulant' });
     check('ouverture remise à vierge : rien d’allumé', allumes(), []);
 
+    // ══════════════ F. CE QUE LES AUTRES OUVERTURES ONT REMPLI (règle 60, 08/11/2026) ══════════════
+    titre('F. Un champ vide que les autres ont rempli s’allume aussi');
+    /* Décision de Nicolas : l'ajourage oublié du 4e volet n'est pas un champ bloquant, et il s'est noyé
+       parmi cinq vides normaux. La PAGE calcule ce que les autres ouvertures ont rempli
+       (`SSProducts.ecartsDe`, état « vide ») et le passe en troisième argument ; le signal l'allume
+       comme un champ bloquant — et seulement lui, pas « tout ce qui est vide ». */
+    check('F1 une ouverture complète + un champ que les autres ont rempli : il s’allume, lui seul',
+      S.champsASignaler(COMPLET, ['ajourage']), ['ajourage']);
+    check('F2 il s’ajoute aux champs bloquants, sans doublon',
+      S.champsASignaler(incomplet, ['moteur', 'ajourage']), P.champsManquants(incomplet).map(function (c) { return c.k; }).concat(['ajourage']));
+    S.regler('aucun', null);
+    check('F3 « aucun » l’éteint aussi', S.champsASignaler(COMPLET, ['ajourage']), []);
+    S.regler('halo', 'theme');
+    carte.insertAdjacentHTML('beforeend', '<div class="field"><label class="label">Ajourage</label><select class="select" data-f="ajourage"></select></div>');
+    document.body.appendChild(carte);
+    S.appliquer(carte, COMPLET, ['ajourage']);
+    check('F4 sur le DOM : le champ s’allume avec la même classe et la même aide', [allumes(), carte.querySelector('[data-f="ajourage"]').closest('.field').getAttribute('data-signal-aide')], [['ajourage'], 'À compléter']);
+    S.appliquer(carte, COMPLET, []);
+    check('F5 … et s’éteint dès que la page ne le passe plus (rempli, ou les autres l’ont vidé)', allumes(), []);
+    check('F6 sans troisième argument, rien ne change (le Mode Terrain d’hier, les autres appelants)', S.champsASignaler(COMPLET), []);
+
     carte.remove();
 
     // ══════════════ F. RIEN NE FUIT SUR UN DOCUMENT CLIENT ══════════════

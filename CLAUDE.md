@@ -98,9 +98,9 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `tests/saisie.test.html` | Les 25 tests de la SAISIE DES OUVERTURES au simulateur (règle 60), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 58 tests (`window.SSSignal`) |
-| `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
+| `tests/saisie.test.html` | Les 27 tests de la SAISIE DES OUVERTURES au simulateur (règle 60), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
+| `tests/signal.test.html` | Les 64 tests du signal, dont les champs vides que les autres ouvertures ont remplis (règle 60), et la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 62 tests des règles pures des notes de frais. |
 | `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
@@ -112,7 +112,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/rdv.js` | **Les demandes de RDV** (règle 54) : chercher (sans accents, téléphone d'un bloc, projet), la prochaine action d'une demande, une colonne par urgence, « Converti » sur 30 jours, les visites d'aujourd'hui et de demain, le résumé des contacts avec le client, les doublons à la saisie. Fonctions pures (`window.SSRdv`) ; « qui doit agir » reste dans `attente.js`, la règle des doublons dans `ui.js` (`SSUI.raisonDoublon`). |
 | `tests/rdv.test.html` | Les 40 tests des Demandes de RDV : règles pures, les ROUTES (conflit entre deux écrans, messages, balle et contacts protégés, champ inconnu gardé, contacts signés, retirés par leur seul auteur), la vraie page remplie par le bac à sable et cliquée (« À traiter » et visites proches, colonnes par urgence, « Je prends », glisser-déposer gardé, la fiche dans l'ordre et sa couleur, rappel de la veille noté, message retouché, conflit dans la fiche, « Converti » sans devis refusé, devis lié, doublons, photo, recherche, suppression refusée, « Créer le devis » depuis la carte), le téléphone et la tablette (onglets d'étape, fiche plein écran, vue Liste, tactile) et « retour ». Vérifié par 34 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/terrain.js` | **Le Mode Terrain** (règle 55) : retrouver un client (sans accents, téléphone d'un bloc) et ses doublons, les saisies gardées PAR visite, des identifiants d'ouverture uniques, les mesures qui sortent de l'ordinaire, ce qui manque (pour y aller), les visites du jour et le devis lié à une demande, ce qu'un devis existant permet ici (un devis chiffré ne se réécrit pas d'ici). Fonctions pures (`window.SSTerrain`). |
-| `tests/terrain.test.html` | Les 32 tests du Mode Terrain : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/terrain.test.html` | Les 34 tests du Mode Terrain (dont « + » qui reprend la configuration précédente et le néon des vides, règle 60) : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 92 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, et la marque du bac à sable (règle 46). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
@@ -1861,6 +1861,9 @@ champ lui-même ; les réglages (effet, couleur) sont dans Paramètres, **par ap
   alimente déjà les pastilles « incomplet » du Mode Terrain (règle 10) : pas de seconde liste.
   Le PRIX n'y est pas, et ne doit pas y entrer : il se remplit au bureau, donc toute ouverture
   relevée chez le client s'allumerait jusqu'au retour — donc tout le temps, donc pour rien.
+  ⚠️ **UNE SEULE EXTENSION, DÉCIDÉE PAR NICOLAS LE 08/11/2026 (règle 60)** : un champ VIDE que la PLUPART
+  des autres ouvertures du même type ont rempli s'allume aussi (l'ajourage oublié du 4e volet). Ce
+  n'est pas « tout ce qui est vide » : la discipline tient, c'est la comparaison qui désigne le champ.
 • **On n'allume qu'une ouverture COMMENCÉE**, c'est-à-dire dès qu'UN champ bloquant est rempli.
   Une ouverture neuve est vide par définition : l'allumer en entier, c'est accueillir chaque
   nouvelle ouverture par six champs en néon et apprendre à ne plus les voir dès le deuxième devis.
@@ -3173,6 +3176,17 @@ choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test
 • **LE CONFIGURATEUR N'A PLUS DE CADRE** dans la fiche : son pointillé violet en faisait une deuxième carte DANS la carte. Un filet
   et son titre. Mesures, prix et emplacement remontent en tête de fiche (« Mesures et prix », « Où »).
 • **LE DEVIS : UN ENCADRÉ COMMUN, PUIS LES DIFFÉRENCES** — règle 31 septies. Mesuré sur le cas réel (fictif) : 1 encadré au lieu de 3.
+• **LE MODE TERRAIN SUIT LA MÊME RÈGLE** (« oui » de Nicolas, 08/11/2026) : son « + » appelle `nouvelleOuvertureDepuis`, la largeur
+  sous le pouce. Une autre sorte de produit : sa tuile de type, comme avant. ⚠️ Une ouverture ajoutée après une ouverture COMMENCÉE
+  est commencée elle aussi : ses deux mesures s'allument tout de suite — c'est voulu, ce sont elles qu'on vient relever. Ajoutée
+  après une ouverture vierge, elle reste vierge et ne réclame rien (test P6 de `terrain.test.html`).
+• **LE NÉON ALLUME AUSSI UN CHAMP VIDE QUE LES AUTRES ONT REMPLI** (« oui » de Nicolas, 08/11/2026) : `SSSignal.appliquer(racine,
+  item, aussi)` — `aussi` est la liste des écarts « vide » de l'ouverture, que la PAGE calcule (le signal ne connaît qu'une
+  ouverture). C'est ce qui aurait allumé l'ajourage du 4e volet ; les vides normaux (rivets, sortie de câble, notes) restent
+  éteints, et « aucun » éteint tout (tests F1 à F6 de `signal.test.html`, C2b de `saisie.test.html`, P8c de `terrain.test.html`).
+  ⚠️ Dans le simulateur, la collecte pose le néon sur l'analyse d'AVANT la frappe ; `marquerEcarts` le repose juste après sur
+  l'analyse refaite. Un MENU s'en passerait (son `change` recollecte sur l'analyse neuve), pas un champ TEXTE : il n'émet `change`
+  qu'en perdant le focus, et le néon restait sur le champ qu'on remplissait (test C3b — une mutation sur C3 seul survivait).
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -3455,7 +3469,7 @@ choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test
    `tests/volet.test.html`, exiger « 174/174 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
-   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
+   Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 64/64 ».
    Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 34/34 », par le serveur (il charge sql.js depuis cdnjs).
@@ -3488,11 +3502,11 @@ choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
    `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 30/30 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
-   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 25/25 », par le serveur — ET `volet.test.html`, `documents.test.html`,
+   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 27/27 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
-   Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le
+   Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 34/34 », par le
    serveur, au bureau ET en émulation tactile — ET `tactile.test.html`, `assistant.test.html` (Soli au-dessus de la barre),
    `nav.test.html`, `signal.test.html` et `rdv.test.html` (il convertit des demandes).
    Et dès qu'on touche aux Demandes de RDV (`app/rdv.html`, `rdv.js`, `/api/rdv`) : `tests/rdv.test.html`, exiger « 40/40 », par

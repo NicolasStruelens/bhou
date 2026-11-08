@@ -123,10 +123,28 @@
         check('C2 … et le bouton emmène sur LE champ : la fiche du volet 4, curseur dans l’ajourage, marqué « vide » avec « Reprendre »',
           [fichesVisibles(d), d.activeElement === aj, aj.closest('.field').classList.contains('ec-vide'), txt(aj.closest('.field').querySelector('.ec-note'))],
           [['Volet 4'], true, true, 'Vide ici — les autres ont : 0 : sans ajourage Reprendre']);
+        // Décision de Nicolas (08/11/2026) : ce champ s'allume AUSSI du néon des champs bloquants ; les vides normaux, non.
+        const neon = (k) => ficheVue(d).querySelector('[data-f="' + k + '"]').closest('.field').classList.contains(w.SSSignal.CLASSE);
+        check('C2b ⚠️ … l’ajourage vide s’allume du NÉON des champs bloquants ; les vides normaux (rivets, sortie de câble, notes) restent éteints',
+          [neon('ajourage'), neon('caisson_rivets'), neon('cable_sortie'), neon('notes')], [true, false, false, false]);
         aj.closest('.field').querySelector('.ec-note button').click(); await attendre(120);
-        check('C3 « Reprendre » pose la valeur des autres ET l’enregistre dans le devis (collecte) ; le signe s’éteint, la liste ne réclame plus rien',
-          [aj.value, w.eval('state').items[3].ajourage, aj.closest('.field').classList.contains('ec-vide'), liste(d)[3][2]],
-          ['0 : sans ajourage', '0 : sans ajourage', false, '']);
+        check('C3 « Reprendre » pose la valeur des autres ET l’enregistre dans le devis (collecte) ; le signe et le néon s’éteignent, la liste ne réclame plus rien',
+          [aj.value, w.eval('state').items[3].ajourage, aj.closest('.field').classList.contains('ec-vide'), neon('ajourage'), liste(d)[3][2]],
+          ['0 : sans ajourage', '0 : sans ajourage', false, false, '']);
+        /* C3b : un champ TEXTE n'émet `change` qu'en perdant le focus. La collecte d'une frappe pose le néon sur l'analyse
+           d'AVANT la frappe ; c'est le second passage (après l'analyse refaite) qui l'éteint — sans lui, le néon restait sur
+           le champ qu'on est en train de remplir jusqu'à ce qu'on en sorte. */
+        for (const k of [0, 1, 2]) {
+          d.querySelector('#ouvListe [data-ol="' + k + '"]').click(); await attendre(60);
+          saisir(ficheVue(d).querySelector('[data-f="cable_sortie"]'), 'à gauche, en bas'); await attendre(60);
+        }
+        d.querySelector('#ouvListe [data-ol="3"]').click(); await attendre(80);
+        const cs = ficheVue(d).querySelector('[data-f="cable_sortie"]');
+        const csAvant = neon('cable_sortie');
+        cs.focus(); cs.value = 'à'; cs.dispatchEvent(new Event('input', { bubbles: true })); await attendre(80);
+        check('C3b Un champ TEXTE vide que les trois autres ont rempli (sortie de câble) s’allume, puis s’éteint dès la PREMIÈRE frappe, sans attendre qu’on quitte le champ',
+          [csAvant, neon('cable_sortie')], [true, false]);
+        saisir(cs, 'à gauche, en bas'); await attendre(60);
 
         // ══════════ A — « + AJOUTER » ══════════
         titre('A — « + Ajouter une ouverture » reprend la configuration de la précédente, sans les mesures');
@@ -136,9 +154,9 @@
         check('A1 Une 5e ouverture, affichée : la même configuration que le volet 4 (lame, coulisses, ajourage repris, caisson, moteur, RAL)',
           [w.eval('state').items.length, fichesVisibles(d), [n5.type, n5.lame_type, n5.coulisse_type, n5.ajourage, n5.caisson_mesure, n5.moteur, n5.couleur]],
           [5, ['Volet 5'], ['volet_roulant', 'alu35', '118', '0 : sans ajourage', '205', 'Secure (RF, standard)', '7016 — Gris anthracite']]);
-        check('A2 ⚠️ … SANS mesures, emplacement, étage ni prix, quantité 1 — et le curseur dans la LARGEUR',
-          [n5.largeur || 0, n5.hauteur || 0, n5.emplacement || '', n5.etage || '', n5.prix_catalogue_ht || 0, n5.quantite, d.activeElement && d.activeElement.dataset.f],
-          [0, 0, '', '', 0, 1, 'largeur']);
+        check('A2 ⚠️ … SANS mesures, emplacement, étage ni prix, quantité 1 — le curseur dans la LARGEUR, et ses deux mesures allumées (elle est commencée)',
+          [n5.largeur || 0, n5.hauteur || 0, n5.emplacement || '', n5.etage || '', n5.prix_catalogue_ht || 0, n5.quantite, d.activeElement && d.activeElement.dataset.f, neon('largeur'), neon('hauteur')],
+          [0, 0, '', '', 0, 1, 'largeur', true, true]);
         check('A3 … et elle ne compte AUCUNE pose tant qu’elle n’est pas chiffrée (règle 1 bis)', d.getElementById('installQty').value, qteAvant);
         check('A4 … ses menus montrent bien la configuration reprise (rien de « — » à l’écran)',
           ['lame_type', 'coulisse_type', 'ajourage', 'moteur'].map((k) => ficheVue(d).querySelector('[data-f="' + k + '"]').value), ['alu35', '118', '0 : sans ajourage', 'Secure (RF, standard)']);
