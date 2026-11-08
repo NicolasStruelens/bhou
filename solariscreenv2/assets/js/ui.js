@@ -7,6 +7,12 @@
   const nf2 = new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const fmtEur = (n) => eur.format(Number(n) || 0);
+  /* ⚠️ LES DOCUMENTS (PDF) ÉCRIVENT LEURS MONTANTS AVEC UNE ESPACE INSÉCABLE ORDINAIRE (refonte des PDF, 08/11/2026).
+     `Intl` sépare les milliers par une espace FINE insécable (U+202F) ; la police Inter la dessine presque nulle : le
+     devis imprimait « 1833,80 € » dans l'encadré d'acompte et « 3 667,60 € » dans les totaux (ceux-là étaient dans la
+     police « machine à écrire », qui la dessine pleine). Même montant, deux écritures, sur la même feuille.
+     Réservé aux documents : l'écran garde `fmtEur`, et les tests qui comparent les deux passent par `\s`. */
+  const fmtEurDoc = (n) => fmtEur(n).replace(/\u202f/g, '\u00a0');
   const fmt2   = (n) => nf2.format(Number(n) || 0);
   const r2     = (n) => Math.round((Number(n) || 0) * 100) / 100;
   /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». Elle vivait en TROIS copies
@@ -734,6 +740,27 @@
     const t = [it && it.toile_num, it && it.toile_couleur].map((x) => String(x == null ? '' : x).trim()).filter(Boolean).join(' ');
     return t ? 'toile ' + t : '';
   }
+
+  /* ── CE QU'UN DOCUMENT CLIENT ÉCRIT D'UN MOTEUR, D'UNE COLLECTION ET D'UNE DIMENSION (refonte des PDF, 08/11/2026) ──
+     Les deux exemplaires du devis (règle 7), le rapport de visite et le PV les lisent ici, jamais en copie locale.
+     • LE MOTEUR D'UN SCREEN porte son code d'article Harol (« 4114: Sunea 40 RTS », « A1677: Harol Solar 50… » —
+       `SSProducts.CS8_MOTEURS`) : le devis l'imprimait tel quel, contre la règle 31. On retire « code : » en tête,
+       et lui seul : un RAL (« 7016 — Gris anthracite ») n'a pas de deux-points, un moteur de volet n'a pas de code.
+     • LA COLLECTION DE TOILE sort du catalogue Harol en néerlandais (« Collectie soltis 86 ») : « Collection Soltis 86 ».
+     • UNE DIMENSION se lit sur UNE ligne, avec l'espace des milliers : « 2 400 × 2 200 mm ». La colonne coupait
+       « mm » seul sur une deuxième ligne. Insécables partout, sauf avant « (l × proj.) » d'une tente, qui peut passer
+       à la ligne. */
+  function moteurClient(v) {
+    return String(v == null ? '' : v).trim().replace(/^(?:A\d{3,5}|\d{3,5})\s*:\s*/i, '');
+  }
+  function collectionClient(v) {
+    const s = String(v == null ? '' : v).trim();
+    const m = s.match(/^collectie\s+(.+)$/i);
+    return m ? 'Collection ' + m[1].charAt(0).toUpperCase() + m[1].slice(1) : s;
+  }
+  function milliers(s) { return String(s == null ? '' : s).replace(/\d{4,}/g, (x) => x.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')); }
+  function dimsLigne(s) { return milliers(s).replace(/ /g, '\u00a0').replace('\u00a0(l', ' (l'); }
+  function dimsDoc(it) { return dimsLigne(dimsOf(it)); }
   /* ── LES OPTIONS D'UNE TENTE SOLAIRE, en mots de client — les DEUX exemplaires (règle 7) ──
      01/11/2026, bac à sable : lambrequin, éclairage LED, détecteur, spots, chauffage se cochent au simulateur et
      se paient (le prix catalogue saisi les comprend), mais la ligne du devis n'en disait RIEN — le client signait
@@ -2273,7 +2300,7 @@
   window.SSUI = {
     ajusterFeuille: ajusterFeuille,
     raisonDoublon: raisonDoublon,
-    fmtEur: fmtEur, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
+    fmtEur: fmtEur, fmtEurDoc: fmtEurDoc, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
@@ -2293,9 +2320,9 @@
     el: el, $: $, $$: $$,
     setText: setText, setVal: setVal, getVal: getVal, getNum: getNum, getInt: getInt,
     toast: toast, generateDevisId: generateDevisId, qp: qp, hoteBacASable: hoteBacASable,
-    normDevis: normDevis, isPoseDone: isPoseDone, couleurClient: couleurClient, toileClient: toileClient, optionsClient: optionsClient, poseAVenir: poseAVenir, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
+    normDevis: normDevis, isPoseDone: isPoseDone, couleurClient: couleurClient, toileClient: toileClient, optionsClient: optionsClient, moteurClient: moteurClient, collectionClient: collectionClient, poseAVenir: poseAVenir, peutRetirerDatePose: peutRetirerDatePose, retirerDatePose: retirerDatePose,
     questionRetirerPose: questionRetirerPose, REFUS_RETIRER_POSE: REFUS_RETIRER_POSE,
-    isTenteSolaire: isTenteSolaire, dimsOf: dimsOf,
+    isTenteSolaire: isTenteSolaire, dimsOf: dimsOf, dimsDoc: dimsDoc, dimsLigne: dimsLigne, milliers: milliers,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
     TYPE_LABEL: TYPE_LABEL, TYPE_FORMES: TYPE_FORMES,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,

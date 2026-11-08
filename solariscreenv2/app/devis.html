@@ -97,7 +97,9 @@
     const SS = window.SS;
     const { mountThemeToggle } = window.SSTheme;
     const { computeDevis } = window.SSCalc;
-    const { fmtEur, fmtDate, el, setText, toast, qp, generateDevisId } = window.SSUI;
+    const { fmtDate, el, setText, toast, qp, generateDevisId } = window.SSUI;
+    // Les montants du DOCUMENT : espace des milliers visible (`SSUI.fmtEurDoc`, refonte des PDF du 08/11/2026).
+    const fmtEur = window.SSUI.fmtEurDoc;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
 
@@ -264,7 +266,7 @@
       let rows = '';
       (d.items || []).forEach((it, i) => {
         // Tente solaire = largeur × projection (pas de hauteur) ; autres types = largeur × hauteur.
-        const dims = window.SSUI.dimsOf(it) || '—';
+        const dims = window.SSUI.dimsDoc(it) || '—';
         const pu = it.prix_catalogue_ht || 0;
         const qty = it.quantite || 1;
         // Coloris : caisson / coulisses / lame finale peuvent différer (Screen) — on détaille
@@ -293,7 +295,7 @@
         const estVoletLigne = !!(window.SSVolet && window.SSVolet.estVolet(it));
         const meta = (estVoletLigne
           ? [it.emplacement, window.SSUI.etageLisible(it.etage)]
-          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, it.moteur || it.moteur_ref, coloris, it.collection || it.toile, window.SSUI.toileClient(it), ...window.SSUI.optionsClient(it), it.emplacement, window.SSUI.etageLisible(it.etage),
+          : [it.variante, (it.combinaison && it.combinaison !== 'Simple') ? it.combinaison : '', it.manoeuvre, window.SSUI.moteurClient(it.moteur || it.moteur_ref), coloris, window.SSUI.collectionClient(it.collection || it.toile), window.SSUI.toileClient(it), ...window.SSUI.optionsClient(it), it.emplacement, window.SSUI.etageLisible(it.etage),
             /* ⚠️ LA MENTION NE VIENT PAS DU CONFIGURATEUR ICI. Un volet la porte déjà dans son
                encadré (c'est le libellé du champ) ; un screen ou une tente n'ont pas d'encadré,
                donc sans cette ligne le client n'apprenait NULLE PART qu'une commande murale
@@ -408,15 +410,15 @@
           ${fait
             ? `Montant à régler : <strong>${fmtEur(c.total_ttc)}</strong> TVAC, payable à réception du présent document.`
             : `Aucun acompte demandé : le montant de <strong>${fmtEur(c.total_ttc)}</strong> TVAC est payable à la fin de l'intervention.`}
-          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(d.id)}.</span>
+          <span class="pay-sub">Versement sur le compte ${esc(COMPANY.iban)} — communication : ${fait ? 'intervention' : 'dépannage'} n° ${esc(d.id)}.</span>
         </div>
 
         <div class="doc-ref">${fait ? 'Récapitulatif de l\'intervention réalisée' : 'Devis de dépannage valable ' + VALIDITE_JOURS + ' jours · soumis à nos Conditions Générales de Vente (voir annexe)'}${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>
         ${suiteHtml(d)}` : `
         <div class="pay-note">
-          Acompte de <strong>${acomptePct} %</strong> à la commande : <strong>${fmtEur(acompteMontant)}</strong> —
-          solde de <strong>${fmtEur(solde)}</strong> à la livraison / pose.
-          <br><span style="font-size:var(--fs-2xs);color:var(--text-muted);">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
+          <div class="pay-l"><span>Acompte de <strong>${acomptePct} %</strong> à la commande</span><strong>${fmtEur(acompteMontant)}</strong></div>
+          <div class="pay-l"><span>Solde à la livraison / pose</span><strong>${fmtEur(solde)}</strong></div>
+          <span class="pay-sub">Versement sur le compte ${esc(COMPANY.iban)} — communication : devis n° ${esc(d.id)}.</span>
         </div>
 
         <div class="doc-ref">Devis valable ${VALIDITE_JOURS} jours · soumis à nos Conditions Générales de Vente (voir annexe)${c.tva_pct === 6 ? ' · Attestation TVA 6 % en annexe' : ''}</div>`)}
@@ -447,7 +449,7 @@
           <div class="sig-box"><h4>${esc(COMPANY.name)}</h4><div class="hint">${fait ? 'Technicien intervenant' : 'Pour acceptation'}</div></div>
         </div>`}
 
-        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.legal)} · ${esc(COMPANY.web)} · TVA ${esc(COMPANY.tva)} · IBAN ${esc(COMPANY.iban)}</div>
         </div>
       `;
 
