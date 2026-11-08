@@ -221,7 +221,9 @@
     const racineFixe = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) if (w.getComputedStyle(x).position === 'fixed') return x; return null; };
     // Le CALQUE d'un élément : une barre fixe, ou un menu déroulant posé par-dessus la page (absolu, au-dessus
     // du contenu). Un menu ouvert recouvre la page EXPRÈS : on ne compare un élément qu'à ceux de son calque.
-    const calqueDe = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if (s.position === 'fixed' || (s.position === 'absolute' && (parseInt(s.zIndex, 10) || 0) >= 5)) return x; } return null; };
+    // ⚠️ Un élément COLLANT (`sticky`) est un calque lui aussi (08/11/2026, en-tête de la fiche du simulateur, règle 60 bis) :
+    // le contenu qui défile SOUS lui le croise exprès, comme sous le bandeau fixe. Ses éléments restent comparés entre eux.
+    const calqueDe = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if (s.position === 'fixed' || s.position === 'sticky' || (s.position === 'absolute' && (parseInt(s.zIndex, 10) || 0) >= 5)) return x; } return null; };
     const calque = (x) => { const r = x.getBoundingClientRect(); return r.width >= W * 0.85 && r.height >= H * 0.85; };
     const calques = visibles.filter((e) => w.getComputedStyle(e).position === 'fixed' && calque(e) && e.querySelector('button, a[href], input, select, textarea'));
     for (const c of calques) {

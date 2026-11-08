@@ -277,7 +277,9 @@
       const cases = checks.length
         ? '<div class="vr-checks">' + checks.map(function (c) { return champCheck(c, item, rappel(c)); }).join('') + '</div>'
         : '';
-      return '<div class="vr-grp"><div class="vr-grp-t">' + esc(g.nom) + '</div>' + grille + cases + '</div>';
+      // `data-section` : le simulateur en fait une SECTION de sa fiche (état, sommaire, « copier vers les
+      // autres », règle 60). Sans effet ailleurs : le Mode Terrain l'ignore.
+      return '<div class="vr-grp" data-section="' + esc(g.nom) + '"><div class="vr-grp-t" data-section-t>' + esc(g.nom) + '</div>' + grille + cases + '</div>';
     }).join('');
 
     return '<div class="cs8-block mt-4" data-volet-block>' +

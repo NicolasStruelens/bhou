@@ -98,7 +98,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `tests/saisie.test.html` | Les 27 tests de la SAISIE DES OUVERTURES au simulateur (règle 60), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/saisie.test.html` | Les 56 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 64 tests du signal, dont les champs vides que les autres ouvertures ont remplis (règle 60), et la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
@@ -3188,6 +3188,45 @@ choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test
   l'analyse refaite. Un MENU s'en passerait (son `change` recollecte sur l'analyse neuve), pas un champ TEXTE : il n'émet `change`
   qu'en perdant le focus, et le néon restait sur le champ qu'on remplissait (test C3b — une mutation sur C3 seul survivait).
 
+**60 bis. LA SAISIE, DEUXIÈME PASSE : TOUTE LA LARGEUR, DES SECTIONS QUI PARLENT, ET UNE VÉRIFICATION QUI N'EMPÊCHE RIEN**
+(08/11/2026, PR #147 en production — Nicolas : « j'aime bien le principe mais ça reste encore fort brouillon et compact ». Maquette
+v2 à douze idées, TOUTES validées : « tout Claude, le plus complet et le mieux visuellement »). Protégé par `tests/saisie.test.html`.
+• **TOUTE LA LARGEUR, LE RÉCAPITULATIF EN BARRE EN BAS** (choix par défaut, contestable dans la PR). Mesuré à 1 875 px : la page était
+  plafonnée à 1 240 px (`.container`), le récapitulatif en prenait 360 — la fiche n'avait que 516 px, le configurateur tombait à deux
+  colonnes, une fiche de volet faisait 2 263 px. Désormais 1 600 px, la fiche en fait ~1 200, ses sections vont DEUX PAR DEUX
+  (1 816 px), et `.sim-aside` est une barre `position: fixed` (`data-barre-bas` : `nav.js` la décale du rail et relève Soli). Total
+  TVAC, HTVA et acompte, « Sans pose », « N à vérifier », Enregistrer, « Vérifier et générer le PDF » ; le détail (les MÊMES
+  identifiants `sTotal…` qu'avant) se déplie au-dessus. La hauteur de la barre est mesurée (`--sim-barre-h`) et réservée en bas de page.
+  ⚠️ **`[hidden]` EST BATTU PAR UN `display` DE LA FEUILLE** (déjà payé sur le rail) : la grille deux par deux affichait les QUATRE
+  fiches à la fois. Toute règle qui pose un `display` sur un élément qu'on masque par `hidden` doit avoir son `[hidden]` (test L2).
+  ⚠️ **SUR TÉLÉPHONE LA BARRE ÉCRASAIT LE TOTAL À 10 px** : chaque bouton n'y garde que son icône et son nom accessible, et le total a
+  un `min-width` (test T2, mutation tuée).
+• **DES SECTIONS QUI DISENT LEUR ÉTAT, UN SOMMAIRE, DES ÉTIQUETTES QUI SE LISENT.** Chaque partie de la fiche est une section
+  (`data-section` ; les groupes du VR150 la reçoivent de `volet.js`, sans effet sur le Mode Terrain) : « ✓ comme les 3 autres »,
+  « 1 à remplir », « ≠ 1 écart avec les autres ». L'en-tête de la fiche reste collé en haut avec un sommaire en pastilles qui emmène
+  à la section. Les étiquettes de la FICHE seulement passent en minuscules et en police du texte. Le prix est un champ texte
+  (« 1 098,10 », relu par `lireMontant`, réécrit en quittant le champ) : un `type=number` affichait « 1098,1 ».
+• **RÉGLER UNE FOIS, POSER PARTOUT** : sur un champ qui diffère, « Reprendre « 118 » » et « Appliquer « 117 » aux 3 autres » ; sur une
+  section, « Copier vers les 3 autres volets », qui DEMANDE d'abord (elle écrase) ; dans le tableau des écarts, « Tout sur « 118 » ».
+  ⚠️ Ces gestes écrivent l'objet puis REDESSINENT les fiches : les fiches masquées sont relues à chaque recalcul, elles doivent montrer
+  la nouvelle valeur. La couleur de caisson répercutée suit la règle 31 quater chez chacune.
+• **LE TABLEAU** (bascule Fiche | Tableau en tête de liste ; « ⊞ » au téléphone) : « Mesures et prix », une LIGNE par ouverture dans
+  l'ordre où on relève une baie ; « Écarts », une COLONNE par ouverture, chaque cellule mène au champ. ⚠️ Le tableau n'écrit jamais
+  l'ouverture : il pose la valeur dans le champ de SA fiche (masquée) et rejoue `input` puis `change` — sinon le recalcul suivant, qui
+  relit toutes les fiches, l'effacerait (test M2). Et il ne se redessine pas à chaque frappe (le champ en cours serait perdu à chaque Tab).
+• **« RETIRER » À L'ABRI** dans « ⋯ », avec une confirmation qui NOMME l'ouverture, et « Annuler » pendant 10 s. Navigation : « Volet 3 ·
+  Jardin → » en bas de chaque fiche, ‹ › dans la barre au téléphone, Alt + ← / → au clavier (le navigateur ne « revient » pas : test L5).
+• **LA VÉRIFICATION AVANT LE PDF AVERTIT, ELLE NE BLOQUE JAMAIS** (choix par défaut, contestable dans la PR) : ce qui manque (« Y aller »),
+  les écarts (« C'est voulu »), un prix à 0, et une pose à 0 € avec des ouvertures chiffrées posée en QUESTION (« Oui, pas de pose » /
+  « Non, compter N poses »). Nicolas, sur son devis du 18/10 : « pas de pose sur ce devis car je vais l'installer avec le client » — un
+  cas réel. « C'est voulu » ne se redemande pas pendant la session ; rien à signaler → le PDF s'ouvre tout droit.
+• **TÉLÉPHONE** : la liste cède la place à des onglets 1 2 3 4 ⊞ + (un point ambre s'il manque, violet s'il diffère), la fiche prend
+  l'écran, et la barre porte ‹ · total · ⚠ · enregistrer · PDF · ›. Mesuré à 375 et 390 px : rien ne déborde, le tableau défile dans son cadre.
+• ⚠️ **L'OUTIL D'AUDIT CONNAÎT LES ÉLÉMENTS COLLANTS** (`tests/audit-outils.js`, `calqueDe`) : le robot des clics relevait 62
+  « chevauchements » — le contenu de la fiche qui passe SOUS son en-tête collé en haut, exprès, comme sous le bandeau fixe. Un
+  élément `sticky` est désormais un calque ; ses éléments restent comparés entre eux. Et une fenêtre doit avoir un bouton que
+  l'audit reconnaît comme une sortie (« Fermer », ✕…) : « Corriger d'abord » n'en était pas un pour lui — d'où le ✕ de la vérification.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3502,7 +3541,7 @@ choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
    `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 30/30 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
-   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 27/27 », par le serveur — ET `volet.test.html`, `documents.test.html`,
+   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 56/56 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.

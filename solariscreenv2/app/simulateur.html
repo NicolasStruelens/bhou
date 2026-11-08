@@ -28,8 +28,15 @@
   <link rel="stylesheet" href="../assets/css/base.css">
   <style>
     /* Layout spécifique simulateur */
-    .sim-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--sp-5); align-items: start; }
-    .sim-aside { position: sticky; top: calc(var(--header-h) + var(--sp-5)); display: flex; flex-direction: column; gap: var(--sp-4); }
+    /* ⚠️ TOUTE LA LARGEUR, LE RÉCAPITULATIF EN BARRE EN BAS (08/11/2026, deuxième passe validée par Nicolas).
+       Mesuré à 1 875 px (son écran) : la page était plafonnée à 1 240 px par `.container`, le récapitulatif en
+       prenait 360 en colonne — il restait 516 px à la fiche d'une ouverture, le configurateur tombait à deux
+       colonnes et une fiche de volet faisait 2 235 px de haut. La page s'élargit jusqu'à 1 600 px et le
+       récapitulatif devient une barre collée en bas (`.sim-aside`, plus bas), toujours sous les yeux.
+       La grille d'origine reste écrite (`minmax(0, 1fr)`, et pourquoi, juste en dessous) : c'est maintenant une
+       seule colonne, la barre étant hors du flux. */
+    .sim-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-5); align-items: start;
+      max-width: 1600px; padding-bottom: calc(var(--sim-barre-h, 72px) + var(--sp-5)); }
     /* `minmax(0, 1fr)` et SURTOUT PAS `1fr` tout court. Le minimum automatique d'une piste `1fr`
        vaut `min-content` et non 0 : la piste s'ELARGIT jusqu'a la plus grosse exigence intrinseque
        de son contenu au lieu de s'arreter au conteneur. Mesure du 10/10/2026 a 366 px : la piste
@@ -39,7 +46,48 @@
        La piste de bureau, juste au-dessus, etait deja bornee — c'est la variante telephone qui
        avait ete oubliee. Sans cette borne, n'importe quel contenu insecable ajoute plus tard
        elargit a nouveau la page au lieu de rester dans sa carte. */
-    @media (max-width: 1040px) { .sim-layout { grid-template-columns: minmax(0, 1fr); } .sim-aside { position: static; } }
+
+    /* ── LA BARRE DU BAS : le récapitulatif ───────────────────────────────────────────────────────
+       `data-barre-bas` : `nav.js` la décale du rail (sinon elle recouvrirait « Paramètres ») et relève Soli
+       au-dessus d'elle. Le détail (les lignes du récapitulatif, mêmes identifiants qu'avant : rien ne change
+       pour ce qui les lit) se déplie AU-DESSUS de la barre. La hauteur réelle de la barre est mesurée
+       (`--sim-barre-h`) : c'est elle qui réserve la place en bas de page, sinon la barre recouvrirait le
+       dernier bouton de la page. */
+    .sim-aside { position: fixed; left: 0; right: 0; bottom: 0; z-index: calc(var(--z-header) - 1);
+      background: var(--surface); border-top: 1px solid var(--border-strong); box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12);
+      padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .sb-detail { max-height: min(62vh, 560px); overflow-y: auto; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+    .sb-detail[hidden] { display: none; }
+    .sb-detail .summary-card { max-width: 560px; margin: var(--sp-3) auto; }
+    .sb-ligne { display: flex; align-items: center; gap: var(--sp-2) var(--sp-4); flex-wrap: wrap; max-width: 1600px; margin: 0 auto;
+      padding: var(--sp-2) max(var(--sp-4), env(safe-area-inset-right, 0px)) var(--sp-2) max(var(--sp-4), env(safe-area-inset-left, 0px)); }
+    .sb-total { display: grid; grid-template-columns: auto auto; column-gap: var(--sp-2); align-items: baseline; text-align: left;
+      background: none; border: 0; padding: 0.2rem 0.3rem; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-sm); min-width: 0; }
+    .sb-total:hover .sb-chev, .sb-total:focus-visible .sb-chev { color: var(--accent); }
+    .sb-total:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .sb-k { font-size: var(--fs-2xs); color: var(--text-subtle); grid-column: 1 / -1; }
+    .sb-v { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sb-chev { font-size: var(--fs-xs); color: var(--text-subtle); }
+    .sb-sous { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .sb-note { font-size: var(--fs-xs); color: var(--text-muted); }
+    .sb-verif { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); }
+    .sb-verif[hidden] { display: none; }
+    .sb-actions { margin-left: auto; display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+    .sb-nav { display: none; min-width: 40px; justify-content: center; font-size: var(--fs-lg); padding-inline: 0.4rem; }
+    .sb-court { display: none; }
+    /* Téléphone : la barre porte ‹ · total · enregistrer · PDF · › ; les libellés longs se taisent (l'icône
+       et le nom accessible restent). Mesuré pour tenir à 375 px sans passer à la ligne. */
+    /* ⚠️ MESURÉ À 375 px : avec ses libellés, la barre écrasait le TOTAL à 10 px de large. Ici chaque bouton
+       garde son icône et son nom accessible ; le total, lui, ne cède jamais (`min-width`). */
+    @media (max-width: 700px) {
+      .sb-ligne { flex-wrap: nowrap; gap: 6px; padding-inline: var(--sp-2); }
+      .sb-nav { display: inline-flex; }
+      .sb-sous, .sb-note, .sb-lib, .sb-court { display: none; }
+      .sb-total { flex: 1 1 auto; min-width: 96px; }
+      .sb-v { font-size: var(--fs-md); }
+      .sb-actions { gap: 4px; margin-left: 0; flex-wrap: nowrap; }
+      .sb-actions .btn, .sb-verif { min-width: 44px; padding-inline: 0.5rem; }
+    }
 
     /* Carte d'ouverture : réagit au survol (cadre accent + halo léger) et met en avant la carte en
        cours d'édition (focus-within) — on voit d'un coup d'œil quelle ouverture on remplit. */
@@ -73,30 +121,35 @@
        retirer du DOM aurait obligé à reconstruire chaque carte à chaque clic de la liste, et la
        reconstruction recharge les photos (règle 31, même raison que le bloc VR150 re-rendu seul).
        ⚠️ La mise en page suit la largeur de la SECTION (requête de conteneur), pas de l'écran :
-       le récapitulatif prend 360 px, et il ne reste que 742 px de section à 1 500 px d'écran
-       (mesuré). Sous 680 px de section, la liste et la fiche se REMPLACENT (piège « maître/détail
-       replié » : un détail posé SOUS une liste s'ouvre hors de l'écran), et la fiche porte
-       « ← Les ouvertures » pour revenir. */
+       depuis le 08/11/2026 (deuxième passe), la page prend toute la largeur et le récapitulatif est en bas :
+       à 1 875 px, la fiche passe de 516 à ~1 250 px. Sous 760 px de section, la liste cède la place à des
+       onglets numérotés (piège « maître/détail replié » : un détail posé SOUS une liste s'ouvre hors de l'écran). */
     .ouv-lf { container-type: inline-size; container-name: ouvertures; }
     .ouv-lf-in { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
+    .ouv-gauche { display: grid; gap: var(--sp-3); align-content: start; min-width: 0; }
     .ouv-liste { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
     .ouv-fiche { min-width: 0; container-type: inline-size; container-name: fiche;
       scroll-margin-top: calc(var(--ss-header-h, var(--header-h)) + var(--sp-3)); }
-    @container ouvertures (min-width: 680px) {
-      .ouv-lf-in { grid-template-columns: 210px minmax(0, 1fr); align-items: start; }
-      /* La liste reste sous les yeux pendant qu'on descend dans une fiche de volet. */
-      .ouv-liste { position: sticky; top: calc(var(--ss-header-h, var(--header-h)) + var(--sp-4));
-        max-height: calc(100vh - var(--ss-header-h, var(--header-h)) - var(--sp-6)); overflow-y: auto; padding: 2px; }
-      .ouv-retour { display: none !important; }
+    /* Deux colonnes dès que la SECTION a la place (requête de conteneur, pas d'écran : le rail et le
+       repli du menu changent la place sans changer l'écran). La liste reste collée en haut pendant
+       qu'on descend dans une fiche de volet, sans passer sous la barre du bas. */
+    @container ouvertures (min-width: 760px) {
+      .ouv-lf-in { grid-template-columns: 270px minmax(0, 1fr); align-items: start; }
+      .ouv-gauche { position: sticky; top: calc(var(--ss-header-h, var(--header-h)) + var(--sp-3));
+        max-height: calc(100vh - var(--ss-header-h, var(--header-h)) - var(--sim-barre-h, 72px) - var(--sp-5)); overflow-y: auto; padding: 2px; }
+      .ouv-onglets { display: none !important; }
     }
-    @container ouvertures (max-width: 679.98px) {
-      .ouv-lf.vue-liste .ouv-fiche { display: none; }
-      .ouv-lf:not(.vue-liste) .ouv-liste { display: none; }
-    }
-    /* Une fiche plus étroite que l'écran (bureau à deux colonnes) : les grilles du formulaire
-       suivent la FICHE. Les replis de base.css suivent l'écran, donc une grille à 4 colonnes
-       serait restée à 4 dans 575 px — des menus de 130 px qui coupent « 38 — 7016 Gris
-       anthracite ». Trois colonnes gardent les `span 2` du bloc Coolscreen valides. */
+    /* Section étroite (téléphone) : la liste cède la place à des ONGLETS numérotés au-dessus de la fiche
+       (idée 12) ; on ajoute par « + », on compare par « ⊞ ». La fiche prend tout l'écran. */
+    @container ouvertures (max-width: 759.98px) { .ouv-gauche { display: none; } }
+    .ouv-onglets { display: flex; gap: var(--sp-2); overflow-x: auto; padding: 2px 2px var(--sp-3); scrollbar-width: thin; }
+    .ouv-onglets button { flex: none; min-width: 44px; height: 44px; border-radius: var(--r-md); border: 1px solid var(--border-strong);
+      background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; position: relative; }
+    .ouv-onglets button[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .ouv-onglets button i { position: absolute; top: -4px; right: -4px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surface); }
+    .ouv-onglets button i.vide { background: var(--warn); }
+    .ouv-onglets button i.diff { background: var(--accent-3); }
+    /* Les grilles du formulaire suivent la FICHE, pas l'écran (les replis de base.css suivent l'écran). */
     @container fiche (max-width: 759.98px) { .ouv-fiche .grid-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @container fiche (max-width: 519.98px) { .ouv-fiche .grid-4, .ouv-fiche .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @container fiche (max-width: 379.98px) {
@@ -104,71 +157,160 @@
       .ouv-fiche .grid-2 > *, .ouv-fiche .grid-3 > *, .ouv-fiche .grid-4 > * { grid-column: auto !important; }
     }
 
-    .ol-item { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: var(--sp-2); row-gap: 1px; align-items: center;
+    /* ── LA LISTE (idée 7) : nom et emplacement ; mesures à gauche, prix à droite ; des pastilles qui se lisent ── */
+    .ol-tete { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); flex-wrap: wrap; }
+    .ol-tete strong { font-size: var(--fs-md); }
+    .ol-compte { font-size: var(--fs-xs); color: var(--text-muted); }
+    .ol-compte b { color: var(--ok); }
+    .ouv-vues { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border-strong); border-radius: var(--r-md); overflow: hidden; }
+    .ouv-vues button { font: inherit; font-size: var(--fs-sm); padding: 0.45rem 0.5rem; border: 0; background: var(--surface-2); color: var(--text-muted); cursor: pointer; }
+    .ouv-vues button + button { border-left: 1px solid var(--border-strong); }
+    .ouv-vues button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+    .ouv-vues button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .ol-item { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 3px var(--sp-3); align-items: center;
       width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md);
       background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; transition: border-color var(--t-fast); }
     .ol-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-    .ol-item[aria-current="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); box-shadow: var(--glow-soft); }
+    .ol-item[aria-current="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 4px 0 0 var(--accent); }
     .ol-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .ol-n, .item-no { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border-radius: var(--r-sm);
-      background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-sm); }
-    .ol-n { grid-row: span 4; align-self: start; }
-    .ol-t { font-weight: 600; font-size: var(--fs-sm); min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
-    .ol-s { font-size: var(--fs-2xs); color: var(--text-muted); min-width: 0; overflow-wrap: anywhere; }
-    .ol-m { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    .ol-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+      background: var(--surface-3); color: var(--text); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-sm); }
+    .ol-item[aria-current="true"] .ol-n, .item-no { background: var(--accent); color: var(--on-accent); }
+    .ol-n { grid-row: span 3; align-self: start; }
+    .ol-t { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); min-width: 0; }
+    .ol-t strong { font-size: var(--fs-sm); white-space: nowrap; }
+    .ol-s { font-size: var(--fs-xs); color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ol-m { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .ol-m b { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .ol-m span { white-space: nowrap; }
+    .ol-chips { display: flex; flex-wrap: wrap; gap: 4px; }
     .ol-chips:empty { display: none; }
-    .ol-cmp { border-style: dashed; }
-    /* « ≠ » n'existe pas dans Orbitron (police des numéros) : il tombait sur un glyphe de repli. */
-    .ol-cmp .ol-n, .cmp-badge { background: var(--accent-3); font-family: var(--font-body); }
-    .ol-cmp[disabled] { cursor: default; opacity: 0.7; }
+    .ajout-ouv { display: grid; gap: var(--sp-2); }
+    .ajout-ouv small { color: var(--text-subtle); font-size: var(--fs-xs); line-height: 1.4; }
 
-    /* Les deux signes de l'outil des différences. La palette évite le vert et le rouge (règle 36 :
-       ils diraient « c'est bon » / « erreur ») : VIOLET pour une valeur qui DIFFÈRE des autres
-       ouvertures du même type, AMBRE pour un champ VIDE que les autres ont rempli. */
-    .ec-chip { font-family: var(--font-mono); font-size: var(--fs-3xs); letter-spacing: 0.03em; padding: 1px 6px;
-      border-radius: var(--r-sm); border: 1px solid; white-space: nowrap; }
-    .ec-chip-diff { color: var(--accent-3); border-color: color-mix(in srgb, var(--accent-3) 55%, transparent); background: color-mix(in srgb, var(--accent-3) 12%, transparent); }
-    .ec-chip-vide { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+    /* Les signes de l'outil des différences. La palette évite le vert et le rouge pour ce qui est À FAIRE
+       (règle 36) : VIOLET pour une valeur qui DIFFÈRE, AMBRE pour un champ VIDE que les autres ont rempli ;
+       le vert ne dit que « complète ». Des pastilles lisibles (idée 7), plus des codes de 10 px. */
+    .ec-chip { font-size: var(--fs-2xs); font-weight: 600; padding: 1px 8px; border-radius: 10px; white-space: nowrap; line-height: 1.55; }
+    .ec-chip-diff { color: var(--accent-3); background: color-mix(in srgb, var(--accent-3) 14%, transparent); }
+    .ec-chip-vide { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+    .ec-chip-ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
     .ec-diff, .ec-vide { border-radius: var(--r-sm); outline-offset: 3px; }
     .ec-diff { outline: 1px solid var(--accent-3); background: color-mix(in srgb, var(--accent-3) 8%, transparent); }
     .ec-vide { outline: 1px dashed var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
-    .ec-note { font-size: var(--fs-2xs); line-height: 1.45; margin-top: 0.3rem; overflow-wrap: anywhere; }
+    .ec-note { font-size: var(--fs-xs); line-height: 1.45; margin-top: 0.3rem; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; gap: 2px var(--sp-3); align-items: baseline; }
     .ec-note-diff { color: var(--accent-3); }
     .ec-note-vide { color: var(--warn); }
-    .ec-note .btn { margin-left: 0.3rem; vertical-align: baseline; }
+    .ec-geste { font: inherit; font-size: var(--fs-xs); background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
     .vr-checks .ec-note, .cs8-opts .ec-note { flex-basis: 100%; margin-top: 0; }
+    @media (pointer: coarse) { .ec-geste { min-height: 44px; } }
 
-    .item-titre { display: flex; flex-direction: column; min-width: 8ch; flex: 1 1 150px; line-height: 1.3; }
-    .item-titre strong { font-size: var(--fs-md); }
-    .item-titre span { font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; }
-    .item-nav { display: inline-flex; gap: 4px; }
-    /* Le retour (section étroite seulement) a sa propre ligne : à côté du numéro, il repoussait le
-       titre de la fiche sur une troisième rangée. */
-    .item-card-head .ouv-retour { flex: 1 0 100%; justify-content: flex-start; }
-    .ic-grp-t { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: .06em; text-transform: uppercase;
-      color: var(--text-subtle); margin: var(--sp-4) 0 var(--sp-2); }
-    .ajout-ouv { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-4); }
-    .ajout-ouv small { color: var(--text-subtle); font-size: var(--fs-2xs); }
+    /* ── LA FICHE : un en-tête collé en haut (titre, état, actions, sommaire) et des sections nommées ── */
+    .ouv-fiche .item-card { background: var(--surface); padding-top: 0; }
+    .ouv-fiche .item-card-head { position: sticky; top: var(--ss-header-h, var(--header-h)); z-index: 3; background: var(--surface);
+      margin: 0 calc(-1 * var(--sp-4)) var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border);
+      border-radius: var(--r-md) var(--r-md) 0 0; row-gap: var(--sp-2); }
+    .item-no { width: 36px; height: 36px; font-size: var(--fs-md); }
+    .item-titre { display: flex; flex-direction: column; min-width: 8ch; flex: 1 1 220px; line-height: 1.3; }
+    .item-titre strong { font-size: var(--fs-lg); }
+    .item-titre span { font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+    .item-etat { display: grid; justify-items: end; gap: 2px; font-variant-numeric: tabular-nums; }
+    .item-etat b { font-size: var(--fs-md); white-space: nowrap; }
+    .item-etat .ol-chips { justify-content: flex-end; }
+    .item-actions { display: flex; gap: var(--sp-2); align-items: center; }
+    .ic-sommaire { flex: 1 0 100%; display: flex; gap: var(--sp-2); overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+    .ic-sommaire button { flex: none; font: inherit; font-size: var(--fs-xs); padding: 0.2rem 0.65rem; border-radius: 14px; border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text-muted); cursor: pointer; display: inline-flex; gap: 0.35rem; align-items: center; white-space: nowrap; }
+    .ic-sommaire button b { font-weight: 800; }
+    .ic-sommaire .s-ok b { color: var(--ok); }
+    .ic-sommaire .s-vide { border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+    .ic-sommaire .s-vide b { color: var(--warn); }
+    .ic-sommaire .s-diff { border-color: color-mix(in srgb, var(--accent-3) 55%, transparent); }
+    .ic-sommaire .s-diff b { color: var(--accent-3); }
+    @media (pointer: coarse) { .ic-sommaire button { min-height: 36px; } }
+    /* Les étiquettes se LISENT (idée 2) : minuscules, police du texte, en gris — les valeurs ressortent.
+       Dans la fiche seulement : le reste de l'ERP garde son style. */
+    .ouv-fiche .label { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem; }
+    .ouv-fiche .vr-grp { margin-top: 0; }
+    .ouv-fiche [data-section] { padding: var(--sp-4) 0; border-top: 1px solid var(--border); scroll-margin-top: calc(var(--ss-header-h, var(--header-h)) + 150px); }
+    .ouv-fiche [data-section-t], .ouv-fiche .vr-grp-t { display: flex; align-items: baseline; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap;
+      font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: var(--fs-md); font-weight: 650; color: var(--text); margin: 0 0 var(--sp-3); }
+    .sec-etat { font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); }
+    .sec-etat.ok { color: var(--ok); }
+    .sec-etat.vide { color: var(--warn); }
+    .sec-etat.diff { color: var(--accent-3); }
+    .sec-copier { margin-left: auto; display: inline-flex; gap: var(--sp-2); align-items: baseline; font-weight: 400; }
+    .ouv-fiche .cs8-block { border-top: 1px solid var(--border); padding-top: var(--sp-4); }
+    .ouv-fiche .cs8-block[data-volet-block] { border-top: 0; padding-top: 0; }
+    .ouv-fiche .cs8-block[data-volet-block] > .cs8-head { display: none; }
+    .ouv-fiche .cs8-head { font-family: var(--font-body); text-transform: none; letter-spacing: 0; font-size: var(--fs-md); font-weight: 650; color: var(--text); }
+    /* ⚠️ DES SECTIONS DEUX PAR DEUX quand la fiche a la place (idée 3, « des rangées pleines »). Une par
+       rangée, une fiche de volet faisait encore 2 263 px à 1 875 px d'écran : « Ouverture » (un menu),
+       « Montage » (un menu) ou « Options » (deux cases) prenaient chacune toute la largeur. Côte à côte :
+       Produit | Mesures, Où | Couleur, puis les groupes du VR150 deux à deux. Chaque section est son
+       propre conteneur : ses grilles suivent SA largeur (une grille à 4 colonnes passe à 2 dans une
+       demi-fiche), pas celle de l'écran. */
+    /* ⚠️ `[hidden]` EST BATTU PAR UN `display` DE LA FEUILLE (piège déjà payé sur le rail, règle 24 bis) :
+       la grille ci-dessous affichait les QUATRE fiches les unes sous les autres, la liste en désignant une. */
+    .ouv-fiche .item-card[hidden], .sb-nav[hidden], .sec-copier [hidden] { display: none !important; }
+    .ouv-fiche [data-section] { container-type: inline-size; container-name: section; min-width: 0; }
+    @container section (max-width: 640px) {
+      .ouv-fiche [data-section] .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ouv-fiche [data-section] .grid-4 > [style*="span"] { grid-column: 1 / -1 !important; }
+    }
+    @container fiche (min-width: 880px) {
+      .ouv-fiche .item-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--sp-6); align-items: start; }
+      .ouv-fiche .item-card > .item-card-head, .ouv-fiche .item-card > .ic-suivant, .ouv-fiche .item-card > .cs8-block { grid-column: 1 / -1; }
+      .ouv-fiche .cs8-block[data-volet-block] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--sp-6); align-items: start; margin-top: 0; }
+    }
+    .prix-aide { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 0.3rem; font-variant-numeric: tabular-nums; }
+    .ic-suivant { display: flex; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding-top: var(--sp-4); border-top: 1px solid var(--border); margin-top: var(--sp-4); }
+    .ic-suivant .btn { padding: 0.6rem 1rem; }
 
-    .cmp-bloc { border: 1px solid color-mix(in srgb, var(--accent-3) 40%, var(--border)); border-radius: var(--r-md);
-      background: color-mix(in srgb, var(--accent-3) 6%, var(--surface-2)); padding: var(--sp-3) var(--sp-4); }
-    .cmp-bloc + .cmp-bloc { margin-top: var(--sp-3); }
-    .cmp-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-3); margin-bottom: var(--sp-2); }
-    .cmp-t strong { font-size: var(--fs-sm); }
-    .cmp-t span { font-size: var(--fs-xs); color: var(--text-muted); }
-    .cmp-l { display: grid; grid-template-columns: minmax(0, 160px) minmax(0, 1fr); gap: 4px var(--sp-3); padding: var(--sp-2) 0;
-      border-top: 1px dashed color-mix(in srgb, var(--accent-3) 35%, var(--border)); font-size: var(--fs-xs); }
-    .cmp-k { font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .05em; color: var(--text-subtle); overflow-wrap: anywhere; }
-    .cmp-v { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
-    .cmp-ref { color: var(--text-muted); overflow-wrap: anywhere; }
-    .cmp-aller { font: inherit; font-size: var(--fs-xs); text-align: left; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: var(--r-sm);
-      border: 1px solid color-mix(in srgb, var(--accent-3) 50%, transparent); background: color-mix(in srgb, var(--accent-3) 10%, transparent);
-      color: var(--accent-3); font-weight: 600; overflow-wrap: anywhere; max-width: 100%; }
-    .cmp-aller.vide { border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--warn); }
-    .cmp-rien { font-size: var(--fs-xs); color: var(--text-muted); margin: 0; }
-    @container fiche (max-width: 519.98px) { .cmp-l { grid-template-columns: minmax(0, 1fr); } }
-    @media (pointer: coarse) { .ol-item { min-height: 52px; } .cmp-aller { min-height: 44px; } }
+    /* « ⋯ » : Retirer à l'abri, avec une confirmation qui nomme l'ouverture (idée 9). */
+    .menu-ouv { position: relative; }
+    .menu-ouv-liste { position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; min-width: min(280px, 86vw); display: grid; gap: 2px; padding: var(--sp-2);
+      background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); }
+    .menu-ouv-liste[hidden] { display: none; }
+    .menu-ouv-liste > button { justify-content: flex-start; border-color: transparent; text-align: left; }
+    .menu-ouv-conf { padding: var(--sp-2); border-top: 1px solid var(--border); font-size: var(--fs-sm); display: grid; gap: var(--sp-2); }
+    .menu-ouv-conf[hidden] { display: none; }
+    .ouv-retire { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3);
+      border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sm); }
+    .ouv-retire[hidden] { display: none; }
+
+    /* ── LE TABLEAU (idée 6) : les mesures de toutes les ouvertures d'affilée, et les écarts ── */
+    .tab-tete { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+    .tab-tete strong { font-size: var(--fs-lg); }
+    .tab-tete .ouv-vues { min-width: 280px; }
+    .tab-wrap { overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+    table.tab-ouv { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; font-size: var(--fs-sm); }
+    .tab-ouv th, .tab-ouv td { padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+    .tab-ouv thead th { background: var(--surface-2); font-weight: 600; font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+    .tab-ouv th[scope="row"] { position: sticky; left: 0; background: var(--surface); z-index: 1; font-weight: 600; white-space: nowrap; }
+    .tab-ouv td .input, .tab-ouv td .select { font-size: var(--fs-champ); padding: 0.35rem 0.5rem; min-width: 84px; }
+    .tab-ouv td.diff { background: color-mix(in srgb, var(--accent-3) 10%, transparent); }
+    .tab-ouv td.vide { background: color-mix(in srgb, var(--warn) 10%, transparent); }
+    .tab-ouv .cell-aller { font: inherit; background: none; border: 0; padding: 0.15rem 0; color: inherit; cursor: pointer; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; }
+    .tab-ouv tr.sep td { background: var(--surface-2); font-size: var(--fs-xs); color: var(--text-subtle); font-weight: 600; }
+    .cmp-rien { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-3) 0; }
+
+    /* ── LA VÉRIFICATION AVANT LE PDF (idée 11) : elle AVERTIT, elle ne bloque jamais ── */
+    .verif-bg { position: fixed; inset: 0; z-index: var(--z-overlay); background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .verif-bg[hidden] { display: none; }
+    .verif-box { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow);
+      width: 620px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; }
+    .verif-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-2) var(--sp-4); }
+    .verif-box h2 { font-size: var(--fs-lg); margin: 0; }
+    .verif-box p.verif-aide { margin: 0; padding: 0 var(--sp-4) var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
+    .verif-liste { list-style: none; margin: 0; padding: 0 var(--sp-4); overflow-y: auto; display: grid; gap: var(--sp-2); }
+    .verif-liste li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sm); }
+    .verif-liste .vi { font-weight: 800; }
+    .verif-liste li.vide .vi, .verif-liste li.question .vi { color: var(--warn); }
+    .verif-liste li.diff .vi { color: var(--accent-3); }
+    .verif-liste .vg { grid-column: 2; display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+    .verif-pied { display: flex; justify-content: flex-end; gap: var(--sp-2); flex-wrap: wrap; padding: var(--sp-4); border-top: 1px solid var(--border); margin-top: var(--sp-3); }
+    @media (pointer: coarse) { .ol-item { min-height: 52px; } .tab-ouv .cell-aller { min-height: 44px; } }
 
     .photos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
     .photo-thumb { position: relative; width: 64px; height: 64px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-strong); }
@@ -369,18 +511,28 @@
         </div>
         <div class="section-body">
           <div class="ouv-lf" id="ouvLf">
+            <!-- Téléphone : les ouvertures en onglets numérotés (la liste ne tient pas à côté de la fiche). -->
+            <div class="ouv-onglets" id="ouvOnglets" role="group" aria-label="Les ouvertures du devis"></div>
             <div class="ouv-lf-in">
-              <nav class="ouv-liste" id="ouvListe" aria-label="Les ouvertures du devis"></nav>
+              <div class="ouv-gauche">
+                <div class="ol-tete"><strong>Ouvertures</strong><span class="ol-compte" id="ouvCompte"></span></div>
+                <div class="ouv-vues" role="group" aria-label="Vue des ouvertures">
+                  <button type="button" id="vueFiche" aria-pressed="true" onclick="voirFiche()">Fiche</button>
+                  <button type="button" id="vueTableau" aria-pressed="false" onclick="voirTableau()">Tableau</button>
+                </div>
+                <nav class="ouv-liste" id="ouvListe" aria-label="Les ouvertures du devis"></nav>
+                <div class="ajout-ouv">
+                  <button class="btn btn-primary" id="btnAjouterOuv" onclick="markDirty(); ajouterCommePrecedente();">+ Ajouter une ouverture</button>
+                  <small id="ajoutAide"></small>
+                  <button class="btn btn-ghost" id="btnAutreProduit" onclick="markDirty(); ajouterVierge();">+ Autre produit</button>
+                </div>
+              </div>
               <div class="ouv-fiche" id="ouvFiche">
-                <div id="ouvComparer" hidden></div>
+                <div class="ouv-retire" id="ouvRetire" role="status" hidden></div>
+                <div id="ouvTableau" hidden></div>
                 <div id="itemsContainer"></div>
               </div>
             </div>
-          </div>
-          <div class="ajout-ouv">
-            <button class="btn btn-primary" id="btnAjouterOuv" onclick="markDirty(); ajouterCommePrecedente();">+ Ajouter une ouverture</button>
-            <button class="btn btn-ghost" id="btnAutreProduit" onclick="markDirty(); ajouterVierge();">+ Autre produit</button>
-            <small id="ajoutAide"></small>
           </div>
           <!-- Autocomplétion (champs libres, ces listes ne sont que des suggestions) -->
           <datalist id="dl-modeles"></datalist>
@@ -607,8 +759,9 @@
       </section>
     </div>
 
-    <!-- ════════ COLONNE RÉCAP (sticky) ════════ -->
-    <aside class="sim-aside">
+    <!-- ════════ RÉCAPITULATIF : UNE BARRE EN BAS D'ÉCRAN, son détail se déplie au-dessus ════════ -->
+    <aside class="sim-aside" id="simBarre" data-barre-bas aria-label="Récapitulatif du devis">
+      <div class="sb-detail" id="sbDetail" hidden>
       <div class="summary-card ticked">
         <div class="sc-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--accent-2);"><circle cx="12" cy="12" r="9"/><path d="M9 8.5c1-1.2 2.2-1.5 3.5-1.5a4 4 0 0 1 0 8c-1.3 0-2.5-.3-3.5-1.5"/><line x1="6" y1="10" x2="12" y2="10"/><line x1="6" y1="13" x2="12" y2="13"/></svg><h2>Récapitulatif</h2></div>
         <div class="warn-box" id="checklistWarn" style="margin:0 0 var(--sp-3);"></div>
@@ -624,9 +777,36 @@
           <div class="sc-acompte" id="scAcompte">Acompte <span id="sAcomptePct">50</span>% : <strong id="sAcompte" class="text-mono">0,00 €</strong></div>
         </div>
       </div>
-      <button class="btn btn-primary" style="width:100%;padding:0.85rem;" onclick="saveDevis()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Enregistrer le devis</button>
-      <button class="btn btn-ghost" style="width:100%;" id="btnPdf" onclick="goPdf()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Générer le PDF</button>
+      </div>
+      <div class="sb-ligne">
+        <button type="button" class="btn btn-ghost sb-nav" id="sbPrec" onclick="ouvertureVoisine(-1)" aria-label="Ouverture précédente" title="Ouverture précédente (Alt + ←)">‹</button>
+        <button type="button" class="sb-total" id="sbTotal" onclick="basculerDetail()" aria-expanded="false" aria-controls="sbDetail" title="Voir le détail du récapitulatif">
+          <span class="sb-k">Total TVAC</span><span class="sb-v" id="sbTTC">0,00 €</span><span class="sb-chev" id="sbChev" aria-hidden="true">▴</span>
+        </button>
+        <span class="sb-sous" id="sbSous"></span>
+        <span class="sb-note" id="sbNote"></span>
+        <button type="button" class="btn btn-ghost btn-sm sb-verif" id="sbVerif" onclick="ouvrirVerification(false)" hidden></button>
+        <div class="sb-actions">
+          <button type="button" class="btn btn-ghost" id="btnEnregistrer" onclick="saveDevis()" aria-label="Enregistrer le devis"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="sb-lib"> Enregistrer</span></button>
+          <button type="button" class="btn btn-primary" id="btnPdf" onclick="goPdf()" aria-label="Vérifier et générer le PDF"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span class="sb-lib"> Vérifier et générer le PDF</span><span class="sb-court"> PDF</span></button>
+        </div>
+        <button type="button" class="btn btn-ghost sb-nav" id="sbSuiv" onclick="ouvertureVoisine(1)" aria-label="Ouverture suivante" title="Ouverture suivante (Alt + →)">›</button>
+      </div>
     </aside>
+
+    <!-- ════════ LA VÉRIFICATION AVANT LE PDF : elle avertit, elle ne bloque jamais ════════ -->
+    <div class="verif-bg" id="verifBg" hidden>
+      <div class="verif-box" role="dialog" aria-modal="true" aria-labelledby="verifTitre">
+        <div class="verif-tete"><h2 id="verifTitre">Avant de générer le PDF</h2>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="fermerVerification()" aria-label="Fermer la vérification" title="Fermer (Échap)">✕</button></div>
+        <p class="verif-aide" id="verifAide"></p>
+        <ul class="verif-liste" id="verifListe"></ul>
+        <div class="verif-pied">
+          <button type="button" class="btn btn-ghost" id="verifFermer" onclick="fermerVerification()">Corriger d’abord</button>
+          <button type="button" class="btn btn-primary" id="verifGenerer" onclick="fermerVerification(); allerAuPdf();">Générer quand même</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <!-- ════════ LOGIQUE ════════ -->
@@ -716,8 +896,8 @@
       const opt = (arr, cur) => arr.map(v => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`).join('');
       const mesureOpts = opt(caissonMesuresFor(item.variante), item.caisson_mesure);
       return `
-      <div class="cs8-block mt-4">
-        <div class="cs8-head">${icon('sliders', 14)} Configuration Coolscreen 8 <span class="badge badge-purple">Portail Harol</span></div>
+      <div class="cs8-block mt-4" data-section="Configuration Coolscreen 8">
+        <div class="cs8-head" data-section-t>${icon('sliders', 14)} Configuration Coolscreen 8 <span class="badge badge-purple">Portail Harol</span></div>
         <div class="grid grid-4">
           <div class="field"><label class="label">Variante</label><select class="select" data-f="variante" onchange="onCS8VarianteChange('${item._id}'); ui_recalc()"><option value="">—</option>${opt(CS8_VARIANTES, item.variante)}</select></div>
           <div class="field"><label class="label">Latéralité</label><select class="select" data-f="lateralite">
@@ -785,8 +965,8 @@
       const eclairageOpts = opt(tsEclairageFor(modele), item.eclairage_led);
       const maxBadge = specs.largeur_max ? `<span class="badge badge-purple">Max ${specs.largeur_max / 1000} × ${specs.projection_max / 1000} m — inclinaison ${specs.inclinaison}</span>` : '';
       return `
-      <div class="cs8-block mt-4">
-        <div class="cs8-head">${icon('sliders', 14)} Configuration ${modele || 'Tente solaire'} ${maxBadge}</div>
+      <div class="cs8-block mt-4" data-section="Configuration ${escHtml(modele || 'Tente solaire')}">
+        <div class="cs8-head" data-section-t>${icon('sliders', 14)} Configuration ${modele || 'Tente solaire'} ${maxBadge}</div>
         <div class="grid grid-4">
           <div class="field"><label class="label">Manœuvre</label><select class="select" data-f="manoeuvre"><option value="">—</option>${opt(TS_MANOEUVRES, item.manoeuvre)}</select></div>
           <div class="field"><label class="label">Moteur (sorte)</label><select class="select" data-f="moteur"><option value="">—</option>${opt(TS_MOTEUR_SORTES, item.moteur)}</select></div>
@@ -856,34 +1036,63 @@
         .filter(Boolean).join(' · ');
     }
 
+    /* Les chiffres s'écrivent comme sur le devis (idée 8) : « 1 098,10 », jamais « 1098,1 ». */
+    const fmtMontant = (v) => (Number(v) > 0 ? Number(v).toLocaleString('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '');
+    /** Relit un montant tapé à la française (« 1 098,10 », « 1098,1 », « 1098.10 ») ; illisible → 0. */
+    function lireMontant(v) {
+      const s = String(v == null ? '' : v).replace(/[\s  ]/g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return isFinite(n) && n > 0 ? n : 0;
+    }
+    function aidePrix(it) {
+      const q = Number(it.quantite) || 1, p = Number(it.prix_catalogue_ht) || 0;
+      const d2 = it.type === 'tente_solaire' ? it.projection : it.hauteur;
+      const surf = it.largeur > 0 && d2 > 0 ? ((it.largeur / 1000) * (d2 / 1000)).toLocaleString('fr-BE', { maximumFractionDigits: 2 }) + ' m²' : '';
+      return [p ? '× ' + q + ' = ' + fmtEur(p * q) : 'À saisir au bureau', surf].filter(Boolean).join(' · ');
+    }
+
     function itemTemplate(item, idx) {
       const opt = (o, val, lbl) => `<option value="${val}" ${o===val?'selected':''}>${lbl}</option>`;
       const typeOpts = Object.entries(ITEM_TYPES).map(([v, l]) => opt(item.type, v, l)).join('');
       const photos = (item.photos || []).map((p, pi) =>
         `<div class="photo-thumb"><img src="${p}" alt=""><button title="Retirer" aria-label="Retirer la photo" onclick="removePhoto('${item._id}',${pi})">✕</button></div>`).join('');
       const n = state.items.length;
+      const prec = idx > 0 ? state.items[idx - 1] : null, suiv = idx < n - 1 ? state.items[idx + 1] : null;
+      const nomVoisin = (it, i) => escHtml(nomOuverture(it, i) + (String(it.emplacement || '').trim() ? ' · ' + String(it.emplacement).trim() : ''));
       return `
-      <div class="item-card" data-id="${item._id}" ${idx === SEL && !VUE_CMP ? '' : 'hidden'}>
+      <div class="item-card" data-id="${item._id}" ${idx === SEL && VUE === 'fiche' ? '' : 'hidden'}>
         <div class="item-card-head">
-          <button class="btn btn-ghost btn-sm ouv-retour" onclick="voirListeOuvertures()">← Les ${n} ouverture${n > 1 ? 's' : ''}</button>
           <span class="item-no" aria-hidden="true">${idx + 1}</span>
           <div class="item-titre"><strong data-titre>${escHtml(nomOuverture(item, idx))}</strong><span data-lieu>${escHtml(lieuOuverture(item) || 'Emplacement à préciser')}</span></div>
-          <span class="item-sub" data-sub></span>
-          <span class="item-nav">
-            <button class="btn btn-ghost btn-sm" onclick="choisirOuverture(${idx - 1})" ${idx === 0 ? 'disabled' : ''} aria-label="Ouverture précédente" title="Ouverture précédente">‹</button>
-            <button class="btn btn-ghost btn-sm" onclick="choisirOuverture(${idx + 1})" ${idx === n - 1 ? 'disabled' : ''} aria-label="Ouverture suivante" title="Ouverture suivante">›</button>
-          </span>
-          <button class="btn btn-ghost btn-sm" onclick="duplicateItem('${item._id}')"
-            title="Dupliquer cette ouverture — tout sauf les photos">⧉ Dupliquer</button>
-          <button class="btn btn-danger btn-sm" onclick="removeItem('${item._id}')">✕ Retirer</button>
+          <div class="item-etat"><b data-prix-ligne></b><span class="ol-chips" data-puces></span><span class="item-sub" data-sub hidden></span></div>
+          <div class="item-actions">
+            <button class="btn btn-ghost btn-sm" onclick="duplicateItem('${item._id}')"
+              title="Dupliquer cette ouverture — tout sauf les photos">⧉ Dupliquer</button>
+            <div class="menu-ouv">
+              <button type="button" class="btn btn-ghost btn-sm" data-menu-ouv aria-haspopup="true" aria-expanded="false" aria-label="Plus d’actions sur cette ouverture" onclick="basculerMenuOuv(this)">⋯</button>
+              <div class="menu-ouv-liste" hidden>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="fermerMenusOuv(); ajouterVierge();">+ Autre produit (ouverture vierge)</button>
+                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" data-retirer-demande onclick="demanderRetrait(this)">Retirer cette ouverture…</button>
+                <div class="menu-ouv-conf" hidden>
+                  <span>Retirer « ${escHtml(nomOuverture(item, idx) + (String(item.emplacement || '').trim() ? ' — ' + String(item.emplacement).trim() : ''))} » ? Tu pourras annuler pendant 10 secondes.</span>
+                  <span style="display:flex;gap:var(--sp-2);flex-wrap:wrap;">
+                    <button type="button" class="btn btn-danger btn-sm" data-retirer-ok onclick="fermerMenusOuv(); removeItem('${item._id}')">Retirer</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="fermerMenusOuv()">Garder</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <nav class="ic-sommaire" data-sommaire aria-label="Sections de la fiche"></nav>
         </div>
+        <div data-section="Produit"><div data-section-t>Produit</div>
         <div class="grid grid-auto">
           <div class="field"><label class="label">Type</label><select class="select" data-f="type" onchange="onItemTypeChange('${item._id}')">${typeOpts}</select></div>
           ${modeleFieldHtml(item)}
           ${moteurFieldHtml(item)}
           <div class="field"><label class="label">Quantité</label><input class="input input-num" type="number" min="1" step="1" data-f="quantite" value="${item.quantite || 1}"></div>
-        </div>
-        <div class="ic-grp-t">Mesures et prix</div>
+        </div></div>
+        <div data-section="Mesures et prix"><div data-section-t>Mesures et prix</div>
         <div class="grid grid-3">
           <div class="field"><label class="label">Largeur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="largeur" value="${item.largeur || ''}"></div>
           ${item.type === 'tente_solaire'
@@ -893,29 +1102,40 @@
             // carte feraient que collectItem ne garderait que le dernier du DOM).
             ? `<div class="field"><label class="label">Projection (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="projection" value="${item.projection || ''}" placeholder="${(TS_SPECS[item.modele] || {}).projection_max ? 'Max ' + TS_SPECS[item.modele].projection_max : ''}"></div>`
             : `<div class="field"><label class="label">Hauteur (mm)</label><input class="input input-num" type="number" min="0" step="1" data-f="hauteur" value="${item.hauteur || ''}"></div>`}
-          <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-f="prix_catalogue_ht" value="${item.prix_catalogue_ht || ''}" placeholder="0.00"><span class="unit">€</span></div></div>
-        </div>
-        <div class="ic-grp-t">Où</div>
+          ${/* ⚠️ UN CHAMP TEXTE, PAS NUMÉRIQUE : un `type=number` affiche « 1098,1 » et refuse « 1 098,10 ».
+               La valeur s'écrit comme sur le devis, se relit par `lireMontant` (collectItem) et se
+               réécrit proprement en quittant le champ. `inputmode="decimal"` garde le pavé numérique. */ ''}
+          <div class="field"><label class="label">Prix catalogue Harol HTVA</label><div class="input-unit"><input class="input input-num" type="text" inputmode="decimal" autocomplete="off" data-f="prix_catalogue_ht" data-montant value="${fmtMontant(item.prix_catalogue_ht)}" placeholder="0,00"><span class="unit">€</span></div><div class="prix-aide" data-prix-aide>${escHtml(aidePrix(item))}</div></div>
+        </div></div>
+        <div data-section="Où"><div data-section-t>Où</div>
         <div class="grid grid-3">
           <div class="field"><label class="label">Emplacement</label><input class="input" data-f="emplacement" data-memo="emplacement" list="dl-emplacements" value="${escHtml(item.emplacement)}" placeholder="Ex: Salon"></div>
           <div class="field"><label class="label">Étage</label><input class="input" data-f="etage" data-memo="etage" list="dl-etages" value="${escHtml(item.etage)}" placeholder="RDC"></div>
-          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${escHtml(item.notes)}"></div>
-        </div>
+        </div></div>
         ${item.type !== 'screen' ? `
-        <div class="grid grid-auto mt-4">
+        <div data-section="Couleur"><div data-section-t>Couleur</div>
+        <div class="grid grid-auto">
           ${SSUI.ralFieldHtml({ f: 'couleur', label: 'Couleur (RAL)', value: item.couleur })}
           ${!['volet_roulant', 'tente_solaire'].includes(item.type)
             // Pas de « Toile / finition » en texte libre pour les tentes solaires : leur bloc de
             // configuration a déjà « Collection toile » (liste fermée du fabricant). Le champ reste
             // pour tablier_volet (et les anciens types), qui n'ont aucun configurateur.
             ? `<div class="field"><label class="label">Toile / finition</label><input class="input" data-f="toile" data-memo="toile" list="dl-toiles" value="${escHtml(item.toile)}" placeholder="Ex: Soltis Horizon 86"></div>` : ''}
-        </div>` : ''}
+        </div></div>` : ''}
         ${coolscreenBlockHtml(item)}
         ${tenteSolaireBlockHtml(item)}
         ${voletBlockHtml(item)}
-        <div class="field mt-4">
-          <label class="label">Photos</label>
-          <div class="photos">${photos}<label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Photo<input type="file" accept="image/*" multiple hidden onchange="addPhotos('${item._id}', this)"></label></div>
+        <div data-section="Photos et notes"><div data-section-t>Photos et notes</div>
+          <div class="field"><label class="label">Notes</label><input class="input" data-f="notes" value="${escHtml(item.notes)}" placeholder="Pour le bureau et la pose"></div>
+          <div class="field mt-4">
+            <label class="label">Photos</label>
+            <div class="photos">${photos}<label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Photo<input type="file" accept="image/*" multiple hidden onchange="addPhotos('${item._id}', this)"></label></div>
+          </div>
+        </div>
+        <div class="ic-suivant">
+          ${prec ? `<button type="button" class="btn btn-ghost" onclick="choisirOuverture(${idx - 1})" title="Alt + ←">← ${nomVoisin(prec, idx - 1)}</button>` : '<span></span>'}
+          ${suiv ? `<button type="button" class="btn btn-primary" onclick="choisirOuverture(${idx + 1})" title="Alt + →">${nomVoisin(suiv, idx + 1)} →</button>`
+                 : `<button type="button" class="btn btn-primary" onclick="markDirty(); ajouterCommePrecedente();">+ Ajouter une ouverture</button>`}
         </div>
       </div>`;
     }
@@ -932,14 +1152,14 @@
     };
 
     let _uid = 0;
-    /* L'ouverture affichée dans la fiche (index dans `state.items`), et les deux vues :
-       la comparaison (« ce qui change ») et, sur une section étroite, la liste seule. */
-    let SEL = 0, VUE_CMP = false, VUE_LISTE = false;
+    /* L'ouverture affichée (index dans `state.items`) et la vue : la FICHE d'une ouverture, ou le
+       TABLEAU de toutes (onglet « mesures » ou « ecarts », idée 6 de la deuxième passe). */
+    let SEL = 0, VUE = 'fiche', ONGLET = 'mesures';
     window.addItem = (data = {}) => {
       const item = { _id: 'it' + (++_uid), type: 'screen', quantite: 1, photos: [], ...data };
       if (!item.photos) item.photos = [];
       state.items.push(item);
-      SEL = state.items.length - 1; VUE_CMP = false; VUE_LISTE = false;
+      SEL = state.items.length - 1; VUE = 'fiche';
       renderItems();
       ui_recalc();
       return item;
@@ -973,14 +1193,64 @@
       const t = card && card.querySelector('[data-f="type"]');
       if (t) t.focus({ preventScroll: true });
     };
+
+    /* ── RETIRER, À L'ABRI ET ANNULABLE (idée 9) ─────────────────────────────────────────────────
+       « Retirer » était un bouton rouge COLLÉ à « Dupliquer » : un mauvais clic, et trente champs et des
+       photos partaient sans retour. Il vit maintenant dans le menu « ⋯ », demande en NOMMANT l'ouverture,
+       et se défait pendant 10 secondes (même discipline que le Mode Terrain, règle 55). */
+    let RETRAIT = null;
     window.removeItem = (id) => {
-      markDirty();
       const i = state.items.findIndex(x => x._id === id);
-      state.items = state.items.filter(x => x._id !== id);
+      if (i < 0) return;
+      markDirty();
+      const retiree = state.items.splice(i, 1)[0];
       // On reste à la même place dans la liste : l'ouverture suivante prend la fiche.
       SEL = Math.max(0, Math.min(i, state.items.length - 1));
-      renderItems(); ui_recalc();
+      if (RETRAIT) clearTimeout(RETRAIT.minuteur);
+      const lieu = String(retiree.emplacement || '').trim();
+      RETRAIT = { item: retiree, i: i, nom: nomOuverture(retiree, i) + (lieu ? ' — ' + lieu : ''),
+        minuteur: setTimeout(() => { RETRAIT = null; majRetrait(); }, 10000) };
+      renderItems(); ui_recalc(); majRetrait();
     };
+    function majRetrait() {
+      const b = el('ouvRetire');
+      if (!b) return;
+      b.hidden = !RETRAIT;
+      b.innerHTML = RETRAIT ? `<span>${escHtml(RETRAIT.nom)} retiré.</span> <button type="button" class="btn btn-ghost btn-sm" onclick="annulerRetraitOuv()">Annuler</button>` : '';
+    }
+    window.annulerRetraitOuv = () => {
+      if (!RETRAIT) return;
+      clearTimeout(RETRAIT.minuteur);
+      const at = Math.min(RETRAIT.i, state.items.length);
+      state.items.splice(at, 0, RETRAIT.item);
+      SEL = at; VUE = 'fiche'; RETRAIT = null;
+      markDirty(); renderItems(); ui_recalc(); majRetrait();
+      toast('Ouverture remise à sa place.', 'ok');
+    };
+    window.basculerMenuOuv = (btn) => {
+      const liste = btn.nextElementSibling;
+      const ouvrir = !!(liste && liste.hidden);
+      fermerMenusOuv();
+      if (!ouvrir) return;
+      liste.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      const premier = liste.querySelector('button');
+      if (premier) premier.focus();
+    };
+    window.fermerMenusOuv = () => {
+      document.querySelectorAll('.menu-ouv-liste').forEach((l) => {
+        l.hidden = true;
+        const c = l.querySelector('.menu-ouv-conf'); if (c) c.hidden = true;
+      });
+      document.querySelectorAll('[data-menu-ouv]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    };
+    window.demanderRetrait = (btn) => {
+      const c = btn.parentElement.querySelector('.menu-ouv-conf');
+      if (!c) return;
+      c.hidden = false;
+      const ok = c.querySelector('[data-retirer-ok]'); if (ok) ok.focus();
+    };
+    document.addEventListener('click', (e) => { if (!e.target.closest || !e.target.closest('.menu-ouv')) fermerMenusOuv(); });
 
     /**
      * DUPLIQUER UNE OUVERTURE — tout le configurateur, aucune photo.
@@ -1001,19 +1271,25 @@
       copie._id = 'it' + (++_uid);      // l'identité appartient à cette page, pas au module
       markDirty();
       state.items.splice(i + 1, 0, copie);
-      SEL = i + 1; VUE_CMP = false; VUE_LISTE = false;
+      SEL = i + 1; VUE = 'fiche';
       renderItems();
       ui_recalc();
       largeurSousLeCurseur(copie._id);
       toast('Ouverture dupliquée — vérifie les mesures.', 'ok');
     };
 
-    /* ══ LA LISTE, LA FICHE, LA COMPARAISON ══════════════════════════════════════════════════
+    /* ══ LA LISTE, LA FICHE, LE TABLEAU ════════════════════════════════════════════════════
        L'analyse vient de `SSProducts.ecartsOuvertures` (règle 10) : c'est la même idée que
        l'encadré « Différences » du devis, mais sur TOUS les champs — perçage et rivets compris,
        puisque c'est la commande qu'on prépare ici, pas le document du client. */
     let ANALYSE = [];
     function ecartsOuverture(i) { return window.SSProducts.ecartsDe(ANALYSE, i); }
+    const typeDe = (it) => (it && it.type === 'volet' ? 'volet_roulant' : it && it.type);
+    /** Les ouvertures du même type que la i-ème (elle comprise). */
+    function memeType(i) {
+      const t = typeDe(state.items[i]);
+      return state.items.map((it, j) => (typeDe(it) === t ? j : -1)).filter(j => j >= 0);
+    }
     /** Ce qui reste à remplir sur une ouverture : les champs BLOQUANTS (règle 36, seulement si
      *  elle est commencée) et les champs VIDES que les autres ouvertures du type ont remplis. */
     function aRemplir(it, i) {
@@ -1022,17 +1298,20 @@
       ecartsOuverture(i).filter(e => e.etat === 'vide').forEach(e => cles.add(e.k));
       return cles.size;
     }
+    /** Complète = commencée, et plus rien à remplir. Un écart n'empêche pas d'être complète. */
+    function complete(it, i) { return !!(window.SSSignal && window.SSSignal.commencee(it)) && aRemplir(it, i) === 0; }
     function puces(it, i) {
       const diff = ecartsOuverture(i).filter(e => e.etat === 'diff').length;
       const vide = aRemplir(it, i);
-      return (vide ? `<span class="ec-chip ec-chip-vide">${vide} à remplir</span>` : '') +
+      return (vide ? `<span class="ec-chip ec-chip-vide">${vide} à remplir</span>` : (complete(it, i) ? '<span class="ec-chip ec-chip-ok">✓ complète</span>' : '')) +
         (diff ? `<span class="ec-chip ec-chip-diff">≠ ${diff} écart${diff > 1 ? 's' : ''}</span>` : '');
     }
     const fmtMm = (v) => (Number(v) > 0 ? Math.round(Number(v)).toLocaleString('fr-BE') : '—');
-    function mesuresCourtes(it) {
+    function dimsCourtes(it) {
       const d2 = it.type === 'tente_solaire' ? it.projection : it.hauteur;
-      return `${fmtMm(it.largeur)} × ${fmtMm(d2)}${(Number(it.quantite) || 1) > 1 ? ' · ×' + it.quantite : ''} · ${fmtEur((it.prix_catalogue_ht || 0) * (it.quantite || 1))}`;
+      return `${fmtMm(it.largeur)} × ${fmtMm(d2)}` + ((Number(it.quantite) || 1) > 1 ? ' · ×' + it.quantite : '');
     }
+    const prixLigne = (it) => fmtEur((it.prix_catalogue_ht || 0) * (it.quantite || 1));
     /** Les numéros en mots : « volets 1, 2 et 4 », « volet 3 ». */
     function lignesEnMots(type, ix) {
       const formes = (SSUI.TYPE_FORMES || {})[type] || ['ouverture', 'ouvertures'];
@@ -1046,54 +1325,177 @@
       const L = el('ouvListe');
       if (!L) return;
       const focus = document.activeElement && L.contains(document.activeElement) ? document.activeElement.getAttribute('data-ol') : null;
-      const items = state.items.map((it, i) => `
-        <button type="button" class="ol-item" data-ol="${i}" onclick="choisirOuverture(${i})" aria-current="${!VUE_CMP && i === SEL}">
+      L.innerHTML = state.items.map((it, i) => `
+        <button type="button" class="ol-item" data-ol="${i}" onclick="choisirOuverture(${i})" aria-current="${VUE === 'fiche' && i === SEL}">
           <span class="ol-n" aria-hidden="true">${i + 1}</span>
-          <span class="ol-t">${escHtml(nomOuverture(it, i))}</span>
-          <span class="ol-s">${escHtml(lieuOuverture(it) || 'Emplacement à préciser')}</span>
-          <span class="ol-m">${escHtml(mesuresCourtes(it))}</span>
+          <span class="ol-t"><strong>${escHtml(nomOuverture(it, i))}</strong><span class="ol-s">${escHtml(lieuOuverture(it) || 'Emplacement à préciser')}</span></span>
+          <span class="ol-m"><span>${escHtml(dimsCourtes(it))}</span><b>${escHtml(prixLigne(it))}</b></span>
           <span class="ol-chips">${puces(it, i)}</span>
         </button>`).join('');
-      const nbEcarts = ANALYSE.reduce((s, b) => s + b.lignes.length, 0);
-      const cmp = `<button type="button" class="ol-item ol-cmp" data-ol="cmp" onclick="voirComparaison()" aria-current="${VUE_CMP}" ${ANALYSE.length ? '' : 'disabled'}>
-          <span class="ol-n" aria-hidden="true">≠</span>
-          <span class="ol-t">Comparer</span>
-          <span class="ol-s">${ANALYSE.length ? (nbEcarts ? `${nbEcarts} réglage${nbEcarts > 1 ? 's' : ''} diffère${nbEcarts > 1 ? 'nt' : ''}` : 'Tout est identique') : 'Il faut deux ouvertures du même type'}</span>
-        </button>`;
-      L.innerHTML = items + (state.items.length > 1 ? cmp : '');
       if (focus !== null) { const b = L.querySelector(`[data-ol="${focus}"]`); if (b) b.focus({ preventScroll: true }); }
-      const prec = state.items[state.items.length - 1];
-      setText('ajoutAide', prec ? `Reprend la configuration de « ${nomOuverture(prec, state.items.length - 1)} », sans mesures, emplacement ni prix.` : '');
+      const n = state.items.length, nComp = state.items.filter((it, i) => complete(it, i)).length;
+      const compte = el('ouvCompte');
+      if (compte) compte.innerHTML = n ? `<b>${nComp}</b> / ${n} complète${n > 1 ? 's' : ''}` : '';
+      const prec = state.items[n - 1];
+      setText('ajoutAide', prec ? `Reprend la configuration de « ${nomOuverture(prec, n - 1)} », sans mesures, emplacement ni prix.` : '');
+      const vf = el('vueFiche'), vt = el('vueTableau');
+      if (vf) vf.setAttribute('aria-pressed', String(VUE === 'fiche'));
+      if (vt) vt.setAttribute('aria-pressed', String(VUE === 'tableau'));
+      renderOnglets();
+    }
+    /* Téléphone : des onglets numérotés, un point de couleur quand il manque (ambre) ou diffère (violet)
+       quelque chose ; « ⊞ » ouvre le tableau, « + » ajoute (idée 12). */
+    function renderOnglets() {
+      const O = el('ouvOnglets');
+      if (!O) return;
+      const focus = document.activeElement && O.contains(document.activeElement) ? document.activeElement.getAttribute('data-onglet') : null;
+      O.innerHTML = state.items.map((it, i) => {
+        const vide = aRemplir(it, i), diff = ecartsOuverture(i).some(e => e.etat === 'diff');
+        const lieu = String(it.emplacement || '').trim();
+        return `<button type="button" data-onglet="${i}" onclick="choisirOuverture(${i})" aria-current="${VUE === 'fiche' && i === SEL}" aria-label="${escHtml(nomOuverture(it, i) + (lieu ? ' — ' + lieu : ''))}">${i + 1}${vide ? '<i class="vide"></i>' : diff ? '<i class="diff"></i>' : ''}</button>`;
+      }).join('') +
+        `<button type="button" data-onglet="tableau" onclick="voirTableau()" aria-current="${VUE === 'tableau'}" aria-label="Tableau des ouvertures" title="Tableau des ouvertures">⊞</button>` +
+        `<button type="button" data-onglet="ajout" onclick="markDirty(); ajouterCommePrecedente();" aria-label="Ajouter une ouverture" title="Ajouter une ouverture">+</button>`;
+      if (focus !== null) { const b = O.querySelector(`[data-onglet="${focus}"]`); if (b) b.focus({ preventScroll: true }); }
     }
 
-    function renderComparaison() {
-      const C = el('ouvComparer');
-      if (!C) return;
-      const n = state.items.length;
-      const tete = `<div class="item-card-head"><button class="btn btn-ghost btn-sm ouv-retour" onclick="voirListeOuvertures()">← Les ${n} ouverture${n > 1 ? 's' : ''}</button>
-        <span class="item-no cmp-badge" aria-hidden="true">≠</span>
-        <div class="item-titre"><strong>Ce qui change entre les ouvertures</strong><span>Même type, réglage par réglage — mesures, prix et emplacement à part.</span></div></div>`;
-      if (!ANALYSE.length) {
-        C.innerHTML = tete + '<p class="cmp-rien">Rien à comparer : il faut au moins deux ouvertures du même type, déjà configurées.</p>';
+    /* ── LE TABLEAU (idée 6) ──────────────────────────────────────────────────────────────────
+       « Mesures et prix » : une LIGNE par ouverture, dans l'ordre où on relève une baie (largeur, hauteur,
+       quantité, prix, emplacement, étage) — Tab passe au champ suivant de la même fenêtre. « Écarts » : une
+       COLONNE par ouverture, chaque cellule mène au champ, et « Tout sur « 118 » » aligne d'un clic.
+       ⚠️ Le tableau n'écrit JAMAIS l'ouverture lui-même : il pose la valeur dans le champ de SA fiche (masquée)
+       et rejoue `input` puis `change` (règle 31 sexies). C'est la fiche qui collecte — la seule source — sinon
+       le recalcul suivant, qui relit toutes les fiches, effacerait ce qu'on vient de taper ici. */
+    function poserDepuisTableau(i, k, brut) {
+      const it = state.items[i];
+      const card = it && document.querySelector(`[data-id="${it._id}"]`);
+      const champ = card && card.querySelector(`[data-f="${k}"]`);
+      if (!champ) return;
+      champ.value = k === 'prix_catalogue_ht' ? fmtMontant(lireMontant(brut)) : brut;
+      champ.dispatchEvent(new Event('input', { bubbles: true }));
+      champ.dispatchEvent(new Event('change', { bubbles: true }));
+      markDirty();
+    }
+    function renderTableau() {
+      const T = el('ouvTableau');
+      if (!T) return;
+      const tete = `<div class="tab-tete"><strong>Tableau des ouvertures</strong>
+        <div class="ouv-vues" role="group" aria-label="Contenu du tableau">
+          <button type="button" data-tab="mesures" aria-pressed="${ONGLET === 'mesures'}" onclick="ongletTableau('mesures')">Mesures et prix</button>
+          <button type="button" data-tab="ecarts" aria-pressed="${ONGLET === 'ecarts'}" onclick="ongletTableau('ecarts')">Écarts</button>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="voirFiche()">← Fiche</button></div>`;
+      T.dataset.n = String(state.items.length);
+      if (ONGLET === 'mesures') {
+        const cell = (i, k, v, opts) => `<td><input class="input${opts.num ? ' input-num' : ''}" type="${opts.type || 'text'}" ${opts.mode ? `inputmode="${opts.mode}"` : ''} data-tab-i="${i}" data-tab-k="${k}" value="${escHtml(v)}" aria-label="${escHtml(opts.l + ' — ' + nomOuverture(state.items[i], i))}"></td>`;
+        const lignes = state.items.map((it, i) => {
+          const d2k = it.type === 'tente_solaire' ? 'projection' : 'hauteur';
+          return `<tr><th scope="row">${i + 1}. ${escHtml(nomOuverture(it, i))}</th>` +
+            cell(i, 'largeur', it.largeur || '', { type: 'number', num: true, l: 'Largeur' }) +
+            cell(i, d2k, it[d2k] || '', { type: 'number', num: true, l: d2k === 'projection' ? 'Projection' : 'Hauteur' }) +
+            cell(i, 'quantite', it.quantite || 1, { type: 'number', num: true, l: 'Quantité' }) +
+            cell(i, 'prix_catalogue_ht', fmtMontant(it.prix_catalogue_ht), { num: true, mode: 'decimal', l: 'Prix catalogue' }) +
+            cell(i, 'emplacement', it.emplacement || '', { l: 'Emplacement' }) +
+            cell(i, 'etage', it.etage || '', { l: 'Étage' }) +
+            `<td data-tab-etat="${i}">${puces(it, i)}</td></tr>`;
+        }).join('');
+        T.innerHTML = tete + `<div class="tab-wrap"><table class="tab-ouv tab-mesures"><thead><tr><th scope="col">Ouverture</th><th scope="col">Largeur (mm)</th><th scope="col">Hauteur / projection (mm)</th><th scope="col">Qté</th><th scope="col">Prix HTVA (€)</th><th scope="col">Emplacement</th><th scope="col">Étage</th><th scope="col">État</th></tr></thead><tbody>${lignes}</tbody></table></div>
+          <p class="cmp-rien" data-tab-total>Fournitures : ${escHtml(fmtEur(state.items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0)))} HTVA</p>`;
         return;
       }
-      C.innerHTML = tete + ANALYSE.map(b => {
+      if (!ANALYSE.length) {
+        T.innerHTML = tete + '<p class="cmp-rien">Rien à comparer : il faut au moins deux ouvertures du même type, déjà configurées.</p>';
+        return;
+      }
+      T.innerHTML = tete + ANALYSE.map(b => {
         const formes = (SSUI.TYPE_FORMES || {})[b.type] || ['Ouverture', 'Ouvertures'];
-        const titre = `Les ${b.indices.length} ${formes[1].toLowerCase()} (${b.indices.map(i => i + 1).join(', ')})`;
+        const entetes = b.indices.map(i => `<th scope="col">${escHtml(nomOuverture(state.items[i], i))}${String(state.items[i].emplacement || '').trim() ? '<br><span style="font-weight:400">' + escHtml(state.items[i].emplacement) + '</span>' : ''}</th>`).join('');
         const lignes = b.lignes.map(l => {
-          const pareils = l.ouvertures.filter(o => o.etat === 'pareil').map(o => o.i);
-          const ex = l.ouvertures.filter(o => o.etat !== 'pareil').map(o => {
-            const it = state.items[o.i];
-            const lieu = String(it.emplacement || '').trim();
-            return `<button type="button" class="cmp-aller${o.etat === 'vide' ? ' vide' : ''}" onclick="allerAuChamp(${o.i}, ${jsAttr(l.k)})">${escHtml(valeurLue(l, o.v))} — ${escHtml(nomOuverture(it, o.i))}${lieu ? ' (' + escHtml(lieu) + ')' : ''} →</button>`;
+          const par = {};
+          l.ouvertures.forEach(o => { par[o.i] = o; });
+          const cells = b.indices.map(i => {
+            const o = par[i];
+            if (!o) return '<td>—</td>';
+            return `<td class="${o.etat === 'pareil' ? '' : o.etat}"><button type="button" class="cell-aller" onclick="allerAuChamp(${i}, ${jsAttr(l.k)})">${escHtml(valeurLue(l, o.v))}</button></td>`;
           }).join('');
-          return `<div class="cmp-l"><span class="cmp-k">${escHtml(l.l)}</span><span class="cmp-v">
-            <span class="cmp-ref">${escHtml(valeurLue(l, l.ref))} — ${escHtml(pareils.length ? lignesEnMots(b.type, pareils) : '')}</span>${ex}</span></div>`;
+          const aligner = (l.check || l.ref !== '')
+            ? `<button type="button" class="btn btn-ghost btn-sm" onclick="alignerReglage(${jsAttr(b.type)}, ${jsAttr(l.k)})">Tout sur « ${escHtml(valeurLue(l, l.ref))} »</button>` : '';
+          return `<tr><th scope="row">${escHtml(l.l)}</th>${cells}<td>${aligner}</td></tr>`;
         }).join('');
-        return `<div class="cmp-bloc"><div class="cmp-t"><strong>${escHtml(titre)}</strong><span>${b.communs} réglage${b.communs > 1 ? 's' : ''} identique${b.communs > 1 ? 's' : ''} sur toutes</span></div>
-          ${lignes || '<p class="cmp-rien">Exactement la même configuration.</p>'}</div>`;
+        return `<p class="cmp-rien"><strong>Les ${b.indices.length} ${escHtml(formes[1].toLowerCase())}</strong> — ${b.communs} réglage${b.communs > 1 ? 's' : ''} identique${b.communs > 1 ? 's' : ''} sur toutes${b.lignes.length ? '' : ', et rien ne diffère'}.</p>` +
+          (b.lignes.length ? `<div class="tab-wrap"><table class="tab-ouv tab-ecarts"><thead><tr><th scope="col">Réglage</th>${entetes}<th scope="col"></th></tr></thead><tbody>${lignes}</tbody></table></div>` : '');
       }).join('');
     }
+    /** Ne rafraîchit que l'ÉTAT des lignes du tableau des mesures : le redessiner entier ferait perdre le
+     *  champ en cours de saisie à chaque Tab. */
+    function majEtatTableau() {
+      const T = el('ouvTableau');
+      state.items.forEach((it, i) => { const c = T.querySelector(`[data-tab-etat="${i}"]`); if (c) c.innerHTML = puces(it, i); });
+      const tot = T.querySelector('[data-tab-total]');
+      if (tot) tot.textContent = `Fournitures : ${fmtEur(state.items.reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0))} HTVA`;
+    }
+
+    /* ── APPLIQUER AUX AUTRES, COPIER UNE SECTION, ALIGNER (idée 5) ───────────────────────────
+       Le geste qui empêche l'oubli : régler UNE fois, et le poser sur toutes les ouvertures du même
+       type. ⚠️ Ces gestes écrivent l'objet puis REDESSINENT les fiches (`renderItems`) : les fiches
+       masquées sont relues à chaque recalcul, il faut donc qu'elles montrent la nouvelle valeur.
+       ⚠️ La couleur du caisson répercutée suit la règle 31 quater (`appliquerRal`) chez chacune. */
+    function poserValeurEtat(j, k, v) {
+      const it = state.items[j];
+      if (!it) return;
+      const ancienne = it.couleur || '';
+      it[k] = v === undefined ? v : JSON.parse(JSON.stringify(v));
+      if (k === 'couleur' && window.SSVolet) window.SSVolet.appliquerRal(it, ancienne);
+    }
+    function libelleChamp(i, k) {
+      const c = window.SSProducts.champsConfig(state.items[i]).find(x => x.k === k);
+      return c ? c.l : k;
+    }
+    window.appliquerAuxAutres = (i, k) => {
+      const src = state.items[i];
+      if (!src) return;
+      const autres = memeType(i).filter(j => j !== i);
+      if (!autres.length) return;
+      autres.forEach(j => poserValeurEtat(j, k, src[k]));
+      markDirty(); renderItems(); ui_recalc();
+      toast(`« ${libelleChamp(i, k)} » posé sur ${lignesEnMots(typeDe(src), autres)}.`, 'ok');
+    };
+    window.copierSection = (i, nom) => {
+      const src = state.items[i];
+      const card = src && document.querySelector(`[data-id="${src._id}"]`);
+      const sec = card && [...card.querySelectorAll('[data-section]')].find(s => s.dataset.section === nom);
+      if (!sec) return;
+      const cles = new Set(window.SSProducts.champsConfig(src).map(c => c.k));
+      const aCopier = [...new Set([...sec.querySelectorAll('[data-f]')].map(f => f.dataset.f))].filter(k => cles.has(k));
+      const autres = memeType(i).filter(j => j !== i);
+      autres.forEach(j => aCopier.forEach(k => poserValeurEtat(j, k, src[k])));
+      markDirty(); renderItems(); ui_recalc();
+      toast(`${nom} : copié vers ${lignesEnMots(typeDe(src), autres)}.`, 'ok');
+    };
+    window.alignerReglage = (type, k) => {
+      const b = ANALYSE.find(x => x.type === type);
+      const l = b && b.lignes.find(x => x.k === k);
+      if (!l) return;
+      const v = l.check ? l.ref === '1' : l.ref;
+      const cibles = l.ouvertures.filter(o => o.etat !== 'pareil').map(o => o.i);
+      cibles.forEach(j => poserValeurEtat(j, k, v));
+      markDirty(); renderItems(); ui_recalc();
+      toast(`« ${l.l} » aligné sur ${valeurLue(l, l.ref)} (${lignesEnMots(type, cibles)}).`, 'ok');
+    };
+    /** Le premier clic ARME la copie d'une section (elle écrase chez les autres) ; le second la fait. */
+    window.armerCopie = (btn) => {
+      const zone = btn.closest('.sec-copier');
+      if (!zone) return;
+      zone.querySelectorAll('[data-copie-conf]').forEach(x => { x.hidden = false; });
+      btn.hidden = true;
+      const oui = zone.querySelector('[data-copie-oui]'); if (oui) oui.focus();
+    };
+    window.desarmerCopie = (btn) => {
+      const zone = btn.closest('.sec-copier');
+      if (!zone) return;
+      zone.querySelectorAll('[data-copie-conf]').forEach(x => { x.hidden = true; });
+      const a = zone.querySelector('[data-copie-armer]'); if (a) { a.hidden = false; a.focus(); }
+    };
 
     /* ⚠️ RETIRER AVANT DE POSER (même discipline que le signal, règle 36) : un écart corrigé ne
        doit pas garder son liseré jusqu'au prochain rendu de la carte. Et un bloc re-rendu (le
@@ -1103,6 +1505,8 @@
       if (!card) return;
       card.querySelectorAll('.ec-diff, .ec-vide').forEach(x => x.classList.remove('ec-diff', 'ec-vide'));
       card.querySelectorAll('.ec-note').forEach(x => x.remove());
+      const autres = memeType(i).length - 1;
+      const src = state.items[i];
       ecartsOuverture(i).forEach(e => {
         const champ = card.querySelector(`[data-f="${e.k}"]`);
         if (!champ) return;
@@ -1111,20 +1515,27 @@
         env.classList.add(e.etat === 'vide' ? 'ec-vide' : 'ec-diff');
         const note = document.createElement('div');
         note.className = 'ec-note ' + (e.etat === 'vide' ? 'ec-note-vide' : 'ec-note-diff');
-        note.textContent = e.etat === 'vide'
-          ? 'Vide ici — les autres ont : ' + valeurLue(e, e.ref)
-          : '≠ Les autres ont : ' + valeurLue(e, e.ref);
-        if (e.etat === 'vide' && !e.check) {
+        const txt = document.createElement('span');
+        txt.textContent = e.etat === 'vide' ? 'Vide ici — les autres ont : ' + valeurLue(e, e.ref) : '≠ Les autres ont : ' + valeurLue(e, e.ref);
+        note.appendChild(txt);
+        const geste = (libelle, aria, faire) => {
           const b = document.createElement('button');
-          b.type = 'button'; b.className = 'btn btn-ghost btn-sm'; b.textContent = 'Reprendre';
-          b.setAttribute('aria-label', 'Reprendre la valeur des autres : ' + e.ref);
-          b.addEventListener('click', () => reprendreValeur(champ, e.ref));
-          note.append(' ', b);
+          b.type = 'button'; b.className = 'ec-geste'; b.textContent = libelle;
+          b.setAttribute('aria-label', aria);
+          b.addEventListener('click', faire);
+          note.appendChild(b);
+        };
+        // « Reprendre » aligne CELLE-CI sur les autres ; « Appliquer… aux autres » fait l'inverse.
+        if (e.etat === 'vide' || e.ref !== '' || e.check) {
+          geste('Reprendre « ' + valeurLue(e, e.ref) + ' »', 'Reprendre la valeur des autres : ' + valeurLue(e, e.ref), () => reprendreValeur(champ, e));
+        }
+        if (e.etat === 'diff' && autres > 0) {
+          geste('Appliquer « ' + valeurLue(e, e.v) + ' » aux ' + autres + ' autres', 'Appliquer cette valeur aux ' + autres + ' autres ouvertures', () => appliquerAuxAutres(i, e.k));
         }
         if (env.tagName === 'LABEL') env.insertAdjacentElement('afterend', note); else env.appendChild(note);
       });
       // Le néon suit l'analyse qu'on vient de refaire (la collecte l'a posé sur la précédente).
-      signaler(card, state.items[i]);
+      signaler(card, src);
     }
     /** LE NÉON D'UNE CARTE : les champs qui bloquent la commande (règle 36) ET — décision de Nicolas
      *  du 08/11/2026, règle 60 — les champs VIDES que la plupart des autres ouvertures du type ont
@@ -1137,34 +1548,109 @@
     }
     /** « Reprendre » rejoue le GESTE (règle 31 sexies) : la valeur posée, puis `input` et
      *  `change`, comme le nuancier — c'est ce qui déclenche la collecte, le RAL et le recalcul. */
-    function reprendreValeur(champ, valeur) {
-      champ.value = valeur;
-      if (champ.value !== valeur) { toast('Cette valeur n’est pas proposée ici — choisis-la dans le menu.', 'warn'); champ.focus(); return; }
+    function reprendreValeur(champ, e) {
+      if (champ.type === 'checkbox') champ.checked = e.ref === '1';
+      else {
+        champ.value = e.ref;
+        if (champ.value !== e.ref) { toast('Cette valeur n’est pas proposée ici — choisis-la dans le menu.', 'warn'); champ.focus(); return; }
+      }
       champ.dispatchEvent(new Event('input', { bubbles: true }));
       champ.dispatchEvent(new Event('change', { bubbles: true }));
       markDirty();
     }
 
+    /* ── LES SECTIONS DE LA FICHE ET LEUR SOMMAIRE (idées 3 et 4) ─────────────────────────────
+       Chaque section (`data-section`) dit son état — « ✓ comme les 3 autres », « 1 à remplir »,
+       « ≠ 1 écart » — et le sommaire en tête de fiche les reprend en pastilles cliquables. L'état se
+       CALCULE (aucune clé posée sur l'ouverture : tout ce qu'on y pose part en base, règle 31 sexies). */
+    const SECTIONS_SANS_COPIE = ['Produit', 'Mesures et prix', 'Où', 'Photos et notes'];
+    function decorerSections(card, i) {
+      const it = state.items[i];
+      if (!card || !it) return;
+      const ecarts = ecartsOuverture(i);
+      const manq = window.SSSignal && window.SSSignal.commencee(it) ? window.SSProducts.champsManquants(it).map(m => m.k) : [];
+      const cfg = new Set(window.SSProducts.champsConfig(it).map(c => c.k));
+      const bloc = ANALYSE.find(b => b.indices.indexOf(i) >= 0);
+      const pairs = bloc ? bloc.indices.length - 1 : 0;
+      const autres = memeType(i).length - 1;
+      const pastilles = [];
+      card.querySelectorAll('[data-section]').forEach(sec => {
+        const nom = sec.dataset.section;
+        const titre = sec.querySelector('[data-section-t]');
+        if (!titre) return;
+        const cles = new Set([...sec.querySelectorAll('[data-f]')].map(f => f.dataset.f));
+        const vides = new Set(manq.filter(k => cles.has(k)).concat(ecarts.filter(e => e.etat === 'vide' && cles.has(e.k)).map(e => e.k))).size;
+        const diffs = ecarts.filter(e => e.etat === 'diff' && cles.has(e.k)).length;
+        const estConfig = SECTIONS_SANS_COPIE.indexOf(nom) < 0 && [...cles].some(k => cfg.has(k));
+        let cls = '', texte = '';
+        if (vides) { cls = 'vide'; texte = vides + ' à remplir'; }
+        else if (diffs) { cls = 'diff'; texte = '≠ ' + diffs + ' écart' + (diffs > 1 ? 's' : '') + ' avec les autres'; }
+        else if (estConfig && pairs > 0) { cls = 'ok'; texte = '✓ comme les ' + pairs + ' autres'; }
+        let etat = titre.querySelector('.sec-etat');
+        if (!etat) { etat = document.createElement('span'); titre.appendChild(etat); }
+        etat.className = 'sec-etat' + (cls ? ' ' + cls : '');
+        etat.textContent = texte;
+        let copie = titre.querySelector('.sec-copier');
+        if (estConfig && autres > 0) {
+          if (!copie) {
+            copie = document.createElement('span');
+            copie.className = 'sec-copier';
+            copie.innerHTML = `<button type="button" class="ec-geste" data-copie-armer onclick="armerCopie(this)"></button>` +
+              `<span data-copie-conf hidden></span><button type="button" class="btn btn-primary btn-sm" data-copie-conf data-copie-oui hidden></button>` +
+              `<button type="button" class="btn btn-ghost btn-sm" data-copie-conf hidden onclick="desarmerCopie(this)">Non</button>`;
+            titre.appendChild(copie);
+          }
+          const formes = (SSUI.TYPE_FORMES || {})[typeDe(it)] || ['ouverture', 'ouvertures'];
+          const mot = autres > 1 ? formes[1].toLowerCase() : formes[0].toLowerCase();
+          copie.querySelector('[data-copie-armer]').textContent = `Copier vers ${autres > 1 ? 'les ' + autres + ' autres' : "l'autre"} ${mot}`;
+          copie.querySelector('span[data-copie-conf]').textContent = `Écraser « ${nom} » chez ${autres > 1 ? 'les ' + autres + ' autres' : "l'autre"} ?`;
+          const oui = copie.querySelector('[data-copie-oui]');
+          oui.textContent = 'Oui, copier';
+          oui.onclick = () => copierSection(i, nom);
+        } else if (copie) copie.remove();
+        pastilles.push({ nom, cls });
+      });
+      const som = card.querySelector('[data-sommaire]');
+      if (som) som.innerHTML = pastilles.map(p => `<button type="button" class="${p.cls ? 's-' + p.cls : ''}" onclick="allerASection(this, ${jsAttr(p.nom)})"><b aria-hidden="true">${p.cls === 'vide' ? '!' : p.cls === 'diff' ? '≠' : p.cls === 'ok' ? '✓' : '·'}</b>${escHtml(p.nom)}</button>`).join('');
+    }
+    window.allerASection = (btn, nom) => {
+      const card = btn.closest('.item-card');
+      const sec = card && [...card.querySelectorAll('[data-section]')].find(s => s.dataset.section === nom);
+      if (!sec) return;
+      sec.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      const champ = sec.querySelector('input:not([type=hidden]):not([type=file]), select, textarea');
+      if (champ) champ.focus({ preventScroll: true });
+    };
+
     function majVue() {
       ANALYSE = window.SSProducts.ecartsOuvertures(state.items);
       renderListe();
-      const lf = el('ouvLf');
-      if (lf) lf.classList.toggle('vue-liste', VUE_LISTE);
-      const C = el('ouvComparer');
-      if (C) { C.hidden = !VUE_CMP; if (VUE_CMP) renderComparaison(); }
+      const T = el('ouvTableau');
+      if (T) {
+        T.hidden = VUE !== 'tableau';
+        if (VUE === 'tableau') {
+          if (ONGLET === 'mesures' && T.querySelector('table.tab-mesures') && T.dataset.n === String(state.items.length)) majEtatTableau();
+          else renderTableau();
+        }
+      }
       document.querySelectorAll('.item-card').forEach(card => {
         const i = state.items.findIndex(x => x._id === card.dataset.id);
-        card.hidden = VUE_CMP || i !== SEL;
-        if (!card.hidden) {
-          const it = state.items[i];
-          card.querySelector('[data-titre]').textContent = nomOuverture(it, i);
-          card.querySelector('[data-lieu]').textContent = lieuOuverture(it) || 'Emplacement à préciser';
-          marquerEcarts(card, i);
-        }
+        card.hidden = VUE !== 'fiche' || i !== SEL;
+        if (card.hidden) return;
+        const it = state.items[i];
+        card.querySelector('[data-titre]').textContent = nomOuverture(it, i) + (String(it.emplacement || '').trim() ? ' · ' + String(it.emplacement).trim() : '');
+        card.querySelector('[data-lieu]').textContent = [SSUI.etageLisible ? SSUI.etageLisible(it.etage) : it.etage, it.modele, dimsCourtes(it) + ' mm']
+          .filter(Boolean).join(' · ');
+        const pl = card.querySelector('[data-prix-ligne]'); if (pl) pl.textContent = prixLigne(it);
+        const pu = card.querySelector('[data-puces]'); if (pu) pu.innerHTML = puces(it, i);
+        const pa = card.querySelector('[data-prix-aide]'); if (pa) pa.textContent = aidePrix(it);
+        marquerEcarts(card, i);
+        decorerSections(card, i);
       });
+      majNavBarre();
     }
-    /** Remonte au haut de la fiche si on l'a quittée (une fiche de volet fait 1 500 px : choisir
-     *  une autre ouverture dans la liste, restée collée en haut, laissait voir le BAS de la suivante). */
+    /** Remonte au haut de la fiche si on l'a quittée (une fiche de volet est longue : choisir une
+     *  autre ouverture dans la liste, restée collée en haut, laissait voir le BAS de la suivante). */
     function voirFicheEnHaut() {
       const f = el('ouvLf');
       if (!f) return;
@@ -1173,13 +1659,20 @@
     }
     window.choisirOuverture = (i) => {
       if (i < 0 || i >= state.items.length) return;
-      SEL = i; VUE_CMP = false; VUE_LISTE = false;
+      SEL = i; VUE = 'fiche';
+      fermerMenusOuv();
       majVue();
       voirFicheEnHaut();
     };
-    window.voirComparaison = () => { VUE_CMP = true; VUE_LISTE = false; majVue(); voirFicheEnHaut(); };
-    window.voirListeOuvertures = () => { VUE_LISTE = true; majVue(); voirFicheEnHaut(); };
-    /** Depuis la comparaison : la fiche de l'ouverture, et le champ qui s'écarte sous les yeux. */
+    /** ‹ › de la barre du bas, et Alt + ← / → (idée 10). */
+    window.ouvertureVoisine = (d) => {
+      if (!state.items.length) return;
+      choisirOuverture(Math.max(0, Math.min(state.items.length - 1, (VUE === 'fiche' ? SEL : SEL - d) + d)));
+    };
+    window.voirFiche = () => { VUE = 'fiche'; majVue(); voirFicheEnHaut(); };
+    window.voirTableau = () => { VUE = 'tableau'; renderTableau(); majVue(); voirFicheEnHaut(); };
+    window.ongletTableau = (o) => { ONGLET = o; renderTableau(); };
+    /** Depuis le tableau ou la vérification : la fiche de l'ouverture, et le champ sous les yeux. */
     window.allerAuChamp = (i, k) => {
       choisirOuverture(i);
       const card = document.querySelector(`[data-id="${state.items[i] && state.items[i]._id}"]`);
@@ -1188,6 +1681,144 @@
       if (window.SSSignal) window.SSSignal.viser(champ);
       else { champ.scrollIntoView({ block: 'center' }); champ.focus({ preventScroll: true }); }
     };
+    // Le tableau des mesures : chaque champ modifié passe par la fiche de son ouverture.
+    document.addEventListener('change', (e) => {
+      const t = e.target;
+      if (!t || !t.matches || !t.matches('#ouvTableau [data-tab-k]')) return;
+      poserDepuisTableau(Number(t.dataset.tabI), t.dataset.tabK, t.value);
+      if (t.dataset.tabK === 'prix_catalogue_ht') t.value = fmtMontant(lireMontant(t.value));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!el('verifBg').hidden && !(e.target && (e.target.tagName === 'SELECT' || /^(date|time|datetime-local)$/.test(e.target.type || '')))) { fermerVerification(); return; }
+        if (document.querySelector('.menu-ouv-liste:not([hidden])')) { fermerMenusOuv(); return; }
+      }
+      // Alt + ← / → : ouverture précédente / suivante. Hors d'un dépannage (pas d'ouvertures), et
+      // jamais quand une fenêtre est ouverte.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+          && !estDepannage() && state.items.length && el('verifBg').hidden) {
+        e.preventDefault();
+        ouvertureVoisine(e.key === 'ArrowRight' ? 1 : -1);
+      }
+    });
+
+    /* ── LA BARRE DU BAS (idée 1) ───────────────────────────────────────────────────────────── */
+    window.basculerDetail = () => {
+      const d = el('sbDetail');
+      d.hidden = !d.hidden;
+      el('sbTotal').setAttribute('aria-expanded', String(!d.hidden));
+      setText('sbChev', d.hidden ? '▴' : '▾');
+      mesurerBarre();
+    };
+    function mesurerBarre() {
+      const b = el('simBarre');
+      if (b) document.documentElement.style.setProperty('--sim-barre-h', Math.ceil(b.getBoundingClientRect().height) + 'px');
+    }
+    if (window.ResizeObserver && el('simBarre')) new ResizeObserver(mesurerBarre).observe(el('simBarre'));
+    function majNavBarre() {
+      const sansNav = estDepannage() || state.items.length < 2;
+      ['sbPrec', 'sbSuiv'].forEach((id, k) => {
+        const b = el(id);
+        if (!b) return;
+        b.hidden = sansNav;
+        b.disabled = VUE === 'fiche' && (k === 0 ? SEL <= 0 : SEL >= state.items.length - 1);
+      });
+    }
+    function majBarre(c) {
+      setText('sbTTC', fmtEur(c.total_ttc));
+      setText('sbSous', `HTVA ${fmtEur(c.total_ht)}` + (estDepannage() ? '' : ` · acompte ${c.acompte_pct} % : ${fmtEur(c.acompte_montant)}`));
+      const n = window.SSCalc.ouverturesReelles(state.items);
+      setText('sbNote', !estDepannage() && n > 0 && !(c.install_total_brut > 0) ? 'Sans pose' : '');
+      const v = verifications().length, b = el('sbVerif');
+      if (b) {
+        b.hidden = !v;
+        b.innerHTML = v ? `${icon('warning', 12)} ${v}<span class="sb-lib"> à vérifier</span>` : '';
+        b.setAttribute('aria-label', v + ' point' + (v > 1 ? 's' : '') + ' à vérifier avant le PDF');
+      }
+      majNavBarre();
+    }
+
+    /* ── LA VÉRIFICATION AVANT LE PDF (idée 11) ──────────────────────────────────────────────
+       Le devis du 18/10 était parti avec un volet SANS AJOURAGE, sans que rien ne le dise. Avant de
+       générer le PDF : ce qui manque (avec « Y aller »), les écarts (« C'est voulu »), un prix à 0, et une
+       pose à 0 € avec des ouvertures chiffrées. ⚠️ ÇA AVERTIT, ÇA NE BLOQUE JAMAIS — choix de Nicolas :
+       « pas de pose sur ce devis car je vais l'installer avec le client » est un cas réel, et un devis
+       informatif peut partir incomplet. « C'est voulu » ne se demande plus pendant la session. */
+    const VOULUS = new Set();
+    function verifications() {
+      const out = [];
+      if (estDepannage()) return out;
+      const informatif = !!(el('isInformatif') && el('isInformatif').checked);
+      state.items.forEach((it, i) => {
+        const lieu = String(it.emplacement || '').trim();
+        const nom = nomOuverture(it, i) + (lieu ? ' · ' + lieu : '');
+        const commencee = !!(window.SSSignal && window.SSSignal.commencee(it));
+        const manq = commencee ? window.SSProducts.champsManquants(it) : [];
+        manq.forEach(m => out.push({ sorte: 'vide', cle: 'm|' + it._id + '|' + m.k, texte: `${nom} — ${m.l} à remplir`, i: i, k: m.k }));
+        ecartsOuverture(i).forEach(e => {
+          if (e.etat === 'vide' && !manq.some(m => m.k === e.k)) out.push({ sorte: 'vide', cle: 'v|' + it._id + '|' + e.k, texte: `${nom} — ${e.l} vide (les autres : ${valeurLue(e, e.ref)})`, i: i, k: e.k });
+          if (e.etat === 'diff') out.push({ sorte: 'diff', cle: 'd|' + it._id + '|' + e.k + '|' + e.v, texte: `${nom} — ${e.l} : ${valeurLue(e, e.v)} (les autres : ${valeurLue(e, e.ref)})`, i: i, k: e.k });
+        });
+        if (!informatif && commencee && !(Number(it.prix_catalogue_ht) > 0)) out.push({ sorte: 'vide', cle: 'p|' + it._id, texte: `${nom} — prix catalogue à 0 €`, i: i, k: 'prix_catalogue_ht' });
+      });
+      const n = window.SSCalc.ouverturesReelles(state.items);
+      if (n > 0 && _lastResult && !(_lastResult.install_total_brut > 0)) {
+        out.push({ sorte: 'question', cle: 'pose', texte: `Pas de pose sur ce devis (installation à 0 € pour ${n} ouverture${n > 1 ? 's' : ''} chiffrée${n > 1 ? 's' : ''}) — c’est voulu ?`, pose: n });
+      }
+      return out.filter(x => !VOULUS.has(x.cle));
+    }
+    let VERIF_POUR_PDF = false, VERIF_RETOUR = null, VERIF_FOND = false;
+    function renderVerification() {
+      const liste = verifications();
+      setText('verifTitre', VERIF_POUR_PDF ? 'Avant de générer le PDF' : 'À vérifier');
+      setText('verifAide', liste.length
+        ? `${liste.length} point${liste.length > 1 ? 's' : ''} à regarder — rien n’est bloquant : tu peux générer le PDF quand même.`
+        : 'Plus rien à signaler.');
+      el('verifListe').innerHTML = liste.map(x => {
+        const g = [];
+        if (x.sorte === 'question') {
+          g.push(`<button type="button" class="ec-geste" onclick="marquerVoulu(${jsAttr(x.cle)})">Oui, pas de pose</button>`);
+          g.push(`<button type="button" class="ec-geste" onclick="recompterPoses(${x.pose})">Non, compter ${x.pose} pose${x.pose > 1 ? 's' : ''}</button>`);
+        } else {
+          if (x.sorte === 'diff') g.push(`<button type="button" class="ec-geste" onclick="marquerVoulu(${jsAttr(x.cle)})">C’est voulu</button>`);
+          g.push(`<button type="button" class="ec-geste" onclick="allerVerif(${x.i}, ${jsAttr(x.k)})">Y aller</button>`);
+        }
+        return `<li class="${x.sorte}"><span class="vi" aria-hidden="true">${x.sorte === 'diff' ? '≠' : x.sorte === 'question' ? '?' : '!'}</span><span>${escHtml(x.texte)}</span><span class="vg">${g.join('')}</span></li>`;
+      }).join('') || '<li><span class="vi" aria-hidden="true" style="color:var(--ok)">✓</span><span>Tout est en ordre.</span></li>';
+      setText('verifFermer', VERIF_POUR_PDF ? 'Corriger d’abord' : 'Fermer');
+      setText('verifGenerer', liste.length ? 'Générer quand même' : 'Générer le PDF');
+    }
+    window.ouvrirVerification = (pourPdf) => {
+      VERIF_POUR_PDF = !!pourPdf;
+      if (VERIF_POUR_PDF && !verifications().length) { allerAuPdf(); return; }
+      VERIF_RETOUR = document.activeElement;
+      renderVerification();
+      el('verifBg').hidden = false;
+      const premier = el('verifListe').querySelector('button') || el('verifFermer');
+      if (premier) premier.focus();
+    };
+    window.fermerVerification = () => {
+      el('verifBg').hidden = true;
+      if (VERIF_RETOUR && VERIF_RETOUR.isConnected && VERIF_RETOUR.focus) VERIF_RETOUR.focus();
+    };
+    window.marquerVoulu = (cle) => {
+      VOULUS.add(cle);
+      renderVerification();
+      if (_lastResult) majBarre(_lastResult);
+      const premier = el('verifListe').querySelector('button') || el('verifGenerer');
+      if (premier) premier.focus();
+    };
+    window.recompterPoses = (n) => {
+      ['installQty', 'tech1Qty', 'tech2Qty', 'toolsQty'].forEach(id => setVal(id, n));
+      _qtyManual = false;
+      markDirty(); ui_recalc();
+      renderVerification();
+      toast(`${n} pose${n > 1 ? 's' : ''} comptée${n > 1 ? 's' : ''}.`, 'ok');
+    };
+    window.allerVerif = (i, k) => { fermerVerification(); allerAuChamp(i, k); };
+    // Le fond ne ferme que si le geste y a COMMENCÉ (piège déjà payé : une sélection relâchée dehors).
+    el('verifBg').addEventListener('mousedown', (e) => { VERIF_FOND = e.target === el('verifBg'); });
+    el('verifBg').addEventListener('click', (e) => { if (e.target === el('verifBg') && VERIF_FOND) fermerVerification(); VERIF_FOND = false; });
     window.removePhoto = (id, pi) => { markDirty(); const it = state.items.find(i => i._id === id); if (it) { it.photos.splice(pi, 1); renderItems(); } };
     window.addPhotos = (id, input) => {
       const it = state.items.find(i => i._id === id); if (!it) return;
@@ -1218,6 +1849,8 @@
       r.querySelectorAll('[data-f]').forEach(input => {
         if (input.dataset.f === 'type' || input.dataset.f === 'moteur') input.value = it[input.dataset.f] || (input.dataset.f === 'type' ? 'screen' : '');
         input.addEventListener('input', () => { collectItem(it, card); ui_recalc(); });
+        // Un montant se réécrit proprement en quittant le champ (« 1098,1 » → « 1 098,10 »).
+        if (input.hasAttribute('data-montant')) input.addEventListener('blur', () => { input.value = fmtMontant(lireMontant(input.value)); });
         input.addEventListener('change', () => {
           collectItem(it, card);
           if (window.SSVolet && window.SSVolet.appliquerRal(it, RAL_PRECEDENT.get(it._id) || '').length) {
@@ -1253,7 +1886,9 @@
       card.querySelectorAll('[data-f]').forEach(input => {
         const f = input.dataset.f;
         if (input.type === 'checkbox') it[f] = input.checked;
-        else if (['quantite', 'largeur', 'hauteur', 'prix_catalogue_ht', 'projection'].includes(f)) it[f] = parseFloat(input.value) || 0;
+        // Le prix s'écrit à la française (« 1 098,10 ») : `parseFloat` en lirait « 1 ».
+        else if (f === 'prix_catalogue_ht') it[f] = lireMontant(input.value);
+        else if (['quantite', 'largeur', 'hauteur', 'projection'].includes(f)) it[f] = parseFloat(input.value) || 0;
         else it[f] = input.value;
       });
       // sous-titre live — 2e dimension selon le type (tente solaire = projection, pas hauteur)
@@ -1601,6 +2236,8 @@
       // La liste, les écarts et la fiche affichée suivent chaque saisie (emplacement tapé, coulisse
       // changée) : c'est ici que passent toutes les collectes.
       majVue();
+      // La barre du bas après l'analyse refaite : son « N à vérifier » lit les écarts de CETTE saisie.
+      majBarre(c);
     };
 
     // ── CLIENT ──
@@ -1743,7 +2380,9 @@
       await finish(false);
     };
 
-    window.goPdf = () => { window.location.href = `devis.html?id=${state.id}`; };
+    /* Générer le PDF passe d'abord par la VÉRIFICATION (idée 11) : rien à signaler → on y va tout droit. */
+    window.allerAuPdf = () => { window.location.href = `devis.html?id=${state.id}`; };
+    window.goPdf = () => ouvrirVerification(true);
 
     // ── LOAD (édition) ──
     async function loadExisting(id) {
@@ -1869,9 +2508,6 @@
       const CONF = window.SSConf ? await window.SSConf.charger() : null;
       if (qp('id')) {
         await loadExisting(qp('id'));
-        // Un devis rouvert sur téléphone s'ouvre sur la LISTE de ses ouvertures (la vue d'ensemble) ;
-        // au bureau la liste est de toute façon à côté de la fiche.
-        VUE_LISTE = state.items.length > 1;
       } else {
         // Arrivée directe en dépannage (lien « Nouveau dépannage » du tableau de bord).
         if (qp('type') === 'depannage') {
