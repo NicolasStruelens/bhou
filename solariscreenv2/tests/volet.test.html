@@ -521,21 +521,21 @@
                                 vr150({ largeur: 1400, prix_catalogue_ht: 1104.1 })];
     check('tailles et prix différents : regroupés quand même', grp(taillesDifferentes).length, 1);
 
-    /* ⚠️ … MAIS UNE SEULE OPTION QUI DIFFÈRE SÉPARE. C'est le sens même de l'encadré : il dit
-       ce que le client va recevoir. Fusionner deux configurations qui ne sont pas identiques
-       ferait signer pour un produit qu'on ne livrera pas. */
+    /* ⚠️ UNE OPTION QUI DIFFÈRE NE SÉPARE PLUS : ELLE SE DIT (08/11/2026). Elle séparait — deux
+       encadrés presque identiques, à comparer à l'œil. Elle reste dans le MÊME encadré, sous
+       « Différences », nommée pour sa ligne : le client ne signe toujours pas pour un produit
+       qu'on ne livrera pas, et il voit enfin OÙ est l'écart. */
     const uneOptionDiffere = [vr150(), vr150({ couleur_lame: '90 — 9005 Noir' })];
-    check('une option diffère : deux encadrés', grp(uneOptionDiffere).length, 2);
-    check('… et chacun ne couvre que sa ligne',
-      grp(uneOptionDiffere).map(g => g.indices), [[0], [1]]);
+    check('une option diffère : UN encadré pour les deux', grp(uneOptionDiffere).map(g => g.indices), [[0, 1]]);
+    check('… et l’option qui diffère est dite pour SA ligne (sans le code de menu Harol)',
+      grp(uneOptionDiffere)[0].ecarts.map(e => [e.i, e.bouts.map(b => [b.l, b.v])]), [[1, [['Coloris lames', '9005 Noir']]]]);
     check('un encadré seul n’est pas intitulé', SV.titreGroupe([0]), '');
 
-    /* ⚠️ CONSÉCUTIVES SEULEMENT. Un encadré posé sous la ligne 3 mais couvrant aussi la 1
-       obligerait à remonter PAR-DESSUS l'encadré de la ligne 2 : on gagnerait du papier en
-       perdant la lecture. En pratique ça ne coûte rien — une ouverture dupliquée se range
-       juste après son original (règle 35), donc les identiques sont déjà voisines. */
+    /* ⚠️ PLUS SEULEMENT DES VOISINES (08/11/2026). « Consécutives seulement » produisait, sur
+       quatre volets identiques sauf le 3e, TROIS encadrés : 1+2, puis 3, puis 4. L'encadré se pose
+       sous la dernière ligne qu'il couvre et le dit dans son intitulé. */
     const separees = [vr150(), vr150({ moteur: 'Primo (filaire, sans télécommande)' }), vr150()];
-    check('identiques mais séparées : pas de fusion', grp(separees).map(g => g.indices), [[0], [1], [2]]);
+    check('identiques mais séparées : un seul encadré, l’écart du milieu dit', grp(separees).map(g => [g.indices, g.ecarts.map(e => e.i)]), [[[0, 1, 2], [1]]]);
 
     /* En revanche, une ouverture SANS encadré (un screen, un tablier) n'insère rien entre les
        deux volets : la lecture reste continue, donc elle ne doit pas casser le groupe. */
@@ -560,6 +560,124 @@
     const memeCadreAutreInterne = [vr150(), vr150({ coulisse_percage: 'A168' })];
     check('un champ interne diffère : même encadré, donc regroupés',
       grp(memeCadreAutreInterne).length, 1);
+
+    // ══════════ L. UN ENCADRÉ COMMUN, ET CE QUI DIFFÈRE (08/11/2026) ══════════
+    titre('L. Un encadré commun, et ce qui diffère');
+    /* Le devis qui a tout déclenché, rejoué avec des données FICTIVES : quatre VR150 identiques,
+       sauf les coulisses du volet 3 (117 au lieu de 118) et l'ajourage resté vide sur le volet 4.
+       Le PDF portait trois encadrés de quatorze valeurs, et l'ajourage absent ne se voyait pas. */
+    const Q = { type: 'volet_roulant', modele: 'VR150', quantite: 1, couleur: '7016 — Gris anthracite', combinaison: 'Simple',
+      lame_type: 'alu35', couleur_lame: '38 — 7016 Gris anthracite', ajourage: '0 : sans ajourage',
+      lame_finale_couleur: '7016 — Gris anthracite', montage_type: '3 : type 3 (sur le jour)', alimentation: 'Électrique (filaire)',
+      moteur: 'Secure (RF, standard)', cote_manoeuvre: 'Droite', caisson_mesure: '205', caisson_forme: 'S biseauté',
+      coulisse_type: '118', couleur_coulisses: '7016 — Gris anthracite', emetteur: true, prix_catalogue_ht: 612.4 };
+    const q = (o) => Object.assign({}, Q, o || {});
+    const quatre = [q({ emplacement: 'Salon' }), q({ emplacement: 'Salle à manger' }),
+      q({ emplacement: 'Jardin', coulisse_type: '117' }), q({ emplacement: 'Chambre', ajourage: '' })];
+    const g4 = grp(quatre);
+    check('L1 quatre volets, deux écarts : UN encadré, sous la dernière ligne', g4.map(g => g.indices), [[0, 1, 2, 3]]);
+    check('L2 … intitulé « Configuration commune aux 4 volets »', SV.titreEncadre(g4[0], g4, quatre), 'Configuration commune aux 4 volets');
+    check('L3 … la configuration commune porte la valeur de la MAJORITÉ (coulisses 118, sans ajourage)',
+      g4[0].resume.filter(x => ['coulisse_type', 'ajourage'].includes(x.k)).map(x => [x.l, x.v]), [['Ajourage', 'Sans ajourage'], ['Coulisses', '118']]);
+    check('L4 ⚠️ … les DIFFÉRENCES, une ligne par volet : 117 sur le 3, l’ajourage absent du 4 DIT (« non précisé »)',
+      g4[0].ecarts.map(e => [SV.nomLigne(e.i, quatre), e.bouts.map(b => [b.l, b.v, !!b.vide])]),
+      [['Volet 3 (Jardin)', [['Coulisses', '117', false]]], ['Volet 4 (Chambre)', [['Ajourage', 'non précisé', true]]]]);
+    /* Plus seulement des voisines : un screen entre deux, ou un volet saisi plus bas, partage
+       l'encadré de ses semblables. */
+    const melange = [q(), { type: 'screen', largeur: 1000, hauteur: 1000 }, q({ coulisse_type: '117', emplacement: 'Jardin' }), q()];
+    check('L5 non voisins : un encadré pour les volets 1, 3 et 4, l’écart du 3 dit',
+      grp(melange).map(g => [g.indices, g.ecarts.map(e => e.i)]), [[[0, 2, 3], [2]]]);
+    /* ⚠️ AU-DELÀ DE TROIS ÉCARTS, CE N'EST PLUS UNE VARIANTE : un volet PVC solaire et un volet alu
+       filaire ne se lisent pas comme « une configuration commune » suivie d'une liste plus longue
+       que l'encadré. Il garde son propre encadré. */
+    const autre = q({ lame_type: 'PVC37', couleur_lame: '01 — 9016 Blanc', alimentation: 'Solaire', moteur: 'Solar Pure (solaire)', cote_manoeuvre: 'Gauche' });
+    const deuxProduits = [q(), q({ coulisse_type: '117' }), autre];
+    const gP = grp(deuxProduits);
+    check('L6 plus de ' + SV.SEUIL_ECARTS + ' écarts : son PROPRE encadré', gP.map(g => g.indices), [[0, 1], [2]]);
+    check('L7 … plusieurs encadrés : chacun NOMME ses lignes (sinon « 2 volets », mais lesquels ?) ; seul, « Configuration retenue »',
+      gP.map(g => SV.titreEncadre(g, gP, deuxProduits)), ['Configuration commune aux volets 1 et 2', 'Configuration retenue']);
+    /* Une case que les autres ont et qu'une ligne n'a pas : « Sans … » — avec le mot de la spec
+       quand le défaut ne veut rien dire (`lSans`). */
+    const cases = [q({ moustiquaire: true }), q({ moustiquaire: true }), q({ moustiquaire: false, emetteur: false })];
+    check('L8 une case absente se dit « Sans moustiquaire », « Sans commande murale Somfy »',
+      grp(cases)[0].ecarts.map(e => [e.i, e.bouts.map(b => b.l)]), [[2, ['Sans moustiquaire', 'Sans commande murale Somfy']]]);
+    /* Une valeur TUE d'office (« Combinaison : Simple ») est une vraie différence quand les autres
+       sont en DVC2 : on la redonne. Mais une option qui n'a pas de SENS sur cette ligne (l'espace
+       intermédiaire n'existe pas sur une combinaison simple) ne s'y dit pas. */
+    const dvc = 'DVC2 : porte fenêtre 2 parties - 1 caisson';
+    const combis = [q({ combinaison: dvc, espace_intermediaire: true }), q({ combinaison: dvc, espace_intermediaire: true }), q({ combinaison: 'Simple' })];
+    check('L9 la valeur muette « Simple » est redonnée ; l’espace intermédiaire, sans objet, ne s’y dit pas',
+      grp(combis)[0].ecarts.map(e => [e.i, e.bouts.map(b => [b.l, b.v])]), [[2, [['Combinaison', 'Simple']]]]);
+    // Ce que le client ne lit pas (perçage, rivets : `client: false`) n'est jamais une « différence » du devis.
+    check('L10 un perçage différent : aucune différence sur le devis', grp([q(), q({ coulisse_percage: 'A168 : forer latérale (droit/gauche)' })])[0].ecarts, []);
+    // Le gabarit vit dans volet.js (les deux exemplaires l'appellent) : il échappe ce qu'on a tapé.
+    const htmlQ = SV.encadreHtml(g4[0], g4, quatre.map((x, i) => i === 2 ? Object.assign({}, x, { emplacement: 'Jardin <img src=x onerror=alert(1)>' }) : x));
+    check('L11 le HTML de l’encadré : un titre, « Différences », le nom de la ligne, rien d’exécutable, aucune référence Harol',
+      [htmlQ.split('class="spec-box"').length - 1, /Différences/.test(htmlQ), /Volet 4 \(Chambre\)/.test(htmlQ), /<img/.test(htmlQ), /A168|A66|rivet/i.test(htmlQ)],
+      [1, true, true, false, false]);
+    check('L12 une ligne de deux volets se nomme « Volets 3 (Jardin, ×2) »', SV.nomLigne(2, [{}, {}, { type: 'volet_roulant', quantite: 2, emplacement: 'Jardin' }]), 'Volets 3 (Jardin, ×2)');
+    check('L13 sans emplacement, le numéro seul : « Volet 2 »', SV.nomLigne(1, [{}, { type: 'volet_roulant' }]), 'Volet 2');
+    const premierDiffere = [q({ coulisse_type: '117', emplacement: 'Garage' }), q(), q()];
+    check('L14 la configuration commune est celle de la MAJORITÉ : c’est le volet 1 qui « diffère », pas les deux autres',
+      grp(premierDiffere).map(g => [g.resume.filter(x => x.k === 'coulisse_type').map(x => x.v), g.ecarts.map(e => SV.nomLigne(e.i, premierDiffere))]), [[['118'], ['Volet 1 (Garage)']]]);
+
+    // ══════════ M. « + AJOUTER » REPREND LA CONFIGURATION DE LA PRÉCÉDENTE ══════════
+    titre('M. « + Ajouter » reprend la configuration de la précédente');
+    /* Demande de Nicolas (08/11/2026) : « que le 2e ait la même config exacte sauf les mesures ».
+       Ce n'est pas « Dupliquer » (section J) : une AUTRE fenêtre de la même façade. */
+    const prec = Object.assign({}, source, { projection: 3000, etage: '1er', _qtyManual: undefined });
+    const neuve = P.nouvelleOuvertureDepuis(prec);
+    check('M1 ni identifiant ni photos (comme une copie)', ['_id' in neuve, neuve.photos], [false, []]);
+    check('M2 ⚠️ ni MESURES, ni emplacement, ni étage, ni notes, ni PRIX',
+      ['largeur', 'hauteur', 'projection', 'emplacement', 'etage', 'notes', 'prix_catalogue_ht'].filter(k => k in neuve), []);
+    check('M3 la quantité repart à 1 (la précédente en avait 2)', neuve.quantite, 1);
+    check('M4 tout le reste suit : type, RAL et configurateur',
+      [neuve.type, neuve.couleur, neuve.lame_type, neuve.caisson_mesure, neuve.moteur, neuve.couleur_coulisses],
+      ['volet_roulant', 'RAL 7016', 'AEP55', 137, 'Solar', 'RAL 7016']);
+    check('M5 l’original n’a pas bougé', [prec.largeur, prec.emplacement, prec.photos.length], [1200, 'Salon', 2]);
+    const tenteN = P.nouvelleOuvertureDepuis({ type: 'tente_solaire', modele: 'LUX', largeur: 4000, projection: 3000, collection: 'Dickson', telecommande: true });
+    check('M6 une tente garde modèle, toile et commande, perd largeur et projection',
+      [tenteN.modele, tenteN.collection, tenteN.telecommande, 'largeur' in tenteN, 'projection' in tenteN], ['LUX', 'Dickson', true, false, false]);
+    check('M7 sans précédente : une ouverture utilisable', P.nouvelleOuvertureDepuis(null), { photos: [], quantite: 1 });
+    check('M8 contrat : ce qu’une nouvelle ouverture ne reprend pas', P.NOUVELLE_SANS.slice().sort(),
+      ['emplacement', 'etage', 'hauteur', 'largeur', 'notes', 'prix_catalogue_ht', 'projection']);
+
+    // ══════════ N. CE QUI CHANGE ENTRE LES OUVERTURES (l'outil du simulateur) ══════════
+    titre('N. Ce qui change entre les ouvertures');
+    const A4 = P.ecartsOuvertures(quatre);
+    check('N1 un bloc par type, les quatre volets', A4.map(b => [b.type, b.indices]), [['volet_roulant', [0, 1, 2, 3]]]);
+    check('N2 ⚠️ deux écarts, et seulement eux : l’ajourage VIDE sur le 4, les coulisses DIFFÉRENTES sur le 3',
+      A4[0].lignes.map(l => [l.k, l.ref, l.ouvertures.filter(o => o.etat !== 'pareil').map(o => [o.i, o.etat, o.v])]),
+      [['ajourage', '0 : sans ajourage', [[3, 'vide', '']]], ['coulisse_type', '118', [[2, 'diff', '117']]]]);
+    check('N3 les écarts d’UNE ouverture', P.ecartsDe(A4, 3).map(e => [e.k, e.etat, e.ref]), [['ajourage', 'vide', '0 : sans ajourage']]);
+    check('N4 « identiques » ne compte que ce qui est rempli partout (pas les cases décochées partout)',
+      A4[0].communs, Object.keys(Q).filter(k => !['type', 'modele', 'quantite', 'prix_catalogue_ht', 'ajourage', 'coulisse_type'].includes(k)).length);
+    /* ⚠️ « Vide » veut dire « vide là où LA PLUPART ont rempli » : une sortie de câble saisie sur
+       UN volet ne rend pas les trois autres « incomplets » — c'est lui qui s'écarte. */
+    const unCable = [q(), q(), q({ cable_sortie: 'à gauche, en bas' }), q()];
+    check('N5 un champ que la plupart laissent vide : celui qui l’a rempli s’écarte, les autres ne sont pas « vides »',
+      P.ecartsOuvertures(unCable)[0].lignes.map(l => [l.k, l.ouvertures.filter(o => o.etat !== 'pareil').map(o => [o.i, o.etat])]), [['cable_sortie', [[2, 'diff']]]]);
+    check('N6 une case décochée n’est jamais « vide » : elle diffère',
+      P.ecartsDe(P.ecartsOuvertures([q(), q(), q({ emetteur: false })]), 2).map(e => [e.k, e.etat]), [['emetteur', 'diff']]);
+    check('N7 une ouverture VIERGE n’entre pas dans la comparaison (elle n’est pas différente, elle n’est pas commencée)',
+      P.ecartsOuvertures([q(), q(), { type: 'volet_roulant', quantite: 1, photos: [] }]).map(b => b.indices), [[0, 1]]);
+    check('N8 un seul volet : rien à comparer', P.ecartsOuvertures([q(), { type: 'screen', variante: 'Standard' }]), []);
+    // Un champ sans objet sur une ouverture n'y est pas comparé : l'alimentation, qui le commande, diffère déjà.
+    const alims = [q(), q(), q({ alimentation: 'Solaire', moteur: 'Solar Pure (solaire)', batterie: 'Standard' })];
+    check('N9 la batterie d’un moteur solaire n’est pas « vide » sur les filaires',
+      P.ecartsOuvertures(alims)[0].lignes.map(l => l.k), ['alimentation', 'moteur']);
+    // Ici c'est la COMMANDE qu'on prépare : le perçage compte (contrairement à l'encadré du client, L10).
+    check('N10 le perçage (référence Harol) est comparé dans le simulateur',
+      P.ecartsOuvertures([q(), q({ coulisse_percage: 'A168 : forer latérale (droit/gauche)' })])[0].lignes.map(l => l.k), ['coulisse_percage']);
+    const scr = (o) => Object.assign({ type: 'screen', variante: 'Standard', collection: 'Soltis 86', couleur: '7016', moteur_ref: 'Sunea', caisson_mesure: '110x115' }, o || {});
+    // La référence est la MAJORITÉ, pas la première ligne : un volet 1 différent est LUI l'écart.
+    check('N13 la référence est la valeur la plus fréquente, pas celle de la première ouverture',
+      P.ecartsOuvertures([q({ coulisse_type: '117' }), q(), q()])[0].lignes.map(l => [l.ref, l.ouvertures.filter(o => o.etat !== 'pareil').map(o => o.i)]), [['118', [0]]]);
+    check('N11 les screens se comparent aussi',
+      P.ecartsOuvertures([scr(), scr({ collection: 'Soltis 92' }), scr()])[0].lignes.map(l => [l.k, l.ouvertures.filter(o => o.etat !== 'pareil').map(o => o.i)]),
+      [['collection', [1]]]);
+    check('N12 un type par bloc : deux volets et deux screens font deux blocs',
+      P.ecartsOuvertures([q(), scr(), q(), scr()]).map(b => [b.type, b.indices]), [['volet_roulant', [0, 2]], ['screen', [1, 3]]]);
 
     // ══════════ Résultat (sans le contrôle serveur, si le fetch échoue avant) ══════════
     // Premier rendu immédiat : si le contrôle serveur tarde, la page n'est pas vide.

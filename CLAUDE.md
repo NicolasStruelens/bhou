@@ -78,7 +78,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 27 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 30 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 37 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -96,8 +96,9 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
-| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran et en résumé. 106 tests (`window.SSVolet`) |
-| `tests/volet.test.html` | Les 139 tests du VR150 **et des règles d'ouverture partagées** (duplication, regroupement des configurations). **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
+| `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
+| `tests/saisie.test.html` | Les 25 tests de la SAISIE DES OUVERTURES au simulateur (règle 60), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société. 58 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 58 tests du signal, dont la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
@@ -1437,11 +1438,24 @@ devis (Kerremans, deux VR150 d'une même façade), les deux encadrés étaient i
 MOT et pesaient 123 px chacun : c'est eux, et eux seuls, qui faisaient passer le devis à DEUX
 pages. Mesuré : 1 091 px avant, **912 px après** pour 1 032 utiles. Sur huit ouvertures, trois
 pages deviennent deux. Et un client qui lit deux fois la même chose cesse de la lire.
-• **Consécutives seulement**, et c'est un choix : un encadré sous la ligne 3 qui couvrirait
-  aussi la ligne 1 obligerait à remonter par-dessus l'encadré de la ligne 2. Ça ne coûte rien
-  en pratique — **une ouverture dupliquée se range juste après son original** (règle 35), donc
-  les identiques sont déjà voisines. Une ouverture SANS encadré (un screen entre deux volets)
-  ne coupe pas un groupe : elle n'insère rien entre eux, la lecture reste continue.
+• ⚠️ **PLUS « CONSÉCUTIVES SEULEMENT » NI « IDENTIQUES SEULEMENT » DEPUIS LE 08/11/2026** (règle 60).
+  Sur un vrai devis de quatre volets identiques sauf les coulisses du 3e et l'ajourage oublié du
+  4e, la règle donnait TROIS encadrés de quatorze valeurs presque pareils (1+2, 3, 4) — à comparer
+  à l'œil — et l'ajourage absent ne se voyait NULLE PART : une ligne qui manque dans un encadré ne
+  se remarque jamais. Désormais (`groupesConfig` + `encadreHtml`, dans `volet.js`) : UN encadré
+  « Configuration commune aux 4 volets » (la valeur la plus FRÉQUENTE de chaque option, à égalité
+  celle du haut), posé sous la DERNIÈRE ligne qu'il couvre, puis « Différences », une ligne par
+  ouverture qui s'en écarte : « Volet 3 (Jardin) — Coulisses : 117 ». Une option absente là où les
+  autres l'ont se DIT (« Ajourage : non précisé », « Sans moustiquaire » — `lSans` dans la spec
+  quand ce défaut ne veut rien dire) ; une valeur muette est redonnée (« Combinaison : Simple ») ;
+  une option sans objet sur cette ligne (espace intermédiaire d'une combinaison simple) se tait.
+  ⚠️ **AU-DELÀ DE TROIS ÉCARTS (`SEUIL_ECARTS`), CE N'EST PLUS UNE VARIANTE** : le volet a son propre
+  encadré, sinon deux produits différents se liraient comme « une configuration commune » suivie
+  d'une liste plus longue qu'elle. Un type par encadré. Plusieurs encadrés : chacun NOMME ses
+  lignes (« … commune aux volets 1, 2 et 4 »), sinon « 2 volets », mais lesquels ?
+  ⚠️ **LE GABARIT VIT DANS `volet.js`** (`encadreHtml`), plus dans chaque document : la copie de
+  `devis-review.html` avait déjà levé une ReferenceError (règle 56). Une ouverture SANS encadré (un
+  screen entre deux volets) ne coupe toujours rien.
 • **La comparaison porte sur le RÉSUMÉ AFFICHÉ, pas sur l'objet** : deux ouvertures peuvent
   différer par des champs `client: false` (perçage, rivets) et présenter le même encadré. C'est
   l'encadré qu'on dédoublonne, donc c'est lui qu'on compare. Ni les dimensions ni le prix n'y
@@ -1831,6 +1845,8 @@ faut rejouer le GESTE, pas l'API.
 ⚠️ Et un piège de méthode : remplir un `<select>` avec une valeur qui n'est pas dans ses options
 échoue **en silence** (`e.value` reste vide). Un essai écrit comme ça « passe » en ne prouvant
 rien — toujours comparer `e.value` à ce qu'on a voulu poser après l'avoir posé.
+⚠️ Ne pas confondre avec **« + Ajouter une ouverture »** (règle 60, 08/11/2026), qui reprend la configuration de la PRÉCÉDENTE
+SANS les mesures, l'emplacement ni le prix : dupliquer copie une fenêtre identique, ajouter en commence une autre.
 
 **36. CE QUI RESTE À REMPLIR SE VOIT SUR LE CHAMP, pas dans un message qui en parle.**
 Demande de Nicolas (10/10/2026) : « des effets néon sur les boîtes de dialogue, dont on pourra
@@ -3120,6 +3136,44 @@ défilement, pendant que la page se recalcule. En émulation tactile (barres sup
 passages. Rien n'est visible : le défilement de côté est bloqué tant que Soli est ouvert. Et un lanceur sans écran (Chrome piloté par son protocole) rejoue toutes les suites en parallèle, un profil neuf par suite :
 il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERMÉDIAIRE avant ses cadres.
 
+**60. LA SAISIE DES OUVERTURES : UNE LISTE, UNE FICHE, ET CE QUI CHANGE SE VOIT** (08/11/2026 — après un vrai devis : quatre
+volets VR150 identiques sauf les coulisses 117 du troisième, et le quatrième parti SANS AJOURAGE. Nicolas : « quand je mets le
+premier volet ou screen, que le 2e ait la même config exacte sauf les mesures », « les encadrés quand il y a plusieurs produits
+sont très brouillons », « un outil qui montre les différences serait pas mal ». Maquette à trois variantes : B, « liste + fiche »,
+choisie — « B + liste je trouve ça top »). Protégé par `tests/saisie.test.html` (le simulateur, au geste), `volet.test.html`
+(sections L, M, N) et `documents.test.html` (D2, D2b), tous vérifiés par mutations.
+• **« + AJOUTER UNE OUVERTURE » REPREND LA CONFIGURATION DE LA PRÉCÉDENTE** (`SSProducts.nouvelleOuvertureDepuis`) : tout, sauf les
+  mesures (largeur, hauteur, projection), l'emplacement, l'étage, les notes, les photos et le prix ; quantité 1, curseur dans la
+  largeur. Il créait un screen VIDE : un 4e volet voulait dire changer le type et ressaisir trente champs — c'est là que l'ajourage
+  a sauté. ⚠️ **LE PRIX NE SUIT PAS** : il dépend des mesures, et recopié il chiffrerait une ouverture sans dimensions, donc
+  compterait déjà une pose (règle 1 bis — test A3). ⚠️ **CE N'EST PAS « DUPLIQUER »**, qui ne change pas (règle 35 : mesures et prix
+  compris, la copie juste après l'original) : ajouter commence une AUTRE fenêtre de la même façade. « + Autre produit » garde
+  l'ancien départ à vide. La règle part de `dupliquerOuverture` et RETIRE (`NOUVELLE_SANS`, règle 2) : un champ ajouté demain au
+  configurateur suivra sans qu'on y touche.
+• **UNE LISTE NOMME CHAQUE OUVERTURE, UNE SEULE FICHE À LA FOIS** : « Volet 3 · Jardin · RDC », ses mesures, son prix, et ce qui
+  cloche (« ≠ 1 écart », « 1 à remplir »). Les cartes faisaient 1 574 px chacune à 1 500 px (39 champs), 6 300 px pour quatre volets
+  presque identiques : on ne savait plus laquelle on remplissait. Le numéro est celui de la colonne # du devis.
+  ⚠️ **LES FICHES NON CHOISIES RESTENT DANS LA PAGE, `hidden`** : la collecte, le recalcul et le signal les voient toutes (test R2).
+  Les reconstruire à chaque clic de la liste rechargerait les photos (même raison que le bloc VR150 re-rendu seul, règle 31).
+  ⚠️ **LA MISE EN PAGE SUIT LA SECTION, PAS L'ÉCRAN** (requêtes de conteneur) : le récapitulatif prend 360 px, il ne reste que
+  742 px de section à 1 500 px d'écran. Au-delà de 680 px, liste (collée en haut) et fiche côte à côte ; en deçà, elles se
+  REMPLACENT, et la fiche porte « ← Les N ouvertures » (piège du maître/détail replié). Les grilles du formulaire suivent la
+  FICHE (`@container fiche`) — les replis de `base.css` suivent l'écran, donc une grille à 4 colonnes restait à 4 dans 516 px.
+  Un devis rouvert sur téléphone s'ouvre sur la liste ; un devis neuf, sur sa fiche.
+• **L'OUTIL DES DIFFÉRENCES** (`SSProducts.ecartsOuvertures`, `ecartsDe`) : par type, la valeur la plus FRÉQUENTE de chaque réglage
+  (à égalité, celle du haut) ; une ouverture s'en écarte (« diff », VIOLET) ou est VIDE là où la plupart ont rempli (« vide »,
+  AMBRE — ni vert ni rouge, règle 36). ⚠️ **« LA PLUPART », PAS « UNE AUTRE »** : une sortie de câble saisie sur UN volet ne rend pas
+  les trois autres « incomplets », c'est lui qui s'écarte. Une case décochée n'est jamais « vide » (« non » ou « pas regardé » ? la
+  question de la règle 36 reste ouverte). Un champ sans objet (batterie d'un moteur filaire) n'est pas comparé, une ouverture VIERGE
+  non plus. Ici TOUS les réglages comptent, perçage et rivets compris : c'est la commande qu'on prépare, pas le document du client.
+  Sur la fiche, le champ porte son signe ET sa phrase (« ≠ Les autres ont : 118 », « Vide ici — les autres ont : … ») ;
+  « Reprendre » rejoue le GESTE (`input` puis `change`, règle 31 sexies). « Comparer » liste ce qui change, et chaque écart EMMÈNE
+  au champ (règle 15 quater : un compteur qui ne désigne rien fait chercher). Retirer avant de poser, re-marquer après chaque
+  recalcul : le bloc VR150 re-rendu par un champ pilote garde ses marques (test R1, règle 31 quinquies).
+• **LE CONFIGURATEUR N'A PLUS DE CADRE** dans la fiche : son pointillé violet en faisait une deuxième carte DANS la carte. Un filet
+  et son titre. Mesures, prix et emplacement remontent en tête de fiche (« Mesures et prix », « Où »).
+• **LE DEVIS : UN ENCADRÉ COMMUN, PUIS LES DIFFÉRENCES** — règle 31 septies. Mesuré sur le cas réel (fictif) : 1 encadré au lieu de 3.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3398,7 +3452,7 @@ il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERM�
    Et dès qu'on touche à `remuneration.js` ou au tarif de pose :
    `tests/remuneration.test.html`, exiger « 140/140 » — c'est de l'argent réel.
    Et dès qu'on touche au configurateur VR150 (`volet.js`, `VR_CHAMPS`, les listes `VR_*`) :
-   `tests/volet.test.html`, exiger « 135/135 » — ça remplit un bon de commande fournisseur.
+   `tests/volet.test.html`, exiger « 174/174 » — ça remplit un bon de commande fournisseur.
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 58/58 ».
@@ -3432,7 +3486,10 @@ il attend que le titre ne bouge plus — `nav.test.html` écrit un bilan INTERM�
    `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 37/37 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 27/27 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 30/30 », par le serveur.
+   Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
+   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 25/25 », par le serveur — ET `volet.test.html`, `documents.test.html`,
+   `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
    Et dès qu'on touche au Mode Terrain (`app/terrain.html`, `terrain.js`) : `tests/terrain.test.html`, exiger « 32/32 », par le

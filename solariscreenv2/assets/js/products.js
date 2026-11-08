@@ -964,8 +964,11 @@
        dans l'encadré du devis, où personne ne sait si ça veut dire une télécommande, un boîtier
        mural ou une pièce interne au moteur. Le libellé court est celui que LIT LE CLIENT :
        c'est donc lui qui porte la phrase entière (voir SSUI.MENTION_COMMANDE). */
+    /* `lSans` : le mot de l'encadré du devis quand CETTE ouverture n'a pas la case que les
+       autres ont (« Différences : Volet 4 — Sans commande murale Somfy »). Par défaut « Sans » +
+       le libellé court ; il ne s'écrit que là où ce défaut ne veut rien dire. */
     { g: 'Manœuvre', k: 'emetteur', l: 'Commande murale Somfy incluse',
-      lCourt: 'Commande murale Somfy individuelle incluse', t: 'check', client: true },
+      lCourt: 'Commande murale Somfy individuelle incluse', lSans: 'Sans commande murale Somfy', t: 'check', client: true },
     // Batterie et panneau solaire n'existent QUE sur une motorisation solaire : les afficher
     // sur un moteur filaire, c'est inviter à les remplir pour rien.
     { g: 'Manœuvre', k: 'batterie', l: 'Batterie', t: 'select', vals: VR_BATTERIES,
@@ -1012,7 +1015,7 @@
        champ « afdichting » du portail. On le GARDE tel quel au lieu d'ouvrir un second champ
        « étanchéité » : deux champs pour une même chose, et les anciens devis répondent à l'un
        pendant que les écrans lisent l'autre. */
-    { g: 'Coulisses', k: 'borstels', l: 'Étanchéité par brosses (au lieu de joints)', lCourt: 'Brosses (au lieu de joints)', t: 'check', client: true },
+    { g: 'Coulisses', k: 'borstels', l: 'Étanchéité par brosses (au lieu de joints)', lCourt: 'Brosses (au lieu de joints)', lSans: 'Joints (sans brosses)', t: 'check', client: true },
     { g: 'Coulisses', k: 'coulisses_differentes', l: 'Les deux coulisses sont différentes', t: 'check', pilote: true,
       aide: 'À cocher seulement si la coulisse de gauche et celle de droite ne sont pas identiques.' },
 
@@ -1287,6 +1290,157 @@
     return copie;
   }
 
+  /* ── « + AJOUTER UNE OUVERTURE » REPREND LA CONFIGURATION DE LA PRÉCÉDENTE ───────────────
+     Demande de Nicolas (08/11/2026), sur un vrai devis : quatre volets VR150 identiques, sauf
+     les coulisses du troisième — et le QUATRIÈME est parti SANS AJOURAGE. « + Ajouter » créait
+     un screen vide : pour un 4e volet il fallait changer le type puis ressaisir une trentaine de
+     champs, et c'est dans cette ressaisie que l'ajourage a sauté. Ses mots : « quand je mets le
+     premier volet ou screen, que le 2e ait la même config exacte sauf les mesures, ce qui permet
+     de moins se tromper ».
+     ⚠️ CE N'EST PAS « DUPLIQUER », et les deux boutons restent. Dupliquer copie une fenêtre
+     IDENTIQUE (mesures et prix compris, règle 35) ; ajouter commence une AUTRE fenêtre de la même
+     façade. Ce qui la distingue de la précédente n'a donc rien à faire dans la nouvelle :
+       • les MESURES (largeur, hauteur, projection) — c'est ce qu'on vient relever ;
+       • l'EMPLACEMENT, l'ÉTAGE, les NOTES et les PHOTOS — ils décrivent UNE baie précise, et
+         recopiés ils désigneraient la mauvaise sur le devis et sur la feuille de pose ;
+       • le PRIX CATALOGUE — il dépend des mesures. Recopié, il chiffrerait une ouverture sans
+         dimensions, donc compterait déjà une pose (règle 1 bis : le prix est le déclencheur) ;
+       • la QUANTITÉ repart à 1 : une nouvelle ligne est une nouvelle fenêtre.
+     Tout le reste — type, modèle, RAL, configurateur complet — suit, y compris ce qu'on n'a pas
+     encore pensé à ajouter au configurateur : on part de `dupliquerOuverture` et on RETIRE
+     (règle 2, jamais de liste blanche), donc un champ futur suit sans qu'on y touche.
+     ⚠️ La règle vit ICI (règle 10) parce que le simulateur ET le Mode Terrain ajoutent des
+     ouvertures : en deux exemplaires, elle aurait divergé au premier champ. */
+  const NOUVELLE_SANS = ['largeur', 'hauteur', 'projection', 'emplacement', 'etage', 'notes', 'prix_catalogue_ht'];
+
+  /**
+   * @returns {object} une ouverture neuve configurée comme `precedente`, sans identifiant, sans
+   * mesures ni emplacement, sans photos ni prix, quantité 1. L'appelant lui pose SON `_id`.
+   */
+  function nouvelleOuvertureDepuis(precedente) {
+    const neuve = dupliquerOuverture(precedente);
+    NOUVELLE_SANS.forEach(function (k) { delete neuve[k]; });
+    neuve.quantite = 1;
+    return neuve;
+  }
+
+  /* ── CE QUI CHANGE ENTRE LES OUVERTURES D'UN MÊME TYPE ──────────────────────────────────
+     Demande de Nicolas (08/11/2026) : « un outil qui montre les différences serait pas mal ».
+     Sur le devis qui l'a déclenché, le volet 3 avait des coulisses 117 au lieu de 118 et le
+     volet 4 un ajourage vide : deux écarts noyés dans 4 × 39 champs, que rien ne montrait.
+     LA RÉFÉRENCE EST LA VALEUR LA PLUS FRÉQUENTE parmi les ouvertures du type, vide compris ;
+     à égalité, celle de la première ouverture. Une ouverture s'en écarte de deux façons :
+       • « diff » — elle porte une AUTRE valeur (coulisses 117 quand les autres ont 118) ;
+       • « vide » — elle n'a RIEN là où la plupart des autres ont rempli (l'ajourage du volet 4).
+     ⚠️ « La plupart », pas « une autre » : une sortie de câble saisie sur UN volet ne fait pas
+     des trois autres des volets « incomplets » — c'est lui qui s'écarte (« diff »), pas eux.
+     ⚠️ Une case DÉCOCHÉE n'est jamais « vide » : elle dit « non » (ou « pas regardé » — la
+     question est ouverte, règle 36), donc elle ne peut que différer.
+     ⚠️ Un champ qui n'a PAS DE SENS sur une ouverture (batterie d'un moteur filaire, câble d'un
+     panneau non déporté) n'y est pas comparé : l'alimentation, qui le commande, diffère déjà.
+     ⚠️ Une ouverture VIERGE (aucun réglage rempli) n'entre pas dans la comparaison : elle n'est
+     pas « différente », elle n'est pas commencée — l'accueillir par quinze écarts reviendrait à
+     crier après une ouverture qu'on vient de créer (même discipline que le signal, règle 36).
+     Ni les mesures, ni le prix, ni l'emplacement n'y entrent : ils distinguent les fenêtres,
+     c'est leur rôle. */
+  const CONFIG_SCREEN = [
+    ['variante', 'Variante'], ['lateralite', 'Latéralité'], ['moteur_ref', 'Moteur'],
+    ['collection', 'Collection toile'], ['toile_num', 'N° de toile'], ['toile_couleur', 'Couleur toile'],
+    ['caisson_mesure', 'Caisson — mesure'], ['couleur', 'Couleur caisson (RAL)'], ['colmatage', 'Colmatage'],
+    ['emetteur', 'Commande murale Somfy incluse', 'check'],
+    ['panneau_solaire_separe', 'Panneau solaire déporté', 'check'],
+    ['panneau_cable', 'Longueur de câble du panneau', '', it => !!it.panneau_solaire_separe],
+    ['allongement_caisson', 'Allongement caisson', 'check'],
+  ];
+  const CONFIG_TENTE = [
+    ['modele', 'Modèle'], ['manoeuvre', 'Manœuvre'], ['moteur', 'Moteur (sorte)'],
+    ['cable_longueur', 'Câble — longueur'], ['cable_couleur', 'Câble — couleur'],
+    ['collection', 'Collection toile'], ['toile_couleur', 'Couleur toile'], ['couleur', 'Couleur (RAL)'],
+    ['telecommande', 'Commande murale Somfy incluse', 'check'], ['couple', 'Couplé', 'check'],
+    ['lambrequin_fixe', 'Lambrequin fixe', 'check'],
+    ['lambrequin_vario', 'Lambrequin Vario', 'check', it => !!(TS_SPECS[it.modele] || {}).lambrequin_vario],
+    ['eclairage_led', 'Éclairage LED'], ['detecteur', 'Détecteur soleil/vent/pluie', 'check'],
+    ['spots_storelight', 'Spots LED Storelight', 'check'], ['chauffage_storelight', 'Chauffage Storelight', 'check'],
+  ];
+  const CONFIG_AUTRE = [['modele', 'Modèle'], ['moteur', 'Moteur'], ['couleur', 'Couleur (RAL)'], ['toile', 'Toile / finition']];
+
+  /** Les champs de CONFIGURATION de cette ouverture : `[{ k, l, check }]`, conditions appliquées.
+   *  Le volet lit `VR_CHAMPS` (une seule description, règle 31) : un champ ajouté au configurateur
+   *  se compare sans qu'on y touche. */
+  function champsConfig(item) {
+    const it = item || {};
+    if (it.type === 'volet_roulant' || it.type === 'volet') {
+      return vrChamps(it).map(c => ({ k: c.k, l: c.l, check: c.t === 'check' }));
+    }
+    const table = it.type === 'screen' ? CONFIG_SCREEN : it.type === 'tente_solaire' ? CONFIG_TENTE : CONFIG_AUTRE;
+    return table.filter(c => !c[3] || c[3](it)).map(c => ({ k: c[0], l: c[1], check: c[2] === 'check' }));
+  }
+
+  function valeurConfig(item, champ) {
+    const v = item ? item[champ.k] : undefined;
+    if (champ.check) return v ? '1' : '';
+    return v === undefined || v === null ? '' : String(v).trim();
+  }
+
+  /** Une ouverture est commencée dès qu'un réglage (hors case à cocher) est rempli. */
+  function configCommencee(item) {
+    return champsConfig(item).some(c => !c.check && valeurConfig(item, c) !== '');
+  }
+
+  /**
+   * @returns {Array} un bloc par type porté par au moins DEUX ouvertures commencées :
+   *   `{ type, indices: [0, 1, 2, 3], communs: 13,
+   *      lignes: [{ k, l, check, ref, ouvertures: [{ i, v, etat: 'pareil' | 'diff' | 'vide' }] }] }`
+   *   — `indices` est 0-basé sur `items` ; `lignes` ne porte que les champs où au moins une
+   *   ouverture s'écarte, dans l'ordre du formulaire.
+   */
+  function ecartsOuvertures(items) {
+    const liste = items || [];
+    const parType = {};
+    const ordreTypes = [];
+    liste.forEach((it, i) => {
+      if (!it || !it.type || !configCommencee(it)) return;
+      const t = it.type === 'volet' ? 'volet_roulant' : it.type;   // l'ancien nom est le même produit
+      if (!parType[t]) { parType[t] = []; ordreTypes.push(t); }
+      parType[t].push(i);
+    });
+    return ordreTypes.filter(t => parType[t].length >= 2).map(type => {
+      const indices = parType[type];
+      const champs = [];
+      const vus = {};
+      indices.forEach(i => champsConfig(liste[i]).forEach(c => { if (!vus[c.k]) { vus[c.k] = true; champs.push(c); } }));
+      let communs = 0;
+      const lignes = [];
+      champs.forEach(c => {
+        const concernes = indices.filter(i => champsConfig(liste[i]).some(x => x.k === c.k));
+        if (concernes.length < 2) return;
+        const vals = concernes.map(i => valeurConfig(liste[i], c));
+        const compte = {};
+        vals.forEach(v => { compte[v] = (compte[v] || 0) + 1; });
+        // La plus fréquente ; à égalité, la première rencontrée (l'ouverture du haut fait foi).
+        const ref = vals.reduce((a, v) => (compte[v] > compte[a] ? v : a), vals[0]);
+        const ouvertures = concernes.map((i, j) => ({
+          i: i, v: vals[j],
+          etat: vals[j] === ref ? 'pareil' : (vals[j] === '' && !c.check ? 'vide' : 'diff'),
+        }));
+        // « Identique » ne compte que ce qui est RENSEIGNÉ partout : vingt cases décochées sur toutes
+        // les ouvertures ne font pas vingt réglages en commun.
+        if (ouvertures.every(o => o.etat === 'pareil')) { if (ref !== '') communs++; return; }
+        lignes.push({ k: c.k, l: c.l, check: c.check, ref: ref, ouvertures: ouvertures });
+      });
+      return { type: type, indices: indices, communs: communs, lignes: lignes };
+    });
+  }
+
+  /** Les écarts d'UNE ouverture (son index dans `items`), à partir d'`ecartsOuvertures`. */
+  function ecartsDe(analyse, i) {
+    const out = [];
+    (analyse || []).forEach(b => b.lignes.forEach(l => l.ouvertures.forEach(o => {
+      if (o.i === i && o.etat !== 'pareil') out.push({ k: l.k, l: l.l, check: l.check, etat: o.etat, v: o.v, ref: l.ref });
+    })));
+    return out;
+  }
+
   const CATALOG_CATS = [...new Set(CATALOG_OPTIONS.map(o => o.cat))].sort();
   /**
    * Recherche tolérante : code article, marque, ou mots du libellé, dans n'importe quel ordre.
@@ -1324,7 +1478,8 @@
     VR_CHAMPS, vrChamps, vrValeurs, vrOptions, vrClesClient,
     CATALOG_OPTIONS, CATALOG_CATS, chercheAccessoires,
     CHAMPS_REQUIS, champsManquants,
-    COPIE_JAMAIS, dupliquerOuverture,
+    COPIE_JAMAIS, dupliquerOuverture, NOUVELLE_SANS, nouvelleOuvertureDepuis,
+    champsConfig, configCommencee, ecartsOuvertures, ecartsDe,
     RAL_TABLE, RAL_FREQUENTS, ralCode, ralNom, ralHex, ralHarol, ralLabel, ralListeHarol,
     HAROL_COLORIS, FINITION_L, SECTION_L, coloris, colorisDuCode, colorisCodes,
     chercheColoris, colorisLabel,
