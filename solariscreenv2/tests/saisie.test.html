@@ -16,12 +16,14 @@
 <body>
   <h1>SOLARISCREEN — Tests de la saisie des ouvertures (simulateur)</h1>
   <p class="note">
-    Revue du 08/11/2026 (CLAUDE.md, règle 60), après un vrai devis : quatre volets VR150 identiques sauf les coulisses du
-    troisième, et le quatrième parti SANS AJOURAGE. On rejoue la page du simulateur, au geste, sur le VRAI serveur (banc) :
-    la liste qui nomme les ouvertures et une seule fiche à la fois (variante B, choisie par Nicolas), « + Ajouter » qui reprend
-    la configuration de la précédente sans les mesures, l'outil « ce qui change » et ses deux signes (écart, vide), « Reprendre »,
-    « Dupliquer » inchangé, la pose qui ne se compte pas sur une ouverture sans prix (règle 1 bis), le bloc VR150 re-rendu
-    qui garde ses marques, et le téléphone (la liste et la fiche se remplacent, « ← Les ouvertures »).
+    Règle 60 de CLAUDE.md. Première passe (08/11/2026, après un vrai devis : quatre volets VR150 identiques sauf les coulisses du
+    troisième, et le quatrième parti SANS AJOURAGE) : une liste qui nomme les ouvertures et une fiche à la fois, « + Ajouter » qui
+    reprend la configuration de la précédente, l'outil des écarts, le néon des champs vides que les autres ont remplis.
+    Deuxième passe (mêmes jour, « tout, le plus complet et le mieux visuellement ») : toute la largeur et le récapitulatif en barre
+    en bas, des sections nommées avec leur état et un sommaire, « Reprendre » / « Appliquer aux autres » / « Copier la section »,
+    le tableau (mesures d'affilée, écarts et « Tout sur… »), le prix écrit « 1 098,10 », « Retirer » dans « ⋯ » et annulable,
+    la navigation en bas de fiche et au clavier, la VÉRIFICATION avant le PDF (qui avertit, ne bloque jamais), et le téléphone
+    (onglets numérotés, barre ‹ · total · ›). Tout est rejoué AU GESTE sur le VRAI serveur (banc).
     <br><br>
     <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle.
   </p>
@@ -60,8 +62,8 @@
     }
     const SS = window.SS, BANC = window.SSBanc;
     const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
+    const nb = (s) => String(s == null ? '' : s).replace(/[  ]/g, ' ');
     const vu = (n) => !!(n && n.checkVisibility && n.checkVisibility());
-
 
     async function simulateur(id, largeur, hauteur) {
       const f = await BANC.cadre('../app/simulateur.html?id=' + encodeURIComponent(id), largeur || 1500, hauteur || 900);
@@ -69,17 +71,19 @@
       await attendre(250);
       return f;
     }
-    /** Ce que la LISTE dit de chaque ouverture : nom, lieu, mesures, pastilles. */
-    const liste = (d) => [...d.querySelectorAll('#ouvListe .ol-item[data-ol]:not([data-ol="cmp"])')].map((b) =>
-      [txt(b.querySelector('.ol-t')), txt(b.querySelector('.ol-s')), txt(b.querySelector('.ol-chips')) || '']);
-    const fichesVisibles = (d) => [...d.querySelectorAll('.item-card')].filter((c) => !c.hidden).map((c) => txt(c.querySelector('[data-titre]')));
+    /** Ce que la LISTE dit de chaque ouverture : nom, lieu, mesures et prix, pastilles. */
+    const liste = (d) => [...d.querySelectorAll('#ouvListe .ol-item')].map((b) =>
+      [txt(b.querySelector('.ol-t strong')), txt(b.querySelector('.ol-s')), [...b.querySelectorAll('.ol-chips .ec-chip')].map(txt)]);
+    const fichesVisibles = (d) => [...d.querySelectorAll('.item-card')].filter((c) => vu(c)).map((c) => txt(c.querySelector('[data-titre]')));
     const ficheVue = (d) => d.querySelector('.item-card:not([hidden])');
+    const champ = (d, k) => ficheVue(d).querySelector('[data-f="' + k + '"]');
+    const etatSection = (d, nom) => { const s = [...ficheVue(d).querySelectorAll('[data-section]')].find((x) => x.dataset.section === nom); return s ? txt(s.querySelector('.sec-etat')) : null; };
     /** Rejouer le GESTE (règle 31 sexies) : la valeur, puis `input` et `change`, comme le navigateur. */
-    function saisir(champ, valeur) {
-      champ.focus();
-      champ.value = valeur;
-      champ.dispatchEvent(new Event('input', { bubbles: true }));
-      champ.dispatchEvent(new Event('change', { bubbles: true }));
+    function saisir(c, valeur) {
+      c.focus();
+      c.value = valeur;
+      c.dispatchEvent(new Event('input', { bubbles: true }));
+      c.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     (async () => {
@@ -90,61 +94,137 @@
         const rem = await window.SSBacASable.remplir(SS, {});
         // Le cas réel, en fictif (une seule description, `bac-a-sable.js`) : quatre volets, le 3e en coulisses 117, le 4e sans ajourage.
         const r0 = await SS.saveDevis(window.SSBacASable.exempleQuatreVolets({ id: 'ESSAI-SAISIE-1', statut: 'brouillon' }), { creation: true });
-        check('E0 Le bac à sable se remplit ; le devis fictif de quatre volets s’enregistre', [rem.erreurs, r0.ok !== false], [[], true]);
+        const r1 = await SS.saveDevis(window.SSBacASable.exempleQuatreVolets({ id: 'ESSAI-SAISIE-2', statut: 'brouillon' }), { creation: true });
+        check('E0 Le bac à sable se remplit ; les deux devis fictifs de quatre volets s’enregistrent', [rem.erreurs, r0.ok !== false, r1.ok !== false], [[], true, true]);
 
         // ══════════ L — LA LISTE ET LA FICHE (bureau) ══════════
         titre('L — Une liste qui nomme chaque ouverture, une seule fiche à la fois (bureau, 1 500 px)');
         let f = await simulateur('ESSAI-SAISIE-1');
         let d = f.contentDocument, w = f.contentWindow;
-        check('L1 La liste nomme chaque ouverture (« Volet 3 », son emplacement et son étage) et dit ce qui cloche : un écart sur le 3, un champ à remplir sur le 4',
-          liste(d), [['Volet 1', 'Salon · RDC', ''], ['Volet 2', 'Salle à manger · RDC', ''], ['Volet 3', 'Jardin · RDC', '≠ 1 écart'], ['Volet 4', 'Chambre · 1er étage', '1 à remplir']]);
+        check('L1 La liste nomme chaque ouverture (« Volet 3 », emplacement et étage) et dit ce qui cloche : « ✓ complète », un écart sur le 3, un champ à remplir sur le 4',
+          liste(d), [['Volet 1', 'Salon · RDC', ['✓ complète']], ['Volet 2', 'Salle à manger · RDC', ['✓ complète']], ['Volet 3', 'Jardin · RDC', ['✓ complète', '≠ 1 écart']], ['Volet 4', 'Chambre · 1er étage', ['1 à remplir']]]);
+        const olm = d.querySelector('#ouvListe [data-ol="2"] .ol-m');
+        check('L1b … mesures à GAUCHE et prix à DROITE, chiffres écrits comme sur le devis ; « 3 / 4 complètes » en tête',
+          [[...olm.children].map((x) => nb(txt(x))), olm.firstElementChild.getBoundingClientRect().left < olm.lastElementChild.getBoundingClientRect().left, txt(d.getElementById('ouvCompte'))],
+          [['2 050 × 2 150', '897,10 €'], true, '3 / 4 complètes']);
         check('L2 Les quatre fiches sont dans la page, UNE seule se voit (la première) ; liste et fiche côte à côte au bureau',
-          [d.querySelectorAll('.item-card').length, fichesVisibles(d), vu(d.getElementById('ouvListe')), getComputedStyle(d.querySelector('.ouv-lf-in')).gridTemplateColumns.split(' ').length],
-          [4, ['Volet 1'], true, 2]);
+          [d.querySelectorAll('.item-card').length, fichesVisibles(d), vu(d.querySelector('.ouv-gauche')), vu(d.getElementById('ouvOnglets')), getComputedStyle(d.querySelector('.ouv-lf-in')).gridTemplateColumns.split(' ').length],
+          [4, ['Volet 1 · Salon'], true, false, 2]);
         d.querySelector('#ouvListe [data-ol="2"]').click(); await attendre(80);
-        const f3 = ficheVue(d);
-        const coul = f3.querySelector('[data-f="coulisse_type"]').closest('.field');
-        check('L3 Un clic sur « Volet 3 » : sa fiche, son titre, et le champ qui DIFFÈRE marqué sur place (« ≠ Les autres ont : 118 »)',
-          [fichesVisibles(d), d.querySelector('#ouvListe [data-ol="2"]').getAttribute('aria-current'), coul.classList.contains('ec-diff'), txt(coul.querySelector('.ec-note'))],
-          [['Volet 3'], 'true', true, '≠ Les autres ont : 118']);
-        // Le geste « suivante » de la fiche.
-        [...f3.querySelectorAll('.item-nav button')][1].click(); await attendre(80);
-        check('L4 « › » passe à l’ouverture suivante', fichesVisibles(d), ['Volet 4']);
+        const coul = champ(d, 'coulisse_type').closest('.field');
+        check('L3 Un clic sur « Volet 3 » : sa fiche, son titre, et le champ qui DIFFÈRE marqué sur place, avec ses deux gestes',
+          [fichesVisibles(d), d.querySelector('#ouvListe [data-ol="2"]').getAttribute('aria-current'), coul.classList.contains('ec-diff'), [...coul.querySelectorAll('.ec-note > *')].map(txt)],
+          [['Volet 3 · Jardin'], 'true', true, ['≠ Les autres ont : 118', 'Reprendre « 118 »', 'Appliquer « 117 » aux 3 autres']]);
+        ficheVue(d).querySelector('.ic-suivant .btn-primary').click(); await attendre(80);
+        check('L4 En bas de fiche, « Volet 4 · Chambre → » passe à la suivante (idée 10)', fichesVisibles(d), ['Volet 4 · Chambre']);
+        d.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true, cancelable: true }));
+        await attendre(60);
+        const altG = fichesVisibles(d);
+        const evAlt = new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true });
+        d.dispatchEvent(evAlt); await attendre(60);
+        check('L5 Alt + ← et Alt + → passent d’une ouverture à l’autre (et le navigateur ne « revient » pas en arrière)', [altG, fichesVisibles(d), evAlt.defaultPrevented], [['Volet 3 · Jardin'], ['Volet 4 · Chambre'], true]);
 
-        // ══════════ C — CE QUI CHANGE ══════════
-        titre('C — « Comparer » : ce qui change entre les ouvertures, et y aller');
-        d.querySelector('#ouvListe [data-ol="cmp"]').click(); await attendre(80);
-        const cmp = d.getElementById('ouvComparer');
-        check('C1 « Comparer » montre les deux réglages qui changent (l’ajourage vide du 4, les coulisses 117 du 3), et aucune fiche',
-          [vu(cmp), [...cmp.querySelectorAll('.cmp-l')].map((l) => [txt(l.querySelector('.cmp-k')), [...l.querySelectorAll('.cmp-aller')].map(txt)]), fichesVisibles(d)],
-          [true, [['Ajourage', ['vide — Volet 4 (Chambre) →']], ['Type de coulisses', ['117 — Volet 3 (Jardin) →']]], []]);
-        cmp.querySelector('.cmp-aller.vide').click(); await attendre(120);
-        const f4 = ficheVue(d), aj = f4.querySelector('[data-f="ajourage"]');
-        check('C2 … et le bouton emmène sur LE champ : la fiche du volet 4, curseur dans l’ajourage, marqué « vide » avec « Reprendre »',
-          [fichesVisibles(d), d.activeElement === aj, aj.closest('.field').classList.contains('ec-vide'), txt(aj.closest('.field').querySelector('.ec-note'))],
-          [['Volet 4'], true, true, 'Vide ici — les autres ont : 0 : sans ajourage Reprendre']);
+        // ══════════ F — LA FICHE : sections, sommaire, étiquettes, prix ══════════
+        titre('F — La fiche : des sections qui disent leur état, un sommaire, des étiquettes qui se lisent, le prix bien écrit');
+        const lab = ficheVue(d).querySelector('.label');
+        check('F1 Les étiquettes se lisent : en minuscules, police du texte (plus de majuscules en police de code)',
+          [getComputedStyle(lab).textTransform, /mono/i.test(getComputedStyle(lab).fontFamily)], ['none', false]);
+        check('F2 Chaque section dit son état : Tablier « 1 à remplir » (l’ajourage), Caisson « ✓ comme les 3 autres »',
+          [etatSection(d, 'Tablier'), etatSection(d, 'Caisson')], ['1 à remplir', '✓ comme les 3 autres']);
+        const som = [...ficheVue(d).querySelectorAll('[data-sommaire] button')];
+        const somT = som.find((b) => /Tablier/.test(b.textContent));
+        check('F3 Le sommaire reprend les sections avec leur signe (« ! Tablier »), dans l’ordre de la fiche',
+          [som.slice(0, 4).map(txt), txt(somT), somT ? somT.className : null],
+          [['·Produit', '·Mesures et prix', '·Où', '✓Couleur'], '!Tablier', 's-vide']);
+        const somC = som.find((b) => /Caisson/.test(b.textContent));
+        if (somC) somC.click();
+        await attendre(80);
+        check('F4 Un clic sur « Caisson » dans le sommaire : on y est (le curseur est dans la section)',
+          d.activeElement && d.activeElement.closest('[data-section]') && d.activeElement.closest('[data-section]').dataset.section, 'Caisson');
+        d.querySelector('#ouvListe [data-ol="1"]').click(); await attendre(60);
+        const px = champ(d, 'prix_catalogue_ht');
+        const pxAvant = nb(px.value);
+        saisir(px, '1098,1'); px.dispatchEvent(new Event('blur')); await attendre(60);
+        check('F5 Le prix s’écrit « 612,40 » puis, tapé « 1098,1 », se relit 1 098,10 € et se réécrit « 1 098,10 » en quittant le champ ; la liste suit',
+          [pxAvant, w.eval('state').items[1].prix_catalogue_ht, nb(px.value), nb(txt(d.querySelector('#ouvListe [data-ol="1"] .ol-m b')))],
+          ['612,40', 1098.1, '1 098,10', '1 098,10 €']);
+        saisir(px, '612,40'); px.dispatchEvent(new Event('blur')); await attendre(40);
+        const fiche = d.getElementById('ouvFiche').getBoundingClientRect().width;
+        f.remove();
+        f = await simulateur('ESSAI-SAISIE-1', 1875, 1000);
+        d = f.contentDocument; w = f.contentWindow;
+        const fiche1875 = d.getElementById('ouvFiche').getBoundingClientRect().width;
+        const secT = [...ficheVue(d).querySelectorAll('[data-section]')].filter((s) => ['Tablier', 'Montage'].includes(s.dataset.section)).map((s) => Math.round(s.getBoundingClientRect().top));
+        check('F6 ⚠️ Toute la largeur (idée 1) : à 1 875 px la fiche fait plus de 1 100 px (516 avant), les sections vont deux par deux (Tablier à côté de Montage) — et UNE seule fiche se voit (la grille battait `[hidden]`)',
+          [fiche1875 > 1100, fiche > 850, secT.length === 2 && secT[0] === secT[1], fichesVisibles(d)], [true, true, true, ['Volet 1 · Salon']]);
+        f.remove();
+
+        // ══════════ B — LA BARRE DU BAS ══════════
+        titre('B — Le récapitulatif en barre en bas (idée 1)');
+        f = await simulateur('ESSAI-SAISIE-1');
+        d = f.contentDocument; w = f.contentWindow;
+        const barre = d.getElementById('simBarre'), rb = barre.getBoundingClientRect();
+        check('B1 La barre est collée en bas de l’écran, au-dessus de rien d’autre : total TVAC, HTVA et acompte, Enregistrer, Vérifier et générer le PDF',
+          [Math.round(rb.bottom) === w.innerHeight, barre.hasAttribute('data-barre-bas'), nb(txt(d.getElementById('sbTTC'))) === nb(txt(d.getElementById('sTotalTTC'))), /^HTVA .+ · acompte 50 % : /.test(nb(txt(d.getElementById('sbSous')))), vu(d.getElementById('btnEnregistrer')), vu(d.getElementById('btnPdf'))],
+          [true, true, true, true, true, true]);
+        d.getElementById('sbTotal').click(); await attendre(60);
+        check('B2 Un clic sur le total déplie le DÉTAIL (les lignes du récapitulatif), et le replie',
+          [vu(d.getElementById('sbDetail')), d.getElementById('sbTotal').getAttribute('aria-expanded'), vu(d.getElementById('sTotalCatalog'))], [true, 'true', true]);
+        d.getElementById('sbTotal').click(); await attendre(60);
+        const pb = parseFloat(getComputedStyle(d.querySelector('main.sim-layout')).paddingBottom);
+        check('B3 … replié ; et la page réserve sa place en bas (rien ne reste caché sous la barre)', [vu(d.getElementById('sbDetail')), pb >= barre.getBoundingClientRect().height], [false, true]);
+
+        // ══════════ C — LE TABLEAU ET LES ÉCARTS ══════════
+        titre('C — Le tableau : les écarts, et y aller');
+        d.getElementById('vueTableau').click(); await attendre(80);
+        d.querySelector('#ouvTableau [data-tab="ecarts"]').click(); await attendre(80);
+        const T = d.getElementById('ouvTableau');
+        check('C1 « Tableau › Écarts » montre les deux réglages qui changent, une colonne par volet, avec « Tout sur… » ; aucune fiche',
+          [vu(T), [...T.querySelectorAll('table.tab-ecarts tbody tr')].map((tr) => [txt(tr.querySelector('th')), [...tr.querySelectorAll('td')].map(txt)]), fichesVisibles(d)],
+          [true, [['Ajourage', ['0 : sans ajourage', '0 : sans ajourage', '0 : sans ajourage', 'vide', 'Tout sur « 0 : sans ajourage »']], ['Type de coulisses', ['118', '118', '117', '118', 'Tout sur « 118 »']]], []]);
+        T.querySelector('td.vide .cell-aller').click(); await attendre(120);
+        const aj = champ(d, 'ajourage');
+        check('C2 … et la cellule « vide » emmène sur LE champ : la fiche du volet 4, curseur dans l’ajourage, marqué « vide » avec « Reprendre »',
+          [fichesVisibles(d), d.activeElement === aj, aj.closest('.field').classList.contains('ec-vide'), [...aj.closest('.field').querySelectorAll('.ec-note > *')].map(txt)],
+          [['Volet 4 · Chambre'], true, true, ['Vide ici — les autres ont : 0 : sans ajourage', 'Reprendre « 0 : sans ajourage »']]);
         // Décision de Nicolas (08/11/2026) : ce champ s'allume AUSSI du néon des champs bloquants ; les vides normaux, non.
-        const neon = (k) => ficheVue(d).querySelector('[data-f="' + k + '"]').closest('.field').classList.contains(w.SSSignal.CLASSE);
+        const neon = (k) => champ(d, k).closest('.field').classList.contains(w.SSSignal.CLASSE);
         check('C2b ⚠️ … l’ajourage vide s’allume du NÉON des champs bloquants ; les vides normaux (rivets, sortie de câble, notes) restent éteints',
           [neon('ajourage'), neon('caisson_rivets'), neon('cable_sortie'), neon('notes')], [true, false, false, false]);
-        aj.closest('.field').querySelector('.ec-note button').click(); await attendre(120);
-        check('C3 « Reprendre » pose la valeur des autres ET l’enregistre dans le devis (collecte) ; le signe et le néon s’éteignent, la liste ne réclame plus rien',
+        aj.closest('.field').querySelector('.ec-note .ec-geste').click(); await attendre(120);
+        check('C3 « Reprendre » pose la valeur des autres ET l’enregistre dans le devis ; le signe et le néon s’éteignent, la liste dit « ✓ complète »',
           [aj.value, w.eval('state').items[3].ajourage, aj.closest('.field').classList.contains('ec-vide'), neon('ajourage'), liste(d)[3][2]],
-          ['0 : sans ajourage', '0 : sans ajourage', false, false, '']);
+          ['0 : sans ajourage', '0 : sans ajourage', false, false, ['✓ complète']]);
         /* C3b : un champ TEXTE n'émet `change` qu'en perdant le focus. La collecte d'une frappe pose le néon sur l'analyse
-           d'AVANT la frappe ; c'est le second passage (après l'analyse refaite) qui l'éteint — sans lui, le néon restait sur
-           le champ qu'on est en train de remplir jusqu'à ce qu'on en sorte. */
+           d'AVANT la frappe ; c'est le second passage (après l'analyse refaite) qui l'éteint. */
         for (const k of [0, 1, 2]) {
           d.querySelector('#ouvListe [data-ol="' + k + '"]').click(); await attendre(60);
-          saisir(ficheVue(d).querySelector('[data-f="cable_sortie"]'), 'à gauche, en bas'); await attendre(60);
+          saisir(champ(d, 'cable_sortie'), 'à gauche, en bas'); await attendre(60);
         }
         d.querySelector('#ouvListe [data-ol="3"]').click(); await attendre(80);
-        const cs = ficheVue(d).querySelector('[data-f="cable_sortie"]');
+        const cs = champ(d, 'cable_sortie');
         const csAvant = neon('cable_sortie');
         cs.focus(); cs.value = 'à'; cs.dispatchEvent(new Event('input', { bubbles: true })); await attendre(80);
         check('C3b Un champ TEXTE vide que les trois autres ont rempli (sortie de câble) s’allume, puis s’éteint dès la PREMIÈRE frappe, sans attendre qu’on quitte le champ',
           [csAvant, neon('cable_sortie')], [true, false]);
         saisir(cs, 'à gauche, en bas'); await attendre(60);
+
+        // ══════════ M — LE TABLEAU DES MESURES ══════════
+        titre('M — Le tableau des mesures : toutes les ouvertures d’affilée (idée 6)');
+        d.getElementById('vueTableau').click(); await attendre(60);
+        d.querySelector('#ouvTableau [data-tab="mesures"]').click(); await attendre(60);
+        const cellL = d.querySelector('#ouvTableau [data-tab-i="1"][data-tab-k="largeur"]');
+        saisir(cellL, '1250'); await attendre(80);
+        const cellP = d.querySelector('#ouvTableau [data-tab-i="1"][data-tab-k="prix_catalogue_ht"]');
+        saisir(cellP, '700'); await attendre(80);
+        const carte2 = d.querySelector('.item-card[data-id="' + w.eval('state').items[1]._id + '"]');
+        check('M1 Une ligne par ouverture ; une largeur et un prix tapés dans le tableau arrivent dans le devis, dans SA fiche (même masquée) et dans la liste',
+          [d.querySelectorAll('#ouvTableau table.tab-mesures tbody tr').length, w.eval('state').items[1].largeur, w.eval('state').items[1].prix_catalogue_ht,
+            carte2.querySelector('[data-f="largeur"]').value, nb(carte2.querySelector('[data-f="prix_catalogue_ht"]').value), nb(txt(d.querySelector('#ouvListe [data-ol="1"] .ol-m span'))), nb(cellP.value)],
+          [4, 1250, 700, '1250', '700,00', '1 250 × 1 450', '700,00']);
+        w.ui_recalc(); await attendre(40);
+        check('M2 … et le recalcul suivant (qui relit TOUTES les fiches) ne l’efface pas', [w.eval('state').items[1].largeur, w.eval('state').items[1].prix_catalogue_ht], [1250, 700]);
+        d.getElementById('vueFiche').click(); await attendre(60);
 
         // ══════════ A — « + AJOUTER » ══════════
         titre('A — « + Ajouter une ouverture » reprend la configuration de la précédente, sans les mesures');
@@ -159,55 +239,129 @@
           [0, 0, '', '', 0, 1, 'largeur', true, true]);
         check('A3 … et elle ne compte AUCUNE pose tant qu’elle n’est pas chiffrée (règle 1 bis)', d.getElementById('installQty').value, qteAvant);
         check('A4 … ses menus montrent bien la configuration reprise (rien de « — » à l’écran)',
-          ['lame_type', 'coulisse_type', 'ajourage', 'moteur'].map((k) => ficheVue(d).querySelector('[data-f="' + k + '"]').value), ['alu35', '118', '0 : sans ajourage', 'Secure (RF, standard)']);
+          ['lame_type', 'coulisse_type', 'ajourage', 'moteur'].map((k) => champ(d, k).value), ['alu35', '118', '0 : sans ajourage', 'Secure (RF, standard)']);
         saisir(d.activeElement, '1300');
-        saisir(ficheVue(d).querySelector('[data-f="hauteur"]'), '1500');
-        saisir(ficheVue(d).querySelector('[data-f="emplacement"]'), 'Bureau');
-        check('A5 Ses mesures et son emplacement tapés : la liste les reprend aussitôt', liste(d)[4].slice(0, 2), ['Volet 5', 'Bureau']);
+        saisir(champ(d, 'hauteur'), '1500');
+        saisir(champ(d, 'emplacement'), 'Bureau');
+        check('A5 Ses mesures et son emplacement tapés : la liste et le titre les reprennent aussitôt', [liste(d)[4].slice(0, 2), fichesVisibles(d)], [['Volet 5', 'Bureau'], ['Volet 5 · Bureau']]);
         check('A6 Le texte d’aide dit d’où vient la configuration', txt(d.getElementById('ajoutAide')), 'Reprend la configuration de « Volet 5 », sans mesures, emplacement ni prix.');
 
-        // ══════════ D — « DUPLIQUER » NE CHANGE PAS (règle 35) ══════════
-        titre('D — « Dupliquer » ne change pas, « Retirer » garde sa place');
+        // ══════════ D — « DUPLIQUER », « ⋯ › RETIRER » ET « ANNULER » ══════════
+        titre('D — « Dupliquer » ne change pas ; « Retirer » est dans « ⋯ », demande en nommant l’ouverture, et se défait (idée 9)');
         [...ficheVue(d).querySelectorAll('.item-card-head .btn')].find((b) => /Dupliquer/.test(b.textContent)).click(); await attendre(150);
         const c6 = w.eval('state').items[5] || {};
         check('D1 La copie se range juste après, mesures et emplacement COMPRIS, et c’est elle qu’on voit, largeur sous le curseur',
-          [w.eval('state').items.length, fichesVisibles(d), c6.largeur, c6.emplacement, d.activeElement && d.activeElement.dataset.f], [6, ['Volet 6'], 1300, 'Bureau', 'largeur']);
-        [...ficheVue(d).querySelectorAll('.item-card-head .btn')].find((b) => /Retirer/.test(b.textContent)).click(); await attendre(150);
-        check('D2 « Retirer » la 6e : retour à cinq, la fiche affichée est la dernière restante', [w.eval('state').items.length, fichesVisibles(d)], [5, ['Volet 5']]);
+          [w.eval('state').items.length, fichesVisibles(d), c6.largeur, c6.emplacement, d.activeElement && d.activeElement.dataset.f], [6, ['Volet 6 · Bureau'], 1300, 'Bureau', 'largeur']);
+        check('D2 Plus de bouton « Retirer » à côté de « Dupliquer » : il est dans le menu « ⋯ », fermé',
+          [[...ficheVue(d).querySelectorAll('.item-actions > .btn')].map(txt), vu(ficheVue(d).querySelector('[data-retirer-demande]'))], [['⧉ Dupliquer'], false]);
+        ficheVue(d).querySelector('[data-menu-ouv]').click(); await attendre(40);
+        ficheVue(d).querySelector('[data-retirer-demande]').click(); await attendre(40);
+        const conf = ficheVue(d).querySelector('.menu-ouv-conf');
+        check('D3 « Retirer cette ouverture… » demande en NOMMANT l’ouverture', [vu(conf), /Retirer « Volet 6 — Bureau » \?/.test(txt(conf))], [true, true]);
+        ficheVue(d).querySelector('[data-retirer-ok]').click(); await attendre(150);
+        check('D4 Retirée : cinq ouvertures, la dernière restante affichée, et « Annuler » pendant 10 s',
+          [w.eval('state').items.length, fichesVisibles(d), vu(d.getElementById('ouvRetire')), txt(d.getElementById('ouvRetire'))], [5, ['Volet 5 · Bureau'], true, 'Volet 6 — Bureau retiré. Annuler']);
+        d.querySelector('#ouvRetire button').click(); await attendre(150);
+        check('D5 « Annuler » la remet à sa place, telle quelle', [w.eval('state').items.length, (w.eval('state').items[5] || {}).largeur, fichesVisibles(d), vu(d.getElementById('ouvRetire'))], [6, 1300, ['Volet 6 · Bureau'], false]);
 
         // ══════════ R — LE BLOC VR150 RE-RENDU GARDE SES MARQUES ══════════
         titre('R — Un champ pilote re-rend le bloc VR150 : les marques reviennent, la saisie suit');
         d.querySelector('#ouvListe [data-ol="0"]').click(); await attendre(80);
-        saisir(ficheVue(d).querySelector('[data-f="alimentation"]'), 'Solaire'); await attendre(150);
-        const alim = ficheVue(d).querySelector('[data-f="alimentation"]');
-        check('R1 Volet 1 passé en solaire (champ pilote) : le bloc est re-rendu, le champ marqué « ≠ », la valeur collectée',
-          [alim.value, alim.closest('.field').classList.contains('ec-diff'), w.eval('state').items[0].alimentation, !!ficheVue(d).querySelector('[data-f="batterie"]')],
-          ['Solaire', true, 'Solaire', true]);
-        // Les fiches MASQUÉES restent collectées : un recalcul ne perd rien de ce qu'on a saisi sur une autre ouverture.
+        saisir(champ(d, 'alimentation'), 'Solaire'); await attendre(150);
+        const alim = champ(d, 'alimentation');
+        check('R1 Volet 1 passé en solaire (champ pilote) : le bloc est re-rendu, le champ marqué « ≠ », la valeur collectée, la section Manœuvre dit l’écart',
+          [alim.value, alim.closest('.field').classList.contains('ec-diff'), w.eval('state').items[0].alimentation, !!champ(d, 'batterie'), etatSection(d, 'Manœuvre')],
+          ['Solaire', true, 'Solaire', true, '≠ 1 écart avec les autres']);
         w.ui_recalc(); await attendre(60);
         check('R2 Les fiches masquées gardent ce qu’on y a saisi (le volet 5 tapé plus haut, l’ajourage repris du 4)',
           [w.eval('state').items[4].largeur, w.eval('state').items[4].emplacement, w.eval('state').items[3].ajourage], [1300, 'Bureau', '0 : sans ajourage']);
+
+        // ══════════ V — LA VÉRIFICATION AVANT LE PDF ══════════
+        titre('V — La vérification avant le PDF : elle avertit, elle ne bloque jamais (idée 11)');
+        ['installQty', 'tech1Qty', 'tech2Qty', 'toolsQty'].forEach((id) => saisir(d.getElementById(id), '0'));
+        w.markQtyManual(); w.ui_recalc(); await attendre(60);
+        check('V0 Une pose à 0 € se dit dans la barre (« Sans pose ») et le compteur « à vérifier » s’allume',
+          [txt(d.getElementById('sbNote')), vu(d.getElementById('sbVerif')), /\d+ à vérifier/.test(txt(d.getElementById('sbVerif')))], ['Sans pose', true, true]);
+        d.getElementById('btnPdf').click(); await attendre(100);
+        const lv = () => [...d.querySelectorAll('#verifListe li')].map((li) => [li.className, txt(li.children[1])]);
+        const l0 = lv();
+        check('V1 « Vérifier et générer le PDF » ouvre la vérification : les écarts (« voulu ? »), ce qui manque, et la pose à 0 € posée en QUESTION',
+          [vu(d.getElementById('verifBg')), l0.filter((x) => x[0] === 'diff').map((x) => x[1]), l0.some((x) => x[0] === 'vide' && /Volet 5 · Bureau — prix catalogue à 0 €/.test(x[1])), l0.filter((x) => x[0] === 'question').map((x) => x[1])],
+          [true, ['Volet 1 · Salon — Alimentation : Solaire (les autres : Électrique (filaire))', 'Volet 3 · Jardin — Type de coulisses : 117 (les autres : 118)'], true, ['Pas de pose sur ce devis (installation à 0 € pour 4 ouvertures chiffrées) — c’est voulu ?']]);
+        [...d.querySelectorAll('#verifListe .ec-geste')].find((b) => /Oui, pas de pose/.test(b.textContent)).click(); await attendre(60);
+        check('V2 « Oui, pas de pose » écarte la question d’un clic (cas réel : Nicolas pose avec le client) ; les quantités restent à 0',
+          [lv().some((x) => x[0] === 'question'), d.getElementById('installQty').value], [false, '0']);
+        const diffs = lv().filter((x) => x[0] === 'diff').length;
+        [...d.querySelectorAll('#verifListe li.diff .ec-geste')].find((b) => /voulu/.test(b.textContent)).click(); await attendre(60);
+        check('V3 « C’est voulu » retire l’écart de la liste', lv().filter((x) => x[0] === 'diff').length, diffs - 1);
+        [...d.querySelectorAll('#verifListe li.vide .ec-geste')].find((b) => /Y aller/.test(b.textContent)).click(); await attendre(120);
+        check('V4 « Y aller » ferme la vérification et emmène sur le champ', [vu(d.getElementById('verifBg')), !!d.activeElement && !!d.activeElement.dataset.f], [false, true]);
+        d.getElementById('btnPdf').click(); await attendre(80);
+        d.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(40);
+        check('V5 Échap ferme la vérification sans rien faire', [vu(d.getElementById('verifBg')), f.contentWindow.location.pathname.indexOf('simulateur') >= 0], [false, true]);
+        d.getElementById('btnPdf').click(); await attendre(80);
+        d.getElementById('verifGenerer').click();
+        await attendreQue(() => /devis\.html/.test(f.contentWindow.location.href), 4000);
+        check('V6 « Générer quand même » mène au PDF : la vérification n’empêche jamais de sortir le devis', /devis\.html\?id=ESSAI-SAISIE-1/.test(f.contentWindow.location.href), true);
+        f.remove();
+
+        // ══════════ G — APPLIQUER AUX AUTRES, COPIER UNE SECTION, ALIGNER ══════════
+        titre('G — Régler une fois, poser sur toutes (idée 5)');
+        f = await simulateur('ESSAI-SAISIE-2');
+        d = f.contentDocument; w = f.contentWindow;
+        d.querySelector('#ouvListe [data-ol="2"]').click(); await attendre(80);
+        [...champ(d, 'coulisse_type').closest('.field').querySelectorAll('.ec-geste')].find((b) => /Appliquer/.test(b.textContent)).click(); await attendre(150);
+        check('G1 « Appliquer « 117 » aux 3 autres » : les quatre volets en 117, l’écart a disparu, la fiche reste celle du volet 3',
+          [w.eval('state').items.map((x) => x.coulisse_type), liste(d)[2][2], fichesVisibles(d)], [['117', '117', '117', '117'], ['✓ complète'], ['Volet 3 · Jardin']]);
+        d.querySelector('#ouvListe [data-ol="0"]').click(); await attendre(80);
+        saisir(champ(d, 'caisson_rivets'), '9016 — Blanc'); await attendre(80);
+        const secCaisson = [...ficheVue(d).querySelectorAll('[data-section]')].find((s) => s.dataset.section === 'Caisson');
+        const armer = secCaisson.querySelector('[data-copie-armer]');
+        const libArmer = txt(armer);
+        armer.click(); await attendre(40);
+        const avantOui = w.eval('state').items.map((x) => x.caisson_rivets || '');
+        check('G2 « Copier vers les 3 autres volets » DEMANDE d’abord (il écrase) ; rien n’a bougé avant « Oui »',
+          [libArmer, txt(secCaisson.querySelector('span[data-copie-conf]')), avantOui], ['Copier vers les 3 autres volets', 'Écraser « Caisson » chez les 3 autres ?', ['9016 — Blanc', '7038 — Gris', '7038 — Gris', '7038 — Gris']]);
+        secCaisson.querySelector('[data-copie-oui]').click(); await attendre(150);
+        check('G3 … « Oui, copier » : la section Caisson est posée sur les trois autres', w.eval('state').items.map((x) => x.caisson_rivets), ['9016 — Blanc', '9016 — Blanc', '9016 — Blanc', '9016 — Blanc']);
+        d.querySelector('#ouvListe [data-ol="1"]').click(); await attendre(60);
+        saisir(champ(d, 'cote_manoeuvre'), 'Gauche'); await attendre(80);
+        d.getElementById('vueTableau').click(); await attendre(60);
+        d.querySelector('#ouvTableau [data-tab="ecarts"]').click(); await attendre(60);
+        const ligneCote = [...d.querySelectorAll('#ouvTableau table.tab-ecarts tbody tr')].find((tr) => /Côté/.test(txt(tr.querySelector('th'))));
+        ligneCote.querySelector('td:last-child .btn').click(); await attendre(150);
+        check('G4 Tableau › Écarts › « Tout sur « Droite » » aligne le volet 2 d’un clic', w.eval('state').items.map((x) => x.cote_manoeuvre), ['Droite', 'Droite', 'Droite', 'Droite']);
+        check('G5 … et le volet 4 a toujours son ajourage vide (on n’aligne QUE la ligne demandée)', w.eval('state').items[3].ajourage, '');
         f.remove();
 
         // ══════════ T — TÉLÉPHONE ══════════
-        titre('T — Téléphone (390 px) : la liste puis la fiche, et toujours un moyen de revenir');
+        titre('T — Téléphone (390 px) : des onglets numérotés, la fiche plein écran, une barre ‹ · total · › (idée 12)');
         f = await simulateur('ESSAI-SAISIE-1', 390, 844);
         d = f.contentDocument; w = f.contentWindow;
-        const deborde = () => d.documentElement.scrollWidth > d.documentElement.clientWidth ||
-          [...d.querySelectorAll('#secOuvertures *')].filter((e) => vu(e) && e.getBoundingClientRect().right > d.documentElement.clientWidth + 0.5).length;
-        check('T1 Un devis rouvert s’ouvre sur la LISTE de ses ouvertures, la fiche cachée ; rien ne déborde',
-          [vu(d.getElementById('ouvListe')), vu(d.getElementById('ouvFiche')), liste(d).length, deborde()], [true, false, 4, 0]);
-        d.querySelector('#ouvListe [data-ol="2"]').click(); await attendre(100);
-        const retour = ficheVue(d).querySelector('.ouv-retour');
-        check('T2 Toucher « Volet 3 » : la fiche REMPLACE la liste, avec « ← Les 4 ouvertures » ; rien ne déborde',
-          [vu(d.getElementById('ouvListe')), fichesVisibles(d), vu(retour), txt(retour), deborde()], [false, ['Volet 3'], true, '← Les 4 ouvertures', 0]);
-        retour.click(); await attendre(100);
-        check('T3 « ← Les 4 ouvertures » ramène à la liste', [vu(d.getElementById('ouvListe')), vu(d.getElementById('ouvFiche'))], [true, false]);
-        d.querySelector('#ouvListe [data-ol="cmp"]').click(); await attendre(100);
-        const retourCmp = d.querySelector('#ouvComparer .ouv-retour');
-        check('T4 « Comparer » aussi a son retour, et ne déborde pas', [vu(d.getElementById('ouvComparer')), vu(retourCmp), deborde()], [true, true, 0]);
-        retourCmp.click(); await attendre(80);
-        check('T5 … qui ramène à la liste', vu(d.getElementById('ouvListe')), true);
+        const cw = () => d.documentElement.clientWidth;
+        const deborde = () => d.documentElement.scrollWidth > cw() ||
+          [...d.querySelectorAll('#secOuvertures *, #simBarre *')].filter((e) => vu(e) && !e.closest('.tab-wrap') && !e.closest('.ouv-onglets') && !e.closest('.ic-sommaire') && e.getBoundingClientRect().right > cw() + 0.5).length;
+        const onglets = () => [...d.querySelectorAll('#ouvOnglets button')].map((b) => txt(b) + (b.getAttribute('aria-current') === 'true' ? '*' : ''));
+        check('T1 Les ouvertures en onglets 1 2 3 4 ⊞ + (un point quand il manque ou diffère quelque chose), la liste cachée, la fiche du volet 1 ; rien ne déborde',
+          [onglets(), [...d.querySelectorAll('#ouvOnglets i')].map((i) => i.className), vu(d.querySelector('.ouv-gauche')), fichesVisibles(d), deborde()],
+          [['1*', '2', '3', '4', '⊞', '+'], ['diff', 'vide'], false, ['Volet 1 · Salon'], 0]);
+        d.querySelector('#ouvOnglets [data-onglet="2"]').click(); await attendre(100);
+        const bt = d.getElementById('sbTotal').getBoundingClientRect();
+        check('T2 Toucher « 3 » : sa fiche ; la barre tient sur une ligne sans écraser le total, et rien ne déborde',
+          [fichesVisibles(d), bt.width >= 90, [...d.querySelectorAll('.sb-ligne > *')].filter(vu).every((e) => Math.abs(e.getBoundingClientRect().top - bt.top) < 12), deborde()],
+          [['Volet 3 · Jardin'], true, true, 0]);
+        d.getElementById('sbSuiv').click(); await attendre(100);
+        const apSuiv = fichesVisibles(d);
+        d.getElementById('sbPrec').click(); await attendre(100);
+        check('T3 ‹ et › de la barre passent d’une ouverture à l’autre', [apSuiv, fichesVisibles(d)], [['Volet 4 · Chambre'], ['Volet 3 · Jardin']]);
+        d.querySelector('#ouvOnglets [data-onglet="tableau"]').click(); await attendre(100);
+        const wrap = d.querySelector('#ouvTableau .tab-wrap');
+        check('T4 « ⊞ » : le tableau ; il défile DANS son cadre, la page ne déborde pas', [vu(d.getElementById('ouvTableau')), wrap.scrollWidth > wrap.clientWidth, getComputedStyle(wrap).overflowX, deborde()], [true, true, 'auto', 0]);
+        d.querySelector('#ouvOnglets [data-onglet="ajout"]').click(); await attendre(120);
+        check('T5 « + » ajoute une ouverture comme la précédente, et l’affiche', [w.eval('state').items.length, fichesVisibles(d), onglets().slice(-3)], [5, ['Volet 5'], ['5*', '⊞', '+']]);
+        d.getElementById('btnPdf').click(); await attendre(100);
+        const vb = d.querySelector('#verifBg .verif-box').getBoundingClientRect();
+        check('T6 La vérification tient dans l’écran du téléphone, et se ferme', [vb.left >= 0 && vb.right <= cw(), (d.getElementById('verifFermer').click(), vu(d.getElementById('verifBg')))], [true, false]);
         f.remove();
 
         // ══════════ N — UN DEVIS NEUF ══════════
@@ -215,8 +369,8 @@
         f = await BANC.cadre('../app/simulateur.html', 1500, 900);
         d = f.contentDocument; w = f.contentWindow;
         await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length, 10000); await attendre(200);
-        check('N1 Une ouverture vierge, visible ; pas de « Comparer » (rien à comparer seul)',
-          [w.eval('state').items.length, fichesVisibles(d).length, !!d.querySelector('#ouvListe [data-ol="cmp"]')], [1, 1, false]);
+        check('N1 Une ouverture vierge, visible ; « 0 / 1 complète » ; pas de ‹ › dans la barre (une seule ouverture)',
+          [w.eval('state').items.length, fichesVisibles(d).length, txt(d.getElementById('ouvCompte')), d.getElementById('sbPrec').hidden], [1, 1, '0 / 1 complète', true]);
         d.getElementById('btnAutreProduit').click(); await attendre(120);
         check('N2 « + Autre produit » crée une ouverture VIERGE (l’ancien « + Ajouter »), curseur sur son type',
           [w.eval('state').items.length, w.eval('state').items[1].type, d.activeElement && d.activeElement.dataset.f], [2, 'screen', 'type']);
