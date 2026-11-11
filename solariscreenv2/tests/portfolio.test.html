@@ -115,6 +115,15 @@
       localStorage.removeItem('ss_geo_adresses');
     }
     function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
+
+    /** Combien de temps le portfolio a pour être prêt. Chaque attente s'arrête DÈS qu'il l'est : un délai long ne coûte rien
+     *  quand tout va bien. Il en faut un long parce que la machine qui joue les suites est souvent chargée : mesuré le
+     *  11/11/2026 avec huit Chrome en parallèle (planning-page.test.html), jusqu'à 13 s pour que ui.js arrive, 20 s pour le
+     *  premier rendu, et plus de 35 s quand d'autres suites tournaient en même temps. Avec les anciens 8 s / 9 s, le
+     *  portfolio tombait 8 fois sur 8 en parallèle (L1 sur une grille vide, ou un TypeError en M1). */
+    const DELAI_PAGE = 90000;
+    const pasPret = (quoi) => new Error('portfolio.html pas prête après ' + DELAI_PAGE / 1000 + ' s (' + quoi + ') : machine trop chargée ?');
+
     async function ouvrir(largeur, hauteur) {
       const f = document.createElement('iframe');
       f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
@@ -122,7 +131,7 @@
       document.body.appendChild(f);
       const E = { getDevis: 0, ecrits: [], confirmes: [], reponseConfirm: true };
       const t0 = Date.now();
-      while (Date.now() - t0 < 8000) {
+      while (Date.now() - t0 < DELAI_PAGE) {
         const w = f.contentWindow;
         if (w && w.SS && w.SSUI && !w.__simule) {
           w.SS.getDevis = async (id) => { E.getDevis++; return JSON.parse(JSON.stringify(DEVIS.find(d => d.id === id) || null)); };
@@ -134,9 +143,14 @@
         }
         await attendre(1);
       }
+      // Sans la simulation, ni les devis lus ni les écritures ne seraient ceux de la suite : on s'arrête là.
+      if (!f.contentWindow.__simule) throw pasPret('lectures et écritures non interceptées');
       await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
       const w = f.contentWindow;
-      while (Date.now() - t0 < 9000) { try { if (w.eval('ENTRIES.length') > 0) break; } catch (e) {} await attendre(50); }
+      // Compté depuis l'ouverture, comme la boucle du dessus.
+      const pret = () => { try { return w.eval('ENTRIES.length') > 0; } catch (e) { return false; } };
+      while (Date.now() - t0 < DELAI_PAGE && !pret()) await attendre(50);
+      if (!pret()) throw pasPret('grille vide');
       await attendre(200);
       return { f, w, d: w.document, E };
     }

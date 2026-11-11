@@ -44,23 +44,41 @@
     if (!/^(app\/)?[a-z-]+\.html(\?[A-Za-z0-9=&%._-]*)?$/.test(page) || !/^(|client|bordereau|releve|portfolio)$/.test(action)) { etat('Adresse refusée.'); window.__imprimable = 'adresse refusée'; return; }
     const BANC = window.SSBanc, SS = window.SS;
     const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    /* Combien de temps chaque étape (chargement, première requête, calme, images) a pour aboutir. Chaque attente s'arrête DÈS
+       que c'est fait : un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui imprime est
+       souvent chargée : mesuré le 11/11/2026 avec huit Chrome en parallèle (planning-page.test.html), jusqu'à 13 s pour que
+       ui.js arrive, 20 s pour le premier rendu, plus de 35 s quand d'autres suites tournaient. Les anciens 30 s, 10 s et 4 s
+       ne disaient rien en expirant : le banc imprimait quand même, un document pas fini. Désormais il ÉCHOUE, et dit pourquoi
+       (`__imprimable` = « échec : … »), au lieu de livrer un PDF faux. */
+    const DELAI_PAGE = 90000;
+    const pasPret = (quoi) => new Error(page + ' pas prête après ' + DELAI_PAGE / 1000 + ' s (' + quoi + ') : machine trop chargée ?');
     /* ⚠️ Attendre d'abord la PREMIÈRE requête du document : ses scripts attendent ses feuilles de style
        (les polices Google comprises), et un banc « calme » parce que la page n'a pas encore commencé
        imprimait la barre d'outils seule, au format Letter. */
     async function poser(n0) {
       const t1 = Date.now();
-      while (BANC.appels === n0 && Date.now() - t1 < 30000) await attendre(100);
-      const t0 = Date.now(); let n = BANC.appels, calme = Date.now();
+      while (BANC.appels === n0 && Date.now() - t1 < DELAI_PAGE) await attendre(100);
+      if (BANC.appels === n0) throw pasPret('aucune requête au banc');
+      const t0 = Date.now(); let n = BANC.appels, calme = Date.now(), calmee = false;
       await attendre(400);
-      while (Date.now() - t0 < 10000) {
+      while (Date.now() - t0 < DELAI_PAGE) {
         await attendre(100);
-        if (BANC.appels !== n) { n = BANC.appels; calme = Date.now(); } else if (Date.now() - calme > 600) break;
+        if (BANC.appels !== n) { n = BANC.appels; calme = Date.now(); } else if (Date.now() - calme > 600) { calmee = true; break; }
       }
+      if (!calmee) throw pasPret('le banc ne se calme pas, ' + BANC.appels + ' requêtes');
       try { await document.fonts.ready; } catch (e) {}
       await attendre(200);
     }
     async function images() {
-      await Promise.all([...document.images].map((im) => (im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; setTimeout(r, 4000); }))));
+      const t0 = Date.now();
+      // Une image « lazy » hors de la fenêtre ne se charge jamais d'elle-même ici (l'ancien délai de 4 s la laissait
+      // tomber en silence, et la page attendrait désormais pour rien) : le PDF doit les montrer toutes, on les charge.
+      [...document.images].forEach((im) => { if (im.loading === 'lazy') im.loading = 'eager'; });
+      // Une image en erreur (absente du banc) compte comme finie : c'est ce que le PDF montrera, comme en vrai.
+      const enCours = () => [...document.images].filter((im) => !im.complete);
+      while (enCours().length && Date.now() - t0 < DELAI_PAGE) await attendre(100);
+      const reste = enCours();
+      if (reste.length) throw pasPret(reste.length + ' image(s) pas chargée(s), dont ' + String(reste[0].currentSrc || reste[0].src).slice(0, 120));
     }
 
     await BANC.demarrer();
@@ -91,7 +109,11 @@
       document.write(h);
       document.close();
     };
-    const chargee = async () => { const t = Date.now(); while (!charge && Date.now() - t < 30000) await attendre(100); };
+    const chargee = async () => {
+      const t = Date.now();
+      while (!charge && Date.now() - t < DELAI_PAGE) await attendre(100);
+      if (!charge) throw pasPret('document pas chargé');
+    };
     const n0 = BANC.appels;
     history.replaceState(null, '', adresse);
     window.fetch = BANC.fetch;

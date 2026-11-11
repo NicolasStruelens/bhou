@@ -98,12 +98,28 @@
     }
     function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
 
+    /** Combien de temps une page (Clients, Facturation) a pour être prête. Chaque attente s'arrête DÈS que la page l'est :
+     *  un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui joue les suites est souvent
+     *  chargée : mesuré le 11/11/2026 avec huit Chrome en parallèle (planning-page.test.html), jusqu'à 13 s pour que ui.js
+     *  arrive, 20 s pour le premier rendu, et plus de 35 s quand d'autres suites tournaient en même temps. Avec les anciens
+     *  8 s (et 2,5 s pour la Facturation), une page pas encore prête faisait échouer les cas un à un, ou un TypeError. */
+    const DELAI_PAGE = 90000;
+    /** Attend que `prete()` réponde vrai, au plus DELAI_PAGE depuis `t0` (l'ouverture du cadre). Pas prête à temps : on le DIT,
+     *  au lieu de laisser les cas échouer un à un sur une page vide. */
+    async function attendrePage(nom, prete, t0) {
+      const ok = () => { try { return !!prete(); } catch (e) { return false; } };
+      while (!ok()) {
+        if (Date.now() - t0 >= DELAI_PAGE) throw new Error(nom + ' pas prête après ' + DELAI_PAGE / 1000 + ' s : machine trop chargée ?');
+        await attendre(100);
+      }
+    }
+
     /** La page Clients chargée, ses chiffres SANS animation (un cadre hors écran la gèle). */
     async function ouvrir(largeur, hauteur, suffixe) {
+      const t0 = Date.now();
       const f = await cadre('../app/clients.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
       const w = f.contentWindow;
-      const t0 = Date.now();
-      while (Date.now() - t0 < 8000) { try { if (w.eval('DIRECTORY.length')) break; } catch (e) {} await attendre(100); }
+      await attendrePage('clients.html', () => w.eval('DIRECTORY.length'), t0);
       await attendre(200);
       w.SSUI.animateKpis = null;
       w.eval('renderKPIs()');
@@ -182,7 +198,13 @@
         w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(x => x.id === id)));
         w.SS.saveClient = async () => ({ ok: true });
         w.SS.saveDevis = async (dv, o) => { ecrits.push([dv.id, o && o.expectedDateModification, dv.client.telephone]); return dv.id === conflitPour ? { ok: true, conflict: true } : { ok: true }; };
-        const dernierToast = () => { const t = [...d.querySelectorAll('#toasts .toast')].pop(); return t ? t.textContent : ''; };
+        // Les messages sont relevés au moment où ils APPARAISSENT : saveFiche attend ensuite un rechargement complet (load),
+        // qui peut dépasser sous charge les 7 s de vie du message — P3 lisait alors un écran déjà vidé (tombé une fois sur
+        // huit avec huit Chrome en parallèle, le 11/11/2026).
+        const toastsVus = [];
+        new w.MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.classList && n.classList.contains('toast')) toastsVus.push(n.textContent); })))
+          .observe(d.body, { childList: true, subtree: true });
+        const dernierToast = () => toastsVus[toastsVus.length - 1] || '';
         await w.saveFiche('signe|marc'); await attendre(300);
         check('P1 Rien n’a changé dans les coordonnées : AUCUN devis réécrit (avant : tous)', ecrits.length, 0);
         w.renderDetail('signe|marc'); await attendre(250);
@@ -338,8 +360,11 @@
 
         /* ══════════ La page Facturation n'a pas changé de réponse ══════════ */
         titre('G — La page Facturation, branchée sur la règle commune, répond pareil');
+        // Attendait 2,5 s, sans rien vérifier : sous charge, la liste des factures n'était pas encore dessinée.
+        const tg = Date.now();
         const fg = await cadre('../app/factures.html?t=' + Date.now(), 1500, 900);
-        await attendre(2500);
+        await attendrePage('factures.html', () => fg.contentWindow.eval('FACTURES.length') > 0 && fg.contentWindow.document.querySelector('.fa-ligne[data-id]'), tg);
+        await attendre(200);
         const dg = fg.contentWindow.document;
         // Une facture = une ligne `.fa-ligne` (tableau au bureau, carte en dessous — règle 49).
         const badgeDe = (id) => { const l = dg.querySelector('.fa-ligne[data-id="' + id + '"]'); return l ? texte(l.querySelector('.fl-st .badge')) : null; };

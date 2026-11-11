@@ -153,6 +153,14 @@
     }
     function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
 
+    /** Combien de temps la carte a pour être prête (et son géocodage pour finir). Chaque attente s'arrête DÈS que c'est fait :
+     *  un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui joue les suites est souvent
+     *  chargée : mesuré le 11/11/2026 avec huit Chrome en parallèle (planning-page.test.html), jusqu'à 13 s pour que ui.js
+     *  arrive, 20 s pour le premier rendu, et plus de 35 s quand d'autres suites tournaient en même temps. Avec les anciens
+     *  8 s, 10 s et 5 s, une carte pas encore prête faisait échouer les cas un à un, sans rapport avec ce qu'ils vérifient. */
+    const DELAI_PAGE = 90000;
+    const pasPrete = (quoi) => new Error('carte.html pas prête après ' + DELAI_PAGE / 1000 + ' s (' + quoi + ') : machine trop chargée ?');
+
     async function ouvrir(largeur, hauteur) {
       const f = document.createElement('iframe');
       f.className = 'bac'; f.width = largeur || 1500; f.height = hauteur || 900;
@@ -161,7 +169,7 @@
       const S = { nominatim: [], getDevis: 0, communes: 0 };
       const t0 = Date.now();
       // Le géocodage et la position sont SIMULÉS avant le premier chargement des données.
-      while (Date.now() - t0 < 8000) {
+      while (Date.now() - t0 < DELAI_PAGE) {
         const w = f.contentWindow;
         if (w && w.SSCarte && w.SSUI && w.SS && !w.__simule) {
           w.SSCarte.nominatim = async (q) => { S.nominatim.push({ q, t: Date.now() }); const k = Object.keys(NOMINATIM).find(x => C.requete(A[x]) === q); const r = k ? NOMINATIM[k] : null; return r ? { lat: r[0], lon: r[1] } : null; };
@@ -172,9 +180,14 @@
         }
         await attendre(1);
       }
+      // Sans la simulation, la page interrogerait le VRAI géocodeur et la vraie position : on s'arrête là.
+      if (!f.contentWindow.__simule) throw pasPrete('géocodage simulé non posé');
       await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
       const w = f.contentWindow;
-      while (Date.now() - t0 < 10000) { try { if (w.eval('POINTS.length') > 0) break; } catch (e) {} await attendre(50); }
+      // Compté depuis l'ouverture, comme la boucle du dessus.
+      const prete = () => { try { return w.eval('POINTS.length') > 0; } catch (e) { return false; } };
+      while (Date.now() - t0 < DELAI_PAGE && !prete()) await attendre(50);
+      if (!prete()) throw pasPrete('aucun point placé');
       await attendre(300);
       return { f, w, d: w.document, S };
     }
@@ -229,8 +242,13 @@
         check('C3 Appeler et Y aller depuis la fiche', [!!pan.querySelector('a[href="tel:0471223344"]'), !!pan.querySelector('a[href*="maps/dir"]')], [true, true]);
 
         titre('D — L’adresse exacte, mémorisée sur l’appareil');
+        // La file de géocodage est remplie dès le premier rendu (aPreciser) et part à une requête par seconde. On attend
+        // qu'elle soit vide : 5 s ne suffisaient plus sous charge. Puis 900 ms, pour la carte qui se redessine 700 ms
+        // après la dernière réponse (minuterie posée AVANT la nôtre : elle passe forcément avant).
         const t1 = Date.now();
-        while (Date.now() - t1 < 5000 && w.eval('FILE.length') + (w.eval('FILE_ACTIVE') ? 1 : 0) > 0) await attendre(100);
+        const fileVide = () => w.eval('FILE.length') + (w.eval('FILE_ACTIVE') ? 1 : 0) === 0;
+        while (Date.now() - t1 < DELAI_PAGE && !fileVide()) await attendre(100);
+        if (!fileVide()) throw pasPrete('géocodage pas terminé, ' + S.nominatim.length + ' adresse(s) demandée(s)');
         await attendre(900);
         check('D1 Seules les deux adresses inconnues partent au géocodeur (les autres sont en mémoire)', S.nominatim.map(x => x.q).sort(), [C.requete(A.basse), C.requete(A.limal)].sort());
         check('D2 Une requête par seconde au plus (règle d’usage d’OpenStreetMap)', S.nominatim.length === 2 && S.nominatim[1].t - S.nominatim[0].t >= 1000, true);
