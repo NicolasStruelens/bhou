@@ -115,6 +115,13 @@
     }
     function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
 
+    /** Combien de temps une page (planning, rdv) a pour être prête. Chaque attente s'arrête DÈS que la page l'est :
+     *  un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui joue les suites est
+     *  souvent chargée. Mesuré le 11/11/2026 avec huit Chrome en parallèle : jusqu'à 13 s pour que ui.js arrive, 20 s pour
+     *  le premier rendu, 9 s pour rdv.html, et plus de 35 s quand d'autres suites tournaient en même temps. Avec les
+     *  anciens 8 s / 9 s / 6 s, toute la suite tombait dès A1, sans rapport avec ce qu'elle vérifie. */
+    const DELAI_PAGE = 90000;
+
     /** La vraie page, avec la météo simulée posée AVANT le premier rendu, et les écritures gardées. */
     async function ouvrir(requete, largeur, hauteur) {
       const f = document.createElement('iframe');
@@ -124,14 +131,17 @@
       const t0 = Date.now();
       // ui.js est chargé avant le script de la page, et le premier rendu attend les données :
       // la météo simulée est en place bien avant qu'on la demande.
-      while (Date.now() - t0 < 8000) {
+      while (Date.now() - t0 < DELAI_PAGE) {
         const w = f.contentWindow;
         if (w && w.SSUI && w.SSUI.previsionJours && !w.__simule) { w.SSUI.previsionJours = async (ville) => METEO[ville] || null; w.__simule = 1; break; }
         await attendre(1);
       }
       await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
       const w = f.contentWindow;
-      while (Date.now() - t0 < 9000) { try { if (w.eval('TOUS_EVS.length') > 0 && w.document.querySelector('#vueHost .pl-sem, #vueHost .pl-jour, #vueHost .pl-mois')) break; } catch (e) {} await attendre(50); }
+      const prete = () => { try { return w.eval('TOUS_EVS.length') > 0 && !!w.document.querySelector('#vueHost .pl-sem, #vueHost .pl-jour, #vueHost .pl-mois'); } catch (e) { return false; } };
+      while (Date.now() - t0 < DELAI_PAGE && !prete()) await attendre(50);
+      // Pas prête à temps : on le DIT, au lieu de laisser les cas échouer un à un sur une page vide.
+      if (!w.__simule || !prete()) throw new Error('planning.html pas prête après ' + DELAI_PAGE / 1000 + ' s (' + (w.__simule ? 'pas de premier rendu' : 'météo simulée non posée') + ') : machine trop chargée ?');
       await attendre(400);
       const E = { devis: [], rdv: [], dispos: [], confirmes: [], reponseConfirm: true };
       w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(d => d.id === id) || null));
@@ -401,7 +411,7 @@
         await new Promise(r => fr.addEventListener('load', r, { once: true }));
         const wr = fr.contentWindow;
         const t1 = Date.now();
-        while (Date.now() - t1 < 6000) { try { if (wr.eval('CURRENT && CURRENT.id') === 'R-2' && (wr.eval('CURRENT.creneaux') || []).length) break; } catch (e) {} await attendre(80); }
+        while (Date.now() - t1 < DELAI_PAGE) { try { if (wr.eval('CURRENT && CURRENT.id') === 'R-2' && (wr.eval('CURRENT.creneaux') || []).length) break; } catch (e) {} await attendre(80); }
         check('R1 Le créneau rejoint les PROPOSITIONS (statut « proposé », pas une visite fixée)',
           [wr.eval('CURRENT.creneaux'), wr.eval('CURRENT.statut')], [[{ date: J(3), moment: 'aprem', statut: 'propose' }], 'nouveau']);
         check('R2 Le paramètre quitte l’adresse : recharger ne l’ajouterait pas deux fois', wr.location.search, '?open=R-2');
