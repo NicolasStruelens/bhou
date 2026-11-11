@@ -72,6 +72,7 @@
     if (c === 'prix.garantie_mois') return fr(v) + ' mois';
     if (c === 'usage.echeance_facture') return fr(v) + ' j';
     if (c === 'usage.seuil_lead_chaud') return fr(v) + ' vues';
+    if (c === 'prix.remise_projet_seuil') return fr(v) + ' ouvertures';
     if (c === 'prix.net_divisor') return '÷ ' + fr(v);
     return fr(v);
   }
@@ -125,6 +126,8 @@
     }
     if (c === 'usage.echeance_facture') return 'une facture émise aujourd’hui échoit le ' + U().fmtDate(plusJours(jour, v));
     if (c === 'usage.seuil_lead_chaud') return 'un client devient « très intéressé » à sa ' + fr(v) + (v === 1 ? 're' : 'e') + ' consultation';
+    // Règle 64 : un rappel, pas un prix — il n'est pas figé avec le devis et ne change aucun montant.
+    if (c === 'prix.remise_projet_seuil') return 'un devis de ' + fr(v) + ' ouverture' + (v > 1 ? 's' : '') + ' chiffrée' + (v > 1 ? 's' : '') + ' ou plus rappelle de demander la remise projet à Harol — aucun prix ne change';
     if (c === 'usage.objectif_mensuel') return v > 0 ? 'le tableau de bord mesure chaque mois contre ' + E(v) : 'pas d’objectif : le tableau de bord montre le signé du mois, sans anneau';
     return '';
   }

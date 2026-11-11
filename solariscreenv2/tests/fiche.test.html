@@ -222,6 +222,26 @@
         check('P8 Changer de vendeur recalcule avec les taux FIGÉS du devis (diviseur 3), et les parts appliquées par le moteur',
           [(c22.rates || {}).net_divisor, c22.seller_principal, (lire('ESSAI-22').pricing_v2.material.sellers || {})[autre + '_pct']], [3, autre, 18]);
         f.remove();
+        // P8b — Règle 64 : la remise projet et les techniciens PRÉVUS au devis ; la fiche montre l'achat et la marge réels,
+        // PROPOSE l'équipe prévue (« Reprendre ») sans jamais l'écrire d'elle-même, et un changement de vendeur ne perd rien.
+        ecrireBase('ESSAI-22', '$.pricing_v2.remise_projet_pct', 46);
+        ecrireBase('ESSAI-22', '$.pricing_v2.techs', { tech1: 'nicolas', tech2: 'autre', tech2_nom: 'Cyril' });
+        ecrireBase('ESSAI-22', '$.chantier', Object.assign({}, lire('ESSAI-22').chantier || {}, { equipe: '' }));
+        f = await fiche('ESSAI-22'); w = f.contentWindow; d = f.contentDocument;
+        w.confirm = () => true;
+        const mr22 = window.SSCalc.margeReelleDevis(lire('ESSAI-22'));
+        const lignes22 = [...d.querySelectorAll('#interneHost .h-line')].map((l) => txt(l.querySelector('.k')) + ' = ' + txt(l.querySelector('.v')));
+        const interne22 = lignes22.join(' | '), hint22 = txt(d.getElementById('chantierEquipeHint'));
+        const avantRep = [lire('ESSAI-22').chantier.equipe, !!d.getElementById('chReprendre')];
+        await w.setSellerPrincipal(autre === 'yannick' ? 'nicolas' : 'yannick'); await attendre(300);
+        const garde22 = [lire('ESSAI-22').pricing_v2.remise_projet_pct, (lire('ESSAI-22').pricing_v2.techs || {}).tech2_nom];
+        const btnRep = d.getElementById('chReprendre'); if (btnRep) btnRep.click();
+        await attendreQue(() => lire('ESSAI-22').chantier.equipe === 'nicolas', 4000); await attendre(150);
+        check('P8b Règle 64 — Carte Interne : achat et marge RÉELS (−46 %) ; carte Chantier, équipe vide : « Prévu au devis : Nicolas » et « Reprendre », rien n’est écrit d’office ; changer de vendeur garde remise projet et techniciens ; « Reprendre » enregistre l’équipe et la proposition s’efface',
+          [lignes22.includes('Remise projet Harol −46 % · achat réel = ' + U.fmtEur(mr22.achat_reel).replace(/\s/g, ' ')), lignes22.includes('Marge matériel réelle = ' + U.fmtEur(mr22.marge_reelle).replace(/\s/g, ' ')),
+            /Prévu au devis : Nicolas Reprendre/.test(hint22), avantRep, garde22, lire('ESSAI-22').chantier.equipe, txt(d.getElementById('chantierEquipeHint')), d.getElementById('chEquipe').value],
+          [true, true, true, ['', true], [46, 'Cyril'], 'nicolas', '', 'nicolas']);
+        f.remove();
 
         titre('P — Les autres pages qui écrivent le devis');
         // P9 : le bon de pose n'efface plus la commande passée « Reçu » ailleurs.

@@ -364,6 +364,95 @@
         check('T6 La vérification tient dans l’écran du téléphone, et se ferme', [vb.left >= 0 && vb.right <= cw(), (d.getElementById('verifFermer').click(), vu(d.getElementById('verifBg')))], [true, false]);
         f.remove();
 
+        // ══════════ MC — MARGES & COMMISSIONS, REMISE PROJET, TECH 1 / TECH 2 (règle 64) ══════════
+        titre('MC — Marges & commissions : la cascade, la part libre, la remise projet Harol, Tech 1 / Tech 2 (règle 64)');
+        // Un devis enregistré AVANT la règle : répartition personnalisée 10 / 10 sans `part_libre`, 12 ouvertures chiffrées
+        // (le rappel de la remise projet part de 10).
+        const r2m = (x) => Math.round(x * 100) / 100;
+        const E2 = (x) => nb(window.SSUI.fmtEur(x));
+        const exMC = window.SSBacASable.exempleQuatreVolets({ id: 'ESSAI-MC-1', statut: 'envoye_client' });
+        exMC.items[0].quantite = 9;
+        const nMC = window.SSCalc.ouverturesReelles(exMC.items), selMC = { principal: 'autre', nicolas_pct: 10, yannick_pct: 10 };
+        const instMC = { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: nMC, tech1_qty: nMC, tech2_qty: nMC, tools_qty: nMC };
+        exMC.calculs = window.SSCalc.computeDevis({ items: exMC.items, tva_pct: 6, acompte_pct: 50, sellers: selMC, installation: instMC });
+        exMC.pricing_v2 = Object.assign({}, exMC.pricing_v2, { material: { sellers: Object.assign({ mode: 'autre' }, selMC) },
+          installation: { per_opening: instMC, install_qty: nMC, tech1_qty: nMC, tech2_qty: nMC, tools_qty: nMC } });
+        const avMC = exMC.calculs, libreMC = r2m(avMC.total_catalog_ht_brut * 0.03);
+        await SS.saveDevis(exMC, { creation: true });
+        f = await simulateur('ESSAI-MC-1');
+        d = f.contentDocument; w = f.contentWindow;
+        const presse = () => [...d.querySelectorAll('#secMarges [data-vendeur]')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.vendeur);
+        const casc = () => [...d.querySelectorAll('#mcCascade .mc-l')].map((l) => [txt(l.querySelector('.k')), nb(txt(l.querySelector('.v')))]);
+        check('MC1 Un devis d’AVANT la règle (10 / 10, 12 ouvertures) : « Sur mesure » enfoncé, plus de menu déroulant ; son prix ne bouge pas à l’ouverture ; la part libre est DITE (elle reste à la société, « Les offrir au client ») et la cascade la montre',
+          [presse(), d.getElementById('sellerPrincipal').type, vu(d.getElementById('mcPcts')), nb(txt(d.getElementById('sTotalHT'))), /enregistré avant la règle/.test(txt(d.getElementById('mcPartage'))), !!d.querySelector('#mcPartage button'), casc().slice(-1)[0], nMC],
+          [['autre'], 'hidden', true, E2(avMC.total_ht), true, true, ['Reste à la société', E2(libreMC)], 12]);
+        d.querySelector('#mcPartage button').click(); await attendre(80);
+        check('MC2 « Les offrir au client » : la part libre devient une remise — le récap la montre, le total baisse d’autant, les commissions n’en paient rien, il ne reste rien à la société',
+          [!d.getElementById('sRemiseLine').classList.contains('hidden'), nb(txt(d.getElementById('sTotalRemise'))), nb(txt(d.getElementById('sTotalHT'))), /de remise au client/.test(txt(d.getElementById('mcPartage'))), nb(txt(d.getElementById('nicolasGross'))), casc().slice(-1)[0][1]],
+          [true, '-' + E2(libreMC), E2(avMC.total_ht - libreMC), true, E2(avMC.nicolas_gross), E2(0)]);
+        const rpC = d.getElementById('remiseProjetPct');
+        const rappelAv = [txt(d.getElementById('mcRemiseProjet')), casc().find((l) => l[0] === 'Remise projet Harol')];
+        const ttcAv = txt(d.getElementById('sTotalTTC')), nicAv = txt(d.getElementById('nicolasGross'));
+        saisir(rpC, '46'); await attendre(60);
+        const mrMC = window.SSCalc.margeReelle(w.eval('_lastResult'), 46, 0.77);
+        check('MC3 La remise projet : 12 ouvertures chiffrées → le RAPPEL, et « à demander » dans la cascade ; 46 % → le gain, l’achat et la marge réels ; NI le total client NI les commissions ne bougent',
+          [/12 ouvertures chiffrées : demande la remise projet à Harol/.test(rappelAv[0]), rappelAv[1], txt(d.getElementById('mcRemiseProjet')).includes('+' + E2(mrMC.gain_projet)),
+            casc().find((l) => l[0] === 'Remise projet Harol'), casc().find((l) => l[0] === 'Marge matériel réelle')[1], txt(d.getElementById('sTotalTTC')) === ttcAv, txt(d.getElementById('nicolasGross')) === nicAv, /· réel/.test(txt(d.getElementById('mcAchat')))],
+          [true, ['Remise projet Harol', 'à demander'], true, ['Remise projet Harol', E2(mrMC.gain_projet)], E2(mrMC.marge_reelle), true, true, true]);
+        saisir(rpC, '0'); await attendre(40);
+        const zeroDit = txt(d.getElementById('mcRemiseProjet'));
+        saisir(rpC, ''); await attendre(40);
+        const videDit = /demande la remise projet/.test(txt(d.getElementById('mcRemiseProjet')));
+        saisir(rpC, '150'); await attendre(40);
+        check('MC4 0 = demandée, aucune (plus de rappel) ; vidée = pas encore demandée (le rappel revient) ; 150 = refusé sur place',
+          [zeroDit, videDit, txt(d.getElementById('mcRemiseProjet'))],
+          ['Demandée : pas de remise projet sur ce dossier.', true, 'Entre 0 et 100 %. Laisse vide tant qu’elle n’est pas demandée.']);
+        saisir(rpC, '46'); await attendre(40);
+        const presseTech = (t) => [...d.querySelectorAll('#techQui [data-tech="' + t + '"]')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.qui);
+        const tDef = [presseTech('tech1'), presseTech('tech2'), txt(d.getElementById('iTech1Label')), txt(d.getElementById('techPrevue'))];
+        d.querySelector('#techQui [data-tech="tech2"][data-qui="autre"]').click(); await attendre(40);
+        const nomVu = [vu(d.getElementById('tech2Nom')), d.activeElement === d.getElementById('tech2Nom')];
+        saisir(d.getElementById('tech2Nom'), 'Cyril'); await attendre(40);
+        check('MC5 Tech 1 / Tech 2 : Nicolas et Yannick par défaut ; « Autre… » ouvre un nom (le curseur y est) ; la ligne prend le nom ; l’équipe PRÉVUE suit — et c’est dit : la paie de pose n’en dépend pas',
+          [tDef, nomVu, txt(d.getElementById('iTech2Label')), /^Équipe prévue : Nicolas\. Une prévision/.test(txt(d.getElementById('techPrevue')))],
+          [[['nicolas'], ['yannick'], 'Tech 1 · Nicolas', 'Équipe prévue : Nicolas + Yannick. Une prévision : la paie de pose suit l’équipe enregistrée sur la fiche devis, en ouvertures posées, jamais ces lignes.'], [true, true], 'Tech 2 · Cyril', true]);
+        d.getElementById('btnEnregistrer').click();
+        const luMC = () => BANC.donnee('devis', 'id', 'ESSAI-MC-1') || {};
+        await attendreQue(() => (luMC().pricing_v2 || {}).remise_projet_pct === 46, 6000);
+        const xMC = luMC();
+        check('MC6 Enregistré : la règle de la part libre FIGÉE avec le devis, la remise projet (46), les techniciens prévus ; la réduction catalogue porte la part libre ; le chantier n’est PAS touché (aucune équipe écrite)',
+          [xMC.pricing_v2.material.sellers.part_libre, xMC.pricing_v2.remise_projet_pct, xMC.pricing_v2.techs, xMC.calculs.remise_catalogue.part_libre, xMC.calculs.remise_catalogue.amount, xMC.calculs.total_ht, (xMC.chantier || {}).equipe || ''],
+          ['client', 46, { tech1: 'nicolas', tech2: 'autre', tech2_nom: 'Cyril' }, libreMC, libreMC, r2m(avMC.total_ht - libreMC), '']);
+        BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'mc-rev', '$.track_token', 'mc-trk') WHERE id = 'ESSAI-MC-1'");
+        const rvMC = await (await BANC.fetch('/api/devis-review?t=mc-rev')).text();
+        const tkMC = await (await BANC.fetch('/api/track?t=mc-trk&staff=1')).text();
+        let remPub = null; try { remPub = JSON.parse(rvMC).data.document.calc.remise_catalogue; } catch (e) {}
+        check('MC7 Rien d’interne ne sort : ni la remise projet, ni la part libre, ni les techniciens, ni le nom tapé — ni par le lien du devis, ni par le suivi ; le client lit la remise en UN montant',
+          [/remise_projet|part_libre|techs|Cyril|nicolas_gross|supplier/.test(rvMC), /remise_projet|part_libre|techs|Cyril|nicolas_gross|supplier/.test(tkMC), remPub],
+          [false, false, libreMC]);
+        d.getElementById('mcMoitie').click(); await attendre(40);
+        const moitieMC = [d.getElementById('nicolasPct').value, d.getElementById('yannickPct').value, txt(d.getElementById('mcPartage')), !d.getElementById('sRemiseLine').classList.contains('hidden')];
+        saisir(d.getElementById('nicolasPct'), '15'); saisir(d.getElementById('yannickPct'), '15'); await attendre(40);
+        const tropMC = [d.getElementById('mcPartage').className, /au-delà de la marge/.test(txt(d.getElementById('mcPartage'))), d.querySelector('#mcCascade .mc-l:last-child').classList.contains('neg')];
+        d.querySelector('#secMarges [data-vendeur="yannick"]').click(); await attendre(40);
+        check('MC8 « Moitié-moitié » : 11,5 / 11,5, toute la marge partagée, plus de remise ; 15 / 15 : le dépassement est DIT ; « Yannick » : les % se cachent, la réduction est sur SA commission, les parts sont celles du devis',
+          [moitieMC, tropMC, presse(), vu(d.getElementById('mcPcts')), txt(d.getElementById('remiseCatalogueHint')), txt(d.getElementById('mcPartsYannick'))],
+          [['11.5', '11.5', '11,5 % + 11,5 % = 23 % : toute la marge matériel est partagée.', false], ['mc-dit danger', true, true], ['yannick'], false, 'Payée par la commission de Yannick.', '5 % / 18 %']);
+        d.querySelector('#secMarges [data-vendeur="autre"]').click(); await attendre(40);
+        check('MC9 « Sur mesure » part de la répartition qu’on avait sous les yeux (Yannick : 5 / 18), pas d’un 18 / 5 écrit dans la page',
+          [d.getElementById('nicolasPct').value, d.getElementById('yannickPct').value], ['5', '18']);
+        w.eval('dirty = false');
+        f.remove();
+        f = await simulateur('ESSAI-MC-1', 390, 844);
+        d = f.contentDocument; w = f.contentWindow;
+        const cwMC = d.documentElement.clientWidth;
+        const sortMC = [...d.querySelectorAll('#secMarges *, #secInstallation *')].filter((e) => vu(e) && e.getBoundingClientRect().right > cwMC + 0.5).map((e) => e.id || e.className).slice(0, 5);
+        check('MC10 Téléphone (390 px) : la cascade passe SOUS les réglages, rien ne déborde des Marges ni de l’Installation, les trois boutons tiennent sur une ligne ; rouvert, le devis relit sa remise projet et son « Cyril »',
+          [getComputedStyle(d.querySelector('.mc-grid')).gridTemplateColumns.split(' ').length, sortMC, new Set([...d.querySelectorAll('.mc-pick button')].map((b) => Math.round(b.getBoundingClientRect().top))).size,
+            d.getElementById('remiseProjetPct').value, d.getElementById('tech2Nom').value, presseTech('tech2')],
+          [1, [], 1, '46', 'Cyril', ['autre']]);
+        f.remove();
+
         // ══════════ N — UN DEVIS NEUF ══════════
         titre('N — Un devis neuf');
         f = await BANC.cadre('../app/simulateur.html', 1500, 900);
@@ -371,6 +460,18 @@
         await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length, 10000); await attendre(200);
         check('N1 Une ouverture vierge, visible ; « 0 / 1 complète » ; pas de ‹ › dans la barre (une seule ouverture)',
           [w.eval('state').items.length, fichesVisibles(d).length, txt(d.getElementById('ouvCompte')), d.getElementById('sbPrec').hidden], [1, 1, '0 / 1 complète', true]);
+        check('MC11 Règle 64 — Un devis NEUF suit la règle de la part libre ; Tech 1 Nicolas, Tech 2 Yannick ; « Nicolas » enfoncé ; pas de rappel de remise projet (rien de chiffré)',
+          [w.eval('PART_LIBRE'), w.eval('JSON.stringify(TECHS)'), presse(), txt(d.getElementById('mcRemiseProjet'))],
+          ['client', '{"tech1":"nicolas","tech2":"yannick"}', ['nicolas'], '']);
+        // Un grand catalogue (23 002,32 €) en moitié-moitié : 11,5 % arrondis chacun au centime laissent −0,01 €. C'est un
+        // ARRONDI, pas un dépassement : la cascade le dit, sans rouge.
+        saisir(champ(d, 'prix_catalogue_ht'), '23002,32'); await attendre(60);
+        d.getElementById('mcMoitie').click(); await attendre(60);
+        const dern = d.querySelector('#mcCascade .mc-l:last-child');
+        check('MC12 Règle 64 — 23 002,32 € en moitié-moitié : « Reste à la société » à −0,01 € dit « arrondi au centime », jamais un dépassement (le dépassement se lit sur le partage)',
+          [nb(txt(dern.querySelector('.v'))), txt(dern.querySelector('.d')), dern.classList.contains('neg'), d.getElementById('mcPartage').className],
+          ['-0,01 €', 'arrondi au centime des deux commissions', false, 'mc-dit ok']);
+        w.eval('dirty = false');
         d.getElementById('btnAutreProduit').click(); await attendre(120);
         check('N2 « + Autre produit » crée une ouverture VIERGE (l’ancien « + Ajouter »), curseur sur son type',
           [w.eval('state').items.length, w.eval('state').items[1].type, d.activeElement && d.activeElement.dataset.f], [2, 'screen', 'type']);

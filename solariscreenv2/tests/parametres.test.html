@@ -106,6 +106,12 @@
           [P.format(['prix', 'material_margin'], 0.23), P.format('prix.commission_principal', 18), P.format('prix.install_gross', 280), P.format('usage.relance_visite', [4, 9, 21]),
             P.format('prix.garantie_mois', 12), P.format('prix.net_divisor', 2.5), P.format('usage.seuil_lead_chaud', 5), P.format('affichage.mantra', true), P.format('mail.expediteur', ''), P.format('remu.pose.screen', 50)],
           ['23 %', '18 %', E(280), '4 · 9 · 21 j', '12 mois', '÷ 2,5', '5 vues', 'oui', '(vide)', E(50)]);
+        // Règle 64 — le seuil du rappel « remise projet » : une clé des DEFAUTS (sinon `fusionner` la jetterait), lue en
+        // ouvertures, et un effet qui dit que ce n'est qu'un rappel.
+        check('S5b Règle 64 — Le rappel « remise projet » : 10 ouvertures par défaut (dans DEFAUTS, sinon jamais enregistrable), lu « 15 ouvertures », effet en mots',
+          [window.SSConf.DEFAUTS.prix.remise_projet_seuil, window.SSConf.fusionner(window.SSConf.DEFAUTS, { prix: { remise_projet_seuil: 15 } }).prix.remise_projet_seuil,
+            P.format(['prix', 'remise_projet_seuil'], 15), P.effet('prix.remise_projet_seuil', { prix: { remise_projet_seuil: 15 } }, { prix: { remise_projet_seuil: 10 } })],
+          [10, 15, '15 ouvertures', 'un devis de 15 ouvertures chiffrées ou plus rappelle de demander la remise projet à Harol — aucun prix ne change']);
         const D = C.fusionner(C.DEFAUTS, {});
         const D2 = JSON.parse(JSON.stringify(D)); D2.prix.taux_horaire = 60; D2.remu.pose.screen = 60; D2.usage.relance_visite = [5, 9, 21]; D2.prix.garantie_mois = 0;
         // Un réglage à la fois sur le devis type : la TVA change le prix du client, la commission non.
@@ -155,7 +161,7 @@
         await attendre(5);
         r = await changer('nicolas', [{ chemin: ['__proto__', 'pollue'], apres: 1 }, { chemin: ['prix', 'a-b'], apres: 1 }, { chemin: [], apres: 1 }, { chemin: 'prix.x', apres: 1 }, ch('prix.tools_gross', 30, 35)]);
         check('R6 Un chemin invalide est ignoré (et ne pollue rien) ; le reste passe',
-          [r.ok, ({}).pollue, Object.keys(base().prix).sort().join(','), base().prix.tools_gross], [true, undefined, 'acompte_pct,commission_principal,commission_second,deplacement,garantie_mois,install_gross,material_margin,net_divisor,supplier_rate,taux_horaire,tech1_gross,tech2_gross,tools_gross,tva_pct', 35]);
+          [r.ok, ({}).pollue, Object.keys(base().prix).sort().join(','), base().prix.tools_gross], [true, undefined, 'acompte_pct,commission_principal,commission_second,deplacement,garantie_mois,install_gross,material_margin,net_divisor,remise_projet_seuil,supplier_rate,taux_horaire,tech1_gross,tech2_gross,tools_gross,tva_pct', 35]);
         const h = (await (await BANC.fetch('/api/settings/historique')).json()).data;
         check('R7 B — L’historique : le plus récent d’abord, qui et quoi ; un enregistrement complet (le Planning) garde son libellé',
           [h.length, h[0].actor, h[0].changes.map((x) => x.chemin.join('.')), h.map((x) => (x.changes ? 'c' : 'l')).join(''), h[h.length - 2].label, h[h.length - 2].actor],
@@ -236,6 +242,18 @@
         await w.enregistrer(); await attendre(50);
         check('V1 Une valeur vide ou hors bornes est REFUSÉE sur sa ligne (elle était remplacée en silence par le défaut) : « Enregistrer » bloqué, rien n’est écrit',
           [vide, trop, base().prix.acompte_pct], [['Indique une valeur (0 si rien).', true, true, true, '1 réglage à corriger avant d’enregistrer.'], 'Entre 0 et 100.', 50]);
+        w.annuler(); await attendre(20);
+        // Règle 64 — la ligne du seuil : sous l'achat fournisseur, trouvée par « remise projet », contrôlée (1 à 500), son effet.
+        const seuil = d.getElementById('remise_projet_seuil'), lSeuil = seuil.closest('.reg');
+        tape(rech, 'remise projet');
+        const trouve = visibles('panSociete').map((l) => l.getAttribute('data-reg'));
+        rech.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        tape(seuil, '0');
+        const zero = [txt(lSeuil.querySelector('.reg-erreur')), d.getElementById('btnSave').disabled];
+        tape(seuil, '15');
+        check('R64 Règle 64 — « Rappel « remise projet » Harol » : trouvé par la recherche, dans « Prix & marges » sous l’achat fournisseur, 10 par défaut, 0 refusé, et son effet en mots',
+          [trouve, lSeuil.closest('section').id, lSeuil.previousElementSibling.classList.contains('deduit'), zero, txt(lSeuil.querySelector('.reg-effet')), lSeuil.classList.contains('modifie')],
+          [['prix.remise_projet_seuil'], 's-prix', true, ['Entre 1 et 500.', true], 'un devis de 15 ouvertures chiffrées ou plus rappelle de demander la remise projet à Harol — aucun prix ne change', true]);
         w.annuler(); await attendre(20);
         // L'enregistrement
         tape(d.getElementById('commission_principal'), '19');
