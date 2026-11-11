@@ -88,7 +88,7 @@
       { key: 'signe|marc', prenom: 'Marc', nom: 'Signe', telephone: '0471 11 11 11', email: 'marc@exemple.be', tags: ['Chaud'], notes: '', adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' },
         mails: [{ id: 'm-1', sens: 'recu', objet: 'Re: votre devis', texte: 'Bonjour, c’est d’accord pour le devis.', date: J(-3) }] },
     ];
-    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_clients_cache', 'ss_outbox'];
+    const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_clients_cache', 'ss_outbox', 'ss_clients_tri'];
     const SAUVE = {};
     CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
     function semer() {
@@ -134,10 +134,11 @@
         check('A3 Luc doit encore 5 000 € (facture de solde impayée)', texte(ligne('doit|luc').querySelector('.ci-du')), 'doit ' + eur(5000));
         check('A4 Anne ne doit rien : sa facture est annulée par une note de crédit', !!ligne('avoir|anne').querySelector('.ci-du'), false);
         check('A5 Une fiche sans devis le dit', texte(ligne('depptre|quentin').querySelector('.ci-act')), 'Aucun devis');
-        w.document.getElementById('sort').value = 'ca'; w.renderList();
-        check('A6 Tri « Signé ↓ » : Marc (10 000 signés) devant, le refus de 50 000 € n’y est pour rien',
-          [...d.querySelectorAll('.crm-item')].slice(0, 3).map(i => i.dataset.key), ['signe|marc', 'doit|luc', 'avoir|anne']);
-        w.document.getElementById('sort').value = 'recent'; w.renderList();
+        { const so = d.getElementById('sort'); so.value = 'signe'; so.dispatchEvent(new w.Event('change')); }
+        check('A6 Tri « Signé » : Marc (10 000 signés) devant, le refus de 50 000 € n’y est pour rien, et l’archivé n’affiche aucun « signé »',
+          [[...d.querySelectorAll('.crm-item')].slice(0, 3).map(i => i.dataset.key), texte(ligne('signe|marc').querySelector('.ci-cle')), !!ligne('archive|paul').querySelector('.ci-cle')],
+          [['signe|marc', 'doit|luc', 'avoir|anne'], 'signé ' + eur(10000), false]);
+        w.triParDefaut();
 
         titre('R — La recherche : sans accents, par ville, numéro de devis, mot par mot');
         const cherche = (q) => { d.getElementById('search').value = q; w.renderList(); return [...d.querySelectorAll('.crm-item')].map(i => i.dataset.key); };
@@ -283,6 +284,237 @@
         dh.querySelector('.crm-item[data-key="signe|marc"]').click(); await attendre(250);
         check('H9 Sans rien modifier, passer d’un client à l’autre ne demande jamais rien', [demandes - avantCorr, nomOuvert()], [0, 'Marc Signe']);
         fh.remove();
+
+        /* ══════════ S — « ENREGISTRER LA FICHE » (règle 68) ══════════
+           L'ancienne version reconstruisait la fiche avec les seuls champs du formulaire, et le serveur l'écrit telle
+           quelle : le contact préféré (posé sur la fiche devis) et la date de création disparaissaient à chaque
+           « Enregistrer ». Un faux serveur, branché sur le `fetch` du cadre, garde les fiches et note chaque envoi. */
+        titre('S — « Enregistrer la fiche » relit la fiche et n’écrit que ce qui a changé (règle 68)');
+        {
+          const FICHES = {
+            'signe|marc': { key: 'signe|marc', prenom: 'Marc', nom: 'Signe', civilite: 'Monsieur', ton: 'amical', pref_contact: 'whatsapp',
+              telephone: '0471 11 11 11', email: 'marc@exemple.be', adresse: { rue: 'Rue Test', numero: '1', code_postal: '1300', ville: 'Wavre' },
+              type_bien: 'maison', tags: ['Chaud'], notes: '', date_creation: T(-40), date_modification: T(-3), mails: CLIENTS[1].mails },
+            'depptre|quentin': { key: 'depptre|quentin', prenom: 'Quentin', nom: 'Depptre', tags: [], notes: '', date_creation: T(-8), date_modification: T(-8) },
+          };
+          semer();
+          localStorage.setItem('ss_clients_cache', JSON.stringify(Object.values(FICHES)));
+          const fs = await ouvrir(1500, 900, '?key=' + encodeURIComponent('signe|marc') + '&t=' + Date.now());
+          const ws = fs.contentWindow, ds = ws.document;
+          const ENVOIS = [];
+          const vraiFetch = ws.fetch.bind(ws);
+          const repondre = (obj, st) => new Response(JSON.stringify(obj), { status: st || 200, headers: { 'Content-Type': 'application/json' } });
+          ws.fetch = async (url, o) => {
+            const u = String(url), meth = String((o && o.method) || 'GET').toUpperCase();
+            const m = u.match(/\/api\/clients\/([^?/]+)(?:\?|$)/);
+            if (m && meth === 'GET') {
+              const fi = FICHES[decodeURIComponent(m[1])];
+              return fi ? repondre({ ok: true, data: JSON.parse(JSON.stringify(fi)) }) : repondre({ ok: false, error: 'Fiche client introuvable' }, 404);
+            }
+            if (/\/api\/clients(?:\?|$)/.test(u) && meth === 'POST') {
+              const b = JSON.parse(o.body); ENVOIS.push(b); FICHES[b.key] = JSON.parse(JSON.stringify(b));
+              return repondre({ ok: true, key: b.key });
+            }
+            return vraiFetch(url, o);
+          };
+          ws.SS.saveDevis = async () => ({ ok: true });
+          const toastS = () => { const t = [...ds.querySelectorAll('#toasts .toast')].pop(); return t ? t.textContent : ''; };
+          const avantS = Date.now() - 1000;
+
+          ds.getElementById('f_notes').value = 'Poser un samedi';
+          await ws.saveFiche('signe|marc'); await attendre(300);
+          const e1 = ENVOIS[0] || {};
+          check('S1 Une note ajoutée dans le CRM : le contact préféré, la date de création et la formule posés AILLEURS restent sur la fiche',
+            [ENVOIS.length, e1.pref_contact, e1.date_creation, e1.ton, e1.notes, Date.parse(e1.date_modification) >= avantS],
+            [1, 'whatsapp', T(-40), 'amical', 'Poser un samedi', true]);
+          await ws.saveFiche('signe|marc'); await attendre(300);
+          check('S2 « Enregistrer » sans rien changer n’écrit rien (le client ne remonte pas en tête pour rien), et le dit',
+            [ENVOIS.length, /rien/i.test(toastS())], [1, true]);
+          FICHES['signe|marc'].telephone = '0499 12 34 56';   // Yannick corrige le téléphone depuis la fiche devis, entre-temps
+          ds.getElementById('f_notes').value = 'Poser un samedi matin';
+          await ws.saveFiche('signe|marc'); await attendre(300);
+          const e3 = ENVOIS[ENVOIS.length - 1] || {};
+          check('S3 …et ce que l’autre a corrigé entre-temps n’est pas remis en arrière : seuls les champs touchés partent',
+            [ENVOIS.length, e3.telephone, e3.notes, e3.pref_contact], [2, '0499 12 34 56', 'Poser un samedi matin', 'whatsapp']);
+
+          ws.renderDetail('avoir|anne'); await attendre(250);
+          await ws.saveFiche('avoir|anne'); await attendre(300);
+          const e4 = ENVOIS.find((x) => x.key === 'avoir|anne') || {};
+          check('S4 Un client « à compléter » (pas encore de fiche) : « Enregistrer » la crée, datée, avec ses coordonnées et la civilité suggérée',
+            [e4.telephone, e4.civilite, Date.parse(e4.date_creation) >= avantS, e4.date_creation === e4.date_modification, !!ds.querySelector('.crm-item[data-key="avoir|anne"] .ci-todo')],
+            ['0473 33 33 33', 'Madame', true, true, false]);
+          const tete = ds.querySelector('.crm-item');
+          check('S5 …et Anne passe en tête de la liste, « modifié à l’instant » : compléter la fiche d’un client qui avait déjà un devis, ce n’est pas l’« ajouter »',
+            [tete && tete.dataset.key, texte(tete && tete.querySelector('.ci-cle'))], ['avoir|anne', 'modifié à l’instant']);
+
+          ws.renderDetail('depptre|quentin'); await attendre(250);
+          const n0 = ENVOIS.length;
+          await ws.saveFiche('depptre|quentin'); await attendre(300);
+          const e6 = ENVOIS[n0] || {};
+          check('S6 Une fiche sans civilité ni formule : « Enregistrer » confirme ce qui s’affiche (Monsieur, Professionnel) et garde sa date de création',
+            [ENVOIS.length - n0, e6.civilite, e6.ton, e6.date_creation], [1, 'Monsieur', 'pro', T(-8)]);
+          await ws.saveFiche('depptre|quentin'); await attendre(300);
+          check('S7 …une fois confirmées, un second « Enregistrer » sans changement n’écrit plus rien', ENVOIS.length - n0, 1);
+          fs.remove();
+          semer();
+        }
+
+        /* ══════════ O — L'ORDRE DE LA LISTE (règle 68) ══════════
+           Six clients FICTIFS. Un devis ne garde que le JOUR de sa création (`SSUI.aujourdhui()`, jour LOCAL) ; la fiche
+           porte l'heure. Les moments « d'aujourd'hui » sont pris entre minuit et maintenant : le test dit la même chose
+           à 0 h 05 qu'à 23 h 55. */
+        titre('O — L’ordre de la liste : « modifié ou ajouté » d’abord, douze critères, gardé sur cet appareil (règle 68)');
+        {
+          const MINUIT = (() => { const x = new Date(); x.setHours(0, 0, 0, 0); return x.getTime(); })();
+          const JL = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+          const AUJ = (fr) => new Date(MINUIT + Math.floor(fr * (Date.now() - MINUIT))).toISOString();
+          const adrO = (cp, ville) => ({ rue: 'Rue Essai', numero: '2', code_postal: cp, ville });
+          const cO = (prenom, nom, tel, cp, ville) => ({ prenom, nom, telephone: tel, email: '', adresse: adrO(cp, ville) });
+          const SOPHIE = cO('Sophie', 'Touché', '0471 20 20 20', '1300', 'Wavre'), PAUL = cO('Paul', 'Ancien', '0472 40 40 40', '1340', 'Ottignies');
+          const ANNE = cO('Anne', 'Second', '0473 50 50 50', '1420', 'Braine-l’Alleud'), HUGO = cO('Hugo', 'Complété', '0474 60 60 60', '1332', 'Genval');
+          const MARC = cO('Marc', 'Devis', '0475 70 70 70', '', '');
+          const DEVIS_O = [
+            { id: 'O-SOPHIE', client: SOPHIE, statut: 'signe', date_creation: JL(-120), date_modification: T(-60), calculs: { total_ttc: 12400 }, seller_principal: 'nicolas', statut_history: [{ statut: 'signe', date: T(-60) }] },
+            { id: 'O-PAUL', client: PAUL, statut: 'termine', date_creation: JL(-400), date_modification: AUJ(0.99), calculs: { total_ttc: 5200 }, seller_principal: 'nicolas' },
+            { id: 'O-ANNE-A', client: ANNE, statut: 'signe', date_creation: JL(-90), date_modification: T(-80), calculs: { total_ttc: 3000 }, seller_principal: 'yannick', statut_history: [{ statut: 'signe', date: T(-80) }] },
+            { id: 'O-ANNE-B', client: ANNE, statut: 'envoye_client', date_creation: JL(0), date_modification: AUJ(0.8), date_envoi: JL(0), calculs: { total_ttc: 1000 }, seller_principal: 'yannick' },
+            { id: 'O-HUGO', client: HUGO, statut: 'envoye_client', date_creation: JL(-30), date_modification: T(-20), date_envoi: J(-20), calculs: { total_ttc: 4650 }, seller_principal: 'nicolas' },
+            { id: 'O-MARC', client: MARC, statut: 'brouillon', date_creation: JL(0), date_modification: AUJ(0.5), calculs: { total_ttc: 900 }, seller_principal: 'nicolas' },
+          ];
+          const fO = (c, crea, modif) => Object.assign({ key: (c.nom + '|' + c.prenom).toLowerCase(), tags: [], notes: '', date_creation: crea, date_modification: modif }, c);
+          const FICHES_O = [
+            fO(SOPHIE, T(-120), AUJ(0.95)),                                    // modifiée aujourd'hui (une étiquette)
+            fO(cO('Léa', 'Neuf', '0476 80 80 80', '7190', 'Écaussinnes'), AUJ(0.9), AUJ(0.9)),   // « Nouveau client » d'aujourd'hui, sans devis
+            fO(PAUL, T(-400), T(-200)),                                        // touchée il y a longtemps ; une PHOTO aujourd'hui sur son devis
+            fO(ANNE, T(-90), AUJ(0.8)),                                        // son 2e devis, ajouté aujourd'hui au simulateur (qui met la fiche à jour)
+            fO(HUGO, T(-2), T(-2)),                                            // fiche créée il y a 2 j pour un client qui avait un devis depuis 30 j
+          ];                                                                   // Marc Devis : pas de fiche, un devis d'aujourd'hui
+          const FACTURES_O = [
+            { id: 'F-O1', devis_id: 'O-PAUL', type: 'solde', total_ttc: 5200, date: J(-100), echeance: J(-90), paiements: [{ montant: 2200 }] },
+            { id: 'F-O2', devis_id: 'O-SOPHIE', type: 'acompte', total_ttc: 3720, date: J(-50), echeance: J(-40), paiements: [{ montant: 3720 }] },
+          ];
+          const semerO = () => {
+            localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS_O));
+            localStorage.setItem('ss_factures_cache', JSON.stringify(FACTURES_O));
+            localStorage.setItem('ss_clients_cache', JSON.stringify(FICHES_O));
+          };
+          const S_ = 'touché|sophie', L_ = 'neuf|léa', P_ = 'ancien|paul', A_ = 'second|anne', H_ = 'complété|hugo', M_ = 'devis|marc';
+          semerO(); localStorage.removeItem('ss_clients_tri');
+          let fo = await ouvrir(1500, 900);
+          let wo = fo.contentWindow, dO = wo.document;
+          const ordre = () => [...dO.querySelectorAll('.crm-item')].map((i) => i.dataset.key);
+          const cleDe = (k) => texte(dO.querySelector('.crm-item[data-key="' + k + '"] .ci-cle'));
+          const choisir = async (v) => { const s = dO.getElementById('sort'); s.value = v; s.dispatchEvent(new wo.Event('change')); await attendre(60); };
+          const legende = () => texte(dO.getElementById('triLegende'));
+          // « le 30/10 », l'année seulement quand ce n'est pas celle-ci (sur téléphone, la date entière se coupait en deux).
+          const leJourT = (iso) => { const x = new Date(iso); return x.toLocaleDateString('fr-BE', x.getFullYear() === new Date().getFullYear() ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' }); };
+          const boutonDefaut = () => dO.getElementById('triDefaut');
+          const fleche = () => dO.getElementById('triSens');
+          const kpis0 = texte(dO.getElementById('kpis')), aranger0 = texte(dO.querySelector('#detail .ar'));
+
+          check('O1 Par défaut, « Modifié ou ajouté », le plus récent d’abord : la fiche modifiée aujourd’hui, le nouveau client, le 2e devis du jour, le devis du jour sans fiche, puis les anciens',
+            [dO.getElementById('sort').value, fleche().textContent, ordre()], ['recent', '↓', [S_, L_, A_, M_, H_, P_]]);
+          check('O2 Chaque ligne dit pourquoi elle est là : « modifié » / « ajouté » et quand — un devis du jour sans heure dit « aujourd’hui », jamais une heure inventée',
+            [/^modifié /.test(cleDe(S_)), /^ajouté /.test(cleDe(L_)), cleDe(A_), cleDe(M_), /^modifié /.test(cleDe(H_)), cleDe(P_)],
+            [true, true, 'ajouté aujourd’hui', 'ajouté aujourd’hui', true, 'modifié le ' + leJourT(T(-200))]);
+          check('O3 La PHOTO d’aujourd’hui sur le devis de Paul ne le fait pas remonter (règle 15) ; la fiche de Hugo créée pour un client qui avait déjà un devis : « modifié », pas « ajouté »',
+            [ordre().indexOf(P_), cleDe(H_).indexOf('ajouté')], [5, -1]);
+          check('O4 La ligne sous le menu dit l’ordre en mots, et l’ordre par défaut n’a pas de bouton « ↺ »',
+            [legende(), !!boutonDefaut()], ['Le plus récent d’abord · fiche créée ou modifiée, devis ajouté', false]);
+          check('O5 Le menu porte les douze critères, rangés en quatre groupes',
+            [[...dO.querySelectorAll('#sort optgroup')].map((g) => g.label), dO.querySelectorAll('#sort option').length], [['Quand', 'Qui et où', 'Argent', 'Suivi'], 12]);
+
+          await choisir('activite');
+          check('O6 « Dernière activité » : tout compte, la photo d’aujourd’hui comprise — Paul passe devant',
+            [ordre(), cleDe(P_).indexOf('activité '), legende().indexOf('Dernière activité, le plus récent d’abord')], [[P_, S_, L_, A_, M_, H_], 0, 0]);
+          check('O7 …le bouton « ↺ Ordre par défaut » apparaît, et le choix est gardé sur cet appareil',
+            [!!boutonDefaut(), texte(boutonDefaut()), localStorage.getItem('ss_clients_tri')], [true, '↺ Ordre par défaut', '{"cle":"activite","sens":"desc"}']);
+          await choisir('depuis');
+          const moisAn = (jour) => { const p = jour.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' }); };
+          check('O8 « Client depuis » : le plus ancien d’abord (sa première fiche ou son premier devis)', [ordre(), cleDe(P_)], [[P_, S_, A_, H_, M_, L_], 'depuis ' + moisAn(JL(-400))]);
+          await choisir('nom');
+          check('O9 « Nom » : nom de famille, sans accents (« Complété » entre « Ancien » et « Devis »)', ordre(), [P_, H_, M_, L_, A_, S_]);
+          await choisir('ville');
+          check('O10 « Ville » : A → Z sans accents (« Écaussinnes » avec les E), le client sans ville en bas', ordre(), [A_, L_, H_, P_, S_, M_]);
+          fleche().click(); await attendre(60);
+          check('O11 …la flèche inverse (Z → A), et le client sans ville RESTE en bas', [ordre(), fleche().textContent, fleche().getAttribute('aria-label')],
+            [[S_, P_, H_, L_, A_, M_], '↓', 'Inverser l’ordre : A → Z']);
+          await choisir('cp');
+          check('O12 « Code postal » : les communes proches se suivent, et la ligne affiche le code', [ordre(), cleDe(S_)], [[S_, H_, P_, A_, L_, M_], '1300']);
+          await choisir('signe');
+          const bilan = (k) => wo.eval('DIRECTORY').find((c) => c.key === k).bilan;
+          check('O13 « Signé » : le chiffre de la fiche (bilanDevis, règle 42) ; sans signé, en bas par « modifié ou ajouté »',
+            [ordre(), cleDe(S_), cleDe(L_)], [[S_, P_, A_, L_, M_, H_], 'signé ' + eur(bilan(S_).signe), null]);
+          await choisir('encours');
+          check('O14 « Chez le client » : les devis envoyés en attente de réponse', [ordre(), cleDe(H_)], [[H_, A_, S_, L_, M_, P_], 'chez lui ' + eur(4650)]);
+          await choisir('du');
+          check('O15 « Reste à encaisser » : notes de crédit et paiements déduits (Paul doit 3 000 €, Sophie a tout payé)',
+            [ordre()[0], bilan(P_).resteDu, texte(dO.querySelector('.crm-item[data-key="' + P_ + '"] .ci-du'))], [P_, 3000, 'doit ' + eur(3000)]);
+          await choisir('quoi');
+          const poids = ordre().map((k) => { const c = wo.eval('DIRECTORY').find((x) => x.key === k); const a = c.bilan.action; return a ? wo.eval('ACT').poidsAction(a, c.devis.find((dv) => dv.id === a.devis_id).n) : null; });
+          const pleins = poids.filter((p) => p != null);
+          check('O16 « Quoi faire » : rangé par le poids de « À faire maintenant » (actions.js), sans action en bas',
+            [pleins.every((p, i) => i === 0 || pleins[i - 1] >= p), poids.slice(pleins.length).every((p) => p == null), pleins.length > 1], [true, true, true]);
+          await choisir('etape');
+          check('O17 « Étape » : le statut du dernier devis, brouillon → terminé ; à égalité (deux « envoyé »), le plus récent d’abord', ordre(), [M_, A_, H_, S_, P_, L_]);
+          await choisir('nb');
+          check('O18 « Nombre de devis » : Anne (2) devant ; le client sans devis en bas', [ordre(), cleDe(A_)], [[A_, S_, M_, H_, P_, L_], '2 devis']);
+
+          await choisir('cp');
+          dO.getElementById('search').value = '13'; wo.renderList();
+          check('O19 La recherche filtre d’abord, le tri range ce qui reste (« 13 » → les codes 13xx, dans l’ordre)', ordre(), [S_, H_, P_]);
+          dO.getElementById('search').value = ''; wo.renderList();
+          check('O20 Changer de tri ne change AUCUN chiffre ni « À ranger » (règle 42)',
+            [texte(dO.getElementById('kpis')) === kpis0, texte(dO.querySelector('#detail .ar')) === aranger0], [true, true]);
+
+          fleche().click(); await attendre(60);
+          fo.remove();
+          fo = await ouvrir(1500, 900); wo = fo.contentWindow; dO = wo.document;
+          check('O21 Rechargée, la page garde l’ordre choisi sur cet appareil (code postal, inversé)',
+            [dO.getElementById('sort').value, fleche().textContent, ordre()[0], !!boutonDefaut()], ['cp', '↓', L_, true]);
+          boutonDefaut().click(); await attendre(80);
+          check('O22 « ↺ Ordre par défaut » : retour à « Modifié ou ajouté », le plus récent d’abord ; le choix est oublié et le clavier reste sur le menu',
+            [dO.getElementById('sort').value, fleche().textContent, ordre(), localStorage.getItem('ss_clients_tri'), !!boutonDefaut(), dO.activeElement && dO.activeElement.id],
+            ['recent', '↓', [S_, L_, A_, M_, H_, P_], null, false, 'sort']);
+          fo.remove();
+
+          localStorage.setItem('ss_clients_tri', '{"cle":"bidon","sens":"de travers"}');
+          fo = await ouvrir(1500, 900); wo = fo.contentWindow; dO = wo.document;
+          check('O23 Une préférence illisible ne casse rien : l’ordre par défaut', [dO.getElementById('sort').value, ordre()[0]], ['recent', S_]);
+          fo.remove();
+
+          // La fiche ouverte reste visible quand le tri la déplace (liste qui défile dans sa colonne).
+          localStorage.removeItem('ss_clients_tri');
+          fo = await ouvrir(1500, 430); wo = fo.contentWindow; dO = wo.document;
+          const liste = dO.getElementById('list');
+          const visible = () => { const a = dO.querySelector('.crm-item.active'); if (!a) return false; const r = a.getBoundingClientRect(), L = liste.getBoundingClientRect(); return r.top >= L.top - 1 && r.bottom <= L.bottom + 1; };
+          wo.renderDetail(P_); await attendre(200);
+          const y0 = wo.scrollY;
+          check('O24 Paul, dernier de la liste, ouvert : sa ligne est surlignée et dans la colonne visible (qui défile bien)',
+            [liste.scrollHeight > liste.clientHeight, visible()], [true, true]);
+          await choisir('nom');
+          check('O25 …trié par nom, il passe en tête : toujours visible', [ordre()[0], visible()], [P_, true]);
+          await choisir('recent');
+          check('O26 …revenu à l’ordre par défaut, il retombe en bas : la liste le suit, la page ne bouge pas', [ordre()[5], visible(), wo.scrollY === y0], [P_, true, true]);
+          fo.remove();
+
+          // Téléphone : un ordre choisi tient dans l'écran, garde un chemin du retour, et survit à l'aller-retour vers une fiche.
+          localStorage.setItem('ss_clients_tri', '{"cle":"signe","sens":"desc"}');
+          fo = await ouvrir(390, 760); wo = fo.contentWindow; dO = wo.document;
+          const W = dO.documentElement.clientWidth, bd = boutonDefaut().getBoundingClientRect(), fl = fleche().getBoundingClientRect();
+          check('O27 Téléphone (390 px) : rien ne déborde, le menu, la flèche et « ↺ Ordre par défaut » sont dans l’écran',
+            [dO.documentElement.scrollWidth <= W, bd.left >= 0 && bd.right <= W && bd.height >= 24, fl.right <= W, [...dO.querySelectorAll('.crm-item')].every((i) => i.getBoundingClientRect().right <= W + 0.5)],
+            [true, true, true, true]);
+          check('O28 …la valeur de tri ne coupe ni ne pousse rien sur sa ligne, et le premier client reste dans le premier écran',
+            [[...dO.querySelectorAll('.ci-cle')].every((x) => x.scrollWidth <= x.clientWidth + 1 && x.getBoundingClientRect().right <= W), dO.querySelector('.crm-item').getBoundingClientRect().bottom <= wo.innerHeight],
+            [true, true]);
+          dO.querySelector('.crm-item[data-key="' + S_ + '"]').click(); await attendre(300);
+          dO.getElementById('crmRetour').click(); await attendre(500);
+          check('O29 …ouvrir un client puis « ← Tous les clients » : on retrouve le même ordre', [dO.getElementById('sort').value, ordre()[0], dO.body.classList.contains('crm-fiche-ouverte')], ['signe', S_, false]);
+          fo.remove();
+          localStorage.removeItem('ss_clients_tri');
+          semer();
+        }
 
         /* ══════════ T — TÉLÉPHONE ══════════ */
         titre('T — Sur téléphone (390 × 760) : la liste dans le premier écran, et « retour » revient à la liste');
