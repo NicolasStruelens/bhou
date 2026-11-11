@@ -280,6 +280,9 @@
       #kpis .kpi { padding: var(--sp-3); min-width: 0; }
       #kpis .kpi-value { font-size: 1.15rem; overflow-wrap: anywhere; }
     }
+    /* La marge matériel (règle 64) prend toujours sa propre rangée, sous les quatre chiffres de l'activité : à
+       quatre colonnes (bureau étroit, tablette) comme à deux (téléphone), une cinquième tuile restait seule. */
+    #kpis #kMarge { grid-column: 1 / -1; }
 
     /* ── F — Le relevé imprimable : à l'impression, la page disparaît, il ne reste que lui. ── */
     #releve { display: none; }
@@ -428,6 +431,8 @@
   <script src="../assets/js/fetes.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
+  <!-- calc.js lit la marge réelle d'un devis (remise projet Harol comprise, règle 64) : `SSCalc.margeReelleDevis`. -->
+  <script src="../assets/js/calc.js"></script>
   <!-- planning.js porte le vocabulaire des equipes (SSPlanning.quiDeEquipe) et remuneration.js
        le consomme : sans lui, aucun dossier n'est attribue et tout sort « equipe inconnue ». -->
   <script src="../assets/js/planning.js"></script>
@@ -538,7 +543,9 @@
         <div class="kpi ticked" id="kTaux"><div class="kpi-label">Taux de signature</div><div class="kpi-value">${c.taux === null ? '—' : c.taux + ' %'}</div>
           <div class="kpi-sub" title="Sur les dossiers TRANCHÉS de la période (signés + refusés). Un dossier pas encore décidé n'est pas un échec. Les bons d'intervention et les devis informatifs n'y sont pas : ils ne se gagnent ni ne se perdent.">${c.nbSignes} signé${c.nbSignes > 1 ? 's' : ''} / ${c.tranches} tranché${c.tranches > 1 ? 's' : ''} · hors interventions</div>${c.taux === null || !a || a.taux === null ? (per.avant ? `<div class="st-evo">vs ${esc(per.avant.libelle)} : rien à comparer</div>` : '') : evoHtml(c.taux, a.taux, per, true)}</div>
         <div class="kpi gold ticked" id="kEncaisse"><div class="kpi-label">Encaissé</div><div class="kpi-value">${fmtEur(c.encaisse)}</div>
-          <div class="kpi-sub">facturé <span class="mt">${fmtEur(c.facture)}</span> · <a href="factures.html">reste dû <span class="mt">${fmtEur(c.du)}</span></a>${c.nbRetard ? ` dont <span class="mt">${fmtEur(c.retard)}</span> en retard` : ''}</div>${evoHtml(c.encaisse, a && a.encaisse, per)}</div>`;
+          <div class="kpi-sub">facturé <span class="mt">${fmtEur(c.facture)}</span> · <a href="factures.html">reste dû <span class="mt">${fmtEur(c.du)}</span></a>${c.nbRetard ? ` dont <span class="mt">${fmtEur(c.retard)}</span> en retard` : ''}</div>${evoHtml(c.encaisse, a && a.encaisse, per)}</div>
+        <div class="kpi ticked" id="kMarge"><div class="kpi-label">Marge matériel réelle</div><div class="kpi-value">${fmtEur(c.marge.reelle)}</div>
+          <div class="kpi-sub" title="Sur les devis signés de la période : prix catalogue moins achat Harol réel, remise projet comprise, aux taux figés de chaque devis. Avant les commissions et les réductions accordées au client.">estimée <span class="mt">${fmtEur(c.marge.estimee)}</span>${c.marge.gain > 0 ? ` · <span style="color:var(--ok);">remise projet +<span class="mt">${fmtEur(c.marge.gain)}</span></span> sur ${pl(c.marge.nbProjet, 'dossier')}` : ''}${c.marge.illisibles ? ` · ${pl(c.marge.illisibles, 'devis')} sans chiffrage, non compté${c.marge.illisibles > 1 ? 's' : ''}` : ''}</div>${evoHtml(c.marge.reelle, a && a.marge.reelle, per)}</div>`;
       if (anime && window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odomètre partagé, au premier rendu seulement
     }
 
@@ -1229,7 +1236,8 @@
         comm = '<span class="text-muted" title="Aucune commission sur ce dossier.">—</span>';
       }
       const archive = d.archive ? ' <span class="text-muted" style="font-size:var(--fs-2xs);" title="Dossier archivé : sa paie reste due.">archivé</span>' : '';
-      const payeTitre = `${fmtEur(r.encaisse)} reçus sur ${fmtEur(r.total_ttc)}`;
+      const payeTitre = `${fmtEur(r.encaisse)} reçus sur ${fmtEur(r.total_du != null ? r.total_du : r.total_ttc)}` +
+        (r.avoirs > 0 ? ` (${fmtEur(r.total_ttc)} moins ${fmtEur(r.avoirs)} de notes de crédit)` : '');
 
       const ligne = `<tr data-id="${esc(d.id)}">
         ${/* L'archivage est un rangement d'affichage, pas un evenement commercial : un dossier

@@ -93,10 +93,34 @@
     // Déduite de la commission du vendeur principal du devis (celui qui négocie la vente) ;
     // répartie au prorata des deux en mode "autre". N'affecte jamais le coût fournisseur réel.
     const remiseCatalogueAmount = resolveRemiseAmount(input.remise_catalogue, totalCatalog);
-    const totalCatalogNet = r2(totalCatalog - remiseCatalogueAmount);
 
     // ── Commissions ──
     const sp = resolveSellerPcts(input.sellers, input.seller_parts);
+
+    // ── LA PART LIBRE DE LA RÉPARTITION (règle 64) ─────────────────────────────────────────────
+    // En répartition personnalisée, ce que les deux % ne prennent pas de la marge matériel. Jusqu'au
+    // 11/11/2026 elle était seulement ANNONCÉE (« Marge restante pour remise client ») : aucun total,
+    // aucun PDF ne la portait, et elle restait de fait à la société. Nicolas : « il n'est pas noté
+    // dans le pdf ? ». Elle devient une VRAIE remise client, mais SEULEMENT sur un devis qui le dit
+    // (`sellers.part_libre === 'client'`, figé avec le devis comme ses taux, règle 1) : un devis
+    // enregistré avant garde son prix tant qu'on ne touche pas à sa répartition.
+    // ⚠️ La marge vient du taux FIGÉ du devis, jamais d'un 23 écrit en dur ; arrondie, parce qu'en virgule
+    // flottante 0,29 × 100 vaut 28,999999999999996 (0,23 × 100 tombe juste, 0,28 et 0,57 non) : une marge
+    // réglée à 29 % se lisait 28,999…, et l'écran l'aurait affichée telle quelle.
+    const margePct = Math.round(materialMargin * 100 * 1e6) / 1e6;
+    const sommePct = Math.round((sp.nicolas_pct + sp.yannick_pct) * 1e6) / 1e6;
+    const ecartPct = Math.round((margePct - sommePct) * 1e6) / 1e6;
+    let remise = { applicable: false, pct: 0, amount: 0, client: false };
+    if (sp.principal === 'autre' && ecartPct > 0) {
+      remise = { applicable: true, pct: r2(ecartPct), amount: r2(totalCatalog * (ecartPct / 100)), client: false };
+    }
+    // Versée au client, elle rejoint la réduction catalogue (récap, PDF, lien client la montrent d'eux-
+    // mêmes) mais AUCUNE commission ne la paie : elle est prise sur la marge que personne ne prend.
+    // Plafonnée à ce qui reste du catalogue après la réduction tapée.
+    const partLibreClient = (remise.applicable && input.sellers && input.sellers.part_libre === 'client')
+      ? Math.min(remise.amount, Math.max(0, totalCatalog - remiseCatalogueAmount)) : 0;
+    remise.client = partLibreClient > 0;
+    const totalCatalogNet = r2(totalCatalog - remiseCatalogueAmount - partLibreClient);
     let nicolasGross = totalCatalog * (sp.nicolas_pct / 100);
     let yannickGross = totalCatalog * (sp.yannick_pct / 100);
     if (remiseCatalogueAmount > 0) {
@@ -112,16 +136,6 @@
     }
     const nicolasNet = nicolasGross / netDivisor;
     const yannickNet = yannickGross / netDivisor;
-
-    // ── Remise indicative (mode "autre" si commissions < 23%) ──
-    let remise = { applicable: false, pct: 0, amount: 0 };
-    if (sp.principal === 'autre') {
-      const sumPct = sp.nicolas_pct + sp.yannick_pct;
-      if (sumPct < 23) {
-        const pct = 23 - sumPct;
-        remise = { applicable: true, pct: r2(pct), amount: r2(totalCatalog * (pct / 100)) };
-      }
-    }
 
     // ── Installation ──
     const installGross = num(inst.install_gross);
@@ -167,12 +181,15 @@
     const totalTVA = totalHT * (tvaPct / 100);
     const totalTTC = totalHT + totalTVA;
     const acompteMontant = totalTTC * (acomptePct / 100);
-    const totalRemises = r2(remiseCatalogueAmount + remiseInstallationAmount + remiseOutillageAmount);
+    const totalRemises = r2(remiseCatalogueAmount + partLibreClient + remiseInstallationAmount + remiseOutillageAmount);
 
     return {
       total_catalog_ht: r2(totalCatalogNet),
       total_catalog_ht_brut: r2(totalCatalog),
-      remise_catalogue: { mode: (input.remise_catalogue && input.remise_catalogue.mode) || 'eur', value: num(input.remise_catalogue && input.remise_catalogue.value), amount: r2(remiseCatalogueAmount) },
+      // `amount` = TOUT ce que le client voit en « Remise commerciale » sur le catalogue (c'est lui que lisent
+      // le PDF, le lien client et la facturation) ; `part_libre` = la part de ce montant qu'aucune commission
+      // ne paie (règle 64). `value` / `mode` restent la saisie, et elle seule : c'est ce que le simulateur relit.
+      remise_catalogue: { mode: (input.remise_catalogue && input.remise_catalogue.mode) || 'eur', value: num(input.remise_catalogue && input.remise_catalogue.value), amount: r2(remiseCatalogueAmount + partLibreClient), part_libre: r2(partLibreClient) },
       remise_installation: { mode: (input.remise_installation && input.remise_installation.mode) || 'eur', value: num(input.remise_installation && input.remise_installation.value), amount: r2(remiseInstallationAmount) },
       remise_outillage: { mode: (input.remise_outillage && input.remise_outillage.mode) || 'eur', value: num(input.remise_outillage && input.remise_outillage.value), amount: r2(remiseOutillageAmount) },
       total_remises: totalRemises,
@@ -185,6 +202,9 @@
       nicolas_gross: r2(nicolasGross), nicolas_net: r2(nicolasNet),
       yannick_gross: r2(yannickGross), yannick_net: r2(yannickNet),
       remise: remise,
+      // Le partage de la marge matériel, pour que l'écran le DISE : ce qui reste libre (> 0) ou ce que
+      // les commissions prennent au-delà de la marge (< 0, la société paie la différence).
+      partage: { marge_pct: margePct, somme_pct: sommePct, ecart_pct: ecartPct, ecart_montant: r2(totalCatalog * (ecartPct / 100)) },
       install_total: r2(installTotal),
       install_total_brut: r2(installTotalRaw),
       tech1_total: r2(tech1Total), tech2_total: r2(tech2Total),
@@ -255,9 +275,68 @@
     }, 0);
   }
 
+  /* ── LA REMISE PROJET HAROL (règle 64) ────────────────────────────────────────────────────────
+     Harol accorde habituellement −23 % (c'est `supplier_rate`, 0,77) ; au-delà d'une dizaine d'unités, il
+     consent sur le dossier une REMISE PROJET en cascade, variable selon le volume (un chantier de 33
+     screens : −23 % −46 %, soit un achat de 0,77 × 0,54 = 41,58 % du catalogue). L'ERP l'ignorait : la
+     marge affichée était 5 290,53 € pour 13 437,95 € réels.
+     ⚠️ ELLE NE TOUCHE NI LE PRIX CLIENT NI LES COMMISSIONS. `computeDevis` ne la lit donc PAS : elle vit
+     dans `pricing_v2.remise_projet_pct` (figée avec le devis) et se DÉDUIT ici, à la lecture. Pas dans
+     `calculs` : la fiche devis recalcule `calculs` quand on change de vendeur, et une clé que son recalcul
+     ne connaît pas y serait perdue au premier clic. Un partage éventuel du gain est une décision de
+     Nicolas et Yannick, non prise : l'ERP n'en invente aucune (règle 30 quinquies).
+     ⚠️ ABSENTE N'EST PAS ZÉRO : vide = « pas encore demandée » (le rappel reste), 0 = « demandée, aucune ». */
+  function remiseProjetValide(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = parseFloat(String(v).replace(',', '.'));
+    return (isFinite(n) && n >= 0 && n <= 100) ? n : null;
+  }
+
+  /**
+   * LA CASCADE DE LA MARGE MATÉRIEL d'un devis déjà calculé : du prix catalogue à ce qui reste à la société.
+   * Explique des montants DÉJÀ écrits (`calculs`), ne recalcule aucun prix. Retombe au centime :
+   *   catalogue − achat réel − commissions brutes − réduction client = reste à la société.
+   * (La réduction tapée apparaît deux fois, et c'est juste : le client paie moins, et le vendeur la compense
+   *  sur sa commission, déjà diminuée d'autant dans `*_gross`.)
+   * @param c             `calculs` du devis
+   * @param remisePct     `pricing_v2.remise_projet_pct` (vide = pas demandée)
+   * @param supplierRate  taux FIGÉ du devis, seulement pour un vieux devis sans `supplier_estimate`
+   */
+  function margeReelle(c, remisePct, supplierRate) {
+    c = c || {};
+    const rc = c.remise_catalogue || {};
+    const catalogue = r2(c.total_catalog_ht_brut != null ? num(c.total_catalog_ht_brut) : num(c.total_catalog_ht) + num(rc.amount));
+    const estime = (c.supplier_estimate != null && c.supplier_estimate !== '')
+      ? r2(num(c.supplier_estimate)) : r2(catalogue * tauxValide(supplierRate, SUPPLIER_RATE, true));
+    const pct = remiseProjetValide(remisePct);
+    const reel = r2(estime * (1 - (pct || 0) / 100));
+    const nb = r2(num(c.nicolas_gross)), yb = r2(num(c.yannick_gross)), reduction = r2(num(rc.amount));
+    return {
+      catalogue: catalogue, achat_estime: estime, remise_projet_pct: pct, gain_projet: r2(estime - reel), achat_reel: reel,
+      marge_estimee: r2(catalogue - estime), marge_reelle: r2(catalogue - reel),
+      nicolas_brut: nb, yannick_brut: yb, reduction_client: reduction, part_libre: r2(num(rc.part_libre)),
+      reste_societe: r2(catalogue - reel - nb - yb - reduction),
+    };
+  }
+  /** La même, lue sur un devis entier (ses `calculs`, sa remise projet, son taux figé). */
+  function margeReelleDevis(d) {
+    const p = (d && d.pricing_v2) || {};
+    return margeReelle(d && d.calculs, p.remise_projet_pct, p.rates && p.rates.supplier_rate);
+  }
+  /** Faut-il rappeler de demander la remise projet ? Assez d'ouvertures CHIFFRÉES et rien de noté (même 0
+   *  vaut réponse). Le seuil vient des réglages (`prix.remise_projet_seuil`, défaut dans config.js) ; un
+   *  seuil illisible ne rappelle rien plutôt que de rappeler sur tout. */
+  function rappelRemiseProjet(nbOuvertures, remisePct, seuil) {
+    const s = parseFloat(seuil);
+    if (!isFinite(s) || s < 1) return false;
+    return num(nbOuvertures) >= s && remiseProjetValide(remisePct) === null;
+  }
+
   window.SSCalc = {
     computeDevis: computeDevis, totalSurface: totalSurface, resolveSellerPcts: resolveSellerPcts,
     ouverturesReelles: ouverturesReelles,
+    remiseProjetValide: remiseProjetValide, margeReelle: margeReelle, margeReelleDevis: margeReelleDevis,
+    rappelRemiseProjet: rappelRemiseProjet,
     SUPPLIER_RATE: SUPPLIER_RATE, MATERIAL_MARGIN: MATERIAL_MARGIN, NET_DIVISOR: NET_DIVISOR,
   };
 })();

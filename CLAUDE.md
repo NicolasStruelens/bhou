@@ -65,49 +65,49 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 
 | Fichier | Rôle |
 |---|---|
-| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 62 tests. |
+| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 119 tests (dont la part libre, le partage et la remise projet, règle 64). |
 | `assets/js/api.js` | Client API, cache local, file d'envoi hors-ligne (`window.SS`) |
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
-| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 123 tests (`window.SSPlanning`) |
+| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 126 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 105 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 62 tests du moteur de prix. À ouvrir dans un navigateur. |
-| `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). **Par le serveur de test.** |
+| `tests/calc.test.html` | Les 119 tests du moteur de prix (règle 64 : part libre figée, partage, remise projet, rappel ; vérifiés par mutations). À ouvrir dans un navigateur. |
+| `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). Sur téléphone, l'ENCOCHE d'un iPhone est simulée (59 px en haut, 34 en bas, règle 61) : « sous l'encoche », « sous la barre de gestes ». **Par le serveur de test.** |
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 38 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 57 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
+| `tests/documents.test.html` | Les 41 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 60 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 47 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom et à couverture avec logo, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
 | `tests/suivi.test.html` | Les 64 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations. **Par le serveur de test.** |
-| `tests/planning-page.test.html` | Les 59 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
+| `tests/planning-page.test.html` | Les 59 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV.  ⚠️ Ses dates partent du lundi PROCHAIN : un cas qui exigeait l'icône météo sur les trois dates proposées ne passait que le week-end (les deux dernières tombaient au-delà des 15 jours de prévision un mercredi) — C1b l'exige dans l'horizon et l'interdit au-delà (audit du 11/11/2026). Un test qui calcule ses dates doit tenir n'importe quel jour de la semaine. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
 | `tests/themes.test.html` | Les 77 tests des thèmes : contraste, séparabilité, et le défaut de société (appareil → société → système, mesuré sur un vrai chargement). **Obligatoire avant de publier un thème.** |
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
 | `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 158 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 158 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
 | `tests/plan.test.html` | Les 37 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px, et au portable en trois colonnes compactes (1 260, 1 472, 1 520 px : la façade y tient, règle 66) — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `tests/saisie.test.html` | Les 56 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/saisie.test.html` | Les 68 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone ; et les MARGES de la règle 64 : cascade, part libre figée, remise projet et son rappel, Tech 1 / Tech 2, rien qui sorte vers le client, téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 64 tests du signal, dont les champs vides que les autres ouvertures ont remplis (règle 60), et la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 62 tests des règles pures des notes de frais. |
 | `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/stats.js` | **L'activité de la page Statistiques** (règle 51) : période et comparaison à l'an passé, ce qu'est une vente (un bon d'intervention n'en est pas une), chiffres de la période, ventes par vendeur, ce qu'on vend, entonnoir et délais, sources, ce qui se perd, graphes, clients, villes. Fonctions pures (`window.SSStats`) ; la paie reste dans `remuneration.js`. |
-| `tests/stats.test.html` | Les 37 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/stats.test.html` | Les 39 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/echanges.js` | **La page Échanges** (règle 52) : recherche sans accents, ce qu'une carte repliée dit, quand « Lui rappeler », ce qu'on peut supprimer, le registre des décisions, les dossiers d'un client, les nombres des onglets. Fonctions pures (`window.SSEchanges`) ; « qui doit agir » reste dans `attente.js`. |
 | `tests/echanges.test.html` | Les 33 tests des Échanges : règles pures, les ROUTES (la balle qui ne revient pas chez celui qui a répondu, le conflit entre deux écrans, la suppression gardée, le rappel), la vraie page remplie par le bac à sable et cliquée (onglets, écriture en une ligne, dossier du client, cartes repliées, brouillon gardé, conflit dit dans la carte, réponse sur place, rappel, registre des décisions, recherche), le téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/parametres.js` | **La page Paramètres** (règle 53) : ce qui a changé (et la valeur qu'on avait sous les yeux), le contrôle d'une valeur saisie, comment se lit une valeur (avec son unité), ce qu'un réglage change sur un cas concret (devis type par `calc.js`). Fonctions pures (`window.SSParam`) ; les valeurs par défaut restent dans `config.js`. |
@@ -115,8 +115,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/rdv.test.html` | Les 40 tests des Demandes de RDV : règles pures, les ROUTES (conflit entre deux écrans, messages, balle et contacts protégés, champ inconnu gardé, contacts signés, retirés par leur seul auteur), la vraie page remplie par le bac à sable et cliquée (« À traiter » et visites proches, colonnes par urgence, « Je prends », glisser-déposer gardé, la fiche dans l'ordre et sa couleur, rappel de la veille noté, message retouché, conflit dans la fiche, « Converti » sans devis refusé, devis lié, doublons, photo, recherche, suppression refusée, « Créer le devis » depuis la carte), le téléphone et la tablette (onglets d'étape, fiche plein écran, vue Liste, tactile) et « retour ». Vérifié par 34 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/terrain.js` | **Le Mode Terrain** (règle 55) : retrouver un client (sans accents, téléphone d'un bloc) et ses doublons, les saisies gardées PAR visite, des identifiants d'ouverture uniques, les mesures qui sortent de l'ordinaire, ce qui manque (pour y aller), les visites du jour et le devis lié à une demande, ce qu'un devis existant permet ici (un devis chiffré ne se réécrit pas d'ici). Fonctions pures (`window.SSTerrain`). |
 | `tests/terrain.test.html` | Les 34 tests du Mode Terrain (dont « + » qui reprend la configuration précédente et le néon des vides, règle 60) : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/nav.test.html` | Les 101 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, la marque du bac à sable (règle 46), et l'app installable (règle 63 : chaque page demande son manifeste avec les cookies, l'appareil et ses étapes). **Par le serveur de test.** |
+| `tests/parametres.test.html` | Les 38 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/nav.test.html` | Les 120 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, la marque du bac à sable (règle 46), l'app installable (règle 63 : chaque page demande son manifeste avec les cookies, l'appareil et ses étapes), et l'ENCOCHE de l'iPhone simulée par les jetons `--encoche-*` (règle 61, série E) : rien du haut des pages sous l'heure, le volet du menu toujours dans l'écran (bouton à gauche, écran qui rétrécit), les fenêtres plein écran (RDV, Soli, catalogue, visionneuse, fenêtres des Notes de frais, de l'Outillage et de la Facturation), la recherche Ctrl K qui se ferme par un bouton. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
 | `tests/bac-a-sable.test.html` | Les 34 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, notes de frais, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
@@ -132,7 +132,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
-| `tests/clients.test.html` | Les 61 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
+| `tests/clients.test.html` | Les 62 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 | `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
@@ -1268,6 +1268,15 @@ est une liste blanche (une clé absente des DEFAUTS ne peut pas être enregistr�
 deux : c'est lui qui les empêche de diverger.
 ⚠️ Toute page qui affiche de la rémunération charge `ui.js` et `planning.js` **avant**
 `remuneration.js`.
+
+⚠️ **UNE NOTE DE CRÉDIT N'EST PAS UN REMBOURSEMENT** (`SSRemu.encaisseDe`, `avoirsDe` — 11/11/2026, audit du bac à sable, corrigé
+sur l'accord de Nicolas). « Couvert » retirait chaque note de crédit de l'argent REÇU, puis divisait par le TVAC BRUT du devis : la
+note comptait deux fois. Un dossier soldé avec une note de crédit de 100 € restait à 97 % — 12,80 € « en attente du client » pour
+toujours ; celui du scénario (acompte payé, 100 € de note sur le solde impayé) sortait à 49 % au lieu de 51 %. Désormais : par
+facture, l'argent reçu sans dépasser ce qu'elle doit après SES notes de crédit (`avoir_de`) — ce qui dépasse a été rendu —, et la part
+se lit sur ce que le client paiera EN TOUT (TVAC − notes de crédit, `total_du`). Une note de crédit dont la facture d'origine est
+introuvable garde l'ancienne règle. Le total gagné, lui, ne bouge pas (règle 30 quinquies) : seuls « couvert » et « en attente
+client » changent, et seulement sur les dossiers qui ont une note de crédit.
 
 **30 sexies. Un « ce qu'on me doit » sans registre de VERSEMENTS ne fait que monter.**
 Table `prelevements` (`/api/prelevements`), une ligne par versement réellement reçu. Sans elle, le
@@ -3326,6 +3335,59 @@ au max et au plus logique et parlant ».) Code : `assets/js/plan-ouvertures.js` 
   TACTILE, la règle `(pointer: coarse)` des liens (32 px), écrite plus bas avec le même poids, l'emportait. Seule la suite jouée en
   tactile l'a vu (test V15) — d'où `.pl-lien.pl-retour` (deux classes).
 
+**61. SUR IPHONE, RIEN DE TOUCHABLE SOUS L'HEURE NI SUR LA BARRE DE GESTES, ET LE MENU TOUJOURS DANS L'ÉCRAN**
+(11/11/2026 — Nicolas, sur son iPhone, app lancée depuis l'écran d'accueil, sur la liste de pose : « je me suis retrouvé bloqué sur une
+page, le menu est hors champ et je vois pas le haut de la page pour revenir au dashboard »). Protégé par `tests/nav.test.html` (série E)
+et par les deux audits, qui simulent désormais l'encoche (règle 56).
+• **LES DEUX CAUSES, mesurées, pas devinées** (Chrome sans écran, iPhone 393 × 852, tactile, encoche simulée par
+  `Emulation.setSafeAreaInsetsOverride`, vraie page en plein écran branchée sur le banc) :
+  1. **La barre des documents ignorait l'encoche.** Lancée depuis l'icône (`viewport-fit=cover`, barre d'état `black-translucent`), la page
+     passe SOUS l'heure et la batterie (59 px sur un iPhone 15). `.app-header` s'en écartait depuis août ; `.toolbar` (document.css : devis,
+     facture, liste de pose, PV, rapport de visite) non — « Dashboard » et « Fiche du devis » étaient à 12 px du haut, sous l'heure. Toucher
+     l'heure fait remonter la page, pas cliquer dessous : intouchables. Et une app de l'écran d'accueil n'a pas de bouton « retour ».
+  2. **Le volet du menu s'ouvrait hors de l'écran.** `.ssnav-menu` est aligné sur le BORD DROIT de son bouton (`right: 0`) — juste quand le
+     bouton est à droite, comme dans le bandeau. Dans la barre des documents, sur téléphone, la rangée passe à la ligne ; avec le badge
+     « Nicolas » (posé seulement derrière Cloudflare Access, jamais en local — d'où l'audit qui ne l'avait pas vu), le bouton tombait AU
+     DÉBUT de la deuxième rangée : le volet de 200 px partait à gauche de l'écran. Ce qui sort à gauche d'une page ne se rattrape jamais.
+  Les champs « agrandis » de la capture sont les 16 px tactiles (règle anti-zoom, PR #122) : voulus. Le tableau « plus large que l'écran »
+  ne l'était pas (feuille réduite à 0,475) : le volet ouvert en cachait la colonne de gauche.
+• **LES JETONS `--encoche-haut|bas|gauche|droite`** (tokens.css) valent `env(safe-area-inset-*, 0px)`. ⚠️ **TOUTE barre collée en haut ou
+  en bas de l'écran, toute fenêtre plein écran s'en écarte par eux, JAMAIS par `env()` écrit à la main** : un cadre de test n'a pas
+  d'encoche, et c'est en surchargeant ces jetons que les suites et les audits en simulent une (`env()` en dur ne se simule pas — test E0b).
+  Les onze `env(safe-area…)` existants y sont passés (mêmes valeurs).
+• **LE VOLET SE POSE À L'OUVERTURE** (`placerMenu`, nav.js) : aligné sur son bouton tant qu'il tient — le bureau garde EXACTEMENT son menu
+  (test E7) —, décalé juste assez sinon, à 8 px du bord et de l'encoche, sa hauteur arrêtée au bas visible au-dessus de la barre de gestes
+  (il défile au-delà) ; recadré au redimensionnement (clavier, rotation). Sa hauteur supposait un bandeau de 64 px : sous l'encoche ou une
+  barre sur trois rangées, ses dernières entrées passaient sous le bord, sur TOUTES les pages (25 px mesurés au tableau de bord).
+• **SUR TÉLÉPHONE, LA BARRE DES DOCUMENTS RANGE LE THÈME ET LE BADGE DANS LE MENU**, comme le bandeau des autres pages (ils y sont déjà,
+  « Thème sombre » et « Connecté : Nicolas ») : trois rangées → deux, et le bouton du menu reste sur la première.
+• **LES FENÊTRES PLEIN ÉCRAN DU TÉLÉPHONE**, trouvées par le robot des clics sous encoche simulée : la fiche d'une demande de RDV
+  (« ✕ » sous l'heure, pied sur la barre de gestes), Soli (« Nouvelle », « Fermer »), le nuancier et le catalogue d'accessoires
+  (« Fermer »), la visionneuse photo (« ✕ ») ; et, joué en émulation TACTILE, les fenêtres des Notes de frais, de l'Outillage et de
+  la Facturation (tête à 24 px du haut, « ✕ » à moitié sous l'heure). Le fond continue sous l'encoche ; les commandes s'en écartent.
+  La recherche (Ctrl K) affichait « Échap » — une touche qu'un clavier de téléphone n'a pas — et ne se fermait qu'en touchant à
+  côté : c'est un bouton, « Fermer » sur écran tactile. La fiche client : un nom ou une étiquette d'un seul tenant sortait de
+  l'écran (blocs flex à `min-width: auto`, test T8b) — trouvé seulement quand le contrôle « coupé au bord » a recommencé à parler.
+• ⚠️ **TROIS PIÈGES DE MESURE** : (1) un cadre n'a pas d'encoche — `env()` y vaut 0 même sous `setSafeAreaInsetsOverride` : la vraie mesure
+  se fait sur une page chargée EN PLEIN ÉCRAN (le banc dans un onglet relais, les requêtes `/api/*` de l'onglet mesuré passées par
+  `BroadcastChannel`) ; (2) une encoche simulée APRÈS le chargement trompe : nav.js a déjà mesuré le bandeau et un cadre hors écran ne
+  prévient pas son `ResizeObserver` — 54 faux « sous le bandeau » ; l'audit la pose dans le HTML, avant le premier script ; (3) le
+  `overflow-x: hidden` du `<body>` est celui de la FENÊTRE : compté comme une « boîte qui rogne », il rendait muet le contrôle « coupé au
+  bord » (depuis le 01/11) — il ne compte plus, et le bord GAUCHE est contrôlé aussi ; (4) un élément qu'un ancêtre peut encore faire
+  défiler loin du bord (le pied d'une fenêtre plus haute que l'écran) n'est pas « posé » sur l'encoche ni sur la barre de gestes ;
+  (5) le robot des clics se joue AUSSI dans un onglet en émulation tactile : la moitié des relevés de cette règle n'existaient qu'en
+  `pointer: coarse` (boutons de 44 px qui allongent les fenêtres).
+
+**62. LA QUANTITÉ D'UN POSTE : ZÉRO N'EST PAS « ABSENT », À L'AFFICHAGE NON PLUS** (`SSUI.qtePoste`, 11/11/2026 — trouvé au geste
+pendant l'audit du bac à sable). Un dépannage SOUS GARANTIE — main-d'œuvre offerte, 0 h — enregistré à 47,70 € TVAC se rouvrait au
+simulateur à **1 h et 106,00 €**, sans se dire modifié : le premier enregistrement aurait réécrit le bon d'intervention. Et le lien du
+client imprimait « Main-d'œuvre · 1 · 55,00 € · 0,00 € » sous l'exemplaire de l'ERP qui disait « 0 » (règle 7). L'audit du 28/10 avait
+corrigé `calc.js` et la COLLECTE du simulateur ; `qty || 1` restait là où le poste est REDESSINÉ (simulateur), RENVOYÉ (serveur, deux
+fois : `/api/devis-review`), ou AFFICHÉ (fiche, liste de pose, page du lien). Une seule règle désormais : absente ou illisible → 1, zéro
+→ 0, jamais un négatif (`SSUI.qtePoste` ; `qtePoste` dans `[[catchall]].js`, qui ne charge pas ui.js). Et un champ qui relit 0 accepte 0
+(`min 0`) : à `min 1`, ses flèches le remontaient à 1. ⚠️ Pour les OUVERTURES, `quantite || 1` reste la règle de la ligne du devis
+(`calc.js`, règle 31 septies) : ne pas « corriger » celles-là en croyant bien faire. Tests P11f, P11g (`fiche`), D3, D3b (`documents`).
+
 **63. L'APP SUR LE TÉLÉPHONE : LE MANIFESTE SE DEMANDE AVEC LES COOKIES, ET UN BOUTON L'INSTALLE**
 (11/11/2026 — Yannick voulait l'app : « quand il l'enregistre il ne sait pas l'installer, il reste les liens et c'est moche »).
 Le niveau 1 de la PWA (icône, plein écran) existait depuis juillet — manifeste, icônes, `display: standalone`, trois raccourcis — et
@@ -3352,6 +3414,62 @@ et 112 (ordinateur), l'installation par le MENU n'en demande plus. Le niveau 2 (
 • **Le bouton se cache dès que l'ERP tourne en app** (`display-mode: standalone`, ou `navigator.standalone` sur iPhone) : c'est la
   seule façon de savoir que c'est fait. Sur iPhone, l'app installée a ses propres cookies et sa propre mémoire, séparés de Safari : on
   s'y connecte une fois, et ce qui attend d'être envoyé dans Safari n'y apparaît pas (la note du guide iPhone le dit).
+
+**64. MARGES & COMMISSIONS : UNE CASCADE QUI RETOMBE AU CENTIME, LA PART LIBRE QUI DEVIENT UNE VRAIE REMISE, LA REMISE PROJET
+HAROL, ET TECH 1 / TECH 2 PRÉVUS — JAMAIS « QUI A POSÉ »** (11/11/2026, après la réunion avec Yannick ; Nicolas : « c'est pas waw le
+menu déroulant et comment il présente la répartition », « quand on met pas juste la moitié et que ça passe à une réduction pour le
+client il n'est pas noté dans le pdf ? », « il faut dans installation identifier Tech 1 Nico et Tech 2 Yan ». Variante B « La cascade »
+avec le sélecteur à boutons de A, règle R1 et techniciens T-A, choisis sur maquette). Moteur : `calc.js` ; tests : `calc`,
+`remuneration`, `stats`, `saisie`, `parametres`, `planning`, `fiche`.
+• **La cascade** (`#secMarges` du simulateur, `renderMarges`) : trois boutons « Nicolas / Yannick / Sur mesure » au lieu du menu
+  déroulant — le choix vit dans le champ CACHÉ `sellerPrincipal`, que tout relisait déjà —, « Moitié-moitié » (la moitié de la marge du
+  devis chacun : 11,5 / 11,5), puis le prix catalogue qui DESCEND ligne par ligne : − achat Harol estimé, + remise projet, = marge
+  réelle, − Nicolas (brut, net, sa part de la réduction), − Yannick, − réduction client, = **reste à la société**. Elle retombe au
+  centime (règle 30 octies) : la réduction TAPÉE y apparaît deux fois, et c'est juste — le client paie moins ET le vendeur la compense
+  sur sa commission, déjà diminuée d'autant. Les parts des boutons sont celles du devis (`seller_parts`), plus un « 18 % / 5 % » écrit
+  dans la page ; un pourcentage s'écrit « 11,5 % » (« 11.5% » sortait tel quel).
+• ⚠️ **LA PART LIBRE EST UNE VRAIE REMISE CLIENT (R1).** En répartition personnalisée, ce que les deux % ne prennent pas de la marge
+  (`calculs.remise`) était seulement ANNONCÉ — « Marge restante pour remise client : 300 € » — et n'entrait dans AUCUN total : ni
+  récap, ni PDF, ni lien client. Il restait de fait à la société. Pire, une réduction tapée ensuite était payée DEUX fois : retirée des
+  commissions pendant que les 300 € libres restaient libres. La part libre rejoint désormais `remise_catalogue.amount` — que lisent
+  déjà le récap, le PDF, le lien client et la facturation, sans que ces pages aient bougé — et `remise_catalogue.part_libre` dit la
+  part de ce montant qu'AUCUNE commission ne paie. `value` / `mode` restent la saisie seule : c'est ce que le simulateur relit.
+  ⚠️ **RÈGLE 1 : elle est FIGÉE avec le devis** (`pricing_v2.material.sellers.part_libre === 'client'`). Un devis neuf la porte ; un
+  devis enregistré AVANT ne la porte pas, et son prix ne bouge pas à la réouverture (« ils restent à la société — Les offrir au client »).
+  Toucher à sa répartition au simulateur la pose : une répartition décidée aujourd'hui suit la règle d'aujourd'hui. Elle voyage dans
+  `sellers`, donc le recalcul de la fiche (changement de vendeur) la garde sans rien savoir d'elle. En vendeur fixe (parts de
+  Paramètres), un écart éventuel reste à la société, comme Paramètres l'annonce.
+  ⚠️ La marge vient du taux FIGÉ du devis (`materialMargin`), plus d'un `23` écrit dans le moteur, et ARRONDIE : en virgule
+  flottante 0,29 × 100 vaut 28,999999999999996 (0,23 tombe juste, 0,28 et 0,57 non). L'écart, lui aussi arrondi, fait qu'une
+  répartition pile sur la marge ne laisse jamais une « part libre » de 4e-15 (tests P4, P4b).
+• **Des commissions au-delà de la marge se DISENT** (`calculs.partage.ecart_pct < 0` : « la société paie la différence ») — 15 % + 15 %
+  passait sans un mot. ⚠️ Le dépassement se lit sur le PARTAGE, jamais sur le signe du reste : 11,5 % + 11,5 % arrondis chacun au
+  centime laissent −0,01 € sur 23 002,32 €, et l'écran criait au dépassement pour un arrondi (il dit « arrondi au centime »).
+• **La remise projet Harol** (`pricing_v2.remise_projet_pct`, en %, en cascade après les −23 % habituels de `supplier_rate`) : au-delà
+  d'une dizaine d'unités, Harol consent une remise sur le dossier, variable (un chantier de 33 screens : −23 % −46 %, achat 0,77 × 0,54). Achat
+  réel = achat estimé × (1 − %), marge réelle = catalogue − achat réel : `SSCalc.margeReelle(calculs, %, taux)` et `margeReelleDevis(d)`.
+  ⚠️ **`computeDevis` NE LA LIT PAS** : elle ne change ni le prix client ni les commissions, et elle ne vit pas dans `calculs`, que la
+  fiche recalcule en changeant de vendeur (une clé que son recalcul ignore y serait perdue au premier clic). ⚠️ **ABSENTE N'EST PAS
+  ZÉRO** (`remiseProjetValide`) : vide = pas encore demandée (le rappel reste), 0 = demandée, aucune. Le gain reste à la société,
+  affiché « partage non décidé » : l'ERP n'invente aucune règle de partage (règle 30 quinquies). Le simulateur rappelle de la demander
+  à partir de `prix.remise_projet_seuil` ouvertures CHIFFRÉES (Paramètres, défaut 10 — dans DEFAUTS, parce que `fusionner` est une
+  liste blanche) ; c'est un rappel, pas un taux : il n'est pas figé. ⚠️ **Elle ne sort JAMAIS** vers `devis-review`, `track` ou un PDF :
+  le serveur ne passe au client que sa liste blanche (`documentData`, `suiviPublic`), qui ne la connaît pas — ne pas l'y ajouter.
+  Elle se lit dans la carte « Interne » de la fiche (achat réel, marge réelle, ou « à demander ») et dans les Statistiques.
+• **Statistiques** : une tuile « Marge matériel réelle » (devis signés de la période, `SSStats.chiffres().marge` : estimée, réelle, gain
+  de la remise projet, devis sans chiffrage comptés à part), sur sa propre rangée — une cinquième tuile restait seule.
+• **Le détail de ta commission dans Statistiques retombe sur le brut** (`SSRemu.detailCommission.remise`) : il prenait TOUTE la
+  réduction catalogue, même quand Yannick vend (« 5 % de 10 000 €, moins 200 € de réduction, 500 € bruts »), même au prorata, même la
+  part libre. Il LIT désormais la part que porte la commission de Nicolas dans ce que le moteur a écrit (taux × assiette − brut) : pas
+  de seconde copie de la règle. Un vieux devis sans taux ni assiette brute garde l'ancienne lecture.
+• **Tech 1 / Tech 2 : qui le devis PRÉVOIT** (`pricing_v2.techs` : `tech1` / `tech2` = `nicolas` | `yannick` | `autre`, `tech1_nom`…),
+  par défaut Nicolas et Yannick, nommés sur les lignes de l'installation. Traduit dans le vocabulaire du chantier par
+  `SSPlanning.equipeDeTechs` (mots : `EQUIPE_LIBELLES`, règle 10 ; sans lignes nommées : '' — jamais « Nicolas » par défaut).
+  ⚠️ **CE N'EST PAS « QUI A POSÉ »** (règle 30 ter) : la fiche PROPOSE « Prévu au devis : Nicolas + Yannick — Reprendre » quand
+  `chantier.equipe` est vide, et seul le clic l'enregistre. Remplie d'office, l'équipe ne serait plus jamais « à renseigner » et la paie
+  partirait sur une prévision. Le simulateur montre l'équipe enregistrée à côté quand elle diffère, sans jamais l'écrire. La paie de
+  pose ne lit JAMAIS ces lignes (règle 30 bis). `pricing_v2.techs` et non `pricing_v2.installation.techs` : le Mode Terrain réécrit
+  `installation` en entier (il n'étale que `pricing_v2`).
 
 **66. LA FICHE DEVIS GARDE SON SOMMAIRE SUR LE PORTABLE, ET LES AUTRES DEVIS DU CLIENT SONT À UN CLIC**
 (11/11/2026 — Nicolas, captures à l'appui : « à gauche c'est sur mon écran de pc portable et à droite sur un plus grand écran, c'est
@@ -3677,7 +3795,7 @@ Protégé par `tests/fiche.test.html` (D1-D7, L1-L4, T1-T8), `tests/plan.test.ht
 
 ## Comment vérifier son travail
 
-1. **Les 62 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
+1. **Les 119 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 62/62 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 123/123 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 59/59 », par le serveur. Pour `attente.js` :

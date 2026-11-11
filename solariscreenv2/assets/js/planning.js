@@ -160,6 +160,19 @@
     const e = String(equipe || 'nicolas');
     return EQUIPE_QUI[e] || [];
   }
+  /** Les mots de l'équipe, à un seul endroit (règle 10) : ceux du menu « Équipe » de la fiche devis. */
+  const EQUIPE_LIBELLES = { nicolas: 'Nicolas', yannick: 'Yannick', nicolas_yannick: 'Nicolas + Yannick', sous_traitant: 'Sous-traitant' };
+  /** L'équipe que le DEVIS PRÉVOIT sur ses lignes Tech 1 / Tech 2 (`pricing_v2.techs`, règle 64), traduite dans le
+   *  vocabulaire du chantier. Une PRÉVISION : elle ne remplit jamais `chantier.equipe` toute seule (règle 30 ter) — la
+   *  fiche la PROPOSE, et seul un clic l'enregistre. Sans lignes nommées : '' (rien à proposer, jamais « Nicolas » par
+   *  défaut : c'est le piège de `quiDeEquipe('')`). Deux personnes qui ne sont ni Nicolas ni Yannick : sous-traitant. */
+  function equipeDeTechs(techs) {
+    if (!techs || typeof techs !== 'object') return '';
+    const qui = [techs.tech1, techs.tech2].map(function (t) { return String(t || ''); }).filter(Boolean);
+    if (!qui.length) return '';
+    const n = qui.indexOf('nicolas') >= 0, y = qui.indexOf('yannick') >= 0;
+    return n && y ? 'nicolas_yannick' : (n ? 'nicolas' : (y ? 'yannick' : 'sous_traitant'));
+  }
 
   // ── Construction des événements ───────────────────────────────────────────────────────────────
   //
@@ -742,7 +755,7 @@
        renvoie [] dans les deux cas — ici, [] veut dire « Nicolas n'y était pas », donc une
        valeur inconnue lui ferait perdre sa paie en silence. Le vocabulaire reste ICI, à un
        seul endroit (règle 10) : la rémunération le LIT, elle n'en garde pas de copie. */
-    EQUIPE_QUI: EQUIPE_QUI,
+    EQUIPE_QUI: EQUIPE_QUI, EQUIPE_LIBELLES: EQUIPE_LIBELLES, equipeDeTechs: equipeDeTechs,
     quiDeEquipe: quiDeEquipe, quiDeTechniciens: quiDeTechniciens,
     aPlanifierDe: aPlanifierDe, aCommanderDe: aCommanderDe,
     construire: construire, trier: trier, occupation: occupation,

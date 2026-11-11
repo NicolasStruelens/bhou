@@ -250,8 +250,14 @@
         // « sec 9° » sur la date proposée pendant que la fiche disait « Bruine, 4° / 9° » (audit du 01/11/2026) :
         // la date montre l'icône du code météo, comme l'en-tête du jour, et la prévision complète en infobulle.
         const pills = [...prop.querySelectorAll('.pl-pill')];
-        check('C1b Une date proposée ne dit jamais « sec » : icône du temps annoncé, et la prévision en toutes lettres en infobulle',
-          [pills.some(p => /\bsec\b/.test(texte(p))), pills.every(p => !!p.querySelector('svg')), /prévision : Ensoleillé 6° \/ 13°/.test(pills[0].title)],
+        /* ⚠️ Les dates partent du lundi PROCHAIN (L) et la météo simulée, comme la vraie, s'arrête à 15 jours d'aujourd'hui :
+           un mercredi, J(12) et J(13) tombent à 17 et 18 jours, sans prévision — et la page a raison de ne pas y mettre
+           d'icône (« au-delà de seize jours la météo est inconnue »). Le cas exigeait une icône partout : il ne passait
+           que le week-end (trouvé à l'audit du 11/11/2026). L'icône est exigée dans l'horizon, et absente au-delà. */
+        const horizon = plus(aujIso, 15);
+        const datePill = (p) => (p.getAttribute('onclick').match(/(\d{4}-\d{2}-\d{2})/) || [])[1];
+        check('C1b Une date proposée ne dit jamais « sec » : icône du temps annoncé (dans l’horizon de la prévision, et rien au-delà), et la prévision en toutes lettres en infobulle',
+          [pills.some(p => /\bsec\b/.test(texte(p))), pills.every(p => !!p.querySelector('svg') === (datePill(p) <= horizon)), /prévision : Ensoleillé 6° \/ 13°/.test(pills[0].title)],
           [false, true, true]);
         E.confirmes = [];
         prop.querySelector('.pl-pill').click(); await attendre(200);

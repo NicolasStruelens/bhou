@@ -248,22 +248,56 @@
       pct: (c.nicolas_pct === undefined || c.nicolas_pct === null || c.nicolas_pct === '') ? null : num(c.nicolas_pct),
       principal: String(c.seller_principal || ''),
       brut: r2(c.nicolas_gross), net: r2(c.nicolas_net),
-      remise: r2(c.remise_catalogue && c.remise_catalogue.amount),
+      remise: remiseSurNicolas(c),
       diviseur: diviseurNet(devis),
       calculee: connue,
     };
   }
+  /** La part de la réduction catalogue que porte la commission de NICOLAS.
+   *  ⚠️ Elle valait TOUTE la réduction (11/11/2026) : quand Yannick vend, la réduction est sur SA commission,
+   *  et l'écran disait pourtant « 5 % de 10 000 €, moins 200 € de réduction, 500 € bruts » — un détail qui
+   *  ne retombait plus sur le brut (règle 30 octies) ; idem au prorata d'une répartition personnalisée, et
+   *  pour la PART LIBRE versée au client (règle 64), qu'aucune commission ne paie.
+   *  On ne recopie pas la règle du moteur : on la LIT dans ce qu'il a écrit — taux × assiette − brut. C'est
+   *  exact par construction, et c'est justement ce que le détail doit faire retomber. Un vieux devis sans
+   *  taux ou sans assiette brute garde l'ancienne lecture (la réduction entière), faute de mieux. */
+  function remiseSurNicolas(c) {
+    const rc = c.remise_catalogue || {};
+    const tapee = Math.max(0, r2(num(rc.amount) - num(rc.part_libre)));
+    if (!tapee) return 0;
+    const pctConnu = !(c.nicolas_pct === undefined || c.nicolas_pct === null || c.nicolas_pct === '');
+    if (!pctConnu || c.total_catalog_ht_brut === undefined || c.nicolas_gross === undefined) return tapee;
+    return Math.max(0, r2(num(c.total_catalog_ht_brut) * num(c.nicolas_pct) / 100 - num(c.nicolas_gross)));
+  }
 
-  /** Encaissé sur un dossier : les paiements reçus sur ses factures, moins les avoirs émis.
-   *  ⚠️ On ne lit PAS le total des factures — une facture émise n'est pas de l'argent reçu. */
+  /** Encaissé sur un dossier : l'argent REÇU sur ses factures, net de ce qui a été remboursé.
+   *  ⚠️ On ne lit PAS le total des factures — une facture émise n'est pas de l'argent reçu.
+   *  ⚠️ UNE NOTE DE CRÉDIT N'EST PAS UN REMBOURSEMENT (11/11/2026, validé par Nicolas : « corrige le couvert »). Posée sur une
+   *  facture IMPAYÉE, elle réduit ce que le client DOIT, pas ce qu'il a versé : la retirer de l'argent reçu la comptait deux
+   *  fois — un dossier soldé avec une note de crédit de 100 € restait à 97 % « couvert », 12,80 € « en attente du client »
+   *  pour toujours. Elle ne retire de l'argent que sur une facture payée au-delà de ce qu'elle doit encore : par facture,
+   *  on ne compte jamais plus que son total moins ses notes de crédit (`avoir_de`). Une note de crédit dont la facture
+   *  d'origine n'est pas retrouvée garde l'ancienne règle (déduite de l'argent reçu) : on ne sait pas ce qu'elle annule. */
   function encaisseDe(devisId, factures) {
-    let recu = 0, avoirs = 0;
-    (factures || []).forEach(function (f) {
-      if (!f || f.devis_id !== devisId) return;
-      if (f.type === 'avoir') { avoirs += Math.abs(num(f.total_ttc)); return; }
-      recu += ((f.paiements) || []).reduce(function (s, p) { return s + num(p.montant); }, 0);
+    const les = (factures || []).filter(function (f) { return f && f.devis_id === devisId; });
+    const ncSur = function (id) {
+      return les.reduce(function (s, a) { return s + (a.type === 'avoir' && a.avoir_de === id ? Math.abs(num(a.total_ttc)) : 0); }, 0);
+    };
+    let recu = 0, libres = 0;
+    les.forEach(function (f) {
+      if (f.type === 'avoir') {
+        if (!les.some(function (x) { return x.type !== 'avoir' && x.id === f.avoir_de; })) libres += Math.abs(num(f.total_ttc));
+        return;
+      }
+      const paye = ((f.paiements) || []).reduce(function (s, p) { return s + num(p.montant); }, 0);
+      const nc = ncSur(f.id);
+      recu += nc > 0 ? Math.min(paye, Math.max(0, num(f.total_ttc) - nc)) : paye;
     });
-    return r2(Math.max(0, recu - avoirs));
+    return r2(Math.max(0, recu - libres));
+  }
+  /** Les notes de crédit d'un dossier (en positif) : ce que le client ne devra jamais, déduit du total qu'il paiera. */
+  function avoirsDe(devisId, factures) {
+    return r2((factures || []).reduce(function (s, f) { return s + (f && f.devis_id === devisId && f.type === 'avoir' ? Math.abs(num(f.total_ttc)) : 0); }, 0));
   }
 
   /**
@@ -340,7 +374,11 @@
     // ── L'encaissement : une INFORMATION, jamais un plafond (règle 7) ──
     const totalTtc = r2(calc.total_ttc);
     const encaisse = actif ? encaisseDe(d.id, factures) : 0;
-    const part = totalTtc > 0 ? Math.min(1, Math.max(0, encaisse / totalTtc)) : 0;
+    // Ce que le client paiera EN TOUT : le devis, moins ses notes de crédit. La part se lit sur LUI (sur le devis brut, un
+    // dossier soldé avec une note de crédit ne pouvait jamais atteindre 100 %).
+    const avoirs = actif ? avoirsDe(d.id, factures) : 0;
+    const totalDu = r2(Math.max(0, totalTtc - avoirs));
+    const part = totalDu > 0 ? Math.min(1, Math.max(0, encaisse / totalDu)) : 0;
 
     return {
       id: d.id, statut: statut, actif: actif,
@@ -356,7 +394,7 @@
       commission_detail: comDetail,
       total: totalNicolas,
       yannick_commission_net: commission.yannick.net,
-      total_ttc: totalTtc, encaisse: encaisse, part: Math.round(part * 1000) / 1000,
+      total_ttc: totalTtc, avoirs: avoirs, total_du: totalDu, encaisse: encaisse, part: Math.round(part * 1000) / 1000,
       couvert: r2(totalNicolas * part),
       diviseur_net: diviseurNet(d),
       incomplet: incomplet,
@@ -452,7 +490,7 @@
     ouverturesParType: ouverturesParType,
     detailPose: detailPose,
     detailCommission: detailCommission,
-    encaisseDe: encaisseDe,
+    encaisseDe: encaisseDe, avoirsDe: avoirsDe,
     parDossier: parDossier,
     cumul: cumul,
   };

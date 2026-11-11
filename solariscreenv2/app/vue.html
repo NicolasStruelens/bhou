@@ -60,10 +60,10 @@
     .rail-nav { display: none; }
     /* Le bouton « Sommaire » flotte en bas à gauche et Soli en bas à droite : la fin de la fiche doit
        pouvoir remonter AU-DESSUS d'eux, sinon la dernière carte reste à moitié sous un bouton. */
-    .container.vue-layout { padding-bottom: calc(max(var(--sp-4), env(safe-area-inset-bottom)) + 72px); }
+    .container.vue-layout { padding-bottom: calc(max(var(--sp-4), var(--encoche-bas)) + 72px); }
     @media (min-width: 1260px) and (max-width: 1399px), (min-width: 1472px) {
-      .container.vue-layout { max-width: 1800px; padding-bottom: max(var(--sp-6), env(safe-area-inset-bottom));
-        padding-left: max(var(--sp-5), env(safe-area-inset-left)); padding-right: max(var(--sp-5), env(safe-area-inset-right)); }
+      .container.vue-layout { max-width: 1800px; padding-bottom: max(var(--sp-6), var(--encoche-bas));
+        padding-left: max(var(--sp-5), var(--encoche-gauche)); padding-right: max(var(--sp-5), var(--encoche-droite)); }
       .vue-layout { grid-template-columns: 180px minmax(0, 1fr) 316px; }
       .vue-rail {
         grid-column: auto;
@@ -93,7 +93,7 @@
     }
     @media (min-width: 1712px) {
       .container.vue-layout {
-        padding-left: max(var(--sp-6), env(safe-area-inset-left)); padding-right: max(var(--sp-6), env(safe-area-inset-right)); }
+        padding-left: max(var(--sp-6), var(--encoche-gauche)); padding-right: max(var(--sp-6), var(--encoche-droite)); }
       .vue-layout { grid-template-columns: 250px minmax(0, 1fr) 340px; }
       .vue-rail .ab-item { padding: 0.6rem 0.8rem; }
     }
@@ -136,7 +136,7 @@
        croix, en touchant à côté, par Échap et par « retour ». Fixe, jamais collant : `sticky` ne
        tient pas sur iPhone (base.css, le bandeau). */
     .som-fab { position: fixed; z-index: calc(var(--z-header) + 5);
-      left: max(var(--sp-4), env(safe-area-inset-left)); bottom: max(var(--sp-4), env(safe-area-inset-bottom));
+      left: max(var(--sp-4), var(--encoche-gauche)); bottom: max(var(--sp-4), var(--encoche-bas));
       display: inline-flex; align-items: center; gap: 0.5rem; height: 46px; padding: 0 1.05rem 0 0.85rem;
       border: 1px solid color-mix(in srgb, var(--on-accent) 25%, var(--accent)); border-radius: 23px;
       background: var(--accent); color: var(--on-accent); font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700;
@@ -157,7 +157,7 @@
     .som-fond[hidden] { display: none; }
     .som-feuille { width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column; min-height: 0;
       background: var(--surface); border: 1px solid var(--border-strong); border-bottom: 0; border-radius: 14px 14px 0 0;
-      box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.28); padding-bottom: env(safe-area-inset-bottom); }
+      box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.28); padding-bottom: var(--encoche-bas); }
     @supports (height: 1dvh) { .som-feuille { max-height: 86dvh; } }
     .som-poignee { flex: none; width: 42px; height: 5px; border-radius: 3px; background: var(--border-strong); margin: 8px auto 2px; }
     .som-tete { flex: none; display: flex; align-items: center; gap: var(--sp-3); padding: 0.35rem var(--sp-4) 0.7rem; border-bottom: 1px solid var(--border); }
@@ -1737,7 +1737,7 @@
           <div class="dep-bloc"><h5>${faitDep ? 'Travaux effectués' : 'Travaux proposés'}</h5>
             ${postes.length ? `<table class="dep-postes"><tbody>${postes.map(e => `<tr>
                 <td>${esc(e.label)}</td>
-                <td class="q">${(Number(e.qty) || 1) !== 1 ? fmtQte(e.qty) + ' × ' + fmtEur(e.unit_price_ht) : ''}</td>
+                <td class="q">${window.SSUI.qtePoste(e.qty) !== 1 ? fmtQte(window.SSUI.qtePoste(e.qty)) + ' × ' + fmtEur(e.unit_price_ht) : ''}</td>
                 <td class="v">${fmtEur(e.total_ht)}</td></tr>`).join('')}</tbody></table>`
               : '<p class="text-muted">Aucun poste chiffré.</p>'}
           </div>
@@ -1806,8 +1806,20 @@
         : '';
 
       // ── Interne ──
+      // Règle 64 : la remise projet Harol (`pricing_v2.remise_projet_pct`) donne l'achat et la marge RÉELS ; elle ne
+      // touche ni le prix client ni les commissions. Vide et assez d'ouvertures : on rappelle de la demander.
+      const mr = window.SSCalc.margeReelleDevis(d);
+      const nbOuvRp = window.SSCalc.ouverturesReelles(d.items || []);
+      const seuilRp = window.SSConf ? window.SSConf.get().prix.remise_projet_seuil : 10;
+      const ligneRp = mr.remise_projet_pct > 0
+        ? `<div class="h-line"><span class="k">Remise projet Harol −${esc(SSUI.fmtQte(mr.remise_projet_pct))} % · achat réel</span><span class="v">${fmtEur(mr.achat_reel)}</span></div>
+           <div class="h-line"><span class="k">Marge matériel réelle</span><span class="v" style="color:var(--ok);">${fmtEur(mr.marge_reelle)}</span></div>`
+        : (mr.remise_projet_pct === 0 ? `<div class="h-line"><span class="k">Remise projet Harol</span><span class="v">demandée, aucune</span></div>`
+        : (!depFiche && window.SSCalc.rappelRemiseProjet(nbOuvRp, null, seuilRp)
+          ? `<div class="h-line"><span class="k">Remise projet Harol</span><span class="v" style="color:var(--warn);">à demander (${nbOuvRp} ouvertures)</span></div>` : ''));
       el('interneHost').innerHTML = `
         <div class="h-line"><span class="k">Achat fournisseur estimé</span><span class="v">${fmtEur(c.supplier_estimate || 0)}</span></div>
+        ${ligneRp}
         ${/* Repli quand le devis n'a pas de marge enregistrée : le taux vient de calc.js, pas d'un
               23 % recopié ici — sinon une renégociation du taux laisserait cette ligne en arrière. */ ''}
         <div class="h-line"><span class="k">Marge matériel brute</span><span class="v">${fmtEur(c.total_material_gross || (c.total_catalog_ht || 0) * ((window.SSCalc && SSCalc.MATERIAL_MARGIN) || 0.23))}</span></div>
@@ -1816,7 +1828,7 @@
         ${blocQuiPrendQuoi(d, c)}
         ${c.total_remises > 0 ? `
         <div class="subhead" style="margin:var(--sp-3) 0 var(--sp-2);border-top:1px dashed var(--border);padding-top:var(--sp-3);">Réductions accordées</div>
-        ${c.remise_catalogue?.amount > 0 ? `<div class="h-line"><span class="k">Catalogue</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_catalogue.amount)}</span></div>` : ''}
+        ${c.remise_catalogue?.amount > 0 ? `<div class="h-line"><span class="k">Catalogue${c.remise_catalogue.part_libre > 0 ? ` <span class="text-muted">dont ${fmtEur(c.remise_catalogue.part_libre)} de part libre</span>` : ''}</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_catalogue.amount)}</span></div>` : ''}
         ${c.remise_installation?.amount > 0 ? `<div class="h-line"><span class="k">Installation</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_installation.amount)}</span></div>` : ''}
         ${c.remise_outillage?.amount > 0 ? `<div class="h-line"><span class="k">Outillage</span><span class="v" style="color:var(--ok);">− ${fmtEur(c.remise_outillage.amount)}</span></div>` : ''}` : ''}`;
       setText('interneSummary', 'Net total ' + fmtEur((c.nicolas_net || 0) + (c.yannick_net || 0)));
@@ -2317,9 +2329,15 @@
       el('chantierLivraisonHint').style.color = livAlerte ? 'var(--danger)' : '';
 
       // Et on DIT ce que coute le vide, là où il se corrige.
+      // Règle 64 : l'équipe que le devis PRÉVOIT (Tech 1 / Tech 2 du simulateur) se propose ici, là où elle se
+      // décide — jamais remplie toute seule : seul le clic l'enregistre (règle 30 ter), sinon l'équipe ne serait
+      // plus jamais « à renseigner » et la paie partirait sur une prévision.
+      const prevue = window.SSPlanning.equipeDeTechs((DEVIS.pricing_v2 || {}).techs);
       el('chantierEquipeHint').innerHTML = ch.equipe ? '' :
         'Équipe non renseignée : la pose de ce chantier n’est attribuée à personne dans ' +
-        '<a href="stats.html">ta rémunération</a>.';
+        '<a href="stats.html">ta rémunération</a>.' +
+        (prevue ? ` Prévu au devis : <strong>${esc(window.SSPlanning.EQUIPE_LIBELLES[prevue] || prevue)}</strong>
+          <button type="button" class="btn btn-ghost btn-sm" id="chReprendre" onclick="reprendreEquipePrevue()">Reprendre</button>` : '');
       let infoTxt = 'Renseigne la date de pose pour la voir apparaître dans l’agenda.', retard = false;
       if (ch.date_pose) {
         const days = Math.round((new Date(ch.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
@@ -2344,6 +2362,14 @@
         });
       }
     }
+    /** « Reprendre » l'équipe prévue au devis (règle 64) : le menu prend sa valeur, puis le MÊME enregistrement
+     *  que si on l'avait choisie à la main. */
+    window.reprendreEquipePrevue = () => {
+      const prevue = window.SSPlanning.equipeDeTechs((DEVIS.pricing_v2 || {}).techs);
+      if (!prevue) return;
+      el('chEquipe').value = prevue;
+      window.saveChantier();
+    };
     window.saveChantier = async () => {
       DEVIS.chantier = DEVIS.chantier || {};
       DEVIS.chantier.date_pose = el('chDate').value;

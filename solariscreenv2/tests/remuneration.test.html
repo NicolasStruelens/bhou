@@ -363,6 +363,37 @@
     check('K9 un taux absent n’est pas deviné : il vaut null, jamais 18',
       R.detailCommission({ calculs: { nicolas_net: 100 } }).pct, null);
 
+    /* ⚠️ RÈGLE 64 — LA RÉDUCTION QUE TA COMMISSION PORTE VRAIMENT. `remise` valait TOUTE la réduction catalogue :
+       quand Yannick vend, elle est sur SA commission, et l'écran disait pourtant « 5 % de 10 000 €, moins 200 € de
+       réduction, 500 € bruts ». Le détail ne retombait plus sur le brut (règle 30 octies). */
+    const dcY = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 5, nicolas_gross: 500, nicolas_net: 200,
+      seller_principal: 'yannick', remise_catalogue: { amount: 200 } } });
+    check('K10 Yannick vend et accorde 200 € : rien n’est sur ta commission', dcY.remise, 0);
+    check('K10 … et le détail retombe sur le brut', 10000 * 0.05 - dcY.remise, dcY.brut);
+    const dcA = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 850, nicolas_net: 340,
+      seller_principal: 'autre', remise_catalogue: { amount: 300 } } });
+    check('K11 répartition 10 / 10, 300 € de réduction : ta part est 150 €', dcA.remise, 150);
+    check('K11 … et le détail retombe sur le brut', 10000 * 0.10 - dcA.remise, dcA.brut);
+    const dcL = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 1000, nicolas_net: 400,
+      seller_principal: 'autre', remise_catalogue: { amount: 300, part_libre: 300 } } });
+    check('K12 la part libre versée au client n’est sur AUCUNE commission', dcL.remise, 0);
+    const dcLT = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 850, nicolas_net: 340,
+      seller_principal: 'autre', remise_catalogue: { amount: 600, part_libre: 300 } } });
+    check('K12 part libre + réduction tapée : seule ta part de la tapée', dcLT.remise, 150);
+    check('K13 un vieux devis sans taux garde l’ancienne lecture (toute la réduction)',
+      R.detailCommission({ calculs: { total_catalog_ht: 9800, nicolas_net: 100, remise_catalogue: { amount: 200 } } }).remise, 200);
+    check('K13 Nicolas vend : toute la réduction est sur lui (K4 inchangé)', dc.remise, 200);
+    check('K13b sans taux, la part libre n’est quand même jamais comptée sur ta commission',
+      R.detailCommission({ calculs: { total_catalog_ht: 9700, nicolas_net: 100, remise_catalogue: { amount: 300, part_libre: 300 } } }).remise, 0);
+
+    /* RÈGLE 64 — TECH 1 / TECH 2 NE PAIENT PERSONNE. Le devis peut PRÉVOIR Yannick et un sous-traitant sur ses lignes :
+       si l'équipe du chantier dit Nicolas, Nicolas est payé ; si elle est vide, elle reste « à renseigner ». */
+    const avecTechs = (o) => { const d = devis(o); d.pricing_v2.techs = { tech1: 'yannick', tech2: 'autre', tech2_nom: 'Cyril' }; return R.parDossier(d, [], null, AUJ); };
+    check('K14 lignes Yannick + Cyril, équipe Nicolas : Nicolas est payé 4 × 50', avecTechs({ items: [item('screen', 4)], equipe: 'nicolas' }).pose, 200);
+    const techsSansEquipe = (() => { const d = devis({ items: [item('screen', 4)] }); d.pricing_v2.techs = { tech1: 'nicolas', tech2: 'yannick' }; return R.parDossier(d, [], null, AUJ); })();
+    check('K14 lignes Nicolas + Yannick, équipe vide : rien n’est deviné, l’équipe reste à renseigner',
+      [techsSansEquipe.pose, techsSansEquipe.pose_raison], [0, 'equipe_inconnue']);
+
     /* ⚠️ LE SIGNALEMENT. Un devis chiffré — il a un total client — mais sans aucun partage.
        Sa commission vaut zéro sans que rien ne le dise, et comme un dossier qui ne rapporte
        rien est masqué du tableau, il disparaît de l'écran entier. C'est le défaut du tablier
@@ -437,6 +468,29 @@
     check('un avoir diminue l\'encaissé',
       R.encaisseDe('D1', [fact('D1', 5000, 5000), fact('D1', 1000, 0, 'avoir')]), 4000);
     check('les factures d\'un AUTRE dossier sont ignorées', R.encaisseDe('D1', [fact('D2', 9000, 9000)]), 0);
+
+    /* ⚠️ UNE NOTE DE CRÉDIT N'EST PAS UN REMBOURSEMENT (11/11/2026, audit du bac à sable, corrigé sur l'accord de Nicolas).
+       Sur une facture IMPAYÉE, elle réduit ce que le client doit, pas ce qu'il a versé ; la retirer de l'argent reçu la
+       comptait deux fois, et la part se lisait sur le devis BRUT : un dossier soldé restait à 97 % pour toujours. */
+    const fa = (id, ttc, paye) => ({ id: id, devis_id: 'D1', type: id === 'FA' ? 'acompte' : 'solde', total_ttc: ttc, paiements: paye ? [{ montant: paye }] : [] });
+    const nc = (de, ttc) => ({ id: 'NC-' + de, devis_id: 'D1', type: 'avoir', avoir_de: de, total_ttc: -ttc, paiements: [] });
+    check('note de crédit sur une facture IMPAYÉE : l\'argent reçu ne bouge pas',
+      R.encaisseDe('D1', [fa('FA', 5000, 5000), fa('FS', 5000, 0), nc('FS', 1000)]), 5000);
+    check('note de crédit sur une facture PAYÉE : ce qui la dépasse est rendu au client',
+      R.encaisseDe('D1', [fa('FA', 10000, 10000), nc('FA', 1000)]), 9000);
+    check('…et sur une facture payée en partie, seul ce qui dépasse le reste dû est rendu',
+      R.encaisseDe('D1', [fa('FA', 3000, 2500), nc('FA', 1000)]), 2000);
+    check('les notes de crédit du dossier, en positif', R.avoirsDe('D1', [fa('FA', 5000, 5000), nc('FA', 300), nc('FS', 200), fact('D2', 900, 0, 'avoir')]), 500);
+    const avecNc = (factures) => R.parDossier(devis({ items: [item('screen', 2)], equipe: 'sous_traitant',
+      calculs: { total_ttc: 10000, nicolas_net: 1000 } }), factures, null, AUJ);
+    const ncImpayee = avecNc([fa('FA', 5000, 5000), fa('FS', 5000, 0), nc('FS', 1000)]);
+    check('la part se lit sur ce que le client paiera EN TOUT (devis − notes de crédit) : 5 000 sur 9 000',
+      [ncImpayee.encaisse, ncImpayee.total_du, ncImpayee.part, ncImpayee.couvert], [5000, 9000, 0.556, 555.56]);
+    const ncSolde = avecNc([fa('FA', 5000, 5000), fa('FS', 5000, 4000), nc('FS', 1000)]);
+    check('⚠️ un dossier SOLDÉ avec une note de crédit est couvert à 100 % (il restait à 80 % : 8 000 / 10 000)',
+      [ncSolde.part, ncSolde.couvert, R.cumul([ncSolde], []).en_attente_client], [1, 1000, 0]);
+    const ncRendue = avecNc([fa('FA', 10000, 10000), nc('FA', 1000)]);
+    check('…et payé d\'avance puis remboursé de la note de crédit : 100 % aussi (il était à 90 %)', [ncRendue.encaisse, ncRendue.part], [9000, 1]);
 
     const paye30 = R.parDossier(devis({
       items: [item('screen', 10)], equipe: 'nicolas',
