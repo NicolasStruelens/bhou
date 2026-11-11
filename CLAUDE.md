@@ -132,7 +132,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
 | `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
-| `tests/clients.test.html` | Les 62 tests de la page Clients (règle 42) : chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
+| `tests/clients.test.html` | Les 98 tests de la page Clients (règles 42 et 68) : le tri tous azimuts et « modifié ou ajouté » en tête, « Enregistrer la fiche » qui n'efface plus rien, chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 | `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
 
 Stockage : base **D1** (une table par entité, avec un gros blob JSON dans la colonne `data`),
@@ -3577,6 +3577,48 @@ Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actio
   (`.ck-rel`, règle 40 bis — chaque chose dite une fois). Au bureau, le bonjour le dit toujours (R3c).
 • **AUCUN MONTANT NE CHANGE**, et « Installer l'app » reste sous le bonjour (règle 63, N1-N15).
 
+**68. LA PAGE CLIENTS SE TRIE TOUS AZIMUTS, « MODIFIÉ OU AJOUTÉ » EN TÊTE ; « ENREGISTRER LA FICHE » N'EFFACE PLUS RIEN**
+(11/11/2026 — Nicolas : « ajouter bouton trier par tous les azimuts sur client CRM et que les clients qui viennent d'être modifiés
+ou ajoutés soient en haut de la liste ». Maquette à trois variantes ; il a choisi la définition D1, la variante A « menu Tri », les
+douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/clients.html`. Protégé par `tests/clients.test.html`
+(A6, S1-S7, O1-O29).
+• **« MODIFIÉ OU AJOUTÉ » = LE PLUS RÉCENT DE TROIS MOMENTS** (`momentRecent`) : la fiche CRÉÉE, la fiche MODIFIÉE, un devis AJOUTÉ.
+  ⚠️ JAMAIS la `date_modification` d'un DEVIS (règle 15) : une photo, une note, une relance, la réponse du client sur son lien
+  l'avancent — c'est le critère « Dernière activité ». La date de la FICHE avance avec « Enregistrer la fiche » (si quelque chose
+  change), la fiche devis (contact préféré, étiquettes, formule : `SS.modifierClient`), les routes des mails, et CHAQUE
+  enregistrement d'un devis au simulateur ou au Mode Terrain (ils mettent la fiche à jour) : retravailler un devis fait remonter son
+  client, c'est voulu.
+• **LE VERBE DIT CE QUI S'EST PASSÉ** : « ajouté » quand le moment gagnant est un ajout — un devis, ou la fiche quand c'est la
+  PREMIÈRE apparition du client (aucun devis d'un jour antérieur). Créer la fiche d'un client « à compléter », c'est le MODIFIER.
+• ⚠️ **UN DEVIS NE GARDE QUE LE JOUR DE SA CRÉATION** (`SSUI.aujourdhui()`, « 2026-11-11 ») ; la fiche a l'heure. Un jour seul vaut
+  minuit heure LOCALE (`instantDe` — jamais `new Date('2026-11-11')`, lu en UTC, une heure plus tard) ; la ligne dit « ajouté
+  aujourd'hui », jamais une heure inventée ; et une modification du MÊME jour ne cache pas cet ajout (on ne sait pas lequel est venu
+  d'abord). Au-delà de 8 jours : « le 30/10 », l'année seulement si ce n'est pas celle-ci (la date entière se coupait en deux sur
+  téléphone).
+• **DOUZE CRITÈRES, UNE SEULE LISTE** (`TRIS`, qui écrit aussi le menu), en quatre groupes : Quand (modifié ou ajouté, dernière
+  activité, client depuis), Qui et où (nom, ville, code postal), Argent (signé, chez le client, reste à encaisser), Suivi (quoi
+  faire, étape, nombre de devis). L'argent vient de `bilanDevis`, l'urgence de `poidsAction` (actions.js), l'ordre des étapes de
+  `STATUT_DEVIS_LABEL` (ui.js) : le tri ne calcule RIEN à sa façon et aucun chiffre ne change (règle 42).
+• **TOUJOURS** : la recherche filtre d'abord, le tri range ce qui reste ; sans valeur (pas de ville, 0 €, aucun devis) en bas, DANS
+  LES DEUX SENS ; à égalité, « modifié ou ajouté » puis le nom (sans accents). Chaque ligne affiche ce qui la range (« modifié il y a
+  2 h », « signé 12 400,00 € », « 1300 ») — rien quand la ligne le dit déjà (ville, action, statut, dû) — et son nom d'accessibilité
+  le dit aussi.
+• **LA VARIANTE A** : le menu « Tri », une flèche (↓ décroissant, ↑ croissant ; son nom dit l'ordre qu'elle donnera) et une ligne
+  qui dit TOUJOURS l'ordre en mots ; hors de l'ordre par défaut, elle porte « ↺ Ordre par défaut », qui rend le clavier au menu.
+  Gardé sur CET appareil (`localStorage` `ss_clients_tri`, effacé à l'ordre par défaut ; illisible → ordre par défaut). Sur
+  téléphone c'est le menu natif : rien à fermer, rien qui déborde.
+• **LA FICHE OUVERTE RESTE VISIBLE** quand le tri la déplace (`garderActiveVisible`) : on ne fait défiler QUE la liste
+  (`scrollTop`), jamais la page. Un nouvel ordre se lit depuis le haut.
+• ⚠️ **« ENREGISTRER LA FICHE » EFFAÇAIT LE CONTACT PRÉFÉRÉ ET LA DATE DE CRÉATION** (trouvé en définissant « ajouté » ; S1 et S3
+  échouaient sur l'ancien code) : `saveFiche` reconstruisait la fiche avec les seuls champs du formulaire (règle 2), et
+  `upsertClient` l'écrit telle quelle (seuls les mails sont repris de la base). Il remettait aussi en arrière un téléphone corrigé
+  entre-temps depuis la fiche devis. Désormais `SS.modifierClient` (règle 3) : relire la fiche, n'y écrire que les champs TOUCHÉS
+  depuis l'ouverture (`champChange`, la règle de « quitter sans enregistrer ») ; l'adresse en bloc (elle s'affiche en bloc) ;
+  civilité et formule aussi quand la fiche ne les porte pas encore (le menu montre une suggestion ou « Professionnel », et le
+  serveur retomberait sur la copie du devis). Rien de touché → RIEN n'est écrit (« Rien n'a changé sur la fiche ») : le client ne
+  remonte pas pour rien. Pas encore de fiche (client « à compléter ») → elle est créée, avec sa `date_creation`. La propagation des
+  coordonnées vers les devis ne change pas.
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3879,7 +3921,7 @@ Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actio
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
-   `tests/clients.test.html`, exiger « 62/62 », par le serveur.
+   `tests/clients.test.html`, exiger « 98/98 », par le serveur.
    Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
    (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 64/64 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
    et, pour la visionneuse, `outillage`, `sav`, `rdv` et `terrain`.
