@@ -1220,7 +1220,7 @@
   (function webMeta() {
     const base = location.pathname.indexOf('/app/') !== -1 ? '../' : './';
     function addOnce(sel, make) { if (!document.querySelector(sel)) document.head.appendChild(make()); }
-    addOnce('link[rel="manifest"]', function () { const l = document.createElement('link'); l.rel = 'manifest'; l.href = base + 'manifest.webmanifest'; return l; });
+    addOnce('link[rel="manifest"]', function () { const l = document.createElement('link'); l.rel = 'manifest'; l.href = base + 'manifest.webmanifest'; l.crossOrigin = 'use-credentials'; return l; });
     // iOS n'accepte pas de SVG ici, et un PNG TRANSPARENT y est aplati sur du noir : c'est
     // apple-touch-icon.png (180x180, fond opaque, marque cadrée) qu'il faut, pas le logo brut.
     addOnce('link[rel="apple-touch-icon"]', function () { const l = document.createElement('link'); l.rel = 'apple-touch-icon'; l.href = base + 'assets/img/apple-touch-icon.png'; return l; });
@@ -1250,7 +1250,113 @@
     }
   })();
 
+  // ── Installer l'app sur l'appareil (PWA, niveau 1) ──
+  // Le bouton « Installer l'app » du tableau de bord passe par ici. Chrome et Edge (Android,
+  // ordinateur) peuvent proposer l'installation d'un seul appui : ils envoient alors
+  // `beforeinstallprompt`, qu'on GARDE pour le moment du clic. Partout ailleurs — l'iPhone
+  // surtout, où cet événement n'existe pas — le bouton explique le geste, appareil par appareil.
+  // ⚠️ L'écoute est posée sur TOUTES les pages (nav.js y est chargé) : l'événement part une seule
+  //    fois, au chargement de la page où l'on arrive. Écouté sur le seul tableau de bord, il serait
+  //    perdu dès qu'on y arrive depuis une autre page.
+  // ⚠️ Rien de tout ça ne marche si le navigateur ne peut pas LIRE le manifeste : derrière
+  //    Cloudflare Access, il doit être demandé avec les cookies (`crossorigin="use-credentials"`
+  //    sur chaque <link rel="manifest">, et dans webMeta ci-dessus). Sans eux, Access répond par
+  //    sa page de connexion, Android n'a plus de manifeste, et l'icône posée s'ouvre dans un
+  //    simple onglet, barre d'adresse comprise (vu sur le téléphone de Yannick, 11/11/2026).
+  const INSTALL = { invite: null, installee: false, abonnes: [] };
+  function installeeMaintenant() {
+    if (INSTALL.installee) return true;
+    try {
+      if (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches)) return true;
+    } catch (e) {}
+    return window.navigator.standalone === true;   // iPhone : l'app de l'écran d'accueil
+  }
+  /* Un iPad récent se présente comme un Mac : on le reconnaît à son écran tactile. */
+  function plateformeDe(ua, points) {
+    ua = String(ua || '');
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && Number(points) > 1)) return 'ios';
+    if (/Android/.test(ua)) return 'android';
+    return 'bureau';
+  }
+  /* Les étapes, appareil par appareil. Écrites pour celui qui n'a jamais installé d'app web :
+     chaque étape nomme ce qu'on voit à l'écran, et la note dit le piège du moment. */
+  const GUIDE_INSTALL = {
+    ios: {
+      titre: 'Sur iPhone ou iPad',
+      etapes: [
+        'Touche le bouton Partager : le carré avec une flèche vers le haut. Sur les iPhone récents, il est parfois derrière le bouton « … ».',
+        'Choisis « Sur l’écran d’accueil ». Si tu ne le vois pas, fais défiler la liste.',
+        'Si l’option pour l’ouvrir comme une app web apparaît, laisse-la activée, puis touche « Ajouter ».',
+        'Ouvre SolariScreen depuis la nouvelle icône : il s’ouvre en plein écran.',
+      ],
+      note: 'L’app a sa propre connexion, séparée de Safari : connecte-toi une fois dedans. Ce qui attend d’être envoyé dans Safari n’y apparaît pas : termine-le avant.',
+    },
+    android: {
+      titre: 'Sur Android',
+      etapes: [
+        'Ouvre l’ERP dans Chrome.',
+        'Touche le menu ⋮ en haut à droite.',
+        'Choisis « Installer l’application ». S’il n’y est pas, choisis « Ajouter à l’écran d’accueil », puis « Installer ».',
+        'Ouvre SolariScreen depuis la nouvelle icône : il s’ouvre en plein écran.',
+      ],
+      note: 'Une ancienne icône qui s’ouvre avec la barre du navigateur date d’avant : supprime-la, puis installe à nouveau.',
+    },
+    bureau: {
+      titre: 'Sur ordinateur',
+      etapes: [
+        'Dans Chrome ou Edge, clique l’icône d’installation à droite de la barre d’adresse.',
+        'Si tu ne la vois pas, ouvre le menu du navigateur et cherche « Installer ».',
+        'SolariScreen s’ouvre alors dans sa propre fenêtre, avec son icône dans la barre des tâches.',
+      ],
+      note: 'Sur Mac avec Safari : menu Fichier, puis « Ajouter au Dock ». Firefox sur ordinateur n’installe pas les apps web : utilise Chrome ou Edge.',
+    },
+  };
+  function etatInstall() {
+    return {
+      installee: installeeMaintenant(),
+      invite: !!INSTALL.invite,
+      plateforme: plateformeDe(window.navigator.userAgent, window.navigator.maxTouchPoints),
+    };
+  }
+  function notifierInstall() {
+    const e = etatInstall();
+    INSTALL.abonnes.slice().forEach(function (fn) { try { fn(e); } catch (err) {} });
+  }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();          // pas de bandeau du navigateur : c'est notre bouton qui le propose
+    INSTALL.invite = e;
+    notifierInstall();
+  });
+  window.addEventListener('appinstalled', function () {
+    INSTALL.invite = null; INSTALL.installee = true; notifierInstall();
+  });
+  /* Rend 'installee', 'refusee' ou 'guide' (pas d'invite du navigateur : il faut montrer le geste).
+     Une invite ne sert qu'UNE fois — le navigateur refuse un second prompt() sur le même événement. */
+  function installer() {
+    const ev = INSTALL.invite;
+    if (!ev || typeof ev.prompt !== 'function') return Promise.resolve('guide');
+    INSTALL.invite = null;
+    return Promise.resolve()
+      .then(function () { return ev.prompt(); })
+      .then(function () { return ev.userChoice; })
+      .then(function (choix) {
+        const ok = !!(choix && choix.outcome === 'accepted');
+        if (ok) INSTALL.installee = true;
+        notifierInstall();
+        return ok ? 'installee' : 'refusee';
+      })
+      .catch(function () { notifierInstall(); return 'guide'; });
+  }
+
   window.SSNav = {
+    installation: {
+      etat: etatInstall,
+      installer: installer,
+      ecouter: function (fn) { if (typeof fn === 'function') INSTALL.abonnes.push(fn); },
+      guide: function (p) { return GUIDE_INSTALL[p] || GUIDE_INSTALL.bureau; },
+      _plateformeDe: plateformeDe,
+    },
     mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant, mascotte: mascotte,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,

@@ -112,6 +112,32 @@
     const toutes = pages.concat(NAV.creer).map(p => p.href);
     check('S12 aucune destination de l\'ancien menu n\'a disparu', ANCIENNES.filter(h => toutes.indexOf(h) === -1), []);
 
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    titre('Installer l\'app (règle 63) — l\'appareil et ses étapes');
+    // ═════════════════════════════════════════════════════════════════════════════════════
+    const INS = N.installation;
+    const UA = {
+      iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+      chromeIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1',
+      ipadBureau: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+      android: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+      windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+    };
+    /* Un iPad récent se présente comme un Mac : sans l'écran tactile pour le trahir, il recevrait les
+       étapes de l'ordinateur — qui parlent d'une barre d'adresse et d'un menu qu'il n'a pas. */
+    check('I1 chaque appareil reconnu (iPhone, Chrome sur iPhone, iPad « Mac », Mac, Android, Windows)',
+      [INS._plateformeDe(UA.iphone, 5), INS._plateformeDe(UA.chromeIos, 5), INS._plateformeDe(UA.ipadBureau, 5),
+       INS._plateformeDe(UA.ipadBureau, 0), INS._plateformeDe(UA.android, 5), INS._plateformeDe(UA.windows, 0)],
+      ['ios', 'ios', 'ios', 'bureau', 'android', 'bureau']);
+    check('I2 trois guides, chacun avec ses étapes et sa note',
+      ['ios', 'android', 'bureau'].map(p => INS.guide(p).etapes.length >= 3 && !!INS.guide(p).note), [true, true, true]);
+    check('I3 l\'iPhone passe par « Sur l\'écran d\'accueil », Android par « Installer l\'application »',
+      [INS.guide('ios').etapes.some(e => /Sur l’écran d’accueil/.test(e)), INS.guide('android').etapes.some(e => /Installer l’application/.test(e))], [true, true]);
+    /* Une ancienne icône posée AVANT le correctif du manifeste s'ouvre toujours avec la barre : c'est
+       exactement ce que Yannick avait sur son téléphone. Le guide Android doit le dire. */
+    check('I4 le guide Android dit quoi faire de l\'ancienne icône', /ancienne icône/.test(INS.guide('android').note), true);
+    check('I5 un appareil inconnu reçoit le guide de l\'ordinateur', INS.guide('xyz') === INS.guide('bureau'), true);
+
     rendre();
 
     // ═════════════════════════════════════════════════════════════════════════════════════
@@ -139,6 +165,33 @@
         const r = await fetch('../app/' + fichier, { method: 'HEAD', cache: 'no-store' }).catch(() => ({ ok: false }));
         check('E · ' + h, r.ok, true);
       }
+
+      /* ⚠️ LE MANIFESTE SE DEMANDE AVEC LES COOKIES (règle 63). Sans `crossorigin="use-credentials"`, le
+         navigateur le demande SANS cookies, même sur le même domaine ; derrière Cloudflare Access la
+         réponse est alors la page de connexion, Android n'a plus de manifeste, et l'icône posée sur
+         l'écran d'accueil s'ouvre dans un onglet, barre d'adresse comprise (11/11/2026). */
+      titre('Installer l\'app (règle 63) — chaque page demande son manifeste avec les cookies');
+      const PAGES_MANIFESTE = ['index.html', 'app/carte.html', 'app/clients.html', 'app/dashboard.html', 'app/depenses.html',
+        'app/devis.html', 'app/echanges.html', 'app/facture.html', 'app/factures.html', 'app/outillage.html',
+        'app/parametres.html', 'app/picking.html', 'app/planning.html', 'app/portfolio.html', 'app/rdv.html',
+        'app/reception.html', 'app/sav.html', 'app/simulateur.html', 'app/stats.html', 'app/terrain.html',
+        'app/visite.html', 'app/vue.html'];
+      const sansCookies = [];
+      for (const p of PAGES_MANIFESTE) {
+        const html = await fetch('../' + p, { cache: 'no-store' }).then(r => r.text()).catch(() => '');
+        const lien = (html.match(/<link[^>]*rel="manifest"[^>]*>/) || [''])[0];
+        if (!/crossorigin="use-credentials"/.test(lien)) sansCookies.push(p);
+      }
+      check('M1 les 22 pages demandent le manifeste avec les cookies', sansCookies, []);
+      const navSrc = await fetch('../assets/js/nav.js', { cache: 'no-store' }).then(r => r.text()).catch(() => '');
+      check('M2 le manifeste que nav.js ajoute à une page qui n\'en a pas, aussi',
+        /l\.rel = 'manifest';[^\n]*l\.crossOrigin = 'use-credentials'/.test(navSrc), true);
+      const man = await fetch('../manifest.webmanifest', { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+      check('M3 le manifeste : plein écran, départ au tableau de bord, icônes 192 et 512',
+        man && [man.display, man.start_url, ['192x192', '512x512'].every(s => man.icons.some(i => i.sizes === s))],
+        ['standalone', 'app/dashboard.html', true]);
+      const iconesOk = man ? (await Promise.all(man.icons.map(i => fetch('../' + i.src, { method: 'HEAD', cache: 'no-store' }).then(r => r.ok).catch(() => false)))).every(Boolean) : false;
+      check('M4 chaque icône du manifeste existe', iconesOk, true);
 
       /* Les Statistiques chargent attente.js elles-mêmes depuis le 27/10/2026 (règle 51 : les sources
          réutilisent le lien demande → devis) : la page « sans attente.js » est désormais les Notes de frais. */

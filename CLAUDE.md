@@ -116,7 +116,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/terrain.js` | **Le Mode Terrain** (règle 55) : retrouver un client (sans accents, téléphone d'un bloc) et ses doublons, les saisies gardées PAR visite, des identifiants d'ouverture uniques, les mesures qui sortent de l'ordinaire, ce qui manque (pour y aller), les visites du jour et le devis lié à une demande, ce qu'un devis existant permet ici (un devis chiffré ne se réécrit pas d'ici). Fonctions pures (`window.SSTerrain`). |
 | `tests/terrain.test.html` | Les 34 tests du Mode Terrain (dont « + » qui reprend la configuration précédente et le néon des vides, règle 60) : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/nav.test.html` | Les 111 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, la marque du bac à sable (règle 46), et l'ENCOCHE de l'iPhone simulée par les jetons `--encoche-*` (règle 61, série E) : rien du haut des pages sous l'heure, le volet du menu toujours dans l'écran (bouton à gauche, écran qui rétrécit), les fenêtres plein écran (RDV, Soli, catalogue, visionneuse, fenêtres des Notes de frais, de l'Outillage et de la Facturation), la recherche Ctrl K qui se ferme par un bouton. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/nav.test.html` | Les 120 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, la marque du bac à sable (règle 46), l'app installable (règle 63 : chaque page demande son manifeste avec les cookies, l'appareil et ses étapes), et l'ENCOCHE de l'iPhone simulée par les jetons `--encoche-*` (règle 61, série E) : rien du haut des pages sous l'heure, le volet du menu toujours dans l'écran (bouton à gauche, écran qui rétrécit), les fenêtres plein écran (RDV, Soli, catalogue, visionneuse, fenêtres des Notes de frais, de l'Outillage et de la Facturation), la recherche Ctrl K qui se ferme par un bouton. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
 | `tests/bac-a-sable.test.html` | Les 34 tests du bac à sable, joués contre le VRAI serveur (`[[catchall]].js`) sur une vraie base SQLite en mémoire (sql.js) : gardes, remplissage rejouable, montants, actions reconnues par le tableau de bord, scénarios SAV, outillage et kits, facturation, notes de frais, page de remplissage, vidage. **Par le serveur de test, avec accès à cdnjs.** |
@@ -127,7 +127,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/dashboard.test.html` | Les 77 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société. Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
+| `tests/dashboard.test.html` | Les 92 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
@@ -1863,7 +1863,8 @@ regarder l'écran, pas seulement les mesures.
 for f in app/*.html; do q=$(grep -c 'id="quickNav"' "$f"); m=$(grep -c 'SSNav.mount' "$f");
   [ "$q" -gt 0 ] && [ "$m" -eq 0 ] && echo "MENU NON MONTE : $f"; done
 ```
-Une nouvelle page doit aussi : porter le `viewport`, le `manifest` et l'`apple-touch-icon` (sinon
+Une nouvelle page doit aussi : porter le `viewport`, le `manifest` — avec `crossorigin="use-credentials"`, sinon Access répond à
+sa place et l'app ne s'installe pas (règle 63) — et l'`apple-touch-icon` (sinon
 pas d'icône à l'ajout sur l'écran d'accueil), charger `ui.js` puis `nav.js`, et être déclarée
 dans `NAV_GROUPS` de `nav.js` — sans quoi on ne peut y arriver que par l'URL.
 
@@ -3377,6 +3378,33 @@ fois : `/api/devis-review`), ou AFFICHÉ (fiche, liste de pose, page du lien). U
 → 0, jamais un négatif (`SSUI.qtePoste` ; `qtePoste` dans `[[catchall]].js`, qui ne charge pas ui.js). Et un champ qui relit 0 accepte 0
 (`min 0`) : à `min 1`, ses flèches le remontaient à 1. ⚠️ Pour les OUVERTURES, `quantite || 1` reste la règle de la ligne du devis
 (`calc.js`, règle 31 septies) : ne pas « corriger » celles-là en croyant bien faire. Tests P11f, P11g (`fiche`), D3, D3b (`documents`).
+
+**63. L'APP SUR LE TÉLÉPHONE : LE MANIFESTE SE DEMANDE AVEC LES COOKIES, ET UN BOUTON L'INSTALLE**
+(11/11/2026 — Yannick voulait l'app : « quand il l'enregistre il ne sait pas l'installer, il reste les liens et c'est moche »).
+Le niveau 1 de la PWA (icône, plein écran) existait depuis juillet — manifeste, icônes, `display: standalone`, trois raccourcis — et
+**ne fonctionnait que sur iPhone**, qui se contente des balises `apple-mobile-web-app-*`. Ailleurs, l'icône posée s'ouvrait dans un
+simple onglet, barre d'adresse comprise.
+⚠️ **LA CAUSE : UN NAVIGATEUR DEMANDE LE MANIFESTE SANS COOKIES**, même sur le même domaine, sauf `crossorigin="use-credentials"` sur
+la balise. Derrière Cloudflare Access, la réponse était donc la PAGE DE CONNEXION (302, vérifié par `curl` sur
+`/manifest.webmanifest`) : pas de manifeste, donc pas d'app pour Android ni pour l'ordinateur — et rien ne le disait à l'écran.
+Les icônes, elles, passaient (`/assets/*` est en Bypass). D'où l'attribut sur les **22 pages** ET dans `webMeta` de `nav.js` (qui
+pose le manifeste sur une page qui n'en a pas). **Toute nouvelle page le porte** (`nav.test.html`, M1 et M2, le vérifient).
+Une ancienne icône posée AVANT le correctif garde son défaut : il faut la supprimer et installer à nouveau (le guide Android le dit).
+Pas de service worker ici, et c'est voulu (mémoire des pannes de juillet : voir le kill-switch `sw.js`) : depuis Chrome 108 (Android)
+et 112 (ordinateur), l'installation par le MENU n'en demande plus. Le niveau 2 (service worker sûr) reste à décider.
+**Le bouton « Installer l'app »** vit sous le bonjour du tableau de bord (`#btnInstaller`), la logique dans `nav.js`
+(`SSNav.installation` : `etat`, `installer`, `ecouter`, `guide`) :
+• **`beforeinstallprompt` est écouté sur TOUTES les pages**, puis GARDÉ (`preventDefault`) pour le moment du clic : il part une seule
+  fois, au chargement de la page où l'on arrive. Écouté sur le seul tableau de bord, il serait perdu en y arrivant d'ailleurs.
+• **Une invite ne sert qu'UNE fois** (le navigateur refuse un second `prompt()` sur le même événement) : refusée, le clic suivant
+  montre les étapes. Acceptée (ou `appinstalled`), le bouton disparaît.
+• **Sans invite** — l'iPhone n'en envoie jamais, Chrome pas toujours — le bouton ouvre les ÉTAPES de l'appareil (`GUIDE_INSTALL` :
+  iPhone, Android, ordinateur), choisi par `plateformeDe` (un iPad récent se présente comme un Mac : on le reconnaît à son écran
+  tactile), avec des onglets pour un autre appareil. La fenêtre suit la règle des fenêtres (13 bis) : fond qui ne ferme que si le
+  geste y a commencé, Échap, et « retour » qui ferme la fenêtre au lieu de quitter le tableau de bord.
+• **Le bouton se cache dès que l'ERP tourne en app** (`display-mode: standalone`, ou `navigator.standalone` sur iPhone) : c'est la
+  seule façon de savoir que c'est fait. Sur iPhone, l'app installée a ses propres cookies et sa propre mémoire, séparés de Safari : on
+  s'y connecte une fois, et ce qui attend d'être envoyé dans Safari n'y apparaît pas (la note du guide iPhone le dit).
 
 ## Pièges déjà payés — ne pas les repayer
 
