@@ -3870,7 +3870,7 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 130/130 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
-   Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 46/46 »,
+   Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 47/47 »,
    par le serveur — ET `carte.test.html`, puisque la mémoire des adresses est partagée.
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
