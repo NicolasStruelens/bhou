@@ -55,12 +55,12 @@
        dernier bouton de la page. */
     .sim-aside { position: fixed; left: 0; right: 0; bottom: 0; z-index: calc(var(--z-header) - 1);
       background: var(--surface); border-top: 1px solid var(--border-strong); box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12);
-      padding-bottom: env(safe-area-inset-bottom, 0px); }
+      padding-bottom: var(--encoche-bas); }
     .sb-detail { max-height: min(62vh, 560px); overflow-y: auto; border-bottom: 1px solid var(--border); background: var(--surface-2); }
     .sb-detail[hidden] { display: none; }
     .sb-detail .summary-card { max-width: 560px; margin: var(--sp-3) auto; }
     .sb-ligne { display: flex; align-items: center; gap: var(--sp-2) var(--sp-4); flex-wrap: wrap; max-width: 1600px; margin: 0 auto;
-      padding: var(--sp-2) max(var(--sp-4), env(safe-area-inset-right, 0px)) var(--sp-2) max(var(--sp-4), env(safe-area-inset-left, 0px)); }
+      padding: var(--sp-2) max(var(--sp-4), var(--encoche-droite)) var(--sp-2) max(var(--sp-4), var(--encoche-gauche)); }
     .sb-total { display: grid; grid-template-columns: auto auto; column-gap: var(--sp-2); align-items: baseline; text-align: left;
       background: none; border: 0; padding: 0.2rem 0.3rem; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-sm); min-width: 0; }
     .sb-total:hover .sb-chev, .sb-total:focus-visible .sb-chev { color: var(--accent); }
@@ -1993,10 +1993,14 @@
       // Pas décimal si on le demande (main-d'œuvre) OU si la valeur relue est fractionnaire : un
       // champ à pas entier refuse la quantité qu'il affiche, et la ramène à l'entier au premier
       // clic sur les flèches.
-      const dec = data.decimal || (Number(data.qty) % 1 !== 0);
+      // ⚠️ ZÉRO N'EST PAS « ABSENT » ICI NON PLUS (11/11/2026, règle 62) : `data.qty || 1` rouvrait une main-d'œuvre
+      // offerte (0 h, sous garantie) à 1 h — 47,70 € devenaient 106,00 € à l'écran, sans que le devis se dise modifié,
+      // et le premier enregistrement les écrivait. Zéro se relit aussi sur un champ qui l'accepte (min 0).
+      const q = window.SSUI.qtePoste(data.qty);
+      const dec = data.decimal || (q % 1 !== 0) || q === 0;
       row.innerHTML = `
         <input class="input" placeholder="${echap(exemple)}" data-ex="label" value="${echap(data.label)}" oninput="ui_recalc()">
-        <input class="input input-num" type="number" min="${dec ? '0' : '1'}" step="${dec ? '0.25' : '1'}" data-ex="qty" value="${data.qty || 1}" title="Quantité (heures, pièces…)" aria-label="Quantité" oninput="ui_recalc()">
+        <input class="input input-num" type="number" min="${dec ? '0' : '1'}" step="${dec ? '0.25' : '1'}" data-ex="qty" value="${q}" title="Quantité (heures, pièces…)" aria-label="Quantité" oninput="ui_recalc()">
         <div class="input-unit"><input class="input input-num" type="number" min="0" step="0.01" data-ex="unit_price_ht" value="${data.unit_price_ht || ''}" placeholder="0.00" oninput="ui_recalc()"><span class="unit">€</span></div>
         <button class="btn btn-danger btn-sm" aria-label="${estDepannage() ? 'Retirer ce poste' : 'Retirer ce supplément'}" onclick="markDirty(); this.parentElement.remove(); ui_recalc();">✕</button>`;
       el('extrasContainer').appendChild(row);
