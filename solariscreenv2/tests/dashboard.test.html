@@ -108,7 +108,7 @@
     ];
     // Les clés locales touchées : sauvées avant, remises après — on ne laisse rien derrière soi.
     const CLES = ['ss_devis_cache', 'ss_factures_cache', 'ss_sujets_cache', 'ss_rdv_cache', 'ss_activity_seen',
-                  'ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis', 'ss_reglages'];
+                  'ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis', 'ss_reglages', 'ss_dash_afaire', 'ss_dash_relais'];
     const SAUVE = {};
     CLES.forEach(k => { try { SAUVE[k] = localStorage.getItem(k); } catch (e) {} });
     function semer() {
@@ -117,7 +117,7 @@
       localStorage.setItem('ss_sujets_cache', JSON.stringify(SUJETS));
       localStorage.setItem('ss_rdv_cache', '[]');
       localStorage.setItem('ss_activity_seen', iso(20 * 60));
-      ['ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis'].forEach(k => localStorage.removeItem(k));
+      ['ss_dash_view', 'ss_dash_tri', 'ss_dash_dense', 'ss_dash_kpis', 'ss_dash_afaire', 'ss_dash_relais'].forEach(k => localStorage.removeItem(k));
     }
     function remettre() {
       CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} });
@@ -232,6 +232,7 @@
         check('R1 le relais est là, au nom de l’autre', d.querySelector('.rl-nom').textContent, 'Le relais avec Yannick');
         check('R2 ses nouveautés, sans les miennes', d.querySelectorAll('#relaisNews .rl-ligne').length, 3);
         check('R3 sa présence se lit dans le bandeau', d.getElementById('presence').textContent.trim(), 'Yannick en ligne');
+        check('R3c au bureau, le bonjour annonce ce qu’il a avancé', /Yannick a avancé 3 choses/.test(d.getElementById('ckResume').textContent) && w.getComputedStyle(d.querySelector('#ckResume .ck-rel')).display !== 'none', true);
         // « vu 13/10/2026 » obligeait à compter les jours de tête : on dit depuis combien de temps.
         check('R3b une absence se dit en jours', [w.texteVu({ enLigne: false, vu: iso(12 * 24 * 60) }), w.texteVu({ enLigne: false, vu: iso(26 * 60) })], ['vu il y a 12 j', 'vu hier']);
         d.querySelector('.rl-vu').click(); await attendre(60);
@@ -286,6 +287,12 @@
         check('T4 le relais est replié', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'none');
         d.querySelector('.rl-deplier').click(); await attendre(60);
         check('T5 …et se déplie d’un appui', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'block');
+        /* Règle 40 bis — chaque chose dite UNE fois : sous 1100 px la barre repliée du relais dit
+           « 3 nouveautés » juste sous le bonjour ; le bonjour le répétait sur deux lignes, et au
+           doigt le premier devis passait à 808 px pour 800 (T3 rouge en tactile, règle 67). */
+        const ckRel = d.querySelector('#ckResume .ck-rel');
+        check('T12 le bonjour ne répète pas les nouvelles de l’autre : la barre du relais, juste dessous, les dit',
+          [!!ckRel && w.getComputedStyle(ckRel).display, /3 nouveautés/.test(d.querySelector('.rl-resume').textContent)], ['none', true]);
         check('T6 les quatre étapes tiennent sur une rangée', new Set([...d.querySelectorAll('.et-seg')].map(e => Math.round(e.getBoundingClientRect().top))).size, 1);
         check('T7 trois actions au repos', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, 3);
         d.querySelector('.af-tout').click(); await attendre(60);
@@ -376,6 +383,110 @@
         w.dispatchEvent(new w.Event('appinstalled')); await attendre(60);
         check('N15 …et le bouton ne s’affiche pas', f.contentDocument.getElementById('btnInstaller').offsetHeight, 0);
         f.remove();
+
+        titre('Le poste se réduit (règle 67) : une bande par action, « Réduire » retenu par l’appareil, la liste remonte');
+        /* « on voit pas les devis client » (Nicolas, 11/11/2026) : à 1650 × 1012 le premier devis
+           tombait à 917 px — le relais (457 px) fixait la hauteur de la rangée. */
+        semer();
+        // Une demande que PERSONNE n'a prise depuis deux jours : « personne » ET « Critique » (attente.js).
+        const RDV_P = [{ id: 'R-PERS', client: { prenom: 'Nadia', nom: "D'Ursel" }, statut: 'nouveau', assigned_to: '', date_creation: T(-2), projet: 'Screens' }];
+        localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV_P));
+        f = await ouvrir(1500, 900, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        const visibles = (sel) => [...d.querySelectorAll(sel)].filter(e => e.offsetHeight > 0);
+        const mrow0 = () => Math.round(d.querySelector('.mrow').getBoundingClientRect().top);
+        check('P1 une BANDE par action, pas une carte (≤ 50 px de haut)', visibles('.af-carte').filter(c => c.offsetHeight > 50).length, 0);
+        check('P1b …quatre au plus au repos', visibles('.af-carte').length, Math.min(4, d.querySelectorAll('.af-carte').length));
+        const ouvertTop = mrow0();
+        check('P2 tout ouvert, le premier devis tombe dans le premier écran (900 px)', ouvertTop < 900, true);
+        const bRedA = d.querySelector('#afaire .af-tete .poste-red');
+        check('P3 « Réduire » est un vrai bouton qui DIT son geste', [bRedA && bRedA.tagName, bRedA && bRedA.textContent.trim(), bRedA && bRedA.getAttribute('aria-expanded')], ['BUTTON', 'Réduire', 'true']);
+        const nAct = d.querySelectorAll('.af-carte').length;
+        bRedA.click(); await attendre(60);
+        const som = d.querySelector('#afaire .af-sommaire');
+        check('P4 réduit : plus de bandes, une ligne, et l’appareil le retient', [d.querySelectorAll('.af-carte').length, !!som, w.localStorage.getItem('ss_dash_afaire')], [0, true, 'reduit']);
+        check('P5 la ligne dit COMBIEN', som && som.querySelector('.af-nb').textContent, String(nAct));
+        check('P6 …ce que PERSONNE n’a pris, en mots (règle 15)', som && (som.querySelector('.af-pers .long') || {}).textContent, '1 que personne n’a pris');
+        check('P7 …« Critique », le mot d’attente.js (règle 15 quater)', som && (som.querySelector('.af-urg') || {}).textContent, w.SSAttente.URGENCE_LABEL[w.SSAttente.URGENCE.CRITIQUE]);
+        check('P8 …et le NOM du premier dossier (ce que personne n’a pris passe devant)', som && (som.querySelector('.af-n span') || {}).textContent, "Nadia D'Ursel");
+        // « personne » ne se coupe JAMAIS au bureau : en `flex: auto`, la rangée des noms lui prenait sa
+        // place (« 1 que… ») alors qu'il restait 300 px (règle 67).
+        const persL = som && som.querySelector('.af-pers .long');
+        check('P9 une seule ligne, rien de coupé, « personne » entier', som && [som.offsetHeight <= 56, som.scrollWidth <= som.clientWidth + 1, !!persL && persL.scrollWidth <= persL.clientWidth + 1], [true, true, true]);
+        check('P10 le focus reste sur le geste (clavier)', d.activeElement === som, true);
+        // LE RELAIS : réduire CACHE le mot, ça ne l'efface jamais — ni le rafraîchissement.
+        const champ = d.getElementById('motAutre');
+        champ.value = 'Un mot pas fini';
+        d.querySelector('#relaisTete .poste-red').click(); await attendre(60);
+        check('P12 le relais se réduit à sa tête, avec son résumé, et l’appareil le retient',
+          [w.getComputedStyle(d.querySelector('.rl-corps')).display, /l’attend/.test(d.querySelector('.rl-resume').textContent), w.getComputedStyle(d.querySelector('.rl-resume')).display, w.localStorage.getItem('ss_dash_relais')],
+          ['none', true, 'block', 'reduit']);
+        // Côte à côte, c'est le plus haut des deux blocs qui fait la rangée : la liste ne remonte
+        // vraiment qu'une fois les DEUX réduits.
+        check('P11 les deux réduits, le premier devis remonte encore (≥ 100 px)', ouvertTop - mrow0() >= 100, true);
+        await w.rafraichir(); await attendre(150);
+        w.toutVu(); await attendre(40);
+        d.querySelector('#relaisTete .poste-red').click(); await attendre(60);
+        check('P13 un mot en cours de frappe survit à la réduction ET au rafraîchissement (même champ, même texte)', [d.getElementById('motAutre') === champ, champ.value, w.getComputedStyle(champ).display !== 'none'], [true, 'Un mot pas fini', true]);
+        champ.value = '';
+        // « Ça attend Yannick » : une ligne qui déplie la liste SUR PLACE (choix de Nicolas).
+        const nAutre = w.eval('ACTIONS.autre.length');
+        const ligA = () => d.querySelector('#relaisAttend .rl-attend');
+        check('P14 ce qui attend l’autre tient sur UNE ligne-bouton, liste repliée', ligA() && [ligA().tagName, ligA().getAttribute('aria-expanded'), !!d.getElementById('relaisAttendListe'), ligA().offsetHeight <= 34], ['BUTTON', 'false', false, true]);
+        ligA().click(); await attendre(60);
+        check('P15 …un clic déplie TOUTE la liste sur place', [d.querySelectorAll('#relaisAttendListe .rl-ligne').length, ligA().getAttribute('aria-expanded'), nAutre > 0], [nAutre, 'true', true]);
+        ligA().click(); await attendre(60);
+        check('P16 …un autre la replie', !!d.getElementById('relaisAttendListe'), false);
+        // La mémoire de l'appareil : un nouveau chargement retrouve les deux blocs réduits.
+        d.querySelector('#relaisTete .poste-red').click(); await attendre(40);
+        f.remove();
+        f = await ouvrir(1500, 900, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        check('P17 un nouveau chargement retrouve les deux blocs réduits', [!!d.querySelector('#afaire .af-sommaire'), w.getComputedStyle(d.querySelector('.rl-corps')).display], [true, 'none']);
+        check('P18 réduits côte à côte, les deux lignes ont la même hauteur (≤ 60 px)', [Math.abs(d.getElementById('afaire').offsetHeight - d.getElementById('relais').offsetHeight) <= 1, d.getElementById('relais').offsetHeight <= 60], [true, true]);
+        // La présence du bandeau mène au mot : le relais se rouvre (même réduit), le curseur est dans le champ.
+        d.getElementById('presence').click(); await attendre(450);
+        check('P19 « Yannick en ligne » rouvre le relais réduit et met le curseur dans le mot', [w.getComputedStyle(d.querySelector('.rl-corps')).display, d.activeElement && d.activeElement.id, w.localStorage.getItem('ss_dash_relais')], ['block', 'motAutre', 'ouvert']);
+        d.querySelector('#afaire .af-sommaire').click(); await attendre(60);
+        check('P20 « Afficher » rend les bandes, et l’appareil le retient', [d.querySelectorAll('.af-carte').length > 0, w.localStorage.getItem('ss_dash_afaire')], [true, 'ouvert']);
+        // Rien à faire : la ligne réduite le DIT, au lieu d'un compteur vide.
+        w.eval('DEVIS = []; SUJETS = []; RDV_LIST = []'); w.render(); await attendre(40);
+        d.querySelector('#afaire .af-tete .poste-red').click(); await attendre(40);
+        check('P21 rien à faire : la ligne réduite dit 0 et « rien d’urgent »', [d.querySelector('#afaire .af-nb').textContent, /Rien d’urgent/.test(d.querySelector('#afaire .af-sommaire').textContent)], ['0', true]);
+        f.remove();
+
+        titre('Le poste à toutes les largeurs (règle 67) : rien de coupé, rien hors de l’écran, 40 px au doigt');
+        for (const [L, H] of [[1250, 900], [1101, 900], [1000, 900], [390, 800], [320, 640]]) {
+          for (const reduit of [false, true]) {
+            semer();
+            localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV_P));
+            if (reduit) { localStorage.setItem('ss_dash_afaire', 'reduit'); localStorage.setItem('ss_dash_relais', 'reduit'); }
+            f = await ouvrir(L, H, 'nicolas');
+            w = f.contentWindow; d = f.contentDocument;
+            const tag = 'W ' + L + ' px ' + (reduit ? 'réduit' : 'ouvert');
+            // `.af-noms` : ses noms passent à la ligne (cachée) au lieu d'être coupés — mais un nom
+            // long rejeté seul sur la ligne cachée ne doit pas déborder de côté pour autant.
+            const coupes = [...d.querySelectorAll('.af-carte, .af-sommaire, .af-noms, .af-tete, .rl-tete, .rl-mot, .rl-attend, .poste-red, .af-pers, .af-pers span')].filter(e => e.offsetWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.className);
+            const dehors = [...d.querySelectorAll('.poste *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && (b.right > w.innerWidth + 1 || b.left < -1); }).map(e => e.className);
+            check(tag + ' : rien de coupé ni hors de l’écran dans le poste', [coupes, dehors, d.documentElement.scrollWidth <= w.innerWidth], [[], [], true]);
+            if (L <= 760) {
+              check(tag + ' : chaque geste fait au moins 40 px au doigt', visibles('.poste .poste-red, .poste .af-sommaire, .poste .rl-deplier, .poste .af-btn').filter(e => e.offsetHeight < 40).map(e => e.className), []);
+              // 640 px de haut ne laisse pas la place (le bonjour et la barre en prennent déjà 560) :
+              // la promesse du premier écran vaut pour un vrai téléphone (390 × 800, T3).
+              if (H >= 800) check(tag + ' : le premier devis reste dans le premier écran', mrow0() < H, true);
+            }
+            if (L <= 1100) {
+              // Dessous 1100 px, « Réduire » du relais n'existe pas : il se replie déjà seul, et se
+              // déplie d'un appui même si l'ordinateur l'a mémorisé réduit.
+              check(tag + ' : le relais est replié, « Réduire » laisse la place à « déplier »', [w.getComputedStyle(d.querySelector('.rl-corps')).display, d.querySelector('#relaisTete .poste-red').offsetWidth, d.querySelector('.rl-deplier').offsetWidth > 0], ['none', 0, true]);
+              d.querySelector('.rl-deplier').click(); await attendre(60);
+              check(tag + ' : …et se déplie d’un appui', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'block');
+            } else if (!reduit) {
+              check(tag + ' : le champ du mot garde au moins 150 px', d.getElementById('motAutre').getBoundingClientRect().width >= 150, true);
+            }
+            f.remove();
+          }
+        }
 
         titre('Réglages de la SOCIÉTÉ : enfin lus (appareil → société → repli)');
         /* ⚠️ « Vue du tableau de bord », « Densité » et « Chiffres repliés » étaient enregistrables

@@ -293,6 +293,9 @@
           const quoi = i.quoi + (i.detail ? ' — ' + i.detail : '');
           out.push({
             cle: i.id, qui: i.qui || '',
+            // `urgence` voyage avec l'action : « À faire maintenant » RÉDUIT écrit « Critique » quand il
+            // y en a une (règles 15 quater et 67) — le mot vient d'URGENCE_LABEL, pas de la page.
+            urgence: i.urgence,
             poids: i.urgence >= U.CRITIQUE ? 5.5 : (i.urgence >= U.HAUTE ? 3.5 : 2), depuis: i.depuis || '',
             fam: SOURCE_LIB[i.source] || 'À faire', ic: SOURCE_IC[i.source] || 'chevronright',
             couleur: i.qui ? (SOURCE_COUL[i.source] || 'var(--accent)') : 'var(--danger)',

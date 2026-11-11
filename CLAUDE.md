@@ -127,7 +127,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 68 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis (sa carte SAV atteinte par le sommaire, au portable comme au téléphone, règle 66), le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/dashboard.test.html` | Les 92 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
+| `tests/dashboard.test.html` | Les 146 tests du tableau de bord (règles 40, 40 bis et 67) : le haut qui se réduit (une bande par action, « Réduire » retenu par l'appareil, la ligne réduite qui nomme combien, « personne », « Critique » et les dossiers, le mot à l'autre jamais réécrit, « Ça attend » déplié sur place, la présence qui rouvre, chaque largeur de 1 250 à 320 px), prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
@@ -3532,6 +3532,51 @@ Protégé par `tests/fiche.test.html` (D1-D8, L1-L4, T1-T8), `tests/plan.test.ht
   plus « 12 % » — `Math.round` arrondissait les DEUX lignes, répartition personnalisée et mode fixe. Sans part enregistrée, celle du
   moteur (`calculs`) ; illisible, « — % » (test P19).
 
+**67. LE HAUT DU TABLEAU DE BORD SE RÉDUIT : UNE BANDE PAR ACTION, UN RELAIS RESSERRÉ, « RÉDUIRE » SUR CHACUN**
+(11/11/2026 — Nicolas, après la réunion avec Yannick : « pouvoir réduire les fenêtres "à faire maintenant", pouvoir le rendre discret
+et savoir voir facilement si on veut, ou des infos plus petites, et le relais avec [Yannick] aussi ça prend trop de place et on voit
+pas les devis client ». Maquette à quatre variantes ; il a choisi A « bandes fines » et les recommandations partout.)
+Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actions.js`). Protégé par `tests/dashboard.test.html`
+(P1-P21, les cas W à 1 250, 1 101, 1 000, 390 et 320 px, T12, R3c), vérifié par 20 mutations.
+• **MESURÉ AVANT D'ÊTRE TOUCHÉ** (vraie page, données fictives de la forme de sa capture, 1 650 × 1 012) : le premier devis tombait à
+  **917 px**, un seul visible. Le relais (457 px) faisait la hauteur de la rangée et laissait 270 px de vide sous les deux cartes.
+  Après : **653 px** tout ouvert (trois devis), **530 px** les deux réduits (quatre à cinq).
+• **UNE BANDE PAR ACTION** (≤ 50 px) au lieu d'une carte : icône et filet de la famille (règle 21 bis), client, action sur UNE ligne (la
+  phrase entière dans l'infobulle), « Critique », depuis quand ou combien, QUI, le bouton. Le NOM de la famille quitte la vue
+  (infobulle de l'icône, lecteurs d'écran) : couleur et icône le disent, comme sur téléphone depuis le 25/10. Quatre au plus, « voir les N ».
+• **LE RELAIS RESSERRÉ** : rien de neuf = une ligne ; des nouvelles = trois au plus, deux lignes chacune (ce que l'autre a fait se LIT,
+  ça ne se plie pas) ; « Ça attend Yannick » = une ligne-bouton (combien, ses pastilles, le premier) qui déplie TOUTE la liste sur
+  place (réponse de Nicolas) ; le mot sur une ligne, l'aide n'apparaît que pendant qu'on écrit.
+• **« RÉDUIRE » SUR CHACUN DES DEUX BLOCS** (réponse de Nicolas), un MOT avec la flèche (règle 33), retenu par l'APPAREIL
+  (`ss_dash_afaire`, `ss_dash_relais` = `reduit` | `ouvert`, même famille que `ss_dash_view`). **Au premier chargement, rien n'est
+  réduit** — choix de Claude, que Nicolas peut contester : réduire est un choix qu'on FAIT, pas un état qu'on découvre ; et ouvert, la
+  liste est déjà dans le premier écran.
+• **RÉDUIT, « À FAIRE » DIT CE QU'ON CHERCHERAIT EN L'OUVRANT**, sur une ligne : combien, « N que personne n'a pris » en rouge et en
+  mots (règle 15), « Critique » (le mot d'`URGENCE_LABEL`, règle 15 quater — l'action porte désormais son `urgence`), puis les NOMS des
+  premiers dossiers avec leur pastille. Toute la ligne est le bouton « Afficher ». **Rien ne la rouvre toute seule** (règle 40 : un
+  état, pas un événement) : c'est elle qui change quand une urgence arrive.
+  ⚠️ **Des noms ENTIERS ou rien** : la rangée passe à la ligne et la seconde ligne est cachée (`flex-wrap`, `height`, `overflow: hidden`),
+  chaque nom en `flex: 0 1 auto; min-width: 0` — la coupure de ligne se décide sur la largeur PLEINE, puis un nom seul sur sa ligne se
+  resserre. En `flex: none`, un nom long rejeté seul sur la ligne cachée débordait de côté (M10).
+  ⚠️ **`.af-noms { flex: 1 1 0 }`, pas `auto`** : en `auto`, la rangée des noms (toute sa largeur de contenu) se partageait le
+  rétrécissement avec « 1 que personne n'a pris », qui sortait en « 1 que… » alors qu'il restait 300 px (M9).
+• ⚠️ **CÔTE À CÔTE, LE PLUS HAUT DES DEUX FAIT LA RANGÉE** : réduire « À faire » seul ne fait pas remonter la liste tant que le relais
+  est ouvert à côté — c'est attendu, pas un défaut. Les deux réduits ont la même hauteur (`:has` → `align-items: stretch`, M17).
+• ⚠️ **LE FORMULAIRE DU MOT N'EST JAMAIS RÉÉCRIT** (règle 40) : réduire le CACHE (une classe), et `renderRelais` ne redessine que la
+  tête et les deux listes. P13 : même nœud, même texte après « Réduire », un rafraîchissement et « Tout vu » (M4).
+• **LA PRÉSENCE DU BANDEAU** (« Yannick vu il y a… ») rouvre le relais même réduit, le RETIENT (on vient de demander à le voir) et met
+  le curseur dans le mot (M5).
+• **SOUS 1 100 PX, RIEN NE CHANGE DE NATURE** : le relais passe sous les actions, replié, et « déplier » n'est PAS retenu (le premier
+  devis doit rester dans le premier écran). Son « Réduire » n'existe qu'au-delà, et la classe `reduit` n'agit que là — aucune branche
+  JS sur la largeur (règle 24, M8). « Réduire » d'« À faire » existe partout, à 40 px au doigt (M12). ≤ 400 px le titre devient
+  « À faire » (titre, « voir les 5 » et « Réduire » faisaient 338 px pour 288 à 320 px, M11) ; ≤ 360 px, réduit, « personne »
+  passe avant les pastilles. Le champ du mot part à la ligne sous ~375 px de relais au lieu de tomber à 110 px (M16).
+• ⚠️ **AU DOIGT, LE PREMIER DEVIS SORTAIT DU PREMIER ÉCRAN — DÉJÀ SUR `main`** (T3 rouge en émulation tactile : champs à 16 px,
+  cibles de 44 px ; 808 px pour 800 avec « Réduire »). Le bonjour y répétait « Yannick a avancé 3 choses depuis ta dernière visite »
+  sur deux lignes, que la barre repliée du relais, juste en dessous, dit déjà (« 3 nouveautés ») : sous 1 100 px, il se tait
+  (`.ck-rel`, règle 40 bis — chaque chose dite une fois). Au bureau, le bonjour le dit toujours (R3c).
+• **AUCUN MONTANT NE CHANGE**, et « Installer l'app » reste sous le bonjour (règle 63, N1-N15).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3824,7 +3869,8 @@ Protégé par `tests/fiche.test.html` (D1-D8, L1-L4, T1-T8), `tests/plan.test.ht
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
    `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
-   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 77/77 », par le serveur.
+   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 146/146 », par le serveur — au bureau ET en
+   émulation tactile (le premier devis dans le premier écran du téléphone ne se joue vraiment qu'avec des cibles de 44 px, T3).
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 130/130 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
