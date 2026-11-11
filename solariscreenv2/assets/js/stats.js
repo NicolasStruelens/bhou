@@ -129,8 +129,20 @@
     F.forEach(function (f) { (f.paiements || []).forEach(function (p) { if (dans(p.date, per)) encaisse += Number(p.montant) || 0; }); });
     const du = F.reduce(function (s, f) { return s + U().duFacture(f, F); }, 0);
     const retard = F.filter(function (f) { return U().factureEnRetard(f, F); });
+    /* LA MARGE MATÉRIEL des ventes signées de la période (règle 64) : catalogue moins achat RÉEL — la remise projet
+       Harol comprise, au taux FIGÉ de chaque devis (règle 1). Lue par `SSCalc.margeReelleDevis`, la règle de la
+       fiche et du simulateur : jamais une formule recopiée ici (règle 30 septies). Un devis sans `calculs` n'a pas
+       de marge lisible : il est compté à part plutôt que pour zéro (règle 30 nonies). */
+    const marge = { estimee: 0, reelle: 0, gain: 0, nbProjet: 0, illisibles: 0 };
+    signes.forEach(function (d) {
+      if (!d.calculs || !window.SSCalc || !window.SSCalc.margeReelleDevis) { marge.illisibles++; return; }
+      const m = window.SSCalc.margeReelleDevis(d);
+      marge.estimee = r2(marge.estimee + m.marge_estimee);
+      marge.reelle = r2(marge.reelle + m.marge_reelle);
+      if (m.gain_projet > 0) { marge.gain = r2(marge.gain + m.gain_projet); marge.nbProjet++; }
+    });
     return {
-      signe: somme(signes), nbSignes: signes.length,
+      signe: somme(signes), nbSignes: signes.length, marge: marge,
       interventions: { nb: interventions.length, montant: somme(interventions) },
       refuses: { nb: refuses.length, montant: somme(refuses) },
       envoyes: envoyes.length,

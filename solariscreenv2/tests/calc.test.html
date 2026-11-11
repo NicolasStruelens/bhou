@@ -183,6 +183,130 @@
     check('C9 « 1,5 » h se facture 1,5', poste(1.5), 82.5);
     check('C9 négative, elle vaut 0 — jamais un montant retiré', poste(-2), 0);
 
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // RÈGLE 64 — LA PART LIBRE, LE PARTAGE, LA REMISE PROJET HAROL (11/11/2026)
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // `check` compare des nombres : null et 0 s'y confondent. Ici la différence EST la règle (vide = pas
+    // demandée, 0 = demandée, aucune) : on compare donc à l'identique.
+    function checkEq(name, got, expected) {
+      const ok = JSON.stringify(got) === JSON.stringify(expected);
+      ok ? pass++ : fail++;
+      rows.push(`<tr><td>${name}</td><td class="num">${JSON.stringify(got)}</td><td class="num">${JSON.stringify(expected)}</td><td class="${ok?'pass':'fail'}">${ok?'OK':'ÉCHEC'}</td></tr>`);
+    }
+    const r2t = (n) => Math.round(n * 100) / 100;
+    const sur10k = (sellers, extra) => computeDevis(Object.assign({
+      items: [{ quantite: 1, prix_catalogue_ht: 10000 }], sellers: sellers,
+      installation: { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30, install_qty: 1, tech1_qty: 1, tech2_qty: 1, tools_qty: 1 },
+      tva_pct: 6,
+    }, extra || {}));
+
+    // P1 — Un devis d'AVANT la règle (sans `part_libre`) garde son prix : la part libre reste annoncée, rien de plus.
+    const avant = sur10k({ principal: 'autre', nicolas_pct: 10, yannick_pct: 10 });
+    check('P1 devis d’avant : la part libre est toujours calculée (3 %)', avant.remise.amount, 300);
+    check('P1 … mais elle ne va pas au client (prix inchangé : 10 280 HTVA)', avant.total_ht, 10280);
+    check('P1 … ni dans la réduction catalogue', avant.remise_catalogue.amount, 0);
+    checkEq('P1 … et le moteur le dit (client: false)', avant.remise.client, false);
+
+    // P2 — Un devis qui suit la règle : la part libre devient une VRAIE remise client, qu'aucune commission ne paie.
+    const r64 = sur10k({ principal: 'autre', nicolas_pct: 10, yannick_pct: 10, part_libre: 'client' });
+    check('P2 la part libre entre dans la réduction catalogue (lue par le PDF)', r64.remise_catalogue.amount, 300);
+    check('P2 … et elle est marquée comme telle', r64.remise_catalogue.part_libre, 300);
+    check('P2 le catalogue net baisse d’autant', r64.total_catalog_ht, 9700);
+    check('P2 le total client baisse (10 280 → 9 980 HTVA)', r64.total_ht, 9980);
+    check('P2 total des remises', r64.total_remises, 300);
+    check('P2 la commission de Nicolas n’en paie rien', r64.nicolas_gross, 1000);
+    check('P2 celle de Yannick non plus', r64.yannick_gross, 1000);
+    checkEq('P2 le moteur dit qu’elle est versée au client', r64.remise.client, true);
+    checkEq('P2 la saisie de la réduction reste vide (c’est elle que le simulateur relit)', [r64.remise_catalogue.value, r64.remise_catalogue.mode], [0, 'eur']);
+
+    // P3 — Avec une réduction tapée en plus : celle-là reste payée par les commissions, au prorata.
+    const r64b = sur10k({ principal: 'autre', nicolas_pct: 10, yannick_pct: 10, part_libre: 'client' }, { remise_catalogue: { mode: 'eur', value: 300 } });
+    check('P3 le client voit les deux réunies', r64b.remise_catalogue.amount, 600);
+    check('P3 dont la part libre', r64b.remise_catalogue.part_libre, 300);
+    check('P3 la réduction tapée est payée au prorata (Nicolas)', r64b.nicolas_gross, 850);
+    check('P3 … et Yannick', r64b.yannick_gross, 850);
+    check('P3 total HTVA', r64b.total_ht, 9680);
+
+    // P4 — 11,5 + 11,5 = 23 pile : aucune part libre, même avec la règle.
+    const pile = sur10k({ principal: 'autre', nicolas_pct: 11.5, yannick_pct: 11.5, part_libre: 'client' });
+    checkEq('P4 23 % pile : pas de part libre', pile.remise.applicable, false);
+    check('P4 … le prix ne bouge pas', pile.total_ht, 10280);
+    checkEq('P4 … et le partage dit 0 d’écart', [pile.partage.marge_pct, pile.partage.somme_pct, pile.partage.ecart_pct], [23, 23, 0]);
+    // P4b — La virgule flottante : 0,29 × 100 = 28,999999999999996. Une marge figée à 29 % se lit 29, et 14,5 + 14,5 ne
+    // laisse aucune part libre.
+    const p29 = sur10k({ principal: 'autre', nicolas_pct: 14.5, yannick_pct: 14.5, part_libre: 'client' }, { rates: { supplier_rate: 0.71, material_margin: 0.29, net_divisor: 2.5 } });
+    checkEq('P4b marge à 29 % : lue 29 (pas 28,999…), écart nul, aucune remise', [p29.partage.marge_pct, p29.partage.ecart_pct, p29.remise.applicable, p29.total_ht], [29, 0, false, 10280]);
+
+    // P5 — La marge vient du taux FIGÉ du devis, plus d'un 23 écrit dans le moteur.
+    const marge25 = sur10k({ principal: 'autre', nicolas_pct: 10, yannick_pct: 10, part_libre: 'client' }, { rates: { supplier_rate: 0.75, material_margin: 0.25, net_divisor: 2.5 } });
+    check('P5 marge figée à 25 % : 5 % libres', marge25.remise.pct, 5);
+    check('P5 … soit 500 € de remise', marge25.remise_catalogue.part_libre, 500);
+    // Et le devis d'avant (sans taux stockés) reste à 23.
+    check('P5 sans taux : 23 % comme toujours (C2 : 10 + 8 → 5 %)', computeDevis({ items: [{ quantite: 1, prix_catalogue_ht: 1000 }], sellers: { principal: 'autre', nicolas_pct: 10, yannick_pct: 8 } }).remise.pct, 5);
+
+    // P6 — En vendeur FIXE, la règle ne s'applique pas : un écart des parts de Paramètres reste à la société.
+    const fixe = sur10k({ principal: 'nicolas', part_libre: 'client' }, { seller_parts: { principal: 15, second: 5 } });
+    checkEq('P6 vendeur fixe à 15 / 5 : pas de remise client', [fixe.remise.applicable, fixe.remise_catalogue.amount], [false, 0]);
+    check('P6 … mais le partage dit les 3 % qui restent', fixe.partage.ecart_pct, 3);
+
+    // P7 — Des commissions AU-DELÀ de la marge se disent (15 + 15 = 30 pour 23).
+    const trop = sur10k({ principal: 'autre', nicolas_pct: 15, yannick_pct: 15, part_libre: 'client' });
+    check('P7 dépassement de 7 %', trop.partage.ecart_pct, -7);
+    check('P7 … soit 700 €', trop.partage.ecart_montant, -700);
+    check('P7 … sans aucune remise client', trop.remise_catalogue.amount, 0);
+
+    // P8 — La part libre ne rend jamais le catalogue négatif : plafonnée à ce que la réduction tapée laisse.
+    const tout = sur10k({ principal: 'autre', nicolas_pct: 10, yannick_pct: 10, part_libre: 'client' }, { remise_catalogue: { mode: 'pct', value: 100 } });
+    check('P8 réduction de 100 % : plus de place pour la part libre', tout.remise_catalogue.part_libre, 0);
+    check('P8 … catalogue net à 0, pas en dessous', tout.total_catalog_ht, 0);
+    checkEq('P8 … et elle n’est pas dite « versée »', tout.remise.client, false);
+
+    // P9 — LA REMISE PROJET ne touche PAS au moteur : ni prix client, ni commissions.
+    const sansRp = sur10k({ principal: 'nicolas' }), avecRp = sur10k({ principal: 'nicolas' }, { remise_projet_pct: 46 });
+    checkEq('P9 computeDevis ignore une remise projet qu’on lui passerait', JSON.stringify(avecRp), JSON.stringify(sansRp));
+
+    // P10 — remiseProjetValide : ABSENTE N'EST PAS ZÉRO.
+    const RV = window.SSCalc.remiseProjetValide;
+    checkEq('P10 vide, null, absent : pas demandée (null)', [RV(''), RV(null), RV(undefined)], [null, null, null]);
+    checkEq('P10 0 : demandée, aucune (0, pas null)', [RV(0), RV('0')], [0, 0]);
+    checkEq('P10 46 et « 46,5 »', [RV(46), RV('46,5')], [46, 46.5]);
+    checkEq('P10 hors 0–100 ou illisible : null', [RV(-1), RV(101), RV('abc')], [null, null, null]);
+
+    // P11 — La cascade d'un grand chantier (33 screens, 11,5 / 11,5, −23 % −46 %), qui retombe au centime.
+    const grand = computeDevis({ items: [{ quantite: 1, prix_catalogue_ht: 23002.32 }], sellers: { principal: 'autre', nicolas_pct: 11.5, yannick_pct: 11.5, part_libre: 'client' } });
+    const mb = window.SSCalc.margeReelle(grand, 46, 0.77);
+    check('P11 achat estimé', mb.achat_estime, 17711.79);
+    check('P11 achat réel (× 0,54)', mb.achat_reel, 9564.37);
+    check('P11 gain de la remise projet', mb.gain_projet, 8147.42);
+    check('P11 marge estimée (celle d’avant)', mb.marge_estimee, 5290.53);
+    check('P11 marge réelle', mb.marge_reelle, 13437.95);
+    check('P11 reste à la société', mb.reste_societe, 8147.41);
+    check('P11 la cascade retombe au centime', r2t(mb.catalogue - mb.achat_reel - mb.nicolas_brut - mb.yannick_brut - mb.reduction_client), mb.reste_societe);
+    const mb0 = window.SSCalc.margeReelle(grand, '', 0.77);
+    checkEq('P11 sans remise projet : achat = estimé, la remise vaut null', [mb0.achat_reel, mb0.remise_projet_pct, mb0.gain_projet], [17711.79, null, 0]);
+    check('P11 … et le reste n’est qu’un arrondi des deux commissions', mb0.reste_societe, -0.01);
+
+    // P12 — La réduction TAPÉE apparaît deux fois, et la cascade retombe quand même : 18 / 5, 200 € de réduction.
+    const red = window.SSCalc.margeReelle(sur10k({ principal: 'nicolas' }, { remise_catalogue: { mode: 'eur', value: 200 } }), null, 0.77);
+    checkEq('P12 Nicolas 1 600, Yannick 500, réduction 200, reste 0', [red.nicolas_brut, red.yannick_brut, red.reduction_client, red.reste_societe], [1600, 500, 200, 0]);
+    // Un devis d'avant à 10 / 10 : la part libre reste à la société, et la cascade la montre.
+    check('P12 devis d’avant 10 / 10 : 300 € restent à la société', window.SSCalc.margeReelle(avant, null, 0.77).reste_societe, 300);
+    // Avec la règle : versée au client, il ne reste rien.
+    check('P12 avec la règle : 0 à la société', window.SSCalc.margeReelle(r64, null, 0.77).reste_societe, 0);
+
+    // P13 — margeReelleDevis lit le devis entier ; un vieux devis sans supplier_estimate prend son taux figé.
+    const vieux = window.SSCalc.margeReelleDevis({ calculs: { total_catalog_ht_brut: 1000 }, pricing_v2: { rates: { supplier_rate: 0.7 }, remise_projet_pct: 10 } });
+    checkEq('P13 vieux devis : estimé au taux figé, réel −10 %', [vieux.achat_estime, vieux.achat_reel], [700, 630]);
+    check('P13 sans catalogue brut : catalogue net + réduction', window.SSCalc.margeReelle({ total_catalog_ht: 900, remise_catalogue: { amount: 100 } }, null, 0.77).catalogue, 1000);
+
+    // P14 — Le rappel : assez d'ouvertures CHIFFRÉES et rien de noté (même 0 vaut réponse).
+    const RP = window.SSCalc.rappelRemiseProjet;
+    checkEq('P14 10 ouvertures, seuil 10, rien noté : rappel', RP(10, null, 10), true);
+    checkEq('P14 9 ouvertures : pas de rappel', RP(9, '', 10), false);
+    checkEq('P14 33 ouvertures et 0 noté : la réponse est là, plus de rappel', RP(33, 0, 10), false);
+    checkEq('P14 33 ouvertures et 46 % : plus de rappel', RP(33, 46, 10), false);
+    checkEq('P14 seuil illisible : aucun rappel (jamais sur tout)', [RP(33, null, 0), RP(33, null, 'x'), RP(33, null, undefined)], [false, false, false]);
+
     document.getElementById('out').innerHTML =
       `<table><thead><tr><th>Test</th><th>Obtenu</th><th>Attendu</th><th>Statut</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
     const s = document.getElementById('summary');
