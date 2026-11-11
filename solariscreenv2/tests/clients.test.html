@@ -183,7 +183,12 @@
         w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(x => x.id === id)));
         w.SS.saveClient = async () => ({ ok: true });
         w.SS.saveDevis = async (dv, o) => { ecrits.push([dv.id, o && o.expectedDateModification, dv.client.telephone]); return dv.id === conflitPour ? { ok: true, conflict: true } : { ok: true }; };
-        const dernierToast = () => { const t = [...d.querySelectorAll('#toasts .toast')].pop(); return t ? t.textContent : ''; };
+        /* Chaque toast est NOTÉ quand il apparaît : il ne reste que 3 s à l'écran, et sous charge le rechargement qui suit
+           l'enregistrement dure plus longtemps — on lisait un toast déjà parti (P3 et S2 tombaient au hasard). */
+        const noterToasts = (fen, liste) => new fen.MutationObserver(() => fen.document.querySelectorAll('.toast').forEach((t) => { if (!liste.includes(t.textContent)) liste.push(t.textContent); }))
+          .observe(fen.document.body, { childList: true, subtree: true, characterData: true });
+        const toastsP = [];
+        noterToasts(w, toastsP);
         await w.saveFiche('signe|marc'); await attendre(300);
         check('P1 Rien n’a changé dans les coordonnées : AUCUN devis réécrit (avant : tous)', ecrits.length, 0);
         w.renderDetail('signe|marc'); await attendre(250);
@@ -192,7 +197,7 @@
         await w.saveFiche('signe|marc'); await attendre(300);
         check('P2 Le téléphone change : ses deux devis sont réécrits, chacun avec sa version lue (détection de conflit)',
           ecrits.map(e => [e[0], e[1], e[2]]).sort(), [['C-REF', T(-50), '0499 99 99 99'], ['C-SIG', T(-5), '0499 99 99 99']]);
-        check('P3 Un devis modifié entre-temps n’est PAS écrasé, et le message le dit', /1 devis modifié\(s\) entre-temps/.test(dernierToast()), true);
+        check('P3 Un devis modifié entre-temps n’est PAS écrasé, et le message le dit', toastsP.some((t) => /1 devis modifié\(s\) entre-temps/.test(t)), true);
 
         titre('C — « À ranger » : ce qui mérite un coup de balai (bureau)');
         semer();
@@ -318,7 +323,8 @@
             return vraiFetch(url, o);
           };
           ws.SS.saveDevis = async () => ({ ok: true });
-          const toastS = () => { const t = [...ds.querySelectorAll('#toasts .toast')].pop(); return t ? t.textContent : ''; };
+          const toastsS = [];
+          noterToasts(ws, toastsS);
           const avantS = Date.now() - 1000;
 
           ds.getElementById('f_notes').value = 'Poser un samedi';
@@ -329,7 +335,7 @@
             [1, 'whatsapp', T(-40), 'amical', 'Poser un samedi', true]);
           await ws.saveFiche('signe|marc'); await attendre(300);
           check('S2 « Enregistrer » sans rien changer n’écrit rien (le client ne remonte pas en tête pour rien), et le dit',
-            [ENVOIS.length, /rien/i.test(toastS())], [1, true]);
+            [ENVOIS.length, toastsS.some((t) => /Rien n’a changé sur la fiche/.test(t))], [1, true]);
           FICHES['signe|marc'].telephone = '0499 12 34 56';   // Yannick corrige le téléphone depuis la fiche devis, entre-temps
           ds.getElementById('f_notes').value = 'Poser un samedi matin';
           await ws.saveFiche('signe|marc'); await attendre(300);
