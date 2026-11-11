@@ -388,8 +388,12 @@
       // La fiche d'une demande de RDV prend tout l'écran d'un téléphone : « Fermer » était sous l'heure.
       f = await cadre('../app/rdv.html?nouvelle=1', 390, 700);
       d = f.contentDocument; w = f.contentWindow;
-      encocher(d); await attendre(200);
-      const fermer = d.querySelector('#modalBg .mclose'), pied = [...d.querySelectorAll('#modalBg .mfoot button')].filter(b => b.checkVisibility());
+      encocher(d);
+      // ⚠️ La fiche s'ouvre APRÈS le chargement (`?nouvelle=1`) : sous charge, au-delà des 1,8 s du cadre. On attend qu'elle soit
+      // ouverte, et le pied se relève au moment de la vérification (relevé trop tôt, il était vide : faux échec du 11/11/2026).
+      for (let i = 0; i < 120 && !d.getElementById('modalBg').classList.contains('open'); i++) await attendre(50);
+      await attendre(200);
+      const fermer = d.querySelector('#modalBg .mclose'), piedVu = () => [...d.querySelectorAll('#modalBg .mfoot button')].filter(b => b.checkVisibility());
       rendre();
       // E9 : les autres fenêtres plein écran du téléphone, trouvées par le robot des clics sous encoche simulée (11/11/2026).
       {
@@ -414,7 +418,7 @@
       }
       rendre();
       check('E8 RDV plein écran : « Fermer » se touche sous l’heure, et le pied au-dessus de la barre de gestes',
-        [d.getElementById('modalBg').classList.contains('open'), fermer.getBoundingClientRect().top >= ENC.haut, pied.length > 0 && pied.every(b => b.getBoundingClientRect().bottom <= w.innerHeight - ENC.bas + 0.5)],
+        [d.getElementById('modalBg').classList.contains('open'), fermer.getBoundingClientRect().top >= ENC.haut, piedVu().length > 0 && piedVu().every(b => b.getBoundingClientRect().bottom <= w.innerHeight - ENC.bas + 0.5)],
         [true, true, true]);
       f.remove();
 
