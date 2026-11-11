@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SolariScreen — Tableau de bord</title>
   <!-- ── Installation sur l'écran d'accueil (Android + iPhone) — aucun service worker ── -->
-  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="manifest" href="../manifest.webmanifest" crossorigin="use-credentials">
   <meta name="theme-color" content="#0b1224" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
   <meta name="mobile-web-app-capable" content="yes">
@@ -173,6 +173,30 @@
     .ck-oeil:hover { border-color: var(--border); color: var(--accent); }
     .ck-salut .mantra { margin-top: 6px; padding: 0; text-align: left; }
     .ck-salut .mantra-text { white-space: normal; font-size: var(--fs-xs); }
+    /* « Installer l'app » : sous le bonjour, là où l'on regarde en ouvrant l'ERP. Il disparaît dès
+       que l'ERP tourne en app installée — c'est la seule façon de savoir que c'est fait. */
+    .ck-installer { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 7px; margin-top: 8px;
+      padding: 5px 12px; border: 1px solid var(--accent); border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent);
+      font: inherit; font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
+    .ck-installer:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+    .ck-installer svg { flex: none; }
+    @media (pointer: coarse) { .ck-installer { min-height: 40px; padding: 8px 14px; font-size: var(--fs-sm); } }
+    /* La fenêtre des étapes */
+    .in-lead { margin: 0 0 var(--sp-3); color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
+    .in-onglets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-3); }
+    .in-onglets button { padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: none;
+      color: var(--text-muted); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+    .in-onglets button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; }
+    @media (pointer: coarse) { .in-onglets button { min-height: 40px; padding: 8px 14px; font-size: var(--fs-sm); } }
+    .in-etapes { margin: 0; padding: 0; list-style: none; counter-reset: ie; display: grid; gap: 10px; }
+    .in-etapes li { counter-increment: ie; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start;
+      font-size: var(--fs-sm); line-height: 1.5; color: var(--text); }
+    .in-etapes li::before { content: counter(ie); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; }
+    .in-note { margin: var(--sp-3) 0 0; padding: 10px 12px; border-left: 3px solid var(--warn); border-radius: var(--r-sm);
+      background: color-mix(in srgb, var(--warn) 9%, transparent); color: var(--text); font-size: var(--fs-xs); line-height: 1.5; }
     @media (max-width: 1250px) {
       .ck-chiffres { flex: 1 1 100%; }
       .ck-t:first-child { border-left: 0; padding-left: 0; }
@@ -877,6 +901,10 @@
       <div class="ck-salut">
         <h2 class="ck-bonjour" id="ckBonjour">Bonjour</h2>
         <p class="ck-resume" id="ckResume"></p>
+        <button type="button" class="ck-installer hidden" id="btnInstaller" onclick="installerApp()" title="Installer SolariScreen sur cet appareil">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/><line x1="10.5" y1="18.5" x2="13.5" y2="18.5"/></svg>
+          Installer l’app
+        </button>
         <button class="mantra" id="mantra" type="button" onclick="newMantra()" title="Pensée du jour — clique pour en tirer une autre" aria-label="Pensée du jour, cliquer pour en changer">
           <span class="mq" aria-hidden="true">«</span>
           <span class="mantra-text" id="mantraText"></span>
@@ -1022,6 +1050,22 @@
       </div>
       <div class="mbody" id="actBody"><div class="skl-row"><div class="skl" style="height:13px;width:38%"></div><div class="skl" style="height:36px"></div><div class="skl" style="height:36px;width:82%"></div></div></div>
       <div class="mfoot" id="actFoot"></div>
+    </div>
+  </div>
+
+  <!-- Installer l'app : les étapes de l'appareil, quand le navigateur ne propose pas l'installation
+       d'un appui (l'iPhone ne le propose jamais). -->
+  <div class="modal-bg" id="modalInstall">
+    <div class="modal ticked" role="dialog" aria-modal="true" aria-labelledby="installTitre">
+      <div class="mhead">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/></svg>
+        <span id="installTitre">Installer SolariScreen</span>
+        <button class="btn btn-ghost btn-sm" onclick="fermerInstall()" aria-label="Fermer" style="margin-left:auto;">✕</button>
+      </div>
+      <div class="mbody" id="installCorps"></div>
+      <div class="mfoot" style="display:flex;justify-content:flex-end;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="fermerInstall()">Compris</button>
+      </div>
     </div>
   </div>
 
@@ -3011,6 +3055,60 @@
     window.closeActivity = () => el('modalActivity').classList.remove('open');
     el('modalActivity').addEventListener('click', (e) => { if (e.target === el('modalActivity')) closeActivity(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el('modalActivity').classList.contains('open')) closeActivity(); });
+
+    // ── Installer l'app (règle 63) ──
+    // Le bouton se cache dès que l'ERP tourne en app installée. Au clic : l'installation d'un
+    // appui quand le navigateur l'offre (Chrome, Edge), sinon les étapes de CET appareil.
+    // La fenêtre suit la règle des fenêtres (13 bis) : le fond ne ferme que si le geste y a
+    // commencé, Échap ferme, et « retour » ferme la fenêtre au lieu de quitter le tableau de bord.
+    (function () {
+      const I = window.SSNav && window.SSNav.installation;
+      const bouton = el('btnInstaller'), fond = el('modalInstall');
+      if (!I || !bouton || !fond) return;
+      const APPAREILS = [['ios', 'iPhone'], ['android', 'Android'], ['bureau', 'Ordinateur']];
+      let etapeHistorique = false, depuisFond = false;
+      const ouverte = () => fond.classList.contains('open');
+      window.rendreInstall = function (p) {
+        const g = I.guide(p);
+        el('installCorps').innerHTML =
+          '<p class="in-lead">Un appui pour ouvrir l’ERP, en plein écran, sans barre de navigateur.</p>' +
+          '<div class="in-onglets" role="tablist" aria-label="Appareil">' +
+            APPAREILS.map(([k, l]) => '<button type="button" role="tab" data-appareil="' + k + '" aria-selected="' + (k === p) + '"' +
+              (k === p ? ' class="on"' : '') + ' onclick="rendreInstall(\'' + k + '\')">' + esc(l) + '</button>').join('') +
+          '</div>' +
+          '<ol class="in-etapes" aria-label="' + esc(g.titre) + '">' + g.etapes.map(e => '<li><span>' + esc(e) + '</span></li>').join('') + '</ol>' +
+          (g.note ? '<p class="in-note">' + esc(g.note) + '</p>' : '');
+      };
+      function ouvrir(p) {
+        window.rendreInstall(p);
+        fond.classList.add('open');
+        try { history.pushState({ ssInstall: 1 }, ''); etapeHistorique = true; } catch (e) { etapeHistorique = false; }
+        const b = fond.querySelector('[aria-selected="true"]'); if (b) b.focus();
+      }
+      window.fermerInstall = function () {
+        if (!ouverte()) return;
+        fond.classList.remove('open');
+        // L'étape posée à l'ouverture est retirée : sinon « retour » ne ferait plus rien une fois.
+        if (etapeHistorique) { etapeHistorique = false; try { history.back(); } catch (e) {} }
+      };
+      window.addEventListener('popstate', () => {
+        if (!ouverte()) return;
+        etapeHistorique = false;          // le navigateur vient de la retirer lui-même
+        fond.classList.remove('open');
+      });
+      fond.addEventListener('pointerdown', (e) => { depuisFond = e.target === fond; });
+      fond.addEventListener('click', (e) => { if (e.target === fond && depuisFond) window.fermerInstall(); depuisFond = false; });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ouverte()) window.fermerInstall(); });
+      window.installerApp = function () {
+        I.installer().then((r) => { if (r === 'guide') ouvrir(I.etat().plateforme); });
+      };
+      function maj(etat) {
+        bouton.classList.toggle('hidden', !!etat.installee);
+        if (etat.installee) window.fermerInstall();
+      }
+      maj(I.etat());
+      I.ecouter(maj);
+    })();
     /* « Quoi de neuf » ne s'ouvre plus tout seul à l'arrivée : ce que l'autre a fait vit dans le
        relais (voir chargerNouveautes). La fenêtre reste, ouverte À LA DEMANDE (« tout lire »). */
 

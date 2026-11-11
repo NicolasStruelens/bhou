@@ -314,6 +314,69 @@
         check('M5 la colonne du client garde au moins 300 px', Math.min(...[...d.querySelectorAll('.m-main')].map(e => Math.round(e.getBoundingClientRect().width))) >= 300, true);
         f.remove();
 
+        titre('Installer l’app (règle 63) : un bouton sous le bonjour, qui installe ou montre le geste');
+        semer();
+        f = await ouvrir(390, 800, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        const bIns = d.getElementById('btnInstaller'), fIns = d.getElementById('modalInstall');
+        const insOuverte = () => fIns.classList.contains('open');
+        check('N1 le bouton se voit tant que l’ERP n’est pas installé', [bIns.offsetHeight > 0, bIns.textContent.trim()], [true, 'Installer l’app']);
+        check('N2 il tient dans le cockpit (rien ne sort de l’écran)', Math.round(bIns.getBoundingClientRect().right) <= w.innerWidth && d.documentElement.scrollWidth <= w.innerWidth, true);
+        /* Sans invite du navigateur (iPhone toujours, Chrome souvent) : les étapes de CET appareil. */
+        const pf = w.SSNav.installation.etat().plateforme;
+        const hist0 = w.history.length;
+        bIns.click(); await attendre(120);
+        check('N3 sans invite du navigateur, la fenêtre des étapes s’ouvre sur l’appareil utilisé',
+          [insOuverte(), d.querySelector('#installCorps [aria-selected="true"]').dataset.appareil], [true, pf]);
+        const rIns = fIns.querySelector('.modal').getBoundingClientRect();
+        check('N4 la fenêtre tient dans le téléphone', rIns.left >= 0 && rIns.right <= w.innerWidth + 0.5 && rIns.bottom <= w.innerHeight + 0.5, true);
+        d.querySelector('#installCorps [data-appareil="ios"]').click(); await attendre(60);
+        check('N5 un autre appareil se choisit d’un appui (iPhone : « Sur l’écran d’accueil »)',
+          [d.querySelector('#installCorps [aria-selected="true"]').dataset.appareil, /Sur l’écran d’accueil/.test(d.getElementById('installCorps').textContent)], ['ios', true]);
+        /* Le fond : un geste COMMENCÉ dans la fenêtre et relâché sur le fond ne ferme rien. */
+        fIns.querySelector('.modal').dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+        fIns.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await attendre(60);
+        check('N6 un geste commencé dans la fenêtre ne la ferme pas', insOuverte(), true);
+        fIns.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+        fIns.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await attendre(250);
+        check('N7 toucher le fond la ferme, et rend l’étape d’historique', [insOuverte(), w.history.length === hist0 || !(w.history.state && w.history.state.ssInstall)], [false, true]);
+        /* « Retour » ferme la fenêtre au lieu de quitter le tableau de bord (règle 13 bis). */
+        const urlAvant = w.location.href;
+        bIns.click(); await attendre(120);
+        w.history.back(); await attendre(350);
+        check('N8 « retour » ferme la fenêtre et reste sur le tableau de bord', [insOuverte(), w.location.href, f.contentDocument === d], [false, urlAvant, true]);
+        bIns.click(); await attendre(120);
+        d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(250);
+        check('N9 Échap la ferme, sans laisser d’étape d’historique', [insOuverte(), !(w.history.state && w.history.state.ssInstall)], [false, true]);
+        /* Chrome, Edge : l'invite du navigateur est GARDÉE et servie au clic, d'un seul appui. */
+        let appels = 0;
+        const invite = new w.Event('beforeinstallprompt', { cancelable: true });
+        invite.prompt = () => { appels++; return Promise.resolve(); };
+        invite.userChoice = Promise.resolve({ outcome: 'dismissed' });
+        w.dispatchEvent(invite);
+        check('N10 l’invite du navigateur est gardée (pas de bandeau à sa place)', [invite.defaultPrevented, w.SSNav.installation.etat().invite], [true, true]);
+        bIns.click(); await attendre(150);
+        check('N11 refusée : une seule invite, pas de fenêtre, le bouton reste', [appels, insOuverte(), bIns.offsetHeight > 0, w.SSNav.installation.etat().invite], [1, false, true, false]);
+        bIns.click(); await attendre(150);
+        check('N12 invite déjà servie : le clic suivant montre les étapes', [appels, insOuverte()], [1, true]);
+        w.fermerInstall(); await attendre(250);
+        const invite2 = new w.Event('beforeinstallprompt', { cancelable: true });
+        invite2.prompt = () => { appels++; return Promise.resolve(); };
+        invite2.userChoice = Promise.resolve({ outcome: 'accepted' });
+        w.dispatchEvent(invite2);
+        bIns.click(); await attendre(150);
+        check('N13 acceptée : installée, et le bouton disparaît', [appels, w.SSNav.installation.etat().installee, bIns.offsetHeight], [2, true, 0]);
+        f.remove();
+        /* Ouvert DEPUIS l'icône de l'écran d'accueil : rien à proposer. */
+        f = await cadre('../app/dashboard.html?t=' + Date.now(), 390, 800);
+        w = f.contentWindow;
+        const mmOrig = w.matchMedia.bind(w);
+        w.matchMedia = (q) => (/display-mode: standalone/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : mmOrig(q));
+        check('N14 en app installée (plein écran), l’ERP le sait', w.SSNav.installation.etat().installee, true);
+        w.dispatchEvent(new w.Event('appinstalled')); await attendre(60);
+        check('N15 …et le bouton ne s’affiche pas', f.contentDocument.getElementById('btnInstaller').offsetHeight, 0);
+        f.remove();
+
         titre('Réglages de la SOCIÉTÉ : enfin lus (appareil → société → repli)');
         /* ⚠️ « Vue du tableau de bord », « Densité » et « Chiffres repliés » étaient enregistrables
            dans Paramètres et sans aucun effet. */
