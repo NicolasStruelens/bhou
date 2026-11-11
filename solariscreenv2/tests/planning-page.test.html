@@ -115,11 +115,12 @@
     }
     function remettre() { CLES.forEach(k => { try { if (SAUVE[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, SAUVE[k]); } catch (e) {} }); }
 
-    /** Combien de temps on attend qu'une page (planning, rdv) soit prête. Chaque attente s'arrête DÈS que la page l'est :
-     *  un délai long ne coûte rien quand tout va bien. Il en faut un long parce que le premier rendu du planning prend
-     *  17 à 25 s quand huit Chrome jouent des suites en parallèle. Avec 8 s, toute la suite tombait dès A1 (ou en F, vue
-     *  Jour), sans rapport avec ce qu'elle vérifie. */
-    const DELAI_PAGE = 30000;
+    /** Combien de temps une page (planning, rdv) a pour être prête. Chaque attente s'arrête DÈS que la page l'est :
+     *  un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui joue les suites est
+     *  souvent chargée. Mesuré le 11/11/2026 avec huit Chrome en parallèle : jusqu'à 13 s pour que ui.js arrive, 20 s pour
+     *  le premier rendu, 9 s pour rdv.html, et plus de 35 s quand d'autres suites tournaient en même temps. Avec les
+     *  anciens 8 s / 9 s / 6 s, toute la suite tombait dès A1, sans rapport avec ce qu'elle vérifie. */
+    const DELAI_PAGE = 90000;
 
     /** La vraie page, avec la météo simulée posée AVANT le premier rendu, et les écritures gardées. */
     async function ouvrir(requete, largeur, hauteur) {
@@ -137,8 +138,10 @@
       }
       await new Promise(r => { if (f.contentDocument && f.contentDocument.readyState === 'complete') r(); else f.addEventListener('load', r, { once: true }); });
       const w = f.contentWindow;
-      // Compté depuis l'ouverture, comme la boucle du dessus : un peu plus, pour le rendu qui suit l'arrivée de ui.js.
-      while (Date.now() - t0 < DELAI_PAGE + 5000) { try { if (w.eval('TOUS_EVS.length') > 0 && w.document.querySelector('#vueHost .pl-sem, #vueHost .pl-jour, #vueHost .pl-mois')) break; } catch (e) {} await attendre(50); }
+      const prete = () => { try { return w.eval('TOUS_EVS.length') > 0 && !!w.document.querySelector('#vueHost .pl-sem, #vueHost .pl-jour, #vueHost .pl-mois'); } catch (e) { return false; } };
+      while (Date.now() - t0 < DELAI_PAGE && !prete()) await attendre(50);
+      // Pas prête à temps : on le DIT, au lieu de laisser les cas échouer un à un sur une page vide.
+      if (!w.__simule || !prete()) throw new Error('planning.html pas prête après ' + DELAI_PAGE / 1000 + ' s (' + (w.__simule ? 'pas de premier rendu' : 'météo simulée non posée') + ') : machine trop chargée ?');
       await attendre(400);
       const E = { devis: [], rdv: [], dispos: [], confirmes: [], reponseConfirm: true };
       w.SS.getDevis = async (id) => JSON.parse(JSON.stringify(DEVIS.find(d => d.id === id) || null));
