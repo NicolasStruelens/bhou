@@ -3828,12 +3828,12 @@ Protégé par `tests/fiche.test.html` (D1-D8, L1-L4, T1-T8), `tests/plan.test.ht
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 130/130 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
    Et dès qu'on touche à la carte (`app/carte.html`, `carte.js`) : `tests/carte.test.html`, exiger « 44/44 », par le serveur.
-   Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 46/46 »,
+   Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 47/47 »,
    par le serveur — ET `carte.test.html`, puisque la mémoire des adresses est partagée.
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
    `tests/mails.test.html`, exiger « 61/61 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
-   `tests/clients.test.html`, exiger « 61/61 », par le serveur.
+   `tests/clients.test.html`, exiger « 62/62 », par le serveur.
    Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
    (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 64/64 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
    et, pour la visionneuse, `outillage`, `sav`, `rdv` et `terrain`.
