@@ -790,7 +790,22 @@
     const sumW = items.reduce(function (s, it) { return s + (num(it.largeur) > 0 ? num(it.largeur) : 1200); }, 0);
     const maxH = Math.max.apply(null, items.map(function (it) { return dim2(it) || 1200; }));
     const sMin = etroit ? 0.045 : 0.03;
-    const s = Math.max(sMin, Math.min(0.08, (larg - 14 * (n - 1) - 20 * n) / sumW, (etroit ? 120 : 160) / maxH));
+    let s = Math.min(0.08, (larg - 14 * (n - 1) - 20 * n) / sumW, (etroit ? 120 : 160) / maxH);
+    /* ⚠️ Une baie étroite garde 86 px (la place de ses cotes, plus bas) : cette réserve se retire AVANT
+       de calculer l'échelle des autres. Sans elle, la façade « tenait » dans le calcul et débordait de 10
+       à 20 px à l'écran, juste assez pour passer en « fais glisser » — cinq baies dans la colonne du
+       portable (règle 66). Chaque tour peut faire tomber une baie de plus sous le plancher : n tours au
+       plus. Le demi-pixel d'arrondi de chaque baie est compté. */
+    const largeurs = items.map(function (it) { return num(it.largeur) > 0 ? num(it.largeur) : 1200; });
+    for (let tour = 0; tour < n; tour++) {
+      let auPlancher = 0, reste = 0, libres = 0;
+      largeurs.forEach(function (w) { if (w * s + 20 < 86) auPlancher++; else { reste += w; libres++; } });
+      if (!auPlancher || !reste) break;
+      const s2 = (larg - 14 * (n - 1) - 86 * auPlancher - 20 * libres - 0.5 * n) / reste;
+      if (!(s2 < s - 1e-9)) break;
+      s = s2;
+    }
+    s = Math.max(sMin, s);
     const an = analyse(items);
     // Chaque baie prend la largeur de son dessin (86 px au moins, la place de ses cotes) : son nom passe à la
     // ligne plutôt que de l'élargir — sinon les noms longs poussaient la façade hors de son cadre.

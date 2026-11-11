@@ -19,7 +19,7 @@
     Règle 60 ter : la carte « Ouvertures » de <code>app/vue.html</code> dessine chaque ouverture à l'échelle dans ses vraies teintes
     (<code>assets/js/plan-ouvertures.js</code>), les montre côte à côte en façade, écrit la configuration commune UNE fois et ne
     laisse à chaque fiche que ses mesures, son prix, ce qui la distingue et ce qui lui manque. On vérifie ici les règles pures (teintes,
-    sections, groupes, états, dessin), puis la VRAIE fiche dans des cadres, au bureau (1 500 et 1 875 px) et au téléphone (390 px) :
+    sections, groupes, états, dessin), puis la VRAIE fiche dans des cadres, au bureau (1 500 et 1 875 px), au portable en trois colonnes compactes (1 260, 1 472 et 1 520 px, règle 66) et au téléphone (390 px) :
     rien de perdu par rapport à l'ancienne carte, rien en double, les liens internes, le tablier qui descend, les photos (visionneuse,
     catégorie, simulateur visuel), l'ancre #photos, le dépannage intact, et « Compléter » qui ouvre le simulateur sur la bonne ouverture.
     <br><br>
@@ -172,7 +172,7 @@
         const r2 = await SS.saveDevis(devisCasLimites(), { creation: true });
         check('V0 Le bac à sable se remplit ; les deux devis fictifs s’enregistrent', [rem.erreurs, r1.ok !== false, r2.ok !== false], [[], true, true]);
 
-        titre('V — La carte de la fiche devis, au bureau (1 500 px)');
+        titre('V — La carte de la fiche devis, au bureau (1 500 px : trois colonnes compactes depuis la règle 66)');
         let f = await fiche('ESSAI-PLAN-1'), d = f.contentDocument, w = f.contentWindow;
         const carte = d.querySelector('#ouvHost .pl');
         const res = d.querySelector('.pl-resume');
@@ -249,6 +249,22 @@
           [true, true, 'Couleurs', 'Mécanique', 'Commande', true, true]);
         check('V13 Rien ne déborde de la page', d.documentElement.scrollWidth <= w.innerWidth, true);
         f.remove();
+
+        /* V26 (règle 66, 11/11/2026) : le portable a désormais TROIS colonnes (sommaire · dossier · total), donc une colonne de
+           dossier plus étroite. La façade y tient toujours : les baies étroites gardent leurs 86 px (la place de leurs cotes) et
+           cette réserve se retire avant de calculer l'échelle des autres — sans elle, cinq baies débordaient de 10 à 20 px et la
+           façade passait en « fais glisser ». */
+        titre('V — Au portable (trois colonnes compactes, règle 66) : la façade tient dans la colonne du dossier');
+        const facadeA = async (L) => {
+          const fp = await fiche('ESSAI-PLAN-1', L, 820); const dp = fp.contentDocument, wp = fp.contentWindow;
+          const fz2 = dp.querySelector('.pl-facade'), it2 = [...dp.querySelectorAll('.pl-fa-item')];
+          const ech = it2.map((b, i) => largeurDessin(b) / [1180, 1180, 2400, 2050, 900][i]);
+          const r = [wp.getComputedStyle(dp.querySelector('.vue-layout')).gridTemplateColumns.split(' ').length, fz2.scrollWidth <= fz2.clientWidth + 1, vu(dp.querySelector('.pl-glisse')),
+            Math.max(...ech) - Math.min(...ech) < 1e-9, it2.every((b) => b.getBoundingClientRect().width >= 85.5), dp.documentElement.scrollWidth <= wp.innerWidth];
+          fp.remove(); return r;
+        };
+        check('V26 À 1 260, 1 472 et 1 520 px (trois colonnes) : la façade tient sans « fais glisser », à la même échelle pour toutes, aucune baie sous 86 px, la page ne déborde pas',
+          [await facadeA(1260), await facadeA(1472), await facadeA(1520)], [[3, true, false, true, true, true], [3, true, false, true, true, true], [3, true, false, true, true, true]]);
 
         titre('V — Au téléphone (390 px)');
         f = await fiche('ESSAI-PLAN-1', 390, 844); d = f.contentDocument; w = f.contentWindow;

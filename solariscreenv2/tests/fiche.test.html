@@ -22,7 +22,9 @@
     sable : ce que le serveur protège, la relecture avant écriture, la création qui ne se fond jamais dans un autre devis, la
     fiche client modifiée champ par champ — puis la vraie fiche dans des cadres : la prochaine action (dépannage, commande, notes
     de crédit, pose en deux fois), la réglette d'un dépannage, le délai de commande, la fenêtre de relance, « Facturer »,
-    le vendeur et ses taux figés, l'enregistrement sur une fiche restée ouverte.
+    le vendeur et ses taux figés, l'enregistrement sur une fiche restée ouverte — puis la règle 66 : les onglets des devis du même
+    client, le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton
+    « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action).
     <br><br>
     <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle.
   </p>
@@ -488,6 +490,170 @@
            '18 % / 5 % · commissions recalculées',
            'Répartition personnalisée (— % / — %) — modifiable dans le simulateur',
            true]);
+
+        // ══════════ D, L, T — RÈGLE 66 (11/11/2026, variantes 1A et 2A choisies par Nicolas sur maquette) ══════════
+        titre('D — Les devis du même client : des onglets posés sur la réglette (règle 66)');
+        const Jd = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return U.isoDate(x); };
+        // Une cliente FICTIVE à quatre devis, une apostrophe dans le nom et du HTML dans un emplacement (il doit s'afficher tel quel).
+        const HEL = { prenom: 'Hélène', nom: "D'Onglet", email: 'essai.onglet@exemple.invalid', adresse: { rue: "Rue de l'Essai", numero: '66', code_postal: '1300', ville: 'Wavre' } };
+        const volD = (q, ou) => ({ type: 'volet_roulant', quantite: q, prix_catalogue_ht: 500, largeur: 1200, hauteur: 1400, emplacement: ou, photos: [] });
+        const calc = (t) => ({ total_ttc: t, nicolas_net: 0, yannick_net: 0 });
+        const DOS = [
+          { id: 'ESSAI-D1', statut: 'termine', type_document: 'depannage', depannage_mode: 'realise', depannage: { motif: 'Moteur  bloqué', date_intervention: Jd(-300) }, items: [], calculs: calc(159), date_creation: Jd(-310) },
+          { id: 'ESSAI-D2', statut: 'refuse', items: [volD(3, 'Chambres')], calculs: calc(3105.44), date_creation: Jd(-200), pricing_v2: { material: { sellers: { principal: 'yannick' } } } },
+          { id: 'ESSAI-D3', statut: 'signe', items: [volD(2, '<b>Salon</b>')], calculs: calc(1500), date_creation: Jd(-90), pricing_v2: { material: { sellers: { principal: 'nicolas' } } } },
+          { id: 'ESSAI-D4', statut: 'brouillon', items: [], calculs: calc(0), date_creation: Jd(-2) },
+        ];
+        // Créés dans le DÉSORDRE : l'ordre des onglets vient des dates, pas de l'ordre d'écriture.
+        for (const x of [DOS[2], DOS[0], DOS[3], DOS[1]]) await SS.saveDevis(Object.assign({ client: HEL, date_modification: new Date().toISOString() }, x), { creation: true });
+        await SS.saveDevis({ id: 'ESSAI-D9', client: { prenom: 'Seul', nom: 'Undevis' }, statut: 'brouillon', items: [volD(1, 'Cuisine')], calculs: calc(600), date_creation: Jd(-5), date_modification: new Date().toISOString() }, { creation: true });
+        const ficheL = async (id, L, H) => {
+          const f = await BANC.cadre('../app/vue.html?id=' + encodeURIComponent(id), L || 1520, H || 820);
+          await attendreQue(() => f.contentDocument.getElementById('nextCard') && txt(f.contentDocument.getElementById('nextCard')), 10000);
+          await attendre(250);
+          return f;
+        };
+        let fD = await ficheL('ESSAI-D3'), wD = fD.contentWindow, dD = fD.contentDocument;
+        const onglets = () => [...dD.querySelectorAll('#dossiersHost .dos-tab')];
+        const lu = (t) => [txt(t.querySelector('.dos-st')), txt(t.querySelector('.dos-rt')), txt(t.querySelector('.dos-v')), txt(t.querySelector('.dos-l3 span')), txt(t.querySelector('.dos-l3 b'))];
+        check('D1 Un client à 4 devis : « Devis de … · 4 », du plus ancien au plus récent, chaque onglet avec son statut, son résumé (un dépannage : son motif ; un brouillon vide le dit), son numéro, son montant et sa date — le HTML saisi s’affiche tel quel',
+          [dD.getElementById('dossiersHost').hidden, txt(dD.querySelector('.dos-t')), onglets().map(lu), onglets().map((t) => txt(t.querySelector('.dos-dt'))), !!dD.querySelector('#dossiersHost .dos-rt b')],
+          [false, "Devis de Hélène D'Onglet · 4", [
+            ['Terminé', 'Dépannage · Moteur bloqué', null, '#ESSAI-D1', '159,00 €'],
+            ['Refusé', '3 Volets · Chambres', 'Yannick', '#ESSAI-D2', '3 105,44 €'],
+            ['Signé', '2 Volets · <b>Salon</b>', 'Nicolas', '#ESSAI-D3', '1 500,00 €'],
+            ['Brouillon', 'Aucune ouverture saisie', null, '#ESSAI-D4', '0,00 €'],
+          ], DOS.map((x) => U.fmtDate(x.date_creation)), false]);
+        const curD = dD.querySelector('.dos-tab.cur');
+        check('D2 Le devis ouvert ressort (« ouvert », aria-current) et n’est PAS un lien ; les trois autres mènent à leur fiche',
+          [onglets().map((t) => t.tagName), curD.getAttribute('aria-current'), txt(curD.querySelector('.dos-ici')), onglets().filter((t) => t.tagName === 'A').map((a) => a.getAttribute('href'))],
+          [['A', 'A', 'DIV', 'A'], 'page', 'ouvert', ['vue.html?id=ESSAI-D1', 'vue.html?id=ESSAI-D2', 'vue.html?id=ESSAI-D4']]);
+        const teinte = (expr) => { const p = dD.createElement('span'); p.style.color = expr; dD.body.appendChild(p); const c = wD.getComputedStyle(p).color; p.remove(); return c; };
+        check('D3 Chaque onglet porte le liseré de SON statut (règle 21) : quatre statuts, quatre couleurs',
+          [onglets().map((t) => wD.getComputedStyle(t).borderTopColor), new Set(onglets().map((t) => wD.getComputedStyle(t).borderTopColor)).size],
+          [DOS.map((x) => teinte(U.STATUT_DEVIS_COULEUR[x.statut])), 4]);
+        const regleD = dD.querySelector('#rulerHost .ruler').getBoundingClientRect();
+        check('D4 Les onglets se POSENT sur la réglette : leur bas touche son filet, et l’onglet ouvert le recouvre (il fait corps avec elle)',
+          [onglets().every((t) => Math.abs(t.getBoundingClientRect().bottom - regleD.top - 1) <= 1.01), wD.getComputedStyle(curD).borderBottomColor === wD.getComputedStyle(curD).backgroundColor],
+          [true, true]);
+        fD.remove();
+        // Un seul vendeur sur toute la rangée : le nommer serait du bruit (règle 9).
+        ecrireBase('ESSAI-D2', '$.pricing_v2.material.sellers.principal', 'nicolas');
+        fD = await ficheL('ESSAI-D3'); dD = fD.contentDocument;
+        const vendeurs1 = [...dD.querySelectorAll('.dos-v')].length;
+        fD.remove();
+        fD = await ficheL('ESSAI-D9'); dD = fD.contentDocument;
+        const seul = dD.getElementById('dossiersHost');
+        check('D5 Un seul vendeur dans la rangée : il ne s’affiche plus ; un client à UN devis : rien, ni titre ni place',
+          [vendeurs1, seul.hidden, seul.offsetHeight, seul.children.length], [0, true, 0, 0]);
+        fD.remove();
+        fD = await ficheL('ESSAI-D2'); wD = fD.contentWindow; dD = fD.contentDocument;
+        const curR = dD.querySelector('.dos-tab.cur');
+        check('D6 Un devis REFUSÉ ouvert : pas de réglette, la rangée reste (refusés et annulés compris) et l’onglet ouvert reprend son filet du bas',
+          [dD.getElementById('rulerHost').style.display, dD.getElementById('dossiersHost').classList.contains('sans-regle'), onglets().length, txt(curR.querySelector('.dos-st')),
+           wD.getComputedStyle(curR).borderBottomColor !== wD.getComputedStyle(curR).backgroundColor],
+          ['none', true, 4, 'Refusé', true]);
+        fD.remove();
+        fD = await ficheL('ESSAI-D4'); wD = fD.contentWindow; dD = fD.contentDocument;
+        wD.confirm = () => true;
+        await wD.pickStatus('envoye_client'); await attendre(300);
+        const apresEnvoi = [txt(dD.querySelector('.dos-tab.cur .dos-st')), wD.getComputedStyle(dD.querySelector('.dos-tab.cur')).borderTopColor === teinte(U.STATUT_DEVIS_COULEUR.envoye_client)];
+        await wD.pickStatus('annule'); await attendre(300);
+        check('D7 Le statut changé SUR la fiche se lit aussitôt dans son onglet (sans recharger) ; annulé, la réglette part et l’onglet le suit',
+          [apresEnvoi, txt(dD.querySelector('.dos-tab.cur .dos-st')), dD.getElementById('dossiersHost').classList.contains('sans-regle'), lire('ESSAI-D4').statut],
+          [['Envoyé', true], 'Annulé', true, 'annule']);
+        fD.remove();
+
+        titre('L — Le portable garde le sommaire et les actions (règle 66, variante 1A)');
+        fD = await ficheL('ESSAI-D3', 1520, 820); wD = fD.contentWindow; dD = fD.contentDocument;
+        const cols = () => wD.getComputedStyle(dD.querySelector('.vue-layout')).gridTemplateColumns.split(' ').map((x) => Math.round(parseFloat(x)));
+        const coupees = () => [...dD.querySelectorAll('.action-bar .ab-item')].filter((b) => b.getClientRects().length && b.scrollWidth > b.clientWidth + 1).map(txt);
+        const vu = (sel) => wD.getComputedStyle(dD.querySelector(sel)).display !== 'none';
+        // [colonnes, largeur du rail d'outils (trois colonnes seulement), largeur de droite, sommaire, bouton, actions coupées, page sans débord]
+        const etat = () => { const c = cols(); return [c.length, c.length === 3 ? c[0] : null, c[c.length - 1], vu('#railNav'), vu('#somFab'), coupees(), dD.documentElement.scrollWidth <= dD.documentElement.clientWidth]; };
+        const a1520 = etat();
+        check('L1 Le portable de Nicolas (1 520 px, menu de 212 px) : TROIS colonnes 180 · dossier · 316, le sommaire et ses compteurs à gauche, les actions empilées et entières, pas de bouton « Sommaire », rien ne déborde',
+          [a1520, cols()[1] >= 640, /^(⚠ \d+|\d+)$/.test(txt(dD.querySelector('#railNav [data-rn="#ouvHost"] .rn-n')))], [[3, 180, 316, true, false, [], true], true, true]);
+        const largeur = async (L) => { fD.width = L; await attendre(350); return etat(); };
+        check('L2 Les seuils portent sur la FENÊTRE, menu compris (règle 24) : compacte dès 1 472 et de 1 260 à 1 399 ; deux colonnes et le bouton entre les deux (le menu vient de prendre 212 px) ; large dès 1 712',
+          [await largeur(1472), await largeur(1471), await largeur(1400), await largeur(1399), await largeur(1260), await largeur(1259), await largeur(1712)],
+          [[3, 180, 316, true, false, [], true], [2, null, 360, false, true, [], true], [2, null, 360, false, true, [], true], [3, 180, 316, true, false, [], true],
+           [3, 180, 316, true, false, [], true], [2, null, 360, false, true, [], true], [3, 250, 340, true, false, [], true]]);
+        fD.width = 1440; await attendre(350);
+        const fab1440 = dD.getElementById('somFab').getBoundingClientRect();
+        check('L3 Deux colonnes avec le menu (1 440) : le bouton « Sommaire » se pose À CÔTÉ du menu, jamais sur « Paramètres »', fab1440.left >= 212 + 8, true);
+        fD.width = 1520; await attendre(350);
+        const defil = dD.querySelector('#rulerHost .ruler-defil');
+        check('L4 La réglette n’a plus de barre de défilement au bureau (son coin d’angle, à −1 px, en créait une) : elle défile dans un cadre INTÉRIEUR, la carte garde ses coins',
+          [defil.scrollWidth <= defil.clientWidth, defil.scrollHeight <= defil.clientHeight, wD.getComputedStyle(dD.querySelector('#rulerHost .ruler')).overflowX], [true, true, 'visible']);
+        fD.remove();
+
+        titre('T — Téléphone (390 × 844) : les onglets au pouce, et le bouton « Sommaire »');
+        fD = await ficheL('ESSAI-D3', 390, 844); wD = fD.contentWindow; dD = fD.contentDocument;
+        // ⚠️ Un document ÉCRIT par le banc n'a pas d'historique à lui : on COMPTE les étapes sans les poser, et « retour » se
+        // rejoue par l'événement qu'il déclenche (popstate) — comme rdv.test.html.
+        let pousse = 0, recule = 0;
+        wD.history.pushState = function () { pousse++; };
+        wD.history.back = function () { recule++; };
+        const fab = dD.getElementById('somFab'), fond = dD.getElementById('somSheet');
+        const rFab = fab.getBoundingClientRect(), soli = dD.querySelector('.ssfab');
+        const touche = (a, b) => !!(a && b) && !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+        const rang = dD.querySelector('.dos-rang'), curT = dD.querySelector('.dos-tab.cur');
+        const barre = dD.querySelector('.action-bar'), acts = [...barre.querySelectorAll('.ab-item')].filter((b) => b.getClientRects().length);
+        const derniere = acts[acts.length - 1].getBoundingClientRect();
+        check('T1 Rien ne déborde ; les onglets défilent DANS leur cadre et l’ouvert est entier à l’écran ; « Sommaire » en bas à gauche sans toucher Soli ; la barre d’actions reste pleine (plus de case grise au bout)',
+          [dD.documentElement.scrollWidth <= dD.documentElement.clientWidth, rang.scrollWidth > rang.clientWidth,
+           curT.getBoundingClientRect().left >= rang.getBoundingClientRect().left - 1 && curT.getBoundingClientRect().right <= rang.getBoundingClientRect().right + 1,
+           vu('#somFab'), rFab.left < 40 && rFab.bottom > wD.innerHeight - 90, touche(rFab, soli && soli.getBoundingClientRect()),
+           Math.abs(derniere.right - (barre.getBoundingClientRect().right - 1)) <= 1.5],
+          [true, true, true, true, true, false, true]);
+        fab.click(); await attendre(350);
+        const fe = dD.querySelector('.som-feuille').getBoundingClientRect();
+        const actsBarre = acts.map(txt), rnRail = [...dD.querySelectorAll('#railNav .rn-item')].map(txt);
+        check('T2 « Sommaire » ouvre la feuille (UNE étape d’historique) : elle tient dans l’écran, reprend les actions de la barre et les cartes du sommaire avec leurs compteurs, le clavier sur la croix',
+          [fond.hidden, pousse, fe.top >= 0 && fe.bottom <= wD.innerHeight + 1, [...dD.querySelectorAll('.som-act')].map(txt), [...dD.querySelectorAll('#somList .rn-item')].map(txt),
+           (dD.activeElement || {}).id, fab.getAttribute('aria-expanded'), dD.body.style.overflow],
+          [false, 1, true, actsBarre, rnRail, 'somFermer', 'true', 'hidden']);
+        dD.getElementById('somFermer').click(); await attendre(100);
+        check('T3 La croix ferme ET retire l’étape (sinon le « retour » suivant ne ferait rien de visible) ; le focus revient au bouton, la page défile de nouveau',
+          [fond.hidden, recule, dD.activeElement === fab, dD.body.style.overflow], [true, 1, true, '']);
+        fab.click(); await attendre(200);
+        dD.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(80);
+        const apresEchap = [fond.hidden, recule];
+        fab.click(); await attendre(200);
+        dD.querySelector('.som-feuille').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        fond.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const glisse = fond.hidden;
+        fond.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); fond.dispatchEvent(new MouseEvent('click', { bubbles: true })); await attendre(80);
+        check('T4 Échap ferme ; toucher le fond ferme, mais pas un geste COMMENCÉ dans la feuille ; chaque fermeture retire son étape',
+          [apresEchap, glisse, fond.hidden, pousse, recule], [[true, 2], false, true, 3, 3]);
+        fab.click(); await attendre(200);
+        wD.dispatchEvent(new PopStateEvent('popstate', { state: null })); await attendre(80);
+        check('T5 « Retour » ferme la feuille sans retirer d’étape de plus (elle vient d’être consommée)', [fond.hidden, pousse, recule], [true, 4, 3]);
+        wD.scrollTo(0, 0); await attendre(150);
+        fab.click(); await attendre(200);
+        const yAvant = wD.scrollY;
+        dD.querySelector('#somList [data-rn=".notes-card"]').click(); await attendre(150);
+        const pendant = [fond.hidden, recule, Math.abs(wD.scrollY - yAvant) < 2];
+        wD.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+        const arrivee = await attendreQue(() => { const r = dD.querySelector('.notes-card').getBoundingClientRect(); return r.top >= 0 && r.top < wD.innerHeight && r.bottom > 0; }, 4000);
+        check('T6 « Aller à » une carte : la feuille se ferme, l’étape est retirée, et la page n’y va QU’APRÈS (sinon le navigateur rend la position de l’étape quittée par-dessus)',
+          [pendant, !!arrivee], [[true, 4, true], true]);
+        fab.click(); await attendre(200);
+        let cliques = 0;
+        dD.getElementById('btnDoc').addEventListener('click', (e) => { e.preventDefault(); cliques++; });
+        dD.querySelector('#somActs [data-som-act="btnDoc"]').click(); await attendre(120);
+        const avantRetour = cliques;
+        wD.dispatchEvent(new PopStateEvent('popstate', { state: null })); await attendre(120);
+        check('T7 Une action de la feuille (« Document PDF ») : feuille fermée, étape retirée, PUIS le vrai bouton de la barre (mêmes liens, mêmes conditions)',
+          [fond.hidden, recule, avantRetour, cliques], [true, 5, 0, 1]);
+        fD.remove();
+        fD = await ficheL('ESSAI-D2', 390, 844); wD = fD.contentWindow; dD = fD.contentDocument;
+        wD.history.pushState = function () {}; wD.history.back = function () {};
+        dD.getElementById('somFab').click(); await attendre(250);
+        check('T8 Sur un devis REFUSÉ, la feuille n’offre que ce que la barre offre (ni « Facturer » ni « PV de réception »)',
+          [...dD.querySelectorAll('.som-act')].map(txt), ['Modifier', 'Document PDF', 'Liste de pose', 'Rapport visite']);
+        fD.remove();
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }
