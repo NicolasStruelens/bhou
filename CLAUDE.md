@@ -65,22 +65,22 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 
 | Fichier | Rôle |
 |---|---|
-| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 62 tests. |
+| `assets/js/calc.js` | **Moteur de prix.** Fonctions pures, protégé par 119 tests (dont la part libre, le partage et la remise projet, règle 64). |
 | `assets/js/api.js` | Client API, cache local, file d'envoi hors-ligne (`window.SS`) |
 | `assets/js/ui.js` | Helpers partagés, icônes SVG, rendu des notes (`window.SSUI`) |
 | `assets/js/config.js` | Réglages de l'ERP et **valeurs par défaut de référence** (`window.SSConf`) |
 | `assets/js/nav.js` | Menu, identité, recherche globale (`window.SSNav`) |
-| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 123 tests (`window.SSPlanning`) |
+| `assets/js/planning.js` | **Moteur du temps.** Fonctions pures, protégé par 126 tests (`window.SSPlanning`) |
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 105 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
-| `tests/calc.test.html` | Les 62 tests du moteur de prix. À ouvrir dans un navigateur. |
+| `tests/calc.test.html` | Les 119 tests du moteur de prix (règle 64 : part libre figée, partage, remise projet, rappel ; vérifiés par mutations). À ouvrir dans un navigateur. |
 | `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). **Par le serveur de test.** |
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 38 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 37 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
-| `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
+| `tests/fiche.test.html` | Les 38 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
@@ -94,20 +94,20 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
 | `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 151 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 151 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
 | `tests/plan.test.html` | Les 36 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
-| `tests/saisie.test.html` | Les 56 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/saisie.test.html` | Les 68 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone ; et les MARGES de la règle 64 : cascade, part libre figée, remise projet et son rappel, Tech 1 / Tech 2, rien qui sorte vers le client, téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
 | `tests/signal.test.html` | Les 64 tests du signal, dont les champs vides que les autres ouvertures ont remplis (règle 60), et la résolution appareil → société → repli. |
 | `assets/js/depenses.js` | **Les notes de frais** (règles 32 et 50). États, ancienneté, totaux, une ligne par personne, doublons, bordereau, bilan par année, gestes dits par la bonne personne. Fonctions pures (`window.SSDepenses`) |
 | `tests/depenses.test.html` | Les 62 tests des règles pures des notes de frais. |
 | `tests/depenses-page.test.html` | Les 39 tests de la PAGE Notes de frais (règle 50) : les ROUTES (date dans le futur, conflit entre deux écrans, « remis » / « remboursé » ciblés, signés, un lot tout ou rien), la vraie page cliquée (une ligne par personne et le chiffre du menu, la fenêtre d'un ticket, doublon, conflit, bordereau de remise, remboursement groupé, recherche, bilan, photo depuis la ligne), le téléphone (tactile simulé, menus non coupés) et « retour ». Vérifié par 18 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/stats.js` | **L'activité de la page Statistiques** (règle 51) : période et comparaison à l'an passé, ce qu'est une vente (un bon d'intervention n'en est pas une), chiffres de la période, ventes par vendeur, ce qu'on vend, entonnoir et délais, sources, ce qui se perd, graphes, clients, villes. Fonctions pures (`window.SSStats`) ; la paie reste dans `remuneration.js`. |
-| `tests/stats.test.html` | Les 37 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/stats.test.html` | Les 39 tests des Statistiques : règles pures, puis la vraie page remplie par le bac à sable (les deux onglets, la voix quand Yannick lit, un registre ou un dossier illisible, la période, le bon d'intervention qui n'est pas une vente, les sources, les graphes, ce qui se perd, le relevé imprimable), à 820 px, sur téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/echanges.js` | **La page Échanges** (règle 52) : recherche sans accents, ce qu'une carte repliée dit, quand « Lui rappeler », ce qu'on peut supprimer, le registre des décisions, les dossiers d'un client, les nombres des onglets. Fonctions pures (`window.SSEchanges`) ; « qui doit agir » reste dans `attente.js`. |
 | `tests/echanges.test.html` | Les 33 tests des Échanges : règles pures, les ROUTES (la balle qui ne revient pas chez celui qui a répondu, le conflit entre deux écrans, la suppression gardée, le rappel), la vraie page remplie par le bac à sable et cliquée (onglets, écriture en une ligne, dossier du client, cartes repliées, brouillon gardé, conflit dit dans la carte, réponse sur place, rappel, registre des décisions, recherche), le téléphone et « retour ». Vérifié par 22 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/parametres.js` | **La page Paramètres** (règle 53) : ce qui a changé (et la valeur qu'on avait sous les yeux), le contrôle d'une valeur saisie, comment se lit une valeur (avec son unité), ce qu'un réglage change sur un cas concret (devis type par `calc.js`). Fonctions pures (`window.SSParam`) ; les valeurs par défaut restent dans `config.js`. |
@@ -115,7 +115,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/rdv.test.html` | Les 40 tests des Demandes de RDV : règles pures, les ROUTES (conflit entre deux écrans, messages, balle et contacts protégés, champ inconnu gardé, contacts signés, retirés par leur seul auteur), la vraie page remplie par le bac à sable et cliquée (« À traiter » et visites proches, colonnes par urgence, « Je prends », glisser-déposer gardé, la fiche dans l'ordre et sa couleur, rappel de la veille noté, message retouché, conflit dans la fiche, « Converti » sans devis refusé, devis lié, doublons, photo, recherche, suppression refusée, « Créer le devis » depuis la carte), le téléphone et la tablette (onglets d'étape, fiche plein écran, vue Liste, tactile) et « retour ». Vérifié par 34 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/terrain.js` | **Le Mode Terrain** (règle 55) : retrouver un client (sans accents, téléphone d'un bloc) et ses doublons, les saisies gardées PAR visite, des identifiants d'ouverture uniques, les mesures qui sortent de l'ordinaire, ce qui manque (pour y aller), les visites du jour et le devis lié à une demande, ce qu'un devis existant permet ici (un devis chiffré ne se réécrit pas d'ici). Fonctions pures (`window.SSTerrain`). |
 | `tests/terrain.test.html` | Les 34 tests du Mode Terrain (dont « + » qui reprend la configuration précédente et le néon des vides, règle 60) : règles pures, la liste des devis qui porte `rdv_id`, puis la vraie page branchée sur le banc : l'écran d'abord (réseau muet), les visites du jour et la demande convertie (sans écraser ce que l'autre y a changé), la recherche, un nom à apostrophe et les doublons, la saisie reprise et ses identifiants, l'ouverture neuve qui ne réclame rien, les mesures corrigées d'un appui, les retraits qui se défont, la photo en grand, une saisie par visite, le devis vide d'une demande complété, le devis chiffré refusé (règle 1, aussi quand il l'est pendant la visite), ses taux et sa note gardés, Yannick vendeur, la photo en route attendue, hors-ligne et fiche client refusée dits, le téléphone, le double appui sur la barre, le tactile et « retour ». Vérifié par 47 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/parametres.test.html` | Les 36 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/parametres.test.html` | Les 38 tests des Paramètres : règles pures, les ROUTES (changements posés sur la version du moment, trame du Planning qui survit, conflit entre deux écrans, part fournisseur déduite, chemins refusés, historique), la vraie page remplie et cliquée (deux onglets, sommaire, recherche, effet sous le réglage, ↺ remettre et ↺ origine, contrôle des valeurs, enregistrement, conflit dit sur la ligne, valeur abîmée en base, valeurs d'origine qui gardent les adresses, départ de la page), le téléphone (barre, onglets, menus en 16 px à 375 et 345 px, tactile) et « retour ». Vérifié par 28 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/nav.test.html` | Les 101 tests du menu (règle 24 bis) : page en cours, compteurs, « + Nouveau », réduction du rail, de vraies pages en cadre à 1500, 1200 et 390 px, la marque du bac à sable (règle 46), et l'app installable (règle 63 : chaque page demande son manifeste avec les cookies, l'appareil et ses étapes). **Par le serveur de test.** |
 | `tests/bac-a-sable.js` | **Le bac à sable** (règle 46) : le jeu de dossiers FICTIFS, les trois gardes, Remplir et Vider (`window.SSBacASable`). Un outil d'essai, pas du code de l'ERP : seules les deux pages ci-dessous le chargent. |
 | `tests/bac-a-sable.html` | **Pas une suite — la page de REMPLISSAGE** de la base d'essai, à ouvrir sur un aperçu de branche (DEPLOIEMENT.md, étape 12). |
@@ -3353,6 +3353,62 @@ et 112 (ordinateur), l'installation par le MENU n'en demande plus. Le niveau 2 (
   seule façon de savoir que c'est fait. Sur iPhone, l'app installée a ses propres cookies et sa propre mémoire, séparés de Safari : on
   s'y connecte une fois, et ce qui attend d'être envoyé dans Safari n'y apparaît pas (la note du guide iPhone le dit).
 
+**64. MARGES & COMMISSIONS : UNE CASCADE QUI RETOMBE AU CENTIME, LA PART LIBRE QUI DEVIENT UNE VRAIE REMISE, LA REMISE PROJET
+HAROL, ET TECH 1 / TECH 2 PRÉVUS — JAMAIS « QUI A POSÉ »** (11/11/2026, après la réunion avec Yannick ; Nicolas : « c'est pas waw le
+menu déroulant et comment il présente la répartition », « quand on met pas juste la moitié et que ça passe à une réduction pour le
+client il n'est pas noté dans le pdf ? », « il faut dans installation identifier Tech 1 Nico et Tech 2 Yan ». Variante B « La cascade »
+avec le sélecteur à boutons de A, règle R1 et techniciens T-A, choisis sur maquette). Moteur : `calc.js` ; tests : `calc`,
+`remuneration`, `stats`, `saisie`, `parametres`, `planning`, `fiche`.
+• **La cascade** (`#secMarges` du simulateur, `renderMarges`) : trois boutons « Nicolas / Yannick / Sur mesure » au lieu du menu
+  déroulant — le choix vit dans le champ CACHÉ `sellerPrincipal`, que tout relisait déjà —, « Moitié-moitié » (la moitié de la marge du
+  devis chacun : 11,5 / 11,5), puis le prix catalogue qui DESCEND ligne par ligne : − achat Harol estimé, + remise projet, = marge
+  réelle, − Nicolas (brut, net, sa part de la réduction), − Yannick, − réduction client, = **reste à la société**. Elle retombe au
+  centime (règle 30 octies) : la réduction TAPÉE y apparaît deux fois, et c'est juste — le client paie moins ET le vendeur la compense
+  sur sa commission, déjà diminuée d'autant. Les parts des boutons sont celles du devis (`seller_parts`), plus un « 18 % / 5 % » écrit
+  dans la page ; un pourcentage s'écrit « 11,5 % » (« 11.5% » sortait tel quel).
+• ⚠️ **LA PART LIBRE EST UNE VRAIE REMISE CLIENT (R1).** En répartition personnalisée, ce que les deux % ne prennent pas de la marge
+  (`calculs.remise`) était seulement ANNONCÉ — « Marge restante pour remise client : 300 € » — et n'entrait dans AUCUN total : ni
+  récap, ni PDF, ni lien client. Il restait de fait à la société. Pire, une réduction tapée ensuite était payée DEUX fois : retirée des
+  commissions pendant que les 300 € libres restaient libres. La part libre rejoint désormais `remise_catalogue.amount` — que lisent
+  déjà le récap, le PDF, le lien client et la facturation, sans que ces pages aient bougé — et `remise_catalogue.part_libre` dit la
+  part de ce montant qu'AUCUNE commission ne paie. `value` / `mode` restent la saisie seule : c'est ce que le simulateur relit.
+  ⚠️ **RÈGLE 1 : elle est FIGÉE avec le devis** (`pricing_v2.material.sellers.part_libre === 'client'`). Un devis neuf la porte ; un
+  devis enregistré AVANT ne la porte pas, et son prix ne bouge pas à la réouverture (« ils restent à la société — Les offrir au client »).
+  Toucher à sa répartition au simulateur la pose : une répartition décidée aujourd'hui suit la règle d'aujourd'hui. Elle voyage dans
+  `sellers`, donc le recalcul de la fiche (changement de vendeur) la garde sans rien savoir d'elle. En vendeur fixe (parts de
+  Paramètres), un écart éventuel reste à la société, comme Paramètres l'annonce.
+  ⚠️ La marge vient du taux FIGÉ du devis (`materialMargin`), plus d'un `23` écrit dans le moteur, et ARRONDIE : en virgule
+  flottante 0,29 × 100 vaut 28,999999999999996 (0,23 tombe juste, 0,28 et 0,57 non). L'écart, lui aussi arrondi, fait qu'une
+  répartition pile sur la marge ne laisse jamais une « part libre » de 4e-15 (tests P4, P4b).
+• **Des commissions au-delà de la marge se DISENT** (`calculs.partage.ecart_pct < 0` : « la société paie la différence ») — 15 % + 15 %
+  passait sans un mot. ⚠️ Le dépassement se lit sur le PARTAGE, jamais sur le signe du reste : 11,5 % + 11,5 % arrondis chacun au
+  centime laissent −0,01 € sur 23 002,32 €, et l'écran criait au dépassement pour un arrondi (il dit « arrondi au centime »).
+• **La remise projet Harol** (`pricing_v2.remise_projet_pct`, en %, en cascade après les −23 % habituels de `supplier_rate`) : au-delà
+  d'une dizaine d'unités, Harol consent une remise sur le dossier, variable (un chantier de 33 screens : −23 % −46 %, achat 0,77 × 0,54). Achat
+  réel = achat estimé × (1 − %), marge réelle = catalogue − achat réel : `SSCalc.margeReelle(calculs, %, taux)` et `margeReelleDevis(d)`.
+  ⚠️ **`computeDevis` NE LA LIT PAS** : elle ne change ni le prix client ni les commissions, et elle ne vit pas dans `calculs`, que la
+  fiche recalcule en changeant de vendeur (une clé que son recalcul ignore y serait perdue au premier clic). ⚠️ **ABSENTE N'EST PAS
+  ZÉRO** (`remiseProjetValide`) : vide = pas encore demandée (le rappel reste), 0 = demandée, aucune. Le gain reste à la société,
+  affiché « partage non décidé » : l'ERP n'invente aucune règle de partage (règle 30 quinquies). Le simulateur rappelle de la demander
+  à partir de `prix.remise_projet_seuil` ouvertures CHIFFRÉES (Paramètres, défaut 10 — dans DEFAUTS, parce que `fusionner` est une
+  liste blanche) ; c'est un rappel, pas un taux : il n'est pas figé. ⚠️ **Elle ne sort JAMAIS** vers `devis-review`, `track` ou un PDF :
+  le serveur ne passe au client que sa liste blanche (`documentData`, `suiviPublic`), qui ne la connaît pas — ne pas l'y ajouter.
+  Elle se lit dans la carte « Interne » de la fiche (achat réel, marge réelle, ou « à demander ») et dans les Statistiques.
+• **Statistiques** : une tuile « Marge matériel réelle » (devis signés de la période, `SSStats.chiffres().marge` : estimée, réelle, gain
+  de la remise projet, devis sans chiffrage comptés à part), sur sa propre rangée — une cinquième tuile restait seule.
+• **Le détail de ta commission dans Statistiques retombe sur le brut** (`SSRemu.detailCommission.remise`) : il prenait TOUTE la
+  réduction catalogue, même quand Yannick vend (« 5 % de 10 000 €, moins 200 € de réduction, 500 € bruts »), même au prorata, même la
+  part libre. Il LIT désormais la part que porte la commission de Nicolas dans ce que le moteur a écrit (taux × assiette − brut) : pas
+  de seconde copie de la règle. Un vieux devis sans taux ni assiette brute garde l'ancienne lecture.
+• **Tech 1 / Tech 2 : qui le devis PRÉVOIT** (`pricing_v2.techs` : `tech1` / `tech2` = `nicolas` | `yannick` | `autre`, `tech1_nom`…),
+  par défaut Nicolas et Yannick, nommés sur les lignes de l'installation. Traduit dans le vocabulaire du chantier par
+  `SSPlanning.equipeDeTechs` (mots : `EQUIPE_LIBELLES`, règle 10 ; sans lignes nommées : '' — jamais « Nicolas » par défaut).
+  ⚠️ **CE N'EST PAS « QUI A POSÉ »** (règle 30 ter) : la fiche PROPOSE « Prévu au devis : Nicolas + Yannick — Reprendre » quand
+  `chantier.equipe` est vide, et seul le clic l'enregistre. Remplie d'office, l'équipe ne serait plus jamais « à renseigner » et la paie
+  partirait sur une prévision. Le simulateur montre l'équipe enregistrée à côté quand elle diffère, sans jamais l'écrire. La paie de
+  pose ne lit JAMAIS ces lignes (règle 30 bis). `pricing_v2.techs` et non `pricing_v2.installation.techs` : le Mode Terrain réécrit
+  `installation` en entier (il n'étale que `pricing_v2`).
+
 ## Pièges déjà payés — ne pas les repayer
 
 - **`quantite || 1` EST FAUX SUR DEUX CAS, et le second coûte de l'argent.** Le repli à 1 existe
@@ -3620,7 +3676,7 @@ et 112 (ordinateur), l'installation par le MENU n'en demande plus. Le niveau 2 (
 
 ## Comment vérifier son travail
 
-1. **Les 62 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
+1. **Les 119 tests du moteur** — obligatoire dès qu'on touche à `calc.js` : ouvrir
    `solariscreenv2/tests/calc.test.html` dans un navigateur, exiger « 62/62 ».
    Idem pour `planning.js` : `tests/planning.test.html`, exiger « 123/123 » — et dès qu'on touche à
    `app/planning.html` : `tests/planning-page.test.html`, exiger « 59/59 », par le serveur. Pour `attente.js` :

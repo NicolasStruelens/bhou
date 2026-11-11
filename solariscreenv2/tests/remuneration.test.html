@@ -363,6 +363,37 @@
     check('K9 un taux absent n’est pas deviné : il vaut null, jamais 18',
       R.detailCommission({ calculs: { nicolas_net: 100 } }).pct, null);
 
+    /* ⚠️ RÈGLE 64 — LA RÉDUCTION QUE TA COMMISSION PORTE VRAIMENT. `remise` valait TOUTE la réduction catalogue :
+       quand Yannick vend, elle est sur SA commission, et l'écran disait pourtant « 5 % de 10 000 €, moins 200 € de
+       réduction, 500 € bruts ». Le détail ne retombait plus sur le brut (règle 30 octies). */
+    const dcY = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 5, nicolas_gross: 500, nicolas_net: 200,
+      seller_principal: 'yannick', remise_catalogue: { amount: 200 } } });
+    check('K10 Yannick vend et accorde 200 € : rien n’est sur ta commission', dcY.remise, 0);
+    check('K10 … et le détail retombe sur le brut', 10000 * 0.05 - dcY.remise, dcY.brut);
+    const dcA = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 850, nicolas_net: 340,
+      seller_principal: 'autre', remise_catalogue: { amount: 300 } } });
+    check('K11 répartition 10 / 10, 300 € de réduction : ta part est 150 €', dcA.remise, 150);
+    check('K11 … et le détail retombe sur le brut', 10000 * 0.10 - dcA.remise, dcA.brut);
+    const dcL = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 1000, nicolas_net: 400,
+      seller_principal: 'autre', remise_catalogue: { amount: 300, part_libre: 300 } } });
+    check('K12 la part libre versée au client n’est sur AUCUNE commission', dcL.remise, 0);
+    const dcLT = R.detailCommission({ calculs: { total_catalog_ht_brut: 10000, nicolas_pct: 10, nicolas_gross: 850, nicolas_net: 340,
+      seller_principal: 'autre', remise_catalogue: { amount: 600, part_libre: 300 } } });
+    check('K12 part libre + réduction tapée : seule ta part de la tapée', dcLT.remise, 150);
+    check('K13 un vieux devis sans taux garde l’ancienne lecture (toute la réduction)',
+      R.detailCommission({ calculs: { total_catalog_ht: 9800, nicolas_net: 100, remise_catalogue: { amount: 200 } } }).remise, 200);
+    check('K13 Nicolas vend : toute la réduction est sur lui (K4 inchangé)', dc.remise, 200);
+    check('K13b sans taux, la part libre n’est quand même jamais comptée sur ta commission',
+      R.detailCommission({ calculs: { total_catalog_ht: 9700, nicolas_net: 100, remise_catalogue: { amount: 300, part_libre: 300 } } }).remise, 0);
+
+    /* RÈGLE 64 — TECH 1 / TECH 2 NE PAIENT PERSONNE. Le devis peut PRÉVOIR Yannick et un sous-traitant sur ses lignes :
+       si l'équipe du chantier dit Nicolas, Nicolas est payé ; si elle est vide, elle reste « à renseigner ». */
+    const avecTechs = (o) => { const d = devis(o); d.pricing_v2.techs = { tech1: 'yannick', tech2: 'autre', tech2_nom: 'Cyril' }; return R.parDossier(d, [], null, AUJ); };
+    check('K14 lignes Yannick + Cyril, équipe Nicolas : Nicolas est payé 4 × 50', avecTechs({ items: [item('screen', 4)], equipe: 'nicolas' }).pose, 200);
+    const techsSansEquipe = (() => { const d = devis({ items: [item('screen', 4)] }); d.pricing_v2.techs = { tech1: 'nicolas', tech2: 'yannick' }; return R.parDossier(d, [], null, AUJ); })();
+    check('K14 lignes Nicolas + Yannick, équipe vide : rien n’est deviné, l’équipe reste à renseigner',
+      [techsSansEquipe.pose, techsSansEquipe.pose_raison], [0, 'equipe_inconnue']);
+
     /* ⚠️ LE SIGNALEMENT. Un devis chiffré — il a un total client — mais sans aucun partage.
        Sa commission vaut zéro sans que rien ne le dise, et comme un dossier qui ne rapporte
        rien est masqué du tableau, il disparaît de l'écran entier. C'est le défaut du tablier

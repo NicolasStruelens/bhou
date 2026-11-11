@@ -296,6 +296,18 @@
     check('N5 une pose AVEC équipe garde ses personnes et son équipe', [posLun.qui, posLun.equipe], [['nicolas'], 'nicolas']);
     check('N6 « quiDeEquipe » garde son repli pour ses autres lecteurs (la rémunération a sa propre garde)', P.quiDeEquipe(''), ['nicolas']);
 
+    // Règle 64 — L'équipe que le DEVIS PRÉVOIT (Tech 1 / Tech 2), traduite dans le vocabulaire du chantier. Une prévision :
+    // sans lignes nommées, RIEN (jamais « nicolas » par défaut, le piège de quiDeEquipe('')).
+    const EQT = P.equipeDeTechs;
+    check('N7 Tech 1 / Tech 2 → équipe prévue : les deux, l’un, un tiers avec l’un, deux tiers ; l’ordre des lignes ne compte pas',
+      [EQT({ tech1: 'nicolas', tech2: 'yannick' }), EQT({ tech1: 'yannick', tech2: 'nicolas' }), EQT({ tech1: 'nicolas', tech2: 'nicolas' }), EQT({ tech1: 'autre', tech2: 'yannick' }),
+        EQT({ tech1: 'nicolas', tech2: 'autre' }), EQT({ tech1: 'autre', tech2: 'autre' })],
+      ['nicolas_yannick', 'nicolas_yannick', 'nicolas', 'yannick', 'nicolas', 'sous_traitant']);
+    check('N8 …sans lignes nommées : rien à proposer (pas « nicolas » par défaut)', [EQT(null), EQT(undefined), EQT({}), EQT('nicolas'), EQT({ tech1: '' })], ['', '', '', '', '']);
+    check('N9 …les mots de l’équipe : un pour chaque valeur du vocabulaire, ceux du menu de la fiche',
+      [Object.keys(P.EQUIPE_LIBELLES).sort(), Object.keys(P.EQUIPE_QUI).sort(), P.EQUIPE_LIBELLES.nicolas_yannick, P.EQUIPE_LIBELLES.sous_traitant],
+      [Object.keys(P.EQUIPE_QUI).sort(), ['nicolas', 'nicolas_yannick', 'sous_traitant', 'yannick'], 'Nicolas + Yannick', 'Sous-traitant']);
+
     // Hors de ses jours : le trou des conflits (seuls deux rendez-vous qui se chevauchent étaient vus).
     const ev = (o) => Object.assign({ id: 'h', source: 'pose', heure: '', duree_h: 4, qui: ['nicolas'] }, o);
     check('N7 Nicolas un samedi (il ne travaille pas le samedi) : « jour »', P.horsTrame(ev({ date: SAM }), [], REG), [{ qui: 'nicolas', raison: 'jour' }]);

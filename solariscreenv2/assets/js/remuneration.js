@@ -248,10 +248,26 @@
       pct: (c.nicolas_pct === undefined || c.nicolas_pct === null || c.nicolas_pct === '') ? null : num(c.nicolas_pct),
       principal: String(c.seller_principal || ''),
       brut: r2(c.nicolas_gross), net: r2(c.nicolas_net),
-      remise: r2(c.remise_catalogue && c.remise_catalogue.amount),
+      remise: remiseSurNicolas(c),
       diviseur: diviseurNet(devis),
       calculee: connue,
     };
+  }
+  /** La part de la réduction catalogue que porte la commission de NICOLAS.
+   *  ⚠️ Elle valait TOUTE la réduction (11/11/2026) : quand Yannick vend, la réduction est sur SA commission,
+   *  et l'écran disait pourtant « 5 % de 10 000 €, moins 200 € de réduction, 500 € bruts » — un détail qui
+   *  ne retombait plus sur le brut (règle 30 octies) ; idem au prorata d'une répartition personnalisée, et
+   *  pour la PART LIBRE versée au client (règle 64), qu'aucune commission ne paie.
+   *  On ne recopie pas la règle du moteur : on la LIT dans ce qu'il a écrit — taux × assiette − brut. C'est
+   *  exact par construction, et c'est justement ce que le détail doit faire retomber. Un vieux devis sans
+   *  taux ou sans assiette brute garde l'ancienne lecture (la réduction entière), faute de mieux. */
+  function remiseSurNicolas(c) {
+    const rc = c.remise_catalogue || {};
+    const tapee = Math.max(0, r2(num(rc.amount) - num(rc.part_libre)));
+    if (!tapee) return 0;
+    const pctConnu = !(c.nicolas_pct === undefined || c.nicolas_pct === null || c.nicolas_pct === '');
+    if (!pctConnu || c.total_catalog_ht_brut === undefined || c.nicolas_gross === undefined) return tapee;
+    return Math.max(0, r2(num(c.total_catalog_ht_brut) * num(c.nicolas_pct) / 100 - num(c.nicolas_gross)));
   }
 
   /** Encaissé sur un dossier : les paiements reçus sur ses factures, moins les avoirs émis.

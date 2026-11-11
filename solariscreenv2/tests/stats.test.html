@@ -139,6 +139,22 @@
         check('S4 Les chiffres de la période : signé par la date de SIGNATURE, archives comprises, sans l’intervention (dite à part) ; taux sur les tranchés ; encaissé par date de paiement ; le dû AUJOURD’HUI',
           [C1.signe, C1.nbSignes, C1.interventions, C1.refuses, C1.envoyes, C1.enAttente, C1.taux, C1.tranches, C1.encaisse, C1.facture, C1.du, C1.retard, C1.nbRetard],
           [3500, 3, { nb: 1, montant: 431.95 }, { nb: 1, montant: 700 }, 5, 1, 75, 4, 400, 1000, 1050, 550, 1]);
+        /* RÈGLE 64 — La marge matériel RÉELLE des ventes signées de la période : catalogue moins achat Harol réel, remise
+           projet comprise (un grand chantier : −23 % −46 %). Lue par SSCalc, la règle de la fiche et du simulateur. Un devis
+           sans chiffrage est compté à part, jamais pour zéro ; un bon d'intervention, un brouillon, un devis hors période
+           n'y sont pas. */
+        const cal = (brut, achat) => ({ total_ttc: 0, total_catalog_ht_brut: brut, supplier_estimate: achat });
+        const LM = [
+          sig('m1', -5, 0, { calculs: cal(23002.32, 17711.79), pricing_v2: { remise_projet_pct: 46 } }),
+          sig('m2', -6, 0, { calculs: cal(10000, 7700), pricing_v2: { remise_projet_pct: 0 } }),
+          sig('m3', -7, 0, { calculs: null }),
+          sig('mInter', -3, 0, { type_document: 'depannage', depannage_mode: 'realise', calculs: cal(5000, 3850) }),
+          { id: 'mBr', statut: 'brouillon', calculs: cal(9000, 6930), date_creation: T(-1) },
+          sig('mOld', -800, 0, { calculs: cal(9000, 6930) }),
+        ];
+        const MG = ST.chiffres(LM, [], P30).marge;
+        check('S4b Règle 64 — La marge matériel des ventes signées : estimée, réelle (remise projet comprise), le gain et ses dossiers ; un devis sans chiffrage compté à part ; ni intervention, ni brouillon, ni hors période',
+          [MG.estimee, MG.reelle, MG.gain, MG.nbProjet, MG.illisibles], [7590.53, 15737.95, 8147.42, 1, 1]);
         check('S5 L’évolution : +20 %, rien à comparer quand les deux sont nuls, « nouveau » quand l’an passé valait 0, des POINTS pour un taux',
           [ST.evolution(120, 100), ST.evolution(0, 0), ST.evolution(5, 0), ST.evolution(80, 75, true), ST.evolution(3, null)],
           [{ pct: 20 }, null, { nouveau: true }, { points: 5 }, null]);
@@ -267,6 +283,10 @@
           [txt(d.querySelector('#kSigne .kpi-value')), CT.nbSignes, signesVentes, /\+ 1 intervention \(431,95 €\)/.test(txt(d.getElementById('kSigne'))), txt(d.querySelector('#kTaux .kpi-value')),
             CT.taux, ST.vendeurs(FULL, ST.periode('tout')).reduce((s, v) => s + v.nb, 0), /Yannick( en tête)? \d+ signés? · /.test(txt(d.getElementById('vendeurs')))],
           [eur(CT.signe), signesVentes, 11, true, CT.taux + ' %', Math.round(11 / 12 * 100), 11, true]);
+        const kM = d.getElementById('kMarge'), csM = w.getComputedStyle(kM);
+        check('P7b Règle 64 — « Marge matériel réelle » : la marge des ventes signées (calc.js chargé par la page), estimée à côté, sur sa PROPRE rangée',
+          [txt(kM.querySelector('.kpi-value')), CT.marge.reelle > 0, new RegExp('estimée ' + eur(CT.marge.estimee).replace(/\s/g, '\\s')).test(txt(kM)), csM.gridColumnStart, csM.gridColumnEnd, typeof (w.SSCalc && w.SSCalc.margeReelleDevis)],
+          [eur(CT.marge.reelle), true, true, '1', '-1', 'function']);
         w.choisirPeriode('mois'); await attendre(60);
         const CM = ST.chiffres(FULL, FACT, ST.periode('mois')), PM = ST.periode('mois');
         check('P8 A — « Ce mois » : les chiffres de la période, la comparaison à la même période l’an passé, et le choix RETENU',

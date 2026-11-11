@@ -28,6 +28,11 @@
       supplier_rate: 0.77,        // part du catalogue partant chez le fournisseur
       material_margin: 0.23,      // marge matériel brute (le complément de la ligne ci-dessus)
       net_divisor: 2.5,           // brut → net (charges et impôts)
+      /* À partir de combien d'ouvertures CHIFFRÉES le simulateur rappelle de demander à Harol sa remise projet
+         (règle 64 : « c'est normalement à partir de 10 ou 15 unités », Nicolas, 11/11/2026). Un rappel, pas un
+         taux : il ne change aucun prix et n'est pas figé avec le devis.
+         ⚠️ Doit exister ICI pour pouvoir être enregistré : `fusionner` est une liste blanche. */
+      remise_projet_seuil: 10,
       commission_principal: 18,   // % du catalogue pour celui qui a vendu
       commission_second: 5,       // % du catalogue pour l'autre
       install_gross: 280,         // pose facturée au client, par ouverture
