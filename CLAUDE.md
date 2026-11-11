@@ -94,8 +94,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/amorce-theme.html` | **Pas une suite** — le banc de mesure que `themes.test.html` charge en iframe pour relever `data-theme` au plus tôt. Ne pas l'ouvrir seul. |
 | `tests/fetes.test.html` | Les 97 tests du calendrier des fêtes et du contrat des décors. |
 | `tests/planche-fetes.html` | **Pas une suite — le BANC D'ESSAI des décors.** Tous les dessins d'une fête côte à côte, à leur taille réelle ET agrandis, dans les deux thèmes. À ouvrir avant de garder un décor (règle 28). |
-| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
-| `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
+| `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 147 tests (`window.SSRemu`) |
+| `tests/remuneration.test.html` | Les 147 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
 | `tests/plan.test.html` | Les 36 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
@@ -1268,6 +1268,15 @@ est une liste blanche (une clé absente des DEFAUTS ne peut pas être enregistr�
 deux : c'est lui qui les empêche de diverger.
 ⚠️ Toute page qui affiche de la rémunération charge `ui.js` et `planning.js` **avant**
 `remuneration.js`.
+
+⚠️ **UNE NOTE DE CRÉDIT N'EST PAS UN REMBOURSEMENT** (`SSRemu.encaisseDe`, `avoirsDe` — 11/11/2026, audit du bac à sable, corrigé
+sur l'accord de Nicolas). « Couvert » retirait chaque note de crédit de l'argent REÇU, puis divisait par le TVAC BRUT du devis : la
+note comptait deux fois. Un dossier soldé avec une note de crédit de 100 € restait à 97 % — 12,80 € « en attente du client » pour
+toujours ; celui du scénario (acompte payé, 100 € de note sur le solde impayé) sortait à 49 % au lieu de 51 %. Désormais : par
+facture, l'argent reçu sans dépasser ce qu'elle doit après SES notes de crédit (`avoir_de`) — ce qui dépasse a été rendu —, et la part
+se lit sur ce que le client paiera EN TOUT (TVAC − notes de crédit, `total_du`). Une note de crédit dont la facture d'origine est
+introuvable garde l'ancienne règle. Le total gagné, lui, ne bouge pas (règle 30 quinquies) : seuls « couvert » et « en attente
+client » changent, et seulement sur les dossiers qui ont une note de crédit.
 
 **30 sexies. Un « ce qu'on me doit » sans registre de VERSEMENTS ne fait que monter.**
 Table `prelevements` (`/api/prelevements`), une ligne par versement réellement reçu. Sans elle, le
