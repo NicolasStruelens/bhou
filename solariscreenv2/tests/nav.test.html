@@ -344,6 +344,167 @@
         [w.getComputedStyle(mod2, '::before').content, mod2.offsetHeight > 0, Math.round(hdr2.getBoundingClientRect().height)], ['"Essai"', true, h2]);
       f.remove();
 
+      /* ═══ L'ENCOCHE ET LE VOLET DANS L'ÉCRAN (règle 61) ════════════════════════════════════════
+         11/11/2026, Nicolas sur son iPhone, app lancée depuis l'écran d'accueil, liste de pose : « je me suis retrouvé
+         bloqué, le menu est hors champ et je vois pas le haut de la page pour revenir au dashboard ». Deux causes :
+         la barre des documents passait SOUS l'heure (elle ignorait l'encoche), et le volet du menu, aligné sur le bord
+         droit d'un bouton passé à GAUCHE de l'écran, s'ouvrait hors de l'écran. Un cadre n'a pas d'encoche : on la
+         simule par les jetons `--encoche-*` (59 px d'heure, 34 px de barre de gestes, un iPhone 15). */
+      rendre();   // bilan intermédiaire : la série suivante charge onze cadres, et un lanceur attend un titre qui bouge
+      titre('Encoche et volet : rien sous l’heure, le volet toujours dans l’écran (règle 61)');
+      const ENC = { haut: 59, bas: 34 };
+      const encocher = (doc) => { doc.documentElement.style.setProperty('--encoche-haut', ENC.haut + 'px'); doc.documentElement.style.setProperty('--encoche-bas', ENC.bas + 'px'); };
+      const lib = (e) => (e.textContent.trim() || e.getAttribute('title') || e.getAttribute('aria-label') || e.tagName).slice(0, 30);
+      const sousLHeure = (doc) => [...doc.querySelectorAll('.toolbar a[href], .toolbar button, .app-header a[href], .app-header button')]
+        .filter(e => e.checkVisibility() && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().top < ENC.haut).map(lib);
+      const regles = (doc) => [...doc.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } });
+
+      f = await cadre('../app/picking.html', 390, 700);
+      d = f.contentDocument; w = f.contentWindow;
+      const jetons = ['haut', 'bas', 'gauche', 'droite'].map(k => (regles(d).map(r => r.style && r.style.getPropertyValue('--encoche-' + k)).find(Boolean) || '').trim());
+      check('E0 les jetons d’encoche SONT les marges du téléphone (env(safe-area-inset-…), 0 ailleurs)', jetons,
+        ['env(safe-area-inset-top, 0px)', 'env(safe-area-inset-bottom, 0px)', 'env(safe-area-inset-left, 0px)', 'env(safe-area-inset-right, 0px)']);
+      check('E0b aucune feuille de l’ERP n’écrit env(safe-area…) à la main (la simulation ne la verrait pas)',
+        regles(d).filter(r => r.cssText && /env\(safe-area/.test(r.cssText) && !/--encoche-/.test(r.cssText)).map(r => r.cssText.slice(0, 80)), []);
+      for (const p of ['picking.html', 'devis.html', 'facture.html', 'reception.html', 'visite.html', 'dashboard.html']) {
+        const g = p === 'picking.html' ? f : await cadre('../app/' + p, 390, 700);
+        const dg = g.contentDocument;
+        encocher(dg); await attendre(60);
+        const premier = dg.querySelector('.toolbar a[href], .app-header a[href], .app-header button');
+        check('E1 ' + p + ' : rien du haut de la page sous l’heure, « retour » compris (et la barre est bien là)',
+          [sousLHeure(dg), !!premier && premier.getBoundingClientRect().top >= ENC.haut], [[], true]);
+        if (g !== f) g.remove();
+        rendre();   // un titre qui bouge : le lanceur sans écran attend 25 s de titre stable
+      }
+      // Le badge « Nicolas » (posé par nav.js derrière Cloudflare Access, jamais en local) : on le pose comme lui.
+      const qn = d.getElementById('quickNav'), tb = d.querySelector('.toolbar');
+      const badge = d.createElement('button'); badge.type = 'button'; badge.className = 'badge ssnav-who'; badge.textContent = 'NICOLAS';
+      qn.parentNode.insertBefore(badge, qn);
+      await attendre(60);
+      const bt = d.querySelector('.ssnav-toggle'), dash = [...tb.querySelectorAll('a')].find(a => /Dashboard/.test(a.textContent));
+      check('E2 téléphone : thème et badge sont DANS le menu, pas en double dans la barre — le bouton du menu reste sur la première rangée',
+        [w.getComputedStyle(tb.querySelector('.theme-toggle')).display, w.getComputedStyle(badge).display,
+          Math.abs((bt.getBoundingClientRect().top + bt.getBoundingClientRect().bottom) - (dash.getBoundingClientRect().top + dash.getBoundingClientRect().bottom)) / 2 < 8,
+          libelles(d, '.ssnav-menu .ssnav-mobile').some(t => /Thème/.test(t))],
+        ['none', 'none', true, true]);
+      const vm2 = d.querySelector('.ssnav-menu');
+      const dansLEcran = () => { const r = vm2.getBoundingClientRect(); return [r.left >= 8 - 0.5, r.right <= w.innerWidth - 8 + 0.5, r.top >= ENC.haut, r.bottom <= w.innerHeight - ENC.bas - 8 + 0.5]; };
+      const toucheTout = async () => {
+        const rates = [];
+        for (const e of vm2.querySelectorAll('.ssnav-item')) {
+          if (!e.checkVisibility()) continue;
+          e.scrollIntoView({ block: 'nearest' }); await attendre(5);
+          const b = e.getBoundingClientRect(), h = d.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          if (!h || !(h === e || e.contains(h)) || b.left < 0 || b.right > w.innerWidth) rates.push(lib(e));
+        }
+        return rates;
+      };
+      // Le cas de la capture : le bouton AU DÉBUT de sa rangée, à gauche de l'écran.
+      tb.insertBefore(qn, tb.firstChild); await attendre(60);
+      bt.click(); await attendre(120);
+      check('E3 bouton du menu à GAUCHE de l’écran : le volet s’ouvre DANS l’écran (8 px du bord), sous l’heure, au-dessus de la barre de gestes',
+        [vm2.classList.contains('open'), ...dansLEcran()], [true, true, true, true, true]);
+      check('E3b et chacune de ses entrées se touche (en faisant défiler le volet)', await toucheTout(), []);
+      // L'écran tourne / rétrécit, volet ouvert : il se recadre.
+      // (la hauteur, surtout : le clavier qui monte, le téléphone qu'on couche — le volet doit raccourcir, sinon son bas passe sous l'écran)
+      f.width = 330; f.height = 420; await attendre(250);
+      check('E4 l’écran rétrécit et perd de la hauteur, volet ouvert : il se recadre (largeur ET hauteur)', dansLEcran(), [true, true, true, true]);
+      bt.click(); await attendre(80);
+      f.width = 390; f.height = 700; await attendre(150);
+      // Rien ne bouge quand il tenait : bouton à droite, le volet reste aligné sur son bord droit.
+      tb.appendChild(qn); await attendre(60);
+      bt.click(); await attendre(120);
+      const rb = bt.getBoundingClientRect(), rm = vm2.getBoundingClientRect();
+      check('E5 bouton à droite : le volet reste aligné sur lui, sans décalage (comme avant)', [Math.abs(rm.right - rb.right) < 1, vm2.style.left], [true, '']);
+      bt.click();
+      f.remove();
+
+      f = await cadre('../app/dashboard.html', 390, 700);
+      d = f.contentDocument; w = f.contentWindow;
+      encocher(d); await attendre(300);
+      d.querySelector('.ssnav-toggle').click(); await attendre(120);
+      const vm3 = d.querySelector('.ssnav-menu').getBoundingClientRect();
+      rendre();
+      check('E6 tableau de bord, encoche : le volet s’arrête au-dessus de la barre de gestes (il supposait un bandeau de 64 px)',
+        [vm3.top >= ENC.haut, vm3.bottom <= w.innerHeight - ENC.bas - 8 + 0.5], [true, true]);
+      f.remove();
+
+      f = await cadre('../app/echanges.html', 1200);
+      d = f.contentDocument; w = f.contentWindow;
+      const bt4 = d.querySelector('.ssnav-toggle'); bt4.click(); await attendre(120);
+      const m4 = d.querySelector('.ssnav-menu');
+      rendre();
+      check('E7 au bureau, le volet est exactement celui d’avant : aligné sous son bouton, rien de décalé',
+        [Math.abs(m4.getBoundingClientRect().right - bt4.getBoundingClientRect().right) < 1, m4.style.left, Math.round(m4.getBoundingClientRect().top - bt4.getBoundingClientRect().bottom)], [true, '', 6]);
+      f.remove();
+
+      // La fiche d'une demande de RDV prend tout l'écran d'un téléphone : « Fermer » était sous l'heure.
+      f = await cadre('../app/rdv.html?nouvelle=1', 390, 700);
+      d = f.contentDocument; w = f.contentWindow;
+      encocher(d);
+      // ⚠️ La fiche s'ouvre APRÈS le chargement (`?nouvelle=1`) : sous charge, au-delà des 1,8 s du cadre. On attend qu'elle soit
+      // ouverte, et le pied se relève au moment de la vérification (relevé trop tôt, il était vide : faux échec du 11/11/2026).
+      for (let i = 0; i < 120 && !d.getElementById('modalBg').classList.contains('open'); i++) await attendre(50);
+      await attendre(200);
+      const fermer = d.querySelector('#modalBg .mclose'), piedVu = () => [...d.querySelectorAll('#modalBg .mfoot button')].filter(b => b.checkVisibility());
+      rendre();
+      // E9 : les autres fenêtres plein écran du téléphone, trouvées par le robot des clics sous encoche simulée (11/11/2026).
+      {
+        const fz = await cadre('../app/dashboard.html', 390, 700);
+        const dz = fz.contentDocument, wz = fz.contentWindow;
+        encocher(dz); await attendre(100);
+        const haut = (el) => el ? Math.round(el.getBoundingClientRect().top) : -1;
+        const attendreQue = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch (e) {} await attendre(50); } return false; };
+        wz.SSUI.ouvrirPhotos(['data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs='], 0); await attendre(200);
+        const lb = haut(dz.querySelector('.lightbox.open .lb-close'));
+        wz.SSUI.fermerPhotos(); await attendre(100);
+        wz.SSUI.ouvrirCatalogue(() => {}); await attendre(300);
+        const cat = haut([...dz.querySelectorAll('.ral-modal.open .ral-x')].find((x) => x.checkVisibility()));
+        const dernier = [...dz.querySelectorAll('.ral-modal.open .ral-panel')].map((p) => p.lastElementChild.getBoundingClientRect().bottom - parseFloat(wz.getComputedStyle(p.lastElementChild).paddingBottom))[0];
+        dz.dispatchEvent(new wz.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(100);
+        [...dz.querySelectorAll('.ral-modal')].forEach((m) => m.classList.remove('open'));
+        wz.SSNav.ouvrirAssistant(); await attendreQue(() => dz.querySelector('.ssa .ssa-fermer'), 6000); await attendre(300);
+        const soli = haut(dz.querySelector('.ssa .ssa-fermer'));
+        check('E9 téléphone, encoche : visionneuse photo (« ✕ »), catalogue d’accessoires (« Fermer » et son dernier bloc) et Soli (« Fermer ») se touchent',
+          [lb >= ENC.haut, cat >= ENC.haut, dernier <= wz.innerHeight - ENC.bas + 0.5, soli >= ENC.haut], [true, true, true, true]);
+        fz.remove();
+      }
+      // E10 : les fenêtres des Notes de frais, de l'Outillage et de la Facturation commençaient à 24 px du haut : leur tête et son
+      // « ✕ » passaient à moitié sous l'heure (robot des clics en tactile, 11/11/2026).
+      {
+        const hauts = [];
+        for (const [p, sel] of [['depenses.html', '.dp-overlay'], ['outillage.html', '.ot-overlay'], ['factures.html', '.fa-overlay']]) {
+          const fo = await cadre('../app/' + p, 390, 700);
+          const dO = fo.contentDocument;
+          encocher(dO); await attendre(60);
+          const ov = dO.querySelector(sel); ov.classList.add('open'); await attendre(60);
+          hauts.push(Math.round(ov.firstElementChild.getBoundingClientRect().top) >= ENC.haut);
+          fo.remove();
+        }
+        check('E10 encoche : les fenêtres des Notes de frais, de l’Outillage et de la Facturation commencent sous l’heure', hauts, [true, true, true]);
+      }
+      // E11 : la recherche (Ctrl K) ne se fermait qu'avec Échap — absente d'un clavier de téléphone — ou en touchant à côté.
+      {
+        const fr = [];
+        for (const [l, lib] of [[390, 'Fermer'], [1200, 'Échap']]) {
+          const fc = await cadre('../app/dashboard.html', l, 700);
+          const dc = fc.contentDocument, wc = fc.contentWindow;
+          wc.ssCommandPalette(); await attendre(150);
+          // Sur un écran tactile (suite jouée en émulation), le bureau dit aussi « Fermer » : pas de touche Échap sous le doigt.
+          const attendu = wc.matchMedia('(pointer: coarse)').matches ? 'Fermer' : lib;
+          const bx = [...dc.querySelectorAll('.cmdk-ov.open button')].find((b) => b.checkVisibility() && b.innerText.trim() === attendu);
+          if (bx) { bx.click(); await attendre(80); }
+          fr.push([!!bx, !dc.querySelector('.cmdk-ov.open')]);
+          fc.remove();
+        }
+        check('E11 la recherche se ferme par un bouton visible : « Fermer » sur téléphone, « Échap » au bureau (comme avant)', fr, [[true, true], [true, true]]);
+      }
+      rendre();
+      check('E8 RDV plein écran : « Fermer » se touche sous l’heure, et le pied au-dessus de la barre de gestes',
+        [d.getElementById('modalBg').classList.contains('open'), fermer.getBoundingClientRect().top >= ENC.haut, piedVu().length > 0 && piedVu().every(b => b.getBoundingClientRect().bottom <= w.innerHeight - ENC.bas + 0.5)],
+        [true, true, true]);
+      f.remove();
+
       try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}
       rendre();
     })();

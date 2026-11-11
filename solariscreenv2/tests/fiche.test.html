@@ -398,6 +398,36 @@
         check('P11e Fiche devis : Catalogue + Installation + Suppléments − Réduction = Total HTVA (catalogue et pose y étaient déjà remisés)',
           [sommeF, val('Total HTVA'), val('Catalogue'), val('Réduction')], [cRem.total_ht, cRem.total_ht, cRem.total_catalog_ht_brut, -cRem.total_remises]);
         fm.remove();
+        // P11f (11/11/2026, audit au geste, règle 62) : un dépannage SOUS GARANTIE — la main-d'œuvre offerte, 0 h — rouvert au
+        // simulateur. Le poste se redessinait avec `qty || 1` : 1 h, 106,00 € à l'écran pour un bon de 47,70 €, sans que la page
+        // se dise modifiée, et le premier enregistrement écrivait 106,00 €. Rien ne doit bouger à l'ouverture (règle 1).
+        const postesG = [{ label: 'Déplacement', qty: 1, unit_price_ht: 45 }, { label: 'Main-d’œuvre', qty: 0, unit_price_ht: 55 }, { label: 'Pièce', qty: 2, unit_price_ht: 12.5 }];
+        const cG = window.SSCalc.computeDevis({ items: [], extras: postesG, tva_pct: 6, acompte_pct: 0 });
+        const garantie = { id: 'ESSAI-QTE-3', client: { prenom: 'Gérard', nom: "L'Essai-Garantie" }, statut: 'termine', type_document: 'depannage', depannage_mode: 'realise',
+          items: [], calculs: cG, pricing_v2: { tva_pct: 6, acompte_pct: 0, extras: cG.extra_lines }, depannage: { garantie: 'oui', date_intervention: U.aujourdhui() },
+          date_creation: maintenant, date_modification: maintenant };
+        const rg = await SS.saveDevis(garantie, { creation: true });
+        const fg = await BANC.cadre('../app/simulateur.html?id=' + encodeURIComponent(garantie.id), 1500, 900);
+        const dg = fg.contentDocument;
+        await attendreQue(() => dg.querySelectorAll('#extrasContainer .extra-row').length === 3, 8000);
+        await attendre(300);
+        check('P11f Simulateur : un dépannage sous garantie (main-d’œuvre à 0 h) se rouvre à 0 h, au MÊME total (47,70 + 25,00 + TVA), ne se dit pas modifié, et son champ accepte le zéro qu’il affiche (min 0 : à min 1, ses flèches le remontaient à 1)',
+          [rg.ok !== false, [...dg.querySelectorAll('#extrasContainer [data-ex="qty"]')].map((q) => q.value), txt(dg.getElementById('sTotalTTC')) === U.fmtEur(cG.total_ttc).replace(/\s+/g, ' '), cG.total_ttc, fg.contentWindow.eval('dirty'),
+            [...dg.querySelectorAll('#extrasContainer [data-ex="qty"]')].every((q) => q.checkValidity())],
+          [true, ['1', '0', '2'], true, 74.2, false, true]);
+        fg.remove();
+        // P11g : la même heure offerte sur la FICHE (« 0 × 55,00 € », pas une ligne muette) et sur la liste de pose (Qté 0, pas 1).
+        const fgv = await fiche('ESSAI-QTE-3');
+        const ligneMO = [...fgv.contentDocument.querySelectorAll('tr')].find((tr) => /Main-d’œuvre/.test(tr.textContent));
+        const qMO = ligneMO ? txt(ligneMO.querySelector('td.q')) : null;
+        fgv.remove();
+        const fgp = await BANC.cadre('../app/picking.html?id=ESSAI-QTE-3', 1100, 900);
+        await attendreQue(() => fgp.contentDocument.querySelector('.pick-table'), 8000);
+        const lignePick = [...fgp.contentDocument.querySelectorAll('.pick-table tr')].find((tr) => /Main-d’œuvre/.test(tr.textContent));
+        const qPick = lignePick ? txt(lignePick.querySelectorAll('td.num')[1]) : null;
+        fgp.remove();
+        check('P11g … et la fiche écrit « 0 × 55,00 € », la liste de pose « 0 » (elles disaient rien et « 1 »)',
+          [qMO, qPick], ['0 × ' + U.fmtEur(55).replace(/\s+/g, ' '), '0']);
         // P12 : le suivi client ne contredit pas sa frise. La date de pose est PASSÉE : posé avec une date
         // encore à venir, c'est une pose en deux fois (règle `poseAVenir`), que `tests/suivi.test.html` couvre (A13).
         ecrireBase('ESSAI-10', '$.commande', { statut: 'pose' });
