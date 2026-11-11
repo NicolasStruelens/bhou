@@ -208,8 +208,8 @@
          Au-dessus du bandeau (sinon il la recouvre en haut de page sur telephone), SOUS les
          fenetres modales : une modale ouverte la cache, comme le reste de la page. */
       .ssfab { position: fixed; z-index: calc(var(--z-header, 100) + 5);
-        right: max(16px, env(safe-area-inset-right, 0px));
-        bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + var(--ssfab-leve, 0px));
+        right: max(16px, var(--encoche-droite));
+        bottom: calc(max(16px, var(--encoche-bas)) + var(--ssfab-leve, 0px));
         width: 60px; height: 60px; padding: 0; border-radius: 50%; cursor: pointer;
         display: grid; place-items: center;
         border: 1px solid var(--border-strong, #324273); background: var(--surface, #111a33);
@@ -909,6 +909,48 @@
     return true;
   }
 
+  /** Les marges d'encoche du moment, en pixels (`--encoche-*` de tokens.css : `env(safe-area-inset-*)`, ou ce
+   *  qu'une suite de tests y a mis pour simuler un iPhone). Lues sur un témoin, car un `env()` ne se lit pas en JS. */
+  function encoches() {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+      'padding:var(--encoche-haut,0px) var(--encoche-droite,0px) var(--encoche-bas,0px) var(--encoche-gauche,0px);';
+    (document.body || document.documentElement).appendChild(t);
+    const s = getComputedStyle(t);
+    const r = { haut: parseFloat(s.paddingTop) || 0, droite: parseFloat(s.paddingRight) || 0, bas: parseFloat(s.paddingBottom) || 0, gauche: parseFloat(s.paddingLeft) || 0 };
+    t.remove();
+    return r;
+  }
+
+  /* ═══ LE VOLET DU MENU RESTE DANS L'ÉCRAN, OÙ QUE SOIT SON BOUTON (11/11/2026, règle 61) ═══
+     Nicolas, sur son iPhone, sur la liste de pose : « le menu est hors champ ». Le volet s'ouvre aligné sur le BORD
+     DROIT de son bouton (`right: 0`, base.css) — juste quand le bouton est à droite de l'écran, comme dans le bandeau.
+     Dans la barre des documents (devis, facture, liste de pose, PV, rapport), la rangée passe à la ligne sur téléphone,
+     et avec le badge « Nicolas » le bouton tombait AU DÉBUT de la deuxième rangée : le volet de 200 px partait à gauche
+     de l'écran, ses libellés coupés, et ce qui sort à gauche d'une page ne se rattrape pas en faisant défiler.
+     Par le bas, sa hauteur supposait un bandeau de 64 px collé en haut de l'écran : sous une barre sur trois rangées,
+     ou sous l'encoche, ses dernières entrées passaient sous le bord.
+     On le POSE donc à l'ouverture : aligné sur son bouton tant qu'il tient, décalé juste assez sinon, jamais sous
+     l'encoche ni hors de l'écran, et sa hauteur s'arrête au bas visible (il défile au-delà). Rien ne bouge quand il
+     tenait déjà : le bureau garde exactement son menu. */
+  function placerMenu(menu) {
+    if (!menu || !menu.classList.contains('open')) return null;
+    menu.style.left = ''; menu.style.right = ''; menu.style.maxWidth = ''; menu.style.maxHeight = '';
+    const de = document.documentElement, marge = 8, enc = encoches();
+    const gauche = marge + enc.gauche, droite = de.clientWidth - marge - enc.droite;
+    const bas = (window.visualViewport ? window.visualViewport.height : window.innerHeight) - marge - enc.bas;
+    menu.style.maxWidth = Math.max(160, droite - gauche) + 'px';
+    const hote = menu.offsetParent || menu.parentElement;
+    const h = hote.getBoundingClientRect(), m = menu.getBoundingClientRect();
+    let dx = 0;
+    if (m.right > droite) dx = droite - m.right;
+    if (m.left + dx < gauche) dx = gauche - m.left;
+    if (dx) { menu.style.right = 'auto'; menu.style.left = Math.round(m.left + dx - h.left) + 'px'; }
+    // Au moins 160 px : sur un écran couché très bas, mieux vaut un volet qui défile qu'un volet écrasé.
+    menu.style.maxHeight = Math.max(160, Math.floor(bas - m.top)) + 'px';
+    return { dx: Math.round(dx), encoches: enc };
+  }
+
   function mount(container) {
     logoCliquable();
     marquerBacASable();
@@ -1025,6 +1067,7 @@
       const willOpen = !menu.classList.contains('open');
       menu.classList.toggle('open', willOpen);
       btn.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) placerMenu(menu);
       // À l'ouverture, on rafraîchit les compteurs (cache d'1 min) : ils restent à jour même
       // si la page est ouverte depuis longtemps.
       if (willOpen) computeBadges().then(paintBadges).catch(function () {});
@@ -1043,6 +1086,8 @@
       close(); e.preventDefault(); e.stopPropagation();
     }, true);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    // L'écran tourne, le clavier se replie, la barre d'outils de Safari se rétracte : le volet ouvert se recadre.
+    window.addEventListener('resize', function () { if (menu.classList.contains('open')) placerMenu(menu); });
     mountWhoAmI(container);
     monterMascotte();
     /* Une conversation ouverte SUIT l'onglet au bureau : la page suivante rouvre la fenêtre.
@@ -1203,7 +1248,7 @@
     mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant, mascotte: mascotte,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
-    _marquerBacASable: marquerBacASable,
+    _marquerBacASable: marquerBacASable, _placerMenu: placerMenu, _encoches: encoches,
     _NAV: { accueil: NAV_ACCUEIL, creer: NAV_CREER, groupes: NAV_GROUPS, reglages: NAV_REGLAGES, badges: BADGE_KEYS },
   };
 })();

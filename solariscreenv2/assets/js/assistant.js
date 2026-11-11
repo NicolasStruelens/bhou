@@ -43,8 +43,8 @@
        Plan d'empilement pris dans tokens.css, jamais un nombre en dur (au-dessus des modales :
        on l'ouvre volontairement, par-dessus ce qu'on regarde). Sur téléphone : plein écran, plus bas. */
     .ssa { position: fixed; z-index: calc(var(--z-overlay, 1000) + 20);
-      right: max(16px, env(safe-area-inset-right, 0px));
-      bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + var(--ssfab-leve, 0px) + 72px);
+      right: max(16px, var(--encoche-droite));
+      bottom: calc(max(16px, var(--encoche-bas)) + var(--ssfab-leve, 0px) + 72px);
       width: min(420px, calc(100vw - 32px)); height: min(640px, calc(100vh - 110px - var(--ssfab-leve, 0px)));
       display: flex; flex-direction: column; overflow: hidden; border-radius: 16px;
       background: var(--surface, #111a33); color: var(--text, #e9eefb);
@@ -142,7 +142,7 @@
       border: 1px solid var(--border, #263459); background: transparent; color: var(--text, #e9eefb); }
     .ssa-sugg:hover { border-color: var(--accent, #4d8bff); background: color-mix(in srgb, var(--accent, #4d8bff) 8%, transparent); }
     .ssa-saisie { flex: none; border-top: 1px solid var(--border, #263459); padding: 0.6rem 0.7rem;
-      padding-bottom: max(0.6rem, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 0.35rem; }
+      padding-bottom: max(0.6rem, var(--encoche-bas)); display: flex; flex-direction: column; gap: 0.35rem; }
     .ssa-ligne { display: flex; gap: 0.45rem; align-items: flex-end; }
     .ssa-texte { flex: 1 1 auto; min-width: 0; resize: none; min-height: 40px; max-height: 140px; box-sizing: border-box;
       padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid var(--input-border, var(--border, #263459));
@@ -154,8 +154,11 @@
     .ssa-envoi:disabled { opacity: 0.5; cursor: default; }
     .ssa-avert { font-size: 0.66rem; color: var(--text-subtle, #7d8bb0); line-height: 1.35; }
     @media (max-width: 640px) {
+      /* Plein écran = jusque SOUS l'heure d'un iPhone (app de l'écran d'accueil) : « Nouvelle » et « Fermer » y étaient,
+         intouchables — on ne sortait plus de Soli (11/11/2026, règle 61). Le fond continue sous l'encoche, la tête s'en écarte. */
       .ssa { inset: 0; width: auto; height: auto; border-radius: 0; border: 0; box-shadow: none;
-        transform: translateY(14px); transform-origin: center; }
+        transform: translateY(14px); transform-origin: center;
+        padding: var(--encoche-haut) var(--encoche-droite) 0 var(--encoche-gauche); }
       .ssa-btn { min-height: 40px; }
       /* « Fermer » EN TOUTES LETTRES sur téléphone : une croix seule ne s'est pas vue (25/10/2026). */
       .ssa-btn.ssa-fermer { width: auto; min-height: 44px; padding: 0 0.75rem; color: var(--text, #e9eefb);
