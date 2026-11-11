@@ -416,6 +416,36 @@
           [lb >= ENC.haut, cat >= ENC.haut, dernier <= wz.innerHeight - ENC.bas + 0.5, soli >= ENC.haut], [true, true, true, true]);
         fz.remove();
       }
+      // E10 : les fenêtres des Notes de frais, de l'Outillage et de la Facturation commençaient à 24 px du haut : leur tête et son
+      // « ✕ » passaient à moitié sous l'heure (robot des clics en tactile, 11/11/2026).
+      {
+        const hauts = [];
+        for (const [p, sel] of [['depenses.html', '.dp-overlay'], ['outillage.html', '.ot-overlay'], ['factures.html', '.fa-overlay']]) {
+          const fo = await cadre('../app/' + p, 390, 700);
+          const dO = fo.contentDocument;
+          encocher(dO); await attendre(60);
+          const ov = dO.querySelector(sel); ov.classList.add('open'); await attendre(60);
+          hauts.push(Math.round(ov.firstElementChild.getBoundingClientRect().top) >= ENC.haut);
+          fo.remove();
+        }
+        check('E10 encoche : les fenêtres des Notes de frais, de l’Outillage et de la Facturation commencent sous l’heure', hauts, [true, true, true]);
+      }
+      // E11 : la recherche (Ctrl K) ne se fermait qu'avec Échap — absente d'un clavier de téléphone — ou en touchant à côté.
+      {
+        const fr = [];
+        for (const [l, lib] of [[390, 'Fermer'], [1200, 'Échap']]) {
+          const fc = await cadre('../app/dashboard.html', l, 700);
+          const dc = fc.contentDocument, wc = fc.contentWindow;
+          wc.ssCommandPalette(); await attendre(150);
+          // Sur un écran tactile (suite jouée en émulation), le bureau dit aussi « Fermer » : pas de touche Échap sous le doigt.
+          const attendu = wc.matchMedia('(pointer: coarse)').matches ? 'Fermer' : lib;
+          const bx = [...dc.querySelectorAll('.cmdk-ov.open button')].find((b) => b.checkVisibility() && b.innerText.trim() === attendu);
+          if (bx) { bx.click(); await attendre(80); }
+          fr.push([!!bx, !dc.querySelector('.cmdk-ov.open')]);
+          fc.remove();
+        }
+        check('E11 la recherche se ferme par un bouton visible : « Fermer » sur téléphone, « Échap » au bureau (comme avant)', fr, [[true, true], [true, true]]);
+      }
       rendre();
       check('E8 RDV plein écran : « Fermer » se touche sous l’heure, et le pied au-dessus de la barre de gestes',
         [d.getElementById('modalBg').classList.contains('open'), fermer.getBoundingClientRect().top >= ENC.haut, piedVu().length > 0 && piedVu().every(b => b.getBoundingClientRect().bottom <= w.innerHeight - ENC.bas + 0.5)],

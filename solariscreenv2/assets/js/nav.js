@@ -38,6 +38,9 @@
       .cmdk-input svg { color: var(--text-subtle,#6675a0); flex: none; }
       .cmdk-input input { flex: 1; background: none; border: none; outline: none; color: var(--text,#e9eefb); font-size: 1rem; font-family: inherit; }
       .cmdk-kbd { font-family: var(--font-mono, monospace); font-size: 0.6rem; color: var(--text-subtle,#6675a0); border: 1px solid var(--border,#243056); border-radius: 3px; padding: 0.1rem 0.35rem; flex: none; }
+      .cmdk-fermer { background: none; cursor: pointer; line-height: inherit; } .cmdk-fermer-t { display: none; }
+      @media (max-width: 640px), (pointer: coarse) { .cmdk-fermer-b { display: none; } .cmdk-fermer-t { display: inline; }
+        .cmdk-fermer { min-height: 36px; padding: 0 0.7rem; font-size: 0.72rem; color: var(--text,#e9eefb); } }
       .cmdk-results { overflow-y: auto; padding: 0.35rem; }
       .cmdk-group { font-family: var(--font-mono, monospace); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-subtle,#6675a0); padding: 0.5rem 0.6rem 0.25rem; }
       .cmdk-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 3px; cursor: pointer; text-decoration: none; color: var(--text,#e9eefb); }
@@ -1108,10 +1111,13 @@
       ov.innerHTML = '<div class="cmdk" role="dialog" aria-label="Recherche globale">' +
         '<div class="cmdk-input">' + window.SSUI.icon('search', 16) +
         '<input type="text" placeholder="Rechercher un devis, client, facture, RDV, une décision…" aria-label="Recherche" autocomplete="off">' +
-        '<span class="cmdk-kbd">Échap</span></div><div class="cmdk-results"></div></div>';
+        // ⚠️ « Échap » était un simple rappel : sur un téléphone, il n'y a pas de touche Échap, et rien à l'écran ne fermait
+        // la recherche (seulement toucher à côté). C'est désormais un bouton, « Fermer » sur écran tactile (11/11/2026, règle 61).
+        '<button type="button" class="cmdk-kbd cmdk-fermer" aria-label="Fermer la recherche"><span class="cmdk-fermer-b">Échap</span><span class="cmdk-fermer-t">Fermer</span></button></div><div class="cmdk-results"></div></div>';
       document.body.appendChild(ov);
       input = ov.querySelector('input'); resultsEl = ov.querySelector('.cmdk-results');
       ov.addEventListener('click', e => { if (e.target === ov) closeP(); });
+      ov.querySelector('.cmdk-fermer').addEventListener('click', closeP);
       input.addEventListener('input', renderP);
       input.addEventListener('keydown', onKey);
     }

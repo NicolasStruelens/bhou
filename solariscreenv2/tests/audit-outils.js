@@ -144,6 +144,8 @@
   /** Ce qu'on relève DANS la page (exécuté sur le document du cadre). */
   function relever(w) {
     const d = w.document, W = w.innerWidth, H = w.innerHeight, out = [];
+    // Une page qui part ailleurs au moment de la relève n'a plus de <body> : rien à relever (deux « audit interrompu » le 11/11/2026).
+    if (!d || !d.body) return { defauts: [], liens: [], calques: 0 };
     const vis = (e) => {
       const r = e.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) return false;
@@ -332,14 +334,17 @@
       bas: parseFloat(w.getComputedStyle(d.documentElement).getPropertyValue('--encoche-bas')) || 0 };
     if (enc.haut || enc.bas) {
       const colle = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const p = w.getComputedStyle(x).position; if (p === 'fixed' || p === 'sticky') return true; } return false; };
+      // Un ancêtre qui défile ENCORE dans ce sens : on éloigne l'élément du bord en faisant défiler, il n'y est pas posé
+      // (le pied d'une fenêtre plus haute que l'écran, au bas d'une fenêtre qui défile : faux relevés du 11/11/2026).
+      const defileVers = (e, bas) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && x.scrollHeight > x.clientHeight + 1 && (bas ? x.scrollTop < x.scrollHeight - x.clientHeight - 1 : x.scrollTop > 1)) return true; } return false; };
       const sous = [], gestes = [];
       for (const e of cmd) {
         // La partie VISIBLE : un bouton défilé hors du corps d'une fenêtre est caché par ce corps, pas posé sur la barre.
         const r = rogner(e, e.getBoundingClientRect());
         if (r.width <= 0 || r.height <= 0 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
         const fixe = colle(e), libelle = texte(e) || e.getAttribute('aria-label') || e.getAttribute('title') || nom(e);
-        if (enc.haut && Math.min(r.bottom, H) <= enc.haut + 4 && (fixe || w.scrollY === 0)) sous.push(libelle);
-        if (enc.bas && fixe && r.top >= H - enc.bas - 2) gestes.push(libelle);
+        if (enc.haut && Math.min(r.bottom, H) <= enc.haut + 4 && (fixe || w.scrollY === 0) && !defileVers(e, false)) sous.push(libelle);
+        if (enc.bas && fixe && r.top >= H - enc.bas - 2 && !defileVers(e, true)) gestes.push(libelle);
       }
       if (sous.length) out.push(['sous l’encoche', 'intouchable sous l’heure (' + enc.haut + ' px) : « ' + [...new Set(sous)].slice(0, 5).join(' », « ') + ' »']);
       if (gestes.length) out.push(['sous la barre de gestes', 'barre fixe sur les ' + enc.bas + ' px du bas : « ' + [...new Set(gestes)].slice(0, 5).join(' », « ') + ' »']);
