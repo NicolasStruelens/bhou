@@ -42,15 +42,31 @@
        pour un RAIL D'OUTILS à gauche : outils du dossier + sommaire cliquable, collé à l'écran.
        Résultat : les deux colonnes latérales suivent le défilement, seul le contenu défile,
        et plus rien n'est à plus d'un clic. */
-    /* 1712 = 1500 (largeur utile necessaire) + 212 (le rail de navigation). Le seuil porte sur la
-       FENETRE, pas sur la place reellement disponible : sans cette addition, les trois colonnes se
-       declenchaient en croyant avoir 1500 px alors que le rail en prenait deja 212.
-       Rail replie (60 px), la place suffirait des 1560 : on reste a deux colonnes dans cette bande
-       etroite plutot que de dupliquer tout le bloc pour 150 px de fenetre. */
-    @media (min-width: 1712px) {
-      .container.vue-layout { max-width: 1800px; }
-      .vue-layout { grid-template-columns: 250px minmax(0, 1fr) 340px; }
+    /* ⚠️ DEUX TAILLES DE LA MÊME MISE EN PAGE (règle 66, 11/11/2026). Le portable de Nicolas
+       (≈ 1 520 px, écran à 125 %) perdait le sommaire et ses compteurs alors que la fiche y disposait
+       de 1 300 px : seule la taille LARGE existait, et elle demande 1 500 px utiles.
+       • COMPACTE : 180 · dossier · 316, marges de 24 px. Elle demande 1 260 px UTILES (180 + 316
+         + deux gouttières de 24 + deux marges de 24, et ~670 pour le dossier).
+       • LARGE : 250 · dossier · 340, inchangée, dès 1 500 px utiles.
+       Les seuils portent sur la FENÊTRE, rail de navigation compris (règle 24) :
+       compacte de 1 260 à 1 399 (pas de rail), puis dès 1 472 = 1 260 + 212 ; large dès
+       1 712 = 1 500 + 212. Entre 1 400 et 1 471, le rail vient de prendre 212 px : deux colonnes.
+       Rail replié (60 px), la compacte tiendrait dès 1 400 : on ne duplique pas tout le bloc pour
+       ces 72 px de fenêtre.
+       ⚠️ LA BANDE (2 colonnes, 1 colonne) EST L'ÉTAT DE BASE, écrit hors media query. Les trois
+       colonnes ne font que le SURCHARGER : une fenêtre à 1 471,5 px (zoom) ne tombe donc jamais dans
+       un trou entre deux requêtes « max-width: 1471 » et « min-width: 1472 ». */
+    .vue-rail { grid-column: 1 / -1; }
+    .rail-nav { display: none; }
+    /* Le bouton « Sommaire » flotte en bas à gauche et Soli en bas à droite : la fin de la fiche doit
+       pouvoir remonter AU-DESSUS d'eux, sinon la dernière carte reste à moitié sous un bouton. */
+    .container.vue-layout { padding-bottom: calc(max(var(--sp-4), var(--encoche-bas)) + 72px); }
+    @media (min-width: 1260px) and (max-width: 1399px), (min-width: 1472px) {
+      .container.vue-layout { max-width: 1800px; padding-bottom: max(var(--sp-6), var(--encoche-bas));
+        padding-left: max(var(--sp-5), var(--encoche-gauche)); padding-right: max(var(--sp-5), var(--encoche-droite)); }
+      .vue-layout { grid-template-columns: 180px minmax(0, 1fr) 316px; }
       .vue-rail {
+        grid-column: auto;
         position: sticky; top: calc(var(--header-h) + var(--sp-5));
         display: flex; flex-direction: column; gap: var(--sp-4);
         max-height: calc(100vh - var(--header-h) - var(--sp-6)); overflow-y: auto;
@@ -64,16 +80,22 @@
          defilement, donc rien a faire defiler, et aucun moyen d acceder a ces entrees.
          Avec `flex: none`, c est le RAIL qui deborde et son `overflow-y: auto` reprend son role. */
       .vue-rail > * { flex: none; }
-      /* Empilée : un outil par ligne, aligné à gauche — on lit une liste, pas une barre. */
-      .vue-rail .action-bar { grid-template-columns: 1fr; }
-      .vue-rail .ab-item { justify-content: flex-start; padding: 0.6rem 0.8rem; }
+      /* Empilée : un outil par ligne, aligné à gauche — on lit une liste, pas une barre.
+         À 180 px, « Ajouter au portfolio » passe sur deux lignes : il REVIENT à la ligne plutôt que
+         d'être coupé (une action dont on ne lit pas le nom ne se clique pas). */
+      .vue-rail .action-bar { display: grid; grid-template-columns: 1fr; }
+      .vue-rail .ab-item { justify-content: flex-start; padding: 0.55rem 0.7rem; white-space: normal; text-align: left; line-height: 1.3; }
       .rail-nav { display: block; }
+      /* Le sommaire est à l'écran : pas de bouton pour l'ouvrir. ⚠️ `html .som-fab` et non `.som-fab` :
+         la règle du bouton est écrite PLUS BAS dans la feuille et, à spécificité égale, son `display`
+         l'emportait — le bouton flottait par-dessus le sommaire qu'il était censé remplacer. */
+      html .som-fab { display: none; }
     }
-    /* En dessous de 1500 px : exactement la mise en page d'avant (barre d'actions pleine
-       largeur, 2 colonnes) — le rail redevient une simple bande horizontale. */
-    @media (max-width: 1711px) {
-      .vue-rail { grid-column: 1 / -1; }
-      .rail-nav { display: none; }
+    @media (min-width: 1712px) {
+      .container.vue-layout {
+        padding-left: max(var(--sp-6), var(--encoche-gauche)); padding-right: max(var(--sp-6), var(--encoche-droite)); }
+      .vue-layout { grid-template-columns: 250px minmax(0, 1fr) 340px; }
+      .vue-rail .ab-item { padding: 0.6rem 0.8rem; }
     }
     @media (max-width: 1040px) {
       /* ⚠️ `minmax(0, 1fr)` et surtout PAS `1fr` : la largeur minimale automatique d'une colonne
@@ -85,16 +107,16 @@
       .vue-aside { position: static; }
       /* Sur mobile, le total et la prochaine action remontent JUSTE sous la barre d'actions —
          sinon ils se retrouvaient enterrés sous toutes les cartes de suivi. */
-      #rulerHost { order: 1; } .vue-rail { order: 2; } .vue-aside { order: 3; } .vue-main { order: 4; }
+      #dossiersHost, #rulerHost { order: 1; } .vue-rail { order: 2; } .vue-aside { order: 3; } .vue-main { order: 4; }
     }
 
-    /* ── Sommaire du dossier (rail gauche, grand écran seulement) ──
+    /* ── Sommaire du dossier (rail gauche dès qu'il y a trois colonnes ; ailleurs, bouton « Sommaire ») ──
        Chaque entrée mène à une carte de la fiche, avec son compteur. La section en cours de
        lecture s'allume au défilement : on sait toujours où on est dans un dossier long. */
     /* ⚠️ AUCUN `display` ici : cette règle est écrite APRÈS les media queries ci-dessus et,
-       à spécificité égale, la dernière l'emporte — un `display:none` de base annulait donc
-       l'affichage du sommaire sur grand écran. La visibilité est gérée uniquement par la
-       requête « ≤ 1499 px ». */
+       à spécificité égale, la dernière l'emporte — un `display:none` posé ici annulait donc
+       l'affichage du sommaire sur grand écran. Sa visibilité se décide UNIQUEMENT plus haut : caché
+       par l'état de base, montré par la requête des trois colonnes. */
     .rail-nav { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
     .rail-nav-t { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .1em;
       color: var(--text-subtle); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border); }
@@ -108,11 +130,135 @@
     .rn-n { font-family: var(--font-mono); font-size: var(--fs-3xs); color: var(--text-subtle); }
     .rn-item.alerte .rn-n { color: var(--warn); font-weight: 700; }
 
+    /* ── SOMMAIRE AU POUCE (règle 66) : téléphone, tablette, fenêtre à deux colonnes ──────────
+       Là où le sommaire n'a pas de colonne, un bouton en bas à GAUCHE (Soli tient la droite) ouvre
+       une feuille : les actions du devis, puis chaque carte avec son compteur. On en sort par la
+       croix, en touchant à côté, par Échap et par « retour ». Fixe, jamais collant : `sticky` ne
+       tient pas sur iPhone (base.css, le bandeau). */
+    .som-fab { position: fixed; z-index: calc(var(--z-header) + 5);
+      left: max(var(--sp-4), var(--encoche-gauche)); bottom: max(var(--sp-4), var(--encoche-bas));
+      display: inline-flex; align-items: center; gap: 0.5rem; height: 46px; padding: 0 1.05rem 0 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--on-accent) 25%, var(--accent)); border-radius: 23px;
+      background: var(--accent); color: var(--on-accent); font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700;
+      cursor: pointer; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.26); transition: transform var(--t-fast); }
+    .som-fab:hover { transform: translateY(-2px); }
+    .som-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .som-fab svg { flex: none; }
+    /* ⚠️ `[hidden]` est battu par le `display` ci-dessus (même piège que le rail, règle 24 bis). */
+    .som-fab[hidden] { display: none !important; }
+    /* Le rail de navigation est là (≥ 1 400 px, deux colonnes de 1 400 à 1 471) : le bouton se pose
+       à côté de lui, jamais sur « Paramètres » et la ligne « qui ». */
+    @media (min-width: 1400px) {
+      .som-fab { left: calc(212px + var(--sp-4)); }
+      html.ss-rail-reduit .som-fab { left: calc(60px + var(--sp-4)); }
+    }
+    .som-fond { position: fixed; inset: 0; z-index: var(--z-overlay); display: flex; align-items: flex-end; justify-content: center;
+      background: color-mix(in srgb, #040814 58%, transparent); }
+    .som-fond[hidden] { display: none; }
+    .som-feuille { width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column; min-height: 0;
+      background: var(--surface); border: 1px solid var(--border-strong); border-bottom: 0; border-radius: 14px 14px 0 0;
+      box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.28); padding-bottom: var(--encoche-bas); }
+    @supports (height: 1dvh) { .som-feuille { max-height: 86dvh; } }
+    .som-poignee { flex: none; width: 42px; height: 5px; border-radius: 3px; background: var(--border-strong); margin: 8px auto 2px; }
+    .som-tete { flex: none; display: flex; align-items: center; gap: var(--sp-3); padding: 0.35rem var(--sp-4) 0.7rem; border-bottom: 1px solid var(--border); }
+    .som-tete > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .som-tete b { font-size: var(--fs-md); color: var(--text); }
+    .som-sous { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .som-x { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border-strong);
+      border-radius: var(--r-md); background: var(--surface-2); color: var(--text); cursor: pointer; }
+    .som-x:hover { border-color: var(--accent); color: var(--accent); }
+    .som-corps { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: var(--sp-4); }
+    .som-k { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .1em;
+      color: var(--text-subtle); padding: var(--sp-3) var(--sp-4) 0.4rem; }
+    .som-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 var(--sp-4); }
+    .som-act { display: flex; align-items: center; gap: 0.45rem; min-height: 44px; min-width: 0; padding: 0.5rem 0.65rem;
+      border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); color: var(--text-muted);
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+      text-align: left; line-height: 1.25; cursor: pointer; }
+    .som-act:hover { color: var(--accent); border-color: var(--accent); }
+    .som-act svg { flex: none; }
+    .som-act.is-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+    .som-act.is-gold { color: var(--accent-2-ink); background: color-mix(in srgb, var(--accent-2) 12%, var(--surface)); }
+    /* Un nombre impair d'actions : la dernière prend la rangée, plutôt qu'un trou à côté d'elle. */
+    .som-act:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .som-list .rn-item { min-height: 46px; padding: 0.65rem var(--sp-4); font-size: var(--fs-sm); border-bottom: 1px solid var(--border); }
+    .som-list .rn-item:last-child { border-bottom: 0; }
+    .som-list .rn-n { font-size: var(--fs-2xs); }
+    @media (prefers-reduced-motion: no-preference) {
+      .som-fond:not([hidden]) .som-feuille { animation: somMonte .24s cubic-bezier(.22, .9, .25, 1); }
+      @keyframes somMonte { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    }
+
+    /* ── LES DEVIS DU CLIENT (règle 66) : des intercalaires posés sur la ligne du temps ────────
+       Un client a souvent plusieurs devis (règle 9) : chaque onglet porte le liseré de son statut
+       (règle 21), son résumé, son numéro et son montant, et celui qu'on lit, plus haut et sans
+       filet du bas, fait corps avec la réglette juste dessous. Du plus ancien au plus récent, comme
+       la réglette. Un seul devis : rien du tout, ni titre ni place.
+       ⚠️ La rangée DÉFILE dans son cadre (téléphone, client à 7 devis) : `overflow-y: hidden`
+       obligatoire, sinon le moindre pixel qui dépasse en bas fait apparaître une barre verticale
+       (la « danse des ascenseurs » de la réglette). Pas de barre visible : la molette et le doigt
+       font défiler, et un fondu sur le bord dit qu'il y en a d'autres. */
+    #dossiersHost { position: relative; z-index: 2; min-width: 0; margin-bottom: calc(-1 * var(--sp-5) - 1px); }
+    #dossiersHost[hidden] { display: none; }
+    #dossiersHost.sans-regle { margin-bottom: 0; }
+    .dos-t { display: flex; align-items: baseline; gap: 0.45rem; padding: 0 var(--sp-2) 0.35rem; min-width: 0;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .1em; color: var(--text-subtle); }
+    .dos-t b { font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; text-transform: none; letter-spacing: 0.01em;
+      color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .dos-rang { position: relative; display: flex; align-items: flex-end; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2) 0;
+      overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain; }
+    .dos-rang::-webkit-scrollbar { display: none; }
+    .dos-rang.deb-g  { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px); mask-image: linear-gradient(to right, transparent, #000 36px); }
+    .dos-rang.deb-d  { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+    .dos-rang.deb-g.deb-d { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+      mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+    .dos-tab { flex: 0 1 252px; min-width: 196px; display: flex; flex-direction: column; gap: 3px; padding: 0.5rem 0.75rem 0.55rem;
+      background: var(--surface-2); color: var(--text-muted); text-decoration: none;
+      border: 1px solid var(--border); border-top: 3px solid var(--st); border-radius: var(--r-md) var(--r-md) 0 0;
+      transition: background var(--t-fast), color var(--t-fast); }
+    a.dos-tab:hover { background: color-mix(in srgb, var(--st) 8%, var(--surface)); color: var(--text); text-decoration: none; }
+    a.dos-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+    /* L'onglet ouvert ne rétrécit pas : il porte en plus « ouvert », et c'est lui qu'on lit. */
+    .dos-tab.cur { flex-shrink: 0; min-width: 236px; background: var(--surface); color: var(--text); padding-bottom: 0.85rem;
+      border-color: var(--border-strong); border-top: 4px solid var(--st); border-bottom-color: var(--surface);
+      box-shadow: 0 -5px 14px color-mix(in srgb, var(--text) 8%, transparent); }
+    #dossiersHost.sans-regle .dos-tab.cur { border-bottom-color: var(--border-strong); }
+    .dos-l1 { display: flex; align-items: center; gap: 0.4rem; min-width: 0; white-space: nowrap; overflow: hidden;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--st); }
+    .dos-pt { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--st); }
+    .dos-st { flex: none; }
+    .dos-ici { flex: none; font-size: var(--fs-3xs); color: var(--on-accent); background: var(--accent); padding: 1px 6px; border-radius: var(--r-sm); letter-spacing: .06em; }
+    .dos-dt { margin-left: auto; padding-left: 0.3rem; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      font-weight: 400; letter-spacing: 0; color: var(--text-subtle); }
+    .dos-r { display: flex; align-items: baseline; gap: 0.4rem; min-width: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+    .dos-rt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dos-rt.vide { color: var(--text-subtle); font-weight: 400; font-style: italic; }
+    .dos-v { flex: none; font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 500; color: var(--text-subtle); }
+    .dos-l3 { display: flex; justify-content: space-between; gap: 0.5rem; min-width: 0; white-space: nowrap;
+      font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .dos-l3 > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .dos-l3 b { flex: none; color: var(--text-muted); font-weight: 600; }
+    .dos-tab.cur .dos-l3 b { color: var(--text); }
+    @media (max-width: 640px) {
+      /* Au pouce : l'onglet garde une largeur lisible et la rangée défile ; l'onglet ouvert est
+         amené à l'écran au rendu. */
+      .dos-tab { flex: 0 0 min(236px, 72vw); min-width: 0; }
+    }
+    @media print { #dossiersHost, .som-fab, .som-fond { display: none !important; } }
+
     /* ── Barre d'actions : un seul instrument segmenté (l'astuce gap 1px sur fond bordure
-       dessine les filets de séparation dans les deux sens, même quand la barre replie). ── */
-    .action-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1px;
+       dessine les filets de séparation dans les deux sens, même quand la barre replie). ──
+       ⚠️ En FLEX qui s'enroule, plus en grille (règle 66) : la grille laissait une case vide — donc
+       un pavé GRIS, le fond de bordure — au bout de la dernière rangée dès que le nombre d'actions ne
+       tombait pas juste (7 actions sur deux colonnes au téléphone, sur quatre en tablette). En flex, la
+       dernière rangée s'étire et la barre reste pleine. Le rail, lui, garde sa colonne (plus haut).
+       ⚠️ Et SURTOUT PAS `min-width: 0` sur les actions : sept colonnes égales de 159 px coupaient
+       « Ajouter au portfolio » à 1 400 px (la barre est en `overflow: hidden`). Une action ne descend
+       jamais sous la largeur de son libellé ; quand elles ne tiennent plus, la rangée s'enroule. */
+    .action-bar { display: flex; flex-wrap: wrap; gap: 1px;
       background: var(--border-strong); border: 1px solid var(--border-strong); border-radius: var(--r-md);
       overflow: hidden; box-shadow: var(--shadow-sm); }
+    .action-bar > .ab-item { flex: 1 1 150px; }
     .ab-item { display: flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.7rem 0.5rem;
       background: var(--surface); border: none; color: var(--text-muted); cursor: pointer;
       font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 600; text-transform: uppercase;
@@ -538,13 +684,20 @@
        du repère) faisait apparaître une barre verticale, qui rognait la largeur, provoquant à son
        tour une barre horizontale (« danse des ascenseurs »). Résultat : 2 barres parasites sur une
        réglette pourtant à la bonne taille. En bloquant l'axe Y, plus aucune barre sur desktop ;
-       il ne reste que le défilement horizontal, et UNIQUEMENT sur écran étroit (< 620 px). */
+       il ne reste que le défilement horizontal, et UNIQUEMENT sur écran étroit (< 620 px).
+       ⚠️ LE DÉFILEMENT VIT DANS UN CADRE INTÉRIEUR (`.ruler-defil`), PAS DANS LA CARTE (11/11/2026,
+       règle 66). La carte porte `.ticked`, dont le coin d'angle est posé à `right: -1px; bottom: -1px` :
+       dans un cadre qui défile, ce coin comptait comme du contenu — 1 px à faire défiler dans les deux
+       sens, donc une barre horizontale sous la réglette sur TOUS les bureaux (mesuré : 1 175 pour 1 174),
+       et, sur téléphone, un coin qui partait avec la réglette quand on la faisait glisser. La carte garde
+       son cadre et ses coins ; le cadre intérieur reprend son espace intérieur (les halos des jalons ne
+       sont pas rognés) et défile seul. */
     .ruler { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
-      padding: var(--sp-4) var(--sp-4) var(--sp-3); margin-bottom: 0; overflow-x: auto; overflow-y: hidden;
-      scrollbar-width: thin; }
-    .ruler::-webkit-scrollbar { height: 7px; }
-    .ruler::-webkit-scrollbar-track { background: transparent; }
-    .ruler::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+      padding: 0; margin-bottom: 0; }
+    .ruler-defil { padding: var(--sp-4) var(--sp-4) var(--sp-3); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+    .ruler-defil::-webkit-scrollbar { height: 7px; }
+    .ruler-defil::-webkit-scrollbar-track { background: transparent; }
+    .ruler-defil::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
     .ruler-track { position: relative; display: flex; align-items: flex-start; min-width: 620px;
       padding-top: 3px; }
     /* La réglette elle-même : trait continu + micro-graduations régulières. */
@@ -799,6 +952,9 @@
   </header>
 
   <main class="container vue-layout" id="main" style="display:none;">
+    <!-- ══════ LES DEVIS DU CLIENT (règle 66) : des onglets posés sur la réglette, s'il en a plusieurs ══════ -->
+    <nav id="dossiersHost" class="span-all" hidden></nav>
+
     <!-- ══════ INSTRUMENTS (pleine largeur) : règle graduée + barre d'actions ══════ -->
     <div id="rulerHost" class="span-all"></div>
 
@@ -1087,6 +1243,26 @@
       </div>
     </aside>
   </main>
+
+  <!-- ══════ SOMMAIRE AU POUCE (règle 66) : hors du <main>, qui est un contexte d'empilement (z-index 1) —
+       dedans, la feuille passerait SOUS le bandeau. ══════ -->
+  <button type="button" class="som-fab" id="somFab" hidden aria-haspopup="dialog" aria-controls="somSheet" aria-expanded="false"
+    onclick="ouvrirSommaire()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><rect x="3" y="4.5" width="3" height="3"/><rect x="3" y="10.5" width="3" height="3"/><rect x="3" y="16.5" width="3" height="3"/></svg>Sommaire</button>
+  <div class="som-fond" id="somSheet" hidden role="dialog" aria-modal="true" aria-labelledby="somTitre">
+    <div class="som-feuille">
+      <span class="som-poignee" aria-hidden="true"></span>
+      <div class="som-tete">
+        <div><b id="somTitre">Sommaire</b><span class="som-sous" id="somSous"></span></div>
+        <button type="button" class="som-x" id="somFermer" aria-label="Fermer le sommaire"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="som-corps">
+        <div class="som-k">Actions</div>
+        <div class="som-acts" id="somActs"></div>
+        <div class="som-k">Aller à</div>
+        <div class="som-list" id="somList"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="container" id="loading" aria-busy="true">
     <div class="skl" style="height:74px;margin-bottom:var(--sp-4);"></div>
@@ -1658,6 +1834,7 @@
       setText('interneSummary', 'Net total ' + fmtEur((c.nicolas_net || 0) + (c.yannick_net || 0)));
 
       renderRuler();
+      renderDossiers();   // après la réglette : les onglets se posent dessus, ou pas si elle est masquée
       renderNextAction();
       renderNotes();
       renderCommande();
@@ -1697,29 +1874,40 @@
       { sel: '#paiementsCard', ic: 'coin', lbl: 'Paiements' },
     ];
     let railObs = null;
-    function renderRailNav() {
-      const host = el('railNav'); if (!host) return;
-      const vues = RAIL_SECTIONS.filter(s => {
+    let RN_COURANTE = '';   // la carte en cours de lecture : le rail ET la feuille du téléphone l'allument
+    function sectionsVisibles() {
+      return RAIL_SECTIONS.filter(s => {
         const e = document.querySelector(s.sel);
         return e && !e.classList.contains('hidden') && !(e.closest('.hidden'));
       });
-      host.innerHTML = '<div class="rail-nav-t">Sommaire</div>' + vues.map(s => {
+    }
+    /* UNE description des entrées, rendue deux fois (rail et feuille « Sommaire ») : les deux ne
+       peuvent pas annoncer des compteurs différents. */
+    function itemsSommaire(vues, taille) {
+      return vues.map(s => {
         const n = s.n ? s.n() : 0;
         const a = s.alerte ? s.alerte() : 0;
-        return `<button type="button" class="rn-item ${a ? 'alerte' : ''}" data-rn="${s.sel}"
+        return `<button type="button" class="rn-item ${a ? 'alerte' : ''} ${s.sel === RN_COURANTE ? 'on' : ''}" data-rn="${s.sel}"
           title="${esc(s.lbl + (a ? ' — ' + a + ' info(s) à compléter' : ''))}">
-          ${icon(s.ic, 13)}<span class="rn-lbl">${esc(s.lbl)}</span>
+          ${icon(s.ic, taille || 13)}<span class="rn-lbl">${esc(s.lbl)}</span>
           <span class="rn-n">${a ? '⚠ ' + a : (n || '')}</span></button>`;
       }).join('');
+    }
+    /** Amène une carte à l'écran, dépliée, et la fait clignoter : le geste du sommaire. */
+    function allerSection(sel) {
+      const c = document.querySelector(sel);
+      if (!c) return;
+      c.classList.remove('collapsed');
+      c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      c.classList.add('anchor-flash');
+      setTimeout(() => c.classList.remove('anchor-flash'), 1600);
+    }
+    function renderRailNav() {
+      const host = el('railNav'); if (!host) return;
+      const vues = sectionsVisibles();
+      host.innerHTML = '<div class="rail-nav-t">Sommaire</div>' + itemsSommaire(vues);
       host.querySelectorAll('[data-rn]').forEach(b => {
-        b.onclick = () => {
-          const c = document.querySelector(b.getAttribute('data-rn'));
-          if (!c) return;
-          c.classList.remove('collapsed');
-          c.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          c.classList.add('anchor-flash');
-          setTimeout(() => c.classList.remove('anchor-flash'), 1600);
-        };
+        b.onclick = () => allerSection(b.getAttribute('data-rn'));
       });
       // Surlignage de la section en cours de lecture. On observe une bande étroite au tiers
       // haut de l'écran : c'est là que se trouve ce qu'on lit vraiment.
@@ -1728,10 +1916,11 @@
       railObs = new IntersectionObserver((entries) => {
         entries.forEach(en => {
           if (!en.isIntersecting) return;
+          RN_COURANTE = en.target.dataset.rnSel || '';
           host.querySelectorAll('.rn-item').forEach(x => x.classList.remove('on'));
           // Le sélecteur sert de clé ; entre guillemets dans un sélecteur d'attribut, « # »
           // et « . » ne posent aucun problème.
-          const b = host.querySelector('[data-rn="' + en.target.dataset.rnSel + '"]');
+          const b = host.querySelector('[data-rn="' + RN_COURANTE + '"]');
           if (b) b.classList.add('on');
         });
       }, { rootMargin: '-15% 0px -70% 0px' });
@@ -1742,6 +1931,199 @@
         railObs.observe(e);
       });
     }
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       SOMMAIRE AU POUCE (règle 66) — téléphone, tablette, fenêtre à deux colonnes
+       ══════════════════════════════════════════════════════════════════════════════════════════
+       Le bouton n'est visible que là où le sommaire n'a pas de colonne : c'est la FEUILLE DE STYLE
+       qui en décide (règle 24), jamais une mesure de largeur ici.
+       La feuille se construit à l'ouverture, depuis ce qui est À L'ÉCRAN : les actions sont des
+       RELAIS vers les vrais boutons de la barre (mêmes liens, mêmes conditions — « Facturer », absent
+       d'un brouillon, l'est aussi ici), et les cartes viennent de la même description que le rail.
+       Rien n'est recopié, donc rien ne peut diverger.
+       ⚠️ « RETOUR » FERME LA FEUILLE : une étape d'historique, comme les fenêtres du planning
+       (règle 13 bis). La fermer autrement retire l'étape. Et ce qu'on a demandé depuis la feuille
+       (aller à une carte, ouvrir le simulateur) ne part qu'APRÈS le retrait de l'étape : sinon le
+       navigateur rend la position de défilement de l'étape quittée PAR-DESSUS notre défilement, et
+       « retour » depuis la page suivante ramènerait ici, sur une feuille fermée. */
+    let SOM_ETAPE = false, SOM_FOND = false;
+    window.ouvrirSommaire = () => {
+      const fond = el('somSheet');
+      if (!fond || !fond.hidden || !DEVIS) return;
+      const cl = DEVIS.client || {};
+      el('somSous').textContent = [`${cl.prenom || ''} ${cl.nom || ''}`.trim(), '#' + DEVIS.id].filter(Boolean).join(' · ');
+      const acts = [...document.querySelectorAll('.vue-rail .action-bar .ab-item')].filter(b => b.id && !b.classList.contains('hidden'));
+      el('somActs').innerHTML = acts.map(b => {
+        const cls = ['is-primary', 'is-gold'].filter(c => b.classList.contains(c)).join(' ');
+        return `<button type="button" class="som-act ${cls}" data-som-act="${b.id}">${b.innerHTML}</button>`;
+      }).join('');
+      el('somActs').querySelectorAll('[data-som-act]').forEach(x => {
+        x.onclick = () => {
+          const id = x.getAttribute('data-som-act');
+          fermerSommaire(() => { const o = el(id); if (o) o.click(); });
+        };
+      });
+      el('somList').innerHTML = itemsSommaire(sectionsVisibles(), 16);
+      el('somList').querySelectorAll('[data-rn]').forEach(b => {
+        b.onclick = () => { const sel = b.getAttribute('data-rn'); fermerSommaire(() => allerSection(sel)); };
+      });
+      fond.hidden = false;
+      el('somFab').setAttribute('aria-expanded', 'true');
+      // Le fond ne défile pas derrière la feuille : on retrouverait la fiche ailleurs en fermant.
+      document.body.style.overflow = 'hidden';
+      try { history.pushState({ ssSommaire: true }, ''); SOM_ETAPE = true; } catch (e) { /* jamais bloquant */ }
+      el('somFermer').focus({ preventScroll: true });
+    };
+    /** Ferme la feuille. `apres` : ce qu'on a demandé depuis elle, joué une fois l'étape retirée.
+     *  `opts.retour` : fermée PAR « retour », l'étape est déjà consommée. */
+    function fermerSommaire(apres, opts) {
+      const fond = el('somSheet');
+      if (!fond || fond.hidden) { if (apres) apres(); return; }
+      fond.hidden = true;
+      el('somFab').setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      if (!apres) el('somFab').focus({ preventScroll: true });
+      const etape = SOM_ETAPE && !(opts && opts.retour);
+      SOM_ETAPE = false;
+      if (!etape) { if (apres) apres(); return; }
+      if (apres) {
+        let fait = false;
+        const suite = () => { if (!fait) { fait = true; apres(); } };
+        window.addEventListener('popstate', suite, { once: true });
+        setTimeout(suite, 600);   // filet : un navigateur qui ne renverrait pas l'événement
+      }
+      try { history.back(); } catch (e) { if (apres) apres(); }
+    }
+    el('somFermer').onclick = () => fermerSommaire();
+    // Le fond ne ferme que si le geste y a COMMENCÉ : relâcher un glissé hors de la feuille ne la ferme pas.
+    el('somSheet').addEventListener('mousedown', (e) => { SOM_FOND = e.target === el('somSheet'); });
+    el('somSheet').addEventListener('click', (e) => { if (e.target === el('somSheet') && SOM_FOND) fermerSommaire(); SOM_FOND = false; });
+    document.addEventListener('keydown', (e) => {
+      const fond = el('somSheet');
+      if (!fond || fond.hidden) return;
+      if (e.key === 'Escape') { fermerSommaire(); return; }
+      // Le clavier reste DANS la feuille (aria-modal) : Tab boucle de la croix à la dernière carte.
+      if (e.key === 'Tab') {
+        const f = [...fond.querySelectorAll('button')];
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+      }
+    });
+    window.addEventListener('popstate', () => { if (SOM_ETAPE) fermerSommaire(null, { retour: true }); });
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       LES DEVIS DU CLIENT (règle 66 — « onglets de dossier », variante choisie par Nicolas)
+       ══════════════════════════════════════════════════════════════════════════════════════════
+       « Quand on est sur un devis d'un client et qu'il en a plusieurs, pouvoir switcher. »
+       • Même client = même clé que la page Clients (`clientKeyOf`, nom + prénom).
+       • TOUS ses devis, refusés et annulés compris (choix de Nicolas) : un dossier clos se lit à sa
+         couleur éteinte (règle 21), et on retrouve d'un coup d'œil ce qu'il a déjà refusé.
+       • Chaque onglet se reconnaît SANS être ouvert (règle 9) : statut dans SA couleur, résumé,
+         numéro, montant ; le vendeur seulement quand la rangée en compte plusieurs.
+       • L'onglet du devis ouvert se lit dans DEVIS, pas dans la liste : il suit un changement de
+         statut ou de montant fait ici même, sans recharger.
+       • Chargée AVEC la page, avant le premier rendu : rien ne saute à l'écran.
+       • Une aide ne fait jamais tomber la fiche : la moindre erreur ici masque la rangée, rien de plus. */
+    let DOSSIERS = [];   // les AUTRES devis du client, tels que la liste les donne
+    function dossiersDuClient(liste) {
+      const cl = DEVIS.client || {};
+      if (!String(cl.prenom || '').trim() && !String(cl.nom || '').trim()) return [];
+      const cle = clientKeyOf(cl.prenom, cl.nom);
+      return (Array.isArray(liste) ? liste : []).filter(d => {
+        if (!d || !d.id || String(d.id) === String(DEVIS.id)) return false;
+        const c = d.client || {};
+        return clientKeyOf(d.client_prenom || c.prenom || '', d.client_nom || c.nom || '') === cle;
+      });
+    }
+    function libelleDossier(d) {
+      // Un dépannage n'a pas d'ouvertures à résumer (resumeDevis rend '') : son motif le désigne.
+      if (d.type_document === 'depannage') {
+        const m = String(d.motif || '').replace(/\s+/g, ' ').trim();
+        return { txt: 'Dépannage' + (m ? ' · ' + m : ''), vide: false };
+      }
+      const r = window.SSUI.resumeDevis(d);
+      return r ? { txt: r, vide: false } : { txt: 'Aucune ouverture saisie', vide: true };
+    }
+    function renderDossiers() {
+      const host = el('dossiersHost'); if (!host) return;
+      try {
+        if (!DOSSIERS.length) { host.hidden = true; host.innerHTML = ''; return; }
+        const U = window.SSUI;
+        const sellers = ((DEVIS.pricing_v2 || {}).material || {}).sellers || {};
+        const ouvert = {
+          id: DEVIS.id, statut: DEVIS.statut, date_creation: DEVIS.date_creation, total_ttc: (CALC || {}).total_ttc,
+          type_document: DEVIS.type_document, items: DEVIS.items || [], seller_principal: sellers.principal,
+          motif: DEVIS.depannage && DEVIS.depannage.motif, cur: true,
+        };
+        const tous = DOSSIERS.map(d => ({ ...d, motif: d.depannage_plan && d.depannage_plan.motif })).concat([ouvert])
+          .sort((a, b) => String(a.date_creation || '').localeCompare(String(b.date_creation || '')) || String(a.id).localeCompare(String(b.id)));
+        // Le vendeur n'accompagne le résumé que si la rangée en compte plusieurs (règle 9).
+        const avecVendeur = new Set(tous.map(d => d.seller_principal || '').filter(Boolean)).size > 1;
+        const cl = DEVIS.client || {};
+        const nom = `${cl.prenom || ''} ${cl.nom || ''}`.trim();
+        host.setAttribute('aria-label', 'Devis de ' + nom);
+        host.innerHTML = `<div class="dos-t">Devis de <b>${esc(nom)}</b> · ${tous.length}</div>
+          <div class="dos-rang">${tous.map(d => {
+            const st = U.STATUT_DEVIS_LABEL[d.statut] ? d.statut : 'brouillon';
+            const lib = libelleDossier(d);
+            const vend = avecVendeur && d.seller_principal ? (U.SELLER_LABELS[d.seller_principal] || '') : '';
+            const montant = fmtEur(Number(d.total_ttc) || 0);
+            const date = d.date_creation ? fmtDate(d.date_creation) : '';
+            const titre = [U.STATUT_DEVIS_LABEL[st], lib.vide ? '' : lib.txt, '#' + d.id, montant, vend, date ? 'créé le ' + date : '']
+              .filter(Boolean).join(' · ');
+            // Le vendeur se pose À CÔTÉ du résumé (règle 9) et ne se rogne jamais : c'est le résumé qui cède.
+            const corps = `<span class="dos-l1"><span class="dos-pt" aria-hidden="true"></span><span class="dos-st">${esc(U.STATUT_DEVIS_LABEL[st])}</span>`
+              + `${d.cur ? '<span class="dos-ici">ouvert</span>' : ''}<span class="dos-dt">${esc(date)}</span></span>`
+              + `<span class="dos-r"><span class="dos-rt${lib.vide ? ' vide' : ''}">${esc(lib.txt)}</span>`
+              + `${vend ? `<span class="dos-v">${esc(vend)}</span>` : ''}</span>`
+              + `<span class="dos-l3"><span>#${esc(d.id)}</span><b>${esc(montant)}</b></span>`;
+            const style = `--st:${U.STATUT_DEVIS_COULEUR[st]}`;
+            return d.cur
+              ? `<div class="dos-tab cur" aria-current="page" style="${style}" title="${esc(titre)}">${corps}</div>`
+              : `<a class="dos-tab" href="vue.html?id=${encodeURIComponent(d.id)}" style="${style}" title="${esc(titre)}">${corps}</a>`;
+          }).join('')}</div>`;
+        host.hidden = false;
+        // Réglette absente (devis refusé ou annulé) : les onglets ne se posent plus sur rien, et
+        // l'onglet ouvert reprend son filet du bas.
+        host.classList.toggle('sans-regle', el('rulerHost').style.display === 'none');
+        const rang = host.querySelector('.dos-rang');
+        centrerOuvert(rang);
+        rang.addEventListener('scroll', () => fondusDossiers(rang), { passive: true });
+        // À la souris, la molette fait défiler la rangée tant qu'il y a de quoi ; arrivée au bout,
+        // elle rend la main à la page.
+        rang.addEventListener('wheel', (e) => {
+          if (rang.scrollWidth <= rang.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+          const avant = rang.scrollLeft;
+          rang.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 40 : 1);
+          if (rang.scrollLeft !== avant) e.preventDefault();
+        }, { passive: false });
+        fondusDossiers(rang);
+      } catch (e) {
+        console.warn('[vue] devis du client :', e);
+        host.hidden = true; host.innerHTML = '';
+      }
+    }
+    /** L'onglet du devis ouvert est amené dans le cadre — scrollLeft, JAMAIS scrollIntoView : celui-ci
+     *  ferait aussi défiler la PAGE. Rien ne bouge s'il y est déjà entier. */
+    function centrerOuvert(rang) {
+      const cur = rang.querySelector('.cur');
+      if (!cur || rang.scrollWidth <= rang.clientWidth + 1) return;
+      const g = cur.offsetLeft - rang.scrollLeft, dr = g + cur.offsetWidth;
+      if (g >= 0 && dr <= rang.clientWidth) return;
+      rang.scrollLeft = cur.offsetLeft - (rang.clientWidth - cur.offsetWidth) / 2;
+    }
+    /** Le fondu d'un bord dit qu'il reste des onglets de ce côté-là. */
+    function fondusDossiers(rang) {
+      const max = rang.scrollWidth - rang.clientWidth;
+      rang.classList.toggle('deb-g', max > 1 && rang.scrollLeft > 1);
+      rang.classList.toggle('deb-d', max > 1 && rang.scrollLeft < max - 1);
+    }
+    // Téléphone tourné, fenêtre réduite : l'onglet ouvert ne doit pas sortir du cadre.
+    window.addEventListener('resize', () => {
+      const r = document.querySelector('#dossiersHost .dos-rang');
+      if (r) { centrerOuvert(r); fondusDossiers(r); }
+    });
 
     // ── Échanges e-mail du client (archivés depuis le CRM) ────────────────────────────────────
     // Ils appartiennent au CLIENT : on les affiche donc sur tous ses devis. Ceux rattachés à CE
@@ -2611,7 +2993,7 @@
       host.innerHTML = `
         <div class="ruler ticked ${iNext < 0 ? 'fini' : seg.etat === 'late' ? 'late' : ''}" style="--tick-color:var(--accent-2);"
              role="group" aria-label="Avancement du dossier : ${Math.round(pos * 100)} %">
-          <div class="ruler-track">
+          <div class="ruler-defil"><div class="ruler-track">
             <span class="rl-fill"></span><span class="rl-head"></span>
             ${jalons.map((j, i) => {
               const cls = j.done ? 'done' : (i === iNext ? seg.etat : 'todo');
@@ -2624,7 +3006,7 @@
                 <span class="rl-date">${bas}</span>
               </div>`;
             }).join('')}
-          </div>
+          </div></div>
         </div>`;
       // La position finale est posée TOUT DE SUITE, en dur : elle ne dépend d'aucune animation.
       // (Première version : width appliquée dans un requestAnimationFrame pour déclencher une
@@ -3712,6 +4094,16 @@
       render();   // les étiquettes s'affichent aussi dans l'en-tête client
     };
 
+    /* La part d'un vendeur telle qu'elle est ENREGISTRÉE : « 11,5 % », « 18 % » — jamais arrondie. La fiche écrivait
+       `Math.round(…)` et annonçait « 12 % / 12 % » pour une répartition 11,5 / 11,5, que le simulateur montrait juste
+       (Nicolas, 11/11/2026). Format français sans zéro inutile (`SSUI.fmtQte`, règle 10). Sans valeur enregistrée, on
+       lit celle que le moteur a appliquée (`calculs`) ; une valeur illisible s'écrit « — % », jamais un faux « 0 % ». */
+    function partVendeur(v, repli) {
+      const lire = (x) => (x == null || String(x).trim() === '') ? NaN : Number(String(x).trim().replace(',', '.'));
+      let n = lire(v);
+      if (!isFinite(n)) n = lire(repli);
+      return isFinite(n) ? fmtQte(n) + ' %' : '— %';
+    }
     function renderSalutation() {
       const host = el('salutationHost');
       if (!host) return;
@@ -3721,15 +4113,16 @@
       // « Personnalisée », on n'affiche pas les boutons (basculer écraserait la répartition sur mesure).
       const seller = ((DEVIS.pricing_v2 || {}).material || {}).sellers || {};
       const sp = seller.principal || 'nicolas';
+      const parts = `${partVendeur(seller.nicolas_pct, (CALC || {}).nicolas_pct)} / ${partVendeur(seller.yannick_pct, (CALC || {}).yannick_pct)}`;
       const sellerRow = `<div class="salut-box">
         <span class="salut-lbl">${icon('user', 12)} Vendeur principal</span>
         ${sp === 'autre'
-          ? `<span class="salut-hint">Répartition personnalisée (${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} %) — modifiable dans le simulateur</span>`
+          ? `<span class="salut-hint">Répartition personnalisée (${parts}) — modifiable dans le simulateur</span>`
           : `<div class="salut-seg" role="group" aria-label="Vendeur principal">
               <button type="button" class="${sp === 'nicolas' ? 'on' : ''}" onclick="setSellerPrincipal('nicolas')">Nicolas</button>
               <button type="button" class="${sp === 'yannick' ? 'on' : ''}" onclick="setSellerPrincipal('yannick')">Yannick</button>
             </div>
-            <span class="salut-hint">${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} % · commissions recalculées</span>`}
+            <span class="salut-hint">${parts} · commissions recalculées</span>`}
       </div>`;
 
       if (!CLIENT_FICHE) {
@@ -4583,10 +4976,18 @@
       const cl = DEVIS.client || {};
       CLIENT_FICHE = await SS.getClient(clientKeyOf(cl.prenom, cl.nom)).catch(() => null);
       try { const idt = await window.SSNav.getIdentity(); CONNECTED_KEY = (idt && idt.key) || ''; } catch (e) {}
-      FACTURES = (await SS.listFactures().catch(() => [])) || [];
+      // Les autres devis du client (règle 66) arrivent AVEC les factures, avant le premier rendu :
+      // la rangée d'onglets ne fait pas sauter la page sous les yeux.
+      const [facts, liste] = await Promise.all([
+        SS.listFactures().catch(() => []),
+        SS.listDevis().catch(() => []),
+      ]);
+      FACTURES = facts || [];
+      DOSSIERS = dossiersDuClient(liste);
       el('loading').style.display = 'none';
       el('main').style.display = '';
       render();
+      el('somFab').hidden = false;   // la feuille de style décide où il se montre (règle 66)
       applyCardPrefs();
       // Arrivée depuis la page SAV (« Nouveau ticket ») : on déplie la carte SAV, on y amène
       // l'écran et on place le curseur dans la description — sinon elle reste repliée tout en bas
