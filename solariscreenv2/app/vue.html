@@ -3686,6 +3686,16 @@
       render();   // les étiquettes s'affichent aussi dans l'en-tête client
     };
 
+    /* La part d'un vendeur telle qu'elle est ENREGISTRÉE : « 11,5 % », « 18 % » — jamais arrondie. La fiche écrivait
+       `Math.round(…)` et annonçait « 12 % / 12 % » pour une répartition 11,5 / 11,5, que le simulateur montrait juste
+       (Nicolas, 11/11/2026). Format français sans zéro inutile (`SSUI.fmtQte`, règle 10). Sans valeur enregistrée, on
+       lit celle que le moteur a appliquée (`calculs`) ; une valeur illisible s'écrit « — % », jamais un faux « 0 % ». */
+    function partVendeur(v, repli) {
+      const lire = (x) => (x == null || String(x).trim() === '') ? NaN : Number(String(x).trim().replace(',', '.'));
+      let n = lire(v);
+      if (!isFinite(n)) n = lire(repli);
+      return isFinite(n) ? fmtQte(n) + ' %' : '— %';
+    }
     function renderSalutation() {
       const host = el('salutationHost');
       if (!host) return;
@@ -3695,15 +3705,16 @@
       // « Personnalisée », on n'affiche pas les boutons (basculer écraserait la répartition sur mesure).
       const seller = ((DEVIS.pricing_v2 || {}).material || {}).sellers || {};
       const sp = seller.principal || 'nicolas';
+      const parts = `${partVendeur(seller.nicolas_pct, (CALC || {}).nicolas_pct)} / ${partVendeur(seller.yannick_pct, (CALC || {}).yannick_pct)}`;
       const sellerRow = `<div class="salut-box">
         <span class="salut-lbl">${icon('user', 12)} Vendeur principal</span>
         ${sp === 'autre'
-          ? `<span class="salut-hint">Répartition personnalisée (${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} %) — modifiable dans le simulateur</span>`
+          ? `<span class="salut-hint">Répartition personnalisée (${parts}) — modifiable dans le simulateur</span>`
           : `<div class="salut-seg" role="group" aria-label="Vendeur principal">
               <button type="button" class="${sp === 'nicolas' ? 'on' : ''}" onclick="setSellerPrincipal('nicolas')">Nicolas</button>
               <button type="button" class="${sp === 'yannick' ? 'on' : ''}" onclick="setSellerPrincipal('yannick')">Yannick</button>
             </div>
-            <span class="salut-hint">${Math.round(seller.nicolas_pct || 0)} % / ${Math.round(seller.yannick_pct || 0)} % · commissions recalculées</span>`}
+            <span class="salut-hint">${parts} · commissions recalculées</span>`}
       </div>`;
 
       if (!CLIENT_FICHE) {

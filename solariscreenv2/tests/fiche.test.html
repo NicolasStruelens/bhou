@@ -465,6 +465,29 @@
         check('P18 Durée de pose : non renseignée (0) → champ vide, 4 en indication et la phrase du planning ; renseignée → sa valeur, sans phrase',
           [await dureeFiche({ date_pose: Jf(5), equipe: 'yannick', duree_h: 0 }), await dureeFiche({ date_pose: Jf(5), equipe: 'yannick', duree_h: 3 })],
           [['', '4', 'Durée non renseignée : le planning compte 4 h par défaut.'], ['3', '4', '']]);
+        // P19 (11/11/2026, Nicolas : « la fiche 12 % 12 % je comprends pas parce que dans l'ERP il est bien marqué 11,5 % et 11,5 % ») :
+        // la part de chacun s'écrit TELLE QU'ENREGISTRÉE, à la française, sans zéro inutile ; sans valeur, celle du moteur ; illisible, « — % ».
+        const partsFiche = async (sellers, calc) => {
+          ecrireBase('ESSAI-22', '$.pricing_v2.material.sellers', sellers);
+          ecrireBase('ESSAI-22', '$.calculs.nicolas_pct', calc[0]); ecrireBase('ESSAI-22', '$.calculs.yannick_pct', calc[1]);
+          const fv = await fiche('ESSAI-22');
+          const r = txt(fv.contentDocument.querySelector('#salutationHost .salut-hint'));
+          fv.remove(); return r;
+        };
+        const totalAvant19 = (lire('ESSAI-22').calculs || {}).total_ttc;
+        check('P19 Vendeur principal : 11,5 / 11,5 s’écrit « 11,5 % » (plus « 12 % ») ; 18 / 5 sans décimale ; « 12,25 » écrit à la virgule ; sans part enregistrée, celle du moteur ; illisible, « — % » ; aucun montant touché',
+          [await partsFiche({ principal: 'autre', nicolas_pct: 11.5, yannick_pct: 11.5 }, [11.5, 11.5]),
+           await partsFiche({ principal: 'nicolas', nicolas_pct: 18, yannick_pct: 5 }, [18, 5]),
+           await partsFiche({ principal: 'autre', nicolas_pct: '12,25', yannick_pct: 10.75 }, [12.25, 10.75]),
+           await partsFiche({ principal: 'nicolas' }, [18, 5]),
+           await partsFiche({ principal: 'autre', nicolas_pct: 'abc', yannick_pct: '' }, [null, null]),
+           (lire('ESSAI-22').calculs || {}).total_ttc === totalAvant19],
+          ['Répartition personnalisée (11,5 % / 11,5 %) — modifiable dans le simulateur',
+           '18 % / 5 % · commissions recalculées',
+           'Répartition personnalisée (12,25 % / 10,75 %) — modifiable dans le simulateur',
+           '18 % / 5 % · commissions recalculées',
+           'Répartition personnalisée (— % / — %) — modifiable dans le simulateur',
+           true]);
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
       }
