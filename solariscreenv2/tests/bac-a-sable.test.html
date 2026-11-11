@@ -110,8 +110,9 @@
           depenses: sql1("SELECT COUNT(*) FROM depenses WHERE id LIKE 'DEP-ESSAI-%'"),
           encaissements: sqlL('SELECT data FROM factures').reduce((s, r) => s + (JSON.parse(r[0]).paiements || []).length, 0),
         });
-        const attenduCompte = { devis: 23, rdv: 5, sujets: 3, dispos: 2, fiches: 29, factures: 12, outillage: 6, kits: 2, depenses: 6, encaissements: 9 };
-        check('R2 Vingt-trois dossiers, cinq demandes, trois sujets, deux congés, 29 fiches (dont le quasi-doublon et la marque), douze pièces (dont une note de crédit), six références, deux kits, six notes de frais, neuf encaissements',
+        // 25 dossiers depuis la règle 66 : l'école en a TROIS (ESSAI-10, 24 refusé, 25 annulé) — la rangée d'onglets de la fiche.
+        const attenduCompte = { devis: 25, rdv: 5, sujets: 3, dispos: 2, fiches: 29, factures: 12, outillage: 6, kits: 2, depenses: 6, encaissements: 9 };
+        check('R2 Vingt-cinq dossiers (dont trois pour l’école, règle 66), cinq demandes, trois sujets, deux congés, 29 fiches (dont le quasi-doublon et la marque), douze pièces (dont une note de crédit), six références, deux kits, six notes de frais, neuf encaissements',
           compte(), attenduCompte);
         const numeros = sqlL('SELECT id FROM factures ORDER BY id').map((r) => r[0]);
         check('R3 Les factures et notes de crédit sont numérotées par le SERVEUR de la base d’essai, sans trou ni doublon',
@@ -156,6 +157,8 @@
           'ESSAI-11': 'Solde à encaisser', 'ESSAI-12': null, 'ESSAI-13': null, 'ESSAI-14': 'Expiré — à relancer ou classer', 'ESSAI-15': null,
           'ESSAI-16': 'En attente de réponse client', 'ESSAI-17': 'Posé et soldé — à clôturer', 'ESSAI-18': null, 'ESSAI-19': 'En attente de réponse client',
           'ESSAI-20': 'À finaliser et envoyer', 'ESSAI-21': null, 'ESSAI-22': 'Acompte à encaisser', 'ESSAI-23': 'Solde à encaisser',
+          // Règle 66 : les deux dossiers ajoutés pour les onglets de l'école sont CLOS — ils ne déplacent aucune action.
+          'ESSAI-24': null, 'ESSAI-25': null,
         };
         Object.keys(attendu).forEach((id) => { const l = action(id); obtenu[id] = (l && id === 'ESSAI-05') ? l.slice(0, 22) : l; });
         check('R10 Chaque dossier déclenche l’action pour laquelle il est écrit, selon la règle du tableau de bord (sur la liste projetée par le serveur)', obtenu, attendu);
@@ -239,12 +242,12 @@
         await attendre(300);
         check('P1 Sur le poste local SANS banc, la page refuse d’elle-même (pas de base) et les boutons restent grisés',
           [d.getElementById('btnRemplir').disabled, /ne répond pas/.test(d.getElementById('gardes').textContent)], [true, true]);
-        check('P2 Elle liste les 28 scénarios avec un lien vers chaque fiche', [d.querySelectorAll('#scenarios tr').length - 1, !!d.querySelector('#scenarios a[href="../app/vue.html?id=ESSAI-03"]')], [28, true]);
+        check('P2 Elle liste les 30 scénarios avec un lien vers chaque fiche', [d.querySelectorAll('#scenarios tr').length - 1, !!d.querySelector('#scenarios a[href="../app/vue.html?id=ESSAI-03"]')], [30, true]);
         w.fetch = BANC.fetch;   // le banc fournit la base : comme un aperçu protégé
         await w.verifier();
         check('P3 Avec une base et une identité : les gardes passent, les boutons s’allument', [d.getElementById('btnRemplir').disabled, d.querySelectorAll('#gardes .ko').length], [false, 0]);
         const bp = await w.remplir();
-        check('P4 « Remplir » depuis la page : tout est écrit, le journal le dit', [bp.erreurs.length, /0 erreur/.test(d.getElementById('journal').textContent), sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'")], [0, true, 23]);
+        check('P4 « Remplir » depuis la page : tout est écrit, le journal le dit', [bp.erreurs.length, /0 erreur/.test(d.getElementById('journal').textContent), sql1("SELECT COUNT(*) FROM devis WHERE id LIKE 'ESSAI-%'")], [0, true, 25]);
 
         // ══════════ V — VIDER ══════════
         titre('V — Vider : seulement ce que la page a posé');

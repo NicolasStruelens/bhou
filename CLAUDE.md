@@ -79,7 +79,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
 | `tests/documents.test.html` | Les 41 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
-| `tests/fiche.test.html` | Les 40 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
+| `tests/fiche.test.html` | Les 61 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place, et l'école du bac à sable à trois devis), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
@@ -98,7 +98,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/remuneration.test.html` | Les 158 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
 | `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
-| `tests/plan.test.html` | Les 36 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/plan.test.html` | Les 37 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px, et au portable en trois colonnes compactes (1 260, 1 472, 1 520 px : la façade y tient, règle 66) — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `tests/saisie.test.html` | Les 68 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone ; et les MARGES de la règle 64 : cascade, part libre figée, remise projet et son rappel, Tech 1 / Tech 2, rien qui sorte vers le client, téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
@@ -126,7 +126,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/facturation.test.html` | Les 48 tests de la facturation : règles pures et statut partagé (notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone (tactile simulé) et « retour ». Vérifié par 19 mutations. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
-| `tests/sav.test.html` | Les 66 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis, le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
+| `tests/sav.test.html` | Les 68 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis (sa carte SAV atteinte par le sommaire, au portable comme au téléphone, règle 66), le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/dashboard.test.html` | Les 92 tests du tableau de bord (règles 40 et 40 bis) : prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
@@ -626,7 +626,7 @@ Trois règles à ne pas défaire :
   colonnes dès 1500 px en croyant disposer de 1500, alors que le rail en prenait 212 : les colonnes
   se serraient (17 px de débord interne, 41 sur une rangée). Son seuil est donc passé à 1712 =
   1500 + 212, et son complément à 1711. Toute page qui ajoute une mise en page large doit faire la
-  même addition.
+  même addition. (Depuis la règle 66, la fiche a aussi une taille COMPACTE : 1 472 = 1 260 + 212.)
 Le total du point rouge ne compte QUE le volet : sinon le rail le doublerait.
 ⚠️ **UNE SEULE MARQUE À L'ÉCRAN.** Dès que le rail est là, il porte le logo et le nom ; le bandeau
 les répétait 200 px plus loin — deux fois la même chose, et c'est ce que Nicolas a vu tout de
@@ -2481,6 +2481,9 @@ DEPLOIEMENT.md, étape 12. Remplissage : `tests/bac-a-sable.html`. Protégé par
   à facturer), une relance de paiement déjà faite (ESSAI-11), trois pièces Falco. ⚠️ « Vider » défait dans
   l'ordre (encaissements, référence Falco, notes de crédit, puis factures) : le serveur refuse désormais de
   supprimer une facture qui a une suite.
+  Côté fiche devis (règle 66) : l'école a TROIS devis — ESSAI-10 signé, ESSAI-24 refusé, ESSAI-25 annulé, par deux
+  vendeurs. Deux dossiers CLOS, pour ne déplacer aucune action du tableau de bord ; sans eux, la rangée d'onglets ne
+  se voyait sur aucun aperçu (test D8).
   Côté notes de frais (règle 50, test R20) : un ticket de Nicolas dans la poche depuis cinq semaines (avec sa
   photo), un autre SANS photo, un au bureau depuis 40 jours, un de Yannick (il ne doit pas gonfler la ligne de
   Nicolas), un remboursé par un virement groupé (avec son lot), un de l'an passé pour le bilan par année. Le test R10 vérifie CHAQUE dossier avec la vraie règle
@@ -3325,10 +3328,10 @@ au max et au plus logique et parlant ».) Code : `assets/js/plan-ouvertures.js` 
 • **« COMPLÉTER »** ouvre `simulateur.html?id=…&ouv=N&champ=k` : le simulateur choisit l'ouverture N et vise le champ qui manque
   (`allerAuChamp`). Sans `ouv`, rien ne change.
 • **TÉLÉPHONE ET LARGEURS** : tout passe par des requêtes de CONTENEUR sur la carte (`container: pl`), pas sur l'écran — la colonne de la
-  fiche va de ~740 px (écran de 1 500) à ~900 px (1 875). Au-dessus de 700 px de carte, la configuration commune met Couleurs et Commande
+  fiche va de ~650 px (portable en trois colonnes compactes, règle 66) à ~950 px (1 875). Au-dessus de 700 px de carte, la configuration commune met Couleurs et Commande
   à gauche et Mécanique (la plus longue) à droite ; sous 840 px la colonne du dessin se resserre ; sous 600 px la fiche s'empile (dessin
   au-dessus), les mesures passent en 2 × 2, les cibles font 44 px. La façade ne descend jamais sous une échelle lisible : elle défile DANS
-  son cadre (« fais glisser → »), jamais la page. Chaque fiche a « ↑ Sur la façade », qui rallume sa baie : on revient toujours.
+  son cadre (« fais glisser → »), jamais la page — et les 86 px que garde une baie étroite se retirent AVANT l'échelle (règle 66). Chaque fiche a « ↑ Sur la façade », qui rallume sa baie : on revient toujours.
 • ⚠️ **UNE CLASSE D'ÉTAT N'EST PAS UNE CLASSE DE BLOC** : `.pl-manque` est la COULEUR d'un état (pastille) ; le bloc « à compléter » de la
   fiche s'appelait d'abord pareil et héritait de ses couleurs, ou l'inverse. Le bloc est `.pl-mq`.
 • ⚠️ **JOUER `plan.test.html` AUSSI EN ÉMULATION TACTILE** : au bureau, « ↑ Sur la façade » faisait bien 44 px ; sur un écran
@@ -3470,6 +3473,64 @@ avec le sélecteur à boutons de A, règle R1 et techniciens T-A, choisis sur ma
   partirait sur une prévision. Le simulateur montre l'équipe enregistrée à côté quand elle diffère, sans jamais l'écrire. La paie de
   pose ne lit JAMAIS ces lignes (règle 30 bis). `pricing_v2.techs` et non `pricing_v2.installation.techs` : le Mode Terrain réécrit
   `installation` en entier (il n'étale que `pricing_v2`).
+
+**66. LA FICHE DEVIS GARDE SON SOMMAIRE SUR LE PORTABLE, ET LES AUTRES DEVIS DU CLIENT SONT À UN CLIC**
+(11/11/2026 — Nicolas, captures à l'appui : « à gauche c'est sur mon écran de pc portable et à droite sur un plus grand écran, c'est
+dommage de perdre ces infos non ? », puis « quand on est sur un devis d'un client et qu'il en a plusieurs, pouvoir switcher entre les
+différents devis […] bien organisé et beau, voyant ». Maquette à trois variantes par demande ; il a choisi 1A « Rail compact » et
+2A « Onglets de dossier », refusés et annulés compris, et le bouton « Sommaire » au téléphone.) Code : `app/vue.html`.
+Protégé par `tests/fiche.test.html` (D1-D8, L1-L4, T1-T8), `tests/plan.test.html` (V26) et `tests/sav.test.html` (V2-V3).
+• **LE PORTABLE A SES TROIS COLONNES** : écran à 125 %, fenêtre ≈ 1 520 px, 1 308 utiles avec le menu ; la mise en page à trois
+  colonnes en demandait 1 500, donc les actions passaient en bande et le sommaire disparaissait, compteurs compris. Une taille
+  COMPACTE de la MÊME mise en page (180 · dossier · 316, marges de 24 px) s'allume dès 1 260 px UTILES : de 1 260 à 1 399 (pas de
+  menu), puis dès 1 472 = 1 260 + 212 (règle 24). La LARGE (250 · 340) reste dès 1 712. De 1 400 à 1 471, le menu vient de prendre
+  212 px : deux colonnes. Menu replié dans cette bande : deux colonnes aussi (72 px de fenêtre ne valent pas un bloc dupliqué).
+• ⚠️ **LA BANDE EST L'ÉTAT DE BASE, LES TROIS COLONNES LA SURCHARGENT.** Deux requêtes « max-width: 1471 » et « min-width: 1472 »
+  laissent un trou à 1 471,5 px (zoom) où aucune ne s'applique ; une base écrite hors media query n'en a pas.
+• ⚠️ **À POIDS ÉGAL, LA RÈGLE ÉCRITE PLUS BAS GAGNE** — troisième fois (`.rail-nav`, règle 24 ; `.pl-lien.pl-retour`, 60 ter) :
+  `.som-fab { display: none }` dans la requête des trois colonnes était battu par le `display` du bouton, écrit plus loin, et le
+  bouton flottait PAR-DESSUS le sommaire qu'il remplace. D'où `html .som-fab`.
+• **AILLEURS, UN BOUTON « SOMMAIRE »** (téléphone, tablette, deux colonnes) : fixe — jamais collant, `sticky` ne tient pas sur
+  iPhone —, en bas à GAUCHE (Soli tient la droite ; dès 1 400 px il se pose à droite du menu, jamais sur « Paramètres »). Il ouvre
+  une feuille : les ACTIONS, qui sont des RELAIS vers les vrais boutons de la barre (mêmes liens, mêmes conditions : « Facturer »,
+  absent d'un brouillon, l'est aussi dans la feuille), puis les CARTES avec leurs compteurs, tirées de la même description que le
+  rail (`itemsSommaire`) : les deux ne peuvent pas annoncer des chiffres différents. La fiche réserve 72 px en bas pour que sa
+  dernière carte remonte au-dessus des deux boutons.
+• ⚠️ **ON SORT DE LA FEUILLE PAR LES QUATRE GESTES** : la croix, le fond (si le geste y a COMMENCÉ), Échap, « retour » (une étape
+  d'historique, règle 13 bis). La fermer autrement RETIRE l'étape. Et ce qu'on y a demandé (aller à une carte, une action) ne part
+  qu'APRÈS le retrait (`popstate`, filet de 600 ms) : sinon le navigateur rend la position de défilement de l'étape quittée
+  PAR-DESSUS le défilement vers la carte, et « retour » depuis la page suivante ramène sur une feuille fermée.
+• **LES DEVIS DU CLIENT, EN ONGLETS POSÉS SUR LA RÉGLETTE** (`renderDossiers`) : même client = `clientKeyOf` (nom + prénom, comme la
+  page Clients) ; TOUS ses devis, refusés, annulés et archivés compris ; du plus ancien au plus récent, comme la réglette. Chaque
+  onglet : son statut dans SA couleur (règle 21), son résumé (règle 9 ; un dépannage se dit par son motif, `depannage_plan.motif` ;
+  un brouillon vide le dit), son numéro, son montant, sa date. Le VENDEUR seulement si la rangée en compte plusieurs, À CÔTÉ du
+  résumé : c'est le résumé qui se coupe, jamais le vendeur. L'onglet ouvert porte « ouvert » et `aria-current`, n'est pas un lien,
+  monte plus haut et perd son filet du bas : il fait corps avec SA réglette. Il se lit dans `DEVIS` et `CALC`, pas dans la liste :
+  un statut changé sur la fiche s'y voit sans recharger, et son montant est le grand total d'à côté. Un seul devis : rien, ni titre ni
+  place. Un devis refusé ou annulé ouvert n'a plus de réglette : l'onglet ouvert reprend son filet.
+  Le BAC À SABLE en porte un exemple (l'école : ESSAI-10, 24 et 25, règle 46) — sans lui, la rangée ne se voyait sur aucun aperçu.
+• Chargés AVEC la page (`SS.listDevis`, en même temps que les factures, avant le premier rendu) : rien ne saute à l'écran. Une aide ne
+  fait jamais tomber la fiche : une erreur dans `renderDossiers` masque la rangée, rien de plus.
+• **AU POUCE** : la rangée défile DANS son cadre — `overflow-y: hidden` obligatoire (la « danse des ascenseurs » de la réglette) —,
+  sans barre visible ; un fondu sur le bord dit qu'il reste des onglets de ce côté ; au bureau la molette la fait défiler puis rend
+  la main à la page. L'onglet ouvert est amené dans le cadre au rendu ET au redimensionnement (téléphone tourné), par `scrollLeft` —
+  JAMAIS `scrollIntoView`, qui ferait aussi défiler la page. Il ne rétrécit pas : il porte « ouvert » en plus, et c'est lui qu'on lit.
+• ⚠️ **LA RÉGLETTE AVAIT UNE BARRE DE DÉFILEMENT SUR TOUS LES BUREAUX** (trouvé en posant les onglets dessus) : le coin d'angle de
+  `.ticked` est posé à `right: -1px; bottom: -1px`, et dans une carte qui DÉFILE il compte comme du contenu — 1 px à faire défiler
+  (1 175 pour 1 174), donc une barre ; au téléphone, le coin partait avec la réglette quand on la faisait glisser. Le défilement vit
+  désormais dans `.ruler-defil` et la carte garde son cadre et ses coins. **Une carte `.ticked` ne défile jamais elle-même.**
+• ⚠️ **LA BARRE D'ACTIONS EST EN FLEX QUI S'ENROULE** : la grille laissait une case vide — un pavé GRIS, le fond de bordure — au bout de
+  la dernière rangée (7 actions sur 2 ou 4 colonnes), et coupait « Ajouter au portfolio » en sept colonnes égales à 1 400 px. En flex,
+  la dernière rangée s'étire. Et SURTOUT PAS `min-width: 0` sur les actions : une action ne descend jamais sous la largeur de son
+  libellé, la rangée s'enroule. Le rail des trois colonnes garde sa colonne (grille).
+• ⚠️ **LA FAÇADE OUBLIAIT LE PLANCHER DE SES BAIES** (`plan-ouvertures.js`, `remplirFacade`) : une baie étroite garde 86 px pour ses
+  cotes, mais l'échelle se calculait comme si chacune ne prenait que sa largeur à l'échelle + 20 px. Invisible dans une colonne
+  large ; dans la colonne compacte, cinq baies débordaient de 14 px et la façade passait en « fais glisser ». La réserve se retire
+  désormais AVANT l'échelle (n tours au plus, chaque tour peut faire tomber une baie de plus sous le plancher). Rien d'autre ne change
+  dans la carte (règle 60 ter).
+• **AUCUN MONTANT NE CHANGE.** La part de chaque vendeur s'écrit telle qu'ENREGISTRÉE (`partVendeur`, `SSUI.fmtQte`) : « 11,5 % » et
+  plus « 12 % » — `Math.round` arrondissait les DEUX lignes, répartition personnalisée et mode fixe. Sans part enregistrée, celle du
+  moteur (`calculs`) ; illisible, « — % » (test P19).
 
 ## Pièges déjà payés — ne pas les repayer
 

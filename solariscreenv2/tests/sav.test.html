@@ -453,6 +453,33 @@
         check('V1 Ticket rouvert : « Pris en charge », la réparation d’avant en « Passages précédents », jamais « Réparé : »',
           [/Pris en charge/.test(savV), /Passages précédents/.test(savV), /Réparé :/.test(savV), /Moteur remplacé, réglé/.test(savV)], [true, true, false, true]);
         f.remove();
+        // V2-V3 (règle 66) : la carte SAV se rejoint par le SOMMAIRE, avec son compteur — au portable (colonne de gauche) et au
+        // téléphone (bouton « Sommaire »). Un ticket qu'on ne retrouve pas dans une fiche longue n'est pas traité.
+        const nbT = ticketsDe('P-GAR').length;
+        f = await BANC.cadre('../app/vue.html?id=P-GAR&t=' + Date.now(), 1520, 820);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#railNav [data-rn="#savCard"]') && d.querySelector('#savList') && txt(d.querySelector('#savList')).length > 20, 8000);
+        const rnSav = d.querySelector('#railNav [data-rn="#savCard"]');
+        rnSav.click();
+        const vueSav = await attendreQue(() => { const r = d.getElementById('savCard').getBoundingClientRect(); return r.top >= 0 && r.top < w.innerHeight; }, 4000);
+        check('V2 Au portable (1 520 px, trois colonnes) : le sommaire de gauche annonce « SAV » et ses tickets ; un clic amène la carte, dépliée',
+          [w.getComputedStyle(d.getElementById('railNav')).display, txt(rnSav), !!vueSav, d.getElementById('savCard').classList.contains('collapsed')], ['block', 'SAV ' + nbT, true, false]);
+        f.remove();
+        f = await BANC.cadre('../app/vue.html?id=P-GAR&t=' + Date.now(), 375, 812);
+        w = f.contentWindow; d = f.contentDocument;
+        await attendreQue(() => d.querySelector('#savList') && txt(d.querySelector('#savList')).length > 20, 8000);
+        // Un document écrit par le banc n'a pas d'historique à lui : les étapes se COMPTENT, « retour » se rejoue par popstate.
+        let reculs = 0;
+        w.history.pushState = function () {}; w.history.back = function () { reculs++; };
+        d.getElementById('somFab').click(); await attendre(250);
+        const entreeSav = d.querySelector('#somList [data-rn="#savCard"]');
+        const lueSav = txt(entreeSav);
+        entreeSav.click(); await attendre(80);
+        w.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+        const vueSavT = await attendreQue(() => { const r = d.getElementById('savCard').getBoundingClientRect(); return r.top >= 0 && r.top < w.innerHeight; }, 4000);
+        check('V3 Au téléphone : « Sommaire » liste « SAV » et ses tickets ; le toucher ferme la feuille (étape retirée) et amène la carte SAV à l’écran',
+          [lueSav, d.getElementById('somSheet').hidden, reculs, !!vueSavT], ['SAV ' + nbT, true, 1, true]);
+        f.remove();
 
         // ══════════ T — TÉLÉPHONE (375 × 812) ══════════
         titre('T — Sur téléphone');

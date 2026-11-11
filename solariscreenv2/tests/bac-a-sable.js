@@ -299,6 +299,15 @@
           chantier: { date_pose: J(-6), equipe: 'nicolas' }, reception_date: J(-6) },
         _factures: [{ type: 'acompte', pct: 30, date: J(-49), echeance: J(-34), paiements: [{ date: J(-40), moyen: 'Virement', moins: 100 }] },
           { type: 'avoir', de: 'acompte', montant: 100, date: J(-45), motif: 'Geste commercial (essai)' }] }),
+      /* Règle 66 : un client à PLUSIEURS devis — la fiche de l'école porte la rangée d'onglets (le jeu n'en avait aucun,
+         on ne pouvait donc la voir nulle part). Deux dossiers CLOS, pour ne déplacer aucune action du tableau de bord : un
+         refus et un abandon, chacun dans sa couleur, et par deux vendeurs (le vendeur s'affiche alors sur les onglets). */
+      devis(base, { n: '24', client: 'c10', vendeur: 'yannick', cree: -200, modifie: -170, statut: 'refuse', items: [volets(4, { emplacement: 'Réfectoire' })],
+        role: 'École : un premier devis, refusé (onglets de la fiche, règle 66)',
+        champs: { date_envoi: J(-195), raison_refus: 'Projet reporté', statut_history: [{ statut: 'refuse', date: T(-170) }] } }),
+      devis(base, { n: '25', client: 'c10', vendeur: 'nicolas', cree: -120, modifie: -110, statut: 'annule', items: [tente({ emplacement: 'Cour de récréation' })],
+        role: 'École : une tente abandonnée (onglets de la fiche, règle 66)',
+        champs: { statut_history: [{ statut: 'annule', date: T(-110) }] } }),
     ];
     // Le dossier abîmé n'a PAS de calculs : c'est précisément le cas à rejouer (règle 6 de « vérifier son travail »).
     delete D[19].calculs;
