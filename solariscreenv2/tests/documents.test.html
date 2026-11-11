@@ -114,6 +114,15 @@
            (il n'a pas d'encadré, il ne doit rien couper) ; perçage et rivets remplis : ils ne sortent JAMAIS chez le client.
            Une seule description du cas, partagée avec `saisie.test.html` et le banc d'impression (`bac-a-sable.js`). */
         const rCfg = await SS.saveDevis(window.SSBacASable.exempleQuatreVolets({ avecScreen: true }), { creation: true });
+        /* D3 (11/11/2026, audit au geste, règle 62) : un dépannage SOUS GARANTIE — la main-d'œuvre offerte, à 0 h. Le serveur
+           envoyait au lien client `qty || 1` : l'exemplaire du client imprimait « 1 × 55,00 € = 0,00 € » sous celui de l'ERP,
+           qui disait « 0 ». Il passe dans la boucle D ci-dessous comme tous les devis (mêmes feuilles, même texte). */
+        const postesG = [{ label: 'Déplacement', qty: 1, unit_price_ht: 45 }, { label: 'Main-d’œuvre', qty: 0, unit_price_ht: 55 }];
+        const cG = window.SSCalc.computeDevis({ items: [], extras: postesG, tva_pct: 6, acompte_pct: 0 });
+        const rGar = await SS.saveDevis({ id: 'ESSAI-DOC-GAR', client: { prenom: 'Gérard', nom: "L'Essai-Garantie", adresse: { rue: 'Rue du Test', numero: '1', code_postal: '1300', ville: 'Wavre' } },
+          statut: 'termine', type_document: 'depannage', depannage_mode: 'realise', items: [], calculs: cG, pricing_v2: { tva_pct: 6, acompte_pct: 0, extras: cG.extra_lines },
+          depannage: { garantie: 'oui', garantie_mois: 12, date_intervention: window.SSUI.aujourdhui(), motif: 'Screen bloqué', techniciens: ['Nicolas'] },
+          date_creation: new Date().toISOString(), date_modification: new Date().toISOString() }, { creation: true });
         // Tout devis reçoit un lien client, pour que les deux exemplaires se comparent sur TOUT le jeu.
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
         const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
@@ -195,6 +204,19 @@
         const t07 = TEXTES['ESSAI-07'] || ['', ''];
         check('D1 Un screen : sa couleur SANS code de commande Harol (« réf. 7m16st »), sa couleur de TOILE écrite (« toile 86-2044 Gris ») — dans les DEUX exemplaires',
           t07.map((x) => [/réf\. 7m16st/.test(x), /7016 — Gris anthracite/.test(x), /toile 86-2044 Gris/.test(x)]), [[false, true, true], [false, true, true]]);
+        const tGar = TEXTES['ESSAI-DOC-GAR'] || ['', ''];
+        check('D3 Un dépannage sous garantie : la main-d’œuvre offerte s’imprime « 0 × 55,00 € = 0,00 € » dans les DEUX exemplaires (le client lisait « 1 »)',
+          [rGar.ok !== false, tGar.map((x) => /Main-d’œuvre0\s?55,00\s€0,00\s€/.test(x)), tGar.map((x) => /Main-d’œuvre1\s?55,00/.test(x))], [true, [true, true], [false, false]]);
+        {
+          // …et la page du lien, à l'écran : « 0 × 55,00 € HTVA » sous la main-d'œuvre (la ligne était muette).
+          const tokG = BANC.sql1("SELECT json_extract(data, '$.review_token') FROM devis WHERE id = 'ESSAI-DOC-GAR'");
+          const fr = await BANC.cadre('../devis-review.html?t=' + encodeURIComponent(tokG), 1100, 900);
+          await attendreQue(() => fr.contentDocument.querySelector('.rv-item'), 10000); await attendre(150);
+          const mo = [...fr.contentDocument.querySelectorAll('.rv-item')].find((x) => /Main-d’œuvre/.test(x.textContent));
+          check('D3b … et la page du lien client écrit « 0 × 55,00 € HTVA » sous la main-d’œuvre offerte',
+            mo && mo.querySelector('.sub') ? mo.querySelector('.sub').textContent.replace(/\s+/g, ' ').trim() : null, '0 × ' + window.SSUI.fmtEur(55).replace(/\s+/g, ' ') + ' HTVA');
+          fr.remove();
+        }
         const t05 = TEXTES['ESSAI-05'] || ['', ''];
         check('D1b Une tente : ses options PAYÉES sont écrites sur sa ligne (lambrequin, détecteur, éclairage LED et son type, chauffage) — dans les DEUX exemplaires',
           t05.map((x) => [/lambrequin fixe/.test(x), /détecteur soleil \/ vent \/ pluie/.test(x), /éclairage LED \(direct — caisson\)/.test(x), /chauffage Storelight/.test(x), /spots LED/.test(x)]),

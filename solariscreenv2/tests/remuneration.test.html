@@ -438,6 +438,29 @@
       R.encaisseDe('D1', [fact('D1', 5000, 5000), fact('D1', 1000, 0, 'avoir')]), 4000);
     check('les factures d\'un AUTRE dossier sont ignorées', R.encaisseDe('D1', [fact('D2', 9000, 9000)]), 0);
 
+    /* ⚠️ UNE NOTE DE CRÉDIT N'EST PAS UN REMBOURSEMENT (11/11/2026, audit du bac à sable, corrigé sur l'accord de Nicolas).
+       Sur une facture IMPAYÉE, elle réduit ce que le client doit, pas ce qu'il a versé ; la retirer de l'argent reçu la
+       comptait deux fois, et la part se lisait sur le devis BRUT : un dossier soldé restait à 97 % pour toujours. */
+    const fa = (id, ttc, paye) => ({ id: id, devis_id: 'D1', type: id === 'FA' ? 'acompte' : 'solde', total_ttc: ttc, paiements: paye ? [{ montant: paye }] : [] });
+    const nc = (de, ttc) => ({ id: 'NC-' + de, devis_id: 'D1', type: 'avoir', avoir_de: de, total_ttc: -ttc, paiements: [] });
+    check('note de crédit sur une facture IMPAYÉE : l\'argent reçu ne bouge pas',
+      R.encaisseDe('D1', [fa('FA', 5000, 5000), fa('FS', 5000, 0), nc('FS', 1000)]), 5000);
+    check('note de crédit sur une facture PAYÉE : ce qui la dépasse est rendu au client',
+      R.encaisseDe('D1', [fa('FA', 10000, 10000), nc('FA', 1000)]), 9000);
+    check('…et sur une facture payée en partie, seul ce qui dépasse le reste dû est rendu',
+      R.encaisseDe('D1', [fa('FA', 3000, 2500), nc('FA', 1000)]), 2000);
+    check('les notes de crédit du dossier, en positif', R.avoirsDe('D1', [fa('FA', 5000, 5000), nc('FA', 300), nc('FS', 200), fact('D2', 900, 0, 'avoir')]), 500);
+    const avecNc = (factures) => R.parDossier(devis({ items: [item('screen', 2)], equipe: 'sous_traitant',
+      calculs: { total_ttc: 10000, nicolas_net: 1000 } }), factures, null, AUJ);
+    const ncImpayee = avecNc([fa('FA', 5000, 5000), fa('FS', 5000, 0), nc('FS', 1000)]);
+    check('la part se lit sur ce que le client paiera EN TOUT (devis − notes de crédit) : 5 000 sur 9 000',
+      [ncImpayee.encaisse, ncImpayee.total_du, ncImpayee.part, ncImpayee.couvert], [5000, 9000, 0.556, 555.56]);
+    const ncSolde = avecNc([fa('FA', 5000, 5000), fa('FS', 5000, 4000), nc('FS', 1000)]);
+    check('⚠️ un dossier SOLDÉ avec une note de crédit est couvert à 100 % (il restait à 80 % : 8 000 / 10 000)',
+      [ncSolde.part, ncSolde.couvert, R.cumul([ncSolde], []).en_attente_client], [1, 1000, 0]);
+    const ncRendue = avecNc([fa('FA', 10000, 10000), nc('FA', 1000)]);
+    check('…et payé d\'avance puis remboursé de la note de crédit : 100 % aussi (il était à 90 %)', [ncRendue.encaisse, ncRendue.part], [9000, 1]);
+
     const paye30 = R.parDossier(devis({
       items: [item('screen', 10)], equipe: 'nicolas',
       calculs: { total_ttc: 20000, nicolas_net: 900 },

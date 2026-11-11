@@ -83,7 +83,20 @@
       w.addEventListener = function (type, fn, op) { if (type === 'beforeunload') return; return ael(type, fn, op); };
       try { Object.defineProperty(w, 'onbeforeunload', { set() {}, get() { return null; }, configurable: true }); } catch (e) {}
     }
-    doc.write(html);
+    /* L'ENCOCHE D'UN IPHONE (règle 61) : lancée depuis l'écran d'accueil, une page en `viewport-fit=cover` passe SOUS
+       l'heure (59 px) et la barre de gestes (34 px). Un cadre n'a pas d'encoche : on la simule par les jetons
+       `--encoche-*` (tokens.css) — toute barre qui s'en écarte par eux s'en écarte ici ; celle qui l'ignore se
+       retrouve dessous, et `relever` le dit. Seulement sur les pages qui s'étendent sous l'encoche : le lien
+       client (`devis-review`, `track`) s'ouvre dans Safari, sous la barre d'état et jamais derrière.
+       ⚠️ Posée dans le HTML, AVANT le premier script, comme sur un vrai téléphone où elle existe dès le premier rendu :
+       posée après coup, nav.js avait déjà mesuré le bandeau (et un cadre hors écran ne prévient pas son
+       ResizeObserver) — 54 faux « sous le bandeau » au premier essai. `html:root` bat le `:root` de tokens.css. */
+    let page = html;
+    if (o.encoche && /<meta[^>]+name=["']viewport["'][^>]*viewport-fit\s*=\s*cover/i.test(html)) {
+      page = html.replace(/<head[^>]*>/i, (m) => m + '<style>html:root{--encoche-haut:' + o.encoche.haut + 'px;--encoche-bas:' + o.encoche.bas + 'px}</style>');
+      f.encoche = o.encoche;
+    }
+    doc.write(page);
     doc.close();
     await charge;
     f.doc = doc;
@@ -131,6 +144,8 @@
   /** Ce qu'on relève DANS la page (exécuté sur le document du cadre). */
   function relever(w) {
     const d = w.document, W = w.innerWidth, H = w.innerHeight, out = [];
+    // Une page qui part ailleurs au moment de la relève n'a plus de <body> : rien à relever (deux « audit interrompu » le 11/11/2026).
+    if (!d || !d.body) return { defauts: [], liens: [], calques: 0 };
     const vis = (e) => {
       const r = e.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) return false;
@@ -149,7 +164,10 @@
     const fixeHors = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.position === 'fixed' || s.position === 'absolute') && x.getBoundingClientRect().left >= W - 1) return true; if (s.transform && s.transform !== 'none' && x.getBoundingClientRect().right <= 1) return true; } return false; };
     // Une boîte qui ROGNE (overflow hidden / clip) et finit dans l'écran : ce qui la dépasse est coupé par ELLE, pas par
     // le bord de l'écran — les tuiles d'une carte Leaflet dépassent exprès leur cadre (relevées à tort le 01/11/2026).
-    const rogneDedans = (e) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().right <= W + 1) return true; } return false; };
+    // ⚠️ Jamais le <body> (11/11/2026) : son `overflow-x: hidden` (base.css) est celui de la FENÊTRE — ce qu'il coupe est coupé
+    // par le bord de l'écran, c'est exactement ce qu'on cherche. Compté comme une boîte, il rendait ce contrôle muet.
+    const rogneDedans = (e) => { for (let x = e.parentElement; x && x !== d.body && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().right <= W + 1) return true; } return false; };
+    const rogneDedansG = (e) => { for (let x = e.parentElement; x && x !== d.body && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().left >= -1) return true; } return false; };
     // Un décor (filigrane, toile de fête) : posé exprès par-dessus ou au-delà, il ne se clique pas.
     const decor = (e) => { for (let x = e; x && x !== d.body; x = x.parentElement) { if (x.getAttribute('aria-hidden') === 'true' || /\b(watermark|ssfete|filigrane)/.test(x.className && x.className.baseVal === undefined ? x.className : '')) return true; } return false; };
 
@@ -171,6 +189,13 @@
       // 2. Coupé au bord droit de l'écran (en partie dedans, en partie dehors), sans ancêtre qui défile.
       if (r.right > W + 1 && r.left < W - 1 && r.width < W * 3 && !defile(e, 'x') && !fixeHors(e) && s.position !== 'fixed' && !decor(e) && !rogneDedans(e))
         out.push(['coupé au bord', chemin(e) + ' : ' + Math.round(r.left) + '→' + Math.round(r.right) + ' px « ' + texte(e) + ' »']);
+      // 2 bis. Coupé au bord GAUCHE (11/11/2026, règle 61) : le volet du menu s'ouvrait aligné sur un bouton passé à
+      //    gauche de l'écran. Ce qui sort à gauche d'une page ne se rattrape JAMAIS en faisant défiler. Seul le bord droit
+      //    était regardé. (Un volet rangé hors écran par `transform` finit avant 1 px : il n'est pas compté.)
+      //    Comme à droite, une boîte qui ROGNE et commence dans l'écran coupe elle-même ce qui la dépasse (le calque SVG d'une
+      //    carte Leaflet déborde de sa carte exprès : six faux relevés au premier passage du robot).
+      else if (r.left < -1 && r.right > 1 && r.width < W * 3 && !defile(e, 'x') && !fixeHors(e) && !decor(e) && !rogneDedansG(e))
+        out.push(['coupé au bord', chemin(e) + ' : ' + Math.round(r.left) + '→' + Math.round(r.right) + ' px, à gauche de l’écran « ' + texte(e) + ' »']);
       // 3. Du TEXTE rogné par sa boîte : un descendant dans le flux (pas un décor, pas un absolu) qui
       //    dépasse, alors que la boîte ne défile pas et n'a pas de points de suspension.
       const ox = s.overflowX;
@@ -299,6 +324,30 @@
       const premier = bandeau && [...d.body.children].filter((e) => vis(e) && !racineFixe(e) && !e.contains(bandeau))[0];
       if (premier && premier.getBoundingClientRect().top < bandeau.getBoundingClientRect().bottom - 2)
         out.push(['sous le bandeau', nom(premier) + ' commence à ' + Math.round(premier.getBoundingClientRect().top) + ' px, le bandeau finit à ' + Math.round(bandeau.getBoundingClientRect().bottom)]);
+    }
+
+    // 10 bis. SOUS L'ENCOCHE (règle 61) : une commande dont tout le visible est sous l'heure, ou une commande d'une barre
+    //    fixe posée sur la barre de gestes, ne se touche pas — toucher l'heure fait remonter la page, la barre de gestes
+    //    change d'appli. Au repos pour ce qui défile (on ne remonte pas plus haut que le haut), toujours pour ce qui est fixe.
+    //    Une fenêtre ouverte couvre la page : on ne regarde que ce qui est dedans (comme les chevauchements).
+    const enc = { haut: parseFloat(w.getComputedStyle(d.documentElement).getPropertyValue('--encoche-haut')) || 0,
+      bas: parseFloat(w.getComputedStyle(d.documentElement).getPropertyValue('--encoche-bas')) || 0 };
+    if (enc.haut || enc.bas) {
+      const colle = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const p = w.getComputedStyle(x).position; if (p === 'fixed' || p === 'sticky') return true; } return false; };
+      // Un ancêtre qui défile ENCORE dans ce sens : on éloigne l'élément du bord en faisant défiler, il n'y est pas posé
+      // (le pied d'une fenêtre plus haute que l'écran, au bas d'une fenêtre qui défile : faux relevés du 11/11/2026).
+      const defileVers = (e, bas) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && x.scrollHeight > x.clientHeight + 1 && (bas ? x.scrollTop < x.scrollHeight - x.clientHeight - 1 : x.scrollTop > 1)) return true; } return false; };
+      const sous = [], gestes = [];
+      for (const e of cmd) {
+        // La partie VISIBLE : un bouton défilé hors du corps d'une fenêtre est caché par ce corps, pas posé sur la barre.
+        const r = rogner(e, e.getBoundingClientRect());
+        if (r.width <= 0 || r.height <= 0 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
+        const fixe = colle(e), libelle = texte(e) || e.getAttribute('aria-label') || e.getAttribute('title') || nom(e);
+        if (enc.haut && Math.min(r.bottom, H) <= enc.haut + 4 && (fixe || w.scrollY === 0) && !defileVers(e, false)) sous.push(libelle);
+        if (enc.bas && fixe && r.top >= H - enc.bas - 2 && !defileVers(e, true)) gestes.push(libelle);
+      }
+      if (sous.length) out.push(['sous l’encoche', 'intouchable sous l’heure (' + enc.haut + ' px) : « ' + [...new Set(sous)].slice(0, 5).join(' », « ') + ' »']);
+      if (gestes.length) out.push(['sous la barre de gestes', 'barre fixe sur les ' + enc.bas + ' px du bas : « ' + [...new Set(gestes)].slice(0, 5).join(' », « ') + ' »']);
     }
 
     // 11. Les images cassées (déjà chargées, sans pixel).

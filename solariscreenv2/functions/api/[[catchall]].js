@@ -83,6 +83,10 @@ const sansReferenceFournisseur = (v) => String(v == null ? '' : v).replace(/\s*�
 // Le moteur d'un screen porte son code d'article Harol en tête (« 4114: Sunea 40 RTS ») : la réponse du lien client, servie
 // par simple jeton, le portait tel quel (règle 31). Même règle que `SSUI.moteurClient` (refonte des PDF, 08/11/2026).
 const sansCodeArticle = (v) => String(v == null ? '' : v).trim().replace(/^(?:A\d{3,5}|\d{3,5})\s*:\s*/i, '');
+// La quantité d'un POSTE (déplacement, main-d'œuvre, supplément) : absente → 1, ZÉRO reste zéro, jamais un négatif — la règle
+// de calc.js et de `SSUI.qtePoste` (ce fichier ne charge pas ui.js). `qty || 1` faisait imprimer au client « 1 × 55,00 € = 0,00 € »
+// pour une heure offerte sous garantie, sous un exemplaire de l'ERP qui disait « 0 » (règles 7 et 62, 11/11/2026).
+const qtePoste = (q) => { const n = parseFloat(q); return isNaN(n) ? 1 : Math.max(0, n); };
 function suiviPublic(d, token) {
   const masquees = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees.map(String) : []);
   const couv = (d.portfolio_couvertures && typeof d.portfolio_couvertures === 'object') ? d.portfolio_couvertures : {};
@@ -371,7 +375,7 @@ export async function onRequest(context) {
           remise_catalogue: (calc.remise_catalogue && calc.remise_catalogue.amount) || 0,
           remise_installation: ((calc.remise_installation && calc.remise_installation.amount) || 0)
                              + ((calc.remise_outillage && calc.remise_outillage.amount) || 0),
-          extra_lines: (calc.extra_lines || []).map(e => ({ label: e.label || '', qty: e.qty || 1, unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0 })),
+          extra_lines: (calc.extra_lines || []).map(e => ({ label: e.label || '', qty: qtePoste(e.qty), unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0 })),
           surplus_difficulte: (d.pricing_v2 && d.pricing_v2.surplus_difficulte) || 0,
         },
         signature: (d.signature && d.signature.image) ? { image: d.signature.image, date: d.signature.date || '' } : null,
@@ -385,7 +389,7 @@ export async function onRequest(context) {
         // Postes d'une intervention : ce sont EUX que le client doit lire quand il n'y a pas
         // d'ouverture. Mêmes champs que sur le document — aucun prix d'achat, aucune marge.
         postes: ((d.calculs && d.calculs.extra_lines) || []).map(e => ({
-          label: e.label || '', qty: e.qty || 1, unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0,
+          label: e.label || '', qty: qtePoste(e.qty), unit_price_ht: e.unit_price_ht || 0, total_ht: e.total_ht || 0,
         })),
         total_ttc: (d.calculs && d.calculs.total_ttc) || 0,
         tva_pct: (d.pricing_v2 && d.pricing_v2.tva_pct) || 6,

@@ -23,6 +23,15 @@
     const n = Number(q) || 0;
     return (n % 1 === 0) ? String(n) : n.toLocaleString('fr-BE', { maximumFractionDigits: 2 });
   }
+  /** La quantité d'un POSTE (supplément, déplacement, main-d'œuvre) : absente ou illisible → 1 ; ZÉRO reste zéro (une
+   *  heure offerte sous garantie n'est pas une heure facturée) ; jamais un négatif. La règle de `calc.js` et de la
+   *  collecte du simulateur (audit du 28/10/2026). ⚠️ `qty || 1` la contredisait encore à quatre endroits le 11/11/2026
+   *  (règle 62) : le simulateur rouvrait un dépannage sous garantie à 1 h (47,70 € devenus 106,00 € à l'écran, réécrits
+   *  au premier enregistrement), et le lien client imprimait « 1 × 55,00 € = 0,00 € » sous l'exemplaire de l'ERP. */
+  function qtePoste(q) {
+    const n = parseFloat(q);
+    return isNaN(n) ? 1 : Math.max(0, n);
+  }
 
   function fmtDate(iso) {
     if (!iso) return '—';
@@ -2300,7 +2309,7 @@
   window.SSUI = {
     ajusterFeuille: ajusterFeuille,
     raisonDoublon: raisonDoublon,
-    fmtEur: fmtEur, fmtEurDoc: fmtEurDoc, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte,
+    fmtEur: fmtEur, fmtEurDoc: fmtEurDoc, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte, qtePoste: qtePoste,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,

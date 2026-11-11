@@ -313,6 +313,21 @@
         const fk = await ouvrir(390, 760, '?key=' + encodeURIComponent('signe|marc') + '&t=' + Date.now());
         check('T8 Arrivé d’une autre page sur une fiche (?key=…) : pas d’étape ajoutée, « retour » ramène d’où l’on vient',
           [fk.contentWindow.document.body.classList.contains('crm-fiche-ouverte'), (fk.contentWindow.history.state || {}).crmFiche], [true, undefined]);
+        {
+          // T8b (11/11/2026, robot des clics en tactile) : un nom ou une étiquette d'un seul tenant (raison sociale accolée,
+          // adresse) poussait l'en-tête de la fiche hors de l'écran — ses blocs flex refusaient de rétrécir sous leur plus long mot.
+          // ⚠️ Sans espace NI tiret : le navigateur coupe de lui-même après un tiret, un nom à tirets ne prouvait rien (mutation survivante).
+          const dk = fk.contentWindow.document, tete = dk.querySelector('#detail .detail-head');
+          const h2 = tete.querySelector('h2');
+          h2.firstChild.textContent = 'Copropriété.Résidence.Les.Glycines.Waterloo ';
+          const rang = dk.createElement('div'); rang.className = 'row wrap';
+          rang.innerHTML = '<span class="badge badge-purple">syndic.copropriété.résidence.glycines</span>';
+          h2.parentElement.appendChild(rang);
+          await attendre(80);
+          const W = dk.documentElement.clientWidth;
+          check('T8b Un nom et une étiquette d’un seul tenant passent à la ligne : rien ne sort de l’écran (fiche client, 390 px)',
+            [dk.documentElement.scrollWidth <= W, [...tete.querySelectorAll('*')].every((e) => e.getBoundingClientRect().right <= W + 0.5)], [true, true]);
+        }
         fk.contentWindow.newClient(); await attendre(80);
         const mr = fk.contentWindow.document.querySelector('#modalClient .modal').getBoundingClientRect();
         check('T9 La fenêtre « Nouveau client » tient dans l’écran du téléphone', [mr.left >= 0, mr.right <= fk.contentWindow.innerWidth, mr.bottom <= fk.contentWindow.innerHeight], [true, true, true]);
