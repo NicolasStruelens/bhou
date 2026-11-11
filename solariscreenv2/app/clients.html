@@ -60,10 +60,20 @@
     }
 
     .crm-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: visible; box-shadow: var(--shadow-sm); --tick-color: var(--accent); }
-    /* wrap : sur écran étroit, le tri passe sous la recherche au lieu de forcer la largeur. */
-    .crm-list .lh { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
-    .crm-list .lh input { flex: 1 1 150px; min-width: 0; }
-    .crm-list .lh .select { flex: 0 1 auto; min-width: 0; }
+    /* En tête de la liste, trois rangs : la recherche, le tri (menu + flèche qui inverse), et une ligne qui dit
+       TOUJOURS l'ordre en mots — avec « ↺ Ordre par défaut » dès qu'on l'a quitté (règle 68). Chaque rang a sa
+       propre largeur : rien ne pousse la colonne (voir `minmax(0, 1fr)` plus haut). */
+    .crm-list .lh { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }
+    .crm-list .lh-rang { display: flex; gap: var(--sp-2); align-items: center; min-width: 0; }
+    .crm-list .lh input { flex: 1 1 auto; min-width: 0; }
+    .crm-list .lh .select { flex: 1 1 auto; min-width: 0; }
+    .tri-lab { flex: none; font-family: var(--font-mono); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .1em; color: var(--text-subtle); }
+    /* La flèche prend la hauteur du menu (et 44 px sur écran tactile, comme tout `.btn`). */
+    .crm-list .tri-sens { flex: none; align-self: stretch; min-width: 2.6rem; padding: 0; justify-content: center; font-size: var(--fs-md); font-weight: 700; }
+    .tri-legende { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; min-height: 1.6rem; font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.4; }
+    .tri-legende .tri-dit { flex: 1 1 12rem; min-width: 0; }
+    .tri-legende b { color: var(--text); font-weight: 600; }
+    .tri-legende .tri-defaut { flex: none; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
     .crm-items { max-height: 70vh; overflow-y: auto; }
     .crm-item { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); cursor: pointer; transition: background var(--t-fast); }
     .crm-item:hover { background: var(--surface-2); }
@@ -85,6 +95,14 @@
     .ci-act.rien { color: var(--text-subtle); }
     .ci-droite { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
     .ci-du { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--warn); white-space: nowrap; }
+    /* Ce qui range la ligne : « modifié il y a 2 h », « signé 12 400,00 € », « 1300 »… (règle 68). */
+    .ci-cle { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--accent); white-space: nowrap; text-align: right; }
+    @media (max-width: 620px) {
+      /* Téléphone : la valeur passe à la ligne dans sa colonne plutôt que de manger le nom. */
+      .ci-droite { max-width: 8.5rem; }
+      .ci-cle { white-space: normal; }
+      .tri-legende.perso .tri-compte { display: none; }
+    }
     .crm-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     /* Client déduit de ses devis mais dont la fiche d'enrichissement n'existe pas encore. */
     .ci-todo { font-family: var(--font-mono); font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: .04em;
@@ -228,14 +246,18 @@
       <!-- Liste -->
       <div class="crm-list ticked">
         <div class="lh">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--text-subtle);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <label for="search" class="sr-only">Rechercher un client</label>
-          <input class="input" id="search" placeholder="Nom, ville, n° de devis…" oninput="renderList()">
-          <select class="select" id="sort" style="max-width:120px;" onchange="renderList()" aria-label="Trier les clients">
-            <option value="recent">Récent</option>
-            <option value="ca">Signé ↓</option>
-            <option value="nom">Nom</option>
-          </select>
+          <div class="lh-rang">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--text-subtle);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <label for="search" class="sr-only">Rechercher un client</label>
+            <input class="input" id="search" placeholder="Nom, ville, n° de devis…" oninput="renderList()">
+          </div>
+          <div class="lh-rang">
+            <label for="sort" class="tri-lab">Tri</label>
+            <!-- Les douze critères sont écrits par le script, depuis TRIS : une seule liste (règle 68). -->
+            <select class="select" id="sort" onchange="choisirTri(this.value)" aria-label="Trier les clients"></select>
+            <button type="button" class="btn btn-ghost btn-sm tri-sens" id="triSens" onclick="inverserTri()">↓</button>
+          </div>
+          <div class="tri-legende" id="triLegende" aria-live="polite"></div>
         </div>
         <div class="crm-items" id="list"></div>
       </div>
@@ -329,6 +351,153 @@
     const sansAccent = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     const chiffresSeuls = (t) => String(t || '').replace(/\D/g, '');
 
+    /* ══════════ LE TRI « TOUS AZIMUTS » (règle 68, 11/11/2026) ══════════════════════════════════════════
+       Douze critères, une flèche qui inverse, une ligne qui dit l'ordre en mots. Par défaut : « Modifié ou
+       ajouté », le plus récent d'abord — les clients qu'on vient de toucher en tête (demande de Nicolas).
+       • La recherche FILTRE d'abord, le tri range ce qui reste.
+       • Sans valeur (pas de ville, 0 €, aucun devis) : en bas, dans les deux sens.
+       • À égalité : « modifié ou ajouté », puis le nom.
+       • Gardé sur CET appareil (localStorage) : le téléphone garde le sien, l'ordinateur le sien.
+       • L'argent vient de `bilanDevis` (actions.js) et l'urgence de `poidsAction` : les chiffres de la fiche et
+         du tableau de bord (règle 42). Le tri ne calcule RIEN à sa façon. */
+    const TRIS = [
+      { id: 'recent', groupe: 'Quand', label: 'Modifié ou ajouté', type: 'date', sens: 'desc', compte: 'fiche créée ou modifiée, devis ajouté' },
+      { id: 'activite', groupe: 'Quand', label: 'Dernière activité', type: 'date', sens: 'desc', compte: 'tout ce qui s’écrit sur le client et ses devis' },
+      { id: 'depuis', groupe: 'Quand', label: 'Client depuis', type: 'date', sens: 'asc', compte: 'sa première fiche ou son premier devis' },
+      { id: 'nom', groupe: 'Qui et où', label: 'Nom', type: 'texte', sens: 'asc', compte: 'nom de famille, puis prénom' },
+      { id: 'ville', groupe: 'Qui et où', label: 'Ville', type: 'texte', sens: 'asc', compte: 'la commune de la fiche' },
+      { id: 'cp', groupe: 'Qui et où', label: 'Code postal', type: 'cp', sens: 'asc', compte: 'les communes proches se suivent' },
+      { id: 'signe', groupe: 'Argent', label: 'Signé', type: 'montant', sens: 'desc', compte: 'devis signés ou terminés, archivés exclus' },
+      { id: 'encours', groupe: 'Argent', label: 'Chez le client', type: 'montant', sens: 'desc', compte: 'devis envoyés qui attendent sa réponse' },
+      { id: 'du', groupe: 'Argent', label: 'Reste à encaisser', type: 'montant', sens: 'desc', compte: 'ses factures, notes de crédit déduites' },
+      { id: 'quoi', groupe: 'Suivi', label: 'Quoi faire', type: 'urgence', sens: 'desc', compte: 'comme « À faire maintenant »' },
+      { id: 'etape', groupe: 'Suivi', label: 'Étape', type: 'etape', sens: 'asc', compte: 'le statut de son dernier devis' },
+      { id: 'nb', groupe: 'Suivi', label: 'Nombre de devis', type: 'compte', sens: 'desc', compte: 'tous ses devis' },
+    ];
+    const TRI_MOTS = {
+      date: { desc: 'le plus récent d’abord', asc: 'le plus ancien d’abord' },
+      texte: { asc: 'A → Z', desc: 'Z → A' },
+      cp: { asc: '1000 → 9999', desc: '9999 → 1000' },
+      montant: { desc: 'le plus gros d’abord', asc: 'le plus petit d’abord' },
+      urgence: { desc: 'le plus urgent d’abord', asc: 'le moins urgent d’abord' },
+      etape: { asc: 'brouillon → terminé', desc: 'terminé → brouillon' },
+      compte: { desc: 'le plus de devis d’abord', asc: 'le moins de devis d’abord' },
+    };
+    const TRI_DEFAUT = { cle: 'recent', sens: 'desc' };
+    const CLE_TRI = 'ss_clients_tri';
+    const critereTri = (id) => TRIS.find((c) => c.id === id) || TRIS[0];
+    // L'ordre des étapes est celui du vocabulaire commun (ui.js, règle 10) : brouillon → … → terminé, refusé, annulé.
+    const ORDRE_ETAPE = Object.keys(LIB_STATUT);
+    function lireTri() {
+      try {
+        const t = JSON.parse(localStorage.getItem(CLE_TRI) || 'null');
+        if (t && TRIS.some((c) => c.id === t.cle) && (t.sens === 'asc' || t.sens === 'desc')) return { cle: t.cle, sens: t.sens };
+      } catch (e) { /* préférence illisible : l'ordre par défaut */ }
+      return Object.assign({}, TRI_DEFAUT);
+    }
+    let TRI = lireTri();
+    const triParDefautActif = () => TRI.cle === TRI_DEFAUT.cle && TRI.sens === TRI_DEFAUT.sens;
+    function ecrireTri() {
+      try { if (triParDefautActif()) localStorage.removeItem(CLE_TRI); else localStorage.setItem(CLE_TRI, JSON.stringify(TRI)); } catch (e) {}
+    }
+
+    /* ── LES DATES ── Une fiche porte l'HEURE (`toISOString`) ; un devis ne garde que le JOUR de sa création
+       (`SSUI.aujourdhui()`, « 2026-11-11 »). Un jour seul vaut son début, heure LOCALE — jamais lu comme de
+       l'UTC par `new Date('2026-11-11')`, qui le décalerait d'une heure — et la ligne dit « aujourd'hui »,
+       jamais une heure inventée. */
+    const JOUR_SEUL = /^\d{4}-\d{2}-\d{2}$/;
+    function instantDe(v) {
+      const s = String(v || '').trim();
+      if (!s) return null;
+      if (JOUR_SEUL.test(s)) { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]).getTime(); }
+      const t = Date.parse(s);
+      return isNaN(t) ? null : t;
+    }
+    const momentDe = (v) => { const t = instantDe(v); return t == null ? null : { t, jour: JOUR_SEUL.test(String(v).trim()) }; };
+    const debutJour = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    /** « le 30/10 » (l'année seulement si ce n'est pas celle-ci) : sur téléphone, « modifié le 30/10/2026 » se coupait en deux. */
+    const leJour = (t) => { const d = new Date(t); return 'le ' + d.toLocaleDateString('fr-BE', d.getFullYear() === new Date().getFullYear()
+      ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' }); };
+    /** Un moment en mots : l'heure quand on la connaît (`SSUI.relTime` : « il y a 2 h »), le jour seul sinon. */
+    function quandMots(m) {
+      if (!m) return '';
+      if (!m.jour) { const r = window.SSUI.relTime(new Date(m.t).toISOString()); return /^\d/.test(r) ? leJour(m.t) : r; }
+      const j = Math.round((debutJour(Date.now()) - debutJour(m.t)) / 86400000);
+      if (j <= 0) return 'aujourd’hui';
+      if (j === 1) return 'hier';
+      if (j < 8) return 'il y a ' + j + ' j';
+      return leJour(m.t);
+    }
+    const plusRecent = (ms) => ms.reduce((a, m) => (!a || m.t > a.t ? m : a), null);
+
+    /* ── « MODIFIÉ OU AJOUTÉ » (définition D1, choisie par Nicolas) ── Le plus récent de trois moments : la fiche
+       CRÉÉE, la fiche MODIFIÉE, un devis AJOUTÉ. ⚠️ JAMAIS la date de modification d'un DEVIS (règle 15) : une photo,
+       une note, une relance, le client qui répond sur son lien l'avancent — c'est « Dernière activité ».
+       Le verbe : « ajouté » quand ce moment est un ajout (un devis, ou la fiche quand c'est la PREMIÈRE apparition du
+       client) ; créer la fiche d'un client qui avait déjà des devis, c'est le modifier. Un devis du jour n'ayant pas
+       d'heure, une modification du MÊME jour ne le cache pas : « ajouté aujourd'hui ». */
+    function momentRecent(e, o) {
+      const ajouts = e.devis.map((d) => momentDe(d.creation)).filter(Boolean), modifs = [];
+      const premierDevis = ajouts.length ? Math.min(...ajouts.map((m) => m.t)) : null;
+      const fc = momentDe(o.date_creation);
+      if (fc) (premierDevis == null || premierDevis >= debutJour(fc.t) ? ajouts : modifs).push(fc);
+      const fm = momentDe(o.date_modification);
+      if (fm) modifs.push(fm);
+      const m = plusRecent(ajouts.concat(modifs));
+      if (!m) return null;
+      const pile = ajouts.find((a) => a.t === m.t);
+      if (pile) return { t: m.t, mots: 'ajouté ' + quandMots(pile) };
+      const duJour = ajouts.find((a) => a.jour && a.t === debutJour(m.t));
+      if (duJour) return { t: m.t, mots: 'ajouté ' + quandMots(duJour) };
+      return { t: m.t, mots: 'modifié ' + quandMots(m) };
+    }
+    /** Les valeurs de tri d'un client, calculées une fois par chargement. `null` = sans valeur (en bas). */
+    function valeursTri(e, o) {
+      const tous = [o.date_creation, o.date_modification].concat(...e.devis.map((d) => [d.creation, d.modif])).map(momentDe).filter(Boolean);
+      const debuts = [o.date_creation].concat(e.devis.map((d) => d.creation)).map(momentDe).filter(Boolean);
+      const rec = momentRecent(e, o), act = plusRecent(tous);
+      const depuis = debuts.length ? debuts.reduce((a, m) => (m.t < a.t ? m : a)) : null;
+      const b = e.bilan, adr = e.contact.adresse || {};
+      const action = b.action, dvAction = action && e.devis.find((d) => d.id === action.devis_id);
+      const ville = String(adr.ville || '').trim(), cp = String(adr.code_postal || '').trim();
+      const etape = e.devis[0] ? ORDRE_ETAPE.indexOf(e.devis[0].statut) : -1;
+      const v = {
+        recent: rec ? rec.t : null,
+        activite: act ? act.t : null,
+        depuis: depuis ? depuis.t : null,
+        nom: sansAccent(`${e.contact.nom || ''} ${e.contact.prenom || ''}`) || null,
+        ville: ville ? sansAccent(ville) : null,
+        cp: cp || null,
+        signe: b.signe > 0.005 ? b.signe : null,
+        encours: b.enCours > 0.005 ? b.enCours : null,
+        du: b.resteDu > 0.005 ? b.resteDu : null,
+        quoi: action && dvAction && dvAction.n ? ACT.poidsAction(action, dvAction.n) : null,
+        etape: etape >= 0 ? etape : (e.devis[0] ? ORDRE_ETAPE.length : null),
+        nb: e.devis.length || null,
+      };
+      // Ce que la ligne affiche pour le critère choisi ; rien quand la ligne le dit déjà (ville, action, statut, dû).
+      const mots = {
+        recent: rec ? rec.mots : '',
+        activite: act ? 'activité ' + quandMots(act) : '',
+        depuis: depuis ? 'depuis ' + new Date(depuis.t).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' }) : '',
+        cp,
+        signe: v.signe != null ? 'signé ' + fmtEur(b.signe) : '',
+        encours: v.encours != null ? 'chez lui ' + fmtEur(b.enCours) : '',
+        nb: v.nb ? v.nb + ' devis' : '',
+      };
+      return { v, mots };
+    }
+    const comparerValeurs = (a, b) => (typeof a === 'string' ? a.localeCompare(b, 'fr', { numeric: true }) : a - b);
+    function comparerClients(a, b, cle, sens) {
+      const va = a.tri.v[cle], vb = b.tri.v[cle];
+      if ((va == null) !== (vb == null)) return va == null ? 1 : -1;   // sans valeur : en bas, dans les deux sens
+      if (va != null) { const d = comparerValeurs(va, vb); if (d) return sens === 'asc' ? d : -d; }
+      const ra = a.tri.v.recent, rb = b.tri.v.recent;
+      if ((ra == null) !== (rb == null)) return ra == null ? 1 : -1;
+      if (ra != null && ra !== rb) return rb - ra;
+      return comparerValeurs(a.tri.v.nom || '', b.tri.v.nom || '');
+    }
+
     /* ── DOUBLONS PROBABLES ──
        La clé d'un client est « nom|prénom » : une faute de frappe, un accent ou un prénom et un
        nom inversés suffisent à créer deux clients pour une seule personne (« Depptre Quentin » et
@@ -366,6 +535,8 @@
           id: d.id, statut: d.statut || 'brouillon',
           ttc: d.total_ttc || (d.calculs && d.calculs.total_ttc) || 0,
           date: d.date_modification || d.date_creation || '',
+          // Les deux dates À PART pour le tri (règle 68) : « ajouté » lit la création, « dernière activité » les deux.
+          creation: d.date_creation || '', modif: d.date_modification || '',
           contact: d.client || null,
           photos: d.photos_count || 0, comments: d.comments_count || 0,
           chantier: d.chantier || null,
@@ -421,6 +592,7 @@
           signes: e.bilan.nbSignes,
           last: latest ? latest.date : (o.date_modification || ''),
         };
+        e.tri = valeursTri(e, o);
         const adr = e.contact.adresse || {};
         e.recherche = sansAccent([e.contact.prenom, e.contact.nom, e.contact.email, e.contact.telephone, chiffresSeuls(e.contact.telephone),
           adr.rue, adr.code_postal, adr.ville, e.contact.type_bien, (e.contact.tags || []).join(' '), e.devis.map(x => x.id).join(' ')].filter(Boolean).join(' '));
@@ -448,18 +620,57 @@
       if (window.SSUI.animateKpis) window.SSUI.animateKpis(el('kpis'));   // odometre partage (coup de frais)
     }
 
+    /** Le menu, la flèche et la ligne qui dit l'ordre en mots, d'après TRI (règle 68). */
+    function renderTriBarre() {
+      const cr = critereTri(TRI.cle), defaut = triParDefautActif();
+      const mots = TRI_MOTS[cr.type], sens = mots[TRI.sens], inverse = mots[TRI.sens === 'asc' ? 'desc' : 'asc'];
+      const s = el('sort');
+      if (!s.options.length) {
+        const groupes = [...new Set(TRIS.map((c) => c.groupe))];
+        s.innerHTML = groupes.map((g) => `<optgroup label="${esc(g)}">${TRIS.filter((c) => c.groupe === g)
+          .map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</optgroup>`).join('');
+      }
+      if (s.value !== cr.id) s.value = cr.id;
+      const f = el('triSens');
+      f.textContent = TRI.sens === 'desc' ? '↓' : '↑';
+      f.title = 'Inverser : ' + inverse;
+      f.setAttribute('aria-label', 'Inverser l’ordre : ' + inverse);
+      const html = defaut
+        ? `<span class="tri-dit">${esc(sens.charAt(0).toUpperCase() + sens.slice(1))}<span class="tri-compte"> · ${esc(cr.compte)}</span></span>`
+        : `<span class="tri-dit"><b>${esc(cr.label)}</b>, ${esc(sens)}<span class="tri-compte"> · ${esc(cr.compte)}</span></span>`
+          + `<button type="button" class="btn btn-ghost btn-sm tri-defaut" id="triDefaut" onclick="triParDefaut()" title="Modifié ou ajouté, le plus récent d’abord">↺ Ordre par défaut</button>`;
+      const leg = el('triLegende');
+      // Réécrite seulement quand elle change : taper dans la recherche ne la refait pas annoncer (aria-live).
+      if (leg.dataset.html !== html) { leg.innerHTML = html; leg.dataset.html = html; }
+      leg.classList.toggle('perso', !defaut);
+    }
+    /* La fiche ouverte reste VISIBLE quand le tri la déplace (bureau : la liste défile dans sa colonne). On ne fait
+       défiler QUE la liste, jamais la page. Sur téléphone, la liste et la fiche ne sont jamais à l'écran ensemble. */
+    function garderActiveVisible() {
+      const liste = el('list'), act = liste.querySelector('.crm-item.active');
+      if (!act || liste.scrollHeight <= liste.clientHeight) return;
+      const r = act.getBoundingClientRect(), L = liste.getBoundingClientRect();
+      if (r.top < L.top) liste.scrollTop += r.top - L.top;
+      else if (r.bottom > L.bottom) liste.scrollTop += r.bottom - L.bottom;
+    }
+    function changerTri(t) {
+      TRI = t;
+      ecrireTri();
+      el('list').scrollTop = 0;   // un nouvel ordre se lit depuis le haut…
+      renderList();               // …sauf la fiche ouverte, ramenée en vue
+    }
+    window.choisirTri = (cle) => { const cr = critereTri(cle); changerTri({ cle: cr.id, sens: cr.sens }); };
+    window.inverserTri = () => changerTri({ cle: TRI.cle, sens: TRI.sens === 'asc' ? 'desc' : 'asc' });
+    window.triParDefaut = () => { changerTri(Object.assign({}, TRI_DEFAUT)); el('sort').focus(); };   // le bouton disparaît : le focus reste dans le tri
+
     function renderList() {
       const mots = sansAccent(el('search').value).split(/\s+/).filter(Boolean);
-      const sort = el('sort').value;
       let rows = DIRECTORY.slice();
       // Chaque mot doit se trouver quelque part : nom, ville, code postal, téléphone, e-mail,
       // étiquette ou numéro de devis.
       if (mots.length) rows = rows.filter(c => mots.every(m => c.recherche.indexOf(m) >= 0));
-      rows.sort((a, b) => {
-        if (sort === 'ca') return b.stats.caSigne - a.stats.caSigne;
-        if (sort === 'nom') return (a.contact.nom || '').localeCompare(b.contact.nom || '');
-        return (b.stats.last || '').localeCompare(a.stats.last || '');
-      });
+      rows.sort((a, b) => comparerClients(a, b, TRI.cle, TRI.sens));
+      renderTriBarre();
       /* A · CHAQUE LIGNE DIT QUOI FAIRE. « 1 devis · 0,00 € » ne disait rien (et comptait les
          devis refusés). La ligne dit maintenant : où (la ville), quoi faire (la prochaine action du
          client, même phrase et même couleur que sur le tableau de bord) et ce qu'il doit encore
@@ -469,16 +680,18 @@
         const ville = (c.contact.adresse && c.contact.adresse.ville) || '';
         const quoi = !c.devis.length ? 'Aucun devis' : (a ? a.txt : 'Rien à faire');
         const nom = `${c.contact.prenom || ''} ${c.contact.nom || ''}`.trim() || 'Sans nom';
+        const cle = c.tri.mots[TRI.cle] || '';
         return `
-        <div class="crm-item ${c.key === selectedKey ? 'active' : ''}" role="button" tabindex="0" data-key="${esc(c.key)}" aria-label="${esc(nom + ' — ' + quoi)}">
+        <div class="crm-item ${c.key === selectedKey ? 'active' : ''}" role="button" tabindex="0" data-key="${esc(c.key)}" aria-label="${esc(nom + ' — ' + quoi + (cle ? ' — ' + cle : ''))}">
           <div class="avatar">${esc(initials(c.contact.prenom, c.contact.nom)).toUpperCase()}</div>
           <div class="ci-main">
             <div class="ci-name"><span class="ci-nom">${esc(nom)}</span></div>
             <div class="ci-sub">${ville ? `<span class="ci-ville">${esc(ville)}</span>` : ''}<span class="ci-act ${a ? '' : 'rien'}" style="${a ? '--ac:' + a.color : ''}" title="${esc(a ? (a.titre || a.txt) : quoi)}">${esc(quoi)}</span></div>
           </div>
-          <div class="ci-droite">${c.devis[0] ? badge(c.devis[0].statut) : ''}${!c.overlay ? `<span class="ci-todo" title="Client déduit de ses devis : sa fiche (civilité, formule de salutation, étiquettes, notes) n'est pas encore complétée">à compléter</span>` : ''}${b.resteDu > 0.005 ? `<span class="ci-du" title="Reste à encaisser sur ses factures, notes de crédit déduites">doit ${fmtEur(b.resteDu)}</span>` : ''}</div>
+          <div class="ci-droite">${c.devis[0] ? badge(c.devis[0].statut) : ''}${!c.overlay ? `<span class="ci-todo" title="Client déduit de ses devis : sa fiche (civilité, formule de salutation, étiquettes, notes) n'est pas encore complétée">à compléter</span>` : ''}${b.resteDu > 0.005 ? `<span class="ci-du" title="Reste à encaisser sur ses factures, notes de crédit déduites">doit ${fmtEur(b.resteDu)}</span>` : ''}${cle ? `<span class="ci-cle">${esc(cle)}</span>` : ''}</div>
         </div>`;
       }).join('') : '<div class="empty-detail-msg">Aucun client.</div>';
+      garderActiveVisible();
     }
     // Clic ET clavier (Entrée, Espace) : une ligne était un simple bloc cliquable, inatteignable au clavier.
     el('list').addEventListener('click', (e) => { const it = e.target.closest('.crm-item'); if (it && quitterFicheOk()) renderDetail(it.dataset.key); });
@@ -1001,10 +1214,42 @@
         type_bien: el('f_bien').value.trim(),
         tags: el('f_tags').value.split(',').map(t => t.trim()).filter(Boolean),
         notes: el('f_notes').value,
-        date_modification: new Date().toISOString(),
       };
-      const res = await SS.saveClient(client);
-      if (res.ok === false) { toast(res.error || 'Fiche NON enregistrée — réessaie.', 'error', 6000); return; }
+      /* ⚠️ RELIRE LA FICHE, N'Y CHANGER QUE CE QUI A BOUGÉ (règles 2 et 3 ; règle 68, 11/11/2026). L'ancienne version
+         reconstruisait la fiche avec les seuls champs de ce formulaire, et le serveur l'écrit telle quelle (seuls les
+         mails sont repris de la base) : chaque « Enregistrer » EFFAÇAIT ce qui se règle ailleurs — le contact préféré
+         (fiche devis) et la date de création (le « ajouté » du tri) — et remettait en arrière un téléphone corrigé
+         entre-temps par l'autre. Et un clic sans rien changer réécrivait la fiche : le client remontait en tête du
+         tri « Modifié ou ajouté » pour rien.
+         Un champ part s'il a été TOUCHÉ depuis l'ouverture (`champChange`, la même règle que « quitter sans
+         enregistrer »). Civilité et formule partent aussi quand la fiche ne les porte pas encore : le menu affiche une
+         suggestion (« à confirmer ») ou « Professionnel » par défaut, et « Enregistrer » confirme ce qu'on voit — le
+         serveur, lui, retomberait sur la copie du devis. L'adresse part en bloc : la fiche l'affiche en bloc. */
+      const touche = (id) => { const x = el(id); return !!x && champChange(x); };
+      const champs = [
+        ['prenom', touche('f_prenom')], ['nom', touche('f_nom')], ['telephone', touche('f_tel')], ['email', touche('f_email')],
+        ['adresse', ['f_rue', 'f_cp', 'f_ville'].some(touche)], ['type_bien', touche('f_bien')], ['tags', touche('f_tags')], ['notes', touche('f_notes')],
+      ];
+      const civiliteTouchee = touche('f_civilite'), tonTouche = touche('f_ton');   // relevés AVANT l'aller-retour réseau
+      let ecrit = false;
+      const res = await SS.modifierClient(key, (fiche) => {
+        const a = champs.filter(([, t]) => t).map(([k]) => k);
+        if (civiliteTouchee || (!fiche.civilite && client.civilite)) a.push('civilite');
+        if (tonTouche || !fiche.ton) a.push('ton');
+        const pareil = (k) => JSON.stringify(fiche[k] == null ? '' : fiche[k]) === JSON.stringify(client[k]);
+        const changes = a.filter((k) => !pareil(k));
+        if (!changes.length) return false;   // rien de neuf : on n'écrit rien
+        changes.forEach((k) => { fiche[k] = k === 'adresse' ? Object.assign({}, fiche.adresse, client.adresse) : client[k]; });
+        ecrit = true;
+      });
+      let r = res;
+      if (res.absente) {
+        // Client déduit de ses devis (« à compléter ») : « Enregistrer » crée sa fiche, avec tout ce qu'elle affiche.
+        const maintenant = new Date().toISOString();
+        r = await SS.saveClient(Object.assign({}, client, { date_creation: maintenant, date_modification: maintenant }));
+        ecrit = r.ok !== false;
+      }
+      if (r.ok === false) { toast(r.error || 'Fiche NON enregistrée — réessaie.', 'error', 6000); return; }
       // Propagation (choix Nicolas) : le devis stocke une COPIE du client → on répercute les coordonnées
       // corrigées sur ses devis existants pour que PDF, attestation TVA et suivi restent à jour.
       // (Match par nom/prénom ; renommer un client ne re-lie pas les anciens devis — limitation connue.)
@@ -1037,8 +1282,8 @@
           else if (r && r.ok !== false) propagated++;
         }
       } catch (e) { console.warn('[clients] propagation coordonnées → devis:', e); }
-      toast(res.offline ? 'Fiche enregistrée (hors-ligne)' : ('Fiche enregistrée ✓' + (propagated ? ` — coordonnées reportées sur ${propagated} devis` : '')
-        + (conflits ? ` — ${conflits} devis modifié(s) entre-temps : coordonnées NON reportées, à revoir sur le devis` : '')), (res.offline || conflits) ? 'warn' : 'ok', conflits ? 7000 : 3000);
+      toast(r.offline && ecrit ? 'Fiche enregistrée (hors-ligne)' : ((ecrit ? 'Fiche enregistrée ✓' : 'Rien n’a changé sur la fiche : rien à enregistrer') + (propagated ? ` — coordonnées reportées sur ${propagated} devis` : '')
+        + (conflits ? ` — ${conflits} devis modifié(s) entre-temps : coordonnées NON reportées, à revoir sur le devis` : '')), ((r.offline && ecrit) || conflits) ? 'warn' : 'ok', conflits ? 7000 : 3000);
       await load();
     };
 
@@ -1121,6 +1366,7 @@
     };
 
     SS.isOnline(); // log état
+    renderTriBarre();   // le menu et l'ordre gardé sur cet appareil, avant même que les clients arrivent
     // `?key=nom|prenom` ouvre directement la fiche : c'est ce qui permet au raccourci « Fiche client »
     // du tableau de bord d'atterrir sur le bon client au lieu d'une liste où il faut le retrouver.
     load().then(() => {
