@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — plan des ouvertures</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e9eefb; margin: 20px; }
+    h1 { font-size: 20px; }
+    .note { color: #97a4cc; max-width: 900px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { border: 1px solid #243056; padding: 4px 6px; vertical-align: top; text-align: left; }
+    .pass { color: #26c281; font-weight: 700; } .fail { color: #ff5e7a; font-weight: 700; }
+    #summary { font-size: 18px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>SOLARISCREEN — Tests du plan des ouvertures (carte « Ouvertures » de la fiche devis)</h1>
+  <p class="note">
+    Règle 60 ter : la carte « Ouvertures » de <code>app/vue.html</code> dessine chaque ouverture à l'échelle dans ses vraies teintes
+    (<code>assets/js/plan-ouvertures.js</code>), les montre côte à côte en façade, écrit la configuration commune UNE fois et ne
+    laisse à chaque fiche que ses mesures, son prix, ce qui la distingue et ce qui lui manque. On vérifie ici les règles pures (teintes,
+    sections, groupes, états, dessin), puis la VRAIE fiche dans des cadres, au bureau (1 500 et 1 875 px) et au téléphone (390 px) :
+    rien de perdu par rapport à l'ancienne carte, rien en double, les liens internes, le tablier qui descend, les photos (visionneuse,
+    catégorie, simulateur visuel), l'ancre #photos, le dépannage intact, et « Compléter » qui ouvre le simulateur sur la bonne ouverture.
+    <br><br>
+    <strong>⚠️ À ouvrir PAR LE SERVEUR DE TEST</strong> (et avec un accès à cdnjs). Aucune donnée réelle : le bac à sable et deux devis fictifs.
+  </p>
+  <div id="summary">Tests en cours…</div>
+  <div id="out"></div>
+
+  <script src="../assets/js/company.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/calc.js"></script>
+  <script src="../assets/js/products.js"></script>
+  <script src="../assets/js/volet.js"></script>
+  <script src="../assets/js/plan-ouvertures.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="bac-a-sable.js"></script>
+  <script src="banc-serveur.js"></script>
+  <script>
+    let pass = 0, fail = 0;
+    const rows = [];
+    function check(nom, obtenu, attendu) {
+      const a = JSON.stringify(obtenu), b = JSON.stringify(attendu);
+      const ok = a === b;
+      ok ? pass++ : fail++;
+      rows.push('<tr><td>' + nom + '</td><td>' + String(a).replace(/</g, '&lt;').slice(0, 900) + '</td><td>' + String(b).replace(/</g, '&lt;').slice(0, 900) + '</td><td class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? '✓' : '✗') + '</td></tr>');
+    }
+    function titre(t) { rows.push('<tr><th colspan="4" style="background:#101722;color:#00ff9c;">' + t + '</th></tr>'); }
+    function rendreRes() {
+      const total = pass + fail;
+      document.getElementById('out').innerHTML = '<table><tr><th>Cas</th><th>Obtenu</th><th>Attendu</th><th></th></tr>' + rows.join('') + '</table>';
+      document.getElementById('summary').innerHTML = (fail === 0 ? '<span class="pass">' : '<span class="fail">') + pass + ' / ' + total + ' réussis</span>';
+      document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests plan des ouvertures';
+    }
+    const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function attendreQue(fn, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (ms || 8000)) { try { const v = fn(); if (v) return v; } catch (e) {} await attendre(40); }
+      return null;
+    }
+    const SS = window.SS, BANC = window.SSBanc, PL = window.SSPlan;
+    const txt = (n) => (n ? n.textContent.replace(/[\s\u202f\u00a0]+/g, ' ').trim() : null);
+    /** Le texte tel qu'il se LIT (la mise en page sépare les blocs) : « 5 ouvertures », pas « 5ouvertures ». */
+    const lu = (n) => (n ? n.innerText.replace(/[\s\u202f\u00a0]+/g, ' ').trim() : null);
+    const sansEsp = (s) => String(s == null ? '' : s).replace(/[\u202f\u00a0]/g, ' ');
+    const vu = (n) => !!(n && n.checkVisibility && n.checkVisibility());
+    const frag = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d; };
+
+    async function fiche(id, largeur, hauteur) {
+      const f = await BANC.cadre('../app/vue.html?id=' + id, largeur || 1500, hauteur || 900);
+      await attendreQue(() => f.contentDocument.querySelector('#ouvHost .pl, #ouvHost .dep-bloc, #ouvHost .text-muted'), 10000);
+      await attendre(300);
+      return f;
+    }
+
+    /* Un second devis FICTIF, pour les cas que le premier ne porte pas : un volet solaire à GAUCHE en porte-fenêtre DVC2,
+       en chêne, ajouré à moitié, dans le jour, en deux exemplaires ; un ANCIEN screen avec des champs que le catalogue a
+       retirés ; une tente (vue de dessus) ; un volet SANS mesures ; un tablier. */
+    function devisCasLimites() {
+      const items = [
+        { type: 'volet_roulant', modele: 'VR150', quantite: 2, largeur: 1800, hauteur: 2200, prix_catalogue_ht: 1010.5, emplacement: 'Séjour', etage: 'RDC',
+          couleur: '7016 — Gris anthracite · réf. 7T16 (laque texturée)', combinaison: 'DVC2 : porte fenêtre 2 parties - 1 caisson', lame_type: 'alu35',
+          couleur_lame: '11 — Chêne', ajourage: '2 : 1/2 ajourage', lame_finale_couleur: '7016 — Gris anthracite · réf. 7T16 (laque texturée)',
+          montage_type: '1 : type 1 (dans le jour)', alimentation: 'Solaire', moteur: 'Solar Pure (solaire)', cote_manoeuvre: 'Gauche',
+          batterie: 'Batterie standard, montée dans le caisson', caisson_mesure: '205', caisson_forme: 'P arrondie', coulisse_type: '118',
+          couleur_coulisses: '7016 — Gris anthracite · réf. 7T16 (laque texturée)', photos: [] },
+        { type: 'screen', modele: 'SC 90', variante: 'Standard', quantite: 1, largeur: 2000, hauteur: 1800, prix_catalogue_ht: 1200, emplacement: 'Bureau', etage: '1er',
+          collection: 'Collectie soltis 86', toile_couleur: 'Gris', couleur: '9016 — Blanc signalisation', caisson_mesure: '110x115', moteur_ref: '4114: Sunea 40 RTS',
+          lateralite: 'Gauche', barre_surelevee: true, cable_longueur: '5 m', eclairage_led: 'Bras', photos: [] },
+        { type: 'tente_solaire', modele: 'BX270', quantite: 1, largeur: 4000, projection: 3000, prix_catalogue_ht: 3200, emplacement: 'Terrasse', etage: 'RDC',
+          manoeuvre: 'Moteur', moteur: 'IO (standard)', collection: 'Dickson Orchestra', toile_couleur: 'Écru', couleur: '7016 — Gris anthracite',
+          telecommande: true, lambrequin_fixe: true, photos: [] },
+        { type: 'volet_roulant', modele: 'VR150', quantite: 1, largeur: 0, hauteur: 0, prix_catalogue_ht: 0, emplacement: 'Grenier', etage: '2e',
+          lame_type: 'PVC37', couleur_lame: '01 — 9016 Blanc', caisson_mesure: '165', moteur: 'Secure (RF, standard)', photos: [] },
+        { type: 'tablier_volet', quantite: 1, largeur: 1000, hauteur: 1200, prix_catalogue_ht: 300, emplacement: 'Cuisine', couleur: '9016 — Blanc signalisation', photos: [] },
+      ];
+      const maintenant = new Date().toISOString();
+      return { id: 'ESSAI-PLAN-2', client: { prenom: 'Gaston', nom: "D'Essai" }, statut: 'brouillon', items: items, date_creation: maintenant, date_modification: maintenant,
+        pricing_v2: { tva_pct: 6, acompte_pct: 50, installation: { per_opening: { install_gross: 0, tech1_gross: 0, tech2_gross: 0, tools_gross: 0 } } } };
+    }
+
+    (async () => {
+      try {
+        // ══════════ U — LES RÈGLES PURES ══════════
+        titre('U — Teintes, sections, groupes, états et dessin (sans page)');
+        const t1 = PL.teinte('7016 — Gris anthracite · réf. 7T16 (laque texturée)');
+        check('U1 Une couleur choisie au catalogue Harol se lit : nom RAL, code, référence de commande et finition — et sa teinte',
+          [t1.code, t1.nom, t1.hex, t1.ref, t1.finition, t1.approx, PL.codesTeinte(t1)],
+          ['7016', 'Gris anthracite', '#373F43', '7T16', 'laque texturée', false, 'RAL 7016 · réf. 7T16 · laque texturée']);
+        const t2 = PL.teinte('38 — 7016 Gris anthracite'), t3 = PL.teinte('11 — Chêne');
+        check('U2 Un coloris de lame garde son n° (38) et son RAL ; un coloris hors RAL (Chêne) est APPROCHÉ et le dit ; rien = null (hachures)',
+          [t2.lame, t2.code, t2.nom, t3.nom, t3.approx, !!t3.hex, PL.codesTeinte(t3), PL.teinte(''), PL.teinte(null)],
+          ['38', '7016', 'Gris anthracite', 'Chêne', true, true, 'coloris n° 11 · teinte approchée', null, null]);
+        check('U3 Les sections : une couleur va dans Couleurs (sauf la couleur du CÂBLE), la manœuvre dans Commande, le reste dans Mécanique',
+          [PL.sectionDe('couleur_coulisses'), PL.sectionDe('caisson_rivets'), PL.sectionDe('cable_couleur'), PL.sectionDe('moteur', 'Manœuvre'),
+            PL.sectionDe('emetteur', 'Manœuvre'), PL.sectionDe('montage_type', 'Montage'), PL.sectionDe('collection'), PL.sectionDe('lateralite')],
+          ['Couleurs', 'Couleurs', 'Commande', 'Commande', 'Commande', 'Mécanique', 'Couleurs', 'Commande']);
+        const ex = window.SSBacASable.exempleQuatreVolets({ avecScreen: true });
+        const an = PL.analyse(ex.items);
+        const g0 = an.groupes[0] || { indices: [], ecarts: {}, commun: [] };   // sans groupe : le test échoue, il ne plante pas
+        check('U4 Le devis de la règle 60 (4 volets + 1 screen au milieu) : UN groupe de 4 volets (le screen à part), et leurs écarts — coulisses 117 sur le 4, ajourage manquant sur le 5',
+          [an.groupes.length, g0.indices, an.groupeDe, Object.keys(g0.ecarts),
+            (g0.ecarts[3] || []).map((e) => [e.k, e.v, e.n, !!e.vide]), (g0.ecarts[4] || []).map((e) => [e.k, PL.valTexte(e), e.n, !!e.vide])],
+          [1, [0, 1, 3, 4], [0, 0, -1, 0, 0], ['3', '4'], [['coulisse_type', '117', 3, false]], [['ajourage', 'non précisé', 3, true]]]);
+        check('U5 Les états : prêtes (1, 2), à compléter (le screen : 4 réglages exigés), un écart (4, 5) — ce qui MANQUE passe avant ce qui diffère',
+          ex.items.map((it, i) => { const e = PL.etat(ex.items, i, an); return e.k + ':' + e.t; }),
+          ['ok:Prête', 'ok:Prête', 'manque:4 à compléter', 'ecart:1 écart', 'ecart:1 écart']);
+        // Rien de PERDU : chaque réglage du résumé complet de chaque volet est dans la configuration commune (même valeur) ou dans SES écarts.
+        const perdus = [];
+        g0.indices.forEach((i) => window.SSVolet.resume(ex.items[i], 'complet').forEach((x) => {
+          const c = g0.commun.find((e) => e.k === x.k), e = (g0.ecarts[i] || []).find((y) => y.k === x.k);
+          if (!(e && e.v === x.v) && !(c && c.v === x.v && !e)) perdus.push((i + 1) + ':' + x.k);
+        }));
+        check('U6 RIEN DE PERDU : chaque réglage du résumé complet de chaque volet se retrouve dans la configuration commune ou dans ses écarts (ce que l’ancienne carte montrait en tuiles)',
+          [perdus, g0.commun.length >= 14], [[], true]);
+
+        const v = (o) => Object.assign({}, ex.items[0], o);
+        const s = 0.1;
+        const d1 = frag(PL.dessin(v({}), s, { cotes: true })), d1s = d1.querySelector('svg');
+        const caisson = (d) => d.querySelector('rect[x="0"][y="0"]');
+        const moteur = (d) => d.querySelector('.pl-moteur');
+        check('U7 Le dessin d’un volet : à l’ÉCHELLE (1 180 mm → 118 px à 0,1 px/mm), caisson en RAL 7016, lames en coloris 38, moteur à DROITE (vu de l’intérieur), câble filaire, commande murale, cotes 1 180 et 1 450',
+          [caisson(d1).getAttribute('width'), caisson(d1).getAttribute('fill'), !!d1.querySelector('pattern[id$="l"] rect[fill="#373F43"]'),
+            Number(moteur(d1).getAttribute('cx')) > 59, !!d1.querySelector('.pl-cable'), !!d1.querySelector('.pl-inter'),
+            [...d1.querySelectorAll('.pl-cote-t')].map((t) => sansEsp(t.textContent)), /moteur à droite, filaire, commande murale/.test(d1s.getAttribute('aria-label'))],
+          ['118', '#373F43', true, true, true, true, ['1 180', '1 450'], true]);
+        const d2 = frag(PL.dessin(v({ cote_manoeuvre: 'Gauche', alimentation: 'Solaire', emetteur: false, ajourage: '2 : 1/2 ajourage', couleur: '', combinaison: 'DVC2 : porte fenêtre 2 parties - 1 caisson' }), s, {}));
+        const d3 = frag(PL.dessin(v({ cote_manoeuvre: '' }), s, {}));
+        check('U8 … moteur à GAUCHE, panneau solaire (et pas de câble), ajourage, caisson sans couleur HACHURÉ, porte-fenêtre DVC2 (une coulisse au milieu) ; côté non précisé : PAS de moteur dessiné',
+          [Number(moteur(d2).getAttribute('cx')) < 59, !!d2.querySelector('.pl-pv'), !!d2.querySelector('.pl-cable'), !!d2.querySelector('rect[fill^="url(#"][fill$="a)"]'),
+            /h\)$/.test(caisson(d2).getAttribute('fill')),
+            [...d2.querySelectorAll('rect.pl-tr')].filter((r) => Math.abs(Number(r.getAttribute('x')) - (59 - 2.6)) < 0.01).length, moteur(d3)],
+          [true, true, false, true, true, 1, null]);
+        const cas = devisCasLimites().items;
+        const tente = frag(PL.dessin(cas[2], 0.05, { cotes: true })), sans = frag(PL.dessin(cas[3], 0.05, { cotes: true }));
+        check('U9 Une tente se dessine VUE DE DESSUS (largeur × projection) ; une ouverture sans mesures montre « mesures à compléter » au lieu d’un dessin faux',
+          [/vue de dessus/.test(tente.querySelector('svg').getAttribute('aria-label')), [...tente.querySelectorAll('.pl-cote-t')].map((t) => sansEsp(t.textContent)), txt(sans.querySelector('svg'))],
+          [true, ['4 000', '3 000'], 'mesures à compléter']);
+        const dScr = PL.description(cas[1]);
+        check('U10 Un ANCIEN screen garde ses champs que le catalogue a retirés (barre surélevée, câble, LED) — hors comparaison ; le modèle et la variante ne sont PAS répétés (ils sont dans le titre)',
+          [dScr.filter((e) => !e.compare).map((e) => e.k), dScr.some((e) => e.k === 'variante' || e.k === 'modele'), dScr.find((e) => e.k === 'lateralite').sec],
+          [['barre_surelevee', 'cable_longueur', 'eclairage_led'], false, 'Commande']);
+
+        // ══════════ V — LA VRAIE FICHE ══════════
+        await BANC.demarrer();
+        BANC.installer(window);
+        BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
+        const rem = await window.SSBacASable.remplir(SS, {});
+        const r1 = await SS.saveDevis(window.SSBacASable.exempleQuatreVolets({ id: 'ESSAI-PLAN-1', statut: 'envoye_client', avecScreen: true }), { creation: true });
+        const r2 = await SS.saveDevis(devisCasLimites(), { creation: true });
+        check('V0 Le bac à sable se remplit ; les deux devis fictifs s’enregistrent', [rem.erreurs, r1.ok !== false, r2.ok !== false], [[], true, true]);
+
+        titre('V — La carte de la fiche devis, au bureau (1 500 px)');
+        let f = await fiche('ESSAI-PLAN-1'), d = f.contentDocument, w = f.contentWindow;
+        const carte = d.querySelector('#ouvHost .pl');
+        const res = d.querySelector('.pl-resume');
+        check('V1 La bande résumé : 5 ouvertures, 14,23 m², « 4 volets · 1 screen », et les trois états (chacun mène à la première fiche concernée)',
+          [[...res.querySelectorAll('.pl-r-chiffres > div')].map(lu), [...res.querySelectorAll('.pl-r-etats .pl-pill')].map((b) => [txt(b), b.getAttribute('data-pl-aller')])],
+          [['5 ouvertures', '14,23 m²', '4 volets · 1 screen'], [['2 prêtes', 'ouv-1'], ['2 avec écart', 'ouv-4'], ['1 à compléter', 'ouv-3']]]);
+        const items = [...d.querySelectorAll('.pl-fa-item')];
+        const largeurDessin = (b) => { const r = b && b.querySelector('rect[x="0"][y="0"]'); return r ? Number(r.getAttribute('width')) : NaN; };
+        const echelles = items.map((b, i) => largeurDessin(b) / [1180, 1180, 2400, 2050, 900][i]);
+        const fz = d.querySelector('.pl-facade');
+        check('V2 La façade : les 5 ouvertures, à la MÊME échelle (le volet du jardin est 2,28 fois plus large que celui de la chambre), dans l’ordre du devis, chacune avec son état ; elle tient dans la largeur',
+          [items.length, Math.max(...echelles) - Math.min(...echelles) < 1e-9, Math.round(largeurDessin(items[3]) / largeurDessin(items[4]) * 100) / 100,
+            items.map((b) => lu(b.querySelector('.pl-fa-leg'))), items.map((b) => b.dataset.etat), fz.scrollWidth <= fz.clientWidth + 1, vu(d.querySelector('.pl-glisse'))],
+          [5, true, 2.28, ['1 Salon', '2 Salle à manger', '3 Terrasse', '4 Jardin', '5 Chambre'], ['ok', 'ok', 'manque', 'ecart', 'ecart'], true, false]);
+        const cc = d.querySelector('.pl-commun');
+        const tous = (n, sel) => (n ? [...n.querySelectorAll(sel)] : []);   // sans configuration commune : échouer, pas planter
+        const tuiles = tous(cc, '.pl-teinte').map((t) => [txt(t.querySelector('b')), [...t.querySelectorAll('.pl-roles span')].map(txt)]);
+        check('V3 UNE configuration commune aux 4 volets : les teintes regroupées par couleur, la pièce la plus visible d’abord (Caisson, Lames n° 38, Lame finale, Coulisses ; Rivets à part)',
+          [d.querySelectorAll('.pl-commun').length, txt(cc && cc.querySelector('.pl-cc-titre b')), tuiles, tous(cc, '.pl-cc-nos .pl-no').map(txt)],
+          [1, 'Configuration commune aux 4 volets', [['Gris anthracite', ['Caisson', 'Lames n° 38', 'Lame finale', 'Coulisses']], ['Gris agate', ['Rivets']]], ['1', '2', '4', '5']]);
+        check('V4 … les exceptions y sont écrites SUR PLACE (« sauf Volet 4 (Jardin) : 117 », « sauf Volet 5 (Chambre) : non précisé »), la référence de perçage A168 reste (page interne), l’aide du montage Harol est là, avec sa coupe et le profil du caisson',
+          [tous(cc, '.pl-sauf').map(txt), /Forer latérale \(droit\/gauche\) A168/.test(txt(cc)), /Enroulement gauche, tablier arrière/.test(txt(cc)),
+            tous(cc, '.pl-picto').length],
+          [['sauf Volet 5 (Chambre) : non précisé', 'sauf Volet 4 (Jardin) : 117'], true, true, 2]);
+        const texteCarte = txt(carte);
+        const compte = (re) => (texteCarte.match(re) || []).length;
+        check('V5 PLUS DE DOUBLONS : le moteur s’écrit UNE fois pour les 4 volets (il était 8 fois : pastille + tuile), la couleur du caisson n’est plus répétée par volet, plus aucune tuile en pointillés',
+          [compte(/Secure \(RF, standard\)/g), compte(/Gris anthracite/g), d.querySelectorAll('#ouvHost .spec, #ouvHost .ouv-card').length],
+          [1, 1, 0]);
+        const fi = (n) => d.getElementById('ouv-' + n);
+        check('V6 Chaque fiche ne garde que ce qui lui est propre : 1 « comme la configuration commune, sans différence » ; 4 « Type de coulisses 117 — les 3 autres : 118 » ; 5 « Ajourage non précisé — les 3 autres : Sans ajourage »',
+          [txt(fi(1).querySelector('.pl-cfg')), [...fi(4).querySelectorAll('.pl-cfg li')].map(lu), [...fi(5).querySelectorAll('.pl-cfg li')].map(lu), d.querySelectorAll('.pl-fiche').length],
+          ['Comme la configuration commune, sans différence', ['Type de coulisses 117 les 3 autres : 118'], ['Ajourage non précisé les 3 autres : Sans ajourage'], 5]);
+        const lienC = fi(3).querySelector('.pl-mq a.pl-btn');
+        check('V7 Le screen (seul de son type) : ce qui manque pour commander, SUR sa fiche, et « Compléter » ouvre le simulateur sur LUI, au premier champ qui manque ; ses mesures, son prix, son produit',
+          [[...fi(3).querySelectorAll('.pl-mq .pl-ch')].map(txt), lienC && lienC.getAttribute('href'), [...fi(3).querySelectorAll('.pl-dims dd')].map(txt),
+            txt(fi(3).querySelector('.pl-f-prix b')), txt(fi(3).querySelector('.pl-f-nom span'))],
+          [['Collection toile', 'Couleur caisson (RAL)', 'Mesure du caisson', 'Moteur'], 'simulateur.html?id=ESSAI-PLAN-1&ouv=3&champ=collection',
+            ['2 400mm', '2 200mm', '5,28m²', '× 1'], '1 450,00 €', 'Screen Coolscreen 8 (Standard) · étage non indiqué']);
+        check('V8 Les prix des fiches sont ceux de l’ancienne carte (prix catalogue × quantité), et le n° de chaque fiche est celui de la ligne du devis',
+          [[...d.querySelectorAll('.pl-fiche .pl-f-prix b')].map(txt), [...d.querySelectorAll('.pl-fiche .pl-f-tete .pl-no')].map(txt)],
+          [['612,40 €', '612,40 €', '1 450,00 €', '897,10 €', '548,90 €'], ['1', '2', '3', '4', '5']]);
+        // Les liens internes : façade → fiche, fiche → façade, résumé → fiche, numéro → fiche.
+        const clic = (n) => { if (n) n.click(); return !!n; };   // un élément absent fait ÉCHOUER le test, pas planter la suite
+        clic(d.querySelector('[data-pl-fi="4"]')); await attendre(120);
+        const versFiche = [fi(4).classList.contains('pl-flash'), d.activeElement === fi(4)];
+        clic(fi(4) && fi(4).querySelector('.pl-retour')); await attendre(120);
+        const versFacade = [d.querySelector('#ouv-facade').classList.contains('pl-flash'), d.activeElement === d.querySelector('[data-pl-fi="4"]'),
+          !!d.querySelector('[data-pl-fi="4"].pl-flash')];
+        clic(cc && cc.querySelector('.pl-sauf .pl-lien')); await attendre(120);
+        check('V9 Un clic sur la baie 4 de la façade mène à SA fiche (allumée, et la main au clavier y passe) ; « Sur la façade » ramène à la façade et allume la baie 4 ; « sauf Volet 5 » mène à la fiche 5',
+          [versFiche, versFacade, fi(5).classList.contains('pl-flash')], [[true, true], [true, true, true], true]);
+        const dv = fi(1).querySelector('button.pl-dv'), tab = dv.querySelector('.pl-tab');
+        const tAvant = w.getComputedStyle(tab).transform;
+        dv.click(); await attendre(1300);
+        const tApres = w.getComputedStyle(tab).transform;
+        check('V10 Le tablier est dessiné à moitié descendu (on voit la fenêtre) ; un appui sur le dessin le fait descendre (bouton enfoncé), un second le remonte',
+          [tAvant !== 'none' && /matrix\(1, 0, 0, 1, 0, -/.test(tAvant), dv.getAttribute('aria-pressed'), tApres === 'none' || tApres === 'matrix(1, 0, 0, 1, 0, 0)',
+            (dv.click(), dv.getAttribute('aria-pressed'))],
+          [true, 'true', true, 'false']);
+        const nav = [...d.querySelectorAll('.rn-item')].find((b) => /Ouvertures/.test(b.textContent));
+        check('V11 Le sommaire de la fiche garde « Ouvertures » et son alerte (4 informations), et l’en-tête de la carte son compte',
+          [nav ? txt(nav.querySelector('.rn-n')) : 'absent', txt(d.getElementById('ouvCount')), txt(d.getElementById('ouvManque'))], ['⚠ 4', '5 ouverture(s) · 14.23 m²', '']);
+        f.remove();
+
+        titre('V — Au grand écran (1 875 px) : les fiches côte à côte, la configuration commune sur deux colonnes');
+        f = await fiche('ESSAI-PLAN-1', 1875, 1000); d = f.contentDocument; w = f.contentWindow;
+        const f1 = d.getElementById('ouv-1');
+        const r1d = f1.querySelector('.pl-f-dessin').getBoundingClientRect(), r1i = f1.querySelector('.pl-f-info').getBoundingClientRect();
+        const secs = [...d.querySelectorAll('.pl-commun .pl-sec')].map((x) => { const r = x.getBoundingClientRect(); return [x.dataset.sec, Math.round(r.left)]; });
+        check('V12 Le dessin À GAUCHE de la fiche, les infos à droite ; Couleurs et Commande empilées à gauche, Mécanique (la plus longue) à droite',
+          [r1d.right <= r1i.left + 1, Math.abs(r1d.top - r1i.top) < 2, ...[0, 1, 2].map((k) => (secs[k] || [])[0]),
+            secs.length === 3 && secs[0][1] === secs[2][1], secs.length === 3 && secs[1][1] > secs[0][1]],
+          [true, true, 'Couleurs', 'Mécanique', 'Commande', true, true]);
+        check('V13 Rien ne déborde de la page', d.documentElement.scrollWidth <= w.innerWidth, true);
+        f.remove();
+
+        titre('V — Au téléphone (390 px)');
+        f = await fiche('ESSAI-PLAN-1', 390, 844); d = f.contentDocument; w = f.contentWindow;
+        const t1f = d.getElementById('ouv-1');
+        const rd = t1f.querySelector('.pl-f-dessin').getBoundingClientRect(), ri = t1f.querySelector('.pl-f-info').getBoundingClientRect();
+        const dims = [...t1f.querySelectorAll('.pl-dims > div')].map((x) => Math.round(x.getBoundingClientRect().top));
+        const fzT = d.querySelector('.pl-facade');
+        check('V14 La fiche s’empile (dessin AU-DESSUS des infos), les mesures en 2 × 2, la page ne déborde pas ; la façade défile DANS son cadre et le dit (« fais glisser »)',
+          [rd.bottom <= ri.top + 1, dims[0] === dims[1] && dims[2] === dims[3] && dims[2] > dims[0], d.documentElement.scrollWidth <= w.innerWidth,
+            fzT.scrollWidth > fzT.clientWidth, w.getComputedStyle(fzT).overflowX, vu(d.querySelector('.pl-glisse'))],
+          [true, true, true, true, 'auto', true]);
+        const cibles = [...d.querySelectorAll('.pl a.pl-btn, .pl .pl-retour')].map((x) => Math.round(x.getBoundingClientRect().height));
+        check('V15 Au téléphone, « Compléter » et « Sur la façade » font 44 px de haut (cibles du doigt)', [cibles.length > 0, cibles.every((h) => h >= 44)], [true, true]);
+        f.remove();
+
+        titre('V — Les photos, le dépannage, l’ancre #photos, « Compléter »');
+        f = await fiche('ESSAI-12'); d = f.contentDocument; w = f.contentWindow;
+        const phs = [...d.querySelectorAll('#ouvHost .pl-photos')];
+        const btns = [...d.querySelectorAll('#ouvHost .photo-grid .ph')];
+        if (btns[2]) btns[2].click();
+        await attendre(150);
+        // La visionneuse partage son tableau avec les photos du journal de chantier, rangées APRÈS celles des ouvertures.
+        const lb = [d.getElementById('lightbox').classList.contains('open'), txt(d.getElementById('lbCap')), /^3 \/ \d+$/.test(txt(d.getElementById('lbCount')))];
+        if (w.lbClose) w.lbClose(); else d.getElementById('lightbox').classList.remove('open');
+        check('V16 Les photos restent sur la fiche de LEUR ouverture (2 sur le screen, 1 sur les volets), et la visionneuse ouvre la bonne (la 3e = la 1re de l’ouverture 2)',
+          [phs.map((p) => txt(p.querySelector('.pl-ph-t'))), btns.length, lb], [['Photos 2', 'Photos 1'], 3, [true, 'Ouverture #2 — Chambres · photo 1', true]]);
+        const sel = d.querySelector('#ouvHost .ph-cat');
+        if (sel) {
+          sel.value = 'Façade'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+          await attendreQue(() => ((BANC.donnee('devis', 'id', 'ESSAI-12') || {}).items || [])[0].photo_categories, 4000);
+        }
+        const vizB = d.querySelector('#ouvHost .ph-viz-btn');
+        check('V17 Le menu de catégorie ENREGISTRE (et l’étiquette d’une photo classée reste affichée) ; le bouton du simulateur visuel vise la bonne photo',
+          [((BANC.donnee('devis', 'id', 'ESSAI-12') || {}).items || [])[0].photo_categories, !!sel && sel.classList.contains('ph-cat-ok'), vizB && vizB.getAttribute('onclick')],
+          [['Façade'], true, 'openViz(0, 0)']);
+        const legScr = txt(d.querySelector('#ouv-1 .pl-f-leg'));
+        check('V18 Une ligne seule de son type garde TOUTE sa configuration sur sa fiche (Couleurs, Mécanique, Commande) ; la quantité ×2 se lit dans la façade',
+          [[...d.querySelectorAll('#ouv-1 .pl-seul .pl-sec')].map((x) => x.dataset.sec), /Sunea 40 RTS/.test(txt(d.getElementById('ouv-1'))),
+            !!legScr, lu(d.querySelector('[data-pl-fi="2"] .pl-fa-leg'))],
+          [['Couleurs', 'Mécanique', 'Commande'], true, true, '2 Chambres ×2']);
+        f.remove();
+
+        f = await fiche('ESSAI-PLAN-2'); d = f.contentDocument; w = f.contentWindow;
+        const p1 = d.getElementById('ouv-1'), p2 = d.getElementById('ouv-2'), p3 = d.getElementById('ouv-3'), p4 = d.getElementById('ouv-4');
+        check('V19 Les cas limites : la référence Harol écrite sur la couleur se lit (réf. 7T16 · laque texturée), le chêne est « teinte approchée », ×2 se lit avec le prix unitaire',
+          [/RAL 7016 · réf\. 7T16 · laque texturée/.test(txt(p1)), /Chêne coloris n° 11 · teinte approchée|Chêne.*teinte approchée/.test(txt(p1)), txt(p1.querySelector('.pl-f-prix small')),
+            txt(p1.querySelector('.pl-f-prix b'))],
+          [true, true, 'HTVA · 2 × 1 010,50 €', '2 021,00 €']);
+        check('V20 … l’ancien screen montre ses champs retirés du catalogue (barre surélevée, câble 5 m, LED) ; la tente est « vue de dessus » ; le volet sans mesures le dit',
+          [/Barre de charge surélevée \(A2416\)/.test(txt(p2)), /5 m/.test(txt(p2)), /Bras/.test(txt(p2)), txt(p3.querySelector('.pl-f-astuce')), txt(p4.querySelector('.pl-f-dessin svg')),
+            [...p4.querySelectorAll('.pl-mq .pl-ch')].map(txt)],
+          [true, true, true, 'vue de dessus', 'mesures à compléter', ['Largeur', 'Hauteur']]);
+        check('V21 Le volet solaire est dessiné à GAUCHE avec son panneau, son coloris chêne et sa porte-fenêtre en deux parties ; sa légende le dit',
+          [txt(p1.querySelector('.pl-f-leg')), !!p1.querySelector('.pl-pv'), !p1.querySelector('.pl-cable')],
+          ['moteur à gauche solaire dans le jour', true, true]);
+        f.remove();
+
+        // Le DÉPANNAGE : la carte garde son rapport, la nouvelle carte n'y entre pas.
+        f = await fiche('ESSAI-15'); d = f.contentDocument;
+        check('V22 Un dépannage garde SON rapport dans la carte (« Intervention ») : pas de façade, pas de configuration',
+          [txt(d.getElementById('ouvTitre')), !!d.querySelector('#ouvHost .dep-bloc'), !!d.querySelector('#ouvHost .pl')], ['Intervention', true, false]);
+        f.remove();
+
+        // L'ancre #photos (raccourci du tableau de bord) : les PREMIÈRES photos de la carte.
+        f = await BANC.cadre('../app/vue.html?id=ESSAI-12#photos', 1500, 900); d = f.contentDocument;
+        const flashe = await attendreQue(() => d.querySelector('.anchor-flash'), 6000);
+        check('V23 Arriver par #photos amène aux premières photos de la carte (et pas en haut d’une carte de 3 000 px)',
+          [flashe ? flashe.className : null, flashe === d.querySelector('#ouvHost .pl-photos')], ['pl-photos anchor-flash', true]);
+        f.remove();
+
+        // « Compléter » : le simulateur s'ouvre sur l'ouverture 3, au champ qui manque.
+        f = await BANC.cadre('../app/simulateur.html?id=ESSAI-PLAN-1&ouv=3&champ=collection', 1500, 900); d = f.contentDocument;
+        await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length >= 5, 10000); await attendre(400);
+        const vue = [...d.querySelectorAll('.item-card')].filter((c) => vu(c)).map((c) => txt(c.querySelector('[data-titre]')));
+        check('V24 « Compléter » ouvre le simulateur SUR l’ouverture 3 (le screen), pas sur la première',
+          [vue, d.querySelector('#ouvListe [data-ol="2"]').getAttribute('aria-current')], [['Screen 3 · Terrasse'], 'true']);
+        f.remove();
+        f = await BANC.cadre('../app/simulateur.html?id=ESSAI-PLAN-1', 1500, 900); d = f.contentDocument;
+        await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length >= 5, 10000); await attendre(300);
+        check('V25 Sans `ouv`, le simulateur s’ouvre comme avant, sur la première ouverture',
+          [...d.querySelectorAll('.item-card')].filter((c) => vu(c)).map((c) => txt(c.querySelector('[data-titre]'))), ['Volet 1 · Salon']);
+        f.remove();
+      } catch (e) {
+        check('PLANTÉ : ' + (e && e.message), String(e && e.stack).slice(0, 400), 'aucune exception');
+      }
+      try { BANC.remettre(); } catch (e) {}
+      rendreRes();
+    })();
+  </script>
+</body>
+</html>

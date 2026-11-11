@@ -75,16 +75,16 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 62 tests du moteur de prix. À ouvrir dans un navigateur. |
 | `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). **Par le serveur de test.** |
-| `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 36 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
+| `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 30 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 38 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 37 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés, le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation. Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 123 tests du planning. Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
 | `tests/carte.test.html` | Les 44 tests de la carte : module pur, puis la vraie page avec un géocodage SIMULÉ (tournée, couleur = action, un point par client, autour de, réalisations proches, mémoire des adresses et une requête par seconde, autour de moi, secteurs, non localisés, molette, téléphone). **Par le serveur de test.** |
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
-| `tests/portfolio.test.html` | Les 46 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
+| `tests/portfolio.test.html` | Les 47 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom et à couverture avec logo, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
 | `tests/suivi.test.html` | Les 64 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations. **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 59 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV. **Par le serveur de test.** |
@@ -97,6 +97,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/remuneration.js` | **Ce que NICOLAS doit encaisser.** Fonctions pures, 140 tests (`window.SSRemu`) |
 | `tests/remuneration.test.html` | Les 140 tests de la rémunération. **Obligatoire : c'est de l'argent réel.** |
 | `assets/js/volet.js` | **Le configurateur VR150.** Rend la spec de `products.js` à l'écran, en résumé, et l'ENCADRÉ du devis (commun + différences, règles 31 septies et 60) (`window.SSVolet`) |
+| `assets/js/plan-ouvertures.js` | **La carte « Ouvertures » de la fiche devis** (règle 60 ter) : bande résumé, FAÇADE à l'échelle, configuration commune écrite une fois, une fiche DESSINÉE par ouverture (vraies teintes RAL, moteur du bon côté, filaire ou solaire, commande murale, cotes). Ne décide d'aucune règle : groupes et écarts de `SSVolet.groupesConfig` / `SSProducts.ecartsOuvertures`. Chargé par `app/vue.html` SEULEMENT (page interne). (`window.SSPlan`) |
+| `tests/plan.test.html` | Les 36 tests du PLAN DES OUVERTURES (règle 60 ter) : teintes et références Harol, sections, groupes et états, le dessin (échelle, côté du moteur, solaire, hachures, ajourage, DVC, tente vue de dessus, sans mesures), puis la VRAIE fiche à 1 500, 1 875 et 390 px — rien de perdu, rien en double, liens internes, tablier qui descend, photos (visionneuse, catégorie, simulateur visuel), #photos, dépannage intact, « Compléter » qui ouvre le simulateur sur la bonne ouverture. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `tests/volet.test.html` | Les 174 tests du VR150 **et des règles d'ouverture partagées** (duplication, « + Ajouter » qui reprend la précédente, ce qui change entre les ouvertures, l'encadré commun et ses différences). Vérifié par 23 mutations. **Obligatoire : ça remplit un bon de commande fournisseur.** |
 | `tests/saisie.test.html` | Les 56 tests de la SAISIE DES OUVERTURES au simulateur (règles 60 et 60 bis : pleine largeur et barre du bas, sections et sommaire, appliquer aux autres, tableau, « ⋯ › Retirer » annulable, vérification avant le PDF, onglets du téléphone), au geste sur le vrai serveur (banc) : la liste qui nomme les ouvertures et une fiche à la fois, « Comparer » et ses écarts qui emmènent au champ, « Reprendre », le néon des champs vides que les autres ont remplis (y compris en cours de frappe), « + Ajouter » sans mesures ni prix (et sans pose comptée), « Dupliquer » et « Retirer », le bloc VR150 re-rendu qui garde ses marques, le téléphone (liste puis fiche, « ← Les ouvertures »), un devis neuf. Vérifié par mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/signal.js` | **Ce qui reste à remplir se voit.** Effets, teintes, règle du « commencé », défaut société, et les champs vides que les autres ouvertures ont remplis (règle 60). 64 tests (`window.SSSignal`) |
@@ -1650,6 +1652,54 @@ chiffres) ou une référence d'article (A4118) — jamais 3 ou 4 chiffres, parce
 anthracite » est un RAL et « 135 — glissière de sécurité » une référence : elles DÉSIGNENT le
 produit. Et `muets: ['Simple']` tait « Combinaison : Simple », qui n'apprend rien — la règle
 existait déjà dans `picking.html` (`VALEURS_MUETTES`) et devait suivre les volets dans la spec.
+
+**39 bis. LES PDF : LE MÊME PLAN, MIEUX FINI — et un banc qui relit les 78 PDF** (08/11/2026 — demande de Nicolas :
+« améliorer les PDF des devis et de tous les PDF, limpide, clair, beau, pro ». Maquette à trois directions refusée (« pas
+d'intérêt les images des stores et volets », « pas trop fan du changement, encore plus soigner »), puis variante A
+« Retouché » choisie : même plan, mêmes couleurs, seulement les finitions, et les défauts trouvés corrigés.)
+Protégé par `tests/documents.test.html` (F1 à F8) et `portfolio.test.html` (E1b), vérifiés par mutations.
+• **LES MONTANTS D'UN DOCUMENT : `SSUI.fmtEurDoc`, JAMAIS `fmtEur`.** `Intl` sépare les milliers par une espace FINE
+  insécable (U+202F) et Inter la dessine presque nulle : le devis imprimait « 1833,80 € » dans l'encadré d'acompte et
+  « 3 667,60 € » dans les totaux, qui étaient en JetBrains Mono (chasse fixe : l'espace s'y voyait). Les montants
+  passent dans la police du document (`tabular-nums` garde les colonnes alignées) et `fmtEurDoc` met une insécable
+  ordinaire. L'écran garde `fmtEur`. ⚠️ Un test qui lit un montant imprimé compare en `\s`, ou en `\u00a0` (F2).
+• **CE QU'UN DOCUMENT CLIENT ÉCRIT D'UN MOTEUR, D'UNE COLLECTION, D'UNE DIMENSION vit dans `ui.js`** (règle 10) :
+  `moteurClient` retire le code d'article Harol en tête (« 4114: Sunea 40 RTS » → « Sunea 40 RTS », règle 31) ;
+  `collectionClient` traduit « Collectie soltis 86 » → « Collection Soltis 86 » ; `dimsDoc` / `dimsLigne` écrivent
+  « 2 400 × 2 200 mm » en insécables (la colonne coupait « mm » seul sur une 2e ligne), « (l × proj.) » d'une tente
+  pouvant passer à la ligne. Lus par les deux exemplaires du devis, le rapport de visite et le PV ; le serveur retire
+  le même code de la réponse du lien client (`sansCodeArticle`), servie par simple jeton.
+  ⚠️ **`moteurClient` NE RETIRE QU'UN CODE SUIVI DE DEUX-POINTS**, et c'est ce qui le distingue de `sansCodeMenu`
+  (qui ne touche jamais 3-4 chiffres) : « 7016 — Gris anthracite » est un RAL et s'écrit avec un tiret ; un moteur de
+  catalogue s'écrit « 4114: » ou « A1677: ». Un moteur de volet (« Secure (RF, standard) ») n'a pas de code.
+• **UN TRAIT EN POINTILLÉS COLLÉ AU BORD DE LA FEUILLE N'EST PAS IMPRIMÉ.** Relu dans les PDF : les cases de signature
+  (devis, CGV, attestation TVA, bon d'intervention, PV), le cadre « Prochaines étapes » du rapport de visite et celui de
+  la liste de pose débordaient de 0,9 pt de la zone imprimable — leur bord droit disparaissait, rogné par la feuille.
+  Invisible à l'écran. Trait continu et 1 px de retrait (`.signatures { padding-inline: 1px }`, `margin-inline: 1px`).
+• **LE CALQUE DE BALAYAGE DE L'ÉCRAN (`body::before` de `base.css`) NE S'IMPRIME JAMAIS** : fixé sur toute la fenêtre, il
+  s'imprimait sur chaque page, PAR-DESSUS le texte, en aplat blanc. Le bordereau des notes de frais, le relevé de
+  rémunération et le portfolio — qui ne chargent pas `document.css` — étaient des PDF BLANCS dans pymupdf (le moteur de
+  SumatraPDF) : le texte est dans le fichier, il ne se voit pas. Réglé dans `base.css`, pour toutes les pages.
+• **LA HAUTEUR SE REPREND, ELLE NE S'AJOUTE PAS** (règle 31 septies). Des adresses moins tassées (interligne 1,25), un
+  TOTAL TVAC plus grand et l'acompte sur deux lignes coûtaient 10 px à CHAQUE devis — de quoi renvoyer en page 2 le
+  devis Kerremans (1 025 px pour 1 032). Le blanc autour du titre « DEVIS » les paie, à l'impression seulement : mesuré
+  sur les 78 PDF, aucun document ne descend. Le bloc de clôture garde 176,6 px pour une réserve de 177,6 (47 mm) : le
+  grossir d'un logo plus grand le faisait dépasser sa réserve, d'où des logos de partenaires inchangés.
+• ⚠️ **UN GRAND DEVIS RESTE SUR DEUX PAGES, ET C'EST MESURÉ** : quatre volets et un screen (ESSAI-CFG-4) font 1 028 px de
+  contenu plus 180 de clôture pour 1 032 utiles. Le faire tenir demanderait de réduire le TEXTE — « un devis se resserre
+  par ses blancs, jamais par son texte ». La maquette qui l'annonçait sur une page se trompait : ses lignes étaient plus
+  courtes que celles de l'ERP. Toujours mesurer sur le vrai document.
+• **LE BANC QUI RELIT LES PDF** : générer les 78 PDF du bac à sable (devis, exemplaires client, factures, notes de crédit,
+  listes de pose, PV, rapports de visite, bordereau, relevé, portfolio) par Chrome sans écran (`Page.printToPDF`, banc
+  d'impression de la règle 56), puis relire chaque page avec pymupdf : format A4, page sans texte ou qui s'AFFICHE blanche
+  (pixels rendus), texte ou trait hors de la zone imprimable (33,75 pt : Chrome arrondit la marge de 12 mm à 45 px),
+  lignes qui se chevauchent, fonds présents, code Harol ou « Collectie » sur un document client, espace fine dans un
+  montant, page 2 qui ne porterait que la clôture. Avant : 275 défauts ; après : aucun sur ce qui se voit (les tracés de
+  photos d'essai vectorielles rognés par leur cadre restent relevés : à vérifier aux pixels, ils ne débordent pas).
+⚠️ **Ce qui a été proposé et refusé, à ne pas refaire sans que Nicolas le redemande** : un dessin de chaque ouverture
+dans sa ligne ou en annexe, une simulation avant/après sur la feuille, un cartouche d'architecte, une « lettre de projet »
+avec frise. Et le séparateur « | » de l'encadré de configuration reste (règle 31 septies : le point médian se confondait
+avec la ponctuation des valeurs).
 
 **32. LES NOTES DE FRAIS SONT UN OUTIL À PART, et c'est une décision de Nicolas.**
 Table `depenses` (`/api/depenses`), écran `app/depenses.html`, logique dans `assets/js/depenses.js`.
@@ -3226,6 +3276,54 @@ v2 à douze idées, TOUTES validées : « tout Claude, le plus complet et le mie
   « chevauchements » — le contenu de la fiche qui passe SOUS son en-tête collé en haut, exprès, comme sous le bandeau fixe. Un
   élément `sticky` est désormais un calque ; ses éléments restent comparés entre eux. Et une fenêtre doit avoir un bouton que
   l'audit reconnaît comme une sortie (« Fermer », ✕…) : « Corriger d'abord » n'en était pas un pour lui — d'où le ✕ de la vérification.
+
+**60 ter. LA CARTE « OUVERTURES » DE LA FICHE DEVIS : ON VOIT CHAQUE OUVERTURE AU LIEU DE LA LIRE**
+(08/11/2026 — Nicolas, sur la fiche d'un devis de quatre volets : « j'aimerais aussi une bonne upgrade visualisation design au max,
+étonne-moi, ça doit être bcp plus parlant ». Maquette v3 à trois variantes ; il a choisi la A, « Plan de pose » : « A est génial, fait
+au max et au plus logique et parlant ».) Code : `assets/js/plan-ouvertures.js` (`SSPlan`). Protégé par `tests/plan.test.html`.
+• **CE QUI ÉTAIT FAUX** : 24 tuiles en pointillés par volet, toutes dans la même police de code ; la couleur du caisson écrite deux fois,
+  le moteur deux fois (pastille + tuile) ; « 7016 — Gris anthracite · réf. 7T16 (laque texturée) » recopié trois fois ; quatre volets
+  qui répétaient les mêmes seize valeurs, où la seule vraie différence et l'ajourage oublié étaient noyés.
+• **L'ORDRE DE LA CARTE** : une bande résumé (ouvertures, m², types, et combien sont prêtes / ont un écart / manquent d'une information —
+  chaque état mène à la première fiche concernée) ; la FAÇADE (toutes les ouvertures côte à côte à la MÊME échelle, barre de 1 m, un clic
+  mène à la fiche) ; ce qui manque pour commander ; la CONFIGURATION COMMUNE de chaque groupe, écrite une fois en trois sections
+  (Couleurs, Mécanique, Commande) avec ses exceptions SUR PLACE (« sauf Volet 4 (Jardin) : 117 ») ; puis une FICHE par ouverture : son
+  dessin coté, ses mesures, son prix, « comme la configuration commune, sauf : … », ce qui lui manque (« Compléter → »), sa note, ses photos.
+• **LE DESSIN** est vu de l'INTÉRIEUR (c'est de là que se lit le côté de manœuvre), à l'échelle, dans les VRAIES teintes du caisson, des
+  lames, de la lame finale et des coulisses : moteur du côté de manœuvre, câble (filaire) ou panneau (solaire), commande murale à côté de
+  la fenêtre, ajourage, parties d'une porte-fenêtre DVC, dans le jour (le mur entoure) ou sur le jour (la baie en tirets), cotes. Une
+  tente se dessine VUE DE DESSUS (largeur × projection). Le tablier est à moitié descendu ; il descend au survol (souris) ou d'un appui.
+  ⚠️ **ON NE DESSINE JAMAIS UN CHOIX QUI N'A PAS ÉTÉ FAIT** : un côté de manœuvre non précisé → pas de moteur dessiné (et la légende le
+  dit) ; une couleur absente → HACHURÉE ; sans mesures → « mesures à compléter » au lieu d'un dessin faux. Une teinte hors RAL (« Chêne »,
+  « Bronze ») est approchée d'après son nom et l'écrit (« teinte approchée ») ; la référence Harol n'est affichée que si elle est ÉCRITE
+  dans la valeur, jamais déduite.
+• **AUCUNE RÈGLE NOUVELLE** : les groupes et leurs différences sont ceux de l'encadré du devis (`SSVolet.groupesConfig`, au niveau
+  COMPLET ici — la fiche est interne : perçage, rivets, références) pour les volets, et de l'outil des différences du simulateur
+  (`SSProducts.ecartsOuvertures`) pour les autres types ; ce qui manque, `SSProducts.champsManquants`. Une ouverture seule de son type
+  garde TOUTE sa configuration sur sa fiche. Les champs d'un ANCIEN devis que le catalogue a retirés (barre surélevée, câble, LED…)
+  restent sur la fiche : l'ancienne carte les montrait (test U10/V20). Rien n'est perdu : chaque réglage du résumé complet est dans la
+  configuration commune ou dans les écarts de son ouverture (test U6).
+• **PAGE INTERNE** : les références de commande Harol (réf. 7T16, A168…) restent visibles, à la demande de Nicolas (« ref harol aussi »,
+  choix contestable dans la PR). Le module n'est chargé QUE par `app/vue.html` : jamais par `devis-review.html` ni par le suivi.
+• **AUCUN MONTANT NE CHANGE** : le prix de chaque fiche est le même calcul que l'ancienne carte (prix catalogue × quantité de la ligne) ;
+  la bande résumé ne porte AUCUN total (la colonne de droite a déjà « Catalogue HTVA » et le total : une somme de plus se lirait comme
+  le prix du client).
+• **LES PHOTOS NE BOUGENT PAS DE LA PAGE** : `vue.html` les rend toujours (`photosDe`, appelée une fois par ouverture DANS L'ORDRE : l'index
+  dans `PHOTOS` est celui de la visionneuse, et la vignette du chantier ouvre `PHOTOS[0]`), avec leur catégorie et le simulateur visuel.
+  Une photo CLASSÉE garde son étiquette visible au bureau (seules les non classées attendent le survol). `#photos` mène aux PREMIÈRES
+  photos de la carte. Le DÉPANNAGE garde son rapport, intact.
+• **« COMPLÉTER »** ouvre `simulateur.html?id=…&ouv=N&champ=k` : le simulateur choisit l'ouverture N et vise le champ qui manque
+  (`allerAuChamp`). Sans `ouv`, rien ne change.
+• **TÉLÉPHONE ET LARGEURS** : tout passe par des requêtes de CONTENEUR sur la carte (`container: pl`), pas sur l'écran — la colonne de la
+  fiche va de ~740 px (écran de 1 500) à ~900 px (1 875). Au-dessus de 700 px de carte, la configuration commune met Couleurs et Commande
+  à gauche et Mécanique (la plus longue) à droite ; sous 840 px la colonne du dessin se resserre ; sous 600 px la fiche s'empile (dessin
+  au-dessus), les mesures passent en 2 × 2, les cibles font 44 px. La façade ne descend jamais sous une échelle lisible : elle défile DANS
+  son cadre (« fais glisser → »), jamais la page. Chaque fiche a « ↑ Sur la façade », qui rallume sa baie : on revient toujours.
+• ⚠️ **UNE CLASSE D'ÉTAT N'EST PAS UNE CLASSE DE BLOC** : `.pl-manque` est la COULEUR d'un état (pastille) ; le bloc « à compléter » de la
+  fiche s'appelait d'abord pareil et héritait de ses couleurs, ou l'inverse. Le bloc est `.pl-mq`.
+• ⚠️ **JOUER `plan.test.html` AUSSI EN ÉMULATION TACTILE** : au bureau, « ↑ Sur la façade » faisait bien 44 px ; sur un écran
+  TACTILE, la règle `(pointer: coarse)` des liens (32 px), écrite plus bas avec le même poids, l'emportait. Seule la suite jouée en
+  tactile l'a vu (test V15) — d'où `.pl-lien.pl-retour` (deux classes).
 
 ## Pièges déjà payés — ne pas les repayer
 

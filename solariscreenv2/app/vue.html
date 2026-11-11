@@ -278,17 +278,9 @@
     .ci-copy { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-sm); background: none; color: var(--text-subtle); cursor: pointer; transition: all var(--t-fast); }
     .ci-copy:hover { border-color: var(--accent-2); color: var(--accent-2); background: var(--surface); }
 
-    /* ── Ouvertures ── */
-    .ouv-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding: var(--sp-4); margin-bottom: var(--sp-4); position: relative; --tick-color: var(--accent); }
-    .ouv-head { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
-    .ouv-no { font-family: var(--font-display); font-weight: 800; color: var(--accent); }
-    .ouv-title { font-weight: 700; font-size: var(--fs-md); }
-    .ouv-price { margin-left: auto; font-family: var(--font-mono); font-weight: 700; color: var(--accent-2); font-size: var(--fs-md); }
-    .specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: var(--sp-3); }
-    .spec { border: 1px dashed var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); }
-    .spec .s-k { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
-    .spec .s-v { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 600; margin-top: 0.1rem; }
-    .ouv-notes { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-muted); border-left: 2px solid var(--border-strong); padding-left: var(--sp-3); }
+    /* ── Ouvertures ── La carte (bande résumé, façade, configuration commune, fiches dessinées) est rendue par
+       `assets/js/plan-ouvertures.js`, qui pose sa propre feuille de style (classes `pl-*`, règle 60 ter).
+       Ici ne restent que les PHOTOS : leur grille, leur menu de catégorie et la visionneuse sont ceux de la fiche. */
 
     /* ── Photos ── */
     .photo-grid { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
@@ -320,6 +312,9 @@
       .photo-grid .ph-cat, .photo-grid .ph-viz-btn { opacity: 0; transition: opacity var(--t-fast); }
       .photo-grid .ph-wrap:hover .ph-cat, .photo-grid .ph-wrap:hover .ph-viz-btn,
       .photo-grid .ph-cat:focus-visible, .photo-grid .ph-viz-btn:focus-visible { opacity: 1; }
+      /* Une photo CLASSÉE garde son étiquette (« Façade », « Obstacle ») : c'est une information, pas un
+         contrôle. Seules les photos sans catégorie restent nues jusqu'au survol (règle 60 ter). */
+      .photo-grid .ph-cat.ph-cat-ok { opacity: 1; }
     }
     /* Sur écran tactile, le menu de catégorie posé SUR la photo faisait 8,8 px de texte et 19 px de haut :
        l'iPhone zoomait la page à chaque appui (moins de 16 px) et le doigt tombait sur la photo. Trouvé par
@@ -1212,6 +1207,9 @@
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/volet.js"></script>
+  <!-- La carte « Ouvertures » (façade, configuration commune, fiches dessinées). Page INTERNE : jamais chargé par
+       devis-review.html ni par le suivi client (références de commande Harol). -->
+  <script src="../assets/js/plan-ouvertures.js"></script>
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/config.js"></script>
   <!-- planning.js AVANT remuneration.js : c'est lui qui porte le vocabulaire des équipes
@@ -1524,32 +1522,12 @@
 
       // ── Ouvertures ──
       PHOTOS = [];
-      // Petit carré de la teinte à côté du RAL : lire « 7016 » ne dit rien, le voir si.
-      // Rendu écran indicatif — le nuancier physique Harol reste la référence.
-      window.ralPastille = function (v) {
-        const P = window.SSProducts;
-        const hex = (P && P.ralHex) ? P.ralHex(v) : null;
-        if (!hex) return '';
-        return `<span class="ral-dot" style="--ral:${hex}" title="Aperçu indicatif de la teinte"></span>`;
-      };
       const items = d.items || [];
       const surf = totalSurface(items);
       setText('ouvCount', `${items.reduce((s, i) => s + (i.quantite || 1), 0)} ouverture(s) · ${surf.toFixed(2)} m²`);
-      // Ce qui manque encore pour commander : affiché EN TÊTE des ouvertures, avec le détail
-      // par ouverture — le tableau de bord n'en donne que le nombre.
-      (function () {
-        const host = el('ouvManque'); if (!host || !window.SSUI.manquantsDevis) return;
-        const trous = window.SSUI.manquantsDevis(d);
-        if (!trous.length) { host.innerHTML = ''; return; }
-        const n = trous.reduce((s, x) => s + x.manque.length, 0);
-        host.innerHTML = `<div class="manque-bloc">
-          <div class="manque-tete">${icon('warning', 12)} ${n} information(s) à compléter avant de commander</div>
-          <div class="manque-liste">${trous.map(t => `<div class="manque-ouv">
-            <b>Ouverture ${t.i + 1}${t.emplacement ? ' — ' + esc(t.emplacement) : ''}</b><br>
-            ${t.manque.map(x => `<span class="ch">${esc(x.l)}</span>`).join('')}
-          </div>`).join('')}</div>
-        </div>`;
-      })();
+      // Ce qui manque encore pour commander : la carte le dit elle-même, en tête ET sur l'ouverture concernée
+      // (règle 60 ter). `#ouvManque` reste dans la page, vide : le dépannage le vide aussi.
+      el('ouvManque').innerHTML = '';
       // ── DÉPANNAGE : la carte « Ouvertures » n'a rien à montrer, et affichait « Aucune
       //    ouverture » là où on cherche justement le détail de l'intervention. On y met donc le
       //    rapport : quand, qui, ce qui était signalé, ce qu'on a trouvé, ce qu'on a fait, la
@@ -1593,84 +1571,32 @@
         el('ouvManque').innerHTML = '';
       } else {
       setText('ouvTitre', 'Ouvertures');
-      el('ouvHost').innerHTML = items.length ? items.map((it, i) => {
-        // 2e dimension selon le type : projection pour une tente solaire, hauteur sinon.
-        const dim2 = window.SSUI.isTenteSolaire(it) ? it.projection : it.hauteur;
-        const s = (it.largeur > 0 && dim2 > 0) ? ((it.largeur / 1000) * (dim2 / 1000)).toFixed(2) : null;
-        const photos = (it.photos || []).map((p, pi) => {
+      /* La carte « Ouvertures » : bande résumé, façade à l'échelle, configuration commune écrite une fois,
+         puis une fiche dessinée par ouverture (règle 60 ter, `assets/js/plan-ouvertures.js`). Les PHOTOS restent
+         rendues ICI : elles s'appuient sur la visionneuse (`PHOTOS`, `lbOpen`), le menu de catégorie
+         (`setPhotoCategory`) et le simulateur visuel (`openViz`) de cette page.
+         ⚠️ `photosDe` est appelée UNE fois par ouverture, DANS L'ORDRE : l'index de chaque photo dans `PHOTOS`
+         est celui de la visionneuse, et la vignette du chantier ouvre `PHOTOS[0]`. */
+      const photosDe = (it, i) => {
+        const html = (it.photos || []).map((p, pi) => {
           const idx = PHOTOS.length;
           const cat = (it.photo_categories || [])[pi] || '';
           PHOTOS.push({ src: p, cap: `Ouverture #${i + 1}${it.emplacement ? ' — ' + it.emplacement : ''} · photo ${pi + 1}` });
           return `<div class="ph-wrap">
             <button class="ph" onclick="lbOpen(${idx})" aria-label="Agrandir la photo ${pi + 1} de l'ouverture ${i + 1}"><img src="${p}" alt=""></button>
-            <select class="ph-cat" onclick="event.stopPropagation()" onchange="setPhotoCategory(${i},${pi},this.value)" aria-label="Catégorie de la photo ${pi + 1}" title="Catégorie de la photo">
+            <select class="ph-cat${cat ? ' ph-cat-ok' : ''}" onclick="event.stopPropagation()" onchange="this.classList.toggle('ph-cat-ok', !!this.value); setPhotoCategory(${i},${pi},this.value)" aria-label="Catégorie de la photo ${pi + 1}" title="Catégorie de la photo">
               <option value="">— catégorie —</option>
               ${PHOTO_CATEGORIES.map(c => `<option value="${c}" ${cat === c ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
             <button class="ph-viz-btn" onclick="openViz(${i}, ${pi})" title="Simulateur visuel avant/après" aria-label="Simulateur visuel sur la photo ${pi + 1}">${icon('image', 13)}</button>
           </div>`;
         }).join('');
-        return `
-        <div class="ouv-card ticked">
-          <div class="ouv-head">
-            <span class="ouv-no">#${i + 1}</span>
-            <span class="ouv-title">${esc(TYPE_LABEL[it.type] || it.type)}${it.modele ? ' — ' + esc(it.modele) : ''}${it.variante ? ' (' + esc(it.variante) + ')' : ''}</span>
-            ${(it.moteur || it.moteur_ref) ? `<span class="badge badge-accent">${esc(it.moteur || it.moteur_ref)}</span>` : ''}
-            <span class="ouv-price">${fmtEur((it.prix_catalogue_ht || 0) * (it.quantite || 1))}</span>
-          </div>
-          <div class="specs">
-            <div class="spec"><div class="s-k">Largeur</div><div class="s-v">${it.largeur ? it.largeur + ' mm' : '—'}</div></div>
-            ${window.SSUI.isTenteSolaire(it)
-              // Tente solaire : la 2e dimension est la projection (affichée ici, donc plus besoin
-              // de la répéter dans la liste d'options plus bas). La hauteur n'existe pas.
-              ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection ? it.projection + ' mm' : '—'}</div></div>`
-              : `<div class="spec"><div class="s-k">Hauteur</div><div class="s-v">${it.hauteur ? it.hauteur + ' mm' : '—'}</div></div>`}
-            <div class="spec"><div class="s-k">Surface</div><div class="s-v">${s ? s + ' m²' : '—'}</div></div>
-            <div class="spec"><div class="s-k">Quantité</div><div class="s-v">× ${it.quantite || 1}</div></div>
-            <div class="spec"><div class="s-k">Prix unit. HTVA</div><div class="s-v">${fmtEur(it.prix_catalogue_ht || 0)}</div></div>
-            ${it.emplacement ? `<div class="spec"><div class="s-k">Emplacement</div><div class="s-v">${esc(it.emplacement)}</div></div>` : ''}
-            ${it.etage ? `<div class="spec"><div class="s-k">Étage</div><div class="s-v">${esc(it.etage)}</div></div>` : ''}
-            ${it.couleur ? `<div class="spec"><div class="s-k">Couleur${(it.couleur_lame || it.couleur_coulisses) ? ' caisson' : ''}</div><div class="s-v">${ralPastille(it.couleur)}${esc(it.couleur)}</div></div>` : ''}
-            ${/* ⚠️ UN VOLET REND SA PROPRE SPEC, et la liste générique qui suit lui est sautée.
-                  Les trente options du VR150 n'y figureraient jamais toutes — et la ligne
-                  absente est exactement celle qu'on oublie de commander. Elles viennent donc de
-                  la MÊME table que le formulaire de saisie : ce qui est saisi est ce qui est lu.
-                  La couleur du CAISSON reste au-dessus, elle est commune à tous les types. */ ''}
-            ${window.SSVolet && window.SSVolet.estVolet(it)
-              ? window.SSVolet.resume(it, 'complet').map(x =>
-                  `<div class="spec"><div class="s-k">${esc(x.l)}</div><div class="s-v">${esc(x.v)}</div></div>`).join('')
-              : `
-            ${it.couleur_coulisses ? `<div class="spec"><div class="s-k">Couleur coulisses</div><div class="s-v">${esc(it.couleur_coulisses)}</div></div>` : ''}
-            ${it.couleur_lame ? `<div class="spec"><div class="s-k">Couleur lame finale</div><div class="s-v">${esc(it.couleur_lame)}</div></div>` : ''}
-            ${it.lame_type ? `<div class="spec"><div class="s-k">Type de lame</div><div class="s-v">${esc(it.lame_type)}</div></div>` : ''}
-            ${(it.collection || it.toile) ? `<div class="spec"><div class="s-k">Collection toile</div><div class="s-v">${esc(it.collection || it.toile)}</div></div>` : ''}
-            ${it.toile_num ? `<div class="spec"><div class="s-k">N° de toile</div><div class="s-v">${esc(it.toile_num)}</div></div>` : ''}
-            ${it.toile_couleur ? `<div class="spec"><div class="s-k">Couleur toile</div><div class="s-v">${esc(it.toile_couleur)}</div></div>` : ''}
-            ${(it.combinaison && it.combinaison !== 'Simple') ? `<div class="spec"><div class="s-k">Combinaison</div><div class="s-v">${esc(it.combinaison)}</div></div>` : ''}
-            ${it.lateralite ? `<div class="spec"><div class="s-k">Latéralité</div><div class="s-v">${esc(it.lateralite)}</div></div>` : ''}
-            ${(it.caisson_forme || it.caisson_mesure) ? `<div class="spec"><div class="s-k">Caisson</div><div class="s-v">${esc(it.caisson_forme || '')} ${esc(it.caisson_mesure || '')}</div></div>` : ''}
-            ${it.colmatage ? `<div class="spec"><div class="s-k">Colmatage</div><div class="s-v">${esc(it.colmatage)}</div></div>` : ''}
-            ${it.emetteur ? `<div class="spec"><div class="s-k">Émetteur</div><div class="s-v">Inclus</div></div>` : ''}
-            ${it.panneau_solaire_separe ? `<div class="spec"><div class="s-k">Panneau solaire</div><div class="s-v">Déporté${it.panneau_cable ? ' · câble ' + esc(it.panneau_cable) : ''}</div></div>` : ''}
-            ${it.allongement_caisson ? `<div class="spec"><div class="s-k">Allongement</div><div class="s-v">Caisson allongé</div></div>` : ''}
-            ${it.barre_surelevee ? `<div class="spec"><div class="s-k">Barre de charge</div><div class="s-v">Surélevée (A2416)</div></div>` : ''}
-            ${(it.projection && !window.SSUI.isTenteSolaire(it)) ? `<div class="spec"><div class="s-k">Projection</div><div class="s-v">${it.projection} mm</div></div>` : ''}
-            ${it.manoeuvre ? `<div class="spec"><div class="s-k">Manœuvre</div><div class="s-v">${esc(it.manoeuvre)}</div></div>` : ''}
-            ${(it.cable_longueur || it.cable_couleur) ? `<div class="spec"><div class="s-k">Câble</div><div class="s-v">${esc([it.cable_longueur, it.cable_couleur].filter(Boolean).join(' · '))}</div></div>` : ''}
-            ${it.telecommande ? `<div class="spec"><div class="s-k">Commande à distance</div><div class="s-v">Oui</div></div>` : ''}
-            ${it.eclairage_led ? `<div class="spec"><div class="s-k">Éclairage LED</div><div class="s-v">${esc(it.eclairage_led)}</div></div>` : ''}
-            ${it.couple ? `<div class="spec"><div class="s-k">Couplage</div><div class="s-v">Jusqu'à 12 m</div></div>` : ''}
-            ${it.lambrequin_fixe ? `<div class="spec"><div class="s-k">Lambrequin</div><div class="s-v">Fixe</div></div>` : ''}
-            ${it.lambrequin_vario ? `<div class="spec"><div class="s-k">Lambrequin</div><div class="s-v">Vario (moteur io)</div></div>` : ''}
-            ${it.detecteur ? `<div class="spec"><div class="s-k">Détecteur</div><div class="s-v">Soleil/vent/pluie</div></div>` : ''}
-            ${it.spots_storelight ? `<div class="spec"><div class="s-k">Spots</div><div class="s-v">LED Storelight</div></div>` : ''}
-            ${it.chauffage_storelight ? `<div class="spec"><div class="s-k">Chauffage</div><div class="s-v">Storelight</div></div>` : ''}
-            ${it.borstels ? `<div class="spec"><div class="s-k">Étanchéité</div><div class="s-v">Brosses</div></div>` : ''}`}
-          </div>
-          ${it.notes ? `<div class="ouv-notes">${esc(it.notes)}</div>` : ''}
-          ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
-        </div>`;
-      }).join('') : '<div class="text-muted">Aucune ouverture.</div>';
+        return html ? `<div class="photo-grid">${html}</div>` : '';
+      };
+      el('ouvHost').innerHTML = items.length && window.SSPlan
+        ? window.SSPlan.carteHtml(items, { id: d.id, photos: photosDe, eur: fmtEur })
+        : '<div class="text-muted">Aucune ouverture.</div>';
+      if (items.length && window.SSPlan) window.SSPlan.monter(el('ouvHost'), items);
       }
 
       // ── Montants ──
@@ -4667,7 +4593,8 @@
       const cible = ANCRES[location.hash];
       if (cible) {
         setTimeout(() => {
-          const c = document.querySelector(cible);
+          // « Photos » mène aux PREMIÈRES photos de la carte quand il y en a (règle 60 ter), sinon à la carte.
+          const c = (location.hash === '#photos' && document.querySelector('#ouvHost .pl-photos')) || document.querySelector(cible);
           if (!c || c.classList.contains('hidden')) return;
           c.classList.remove('collapsed');
           c.scrollIntoView({ behavior: 'smooth', block: 'center' });

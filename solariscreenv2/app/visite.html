@@ -29,7 +29,8 @@
   <style>
     .visite-table td.details { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.5; }
     .visite-table td.details strong { color: var(--text); }
-    .visite-notes { margin-top: var(--sp-6); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); min-height: 70px; }
+    /* Trait continu et 1 px de retrait : en pointillés, collé au bord de la feuille, son bord droit n'était pas imprimé (08/11/2026). */
+    .visite-notes { margin: var(--sp-6) 1px 0; border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: var(--sp-4); min-height: 70px; }
     .visite-notes h4 { font-size: var(--fs-xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; }
     .visite-meta { display: flex; gap: var(--sp-6); flex-wrap: wrap; margin-top: var(--sp-4); font-size: var(--fs-sm); }
     .visite-meta .pm-k { font-size: var(--fs-2xs); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -84,14 +85,17 @@
 
     // Champs "envisagés" pertinents pour un client (jamais de prix/marge) — mêmes noms de
     // champs que le simulateur, listés seulement s'ils sont déjà renseignés sur le devis.
+    // Le 3e élément dit comment la valeur se lit pour un CLIENT (règle 31) : sans code de commande Harol (« 4114: »,
+    // « · réf. 7m16st »), la collection en français — les mêmes règles que le devis (`ui.js`, 08/11/2026).
     const FIELD_LABELS = [
-      ['variante', 'Variante'], ['couleur', 'Couleur envisagée'], ['couleur_lame', 'Couleur lame envisagée'],
-      ['toile', 'Toile envisagée'], ['toile_couleur', 'Couleur toile envisagée'], ['collection', 'Collection toile'],
-      ['moteur', 'Motorisation'], ['moteur_ref', 'Motorisation'],
+      ['variante', 'Variante'], ['couleur', 'Couleur envisagée', 'couleur'], ['couleur_lame', 'Couleur lame envisagée', 'couleur'],
+      ['toile', 'Toile envisagée', 'collection'], ['toile_couleur', 'Couleur toile envisagée', 'couleur'], ['collection', 'Collection toile', 'collection'],
+      ['moteur', 'Motorisation', 'moteur'], ['moteur_ref', 'Motorisation', 'moteur'],
     ];
+    const LIRE = { couleur: (v) => window.SSUI.couleurClient(v), collection: (v) => window.SSUI.collectionClient(v), moteur: (v) => window.SSUI.moteurClient(v) };
     function envisagedDetails(it) {
       const parts = [];
-      FIELD_LABELS.forEach(([k, l]) => { if (it[k]) parts.push(`<strong>${esc(l)}:</strong> ${esc(it[k])}`); });
+      FIELD_LABELS.forEach(([k, l, f]) => { if (it[k]) parts.push(`<strong>${esc(l)}:</strong> ${esc(f ? LIRE[f](it[k]) : it[k])}`); });
       if (it.emplacement) parts.push(`<strong>Emplacement:</strong> ${esc(it.emplacement)}`);
       return parts.join(' · ') || 'À définir';
     }
@@ -111,7 +115,7 @@
       const totalOuvertures = (d.items || []).reduce((s, i) => s + (i.quantite || 1), 0);
 
       const rows = (d.items || []).map((it, i) => {
-        const dims = window.SSUI.dimsOf(it) || 'À mesurer';
+        const dims = window.SSUI.dimsDoc(it) || 'À mesurer';
         return `<tr>
           <td class="num">${i + 1}</td>
           <td><strong>${esc(TYPE_LABEL[it.type] || it.type)}</strong>${it.modele ? ' — ' + esc(it.modele) : ''}</td>
@@ -155,7 +159,7 @@
           <div id="paperSteps"></div>
         </div>
 
-        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.address)} · ${esc(COMPANY.email)}</div>
+        <div class="doc-foot">${esc(COMPANY.name)} · ${esc(COMPANY.legal)} · ${esc(COMPANY.address)} · ${esc(COMPANY.email)}</div>
       `;
       renderPaperSteps();
     }

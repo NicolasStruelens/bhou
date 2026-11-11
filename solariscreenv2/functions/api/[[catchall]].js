@@ -80,6 +80,9 @@ const SUIVI_PHASES = ['avant', 'pendant', 'apres'];
 // Même règle que `SSVitrine.sansReference` (le serveur ne peut pas charger un script de page) :
 // « 7016 — Gris anthracite · réf. 7m16st (laque texturée) » sort sans sa référence de commande Harol.
 const sansReferenceFournisseur = (v) => String(v == null ? '' : v).replace(/\s*·\s*r[ée]f\..*$/i, '').trim().slice(0, 120);
+// Le moteur d'un screen porte son code d'article Harol en tête (« 4114: Sunea 40 RTS ») : la réponse du lien client, servie
+// par simple jeton, le portait tel quel (règle 31). Même règle que `SSUI.moteurClient` (refonte des PDF, 08/11/2026).
+const sansCodeArticle = (v) => String(v == null ? '' : v).trim().replace(/^(?:A\d{3,5}|\d{3,5})\s*:\s*/i, '');
 function suiviPublic(d, token) {
   const masquees = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees.map(String) : []);
   const couv = (d.portfolio_couvertures && typeof d.portfolio_couvertures === 'object') ? d.portfolio_couvertures : {};
@@ -349,7 +352,7 @@ export async function onRequest(context) {
           variante: it.variante || '', combinaison: it.combinaison || '', manoeuvre: it.manoeuvre || '',
           // Les couleurs SANS code de commande Harol (règle 31, `sansReferenceFournisseur`) : la page les affichait
           // déjà nettoyées, mais la réponse — servie par simple jeton — les portait entières (01/11/2026).
-          moteur: it.moteur || it.moteur_ref || '', couleur: sansReferenceFournisseur(it.couleur || ''),
+          moteur: sansCodeArticle(it.moteur || it.moteur_ref || ''), couleur: sansReferenceFournisseur(it.couleur || ''),
           couleur_coulisses: sansReferenceFournisseur(it.couleur_coulisses || ''), couleur_lame: sansReferenceFournisseur(it.couleur_lame || ''),
           // La COLLECTION (liste fabricant) prime sur l'ancien texte libre `toile`.
           toile: it.collection || it.toile || '', emplacement: it.emplacement || '', etage: it.etage || '',
