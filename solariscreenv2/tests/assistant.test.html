@@ -51,6 +51,19 @@
       document.title = (fail === 0 ? 'OK ' + pass + '/' + total : 'ÉCHEC ' + fail) + ' — Tests assistant';
     }
     const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    /** Combien de temps une page a pour se charger après une navigation du cadre (lien suivi, « retour »). L'attente s'arrête
+     *  DÈS que la page est chargée : un délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine
+     *  qui joue les suites est souvent chargée : le 12/11/2026, avec huit Chrome en parallèle, T12 tombait (le tableau de bord
+     *  pas encore rechargé au bout des anciens 5 s, la suite vérifiait la page d'avant). */
+    const DELAI_PAGE = 90000;
+    /** Le `load` de la page que le cadre va ouvrir, au plus DELAI_PAGE : à armer AVANT le geste. Pas chargée à temps : on le
+     *  DIT, au lieu de vérifier la page d'avant. */
+    function chargement(f, nom) {
+      return new Promise(function (resolve, reject) {
+        const minuterie = setTimeout(function () { reject(new Error(nom + ' pas prête après ' + DELAI_PAGE / 1000 + ' s (pas chargée) : machine trop chargée ?')); }, DELAI_PAGE);
+        f.addEventListener('load', function () { clearTimeout(minuterie); resolve(); }, { once: true });
+      });
+    }
     function cadre(url, largeur, hauteur) {
       return new Promise(function (resolve) {
         const f = document.createElement('iframe');
@@ -543,12 +556,12 @@
         fabT.click(); await attendre(300);
         const lien = wt.document.createElement('a'); lien.href = 'echanges.html'; lien.textContent = 'lien';
         wt.document.querySelector('.ssa-lui').appendChild(lien);
-        const charge = Promise.race([new Promise(res => ft.addEventListener('load', res, { once: true })), attendre(5000)]);
+        const charge = chargement(ft, 'echanges.html (lien suivi depuis l’assistant)');
         lien.click();
         await charge; await attendre(1200);
         check('T11 Un lien suivi depuis l’assistant ouvre la page, panneau FERMÉ (on veut voir la page)',
           [/echanges/.test(ft.contentWindow.location.pathname), !!(ft.contentWindow.SSAssistant && ft.contentWindow.SSAssistant.estOuvert())], [true, false]);
-        const retour = Promise.race([new Promise(res => ft.addEventListener('load', res, { once: true })), attendre(5000)]);
+        const retour = chargement(ft, 'dashboard.html (« retour » depuis les échanges)');
         ft.contentWindow.history.back();
         await retour; await attendre(800);
         check('T12 …et UN SEUL « retour » ramène au tableau de bord', /dashboard/.test(ft.contentWindow.location.pathname), true);

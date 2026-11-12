@@ -153,6 +153,19 @@
       });
     }
     const attendre = (ms) => new Promise(r => setTimeout(r, ms));
+    /** Combien de temps une page a pour finir son chargement quand un cas dépend de ses DONNÉES (pas seulement du menu, posé
+     *  dès la lecture de nav.js). L'attente s'arrête DÈS que la page est prête : un délai long ne coûte rien quand tout va
+     *  bien. Le 12/11/2026, avec huit Chrome en parallèle, D1-D3 tombaient : rdv.html n'avait pas encore lu ses demandes au
+     *  bout des 1,8 s + 0,6 s, l'adresse gardait « ?nouvelle=1 » et la fenêtre restait fermée. */
+    const DELAI_PAGE = 90000;
+    /** Attend que `prete()` réponde vrai, au plus DELAI_PAGE depuis `t0` (l'ouverture du cadre). Pas prête à temps : on le DIT. */
+    async function attendrePage(nom, prete, t0, raison) {
+      for (;;) {
+        try { const v = prete(); if (v) return v; } catch (e) {}
+        if (Date.now() - t0 >= DELAI_PAGE) throw new Error(nom + ' pas prête après ' + DELAI_PAGE / 1000 + ' s (' + raison + ') : machine trop chargée ?');
+        await attendre(50);
+      }
+    }
     function libelles(doc, sel) { return [...doc.querySelectorAll(sel)].map(e => e.textContent.trim()); }
 
     (async function () {
@@ -260,9 +273,12 @@
       f.remove();
 
       titre('« Nouveau › Demande de RDV » arrive sur une demande vierge');
+      const tD = Date.now();
       f = await cadre('../app/rdv.html?nouvelle=1');
-      await attendre(600);
       d = f.contentDocument; w = f.contentWindow;
+      // `load()` dessine les demandes PUIS, dans le même geste, retire le paramètre et programme la fenêtre (120 ms plus tard).
+      await attendrePage('rdv.html?nouvelle=1', () => d.getElementById('viewHost').children.length, tD, 'demandes pas encore dessinées');
+      await attendre(600);
       check('D1 la fenêtre de nouvelle demande est ouverte', d.getElementById('modalBg').classList.contains('open'), true);
       check('D2 son titre est le bon', d.getElementById('mTitle').textContent, 'Nouvelle demande de RDV');
       check('D3 le paramètre a disparu de l\'adresse (un rechargement ne la rouvre pas)', w.location.search, '');
@@ -507,7 +523,11 @@
 
       try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}
       rendre();
-    })();
+    })().catch(function (e) {
+      // Une page pas prête à temps (attendrePage) ou une erreur : on le DIT, au lieu de laisser le bilan intermédiaire.
+      check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
+      rendre();
+    });
   </script>
 </body>
 </html>
