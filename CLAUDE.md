@@ -3963,7 +3963,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 64/64 ».
-   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
+   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 120/120 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 34/34 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
@@ -3972,7 +3972,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
-   `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
+   `tests/sav.test.html`, exiger « 68/68 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 146/146 », par le serveur — au bureau ET en
    émulation tactile (le premier devis dans le premier écran du téléphone ne se joue vraiment qu'avec des cibles de 44 px, T3).
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
@@ -3981,7 +3981,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    Et dès qu'on touche au portfolio (`app/portfolio.html`, `vitrine.js`) : `tests/portfolio.test.html`, exiger « 47/47 »,
    par le serveur — ET `carte.test.html`, puisque la mémoire des adresses est partagée.
    Et dès qu'on touche à l'envoi des mails, à la fenêtre de relance ou à `/api/mail/*` :
-   `tests/mails.test.html`, exiger « 61/61 », par le serveur.
+   `tests/mails.test.html`, exiger « 62/62 », par le serveur.
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 98/98 », par le serveur.
    Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
@@ -3991,12 +3991,12 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 37/37 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 61/61 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 30/30 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 78/78 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
-   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 56/56 », par le serveur — ET `volet.test.html`, `documents.test.html`,
+   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 68/68 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
@@ -4007,10 +4007,10 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    le serveur — ET `attente.test.html`, `clients.test.html` (la règle des doublons), `planning-page.test.html`,
    `echanges.test.html` et `bac-a-sable.test.html` (ils écrivent des demandes).
    Et dès qu'on touche aux Paramètres (`app/parametres.html`, `parametres.js`, `/api/settings`, `SSConf.enregistrerChangements`) :
-   `tests/parametres.test.html`, exiger « 36/36 », par le serveur — ET `mails.test.html` (la section E-mails),
+   `tests/parametres.test.html`, exiger « 38/38 », par le serveur — ET `mails.test.html` (la section E-mails),
    `assistant.test.html` (Soli au-dessus de la barre), `themes.test.html`, `planning-page.test.html` (la trame) et
    `tactile.test.html` dans les deux modes.
-   Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 37/37 », par
+   Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 39/39 », par
    le serveur — ET `remuneration.test.html` (la paie qu'elle affiche) et `nav.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à
    `app/depenses.html` ou à `/api/depenses` : `tests/depenses-page.test.html`, exiger « 39/39 », par le serveur, ET
