@@ -1377,6 +1377,9 @@
     </div>
   </div>
 
+  <!-- Les coordonnées de la société : la signature des relances les lit (`SSUI.signatureMail`, règle 65). Sans ce
+       script, la fiche devis signait « Nicolas / SolariScreen », sans site ni téléphone, quoi que la signature lise. -->
+  <script src="../assets/js/company.js"></script>
   <script src="../assets/js/ui.js"></script>
   <script src="../assets/js/nav.js"></script>
   <script src="../assets/js/fetes.js"></script>
@@ -3278,21 +3281,13 @@
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
       return top ? (TYPE_PLUR[top[0]] || 'éléments') : 'éléments';
     }
-    // Salutation : même logique que l'espace client (fiche = source de vérité, jamais de mégenrage).
+    // Salutation et signature : la règle vit dans ui.js (`SSUI.salutationMail`, `signatureMail`, règle 65) — l'envoi du
+    // devis (app/devis.html) écrit la même. La signature lisait `website`, qui n'existe pas : jamais le site en pied.
     function relanceSalutation(d) {
-      const cl = d.client || {};
-      const fiche = CLIENT_FICHE || {};
-      const prenom = (cl.prenom || '').trim(), nom = (cl.nom || '').trim();
-      const civ = fiche.civilite || '';
-      if ((fiche.ton || 'pro') === 'amical' && prenom) return `Bonjour ${prenom},`;
-      if (civ && nom) return `Bonjour ${civ} ${nom},`;
-      if (prenom || nom) return `Bonjour ${[prenom, nom].filter(Boolean).join(' ')},`;
-      return 'Bonjour,';
+      return window.SSUI.salutationMail(d.client, CLIENT_FICHE);
     }
     function relanceSignature() {
-      const who = (CONNECTED_KEY === 'yannick') ? 'Yannick' : 'Nicolas';
-      const co = window.SS_COMPANY || {};
-      return [who, co.name || 'SolariScreen', co.phone || '', co.website || ''].filter(Boolean).join('\n');
+      return window.SSUI.signatureMail((CONNECTED_KEY === 'yannick') ? 'Yannick' : 'Nicolas');
     }
 
     // ── Relances client prêtes à envoyer (email/SMS/WhatsApp) ──

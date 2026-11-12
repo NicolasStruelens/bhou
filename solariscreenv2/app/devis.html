@@ -35,6 +35,38 @@
        la page au lieu de passer à la ligne — un élément flex vaut min-width:auto par défaut. */
     .sig-accept > span { min-width: 0; overflow-wrap: break-word; }
     @media print { .sign-wrap { display: none !important; } }
+
+    /* ── « ENVOYER AU CLIENT » (règle 65) ── la fenêtre suit la règle des fenêtres (13 bis) : le fond ne ferme que si
+       le geste y a commencé, Échap ferme, « retour » ferme la fenêtre au lieu de quitter le devis. Sur téléphone, plein
+       écran, et ses commandes s'écartent de l'heure et de la barre de gestes par les jetons d'encoche (règle 61). */
+    .envoi-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    .envoi-bg.open { display: flex; }
+    /* ⚠️ `hidden` doit gagner : `.btn` et `.efait` posent leur propre `display`, qui l'emportait sur l'attribut — le cadre
+       « fait » s'affichait vide dès l'ouverture, et le bouton 1 restait visible case décochée. */
+    .envoi [hidden] { display: none !important; }
+    .envoi { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 620px; max-width: 100%; max-height: 92vh; display: flex; flex-direction: column; }
+    .envoi .ehead { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); font-family: var(--font-display); font-size: var(--fs-md); color: var(--accent); }
+    .envoi .ehead .eref { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); }
+    .envoi .ehead .btn { margin-left: auto; }
+    .envoi .ebody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+    .envoi .ebody .textarea { min-height: 220px; font-size: var(--fs-champ, var(--fs-sm)); line-height: 1.5; }
+    .envoi .eetat { padding: 0.55rem 0.8rem; border-radius: var(--r-sm); font-size: var(--fs-xs); border: 1px solid var(--border); background: var(--surface-2); }
+    .envoi .eetat.err { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+    .envoi .eaide { margin: 0; font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; }
+    .envoi .eaide b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+    .envoi label.check { display: inline-flex; align-items: center; gap: 0.45rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
+    .envoi .efoot { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); background: var(--surface-2); border-radius: 0 0 var(--r-md) var(--r-md); }
+    .envoi .efoot .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+    .envoi .efait { padding: 0.6rem 0.8rem; border-radius: var(--r-sm); font-size: var(--fs-xs); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 9%, transparent); display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+    .envoi .efait > span { flex: 1 1 260px; min-width: 0; }
+    @media (max-width: 700px) {
+      .envoi-bg { padding: 0 var(--encoche-droite) 0 var(--encoche-gauche); align-items: stretch; }
+      .envoi { width: 100%; max-height: none; height: 100%; border-radius: 0; border: 0; }
+      .envoi .ehead { padding: max(var(--sp-3), var(--encoche-haut)) var(--sp-4) var(--sp-3); }
+      .envoi .ebody { padding: var(--sp-3) var(--sp-4); }
+      .envoi .efoot { padding: var(--sp-2) var(--sp-3) max(var(--sp-2), var(--encoche-bas)); border-radius: 0; }
+    }
+    @media print { .envoi-bg { display: none !important; } }
   </style>
 </head>
 <body>
@@ -53,6 +85,7 @@
     <span id="quickNav"></span>
     <span id="themeToggle"></span>
     <button class="btn btn-primary btn-sm" onclick="printDoc()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Imprimer / PDF</button>
+    <button class="btn btn-primary btn-sm" id="btnEnvoyer" onclick="ouvrirEnvoi()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Envoyer au client</button>
   </div>
 
   <div class="paper-wrap"><div class="paper" id="paper" aria-busy="true"><div class="skl" style="height:22px;width:40%;margin-bottom:14px"></div><div class="skl" style="height:120px;margin-bottom:14px"></div><div class="skl" style="height:260px"></div></div></div>
@@ -81,6 +114,30 @@
   </div>
 
   <div class="annex" id="annex"></div>
+
+  <!-- « Envoyer au client » (règle 65) : Zoho Mail s'ouvre avec le destinataire, l'objet et le texte prêts (le texte est
+       aussi copié), le LIEN de consultation dans le texte ; le PDF, s'il est joint, s'enregistre d'abord et se glisse à la
+       main — une page web ne peut joindre aucun fichier à un message. -->
+  <div class="envoi-bg" id="envoiFond">
+    <div class="envoi" role="dialog" aria-modal="true" aria-labelledby="envoiTitre">
+      <div class="ehead"><span id="envoiTitre">Envoyer au client</span><span class="eref" id="envoiRef"></span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="fermerEnvoi()" aria-label="Fermer">✕</button></div>
+      <div class="ebody">
+        <div class="eetat" id="envoiEtat" hidden></div>
+        <div class="field"><label class="label" for="envoiA">À</label><input class="input" id="envoiA" type="email" autocomplete="off" oninput="majEnvoi()"></div>
+        <div class="field"><label class="label" for="envoiObjet">Objet</label><input class="input" id="envoiObjet" autocomplete="off" oninput="majEnvoi()"></div>
+        <div class="field"><label class="label" for="envoiTexte">Message</label><textarea class="textarea" id="envoiTexte" rows="14" oninput="majEnvoi()"></textarea></div>
+        <label class="check"><input type="checkbox" id="envoiPdf" checked onchange="basculerPdf()"> Joindre le PDF (à glisser dans le message)</label>
+        <p class="eaide" id="envoiAide"></p>
+        <div class="efait" id="envoiFait" hidden></div>
+      </div>
+      <div class="efoot">
+        <button class="btn btn-ghost btn-sm" type="button" id="envoiBtnPdf" onclick="envoiEnregistrerPdf()">1. Enregistrer le PDF</button>
+        <a class="btn btn-primary btn-sm" id="envoiBtnZoho" href="#" target="_blank" rel="noopener" onclick="return envoiOuvrirZoho(event)">2. Ouvrir dans Zoho Mail</a>
+        <button class="btn btn-ghost btn-sm" type="button" id="envoiBtnCopier" onclick="envoiCopier()">Copier le message</button>
+      </div>
+    </div>
+  </div>
 
   <script src="../assets/js/company.js"></script>
   <script src="../assets/js/ui.js"></script>
@@ -253,7 +310,14 @@
          « après la dernière ligne » depuis l intérieur d une boucle qui ne sait pas encore où
          elle s arrête. */
       const remiseCat = c.remise_catalogue || {};
-      const ligneRemise = remiseCat.amount > 0
+      /* ⚠️ LE RÉCAPITULATIF DE LA REMISE (règle 65, variante B « Bandeau », choisie par Nicolas le 11/11/2026). Quand le
+         devis porte une remise, elle se lit à UN endroit : le bandeau « Prix de base − Votre remise (x %) = Total HTVA »
+         sous le tableau. Les lignes vertes du tableau sortent — le client devait les chercher, et le tableau donne
+         désormais les prix de base qu'il additionne. `recapRemise` (ui.js) rend `null` quand la décomposition ne retombe
+         pas sur le total au centime (vieux devis) : on garde alors les lignes, comme avant. `devis-review.html` lit la
+         même fonction et le même gabarit (règle 7). */
+      const R = window.SSUI.recapRemise(c, d.items, d.pricing_v2 && d.pricing_v2.surplus_difficulte);
+      const ligneRemise = !R && remiseCat.amount > 0
         ? `<tr class="remise-row">${/* ⚠️ CELLULES VIDES, PAS DES TIRETS. Une remise n a ni dimension, ni
              quantité, ni prix unitaire : écrire « — » trois fois remplit la ligne de signes qui ne
              disent RIEN au client, juste sous le produit qu il vérifie. Le « — » de la colonne #
@@ -323,7 +387,7 @@
       }
       const remiseInst = c.remise_installation || {}, remiseOutil = c.remise_outillage || {};
       const remiseInstallTotal = (remiseInst.amount || 0) + (remiseOutil.amount || 0);
-      if (remiseInstallTotal > 0) {
+      if (!R && remiseInstallTotal > 0) {
         presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${fmtEur(remiseInstallTotal)}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
@@ -399,9 +463,10 @@
           </tbody>
         </table>
 
+        ${window.SSUI.bandeauRemiseHtml(R)}
         <div class="totals"><div class="box">
-          <div class="t-row"><span>Total HTVA</span><span class="v">${fmtEur(c.total_ht)}</span></div>
-          <div class="t-row t-sub"><span>TVA ${c.tva_pct} %</span><span class="v">${fmtEur(c.total_tva)}</span></div>
+          ${R ? '' : `<div class="t-row"><span>Total HTVA</span><span class="v">${fmtEur(c.total_ht)}</span></div>`}
+          <div class="t-row${R ? '' : ' t-sub'}"><span>TVA ${c.tva_pct} %</span><span class="v">${fmtEur(c.total_tva)}</span></div>
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(c.total_ttc)}</span></div>
         </div></div>
 
@@ -684,6 +749,198 @@
       const parts = ['SolariScreen', nature, [cl.prenom, cl.nom].filter(Boolean).join(' ') || 'Client', d.id];
       document.title = parts.filter(Boolean).join(' - ');
     }
+
+    /* ══════ « ENVOYER AU CLIENT » (règle 65 — choix de Nicolas, 11/11/2026 : « le lien et le PDF à glisser ») ══════
+       Ce que Zoho Mail accepte (sa documentation, vérifiée le 11/11/2026) : choisi comme messagerie du navigateur
+       (Zoho Mail › Paramètres › Système › Mail To Handlers), il ouvre un brouillon depuis un lien `mailto:` avec le
+       destinataire et l'objet. Le TEXTE n'y est pas promis : il est donc aussi COPIÉ (Ctrl+V). AUCUNE pièce jointe n'est
+       possible depuis une page web, chez Zoho comme ailleurs : le PDF s'enregistre (1), puis se glisse dans le message.
+       ⚠️ LE LIEN DOIT EXISTER EN BASE AVANT D'ÊTRE ÉCRIT DANS LE MESSAGE (même règle que « Copier le lien », fiche
+       devis) : un jeton créé seulement dans ce navigateur donnerait au client « Lien invalide ou expiré ».
+       ⚠️ « OUVRIR DANS ZOHO » EST UN VRAI LIEN (`<a target="_blank">`) : le clic l'ouvre dans un nouvel onglet, sans
+       quitter le devis. Ouvert par script après la fenêtre d'impression, il serait bloqué (le geste a expiré) — d'où
+       deux boutons, 1 puis 2, plutôt qu'un seul qui enchaînerait les deux.
+       ⚠️ LE DEVIS PASSE EN « ENVOYÉ » AU CLIC (brouillon seulement : un devis en relance ou signé ne recule pas), comme
+       les relances copiées : on ne saura jamais si le mail est parti de Zoho. « Annuler » remet le statut d'avant, s'il
+       n'a pas changé entre-temps. Sans ce passage, la page du client n'offre pas « J'accepte » (devis non envoyé). */
+    let ENVOI = { pret: false, lien: '', marque: null, pdfFait: false, etape: false, depuisFond: false };
+    const envoiOuvert = () => el('envoiFond').classList.contains('open');
+    function envoiEtat(msg, erreur) {
+      const b = el('envoiEtat');
+      b.hidden = !msg; b.textContent = msg || ''; b.classList.toggle('err', !!erreur);
+    }
+    function nomPdf() { return (document.title || 'devis') + '.pdf'; }
+    window.majEnvoi = function () {
+      const a = el('envoiA').value.trim(), z = el('envoiBtnZoho');
+      const ok = ENVOI.pret && !!a;
+      z.href = ok ? window.SSUI.mailtoHref(a, el('envoiObjet').value, el('envoiTexte').value) : '#';
+      z.setAttribute('aria-disabled', ok ? 'false' : 'true');
+      el('envoiBtnCopier').disabled = !ENVOI.pret;
+      const pdf = el('envoiPdf').checked;
+      el('envoiBtnPdf').hidden = !pdf;
+      el('envoiBtnPdf').textContent = ENVOI.pdfFait ? '1. Enregistrer le PDF ✓' : '1. Enregistrer le PDF';
+      z.textContent = pdf ? '2. Ouvrir dans Zoho Mail' : 'Ouvrir dans Zoho Mail';
+      el('envoiAide').innerHTML = (pdf
+        ? 'Le PDF se nomme <b>' + esc(nomPdf()) + '</b> (dossier Téléchargements) : glisse-le dans le message Zoho. '
+        : '')
+        + 'Zoho s’ouvre dans un nouvel onglet, destinataire et objet remplis ; le texte est aussi copié : <b>Ctrl+V</b> s’il n’y est pas. '
+        + 'Pour que ce soit Zoho qui s’ouvre : Zoho Mail › Paramètres › Système › <i>Mail To Handlers</i> (une fois par ordinateur).'
+        + (a ? '' : ' <b>Il manque l’adresse e-mail du client.</b>');
+    };
+    // La case « Joindre le PDF » ajoute ou retire SA phrase du texte, et rien d'autre : ce qu'on a retouché reste.
+    window.basculerPdf = function () {
+      const t = el('envoiTexte'), P = window.SSUI.PHRASE_PDF;
+      const lignes = t.value.split('\n');
+      const i = lignes.indexOf(P);
+      if (el('envoiPdf').checked && i < 0) {
+        const j = ENVOI.lien ? lignes.indexOf(ENVOI.lien) : -1;
+        lignes.splice(j >= 0 ? j + 1 : lignes.length, 0, P);
+      } else if (!el('envoiPdf').checked && i >= 0) lignes.splice(i, 1);
+      t.value = lignes.join('\n');
+      majEnvoi();
+    };
+    window.ouvrirEnvoi = async function () {
+      if (!DEVIS) return;
+      ENVOI = Object.assign(ENVOI, { pret: false, lien: '', pdfFait: false });
+      el('envoiRef').textContent = refDoc(DEVIS).replace(/&amp;/g, '&');
+      el('envoiFait').hidden = !ENVOI.marque;
+      ['envoiA', 'envoiObjet', 'envoiTexte'].forEach((k) => { el(k).value = ''; });
+      envoiEtat('Préparation du message et du lien…');
+      majEnvoi();
+      el('envoiFond').classList.add('open');
+      try { history.pushState({ ssEnvoi: 1 }, ''); ENVOI.etape = true; } catch (e) { ENVOI.etape = false; }
+      // 1. Le lien de consultation : enregistré AVANT d'être écrit (voir plus haut).
+      let jeton = DEVIS.review_token;
+      if (!jeton) {
+        const neuf = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))).replace(/-/g, '');
+        const res = await SS.modifierDevis(DEVIS.id, (d) => { if (!d.review_token) d.review_token = neuf; });
+        if (res.ok === false || res.offline || !res.devis || !res.devis.review_token) {
+          envoiEtat((res && res.error ? res.error + ' — ' : '') + 'Le lien du devis n’a pas pu être créé : reconnecte-toi puis réessaie (le client ne pourrait pas l’ouvrir).', true);
+          return;
+        }
+        DEVIS = res.devis; jeton = DEVIS.review_token;
+      }
+      ENVOI.lien = location.origin + '/devis-review.html?t=' + jeton;
+      // 2. La fiche client (salutation : ton et civilité) et qui signe.
+      const cl = DEVIS.client || {};
+      let fiche = null, qui = null;
+      try { fiche = await SS.getClient(window.SSUI.clientKeyOf(cl.prenom, cl.nom)); } catch (e) { fiche = null; }
+      try { qui = await window.SSNav.getIdentity(); } catch (e) { qui = null; }
+      ENVOI.quiKey = (qui && qui.key) || null;
+      const m = window.SSUI.mailEnvoiDevis({ devis: DEVIS, calc: CALC, fiche: fiche, lien: ENVOI.lien,
+        qui: ENVOI.quiKey === 'yannick' ? 'Yannick' : 'Nicolas', avecPdf: el('envoiPdf').checked });
+      el('envoiA').value = cl.email || (fiche && fiche.email) || '';
+      el('envoiObjet').value = m.objet;
+      el('envoiTexte').value = m.texte;
+      ENVOI.pret = true;
+      envoiEtat('');
+      majEnvoi();
+      // Le message se lit depuis son début (la salutation) : posé par `value`, il s'ouvrait défilé jusqu'à la signature.
+      const ta = el('envoiTexte'); ta.scrollTop = 0; try { ta.setSelectionRange(0, 0); } catch (e) {}
+      (el('envoiA').value ? el('envoiBtnZoho') : el('envoiA')).focus();
+    };
+    window.fermerEnvoi = function () {
+      if (!envoiOuvert()) return;
+      el('envoiFond').classList.remove('open');
+      // L'étape posée à l'ouverture est retirée : sinon « retour » ne ferait plus rien une fois.
+      if (ENVOI.etape) { ENVOI.etape = false; try { history.back(); } catch (e) {} }
+    };
+    window.addEventListener('popstate', () => {
+      if (!envoiOuvert()) return;
+      ENVOI.etape = false;          // le navigateur vient de la retirer lui-même
+      el('envoiFond').classList.remove('open');
+    });
+    (function () {
+      const fond = el('envoiFond');
+      fond.addEventListener('pointerdown', (e) => { ENVOI.depuisFond = e.target === fond; });
+      fond.addEventListener('click', (e) => { if (e.target === fond && ENVOI.depuisFond) fermerEnvoi(); ENVOI.depuisFond = false; });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && envoiOuvert()) fermerEnvoi(); });
+    })();
+    window.envoiEnregistrerPdf = async function () {
+      await window.printDoc();      // la fenêtre d'impression : « Enregistrer au format PDF »
+      ENVOI.pdfFait = true;
+      majEnvoi();
+      el('envoiBtnZoho').focus();
+    };
+    /** Le devis passe en « Envoyé » — un brouillon seulement, une fois par ouverture de la page.
+     *  ⚠️ UN SEUL PASSAGE EN VOL : « Ouvrir dans Zoho » puis « Copier » dans la foulée lançaient deux écritures ; la
+     *  seconde relisait un devis déjà « Envoyé », répondait « inchangé » et effaçait la trace de la première — plus de
+     *  bouton « Annuler ». Un échec, lui, ne se garde pas : le clic suivant réessaie. */
+    function marquerEnvoye() {
+      if (!ENVOI.marquage) {
+        ENVOI.marquage = marquer().then((m) => { if (m.erreur) ENVOI.marquage = null; return (ENVOI.marque = m); });
+      }
+      return ENVOI.marquage;
+    }
+    async function marquer() {
+      const st = DEVIS.statut || 'brouillon';
+      if (st !== 'brouillon') return { change: false, statut: st };
+      const quand = new Date().toISOString();
+      let avant = null;
+      const res = await SS.modifierDevis(DEVIS.id, (d) => {
+        if ((d.statut || 'brouillon') !== 'brouillon') return 'deja:' + d.statut;
+        avant = { statut: d.statut, date_envoi: d.date_envoi, n: (d.statut_history || []).length };
+        d.statut = 'envoye_client';
+        if (!d.date_envoi) d.date_envoi = window.SSUI.aujourdhui();
+        d.statut_history = (d.statut_history || []).concat([{ statut: 'envoye_client', date: quand, by: ENVOI.quiKey || null }]);
+      });
+      if (res.refuse && /^deja:/.test(res.error)) return { change: false, statut: res.error.slice(5) };
+      if (res.ok === false) return { change: false, erreur: res.error || 'Statut non enregistré.' };
+      DEVIS = res.devis;
+      const cl = DEVIS.client || {};
+      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → Envoyé (bouton « Envoyer au client »)` });
+      renderPaper();                // le filigrane BROUILLON de l'écran s'en va
+      return { change: true, quand: quand, avant: avant, offline: !!res.offline };
+    }
+    function rendreFait(quoi) {
+      const m = ENVOI.marque || {}, b = el('envoiFait');
+      const lib = (s) => (window.SSUI.STATUT_DEVIS_LABEL || {})[s] || s;
+      const statut = m.erreur ? '<b>Statut NON changé</b> : ' + esc(m.erreur)
+        : (m.change ? 'Le devis est passé en « Envoyé » (' + esc(fmtDate(DEVIS.date_envoi)) + ')' + (m.offline ? ', hors-ligne : il partira à la reconnexion' : '') + '.'
+          : 'Statut inchangé : « ' + esc(lib(m.statut)) + ' ».');
+      b.innerHTML = '<span>' + quoi + ' ' + statut + '</span>'
+        + (m.change ? '<button class="btn btn-ghost btn-sm" type="button" id="envoiAnnuler" onclick="annulerEnvoye()">Annuler « Envoyé »</button>' : '');
+      b.hidden = false;
+    }
+    window.envoiOuvrirZoho = function (e) {
+      if (!ENVOI.pret || !el('envoiA').value.trim()) {
+        if (e) e.preventDefault();
+        toast(ENVOI.pret ? 'Ajoute l’adresse e-mail du client.' : 'Le message n’est pas prêt.', 'warn');
+        return false;
+      }
+      majEnvoi();                   // le lien porte ce qui est écrit à l'instant du clic
+      window.ssCopy(el('envoiTexte').value, 'Message');
+      marquerEnvoye().then(() => rendreFait('✓ Zoho Mail ouvert dans un nouvel onglet — le message est aussi copié (Ctrl+V s’il n’y est pas).'));
+      return true;                  // le navigateur suit le lien
+    };
+    window.envoiCopier = function () {
+      if (!ENVOI.pret) return;
+      window.ssCopy(el('envoiTexte').value, 'Message');
+      marquerEnvoye().then(() => rendreFait('✓ Message copié.'));
+    };
+    window.annulerEnvoye = async function () {
+      const m = ENVOI.marque;
+      if (!m || !m.change) return;
+      const btn = el('envoiAnnuler'); if (btn) btn.disabled = true;
+      const res = await SS.modifierDevis(DEVIS.id, (d) => {
+        const h = d.statut_history || [];
+        const der = h[h.length - 1];
+        if (d.statut !== 'envoye_client' || !der || der.date !== m.quand) return 'Le devis a changé depuis (« ' + d.statut + ' ») : rien n’est annulé.';
+        // ⚠️ ÉCRIRE la valeur d'avant, jamais `delete` : le serveur FUSIONNE (une clé absente de l'envoi survit en base),
+        // et un devis sans date d'envoi gardait celle du clic (trouvé par le test E10).
+        d.statut = m.avant.statut || 'brouillon';
+        d.date_envoi = m.avant.date_envoi || '';
+        d.statut_history = h.slice(0, -1);
+      });
+      if (res.ok === false) { toast(res.error || 'Annulation impossible.', 'error', 6000); if (btn) btn.disabled = false; return; }
+      DEVIS = res.devis;
+      ENVOI.marque = null; ENVOI.marquage = null;
+      const cl = DEVIS.client || {};
+      SS.logActivity({ action: 'devis.statut', entity_type: 'devis', entity_id: DEVIS.id, label: `Devis #${DEVIS.id}${(cl.prenom || cl.nom) ? ' (' + ((cl.prenom || '') + ' ' + (cl.nom || '')).trim() + ')' : ''} → « Envoyé » annulé` });
+      renderPaper();
+      el('envoiFait').innerHTML = '<span>« Envoyé » annulé : le devis est revenu à « ' + esc((window.SSUI.STATUT_DEVIS_LABEL || {})[DEVIS.statut || 'brouillon'] || 'Brouillon') + ' ».</span>';
+      toast('« Envoyé » annulé ✓', 'ok');
+    };
 
     // Attend que la police web (Inter, Google Fonts) soit vraiment chargée avant d'imprimer —
     // sinon window.print() peut capturer une mise en page calculée avec la police de repli du

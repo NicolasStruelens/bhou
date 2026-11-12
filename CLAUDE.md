@@ -78,7 +78,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 41 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 78 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis le récapitulatif de la remise (règle 65 : bandeau dans les deux exemplaires, lignes vertes retirées, rien sans remise ni sur un vieux devis, vert fixe à l'impression, page du lien) et « Envoyer au client » rejoué au geste (lien enregistré avant d'être écrit, salutation de la fiche, case PDF, « Envoyé » et « Annuler », Échap, fond, « retour », téléphone) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 61 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place, et l'école du bac à sable à trois devis), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -131,7 +131,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 130 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
-| `tests/mails.test.html` | Les 61 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
+| `tests/mails.test.html` | Les 62 tests des mails envoyés par l'ERP (règle 43) : la ROUTE SERVEUR (vrai fichier, faux SMTP2GO : identité, ce qui manque, destinataires, en-têtes, échecs, envoi partiel, plafond, archive), la fenêtre de relance « en construction » puis « branchée » (envoi, relance notée, archive, échecs), téléphone, et la section E-mails des Paramètres. Aucun mail réel. **Par le serveur de test.** |
 | `tests/clients.test.html` | Les 98 tests de la page Clients (règles 42 et 68) : le tri tous azimuts et « modifié ou ajouté » en tête, « Enregistrer la fiche » qui n'efface plus rien, chiffres égaux à ceux du tableau de bord, ligne « quoi faire », recherche, factures avec notes de crédit, argent du client, propagation ciblée des coordonnées, « À ranger » et le retour à l'accueil, une saisie qu'on ne perd pas sans le dire, nouveau client, téléphone (« retour »), et la page Facturation sur la règle commune. **Par le serveur de test.** |
 | `tests/tactile.test.html` | Les tests des champs à 16 px sur écran tactile (anti-zoom iOS) : les 21 pages et la page client chargées en cadre, chaque bloc `(pointer: coarse)` basculé à vrai (téléphone) puis à faux (bureau inchangé), les composants qui retaillent leurs champs, et une mesure directe sur un vrai écran tactile. **Par le serveur de test.** |
 
@@ -3618,6 +3618,68 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
   serveur retomberait sur la copie du devis). Rien de touché → RIEN n'est écrit (« Rien n'a changé sur la fiche ») : le client ne
   remonte pas pour rien. Pas encore de fiche (client « à compléter ») → elle est créée, avec sa `date_creation`. La propagation des
   coordonnées vers les devis ne change pas.
+
+**65. LE DEVIS MONTRE SA REMISE D'UN COUP D'ŒIL, ET « ENVOYER AU CLIENT » PRÉPARE ZOHO** (11/11/2026, réunion avec Yannick ;
+Nicolas : « que le client se rende compte de la remise et ne va pas chercher les remises en vert que nous on connaît, il faut que
+ça flash le prix normal, le total de la remise, bien gras le total », puis « un bouton quand on génère le pdf qu'il ouvre zoho
+mail et qu'il prépare un texte avec le client et devis automatiquement en pièce jointe possible ? ». Maquette sur VRAIS PDF :
+variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », avec « Envoyé » au clic). Protégé par
+`tests/documents.test.html` (séries R et E) et `mails.test.html` (U3b), vérifiés par mutations.
+• **LE BANDEAU « Prix de base − Votre remise (x %) = Total HTVA »**, pleine largeur sous le tableau, le total en gras ; les
+  totaux continuent par TVA et TOTAL TVAC. Les lignes vertes « Remise commerciale » SORTENT du tableau : le client les cherchait,
+  et le tableau donne désormais les prix de base qu'il additionne. Règle `SSUI.recapRemise`, gabarit `SSUI.bandeauRemiseHtml`
+  (ui.js) : les DEUX exemplaires (règle 7) et la page du lien (téléphone) les lisent — une seule copie du gabarit, comme
+  l'encadré de configuration (règle 31 septies).
+  ⚠️ **Le prix de base est ce que le tableau IMPRIME** (ouvertures, installation brute, suppléments, accès difficile) : le client
+  le refait à la calculatrice. **La remise affichée est prix de base − total HTVA**, au centime (règle 30 octies) : la somme des
+  trois remises arrondies chacune peut s'écarter d'un centime. Elle comprend la part libre devenue remise (règle 64, dans
+  `remise_catalogue.amount`), jamais la remise projet Harol (hors `calculs`).
+  ⚠️ **Rien sans remise** (feuille identique à avant, mesurée au point près) ; **et rien quand la décomposition ne retombe pas sur
+  le total à deux centimes près** (vieux devis sans `install_total_brut`) : on garde alors les lignes vertes d'avant.
+• **MESURÉ SUR DE VRAIS PDF** (banc `impression.html?…&exemple=remises`, devis FICTIFS `SSBacASable.exemplesRemises`, hors
+  `remplir`) : une remise sur deux screens laisse 162 pt libres sur la page ; le cas le plus serré — deux volets à encadré, remise
+  matériel ET pose — 32 pt (11 mm), parce que le bandeau remplace DEUX lignes vertes ; le grand devis reste à 2 pages.
+  ⚠️ La variante A de la maquette (deux lignes de plus dans les totaux, lignes vertes gardées) faisait passer ce cas serré à DEUX
+  pages : **ne pas remettre les lignes vertes à côté du bandeau**, ni lui ajouter une troisième ligne par case.
+• ⚠️ **LE VERT D'IMPRESSION ÉTAIT CELUI DU THÈME D'ÉCRAN** : `--ok` n'était pas forcé dans le `@media print` de document.css. Le
+  PDF enregistré depuis un écran sombre écrivait la remise en #34d399 (contraste 1,9:1 sur blanc), en cyberpunk en #39ff88 (1,3:1),
+  pendant que l'exemplaire du client, toujours en thème clair, l'imprimait en #057a55 (5,4:1). Forcé à #057a55, pour tous les
+  documents (facture comprise). Seul un PDF réellement généré le montre (règle 31 septies) ; le test R7 le lit en forçant les
+  règles `print` sous thème cyberpunk.
+• **« ENVOYER AU CLIENT »** (app/devis.html, à côté de « Imprimer / PDF »). Ce que Zoho Mail accepte, vérifié dans sa documentation
+  le 11/11/2026 : choisi comme messagerie du navigateur (Zoho Mail › Paramètres › Système › *Mail To Handlers*, une fois par
+  ordinateur), il ouvre un brouillon depuis un lien `mailto:` avec destinataire et objet ; **le texte n'y est pas promis**, donc il
+  est aussi COPIÉ (Ctrl+V) ; **aucune pièce jointe n'est possible depuis une page web**, chez Zoho comme ailleurs. D'où deux
+  boutons : « 1. Enregistrer le PDF » (la fenêtre d'impression), puis « 2. Ouvrir dans Zoho Mail », où l'on glisse le fichier.
+  ⚠️ **Deux boutons et pas un** : « Ouvrir dans Zoho » est un VRAI lien (`<a target="_blank" href="mailto:…">`, nouvel onglet,
+  le devis reste ouvert) ; ouvert par script après la fenêtre d'impression, il serait bloqué (le geste du clic a expiré).
+  ⚠️ **Le lien de consultation est ENREGISTRÉ avant d'être écrit** dans le message (comme « Copier le lien » de la fiche) : un
+  jeton créé dans ce seul navigateur donnerait au client « Lien invalide ou expiré ». S'il ne s'enregistre pas, rien ne s'ouvre.
+  Le texte vient de `SSUI.mailEnvoiDevis` (salutation de la FICHE client, montant avec la remise, lien, phrase du PDF que la case
+  « Joindre le PDF » ajoute ou retire sans toucher au reste, signature) ; `SSUI.mailtoHref` nettoie les destinataires (rien ne
+  glisse un `?cc=`) et écrit les retours à la ligne en CRLF. Dépannage : bon d'intervention « payable à réception » ou proposition,
+  jamais d'acompte (règle 7).
+  ⚠️ **Le BROUILLON passe en « Envoyé » au clic** (Zoho ou Copier) — on ne saura jamais si le mail est parti de Zoho, même règle
+  que les relances copiées : date d'envoi du jour, historique signé, journal. Sans ce passage, la page du lien n'offre pas
+  « J'accepte ». « Annuler « Envoyé » » remet statut, date et historique, SEULEMENT si rien n'a changé entre-temps. Un devis déjà
+  envoyé, relancé ou signé ne bouge pas. Pas de SMTP2GO pour l'instant (choix de Nicolas) : un envoi par l'ERP avec le PDF
+  demanderait d'apprendre les pièces jointes à `routeMailEnvoyer` (SMTP2GO les accepte : `attachments`, 50 Mo par mail), et le
+  PDF se déposerait quand même à la main — une page web ne sait pas le fabriquer seule.
+• ⚠️ **LA SIGNATURE DES RELANCES N'A JAMAIS PORTÉ LE SITE**, pour DEUX raisons : elle lisait `SS_COMPANY.website`, qui n'existe pas
+  (`web`), et la fiche devis (`vue.html`) ne chargeait même pas `company.js` — ses relances signaient « Nicolas / SolariScreen »
+  quoi qu'on y lise (trouvé par le test U3b, qui échouait encore après la première correction). Salutation et signature vivent
+  maintenant dans ui.js (`SSUI.salutationMail`, `SSUI.signatureMail`), lues par les relances de la fiche devis, les messages des
+  demandes de RDV et l'envoi du devis.
+• ⚠️ **« ANNULER » ÉCRIT LA VALEUR D'AVANT, JAMAIS `delete`** : le serveur fusionne (une clé absente de l'envoi survit en base),
+  et un devis sans date d'envoi gardait celle du clic (test E10).
+• ⚠️ **UN SEUL PASSAGE EN « ENVOYÉ » EN VOL** : « Ouvrir dans Zoho » puis « Copier » dans la foulée lançaient deux écritures ; la
+  seconde relisait un devis déjà « Envoyé », répondait « inchangé » et effaçait la trace de la première — plus de bouton
+  « Annuler » (test E9b). Et un devis relancé AILLEURS pendant que la page est ouverte ne recule pas : la relecture de
+  `SS.modifierDevis` le refuse (test E12b). 24 mutations, toutes tuées.
+• ⚠️ **TESTER « RETOUR » DANS UN CADRE DU BANC** : un document ÉCRIT dans un cadre n'a pas d'entrée d'historique à lui
+  (banc-serveur.js) ; le `history.back()` d'une fenêtre qui se ferme y faisait reculer la PAGE DE TEST (vers about:blank — la
+  suite ne rendait plus rien, « délai dépassé »). Les tests E comptent les étapes posées et retirées, et « retour » se joue par
+  un `popstate`, comme le navigateur.
 
 ## Pièges déjà payés — ne pas les repayer
 
