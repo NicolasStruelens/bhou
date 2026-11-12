@@ -77,8 +77,8 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). Sur téléphone, l'ENCOCHE d'un iPhone est simulée (59 px en haut, 34 en bas, règle 61) : « sous l'encoche », « sous la barre de gestes ». **Par le serveur de test.** |
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
-| `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 78 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis le récapitulatif de la remise (règle 65 : bandeau dans les deux exemplaires, lignes vertes retirées, rien sans remise ni sur un vieux devis, vert fixe à l'impression, page du lien) et « Envoyer au client » rejoué au geste (lien enregistré avant d'être écrit, salutation de la fiche, case PDF, « Envoyé » et « Annuler », Échap, fond, « retour », téléphone) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). Exemples FICTIFS hors jeu : `exemple=volets4`, `exemple=remises` (devis à remise ; avec `&factures=1`, leurs factures faites par la vraie règle, `facturerRemises`, règle 65). |
+| `tests/documents.test.html` | Les 79 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis le récapitulatif de la remise (règle 65 : bandeau dans les deux exemplaires, lignes vertes retirées, rien sans remise ni sur un vieux devis, vert fixe à l'impression, page du lien ; sur les factures, le bandeau d'une facture totale et le rappel d'un acompte, cadre en retrait) et « Envoyer au client » rejoué au geste (lien enregistré avant d'être écrit, salutation de la fiche, case PDF, « Envoyé » et « Annuler », Échap, fond, « retour », téléphone) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 61 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place, et l'école du bac à sable à trois devis), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -123,7 +123,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/banc-serveur.js` | **Pas une suite — le BANC des tests serveur** (`window.SSBanc`) : le vrai `[[catchall]].js` sur une vraie base SQLite en mémoire, un faux réseau qui pose l'identité Access, et `cadre(url)` qui charge une vraie page déjà branchée dessus. Partagé par `bac-a-sable.test.html`, `sav.test.html` et `outillage.test.html` (règles 46 à 48). |
 | `assets/js/outillage.js` | **Outillage & références** (règle 48) : recherche sans accents et par référence compacte, lecture des prix, fournisseurs et prix datés, « à racheter », kits de pose et « à emporter ». Fonctions pures (`window.SSOutil`). |
 | `assets/js/facturation.js` | **La facturation** (règle 49) : montants d'une nouvelle facture et leur libellé, à facturer maintenant, par chantier, relances, répartition d'un virement, export comptable. Fonctions pures (`window.SSFact`) ; ce qui est DÛ reste dans `ui.js` (règle 4). |
-| `tests/facturation.test.html` | Les 48 tests de la facturation : règles pures et statut partagé (notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone (tactile simulé) et « retour ». Vérifié par 19 mutations. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
+| `tests/facturation.test.html` | Les 59 tests de la facturation : règles pures et statut partagé (notes de crédit), la remise sur les factures (règle 65 : bandeau calculé sur les lignes de LA facture, instantané du rappel posé par « Générer », factures d'avant inchangées, signe moins des notes de crédit), les ROUTES (suppression refusée quand une facture a une suite, relances signées, virement réparti, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (à facturer, par chantier, filtres, acompte en euros, répartition, relance, note de crédit, pièce Falco, export, fenêtres), le DOCUMENT imprimé, le téléphone (tactile simulé) et « retour ». Vérifié par 19 mutations, plus 25 pour la remise sur les factures. **C'est de l'argent. Par le serveur de test, avec accès à cdnjs.** |
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 68 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis (sa carte SAV atteinte par le sommaire, au portable comme au téléphone, règle 66), le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
@@ -3623,8 +3623,9 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
 Nicolas : « que le client se rende compte de la remise et ne va pas chercher les remises en vert que nous on connaît, il faut que
 ça flash le prix normal, le total de la remise, bien gras le total », puis « un bouton quand on génère le pdf qu'il ouvre zoho
 mail et qu'il prépare un texte avec le client et devis automatiquement en pièce jointe possible ? ». Maquette sur VRAIS PDF :
-variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », avec « Envoyé » au clic). Protégé par
-`tests/documents.test.html` (séries R et E) et `mails.test.html` (U3b), vérifiés par mutations.
+variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », avec « Envoyé » au clic. Étendu aux FACTURES le
+12/11/2026 : « B pour les factures, oui pour le signe moins », voir le dernier point). Protégé par `tests/documents.test.html`
+(séries R et E, R9 pour les factures), `mails.test.html` (U3b) et `facturation.test.html` (S13 à S17, D3 à D8), vérifiés par mutations.
 • **LE BANDEAU « Prix de base − Votre remise (x %) = Total HTVA »**, pleine largeur sous le tableau, le total en gras ; les
   totaux continuent par TVA et TOTAL TVAC. Les lignes vertes « Remise commerciale » SORTENT du tableau : le client les cherchait,
   et le tableau donne désormais les prix de base qu'il additionne. Règle `SSUI.recapRemise`, gabarit `SSUI.bandeauRemiseHtml`
@@ -3680,6 +3681,33 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
   (banc-serveur.js) ; le `history.back()` d'une fenêtre qui se ferme y faisait reculer la PAGE DE TEST (vers about:blank — la
   suite ne rendait plus rien, « délai dépassé »). Les tests E comptent les étapes posées et retirées, et « retour » se joue par
   un `popstate`, comme le navigateur.
+• **LES FACTURES (12/11/2026, maquette sur vrais PDF, « B pour les factures, oui pour le signe moins »)**.
+  ⚠️ **UNE FACTURE ÉMISE NE CHANGE D'AUCUN CENTIME NI D'AUCUNE LIGNE** (règles 1 et 5) : rien de ce qui suit ne relit le devis
+  du jour ; seule la PRÉSENTATION d'une facture totale déjà émise change quand on la réimprime.
+  – **FACTURE TOTALE** : la seule qui porte les remises, en lignes « Remise commerciale » NÉGATIVES (`SSFact.lignes`, depuis
+  la toute première version). Le bandeau du devis s'y lit sur SES lignes (`SSUI.recapRemiseFacture`) : prix de base = somme
+  des lignes positives, remise = prix de base − total HTVA ; il retombe exactement sur celui du devis (test S13), et les
+  lignes de remise sortent du tableau (`SSUI.estLigneRemise`), numéros qui se suivent. ⚠️ Rien — la facture s'imprime comme
+  avant, lignes de remise comprises — si la remise ne retombe pas à deux centimes près sur ces lignes, ou si une AUTRE ligne
+  négative s'y trouve (on ne sait pas ce qu'elle est).
+  – **ACOMPTE, SOLDE, PARTIELLE** : une ligne de montant, la remise est dedans, la facture ne garde aucune trace du prix de
+  base. Un RAPPEL d'une ligne sous le tableau, « Sur le devis N° … : prix de base − votre remise (x %) = total HTVA »
+  (`SSUI.rappelRemiseHtml`), lu dans l'instantané `recap_devis` { devis_id, base, remise, ht, pct_texte } que « Générer »
+  pose À LA CRÉATION (`SSFact.recapDevis`, même règle que le bandeau du devis) — figé, jamais recalculé : une facture créée
+  avant le 12/11/2026 n'en a pas et ne change pas (test D7). ⚠️ **Pas le grand bandeau** sur un acompte : son « Total HTVA »
+  serait celui du DEVIS, au-dessus d'une facture d'un autre montant — le client se demanderait lequel il paie.
+  – **NOTE DE CRÉDIT** (une ligne d'annulation), **DÉPANNAGE** (jamais de remise) : ni bandeau ni rappel.
+  – **LE SIGNE MOINS** : `Intl` écrit « -100,00 € », un trait d'union collé ; la facture écrit ses montants avec
+  `SSUI.fmtEurDocSigne`, « − 100,00 € » comme le devis (note de crédit, lignes de remise qui restent). Un positif garde le
+  texte de `fmtEurDoc` au caractère près ; un « -0,00 € » d'arrondi reste « 0,00 € ».
+  ⚠️ **LE CADRE DU RAPPEL EST EN TRAIT CONTINU, EN RETRAIT DE 1 PX** : la maquette l'avait en pointillés pleine largeur ;
+  relu dans le PDF, il débordait de 0,85 pt de la zone imprimable — le défaut des cases de signature (règle 39 bis : un
+  pointillé collé au bord n'est pas imprimé). Test R9.
+  **MESURÉ SUR VRAIS PDF** (banc `impression.html?…&exemple=remises&factures=1`, factures FICTIVES `SSBacASable.facturerRemises`
+  faites par la vraie règle — le jeu, lui, écrit une facture totale en UNE ligne « Travaux selon devis », sans remise) : les 11
+  factures du jeu identiques au caractère et au point près ; les totales remisées gagnent 4 pt (le bandeau remplace deux
+  lignes) ; le rappel coûte 32 pt (il reste au moins 234 pt libres) ; tout tient sur une page. 25 mutations (signe,
+  bandeau, rappel, instantané, « Générer », cadre et vert du rappel), toutes tuées.
 
 ## Pièges déjà payés — ne pas les repayer
 
@@ -3967,7 +3995,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 34/34 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
-   des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 48/48 », par le serveur —
+   des factures dans `ui.js`, `/api/factures`) : `tests/facturation.test.html`, exiger « 59/59 », par le serveur —
    ET `clients.test.html`, `dashboard.test.html` et `bac-a-sable.test.html`. C'est de l'argent.
    Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
@@ -3994,7 +4022,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 61/61 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 78/78 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 79/79 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
    `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 68/68 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
