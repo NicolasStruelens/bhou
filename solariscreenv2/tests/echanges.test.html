@@ -92,11 +92,29 @@
       return suj(o.id);
     }
     const vieillir = (id, jours) => BANC.sql1("UPDATE sujets SET data = json_set(data, '$.balle_le', '" + ilYaJ(jours) + "', '$.date_creation', '" + ilYaJ(jours) + "') WHERE id = '" + id + "'");
+    /** Combien de temps la page a pour être prête. Chaque attente s'arrête DÈS qu'elle l'est : un délai long ne coûte rien
+     *  quand tout va bien. Il en faut un long parce que la machine qui joue les suites est souvent chargée : le 12/11/2026,
+     *  avec huit Chrome en parallèle, T5 tombait une fois sur huit (carte pas encore dépliée au bout des anciens 10 s + 4 s),
+     *  sans rapport avec ce qu'il vérifie (mesuré le 11/11 sur planning-page : jusqu'à 35 s pour un premier rendu sous charge).
+     *  Les anciens 9 s + 6 s de l'ouverture sur le banc passent au même régime. */
+    const DELAI_PAGE = 90000;
+    /** Attend que `prete()` réponde vrai, au plus DELAI_PAGE depuis `t0` (l'ouverture du cadre). Pas prête à temps : on le DIT,
+     *  au lieu de laisser les cas échouer un à un sur une page vide. */
+    async function attendrePage(nom, prete, t0, raison) {
+      for (;;) {
+        try { const v = prete(); if (v) return v; } catch (e) {}
+        if (Date.now() - t0 >= DELAI_PAGE) throw new Error(nom + ' pas prête après ' + DELAI_PAGE / 1000 + ' s (' + raison + ') : machine trop chargée ?');
+        await attendre(50);
+      }
+    }
+    const listeDessinee = (d) => d.querySelector('#host .ec-suj, #host .empty') && !d.querySelector('#attenteHost .skl');
+    /** Sur le banc, la page est prête quand l'annuaire des clients est arrivé : c'est la DERNIÈRE étape de son chargement
+     *  (`charger()` dessine la liste, PUIS `chargerClients()` remplit l'annuaire et traite l'adresse : « ?client= », « #suj-… »). */
     async function ouvrirPage(largeur, hauteur, suffixe) {
+      const t0 = Date.now();
       const f = await BANC.cadre('../app/echanges.html' + (suffixe || '?t=' + Date.now()), largeur, hauteur);
-      await attendreQue(() => f.contentDocument.querySelector('#host .ec-suj, #host .empty') && !f.contentDocument.querySelector('#attenteHost .skl'), 9000);
-      // La liste des clients et des dossiers arrive APRÈS le premier rendu (le dossier d'un client, E).
-      await attendreQue(() => f.contentDocument.getElementById('dlClients').options.length > 0, 6000);
+      await attendrePage('echanges.html', () => listeDessinee(f.contentDocument) && f.contentDocument.getElementById('dlClients').options.length > 0, t0,
+        'liste ou annuaire des clients pas arrivés');
       await attendre(150);
       return f;
     }
@@ -347,10 +365,13 @@
         check('T4 Écran tactile (blocs « pointer: coarse » forcés) : les onglets et « voir ce qui est fait » se touchent ; « voir » (14 px) et les liens de méta ont une cible de 44 px',
           [h('#ongAttente') >= 44, h('.ec-voirfaits') >= 44, apres('.at-plie'), apres('.ec-meta a')], [true, true, '44px', '44px']);
         f.remove();
+        // Une VRAIE navigation, hors du banc : l'annuaire des clients y reste vide (les caches ont été vidés), il ne peut pas
+        // dire que la page est prête. Le dernier geste de son chargement, ici, c'est la carte visée par « #suj-… » dépliée.
+        const t5 = Date.now();
         f = await cadreNavigue('../app/echanges.html?t=' + Date.now() + '#suj-P-YAN', 375, 812);
         w = f.contentWindow; d = f.contentDocument;
-        await attendreQue(() => d.querySelector('#host .ec-suj') && d.getElementById('suj-P-YAN'), 10000);
-        await attendreQue(() => d.getElementById('suj-P-YAN').classList.contains('ouverte'), 4000);
+        await attendrePage('echanges.html#suj-P-YAN', () => listeDessinee(d) && d.getElementById('suj-P-YAN') && d.getElementById('suj-P-YAN').classList.contains('ouverte'), t5,
+          'carte du sujet visé pas dépliée');
         let poussees = 0;
         const pousser = w.history.pushState.bind(w.history);
         w.history.pushState = function () { poussees++; return pousser.apply(null, arguments); };

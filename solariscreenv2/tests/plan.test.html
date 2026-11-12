@@ -68,9 +68,35 @@
     const vu = (n) => !!(n && n.checkVisibility && n.checkVisibility());
     const frag = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d; };
 
+    /** Combien de temps une page (fiche devis, simulateur) a pour être prête. Chaque attente s'arrête DÈS qu'elle l'est : un
+     *  délai long ne coûte rien quand tout va bien. Il en faut un long parce que la machine qui joue les suites est souvent
+     *  chargée : le 12/11/2026, avec huit Chrome en parallèle, V23 tombait une fois sur huit (aucun éclair relevé dans les
+     *  anciens 6 s) ; mesuré le 11/11 sur planning-page, jusqu'à 35 s pour un premier rendu sous charge. */
+    const DELAI_PAGE = 90000;
+    /** Attend que `prete()` réponde vrai, au plus DELAI_PAGE depuis `t0` (l'ouverture du cadre). Pas prête à temps : on le DIT,
+     *  au lieu de laisser les cas échouer un à un sur une page vide. */
+    async function attendrePage(nom, prete, t0, raison) {
+      for (;;) {
+        try { const v = prete(); if (v) return v; } catch (e) {}
+        if (Date.now() - t0 >= DELAI_PAGE) throw new Error(nom + ' pas prête après ' + DELAI_PAGE / 1000 + ' s (' + raison + ') : machine trop chargée ?');
+        await attendre(50);
+      }
+    }
+    /** La fiche est prête quand la carte Ouvertures est dessinée : `render()` la dessine juste après avoir affiché `#main`,
+     *  dans le même geste que les préférences de cartes et les ancres d'arrivée. */
+    const carteOuvertures = (d) => d.querySelector('#ouvHost .pl, #ouvHost .dep-bloc, #ouvHost .text-muted');
+    /** Le simulateur est prêt quand sa liste d'ouvertures est dessinée : le reste du chargement d'un devis existant (`ouv`,
+     *  `champ`, le recalcul) suit sans attente, dans le même geste. */
+    async function simulateur(url, n) {
+      const t0 = Date.now();
+      const f = await BANC.cadre(url, 1500, 900);
+      await attendrePage('simulateur.html', () => f.contentDocument.querySelectorAll('#ouvListe .ol-item').length >= n, t0, 'liste des ouvertures pas dessinée');
+      return f;
+    }
     async function fiche(id, largeur, hauteur) {
+      const t0 = Date.now();
       const f = await BANC.cadre('../app/vue.html?id=' + id, largeur || 1500, hauteur || 900);
-      await attendreQue(() => f.contentDocument.querySelector('#ouvHost .pl, #ouvHost .dep-bloc, #ouvHost .text-muted'), 10000);
+      await attendrePage('vue.html (devis ' + id + ')', () => carteOuvertures(f.contentDocument), t0, 'carte Ouvertures pas dessinée');
       await attendre(300);
       return f;
     }
@@ -329,21 +355,39 @@
         f.remove();
 
         // L'ancre #photos (raccourci du tableau de bord) : les PREMIÈRES photos de la carte.
+        // L'éclair (`.anchor-flash`) part 220 ms après l'affichage de la fiche et ne dure que 1,6 s : il est RELEVÉ dès qu'il est
+        // posé (l'élément ET sa classe à cet instant), par un guet monté dès que le cadre est ajouté, avant toute minuterie de la
+        // page. Un relevé par minuterie après l'ouverture pouvait le manquer sous charge : le `load` du cadre attend les images
+        // de la fiche, et peut arriver APRÈS lui ; et sa classe, relue plus tard, n'a déjà plus l'éclair.
+        let eclair = null, guetFiche = null;
+        const guetCadre = new MutationObserver((recs) => recs.forEach((r) => r.addedNodes.forEach((n) => {
+          if (n.tagName !== 'IFRAME' || guetFiche) return;
+          guetFiche = new MutationObserver(() => {
+            const e = !eclair && n.contentDocument.querySelector('.anchor-flash');
+            if (e) eclair = { el: e, classe: e.className };
+          });
+          guetFiche.observe(n.contentDocument, { subtree: true, attributes: true, attributeFilter: ['class'] });
+        })));
+        guetCadre.observe(document.body, { childList: true });
+        const t23 = Date.now();
         f = await BANC.cadre('../app/vue.html?id=ESSAI-12#photos', 1500, 900); d = f.contentDocument;
-        const flashe = await attendreQue(() => d.querySelector('.anchor-flash'), 6000);
+        guetCadre.disconnect();
+        await attendrePage('vue.html#photos (devis ESSAI-12)', () => carteOuvertures(d), t23, 'carte Ouvertures pas dessinée');
+        const flashe = await attendreQue(() => eclair, 6000);
+        if (guetFiche) guetFiche.disconnect();
         check('V23 Arriver par #photos amène aux premières photos de la carte (et pas en haut d’une carte de 3 000 px)',
-          [flashe ? flashe.className : null, flashe === d.querySelector('#ouvHost .pl-photos')], ['pl-photos anchor-flash', true]);
+          [flashe ? flashe.classe : null, (flashe ? flashe.el : null) === d.querySelector('#ouvHost .pl-photos')], ['pl-photos anchor-flash', true]);
         f.remove();
 
         // « Compléter » : le simulateur s'ouvre sur l'ouverture 3, au champ qui manque.
-        f = await BANC.cadre('../app/simulateur.html?id=ESSAI-PLAN-1&ouv=3&champ=collection', 1500, 900); d = f.contentDocument;
-        await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length >= 5, 10000); await attendre(400);
+        f = await simulateur('../app/simulateur.html?id=ESSAI-PLAN-1&ouv=3&champ=collection', 5); d = f.contentDocument;
+        await attendre(400);
         const vue = [...d.querySelectorAll('.item-card')].filter((c) => vu(c)).map((c) => txt(c.querySelector('[data-titre]')));
         check('V24 « Compléter » ouvre le simulateur SUR l’ouverture 3 (le screen), pas sur la première',
           [vue, d.querySelector('#ouvListe [data-ol="2"]').getAttribute('aria-current')], [['Screen 3 · Terrasse'], 'true']);
         f.remove();
-        f = await BANC.cadre('../app/simulateur.html?id=ESSAI-PLAN-1', 1500, 900); d = f.contentDocument;
-        await attendreQue(() => d.querySelectorAll('#ouvListe .ol-item').length >= 5, 10000); await attendre(300);
+        f = await simulateur('../app/simulateur.html?id=ESSAI-PLAN-1', 5); d = f.contentDocument;
+        await attendre(300);
         check('V25 Sans `ouv`, le simulateur s’ouvre comme avant, sur la première ouverture',
           [...d.querySelectorAll('.item-card')].filter((c) => vu(c)).map((c) => txt(c.querySelector('[data-titre]'))), ['Volet 1 · Salon']);
         f.remove();

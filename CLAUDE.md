@@ -78,7 +78,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). |
-| `tests/documents.test.html` | Les 41 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 43 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 61 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place, et l'école du bac à sable à trois devis), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -3901,7 +3901,7 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
    ⚠️ Celui-là doit être ouvert **par le serveur de test**, pas en `file://` : deux de ses cas
    lisent le fichier du serveur pour vérifier que sa liste blanche n'a pas divergé de la spec.
    Et dès qu'on touche au signal des champs manquants : `tests/signal.test.html`, exiger « 64/64 ».
-   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 92/92 », par le serveur.
+   Et dès qu'on touche au menu (`nav.js`) : `tests/nav.test.html`, exiger « 120/120 », par le serveur.
    Et dès qu'on touche au bac à sable (`tests/bac-a-sable.*`, `tests/banc-serveur.js`) ou à une route qu'il emprunte :
    `tests/bac-a-sable.test.html`, exiger « 34/34 », par le serveur (il charge sql.js depuis cdnjs).
    Et dès qu'on touche à la facturation (`app/factures.html`, `app/facture.html`, `facturation.js`, le statut ou le dû
@@ -3910,7 +3910,7 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
    Et dès qu'on touche à l'outillage (`app/outillage.html`, `outillage.js`, `/api/outillage`, `/api/kits`) :
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
-   `tests/sav.test.html`, exiger « 66/66 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
+   `tests/sav.test.html`, exiger « 68/68 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
    Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 146/146 », par le serveur — au bureau ET en
    émulation tactile (le premier devis dans le premier écran du téléphone ne se joue vraiment qu'avec des cibles de 44 px, T3).
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
@@ -3929,12 +3929,12 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
    `assistant.test.html` (il écrit des sujets).
    Et dès qu'on touche à la fiche devis (`app/vue.html`), au bon de pose, au PV de réception, au rapport de visite, à `SS.saveDevis` /
-   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 37/37 », par le serveur — ET
+   `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 61/61 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 30/30 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 43/43 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
-   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 56/56 », par le serveur — ET `volet.test.html`, `documents.test.html`,
+   `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 68/68 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
    Et avant une mise en production qui touche plusieurs pages : `tests/audit.html` puis `tests/audit-clics.html` (règle 56), et les
    PDF par le banc d'impression.
@@ -3945,10 +3945,10 @@ douze critères, et la correction d'« Enregistrer la fiche ».) Code : `app/cli
    le serveur — ET `attente.test.html`, `clients.test.html` (la règle des doublons), `planning-page.test.html`,
    `echanges.test.html` et `bac-a-sable.test.html` (ils écrivent des demandes).
    Et dès qu'on touche aux Paramètres (`app/parametres.html`, `parametres.js`, `/api/settings`, `SSConf.enregistrerChangements`) :
-   `tests/parametres.test.html`, exiger « 36/36 », par le serveur — ET `mails.test.html` (la section E-mails),
+   `tests/parametres.test.html`, exiger « 38/38 », par le serveur — ET `mails.test.html` (la section E-mails),
    `assistant.test.html` (Soli au-dessus de la barre), `themes.test.html`, `planning-page.test.html` (la trame) et
    `tactile.test.html` dans les deux modes.
-   Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 37/37 », par
+   Et dès qu'on touche aux Statistiques (`app/stats.html`, `stats.js`) : `tests/stats.test.html`, exiger « 39/39 », par
    le serveur — ET `remuneration.test.html` (la paie qu'elle affiche) et `nav.test.html`.
    Et dès qu'on touche aux notes de frais : `tests/depenses.test.html`, exiger « 62/62 » — et dès qu'on touche à
    `app/depenses.html` ou à `/api/depenses` : `tests/depenses-page.test.html`, exiger « 39/39 », par le serveur, ET
