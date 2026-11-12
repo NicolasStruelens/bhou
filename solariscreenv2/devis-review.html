@@ -60,6 +60,9 @@
     .rv-sum-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
     .rv-sum-row .v { font-family: var(--font-mono); white-space: nowrap; }
     .rv-sum-row.remise { color: var(--ok); }
+    /* Le récapitulatif de la remise (règle 65) : la remise en gras, en vert, son pourcentage dans le libellé. */
+    .rv-sum-row.rv-rem { font-weight: 700; }
+    .rv-sum-row.rv-rem .v { font-weight: 800; }
     .rv-sum-row.htva { border-top: 1px solid var(--border); margin-top: var(--sp-1); padding-top: var(--sp-2); font-weight: 700; color: var(--text); }
 
     .rv-total { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); margin-bottom: var(--sp-3); }
@@ -358,14 +361,24 @@
       const fournitures = (doc.items || []).reduce((s, it) => s + (it.prix_catalogue_ht || 0) * (it.quantite || 1), 0);
       const row = (k, v, cls) => `<div class="rv-sum-row ${cls || ''}"><span>${k}</span><span class="v">${v}</span></div>`;
       let rows = '';
-      // Un dépannage n'a pas de fournitures : une ligne « Fournitures 0,00 € » ferait douter
-      // le client de tout le reste du décompte.
-      if (!dep) rows += row('Fournitures', fmtEur(fournitures));
-      if (c.remise_catalogue > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_catalogue), 'remise');
-      if (c.install_total_brut > 0) rows += row('Installation et pose', fmtEur(c.install_total_brut));
-      if (c.remise_installation > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_installation), 'remise');
-      if (!dep) (c.extra_lines || []).forEach(e => { if (e.total_ht) rows += row(esc(e.label || 'Option'), fmtEur(e.total_ht)); });
-      if (c.surplus_difficulte > 0) rows += row('Supplément accès difficile', fmtEur(c.surplus_difficulte));
+      /* ⚠️ LE RÉCAPITULATIF DE LA REMISE (règle 65) : « Prix de base − Votre remise (x %) = Total HTVA », la MÊME
+         règle que le bandeau du devis imprimé (`SSUI.recapRemise`). Les remises s'écrivaient ici en lignes vertes,
+         dispersées entre les postes : le client les cherchait. Sans remise, ou quand la décomposition ne retombe pas
+         sur le total (vieux devis), le détail d'avant. */
+      const R = window.SSUI.recapRemise(c, doc.items, c.surplus_difficulte);
+      if (R) {
+        rows += row('Prix de base', fmtEur(R.base));
+        rows += row('Votre remise (' + R.pctTexte + ')', '− ' + fmtEur(R.remise), 'remise rv-rem');
+      } else {
+        // Un dépannage n'a pas de fournitures : une ligne « Fournitures 0,00 € » ferait douter
+        // le client de tout le reste du décompte.
+        if (!dep) rows += row('Fournitures', fmtEur(fournitures));
+        if (c.remise_catalogue > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_catalogue), 'remise');
+        if (c.install_total_brut > 0) rows += row('Installation et pose', fmtEur(c.install_total_brut));
+        if (c.remise_installation > 0) rows += row('Remise commerciale', '− ' + fmtEur(c.remise_installation), 'remise');
+        if (!dep) (c.extra_lines || []).forEach(e => { if (e.total_ht) rows += row(esc(e.label || 'Option'), fmtEur(e.total_ht)); });
+        if (c.surplus_difficulte > 0) rows += row('Supplément accès difficile', fmtEur(c.surplus_difficulte));
+      }
       rows += row('Total HTVA', fmtEur(c.total_ht), 'htva');
       rows += row('TVA ' + (c.tva_pct != null ? c.tva_pct : 6) + ' %', fmtEur(c.total_tva));
       box.innerHTML = rows;
@@ -460,7 +473,10 @@
          rapporter à la CONFIGURATION plutôt qu aux produits qu elle réduit. Signalé par Nicolas
          sur un vrai devis, le 10/10/2026. Même correctif que le PDF — c est le MÊME client qui
          lit les deux documents (règle 7). */
-      const ligneRemise = c.remise_catalogue > 0
+      /* LE RÉCAPITULATIF DE LA REMISE (règle 65) : la même fonction et le même gabarit que app/devis.html (règle 7) —
+         les lignes de remise sortent du tableau quand le bandeau les remplace. */
+      const R = window.SSUI.recapRemise(c, doc.items, c.surplus_difficulte);
+      const ligneRemise = !R && c.remise_catalogue > 0
         ? `<tr class="remise-row"><td class="num">—</td><td class="desc"><strong>Remise commerciale</strong></td>${dep ? '' : '<td></td>'}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_catalogue))}</td></tr>`
         : '';
       const dernierItem = (doc.items || []).length - 1;
@@ -528,7 +544,7 @@
       if (c.install_total_brut > 0) {
         presta += `<tr>${cellNum()}<td class="desc"><strong>Installation et pose</strong><small>Main-d'œuvre et mise en service</small></td>${cellDim}<td class="num">1</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td><td class="num">${esc(fmtEur(c.install_total_brut))}</td></tr>`;
       }
-      if (c.remise_installation > 0) {
+      if (!R && c.remise_installation > 0) {
         presta += `<tr class="remise-row">${cellNum()}<td class="desc"><strong>Remise commerciale</strong></td>${cellDim}<td></td><td></td><td class="num">− ${esc(fmtEur(c.remise_installation))}</td></tr>`;
       }
       (c.extra_lines || []).forEach((e) => {
@@ -597,9 +613,10 @@
             ${presta ? `<tr class="cat-row"><td colspan="${NCOL}">${dep ? (fait ? 'Détail de l\'intervention' : 'Intervention proposée') : 'Prestations &amp; options'}</td></tr>` + presta : ''}
           </tbody>
         </table>
+        ${window.SSUI.bandeauRemiseHtml(R)}
         <div class="totals"><div class="box">
-          <div class="t-row"><span>Total HTVA</span><span class="v">${esc(fmtEur(c.total_ht))}</span></div>
-          <div class="t-row t-sub"><span>TVA ${c.tva_pct} %</span><span class="v">${esc(fmtEur(c.total_tva))}</span></div>
+          ${R ? '' : `<div class="t-row"><span>Total HTVA</span><span class="v">${esc(fmtEur(c.total_ht))}</span></div>`}
+          <div class="t-row${R ? '' : ' t-sub'}"><span>TVA ${c.tva_pct} %</span><span class="v">${esc(fmtEur(c.total_tva))}</span></div>
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${esc(fmtEur(c.total_ttc))}</span></div>
         </div></div>
         ${info ? '' : (dep ? `

@@ -82,10 +82,15 @@
     const extra = (d) => {
       const p = d.querySelector('.paper');
       if (!p) return null;
+      const t = (x) => (x ? x.textContent.replace(/\s+/g, ' ').trim() : '');
       return {
         brut: p.textContent,
         pay: [...p.querySelectorAll('.pay-l')].map((l) => [...l.children].map((x) => x.textContent.replace(/\s+/g, ' ').trim())),
         pied: ((p.querySelector('.doc-foot') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+        // Le récapitulatif de la remise (règle 65) : les cases du bandeau, les lignes de remise du tableau, les totaux.
+        bandeau: [...p.querySelectorAll('.bandeau-remise .br-c')].map((c) => [t(c.querySelector('.br-k')), t(c.querySelector('.br-v'))]),
+        remises: [...p.querySelectorAll('.doc-table .remise-row')].map((r) => t(r.querySelector('td:last-child'))),
+        totaux: [...p.querySelectorAll('.totals .t-row > span:first-child, .totals .t-ttc .k')].map(t),
       };
     };
     /** Les règles d'impression appliquées à l'écran : la seule façon de mesurer une mise en page imprimée sans PDF
@@ -123,6 +128,15 @@
           statut: 'termine', type_document: 'depannage', depannage_mode: 'realise', items: [], calculs: cG, pricing_v2: { tva_pct: 6, acompte_pct: 0, extras: cG.extra_lines },
           depannage: { garantie: 'oui', garantie_mois: 12, date_intervention: window.SSUI.aujourdhui(), motif: 'Screen bloqué', techniciens: ['Nicolas'] },
           date_creation: new Date().toISOString(), date_modification: new Date().toISOString() }, { creation: true });
+        /* R (règle 65) : les six devis FICTIFS à remise (`exemplesRemises`), plus un vieux devis dont les calculs ne
+           retombent pas sur le total (pas d'`install_total_brut`) : le récapitulatif se tait, les lignes de remise restent.
+           Posés AVANT les liens : ils passent dans la boucle D, comme tout le jeu. */
+        const REM = window.SSBacASable.exemplesRemises();
+        const rRem = [];
+        for (const d of REM) rRem.push(await SS.saveDevis(d, { creation: true }));
+        const vieux = JSON.parse(JSON.stringify(REM[1]));
+        vieux.id = 'ESSAI-REM-7'; delete vieux.calculs.install_total_brut;
+        rRem.push(await SS.saveDevis(vieux, { creation: true }));
         // Tout devis reçoit un lien client, pour que les deux exemplaires se comparent sur TOUT le jeu.
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
         const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
@@ -217,6 +231,260 @@
             mo && mo.querySelector('.sub') ? mo.querySelector('.sub').textContent.replace(/\s+/g, ' ').trim() : null, '0 × ' + window.SSUI.fmtEur(55).replace(/\s+/g, ' ') + ' HTVA');
           fr.remove();
         }
+        titre('R — Le récapitulatif de la remise : « Prix de base − Votre remise (x %) = Total HTVA » (règle 65, variante B choisie par Nicolas le 11/11/2026)');
+        const X = (id) => EXTRA[id] || [null, null];
+        const deux = (id, f) => X(id).map((x) => (x ? f(x) : null));
+        const nb = (s) => String(s).replace(/\s+/g, ' ');
+        const bandeau = (base, pct, remise, ht) => [['Prix de base', nb(base)], ['Votre remise (' + pct + ')', nb(remise)], ['Total HTVA', nb(ht)]];
+        check('R0 Les devis à remise s’enregistrent (six fictifs, plus un vieux devis aux calculs incomplets)', rRem.map((r) => r.ok !== false), REM.map(() => true).concat([true]));
+        const SS1 = window.SSUI;
+        const c1 = REM[0].calculs;
+        const r1 = SS1.recapRemise(c1, REM[0].items, 0);
+        check('R1 La règle (ui.js) : prix de base = ce que le tableau imprime (2 × 2 240,50 + 560), remise = prix de base − total HTVA, pourcentage arrondi',
+          r1 && [r1.base, r1.remise, r1.ht, r1.pctTexte], [5041, 655.33, 4385.67, '13\u00a0%']);
+        const aplati = { total_ht: c1.total_ht, install_total_brut: c1.install_total_brut, remise_catalogue: c1.remise_catalogue.amount, remise_installation: 0, extra_lines: [] };
+        check('R1b … la même avec le bloc aplati du lien client ; rien sans remise ; rien quand la décomposition ne retombe pas sur le total',
+          [JSON.stringify(SS1.recapRemise(aplati, REM[0].items, 0)) === JSON.stringify(r1), SS1.recapRemise((BANC.donnee('devis', 'id', 'ESSAI-01') || {}).calculs, (BANC.donnee('devis', 'id', 'ESSAI-01') || {}).items, 0),
+            SS1.recapRemise(vieux.calculs, vieux.items, 0), SS1.recapRemise(null, [], 0),
+            // une installation brute qui ne correspond plus à la remise enregistrée : la décomposition ne retombe pas → rien
+            SS1.recapRemise(Object.assign({}, c1, { install_total_brut: 1000 }), REM[0].items, 0),
+            // une « remise » qui sortirait NÉGATIVE d'un centime (calculs arrondis de travers) : jamais imprimée
+            SS1.recapRemise({ total_ht: 100.01, remise_catalogue: 0.01, install_total_brut: 0, extra_lines: [] }, [{ prix_catalogue_ht: 100, quantite: 1 }], 0)],
+          [true, null, null, null, null, null]);
+        const c3 = REM[2].calculs, r3 = SS1.recapRemise(c3, REM[2].items, 0);
+        check('R1c Des remises en % et sur l’outillage (arrondies chacune) : la soustraction retombe AU CENTIME sur le total HTVA',
+          r3 && [Math.round((r3.base - r3.remise) * 100) / 100 === c3.total_ht, Math.abs(r3.remise - c3.total_remises) <= 0.02, r3.remise > 0], [true, true, true]);
+        const c5 = REM[4].calculs, r5 = SS1.recapRemise(c5, REM[4].items, 0);
+        check('R1d La PART LIBRE d’une répartition devenue remise client (règle 64 : 10 % + 10 % sur une marge de 23 %) est dans « Votre remise »',
+          r5 && [c5.remise_catalogue.part_libre > 0, r5.remise, r5.pctTexte], [true, c5.remise_catalogue.amount, '3\u00a0%']);
+        const e1 = X('ESSAI-REM-1');
+        check('R2 ⚠️ Remise sur le matériel : le bandeau « Prix de base 5 041,00 € − Votre remise (13 %) 655,33 € = Total HTVA 4 385,67 € », la ligne verte SORT du tableau, les totaux continuent par TVA et TOTAL TVAC — dans les DEUX exemplaires',
+          deux('ESSAI-REM-1', (x) => [x.bandeau, x.remises, x.totaux]),
+          [0, 1].map(() => [bandeau('5 041,00 €', '13 %', '655,33 €', '4 385,67 €'), [], ['TVA 6 %', 'Total TVAC']]));
+        const c2 = REM[1].calculs, r2 = SS1.recapRemise(c2, REM[1].items, 0);
+        check('R3 Matériel ET pose (deux volets, encadré) : UNE remise, la somme des deux, et plus aucune ligne verte — dans les DEUX exemplaires',
+          [r2 && r2.remise, deux('ESSAI-REM-2', (x) => [x.bandeau.length, x.remises.length, x.bandeau[1] && x.bandeau[1][1]])],
+          [210, [0, 1].map(() => [3, 0, nb(SS1.fmtEurDoc(210))])]);
+        check('R4 Un devis INFORMATIF et la part libre d’une répartition ont leur bandeau — dans les DEUX exemplaires',
+          [deux('ESSAI-REM-4', (x) => x.bandeau.length), deux('ESSAI-REM-5', (x) => x.bandeau[1] && x.bandeau[1][1])],
+          [[3, 3], [0, 1].map(() => nb(SS1.fmtEurDoc(c5.remise_catalogue.amount)))]);
+        check('R5 ⚠️ SANS remise, rien de parasite : ni bandeau ni ligne verte, les totaux d’avant (Total HTVA, TVA, TOTAL TVAC) — un devis et un dépannage, dans les DEUX exemplaires',
+          [deux('ESSAI-01', (x) => [x.bandeau.length, x.remises.length, x.totaux]), deux('ESSAI-15', (x) => [x.bandeau.length, x.totaux])],
+          [[0, 1].map(() => [0, 0, ['Total HTVA', 'TVA 6 %', 'Total TVAC']]), [0, 1].map(() => [0, ['Total HTVA', 'TVA 6 %', 'Total TVAC']])]);
+        check('R6 Un vieux devis dont les calculs ne retombent pas sur le total : pas de bandeau, ses lignes de remise RESTENT (comme avant) — dans les DEUX exemplaires',
+          deux('ESSAI-REM-7', (x) => [x.bandeau.length, x.remises.length]), [[0, 2], [0, 2]]);
+        {
+          /* R7 : le vert de la remise À L'IMPRESSION, écran en thème cyberpunk. Il prenait la couleur du thème (#39ff88,
+             presque invisible sur papier blanc) pendant que l'exemplaire du client, en thème clair, l'imprimait en #057a55. */
+          const couleurs = [];
+          for (const [id, sel] of [['ESSAI-REM-1', '.br-rem .br-v'], ['ESSAI-REM-7', '.remise-row td:last-child']]) {
+            const f = await BANC.cadre('../app/devis.html?id=' + id, 1100, 900);
+            const d = f.contentDocument;
+            await attendreQue(() => d.querySelector('#paper ' + sel), 10000);
+            d.documentElement.setAttribute('data-theme', 'cyberpunk'); await attendre(50);
+            const ecran = f.contentWindow.getComputedStyle(d.querySelector('#paper ' + sel)).color;
+            forcerImpression(d); await attendre(80);
+            couleurs.push([ecran !== 'rgb(5, 122, 85)', f.contentWindow.getComputedStyle(d.querySelector('#paper ' + sel)).color]);
+            f.remove();
+          }
+          check('R7 ⚠️ À l’impression, le vert de la remise est FIXE (#057a55), quel que soit le thème de l’écran (cyberpunk : il sortait en vert fluo, illisible) — bandeau et lignes de remise',
+            couleurs, [[true, 'rgb(5, 122, 85)'], [true, 'rgb(5, 122, 85)']]);
+        }
+        {
+          // R8 : la page du lien, à l'écran — le même récapitulatif que le devis.
+          const lignes = async (id) => {
+            const tok = BANC.sql1("SELECT json_extract(data, '$.review_token') FROM devis WHERE id = '" + id + "'");
+            const fr = await BANC.cadre('../devis-review.html?t=' + encodeURIComponent(tok), 390, 844);
+            await attendreQue(() => fr.contentDocument.querySelector('#rvSummary .rv-sum-row'), 10000); await attendre(100);
+            const d = fr.contentDocument;
+            const r = [...d.querySelectorAll('#rvSummary .rv-sum-row')].map((x) => [...x.children].map((c) => nb(c.textContent.trim())));
+            const deborde = d.documentElement.scrollWidth > 390 || [...d.querySelectorAll('#rvSummary .rv-sum-row')].some((x) => x.getBoundingClientRect().right > 390.5);
+            fr.remove();
+            return [r, deborde];
+          };
+          const l1 = await lignes('ESSAI-REM-1'), l0 = await lignes('ESSAI-01');
+          check('R8 La page du lien client (téléphone, 390 px) : « Prix de base / Votre remise (13 %) / Total HTVA / TVA », rien qui dépasse ; sans remise, le détail d’avant',
+            [l1, l0[0].map((x) => x[0]), l0[1]],
+            [[[['Prix de base', '5 041,00 €'], ['Votre remise (13 %)', '− 655,33 €'], ['Total HTVA', '4 385,67 €'], ['TVA 6 %', '263,14 €']], false],
+              ['Fournitures', 'Installation et pose', 'Total HTVA', 'TVA 6 %'], false]);
+        }
+
+        titre('E — « Envoyer au client » : Zoho Mail prêt, le lien du devis, le PDF à glisser (règle 65)');
+        /* ⚠️ Un cadre ÉCRIT par le banc n'a pas d'entrée d'historique à lui (banc-serveur.js) : le `history.back()` de la
+           fenêtre qui se ferme y faisait reculer la PAGE DE TEST elle-même (vers about:blank, la suite ne rendait plus rien).
+           On compte donc les étapes posées et retirées, et « retour » se joue comme le navigateur le fait : un `popstate`. */
+        const historiqueCompte = (w) => { const H = { push: 0, back: 0 }; w.history.pushState = () => { H.push++; }; w.history.back = () => { H.back++; }; return H; };
+        const pret = (w, d) => d.querySelector('#paper .doc-head') && w.eval('typeof DEVIS !== "undefined" && !!DEVIS');
+        {
+          const U = window.SSUI;
+          const d1 = BANC.donnee('devis', 'id', 'ESSAI-REM-1');
+          const m = U.mailEnvoiDevis({ devis: d1, calc: d1.calculs, fiche: { civilite: 'Madame', ton: 'pro' }, lien: 'https://x.test/devis-review.html?t=abc', qui: 'Yannick', avecPdf: true });
+          const lig = m.texte.split('\n');
+          check('E1 Le mail (ui.js) : objet avec le numéro et le contenu ; « Bonjour Madame Remise, » (civilité de la fiche) ; le montant ET la remise ; le lien ; la phrase du PDF ; signé Yannick, avec le site (la signature lisait `website`, qui n’existe pas)',
+            [m.objet, lig[0], lig.some((l) => /^Montant : 4\s648,81\s€ TVAC \(remise de 655,33\s€ HTVA déjà déduite\)\.$/.test(l)),
+              lig.indexOf('https://x.test/devis-review.html?t=abc') + 1 === lig.indexOf(U.PHRASE_PDF)],
+            ['Votre devis SolariScreen n° ESSAI-REM-1 — 2 screens', 'Bonjour Madame Remise,', true, true]);
+          check('E1b … la signature se termine par « Yannick / SolariScreen / www.solariscreen.be »',
+            lig.slice(-3), ['Yannick', 'SolariScreen', 'www.solariscreen.be']);
+          const am = U.mailEnvoiDevis({ devis: d1, calc: d1.calculs, fiche: { ton: 'amical' }, lien: 'L', qui: 'Nicolas' });
+          const sansFiche = U.mailEnvoiDevis({ devis: d1, calc: d1.calculs, fiche: null, lien: 'L', qui: 'Nicolas' });
+          check('E2 Amical → « Bonjour Claire, » ; sans fiche ni civilité → le nom complet, jamais un « Madame » deviné ; sans la case PDF, pas de phrase PDF',
+            [am.texte.split('\n')[0], sansFiche.texte.split('\n')[0], am.texte.indexOf(U.PHRASE_PDF)], ['Bonjour Claire,', 'Bonjour Claire Remise,', -1]);
+          const d15 = BANC.donnee('devis', 'id', 'ESSAI-15'), d19 = BANC.donnee('devis', 'id', 'ESSAI-19'), d01 = BANC.donnee('devis', 'id', 'ESSAI-01');
+          const m15 = U.mailEnvoiDevis({ devis: d15, calc: d15.calculs, lien: 'L', qui: 'Nicolas' });
+          const m19 = U.mailEnvoiDevis({ devis: d19, calc: d19.calculs, lien: 'L', qui: 'Nicolas' });
+          const m01 = U.mailEnvoiDevis({ devis: d01, calc: d01.calculs, lien: 'L', qui: 'Nicolas' });
+          check('E3 Un bon d’intervention : son objet, « payable à réception », jamais d’acompte (règle 7) ; un devis informatif le dit ; sans remise, le montant seul ; rien d’interne (marge, commission, Harol)',
+            [m15.objet, /payable à réception\.$/m.test(m15.texte), /acompte/i.test(m15.texte), /devis informatif n° ESSAI-19/.test(m19.texte),
+              /^Montant : [\d\s,]+€ TVAC\.$/m.test(m01.texte), [m.texte, m15.texte, m19.texte, m01.texte].some((t) => /marge|commission|Harol|achat/i.test(t))],
+            ['Votre bon d’intervention SolariScreen n° ESSAI-15', true, false, true, true, false]);
+          const h = U.mailtoHref('a@x.be, b@y.be?cc=pirate@z.be', 'Objet & co', 'L1\nL2');
+          check('E4 L’adresse du brouillon (`mailto:`) : deux destinataires, rien ne glisse un autre champ (« ?cc= »), objet et texte encodés, retours à la ligne en CRLF',
+            [h.split('?')[0], (h.match(/\?/g) || []).length, /&cc=|\?cc=/.test(h), /subject=Objet%20%26%20co&body=L1%0D%0AL2$/.test(h)],
+            ['mailto:a@x.be,b@y.becc=pirate@z.be', 1, false, true]);
+        }
+        {
+          /* E5–E12 : la fenêtre, AU GESTE, sur un devis BROUILLON sans lien client, dont la fiche dit « amical ». */
+          const neuf = JSON.parse(JSON.stringify(REM[0]));
+          neuf.id = 'ESSAI-REM-8';
+          delete neuf.review_token;
+          const rN = await SS.saveDevis(neuf, { creation: true });
+          await SS.saveClient({ key: window.SSUI.clientKeyOf(neuf.client.prenom, neuf.client.nom), prenom: neuf.client.prenom, nom: neuf.client.nom,
+            ton: 'amical', civilite: 'Madame', email: neuf.client.email, essai: true, date_creation: new Date().toISOString(), date_modification: new Date().toISOString() });
+          const f = await BANC.cadre('../app/devis.html?id=ESSAI-REM-8', 1100, 900);
+          const w = f.contentWindow, d = f.contentDocument;
+          await attendreQue(() => pret(w, d), 10000);
+          const H = historiqueCompte(w);
+          let copie = null; w.ssCopy = (t) => { copie = t; };
+          // Le lien Zoho ne doit pas réellement partir pendant le test : on bloque la navigation, le gestionnaire du lien s'exécute.
+          d.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#envoiBtnZoho')) e.preventDefault(); }, true);
+          const ouverte = () => d.getElementById('envoiFond').classList.contains('open');
+          d.getElementById('btnEnvoyer').click();
+          await attendreQue(() => d.getElementById('envoiTexte').value, 10000);
+          const tok = BANC.sql1("SELECT json_extract(data, '$.review_token') FROM devis WHERE id = 'ESSAI-REM-8'");
+          const txt = d.getElementById('envoiTexte').value, href = d.getElementById('envoiBtnZoho').getAttribute('href');
+          check('E5 ⚠️ « Envoyer au client » : le lien du devis est ENREGISTRÉ avant d’être écrit (le client l’ouvrira), la salutation suit la fiche (« amical »), destinataire et objet prêts, le PDF coché par défaut',
+            [rN.ok !== false, ouverte(), !!tok, txt.indexOf(w.location.origin + '/devis-review.html?t=' + tok) > 0, txt.split('\n')[0], d.getElementById('envoiA').value,
+              d.getElementById('envoiObjet').value, d.getElementById('envoiPdf').checked, txt.indexOf(window.SSUI.PHRASE_PDF) > 0, d.getElementById('envoiBtnPdf').hidden,
+              w.getComputedStyle(d.getElementById('envoiFait')).display, d.getElementById('envoiTexte').scrollTop, d.activeElement && d.activeElement.id],
+            [true, true, true, true, 'Bonjour Claire,', neuf.client.email, 'Votre devis SolariScreen n° ESSAI-REM-8 — 2 screens', true, true, false, 'none', 0, 'envoiBtnZoho']);
+          check('E6 « Ouvrir dans Zoho Mail » est un vrai lien `mailto:` (nouvel onglet) qui porte destinataire, objet et texte',
+            [href.indexOf('mailto:' + neuf.client.email + '?subject=') === 0, decodeURIComponent(href.split('&body=')[1] || '').replace(/\r\n/g, '\n') === txt,
+              d.getElementById('envoiBtnZoho').target], [true, true, '_blank']);
+          // Décocher le PDF retire SA phrase et le bouton 1 ; un mot ajouté au texte reste.
+          const ta = d.getElementById('envoiTexte');
+          ta.value = ta.value.replace('Je reste', 'Merci encore. Je reste'); ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+          d.getElementById('envoiPdf').click(); await attendre(50);
+          const sansPdf = [ta.value.indexOf(window.SSUI.PHRASE_PDF), /Merci encore/.test(ta.value), w.getComputedStyle(d.getElementById('envoiBtnPdf')).display, d.getElementById('envoiBtnZoho').textContent];
+          d.getElementById('envoiPdf').click(); await attendre(50);
+          const lig = ta.value.split('\n');
+          check('E7 La case « Joindre le PDF » retire puis remet SA phrase (juste sous le lien), sans toucher à ce qu’on a écrit ; le bouton 1 suit',
+            [sansPdf, lig[lig.findIndex((l) => /devis-review\.html/.test(l)) + 1], /Merci encore/.test(ta.value), d.getElementById('envoiBtnPdf').hidden],
+            [[-1, true, 'none', 'Ouvrir dans Zoho Mail'], window.SSUI.PHRASE_PDF, true, false]);
+          // « 1. Enregistrer le PDF » : la fenêtre d'impression (ici muette), puis le bouton dit que c'est fait.
+          let imprime = 0; w.print = () => { imprime++; };
+          d.getElementById('envoiBtnPdf').click(); await attendreQue(() => /✓/.test(d.getElementById('envoiBtnPdf').textContent), 5000);
+          forcerImpression(d); await attendre(50);
+          const cacheImpression = w.getComputedStyle(d.getElementById('envoiFond')).display;
+          check('E8 « 1. Enregistrer le PDF » ouvre la fenêtre d’impression, la fenêtre d’envoi ne s’imprime pas, et le bouton dit « ✓ »',
+            [imprime, cacheImpression, /✓/.test(d.getElementById('envoiBtnPdf').textContent)], [1, 'none', true]);
+          for (const sh of d.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (const r of rs) if (r.media && [...r.media].includes('print') && [...r.media].includes('all')) r.media.deleteMedium('all'); }
+          // « 2. Ouvrir dans Zoho Mail » : le texte copié, le devis passe en « Envoyé ». « Copier » dans la FOULÉE (double
+          // geste) : une seule écriture — la seconde effaçait la trace de la première, et avec elle « Annuler ».
+          d.getElementById('envoiBtnZoho').click();
+          d.getElementById('envoiBtnCopier').click();
+          await attendreQue(() => !d.getElementById('envoiFait').hidden, 8000); await attendre(400);
+          const dv = BANC.donnee('devis', 'id', 'ESSAI-REM-8');
+          const der = (dv.statut_history || []).slice(-1)[0] || {};
+          check('E9 ⚠️ « Ouvrir dans Zoho Mail » : le texte est copié, le BROUILLON passe en « Envoyé » (date du jour, historique signé), la fenêtre le dit, le filigrane BROUILLON s’en va',
+            [copie === ta.value.trim() || copie === ta.value, dv.statut, dv.date_envoi, der.statut, der.by, /passé en « Envoyé »/.test(d.getElementById('envoiFait').textContent),
+              !!d.querySelector('#paper .watermark.draft')],
+            [true, 'envoye_client', window.SSUI.aujourdhui(), 'envoye_client', 'nicolas', true, false]);
+          check('E9b « Zoho » puis « Copier » dans la foulée : UN passage en « Envoyé » dans l’historique, et « Annuler » reste proposé',
+            [(dv.statut_history || []).filter((x) => x.statut === 'envoye_client').length, !!d.getElementById('envoiAnnuler')], [1, true]);
+          d.getElementById('envoiAnnuler').click();
+          await attendreQue(() => /annulé/.test(d.getElementById('envoiFait').textContent), 8000);
+          const dv2 = BANC.donnee('devis', 'id', 'ESSAI-REM-8');
+          check('E10 « Annuler « Envoyé » » remet le devis comme avant (statut, date d’envoi, historique) et le filigrane BROUILLON revient',
+            [dv2.statut, dv2.date_envoi, (dv2.statut_history || []).length, (neuf.statut_history || []).length, !!d.querySelector('#paper .watermark.draft')],
+            ['brouillon', '', (neuf.statut_history || []).length, (neuf.statut_history || []).length, true]);
+          // Fermer : Échap, le fond (seulement si le geste y a commencé), « retour ».
+          d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(250);
+          const apresEchap = ouverte();
+          d.getElementById('btnEnvoyer').click(); await attendreQue(() => d.getElementById('envoiTexte').value, 8000);
+          const fond = d.getElementById('envoiFond');
+          fond.querySelector('.envoi').dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+          fond.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await attendre(60);
+          const gesteDedans = ouverte();
+          w.dispatchEvent(new w.PopStateEvent('popstate', { state: null })); await attendre(100);
+          check('E11 La fenêtre se ferme par Échap et par « retour » (sans quitter le devis), pas par un geste commencé dedans ; chaque étape d’historique posée est retirée (Échap la retire, « retour » l’a retirée lui-même)',
+            [apresEchap, gesteDedans, ouverte(), f.contentDocument === d, H], [false, true, false, true, { push: 2, back: 1 }]);
+          f.remove();
+          // E12 : un devis DÉJÀ envoyé ne recule ni n'avance ; un lien qui ne peut pas être créé n'ouvre rien.
+          const g = await BANC.cadre('../app/devis.html?id=ESSAI-REM-2', 1100, 900);
+          const gw = g.contentWindow, gd = g.contentDocument;
+          await attendreQue(() => pret(gw, gd), 10000);
+          historiqueCompte(gw);
+          gw.ssCopy = () => {};
+          gd.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#envoiBtnZoho')) e.preventDefault(); }, true);
+          const avant2 = JSON.stringify(BANC.donnee('devis', 'id', 'ESSAI-REM-2').statut_history || []);
+          gd.getElementById('btnEnvoyer').click(); await attendreQue(() => gd.getElementById('envoiTexte').value, 8000);
+          gd.getElementById('envoiBtnZoho').click(); await attendreQue(() => !gd.getElementById('envoiFait').hidden, 8000);
+          const st2 = BANC.donnee('devis', 'id', 'ESSAI-REM-2');
+          const deja = [st2.statut, JSON.stringify(st2.statut_history || []) === avant2, /Statut inchangé : « Envoyé »/.test(gd.getElementById('envoiFait').textContent), !gd.getElementById('envoiAnnuler')];
+          gd.dispatchEvent(new gw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(200);
+          g.remove();
+          const vierge = JSON.parse(JSON.stringify(REM[2])); vierge.id = 'ESSAI-REM-9'; delete vierge.review_token; vierge.client.email = '';
+          await SS.saveDevis(vierge, { creation: true });
+          const k = await BANC.cadre('../app/devis.html?id=ESSAI-REM-9', 1100, 900);
+          const kw = k.contentWindow, kd = k.contentDocument;
+          await attendreQue(() => pret(kw, kd), 10000);
+          historiqueCompte(kw);
+          const vraiModifier = kw.SS.modifierDevis;
+          kw.SS.modifierDevis = async () => ({ ok: false, error: 'Session expirée' });
+          kd.getElementById('btnEnvoyer').click(); await attendreQue(() => !kd.getElementById('envoiEtat').hidden && /pas pu être créé/.test(kd.getElementById('envoiEtat').textContent), 8000);
+          const echec = [kd.getElementById('envoiBtnZoho').getAttribute('aria-disabled'), kd.getElementById('envoiTexte').value, BANC.sql1("SELECT json_extract(data, '$.review_token') FROM devis WHERE id = 'ESSAI-REM-9'")];
+          kw.SS.modifierDevis = vraiModifier;
+          kd.dispatchEvent(new kw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(200);
+          kd.getElementById('btnEnvoyer').click(); await attendreQue(() => kd.getElementById('envoiTexte').value, 8000);
+          const sansMail = [kd.getElementById('envoiA').value, kd.getElementById('envoiBtnZoho').getAttribute('aria-disabled'), /Il manque l’adresse e-mail/.test(kd.getElementById('envoiAide').textContent)];
+          k.remove();
+          // E12b : la page a lu un BROUILLON, mais le devis a été relancé depuis un autre écran — on ne le fait pas reculer.
+          const tard = JSON.parse(JSON.stringify(REM[0])); tard.id = 'ESSAI-REM-10';
+          await SS.saveDevis(tard, { creation: true });
+          const q = await BANC.cadre('../app/devis.html?id=ESSAI-REM-10', 1100, 900);
+          const qw = q.contentWindow, qd = q.contentDocument;
+          await attendreQue(() => pret(qw, qd), 10000);
+          historiqueCompte(qw); qw.ssCopy = () => {};
+          qd.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#envoiBtnZoho')) e.preventDefault(); }, true);
+          qd.getElementById('btnEnvoyer').click(); await attendreQue(() => qd.getElementById('envoiTexte').value, 8000);
+          BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.statut', 'relance_1') WHERE id = 'ESSAI-REM-10'");
+          qd.getElementById('envoiBtnZoho').click(); await attendreQue(() => !qd.getElementById('envoiFait').hidden, 8000);
+          const st10 = BANC.donnee('devis', 'id', 'ESSAI-REM-10');
+          const relance = [st10.statut, (st10.statut_history || []).length, /Statut inchangé/.test(qd.getElementById('envoiFait').textContent)];
+          q.remove();
+          check('E12b La page a lu un brouillon, mais le devis a été RELANCÉ ailleurs entre-temps : il reste « Relance 1 », rien d’ajouté à son historique, et la fenêtre le dit',
+            relance, ['relance_1', (tard.statut_history || []).length, true]);
+          check('E12 Un devis déjà envoyé garde son statut et son historique ; un lien qui ne s’enregistre pas n’ouvre RIEN (message, Zoho grisé, aucun lien en base) ; sans adresse e-mail, Zoho grisé et la fenêtre le dit',
+            [deja, echec, sansMail], [['envoye_client', true, true, true], ['true', '', null], ['', 'true', true]]);
+        }
+        {
+          // E13 : sur téléphone, la fenêtre prend l'écran et tout s'y touche (rien ne sort, le pied visible).
+          const f = await BANC.cadre('../app/devis.html?id=ESSAI-REM-1', 390, 844);
+          const w = f.contentWindow, d = f.contentDocument;
+          await attendreQue(() => pret(w, d), 10000);
+          historiqueCompte(w);
+          const bt = d.getElementById('btnEnvoyer').getBoundingClientRect();
+          d.getElementById('btnEnvoyer').click(); await attendreQue(() => d.getElementById('envoiTexte').value, 8000);
+          const boite = d.querySelector('#envoiFond .envoi').getBoundingClientRect(), pied = d.querySelector('#envoiFond .efoot').getBoundingClientRect();
+          const boutons = [...d.querySelectorAll('#envoiFond .efoot .btn')].filter((b) => !b.hidden).map((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= 390.5; });
+          check('E13 Sur téléphone (390 px) : le bouton « Envoyer au client » est dans l’écran ; la fenêtre prend l’écran (sa largeur utile), son pied et ses boutons sont visibles, rien ne déborde',
+            [bt.right <= 390.5 && bt.left >= 0, Math.round(boite.width) === d.documentElement.clientWidth, Math.round(boite.top), pied.bottom <= 844.5, boutons.every(Boolean), d.documentElement.scrollWidth <= 390],
+            [true, true, 0, true, true, true]);
+          d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(200);
+          f.remove();
+        }
+
         const t05 = TEXTES['ESSAI-05'] || ['', ''];
         check('D1b Une tente : ses options PAYÉES sont écrites sur sa ligne (lambrequin, détecteur, éclairage LED et son type, chauffage) — dans les DEUX exemplaires',
           t05.map((x) => [/lambrequin fixe/.test(x), /détecteur soleil \/ vent \/ pluie/.test(x), /éclairage LED \(direct — caisson\)/.test(x), /chauffage Storelight/.test(x), /spots LED/.test(x)]),
@@ -306,7 +574,7 @@
         titre('T — Sur téléphone, la feuille entière réduite, comme un PDF (choix de Nicolas, 28/10/2026)');
         // Sur un écran plus étroit que 210 mm, la feuille garde sa mise en page A4 et se réduit d'un bloc : le tableau
         // défilait de côté DANS la feuille, colonnes P.U. et Total hors de l'écran, sans que rien ne le dise.
-        const docs = ['../app/devis.html?id=ESSAI-03', '../app/devis.html?id=ESSAI-15', '../app/facture.html?id=F2026-006', '../app/picking.html?id=ESSAI-07'];
+        const docs = ['../app/devis.html?id=ESSAI-03', '../app/devis.html?id=ESSAI-15', '../app/facture.html?id=F2026-006', '../app/picking.html?id=ESSAI-07', '../app/devis.html?id=ESSAI-REM-2'];
         const tel = [];
         for (const u of docs) {
           const f = await BANC.cadre(u, 390, 844);
@@ -323,7 +591,7 @@
         await attendreQue(() => fb.contentDocument.querySelector('.paper-wrap > .paper table'), 10000);
         const bureau = [fb.contentDocument.documentElement.classList.contains('feuille-reduite'), Math.round(fb.contentDocument.querySelector('.paper-wrap > .paper').getBoundingClientRect().width)];
         fb.remove();
-        check('T1 À 390 px, chaque document (devis, dépannage, facture, bon de pose) : feuille réduite, entière dans l’écran, son tableau ne défile pas, sa dernière colonne se voit, la page ne déborde pas ; au bureau, la feuille A4 telle quelle',
+        check('T1 À 390 px, chaque document (devis, dépannage, facture, bon de pose, devis à remise) : feuille réduite, entière dans l’écran, son tableau ne défile pas, sa dernière colonne se voit, la page ne déborde pas ; au bureau, la feuille A4 telle quelle',
           [tel, bureau], [docs.map(() => [true, true, true, true, true]), [false, 794]]);
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);
