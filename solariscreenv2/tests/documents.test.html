@@ -393,9 +393,24 @@
               d.getElementById('envoiObjet').value, d.getElementById('envoiPdf').checked, txt.indexOf(window.SSUI.PHRASE_PDF) > 0, d.getElementById('envoiBtnPdf').hidden,
               w.getComputedStyle(d.getElementById('envoiFait')).display, d.getElementById('envoiTexte').scrollTop, d.activeElement && d.activeElement.id],
             [true, true, true, true, 'Bonjour Claire,', neuf.client.email, 'Votre devis SolariScreen n° ESSAI-REM-8 — 2 screens', true, true, false, 'none', 0, 'envoiBtnZoho']);
-          check('E6 « Ouvrir dans Zoho Mail » est un vrai lien `mailto:` (nouvel onglet) qui porte destinataire, objet et texte',
+          check('E6 « Ouvrir dans Zoho Mail » est un vrai lien `mailto:` qui porte destinataire, objet et texte ; dans un onglet, `target="_blank"` (une application qui prend le lien : le navigateur referme seul l’onglet neuf)',
             [href.indexOf('mailto:' + neuf.client.email + '?subject=') === 0, decodeURIComponent(href.split('&body=')[1] || '').replace(/\r\n/g, '\n') === txt,
               d.getElementById('envoiBtnZoho').target], [true, true, '_blank']);
+          // 12/11/2026, chez Nicolas : l'APPLICATION Zoho Mail pour Windows, choisie dans Windows pour MAILTO ; l'expéditeur, un
+          // `mailto:` ne le choisit pas (Zoho prend l'adresse principale du compte).
+          const aide = d.getElementById('envoiAide').textContent, de = d.getElementById('envoiDe');
+          check('E6b L’aide parle de l’APPLICATION (Windows › Applications par défaut › MAILTO → Zoho Mail), plus du réglage web ni d’un « nouvel onglet » ; le filet Ctrl+V reste ; le rappel de l’expéditeur (« De ») donne l’adresse de service de company.js',
+            [/Applications par défaut › MAILTO → Zoho Mail/.test(aide), /Ctrl\+V s’il n’y est pas/.test(aide), /Mail To Handlers|nouvel onglet/.test(aide), de.hidden,
+              de.textContent.replace(/\s+/g, ' ').trim()],
+            [true, true, false, false, 'Dans Zoho, choisis l’expéditeur ' + window.SS_COMPANY.email2 + ' (champ « De »).']);
+          // La fenêtre de l'ERP INSTALLÉ : display-mode standalone, simulé.
+          const mm = w.matchMedia;
+          w.matchMedia = (q) => ({ matches: /display-mode: standalone/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
+          w.majEnvoi();
+          const cibleAppli = d.getElementById('envoiBtnZoho').target;
+          w.matchMedia = mm; w.majEnvoi();
+          check('E6c ⚠️ Dans la fenêtre de l’ERP INSTALLÉ (display-mode standalone), le lien se suit sur place (`_self`) : en `_blank`, une fenêtre VIDE restait ouverte (Chrome et Edge, 12/11/2026) ; de retour dans un onglet, `_blank`',
+            [cibleAppli, d.getElementById('envoiBtnZoho').target], ['_self', '_blank']);
           // Décocher le PDF retire SA phrase et le bouton 1 ; un mot ajouté au texte reste.
           const ta = d.getElementById('envoiTexte');
           ta.value = ta.value.replace('Je reste', 'Merci encore. Je reste'); ta.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -457,6 +472,9 @@
           gd.getElementById('envoiBtnZoho').click(); await attendreQue(() => !gd.getElementById('envoiFait').hidden, 8000);
           const st2 = BANC.donnee('devis', 'id', 'ESSAI-REM-2');
           const deja = [st2.statut, JSON.stringify(st2.statut_history || []) === avant2, /Statut inchangé : « Envoyé »/.test(gd.getElementById('envoiFait').textContent), !gd.getElementById('envoiAnnuler')];
+          const zohoSeul = gd.getElementById('envoiFait').textContent.replace(/\s+/g, ' ');
+          check('E9c Le message de « Ouvrir dans Zoho Mail » (cliqué seul) redit l’expéditeur à choisir dans « De » (l’adresse de service de company.js), et ne parle plus d’un « nouvel onglet »',
+            [zohoSeul.indexOf('Zoho Mail ouvert — choisis ' + window.SS_COMPANY.email2 + ' dans « De »') >= 0, /nouvel onglet/.test(zohoSeul)], [true, false]);
           gd.dispatchEvent(new gw.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await attendre(200);
           g.remove();
           const vierge = JSON.parse(JSON.stringify(REM[2])); vierge.id = 'ESSAI-REM-9'; delete vierge.review_token; vierge.client.email = '';

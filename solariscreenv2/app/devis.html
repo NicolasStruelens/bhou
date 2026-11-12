@@ -52,6 +52,9 @@
     .envoi .ebody .textarea { min-height: 220px; font-size: var(--fs-champ, var(--fs-sm)); line-height: 1.5; }
     .envoi .eetat { padding: 0.55rem 0.8rem; border-radius: var(--r-sm); font-size: var(--fs-xs); border: 1px solid var(--border); background: var(--surface-2); }
     .envoi .eetat.err { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+    /* Le rappel de l'expéditeur : un `mailto:` ne choisit pas l'adresse « De », Zoho prend celle du compte. */
+    .envoi .ede { margin: 0; padding: 0.5rem 0.8rem; border-radius: var(--r-sm); font-size: var(--fs-xs); line-height: 1.45; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+    .envoi .ede b { font-weight: 700; overflow-wrap: anywhere; }
     .envoi .eaide { margin: 0; font-size: var(--fs-2xs); color: var(--text-muted); line-height: 1.5; }
     .envoi .eaide b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
     .envoi label.check { display: inline-flex; align-items: center; gap: 0.45rem; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
@@ -124,6 +127,7 @@
         <button class="btn btn-ghost btn-sm" type="button" onclick="fermerEnvoi()" aria-label="Fermer">✕</button></div>
       <div class="ebody">
         <div class="eetat" id="envoiEtat" hidden></div>
+        <p class="ede" id="envoiDe" hidden></p>
         <div class="field"><label class="label" for="envoiA">À</label><input class="input" id="envoiA" type="email" autocomplete="off" oninput="majEnvoi()"></div>
         <div class="field"><label class="label" for="envoiObjet">Objet</label><input class="input" id="envoiObjet" autocomplete="off" oninput="majEnvoi()"></div>
         <div class="field"><label class="label" for="envoiTexte">Message</label><textarea class="textarea" id="envoiTexte" rows="14" oninput="majEnvoi()"></textarea></div>
@@ -751,15 +755,22 @@
     }
 
     /* ══════ « ENVOYER AU CLIENT » (règle 65 — choix de Nicolas, 11/11/2026 : « le lien et le PDF à glisser ») ══════
-       Ce que Zoho Mail accepte (sa documentation, vérifiée le 11/11/2026) : choisi comme messagerie du navigateur
-       (Zoho Mail › Paramètres › Système › Mail To Handlers), il ouvre un brouillon depuis un lien `mailto:` avec le
-       destinataire et l'objet. Le TEXTE n'y est pas promis : il est donc aussi COPIÉ (Ctrl+V). AUCUNE pièce jointe n'est
-       possible depuis une page web, chez Zoho comme ailleurs : le PDF s'enregistre (1), puis se glisse dans le message.
+       Chez Nicolas (12/11/2026) : l'APPLICATION Zoho Mail pour Windows, et Edge. Le bouton ouvrait Outlook ; Zoho choisi
+       dans Windows (Paramètres › Applications › Applications par défaut › MAILTO → Zoho Mail, une fois par ordinateur),
+       il s'ouvre avec le destinataire, l'objet ET le texte. Le texte reste aussi COPIÉ (Ctrl+V) : le filet d'une autre
+       messagerie. AUCUNE pièce jointe n'est possible depuis une page web : le PDF s'enregistre (1), puis se glisse.
+       ⚠️ L'EXPÉDITEUR, un `mailto:` ne sait pas le choisir : Zoho prend l'adresse principale du compte, qui n'est pas
+       celle de SolariScreen. La fenêtre rappelle de choisir l'adresse de service (`SS_COMPANY.email2`) dans « De ».
        ⚠️ LE LIEN DOIT EXISTER EN BASE AVANT D'ÊTRE ÉCRIT DANS LE MESSAGE (même règle que « Copier le lien », fiche
        devis) : un jeton créé seulement dans ce navigateur donnerait au client « Lien invalide ou expiré ».
-       ⚠️ « OUVRIR DANS ZOHO » EST UN VRAI LIEN (`<a target="_blank">`) : le clic l'ouvre dans un nouvel onglet, sans
-       quitter le devis. Ouvert par script après la fenêtre d'impression, il serait bloqué (le geste a expiré) — d'où
-       deux boutons, 1 puis 2, plutôt qu'un seul qui enchaînerait les deux.
+       ⚠️ « OUVRIR DANS ZOHO » EST UN VRAI LIEN : ouvert par script après la fenêtre d'impression, il serait bloqué (le
+       geste a expiré) — d'où deux boutons, 1 puis 2, plutôt qu'un seul qui enchaînerait les deux.
+       ⚠️ `target="_blank"` DANS UN ONGLET, `_self` EN FENÊTRE D'APPLICATION — mesuré dans Chrome et Edge le 12/11/2026,
+       Zoho Mail de bureau gestionnaire de mailto : dans un onglet, le navigateur ouvre un onglet neuf, passe le lien à
+       l'application et le REFERME seul (0,1 s), rien ne reste — et un gestionnaire WEB (Zoho web enregistré dans le
+       navigateur) s'y ouvrirait sans quitter le devis. Dans la fenêtre de l'ERP INSTALLÉ (display-mode standalone), pas
+       d'onglets : une NOUVELLE fenêtre du navigateur s'ouvrait et restait VIDE sur « mailto:… ». Là, le lien se suit sur
+       place : l'application s'ouvre, le devis reste (aucune page ne s'en va ; `beforeunload` part, personne ne l'écoute ici).
        ⚠️ LE DEVIS PASSE EN « ENVOYÉ » AU CLIC (brouillon seulement : un devis en relance ou signé ne recule pas), comme
        les relances copiées : on ne saura jamais si le mail est parti de Zoho. « Annuler » remet le statut d'avant, s'il
        n'a pas changé entre-temps. Sans ce passage, la page du client n'offre pas « J'accepte » (devis non envoyé). */
@@ -770,10 +781,20 @@
       b.hidden = !msg; b.textContent = msg || ''; b.classList.toggle('err', !!erreur);
     }
     function nomPdf() { return (document.title || 'devis') + '.pdf'; }
+    // La fenêtre de l'ERP INSTALLÉ (pas d'onglets) : le lien `mailto:` s'y suit sur place (voir plus haut).
+    function fenetreAppli() {
+      try {
+        if (['standalone', 'window-controls-overlay'].some((m) => window.matchMedia('(display-mode: ' + m + ')').matches)) return true;
+      } catch (e) {}
+      return window.navigator.standalone === true;   // iPhone : l'app de l'écran d'accueil
+    }
+    // L'adresse que le client doit voir en expéditeur : celle de service, écrite sur le devis (company.js).
+    const EXPEDITEUR = String((COMPANY && COMPANY.email2) || '').trim();
     window.majEnvoi = function () {
       const a = el('envoiA').value.trim(), z = el('envoiBtnZoho');
       const ok = ENVOI.pret && !!a;
       z.href = ok ? window.SSUI.mailtoHref(a, el('envoiObjet').value, el('envoiTexte').value) : '#';
+      z.target = fenetreAppli() ? '_self' : '_blank';
       z.setAttribute('aria-disabled', ok ? 'false' : 'true');
       el('envoiBtnCopier').disabled = !ENVOI.pret;
       const pdf = el('envoiPdf').checked;
@@ -783,8 +804,8 @@
       el('envoiAide').innerHTML = (pdf
         ? 'Le PDF se nomme <b>' + esc(nomPdf()) + '</b> (dossier Téléchargements) : glisse-le dans le message Zoho. '
         : '')
-        + 'Zoho s’ouvre dans un nouvel onglet, destinataire et objet remplis ; le texte est aussi copié : <b>Ctrl+V</b> s’il n’y est pas. '
-        + 'Pour que ce soit Zoho qui s’ouvre : Zoho Mail › Paramètres › Système › <i>Mail To Handlers</i> (une fois par ordinateur).'
+        + 'Zoho Mail s’ouvre avec le destinataire, l’objet et le texte ; le texte est aussi copié : <b>Ctrl+V</b> s’il n’y est pas. '
+        + 'Si c’est une autre messagerie qui s’ouvre : Windows › Paramètres › Applications › Applications par défaut › <i>MAILTO</i> → Zoho Mail (une fois par ordinateur).'
         + (a ? '' : ' <b>Il manque l’adresse e-mail du client.</b>');
     };
     // La case « Joindre le PDF » ajoute ou retire SA phrase du texte, et rien d'autre : ce qu'on a retouché reste.
@@ -804,6 +825,9 @@
       ENVOI = Object.assign(ENVOI, { pret: false, lien: '', pdfFait: false });
       el('envoiRef').textContent = refDoc(DEVIS).replace(/&amp;/g, '&');
       el('envoiFait').hidden = !ENVOI.marque;
+      // Zoho prend l'adresse principale du compte : on rappelle laquelle choisir dans « De » (un `mailto:` ne le peut pas).
+      el('envoiDe').hidden = !EXPEDITEUR;
+      el('envoiDe').innerHTML = EXPEDITEUR ? 'Dans Zoho, choisis l’expéditeur <b>' + esc(EXPEDITEUR) + '</b> (champ « De »).' : '';
       ['envoiA', 'envoiObjet', 'envoiTexte'].forEach((k) => { el(k).value = ''; });
       envoiEtat('Préparation du message et du lien…');
       majEnvoi();
@@ -910,7 +934,7 @@
       }
       majEnvoi();                   // le lien porte ce qui est écrit à l'instant du clic
       window.ssCopy(el('envoiTexte').value, 'Message');
-      marquerEnvoye().then(() => rendreFait('✓ Zoho Mail ouvert dans un nouvel onglet — le message est aussi copié (Ctrl+V s’il n’y est pas).'));
+      marquerEnvoye().then(() => rendreFait('✓ Zoho Mail ouvert' + (EXPEDITEUR ? ' — choisis <b>' + esc(EXPEDITEUR) + '</b> dans « De »' : '') + ' ; le message est aussi copié (Ctrl+V s’il n’y est pas).'));
       return true;                  // le navigateur suit le lien
     };
     window.envoiCopier = function () {
