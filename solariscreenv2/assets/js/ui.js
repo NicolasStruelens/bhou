@@ -13,6 +13,16 @@
      police « machine à écrire », qui la dessine pleine). Même montant, deux écritures, sur la même feuille.
      Réservé aux documents : l'écran garde `fmtEur`, et les tests qui comparent les deux passent par `\s`. */
   const fmtEurDoc = (n) => fmtEur(n).replace(/\u202f/g, '\u00a0');
+  /* ⚠️ UN MONTANT NÉGATIF SUR UNE FACTURE S'ÉCRIT COMME SUR LE DEVIS : « − 100,00 € » (signe moins, espace insécable).
+     `Intl` écrit « -100,00 € », un trait d'union collé au chiffre : la note de crédit et les lignes de remise d'une facture
+     l'imprimaient ainsi, sous le devis qui écrit « − 100,00 € » (« oui pour le signe moins », Nicolas, 12/11/2026, règle 65).
+     Le texte de `fmtEurDoc` est GARDÉ au caractère près — seul le signe change — et un « -0,00 € » d'arrondi reste « 0,00 € ». */
+  const fmtEurDocSigne = (n) => {
+    const s = fmtEurDoc(n), m = /^[-\u2212]\s?/.exec(s);
+    if (!m) return s;
+    const reste = s.slice(m[0].length);
+    return reste === fmtEurDoc(0) ? reste : '\u2212\u00a0' + reste;
+  };
   const fmt2   = (n) => nf2.format(Number(n) || 0);
   const r2     = (n) => Math.round((Number(n) || 0) * 100) / 100;
   /** Quantité lisible : « 1,5 » et non « 1.5 », « 2 » et non « 2,0 ». Elle vivait en TROIS copies
@@ -805,6 +815,11 @@
     const ht = r2(c.total_ht);
     const remise = r2(base - ht);
     if (!(base > 0) || !(remise >= 0.01) || remise >= base || Math.abs(remise - r2(remises)) > 0.02) return null;
+    return recapDe(base, remise, ht);
+  }
+  /** Le récapitulatif et son pourcentage tel que le client le lit (« 13 % », « 0,8 % », « < 0,1 % ») : le devis
+   *  (`recapRemise`) et la facture (`recapRemiseFacture`) l'écrivent pareil. */
+  function recapDe(base, remise, ht) {
     const p = remise / base * 100;
     const pct = p < 0.1 ? '< 0,1' : (p < 0.95 ? p.toFixed(1).replace('.', ',') : String(Math.round(p)));
     return { base: base, remise: remise, ht: ht, pct: p, pctTexte: pct + '\u00a0%' };
@@ -822,6 +837,45 @@
       + '<div class="br-op">=</div>'
       + '<div class="br-c br-tot"><span class="br-k">Total HTVA</span><span class="br-v">' + v(R.ht) + '</span></div>'
       + '</div>';
+  }
+
+  /* ── LA REMISE SUR LES FACTURES (règle 65, suite : « B pour les factures », Nicolas, 12/11/2026, maquette sur vrais PDF) ──
+     ⚠️ UNE FACTURE ÉMISE NE CHANGE D'AUCUN CENTIME NI D'AUCUNE LIGNE (règles 1 et 5) : rien ici ne relit le devis du jour.
+     • FACTURE TOTALE : seule à porter les remises, en lignes « Remise commerciale » NÉGATIVES (`SSFact.lignes`, depuis la
+       toute première version). Le bandeau du devis se lit sur LES LIGNES DE LA FACTURE : prix de base = la somme des lignes
+       positives (ce que le tableau imprime, une fois les remises retirées), remise = prix de base − total HTVA, au centime.
+       ⚠️ Rien si la remise ne retombe pas à deux centimes près sur les lignes de remise, ni si une AUTRE ligne négative
+       s'y trouve (on ne sait pas ce qu'elle est) : la facture s'imprime alors comme avant, lignes de remise comprises.
+       Avec le bandeau, le document retire les lignes de remise de son tableau (`estLigneRemise`) — comme le devis.
+     • ACOMPTE, SOLDE, FACTURE PARTIELLE : une seule ligne de montant, la remise est dedans et la facture ne garde aucune trace
+       du prix de base. Le RAPPEL « Sur le devis N° … : prix de base − votre remise (x %) = total HTVA » se lit dans
+       l'instantané `recap_devis` posé À LA CRÉATION (`SSFact.recapDevis`) et jamais recalculé : une facture créée avant le
+       12/11/2026 n'en a pas, et ne change pas. Pas le grand bandeau : son « Total HTVA » serait celui du DEVIS, au-dessus
+       d'une facture d'un autre montant — le client se demanderait lequel il paie.
+     • NOTE DE CRÉDIT (une ligne d'annulation), DÉPANNAGE (jamais de remise) : rien. */
+  const LIGNE_REMISE = 'Remise commerciale';
+  const estLigneRemise = function (l) { return !!l && (Number(l.total) || 0) < 0 && String(l.desc || '').trim() === LIGNE_REMISE; };
+  function recapRemiseFacture(f) {
+    if (!f || f.type !== 'totale' || f.total_ht == null || !Array.isArray(f.lines)) return null;
+    const n = function (x) { return Number(x) || 0; };
+    const neg = f.lines.filter(function (l) { return l && n(l.total) < 0; });
+    if (!neg.length || !neg.every(estLigneRemise)) return null;
+    const base = r2(f.lines.reduce(function (s, l) { return s + (l && n(l.total) > 0 ? n(l.total) : 0); }, 0));
+    const remises = r2(-neg.reduce(function (s, l) { return s + n(l.total); }, 0));
+    const ht = r2(f.total_ht), remise = r2(base - ht);
+    if (!(base > 0) || !(remise >= 0.01) || remise >= base || Math.abs(remise - remises) > 0.02) return null;
+    return recapDe(base, remise, ht);
+  }
+  /** Le rappel de la remise du devis sur un acompte, un solde ou une facture partielle — lu dans l'instantané FIGÉ
+   *  `f.recap_devis` { devis_id, base, remise, ht, pct_texte }. Rien sans instantané, ni s'il ne retombe pas au centime. */
+  function rappelRemiseHtml(f) {
+    const R = f && ['acompte', 'solde', 'partielle'].indexOf(f.type) >= 0 && f.source_type !== 'depannage' ? f.recap_devis : null;
+    if (!R || typeof R !== 'object') return '';
+    const base = r2(R.base), remise = r2(R.remise), ht = r2(R.ht);
+    if (!(base > 0) || !(remise >= 0.01) || remise >= base || Math.abs(r2(base - remise) - ht) > 0.005) return '';
+    const pct = String(R.pct_texte || recapDe(base, remise, ht).pctTexte);
+    return '<div class="rappel-remise">Sur le devis N°\u00a0' + escHtml(R.devis_id || f.devis_id || '') + '\u00a0: prix de base <b>' + fmtEurDoc(base)
+      + '</b> \u2212 votre remise (' + escHtml(pct) + ') <b class="rr-rem">' + fmtEurDoc(remise) + '</b> = total <b>' + fmtEurDoc(ht) + '</b> HTVA</div>';
   }
 
   /* ── CE QU'UN MAIL AU CLIENT DIT EN TÊTE ET EN PIED (règle 65) ─────────────────────────────────────────────────
@@ -2440,7 +2494,7 @@
   window.SSUI = {
     ajusterFeuille: ajusterFeuille,
     raisonDoublon: raisonDoublon,
-    fmtEur: fmtEur, fmtEurDoc: fmtEurDoc, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte, qtePoste: qtePoste,
+    fmtEur: fmtEur, fmtEurDoc: fmtEurDoc, fmtEurDocSigne: fmtEurDocSigne, fmt2: fmt2, r2: r2, fmtDate: fmtDate, fmtQte: fmtQte, qtePoste: qtePoste,
     fmtDateTime: fmtDateTime, relTime: relTime, escHtml: escHtml,
     commentAuthor: commentAuthor, commentHtml: commentHtml, commentsHtml: commentsHtml, gotoComment: gotoComment,
     parseMail: parseMail, mailHtml: mailHtml, mailsHtml: mailsHtml,
@@ -2465,6 +2519,7 @@
     isTenteSolaire: isTenteSolaire, dimsOf: dimsOf, dimsDoc: dimsDoc, dimsLigne: dimsLigne, milliers: milliers,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
     recapRemise: recapRemise, bandeauRemiseHtml: bandeauRemiseHtml,
+    recapRemiseFacture: recapRemiseFacture, estLigneRemise: estLigneRemise, rappelRemiseHtml: rappelRemiseHtml,
     salutationMail: salutationMail, signatureMail: signatureMail, produitsMail: produitsMail,
     mailEnvoiDevis: mailEnvoiDevis, PHRASE_PDF: PHRASE_PDF, mailtoHref: mailtoHref,
     TYPE_LABEL: TYPE_LABEL, TYPE_FORMES: TYPE_FORMES,

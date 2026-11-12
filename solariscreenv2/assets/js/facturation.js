@@ -106,6 +106,16 @@
     const desc = type === 'acompte' ? libelleAcompte(devis, a, saisie) : 'Solde sur ' + quoi + ' N° ' + devis.id;
     return [{ desc: desc, qty: 1, pu: r2(a.total_ht), total: r2(a.total_ht) }];
   }
+  /** L'INSTANTANÉ de la remise du devis, posé sur un acompte, un solde ou une facture partielle À SA CRÉATION (règle 65) :
+   *  le document y lit le rappel « Sur le devis N° … : prix de base − votre remise (x %) = total HTVA » (`SSUI.rappelRemiseHtml`).
+   *  ⚠️ FIGÉ (règle 1) : jamais recalculé depuis le devis, qui peut encore bouger ; une facture plus ancienne n'en a pas.
+   *  Même règle que le bandeau du devis (`SSUI.recapRemise`). Rien pour une facture totale (ses lignes portent la remise),
+   *  un dépannage ou un devis sans remise. */
+  function recapDevis(devis, type) {
+    if (!devis || ['acompte', 'solde', 'partielle'].indexOf(type) < 0 || devis.type_document === 'depannage') return null;
+    const R = U().recapRemise(devis.calculs, devis.items, devis.pricing_v2 && devis.pricing_v2.surplus_difficulte);
+    return R ? { devis_id: devis.id, base: R.base, remise: R.remise, ht: R.ht, pct_texte: R.pctTexte } : null;
+  }
 
   /* ── A — À facturer maintenant ────────────────────────────────────────────────────────────────
      Les mêmes faits que le tableau de bord (signature, pose faite, pourcentage d'acompte du devis,
@@ -263,7 +273,7 @@
   window.SSFact = {
     RELANCE_ECART_J: RELANCE_ECART_J,
     sansAccents: sansAccents, dejaFacture: dejaFacture, partPosee: partPosee, montants: montants,
-    libelleAcompte: libelleAcompte, lignes: lignes, aFacturer: aFacturer, parChantier: parChantier,
+    libelleAcompte: libelleAcompte, lignes: lignes, recapDevis: recapDevis, aFacturer: aFacturer, parChantier: parChantier,
     relancesDe: relancesDe, aRelancer: aRelancer, texteRelance: texteRelance, repartir: repartir,
     sansFalco: sansFalco, correspond: correspond, csv: csv,
   };
