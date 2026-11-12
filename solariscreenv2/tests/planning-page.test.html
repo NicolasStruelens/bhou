@@ -370,9 +370,28 @@
         history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, ''); history.pushState({ garde: 1 }, '');
         window.addEventListener('popstate', garde);
         ({ f, w, d, E } = await ouvrir('vue=semaine&date=' + L, 390, 800));
+        /* Le cadre se comporte comme le téléphone qu'il imite : sur un vrai téléphone (iOS, Android), la barre de
+           défilement se SUPERPOSE au contenu. Dans un cadre, Chrome garde la barre classique de 10 px de base.css
+           (`*::-webkit-scrollbar`) : la page n'avait que 380 px, une alerte y passait sur une ligne de plus, et T1
+           tombait en émulation tactile (641 px pour 640) alors qu'à 390 px réels la journée commence à 623. */
+        d.documentElement.style.scrollbarWidth = 'none'; await attendre(60);
         const premier = d.querySelector('.pl-jc:not(.is-passe)');
         const cel = premier.querySelector('.pl-cell');
-        check('T1 Le premier jour commence dans le premier écran', premier.getBoundingClientRect().top < w.innerHeight - 160, true);
+        /* …et AU DOIGT, même rejouée depuis un navigateur de bureau : dans un second cadre, chaque bloc « pointer: coarse »
+           forcé à vrai (tactile.test.html) — les boutons y prennent 38 à 44 px et la barre d'outils 55 px de plus. Un cadre
+           à part : remplacer le <body> perdrait les gestionnaires dont la suite de la série a besoin. */
+        const tel = await ouvrir('vue=semaine&date=' + L, 390, 800);
+        tel.d.documentElement.style.scrollbarWidth = 'none';
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i;
+        const auDoigt = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); if (r.cssRules) auDoigt(r.cssRules); } };
+        for (const s of tel.d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } auDoigt(regles); }
+        tel.d.body.replaceWith(tel.d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà
+        await attendre(60);
+        const premierAuDoigt = tel.d.querySelector('.pl-jc:not(.is-passe)').getBoundingClientRect().top < tel.w.innerHeight - 160;
+        const hAuj = Math.round([...tel.d.querySelectorAll('.pl-nav .btn')][0].getBoundingClientRect().height);
+        tel.f.remove();
+        check('T1 Le premier jour commence dans le premier écran (page de 390 px, comme sur le téléphone) — à la souris comme AU DOIGT (« Aujourd’hui » à 44 px)',
+          [d.documentElement.clientWidth, premier.getBoundingClientRect().top < w.innerHeight - 160, premierAuDoigt, hAuj], [390, true, true, 44]);
         const plusA = d.getElementById('alertesPlus');
         // Trois alertes depuis le 01/11/2026 : la quatrième était « pose à planifier — Anne Planifier », EN DOUBLE avec la
         // liste « À planifier » (A15). Le bouton dit alors « l'autre » au singulier.

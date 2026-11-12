@@ -2605,6 +2605,10 @@ fonctions pures) ; protégé par `tests/outillage.test.html`.
   dit (`dernier_achat` : qui, combien), « Retirer » (une erreur) ne laisse pas de trace d'achat.
   ⚠️ `upsertOutillage` ÉTALE l'existant (règle 2) ET reprend `racheter` / `dernier_achat` de la base :
   réenregistrer une fiche, même avec `racheter: null`, ne touche jamais à la liste (test R5).
+  ⚠️ **Au doigt, sur téléphone, ses boutons font 38 px, pas 44** : Commander, Copier la réf. et Acheté tiennent
+  sur deux rangées par ligne, et à 44 px deux lignes à racheter repoussaient la première référence sous le
+  premier écran (822 px pour 812, déjà sur main ; T2 rouge en émulation tactile, 12/11/2026). T2 l'exige aussi
+  blocs tactiles forcés depuis un navigateur de bureau, et refuse des boutons sous 38 px.
 • **E — Kits de pose et « à emporter »** (table `kits`, route `/api/kits`) : un kit dit, pour un type
   d'ouverture ou pour tout chantier, quelles références emporter, « par ouverture » ou « par chantier ».
   « À emporter » (depuis les poses des trois semaines, ou `?pose=<devis>` — le planning le propose sur
@@ -2812,6 +2816,10 @@ propositions A à G choisies par Nicolas sur maquette). Les règles de la page v
   étape d'historique. Sur téléphone, des libellés courts (« Attend »).
 • **C — Écrire en une ligne** : nature, destinataire, client, dossier, date et photo s'ouvrent au focus ou au premier mot,
   se referment quand la zone est vide et qu'on la quitte (458 px → une ligne sur téléphone).
+  ⚠️ Fermée, la zone ne défile pas (`overflow: hidden`) : tout ce qui passe à la ligne y est CACHÉ. Au doigt, le champ
+  fait 16 px et l'aide « Une question, une idée, une tâche… » (272 px) passait à la ligne sous ~370 px de large — sur
+  un téléphone de 360 px, « tâche… » disparaissait. L'aide garde la taille du bureau (`::placeholder`, `--fs-sm`) ;
+  le texte tapé reste à 16 px (T3 en émulation tactile, T4 blocs forcés à 360 px, 12/11/2026).
 • **D — Répondre sur place** : une ligne « Échange » de « Ce qui attend » se répond ou se classe dans la ligne même.
 • **E — Lier un dossier** : en choisissant le client, ses devis sont proposés (`dossiersDuClient`, résumé et statut, les
   archivés en dernier), à la publication comme à la correction. Le sujet apparaît alors sur la fiche du dossier (règle 19).
@@ -3982,8 +3990,23 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
   `clientWidth − padding − 20 px` (la flèche du menu natif) — avec un canevas créé DANS la page
   mesurée, sinon il mesure avec la police de repli et se trompe de 10 %. La flèche garde sa propre
   marge : c'est le `padding-right` d'un menu qu'on rend au texte en premier.
+  ⚠️ Le TEXTE D'AIDE (`placeholder`) grandit aussi, et dans une zone fermée d'une ligne il passe à la ligne
+  sans rien faire déborder : la fin est cachée (échanges, règle 52). Seul ce qu'on TAPE doit faire 16 px pour
+  que Safari ne zoome pas : l'aide peut garder `--fs-sm` (`.textarea::placeholder`).
 - **Sur mobile, mesurer `element.scrollWidth > element.clientWidth`**, pas seulement le débordement
   de la page : `body { overflow-x: hidden }` masque le symptôme.
+- **REJOUER UNE SUITE EN ÉMULATION TACTILE** (390 × 844, appuis tactiles) : trois pièges de TEST, payés le
+  12/11/2026 (cinq rouges, les mêmes sur main) — à distinguer des vrais défauts trouvés le même jour (règles 48, 52).
+  (1) Un témoin « le bureau ne bouge pas » se mesure blocs `pointer: coarse` forcés à FAUX (`(max-width: 0px)`, puis le
+  `<body>` remplacé par sa copie), jamais tel quel : sur un écran tactile, la page a déjà ses cibles (depenses-page T2,
+  facturation T6). (2) Un cadre de téléphone garde la barre de défilement CLASSIQUE de base.css (`*::-webkit-scrollbar`,
+  10 px) : 380 px de page dans un cadre de 390, quand un vrai téléphone superpose la sienne.
+  `documentElement.style.scrollbarWidth = 'none'` rend le cadre fidèle (planning-page T1 : 641 px pour 640 dans le cadre,
+  623 à 390 px réels). ⚠️ Avant d'accuser la barre, mesurer PLUS ÉTROIT : échanges T3 ne tombait qu'à 2 px près à cause
+  d'elle, mais l'aide était vraiment coupée sur un téléphone de 360 px — un défaut de l'app. (3) Un cas « au doigt » qui
+  ne se joue qu'en émulation tactile ne protège rien dans une suite rejouée au bureau : forcer les blocs à vrai (outillage
+  T2, planning-page T1, échanges T4), et vérifier dans le même cas que la bascule a pris (un bouton à 44 px) — sinon la
+  mesure « au doigt » est une mesure de bureau.
 - **Les photos** partent vers R2 ; si l'envoi échoue elles restent en clair dans le devis. Ce repli
   était silencieux et un devis a atteint 1,69 Mo. Un bandeau « Alléger » existe sur le tableau de
   bord. La signature du client n'est jamais déportée : elle s'affiche sur la page publique, qui n'a
@@ -4063,6 +4086,10 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    Et dès qu'on touche à la taille d'un champ (`--fs-champ`, `.input`/`.select`/`.textarea`, un
    composant qui retaille les siens) ou à un bloc `pointer: coarse` : `tests/tactile.test.html`,
    exiger « 77/77 » au bureau, « 121/121 » en émulation tactile, par le serveur.
+   Une suite qui a une série « téléphone » se rejoue AUSSI en émulation tactile (390 × 844, appuis tactiles) : depuis le
+   12/11/2026, `depenses-page`, `echanges`, `facturation`, `outillage` et `planning-page` y passent, aux mêmes comptes.
+   Un rouge qui n'existe qu'au doigt est d'abord un défaut à MESURER, pas un test à relâcher (piège « rejouer une suite
+   en émulation tactile »).
 2. **Les gestionnaires générés** — dès qu'on touche à un `onclick="…"` construit dans du JS.
    Charger la page AVEC des données dont le nom de client porte une apostrophe (« L'Hoest »), puis
    coller ceci dans la console : il compile chaque attribut `on*` réellement présent dans le DOM et
