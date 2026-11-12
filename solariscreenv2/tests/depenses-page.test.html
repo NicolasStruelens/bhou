@@ -312,12 +312,19 @@
         check('T1 Rien ne dépasse, aucun menu ne coupe son libellé (« Tout le m »), et le premier ticket commence dans le PREMIER écran (il était à 1 580 px)',
           [coupes, d.documentElement.scrollWidth <= 375, ['fQui', 'fEtat', 'fAnnee'].filter((id) => menuCoupe(d.getElementById(id))), Math.round(premier.getBoundingClientRect().top) < 812], [[], true, [], true]);
         const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
-        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push([r, r.media.mediaText]); if (r.cssRules) parcourir(r.cssRules); } };
         for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
-        const hBureau = Math.round(d.querySelector('.dp-pers button').getBoundingClientRect().height);
+        /* Chaque bloc forcé à vrai (téléphone) ou à FAUX (bureau), comme tactile.test.html. Le témoin « bureau » se mesure
+           blocs forcés à faux : rejouée sur un vrai écran tactile, la page a déjà ses 44 px, et une mesure « avant » prise
+           telle quelle n'était pas celle du bureau (T2 rouge en émulation tactile, alors que le bureau ne bougeait pas). */
+        const forcer = (tactile) => {
+          blocsT.forEach(([r, texte]) => { r.media.mediaText = texte.replace(new RegExp(COARSE.source, 'gi'), tactile ? '(min-width: 0px)' : '(max-width: 0px)'); });
+          d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        };
         w.ouvrirRemise();   // pour que les tickets d'un lot existent dans la page
-        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
-        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        forcer(false);
+        const hBureau = Math.round(d.querySelector('.dp-pers button').getBoundingClientRect().height);
+        forcer(true);
         const cs = (sel) => { const e = d.querySelector(sel); return e ? w.getComputedStyle(e).minHeight : 'absent'; };
         check('T2 Écran tactile (blocs « pointer: coarse » forcés) : les chiffres du résumé, le choix de la personne et les tickets d’un lot se touchent sans viser ; en 16 px, aucun menu ne coupe son libellé — le bureau ne bouge pas',
           [hBureau < 30, Math.round(d.querySelector('.dp-pers button').getBoundingClientRect().height) >= 36, cs('.seg button'), cs('.dp-choix'),

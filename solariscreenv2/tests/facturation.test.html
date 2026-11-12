@@ -481,13 +481,19 @@
         check('T5 La saisie Falco tient dans la carte : champ, ✓ et ✕ visibles', [x.right <= boite.right + 1, x.width > 0, chF.width >= 60, d.documentElement.scrollWidth <= 375], [true, true, true, true]);
         lF2.querySelector('.falco-annuler').click(); await attendre(40);
         /* Les boutons maison sur écran TACTILE : un navigateur de bureau ne déclenche jamais « pointer: coarse »,
-           on force donc chaque bloc de la page à vrai (même technique que tactile.test.html). */
-        const hFalcoBureau = Math.round(d.querySelector('.falco').getBoundingClientRect().height);
+           on force donc chaque bloc de la page à vrai (même technique que tactile.test.html). Et le témoin « bureau »
+           se mesure blocs forcés à FAUX : rejouée sur un vrai écran tactile, la page a déjà ses 36 px, et une mesure
+           « avant » prise telle quelle n'était pas celle du bureau (T6 rouge en émulation tactile, bureau intact). */
         const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i, blocsT = [];
-        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push(r); if (r.cssRules) parcourir(r.cssRules); } };
+        const parcourir = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) blocsT.push([r, r.media.mediaText]); if (r.cssRules) parcourir(r.cssRules); } };
         for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } parcourir(regles); }
-        blocsT.forEach((r) => { r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); });
-        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const forcer = (tactile) => {
+          blocsT.forEach(([r, texte]) => { r.media.mediaText = texte.replace(new RegExp(COARSE.source, 'gi'), tactile ? '(min-width: 0px)' : '(max-width: 0px)'); });
+          d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        };
+        forcer(false);
+        const hFalcoBureau = Math.round(d.querySelector('.falco').getBoundingClientRect().height);
+        forcer(true);
         const touche = (sel) => { const h = [...d.querySelectorAll(sel)].map((e) => e.getBoundingClientRect().height); return h.length > 0 && Math.min(...h) >= 36; };
         const sousNumero = [...d.querySelectorAll('.fl-num')].every((n) => { const fb = n.querySelector('.falco'), idb = n.querySelector('.id'); return !fb || !idb || fb.getBoundingClientRect().top >= idb.getBoundingClientRect().bottom - 1; });
         check('T6 Écran tactile : « + pièce Falco » (13 px), les chiffres du résumé (21) et Par chantier / Par facture se touchent sans viser, « + pièce Falco » reste SOUS le numéro — le bureau ne bouge pas',
