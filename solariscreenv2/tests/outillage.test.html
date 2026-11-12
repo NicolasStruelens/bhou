@@ -347,10 +347,19 @@
         const horsCarte = [...d.querySelectorAll('.ot-actions .btn')].filter((b) => b.getBoundingClientRect().right > b.closest('.ot-card').getBoundingClientRect().right + 1).length;
         check('T1 Une colonne ; aucun bouton hors de sa carte (Modifier et Supprimer étaient coupés), rien ne déborde',
           [w.getComputedStyle(d.getElementById('grid')).gridTemplateColumns.split(' ').length, horsCarte, debordent, d.documentElement.scrollWidth <= 375], [1, 0, [], true]);
-        check('T2 Les notes restent visibles ; les catégories tiennent dans UN menu ; la première référence est dans le premier écran',
-          [w.getComputedStyle(carte(d, 'OUT-ESSAI-2').querySelector('.ot-notes')).display, w.getComputedStyle(d.getElementById('catFilters')).display, w.getComputedStyle(d.querySelector('.ot-catsel')).display,
-            Math.round(d.querySelector('.ot-card').getBoundingClientRect().top) < 812],
-          ['block', 'none', 'block', true]);
+        const t2 = [w.getComputedStyle(carte(d, 'OUT-ESSAI-2').querySelector('.ot-notes')).display, w.getComputedStyle(d.getElementById('catFilters')).display, w.getComputedStyle(d.querySelector('.ot-catsel')).display,
+          Math.round(d.querySelector('.ot-card').getBoundingClientRect().top) < 812];
+        /* …et AU DOIGT, même rejouée depuis un navigateur de bureau : chaque bloc « pointer: coarse » forcé à vrai
+           (même technique que tactile.test.html). À 44 px, les boutons d'« À racheter » (deux rangées par ligne)
+           repoussaient la première référence à 822 px ; ils passent à 38 sur téléphone — et doivent rester touchables. */
+        const COARSE = /\(\s*pointer\s*:\s*coarse\s*\)/i;
+        const auDoigt = (regles) => { for (const r of regles) { if (r.type === 4 && COARSE.test(r.media.mediaText)) r.media.mediaText = r.media.mediaText.replace(new RegExp(COARSE.source, 'gi'), '(min-width: 0px)'); if (r.cssRules) auDoigt(r.cssRules); } };
+        for (const s of d.styleSheets) { let regles; try { regles = s.cssRules; } catch (e) { continue; } auDoigt(regles); }
+        d.body.replaceWith(d.body.cloneNode(true));   // Chrome ne restyle pas toujours ce qui l'est déjà (tactile.test.html)
+        const hRacheter = [...d.querySelectorAll('.ot-cl .bt .btn')].map((b) => Math.round(b.getBoundingClientRect().height));
+        check('T2 Les notes restent visibles ; les catégories tiennent dans UN menu ; la première référence est dans le premier écran — AU DOIGT aussi, où les boutons d’« À racheter » se touchent sans viser (38 px)',
+          t2.concat([Math.round(d.querySelector('.ot-card').getBoundingClientRect().top) < 812, hRacheter.length > 0 && Math.min(...hRacheter) >= 38]),
+          ['block', 'none', 'block', true, true, true]);
         d.getElementById('catSelect').value = 'Consommables'; d.getElementById('catSelect').dispatchEvent(new Event('change'));
         await attendre(30);
         check('T3 Le menu Catégorie filtre', [...d.querySelectorAll('.ot-card')].map((c) => c.getAttribute('data-id')), ['OUT-ESSAI-4']);
