@@ -78,7 +78,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). Exemples FICTIFS hors jeu : `exemple=volets4`, `exemple=remises` (devis à remise ; avec `&factures=1`, leurs factures faites par la vraie règle, `facturerRemises`, règle 65). |
-| `tests/documents.test.html` | Les 79 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis le récapitulatif de la remise (règle 65 : bandeau dans les deux exemplaires, lignes vertes retirées, rien sans remise ni sur un vieux devis, vert fixe à l'impression, page du lien ; sur les factures, le bandeau d'une facture totale et le rappel d'un acompte, cadre en retrait) et « Envoyer au client » rejoué au geste (lien enregistré avant d'être écrit, salutation de la fiche, case PDF, « Envoyé » et « Annuler », Échap, fond, « retour », téléphone) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
+| `tests/documents.test.html` | Les 82 tests des documents : les DEUX exemplaires du devis (règle 7) — pour chaque devis du bac à sable, le PDF de l'ERP (`app/devis.html`) et celui que le client imprime depuis son lien (`devis-review.html`, `buildPaperHtml`) ont les mêmes feuilles (devis, CGV, attestation TVA), le même filigrane, la même réserve de pied, et chaque feuille dit la même chose — puis les finitions de la règle 39 bis (moteur sans code Harol, « Collection », montants à espace visible, dimensions sur une ligne, acompte sur deux lignes, cases de signature entières à l'impression, rapport de visite et PV, réponse du lien client, calque d'écran jamais imprimé) — puis le récapitulatif de la remise (règle 65 : bandeau dans les deux exemplaires, lignes vertes retirées, rien sans remise ni sur un vieux devis, vert fixe à l'impression, page du lien ; sur les factures, le bandeau d'une facture totale et le rappel d'un acompte, cadre en retrait) et « Envoyer au client » rejoué au geste (lien enregistré avant d'être écrit, salutation de la fiche, aide pour l'application Zoho Mail, rappel de l'expéditeur, `_blank` en onglet et `_self` dans l'ERP installé, case PDF, « Envoyé » et « Annuler », Échap, fond, « retour », téléphone) — puis, sur téléphone, la feuille entière réduite comme un PDF (règle 56). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/fiche.test.html` | Les 61 tests de la fiche devis et des écritures qui la touchent (règle 56) : ce que le serveur protège, la création qui ne se fond jamais dans un autre devis, `SS.modifierDevis` / `SS.modifierClient`, la prochaine action (dépannage, commande, notes de crédit, pose en deux fois), l'écriture depuis une fiche restée ouverte, « Facturer », la fenêtre de relance, le vendeur et ses taux figés (et sa part écrite telle qu'enregistrée, « 11,5 % »), le bon de pose, le PV de réception (ses réserves sur la feuille imprimée, et enregistrées sans signature), « Pose annulée — retirer la date », le simulateur, le suivi client, la Facturation — puis la règle 66 : les onglets des devis du même client (ordre, statut et sa couleur, résumé, vendeur seulement s'ils sont plusieurs, un seul devis = rien, devis refusé, statut changé sur place, et l'école du bac à sable à trois devis), le portable en trois colonnes compactes et ses seuils, la réglette sans barre parasite, et au téléphone le bouton « Sommaire » et sa feuille (croix, fond, Échap, « retour », aller à une carte, une action). Vérifié par mutations. **Par le serveur de test.** |
 | `tests/planning.test.html` | Les 126 tests du planning (dont l'équipe que prévoient Tech 1 / Tech 2, règle 64). Même principe. |
 | `assets/js/carte.js` | **La géographie des dossiers** (règle 44) : distances, un point par client, « autour de », réalisations proches, secteurs, tournée. Fonctions pures, plus le géocodage Nominatim et la position de l'appareil, isolés pour les tests (`window.SSCarte`). |
@@ -3647,13 +3647,28 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
   pendant que l'exemplaire du client, toujours en thème clair, l'imprimait en #057a55 (5,4:1). Forcé à #057a55, pour tous les
   documents (facture comprise). Seul un PDF réellement généré le montre (règle 31 septies) ; le test R7 le lit en forçant les
   règles `print` sous thème cyberpunk.
-• **« ENVOYER AU CLIENT »** (app/devis.html, à côté de « Imprimer / PDF »). Ce que Zoho Mail accepte, vérifié dans sa documentation
-  le 11/11/2026 : choisi comme messagerie du navigateur (Zoho Mail › Paramètres › Système › *Mail To Handlers*, une fois par
-  ordinateur), il ouvre un brouillon depuis un lien `mailto:` avec destinataire et objet ; **le texte n'y est pas promis**, donc il
-  est aussi COPIÉ (Ctrl+V) ; **aucune pièce jointe n'est possible depuis une page web**, chez Zoho comme ailleurs. D'où deux
-  boutons : « 1. Enregistrer le PDF » (la fenêtre d'impression), puis « 2. Ouvrir dans Zoho Mail », où l'on glisse le fichier.
-  ⚠️ **Deux boutons et pas un** : « Ouvrir dans Zoho » est un VRAI lien (`<a target="_blank" href="mailto:…">`, nouvel onglet,
-  le devis reste ouvert) ; ouvert par script après la fenêtre d'impression, il serait bloqué (le geste du clic a expiré).
+• **« ENVOYER AU CLIENT »** (app/devis.html, à côté de « Imprimer / PDF »). Vu chez Nicolas le 12/11/2026 : il utilise
+  l'**APPLICATION Zoho Mail pour Windows** (et Edge), pas Zoho web. Le bouton ouvrait Outlook ; une fois Zoho choisi dans
+  **Windows › Paramètres › Applications › Applications par défaut › MAILTO → Zoho Mail** (une fois par ordinateur), le brouillon
+  s'ouvre avec destinataire, objet ET texte, sans Ctrl+V. Le texte reste quand même COPIÉ (Ctrl+V) : le filet d'une autre
+  messagerie. (Le réglage web « Zoho Mail › Paramètres › Système › *Mail To Handlers* », documenté le 11/11, ne vaut que pour Zoho
+  dans le navigateur.) **Aucune pièce jointe n'est possible depuis une page web.** D'où deux boutons : « 1. Enregistrer le PDF »
+  (la fenêtre d'impression), puis « 2. Ouvrir dans Zoho Mail », où l'on glisse le fichier.
+  ⚠️ **L'EXPÉDITEUR, UN `mailto:` NE SAIT PAS LE CHOISIR** : Zoho prend l'adresse principale du compte, qui n'est pas celle de
+  SolariScreen. La fenêtre le rappelle en tête, et après le clic : « Dans Zoho, choisis l'expéditeur … (champ « De ») », avec
+  l'adresse de service de `company.js` (`SS_COMPANY.email2`, celle qui est écrite sur le devis). La signature du message n'a pas
+  bougé : Nicolas doit d'abord dire s'il crée une signature SolariScreen dans Zoho.
+  ⚠️ **Deux boutons et pas un** : « Ouvrir dans Zoho » est un VRAI lien `<a href="mailto:…">` ; ouvert par script après la
+  fenêtre d'impression, il serait bloqué (le geste du clic a expiré).
+  ⚠️ **`target="_blank"` DANS UN ONGLET, `_self` DANS LA FENÊTRE DE L'ERP INSTALLÉ** — mesuré dans Chrome ET Edge le 12/11/2026,
+  Zoho Mail de bureau gestionnaire de mailto (onglets relevés par le protocole de débogage, lancement de Zoho guetté) : dans un
+  onglet, le navigateur ouvre un onglet neuf, passe le lien à l'application et le REFERME seul en 0,1 s — rien ne reste (c'est
+  écrit dans Chromium : un onglet ouvert pour un protocole externe se ferme, s'il n'est pas le seul de sa fenêtre). Dans la
+  fenêtre de l'ERP installé (`display-mode: standalone`, pas d'onglets), une NOUVELLE fenêtre du navigateur s'ouvrait et
+  restait VIDE sur « mailto:… ». Là, le lien se suit sur place : l'application s'ouvre et le devis reste (rien ne se décharge ;
+  `beforeunload` part, et rien ne l'écoute sur cette page — ne pas en ajouter un sans y penser). Un gestionnaire WEB de mailto
+  (Zoho web enregistré dans le navigateur) s'ouvre toujours dans un onglet neuf ; dans la fenêtre installée, il s'ouvrirait dans
+  la fenêtre même (pas mesuré : le navigateur exige une acceptation dans son interface). Test E6c.
   ⚠️ **Le lien de consultation est ENREGISTRÉ avant d'être écrit** dans le message (comme « Copier le lien » de la fiche) : un
   jeton créé dans ce seul navigateur donnerait au client « Lien invalide ou expiré ». S'il ne s'enregistre pas, rien ne s'ouvre.
   Le texte vient de `SSUI.mailEnvoiDevis` (salutation de la FICHE client, montant avec la remise, lien, phrase du PDF que la case
@@ -4022,7 +4037,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    `modifierDevis` / `modifierClient` ou à `upsertDevis` : `tests/fiche.test.html`, exiger « 61/61 », par le serveur — ET
    `sav.test.html`, `bac-a-sable.test.html` et `dashboard.test.html`.
    Et dès qu'on touche à l'un des DEUX exemplaires du devis (`app/devis.html`, `devis-review.html` `buildPaperHtml`, la route
-   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 79/79 », par le serveur.
+   `/api/devis-review`), ou à `document.css` : `tests/documents.test.html`, exiger « 82/82 », par le serveur.
    Et dès qu'on touche à la saisie des ouvertures du simulateur (liste et fiche, « + Ajouter », l'outil des différences, `nouvelleOuvertureDepuis`,
    `ecartsOuvertures`) : `tests/saisie.test.html`, exiger « 68/68 », par le serveur — ET `volet.test.html`, `documents.test.html`,
    `fiche.test.html` (le simulateur rouvert) et `tactile.test.html`.
