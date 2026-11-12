@@ -174,6 +174,36 @@
         check('S12 L’export : BOM, « ; », virgule décimale, guillemets quand il le faut, la période seule, le statut « En retard »',
           [CS[0].slice(0, 12), CS.length, CS[1]], ['﻿Numéro;Réf.', 2, 'F1;26001;Acompte;2026-10-01;2020-01-01;"Jean Dupont; fils";D1;943,40;56,60;1000,00;400,00;600,00;En retard']);
 
+        /* La remise sur les factures (règle 65, « B pour les factures, oui pour le signe moins », Nicolas, 12/11/2026) :
+           les devis FICTIFS à remise de `exemplesRemises`, facturés par la vraie règle. */
+        const REMD = window.SSBacASable.exemplesRemises();
+        const totaleDe = (dv) => { const a = F.montants(dv, [], 'totale', {}); return { type: 'totale', lines: F.lignes(dv, 'totale', a, {}), total_ht: Math.round(a.total_ht * 100) / 100 }; };
+        const recapD = (dv) => U.recapRemise(dv.calculs, dv.items, 0);
+        const sansP = (R) => R && [R.base, R.remise, R.ht, R.pctTexte];
+        check('S13 ⚠️ Facture totale : le bandeau se lit sur SES lignes, et retombe EXACTEMENT sur celui du devis — prix de base, remise, total HTVA, pourcentage — pour les six devis à remise',
+          REMD.map((dv) => JSON.stringify(sansP(U.recapRemiseFacture(totaleDe(dv)))) === JSON.stringify(sansP(recapD(dv))) && !!recapD(dv)), REMD.map(() => true));
+        const t2 = totaleDe(REMD[1]);
+        const autreNeg = Object.assign({}, t2, { lines: t2.lines.concat([{ desc: 'Acompte déduit', qty: 1, pu: -100, total: -100 }]), total_ht: t2.total_ht - 100 });
+        check('S14 …rien quand ça ne retombe pas au centime (3 centimes d’écart), quand une AUTRE ligne négative s’y trouve, sans remise, ni sur un acompte, un solde, une note de crédit',
+          [!!U.recapRemiseFacture(t2), U.recapRemiseFacture(Object.assign({}, t2, { total_ht: t2.total_ht + 0.03 })), U.recapRemiseFacture(autreNeg), U.recapRemiseFacture(totaleDe(DV)),
+            U.recapRemiseFacture(Object.assign({}, t2, { type: 'acompte' })), U.recapRemiseFacture(Object.assign({}, t2, { type: 'solde' })), U.recapRemiseFacture(Object.assign({}, t2, { type: 'avoir' })),
+            U.recapRemiseFacture(null), t2.lines.filter(U.estLigneRemise).map((l) => l.total)],
+          [true, null, null, null, null, null, null, null, [-150, -60]]);
+        const rdv1 = F.recapDevis(REMD[0], 'acompte');
+        check('S15 L’instantané d’un acompte, d’un solde, d’une partielle : la remise du DEVIS, comme son bandeau ; rien pour une facture totale, un dépannage, un devis sans remise',
+          [rdv1, ['solde', 'partielle'].map((t) => JSON.stringify(F.recapDevis(REMD[0], t)) === JSON.stringify(rdv1)), F.recapDevis(REMD[0], 'totale'), F.recapDevis(REMD[0], 'avoir'),
+            F.recapDevis(Object.assign({}, REMD[0], { type_document: 'depannage' }), 'acompte'), F.recapDevis(DV, 'acompte')],
+          [{ devis_id: 'ESSAI-REM-1', base: 5041, remise: 655.33, ht: 4385.67, pct_texte: '13\u00a0%' }, [true, true], null, null, null, null]);
+        const ac1 = { type: 'acompte', devis_id: 'ESSAI-REM-1', source_type: 'devis', recap_devis: rdv1 };
+        const rap = (f) => { const x = document.createElement('div'); x.innerHTML = U.rappelRemiseHtml(f); return x.textContent; };
+        check('S16 Le rappel se lit dans l’instantané FIGÉ (le devis n’est jamais relu) ; rien sans lui, rien s’il ne retombe pas au centime, rien sur une facture totale ni un dépannage ; le n° est échappé',
+          [sp(rap(ac1)), rap(Object.assign({}, ac1, { recap_devis: undefined })), rap(Object.assign({}, ac1, { recap_devis: Object.assign({}, rdv1, { ht: 4385.7 }) })),
+            rap(Object.assign({}, ac1, { type: 'totale' })), rap(Object.assign({}, ac1, { source_type: 'depannage' })), /&lt;b&gt;/.test(U.rappelRemiseHtml(Object.assign({}, ac1, { recap_devis: Object.assign({}, rdv1, { devis_id: '<b>' }) })))],
+          ['Sur le devis N° ESSAI-REM-1 : prix de base 5 041,00 € − votre remise (13 %) 655,33 € = total 4 385,67 € HTVA', '', '', '', '', true]);
+        check('S17 Le signe moins des documents (« − 100,00 € », comme le devis) ; un positif garde son texte au caractère près ; un « -0,00 € » d’arrondi reste « 0,00 € »',
+          [U.fmtEurDocSigne(-100), U.fmtEurDocSigne(-1234.56), [1234.5, 0.004, 0, 99999.99].every((n) => U.fmtEurDocSigne(n) === U.fmtEurDoc(n)), U.fmtEurDocSigne(-0.001), U.fmtEurDocSigne(-0)],
+          ['\u2212\u00a0100,00\u00a0€', '\u2212\u00a01\u00a0234,56\u00a0€', true, '0,00\u00a0€', '0,00\u00a0€']);
+
         // ══════════ R — LES ROUTES SERVEUR ══════════
         titre('R — Les routes (vrai serveur, vraie base)');
         await BANC.demarrer();
@@ -370,6 +400,69 @@
         check('D2 Une facture entièrement annulée et échue : « ANNULÉE », plus de « À payer », plus de filigrane « IMPAYÉE »',
           [txt(pz.querySelector('.pay-status')), /À payer pour le/.test(txt(pz)), !!pz.querySelector('.watermark.due'), /annulée par la note de crédit/.test(txt(pz))], ['↩ ANNULÉE', false, false, true]);
         f.remove();
+
+        /* La remise sur les factures (règle 65) : les devis FICTIFS à remise, facturés par la vraie règle (`facturerRemises`,
+           bac-a-sable.js) — totale REM-2, acompte et solde REM-1, totale REM-3 et sa note de crédit, partielle REM-6. */
+        for (const dv of window.SSBacASable.exemplesRemises()) await SS.saveDevis(dv, { creation: true });
+        const FR = await window.SSBacASable.facturerRemises(SS);
+        const lire = async (id) => {
+          const fx = await BANC.cadre('../app/facture.html?id=' + encodeURIComponent(id) + '&t=' + Date.now(), 1000, 1200);
+          await attendreQue(() => fx.contentDocument.querySelector('#paper .pay-status'), 6000);
+          const p = fx.contentDocument.getElementById('paper');
+          const r = {
+            bandeau: [...p.querySelectorAll('.bandeau-remise .br-c')].map((c) => [txt(c.querySelector('.br-k')), sp(txt(c.querySelector('.br-v')))]),
+            rappel: [...p.querySelectorAll('.rappel-remise')].map((x) => sp(txt(x))),
+            lignes: [...p.querySelectorAll('.doc-table tbody tr')].map((tr) => [...tr.children].map((c) => txt(c))),
+            totaux: [...p.querySelectorAll('.totals .t-row, .totals .t-ttc')].map((x) => [...x.children].map((c) => sp(txt(c)))),
+            texte: p.textContent,
+          };
+          fx.remove();
+          return r;
+        };
+        const eurD = (n) => sp(U.fmtEurDocSigne(n));
+        const fT2 = fac(FR[0]), dT2 = await lire(FR[0]);
+        const rT2 = U.recapRemiseFacture(fT2);
+        check('D3 ⚠️ Facture TOTALE remisée (deux volets, matériel ET pose) : le bandeau « Prix de base − Votre remise (x %) = Total HTVA », les lignes de remise SORTENT du tableau (numéros qui se suivent), les totaux continuent par TVA et TOTAL TVAC — montants inchangés',
+          [FR.every(Boolean), fT2.lines.filter(U.estLigneRemise).length, dT2.bandeau, dT2.lignes.map((l) => l[0]), dT2.lignes.some((l) => /Remise/.test(l[1])), dT2.totaux.map((t) => t[0]), dT2.totaux[1][1], dT2.rappel],
+          [true, 2, [['Prix de base', eurD(rT2.base)], ['Votre remise (' + rT2.pctTexte.replace('\u00a0', ' ') + ')', eurD(210)], ['Total HTVA', eurD(fT2.total_ht)]],
+            fT2.lines.filter((l) => !U.estLigneRemise(l)).map((l, i) => String(i + 1)), false, ['TVA 6 %', 'Total TVAC'], eurD(fT2.total_ttc), []]);
+        const dAc = await lire(FR[1]), dSo = await lire(FR[2]), dPa = await lire(FR[5]);
+        const fAc = fac(FR[1]);
+        check('D4 ⚠️ L’ACOMPTE d’un devis remisé : le rappel « Sur le devis N° … : prix de base − votre remise (13 %) = total HTVA » (instantané figé), PAS de bandeau — le montant à payer et ses totaux ne bougent pas',
+          [fAc.recap_devis, dAc.rappel, dAc.bandeau, dAc.lignes.length, dAc.totaux.map((t) => t[0]), dAc.totaux[0][1]],
+          [{ devis_id: 'ESSAI-REM-1', base: 5041, remise: 655.33, ht: 4385.67, pct_texte: '13\u00a0%' },
+            ['Sur le devis N° ESSAI-REM-1 : prix de base 5 041,00 € − votre remise (13 %) 655,33 € = total 4 385,67 € HTVA'], [], 1, ['Total HTVA', 'TVA 6 %', 'Total TVAC'], eurD(fAc.total_ht)]);
+        check('D5 …le SOLDE et la facture PARTIELLE aussi (le rappel de LEUR devis)',
+          [dSo.rappel, dPa.rappel.length, /Sur le devis N° ESSAI-REM-6 : prix de base/.test(dPa.rappel[0] || ''), dSo.bandeau.length + dPa.bandeau.length],
+          [dAc.rappel, 1, true, 0]);
+        const dNc = await lire(FR[4]), dT3 = await lire(FR[3]);
+        check('D6 ⚠️ La NOTE DE CRÉDIT écrit ses montants comme le devis, « − 100,00 € » (signe moins, plus de « -100,00 € ») ; ni bandeau ni rappel ; la facture qu’elle annule en partie garde son bandeau et dit la note de crédit',
+          [dNc.lignes[0].slice(-2), dNc.totaux.map((t) => t[1]), /-\s?\d/.test(dNc.lignes.map((l) => l.slice(-2)).concat(dNc.totaux).flat().join(' ')), dNc.bandeau.length + dNc.rappel.length,
+            dT3.bandeau.length, new RegExp('Note de crédit ' + FR[4] + ' — 106,00 €').test(sp(dT3.texte))],
+          [[eurD(-100), eurD(-100)], [eurD(-100), eurD(-6), eurD(-106)], false, 0, 3, true]);
+        // Une facture d'AVANT : un acompte sans instantané (créé avant le 12/11/2026) et une totale dont une ligne de remise
+        // a été corrigée à la main (elle ne retombe plus) — elles s'impriment comme avant, le devis n'est jamais relu.
+        const vieil = Object.assign({}, fAc); delete vieil.id; delete vieil.recap_devis;
+        const rV = await SS.saveFacture(vieil, 'F');
+        const tordu = JSON.parse(JSON.stringify(fT2)); delete tordu.id; tordu.lines.find(U.estLigneRemise).total = -149.95;
+        const rTo = await SS.saveFacture(tordu, 'F');
+        const dV = await lire(rV.id), dTo = await lire(rTo.id);
+        check('D7 ⚠️ Une facture d’AVANT ne change pas : l’acompte sans instantané n’a pas de rappel (le devis à remise n’est PAS relu) ; une totale dont les remises ne retombent pas au centime garde ses lignes de remise, en « − 150,00 € », et son Total HTVA',
+          [dV.rappel, dV.bandeau, dTo.bandeau, dTo.lignes.filter((l) => /Remise commerciale/.test(l[1])).map((l) => l[l.length - 1]), dTo.totaux[0][0]],
+          [[], [], [], [eurD(-149.95), eurD(-60)], 'Total HTVA']);
+        // La vraie page : « Générer » un acompte sur un devis remisé SIGNÉ pose l'instantané ; le document le montre.
+        await SS.saveDevis(Object.assign(window.SSBacASable.exemplesRemises()[4], { statut: 'signe' }), {});
+        f = await ouvrirPage(1500, 900, '?devis=ESSAI-REM-5&type=acompte');
+        d = f.contentDocument;
+        await attendreQue(() => d.getElementById('fenNouv').classList.contains('open') && /Sur la facture : « Acompte de/.test(txt(d.getElementById('mApercu'))));
+        bouton(d.getElementById('fenNouv'), 'Générer').click();
+        await attendreQue(() => facDe('ESSAI-REM-5', 'acompte'), 6000);
+        f.remove();
+        const ac5 = facDe('ESSAI-REM-5', 'acompte') || {};
+        const dv5 = await SS.getDevis('ESSAI-REM-5');
+        const d5 = ac5.id ? await lire(ac5.id) : { rappel: [] };
+        check('D8 ⚠️ « Générer » (la vraie page) un acompte sur un devis remisé signé : l’instantané est posé à la création, égal à la remise du devis, et le document le lit',
+          [ac5.recap_devis, d5.rappel.length], [F.recapDevis(dv5, 'acompte'), 1]);
 
         // ══════════ T — TÉLÉPHONE ══════════
         titre('T — Sur téléphone (375 px)');

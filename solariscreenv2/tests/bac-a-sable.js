@@ -735,6 +735,46 @@
     ];
   }
 
+  /* ── LES FACTURES À REMISE, EN FICTIF (règle 65, suite : le bandeau sur les factures, 12/11/2026) ─────────────────
+     Le jeu facture ses dossiers par une copie SIMPLIFIÉE (`lignesFacture`) : une facture totale y est une seule ligne
+     « Travaux selon devis », sans les lignes « Remise commerciale » que la vraie page écrit — le bandeau d'une facture
+     ne pouvait s'y voir. Ici, des factures faites par la VRAIE règle (`SSFact.lignes`, `SSFact.recapDevis`), enregistrées
+     comme `creerFacture` (app/factures.html) les enregistre, sur les devis fictifs à remise (`exemplesRemises`, À POSER
+     AVANT). Six pièces, chacune pour une raison : la facture totale aux deux remises (REM-2) ; l'acompte de 50 % puis le
+     solde d'un devis remisé (REM-1, le rappel figé) ; la facture totale aux remises en % et sur l'outillage (REM-3), avec
+     une note de crédit de 100 € HTVA qui l'annule en partie (le signe moins, la déduction) ; une facture partielle
+     (REM-6, deux ouvertures posées sur cinq). PAS dans `remplir` : les comptes du jeu ne bougent pas. Rend les numéros
+     attribués par le serveur, dans cet ordre : totale REM-2, acompte REM-1, solde REM-1, totale REM-3, NC, partielle REM-6.
+     `SSFact` (facturation.js, avec remuneration.js) doit être chargé par la page. */
+  async function facturerRemises(SS) {
+    const F = window.SSFact, U = window.SSUI;
+    const r2 = function (x) { return Math.round((Number(x) || 0) * 100) / 100; };
+    const ids = [];
+    const facturer = async function (id, type, s) {
+      const d = await SS.getDevis(id);
+      const a = F.montants(d, await SS.listFactures(), type, s || {});
+      const f = { type: type, devis_id: id, source_type: d.type_document || 'devis', date: U.aujourdhui(), echeance: U.plusJours(U.aujourdhui(), 15),
+        ref_externe: '', client: d.client || {}, lines: F.lignes(d, type, a, s || {}),
+        total_ht: r2(a.total_ht), total_tva: r2(a.total_tva), total_ttc: r2(a.total_ttc), tva_pct: a.tva_pct,
+        devis_ttc: d.calculs && d.calculs.total_ttc, paiements: [], date_creation: new Date().toISOString() };
+      const recap = F.recapDevis(d, type);
+      if (recap) f.recap_devis = recap;
+      const res = await SS.saveFacture(f, 'F');
+      ids.push(res && res.id);
+      return f;
+    };
+    await facturer(PREFIXE + 'REM-2', 'totale');
+    await facturer(PREFIXE + 'REM-1', 'acompte', { unite: 'pct', valeur: 50 });
+    await facturer(PREFIXE + 'REM-1', 'solde');
+    const t3 = await facturer(PREFIXE + 'REM-3', 'totale');
+    const nc = await SS.saveFacture({ type: 'avoir', avoir_de: t3.id, devis_id: t3.devis_id, source_type: 'devis', date: U.aujourdhui(), echeance: U.aujourdhui(),
+      client: t3.client, motif: 'Geste commercial (essai)', lines: [{ desc: 'Annulation de la facture N° ' + t3.id, sub: 'Geste commercial (essai)', qty: 1, pu: -100, total: -100 }],
+      total_ht: -100, total_tva: -6, total_ttc: -106, tva_pct: 6, paiements: [], date_creation: new Date().toISOString() }, 'NC');
+    ids.push(nc && nc.id);
+    await facturer(PREFIXE + 'REM-6', 'partielle', { poses: [1, 1, 0, 0, 0] });
+    return ids;
+  }
+
   /** Le devis fictif à quatre volets ET sa fiche client : l'audit ouvre la fiche devis, qui lit la fiche client —
    *  sans elle, une requête refusée (404) que l'audit relevait à bon droit (règle 60 ter). */
   async function enregistrerExemple(SS, o) {
@@ -747,5 +787,5 @@
   }
 
   window.SSBacASable = { PREFIXE: PREFIXE, cleMarque: cleMarque, construire: construire, verifier: verifier, remplir: remplir, vider: vider,
-    exempleQuatreVolets: exempleQuatreVolets, enregistrerExemple: enregistrerExemple, exemplesRemises: exemplesRemises };
+    exempleQuatreVolets: exempleQuatreVolets, enregistrerExemple: enregistrerExemple, exemplesRemises: exemplesRemises, facturerRemises: facturerRemises };
 })();

@@ -33,6 +33,8 @@
   <script src="../assets/js/calc.js"></script>
   <script src="../assets/js/products.js"></script>
   <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/remuneration.js"></script>
+  <script src="../assets/js/facturation.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
   <script>
@@ -137,6 +139,8 @@
         const vieux = JSON.parse(JSON.stringify(REM[1]));
         vieux.id = 'ESSAI-REM-7'; delete vieux.calculs.install_total_brut;
         rRem.push(await SS.saveDevis(vieux, { creation: true }));
+        // …et leurs factures, faites par la vraie règle de la page Facturation (totale REM-2, acompte REM-1, …) : séries R9 et T1.
+        const FR = await window.SSBacASable.facturerRemises(SS);
         // Tout devis reçoit un lien client, pour que les deux exemplaires se comparent sur TOUT le jeu.
         BANC.DB.exec("UPDATE devis SET data = json_set(data, '$.review_token', 'doc-' || id) WHERE json_extract(data, '$.review_token') IS NULL");
         const ids = BANC.sqlL("SELECT id, json_extract(data, '$.review_token') FROM devis ORDER BY id");
@@ -289,6 +293,27 @@
           }
           check('R7 ⚠️ À l’impression, le vert de la remise est FIXE (#057a55), quel que soit le thème de l’écran (cyberpunk : il sortait en vert fluo, illisible) — bandeau et lignes de remise',
             couleurs, [[true, 'rgb(5, 122, 85)'], [true, 'rgb(5, 122, 85)']]);
+        }
+        {
+          /* R9 (12/11/2026, « B pour les factures ») : la facture TOTALE a le bandeau, l'ACOMPTE le rappel du devis — vert fixe
+             à l'impression sous un écran cyberpunk, comme le devis ; et le bandeau d'une facture remplace ses lignes de remise. */
+          const lus = [];
+          for (const [id, sel] of [[FR[0], '.br-rem .br-v'], [FR[1], '.rappel-remise .rr-rem']]) {
+            const f = await BANC.cadre('../app/facture.html?id=' + encodeURIComponent(id), 1100, 900);
+            const d = f.contentDocument;
+            await attendreQue(() => d.querySelector('#paper .pay-status'), 10000);
+            const x = d.querySelector('#paper ' + sel);
+            d.documentElement.setAttribute('data-theme', 'cyberpunk'); await attendre(50);
+            const ecran = x ? f.contentWindow.getComputedStyle(x).color : null;
+            forcerImpression(d); await attendre(80);
+            const rp = d.querySelector('#paper .rappel-remise'), rs = rp && f.contentWindow.getComputedStyle(rp);
+            lus.push([!!x, ecran !== 'rgb(5, 122, 85)', x ? f.contentWindow.getComputedStyle(x).color : null,
+              d.querySelectorAll('#paper .bandeau-remise').length, d.querySelectorAll('#paper .rappel-remise').length,
+              rs ? [rs.borderRightStyle, parseFloat(rs.marginLeft) >= 1, parseFloat(rs.marginRight) >= 1] : null]);
+            f.remove();
+          }
+          check('R9 Factures (règle 65) : la facture TOTALE remisée porte le bandeau, l’ACOMPTE le rappel du devis, jamais les deux ; leur vert est FIXE à l’impression (#057a55), écran en cyberpunk ; le cadre du rappel en trait continu, en retrait du bord (un pointillé collé au bord n’est pas imprimé)',
+            lus, [[true, true, 'rgb(5, 122, 85)', 1, 0, null], [true, true, 'rgb(5, 122, 85)', 0, 1, ['solid', true, true]]]);
         }
         {
           // R8 : la page du lien, à l'écran — le même récapitulatif que le devis.
@@ -574,7 +599,8 @@
         titre('T — Sur téléphone, la feuille entière réduite, comme un PDF (choix de Nicolas, 28/10/2026)');
         // Sur un écran plus étroit que 210 mm, la feuille garde sa mise en page A4 et se réduit d'un bloc : le tableau
         // défilait de côté DANS la feuille, colonnes P.U. et Total hors de l'écran, sans que rien ne le dise.
-        const docs = ['../app/devis.html?id=ESSAI-03', '../app/devis.html?id=ESSAI-15', '../app/facture.html?id=F2026-006', '../app/picking.html?id=ESSAI-07', '../app/devis.html?id=ESSAI-REM-2'];
+        const docs = ['../app/devis.html?id=ESSAI-03', '../app/devis.html?id=ESSAI-15', '../app/facture.html?id=F2026-006', '../app/picking.html?id=ESSAI-07', '../app/devis.html?id=ESSAI-REM-2',
+          '../app/facture.html?id=' + encodeURIComponent(FR[0]), '../app/facture.html?id=' + encodeURIComponent(FR[1])];
         const tel = [];
         for (const u of docs) {
           const f = await BANC.cadre(u, 390, 844);
@@ -591,7 +617,7 @@
         await attendreQue(() => fb.contentDocument.querySelector('.paper-wrap > .paper table'), 10000);
         const bureau = [fb.contentDocument.documentElement.classList.contains('feuille-reduite'), Math.round(fb.contentDocument.querySelector('.paper-wrap > .paper').getBoundingClientRect().width)];
         fb.remove();
-        check('T1 À 390 px, chaque document (devis, dépannage, facture, bon de pose, devis à remise) : feuille réduite, entière dans l’écran, son tableau ne défile pas, sa dernière colonne se voit, la page ne déborde pas ; au bureau, la feuille A4 telle quelle',
+        check('T1 À 390 px, chaque document (devis, dépannage, facture, bon de pose, devis à remise, facture à bandeau, acompte à rappel) : feuille réduite, entière dans l’écran, son tableau ne défile pas, sa dernière colonne se voit, la page ne déborde pas ; au bureau, la feuille A4 telle quelle',
           [tel, bureau], [docs.map(() => [true, true, true, true, true]), [false, 794]]);
       } catch (e) {
         check('Exception', String(e && (e.stack || e.message)), null);

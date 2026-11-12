@@ -51,8 +51,9 @@
     const COMPANY = window.SS_COMPANY;
     const { mountThemeToggle } = window.SSTheme;
     const { fmtDate, el, qp, fmtQte } = window.SSUI;
-    // Les montants du DOCUMENT : espace des milliers visible (`SSUI.fmtEurDoc`, refonte des PDF du 08/11/2026).
-    const fmtEur = window.SSUI.fmtEurDoc;
+    // Les montants du DOCUMENT : espace des milliers visible (`SSUI.fmtEurDoc`, refonte des PDF du 08/11/2026), et un
+    // montant négatif écrit comme sur le devis, « − 100,00 € » (note de crédit, lignes de remise — règle 65).
+    const fmtEur = window.SSUI.fmtEurDocSigne;
     mountThemeToggle(document.getElementById('themeToggle'));
     window.SSNav.mount(document.getElementById('quickNav'));
     // Attend que la police web (Inter) soit chargée avant d'imprimer, sinon la mise en page
@@ -85,7 +86,11 @@
       // Facture d'un DÉPANNAGE : ses lignes sont des postes d'intervention, sans dimensions.
       // Une colonne entière de tirets n'apprend rien — on la retire, comme sur le document.
       const dep = f.source_type === 'depannage';
-      const rows = (f.lines || []).map((l, i) => `<tr>
+      /* La remise (règle 65) : sur une facture TOTALE, le bandeau du devis calculé sur SES lignes, et les lignes de remise
+         sortent du tableau ; sur un acompte, un solde, une partielle, le rappel figé à la création. Rien ne relit le devis. */
+      const R = SSUI.recapRemiseFacture(f);
+      const lignes = R ? (f.lines || []).filter(l => !SSUI.estLigneRemise(l)) : (f.lines || []);
+      const rows = lignes.map((l, i) => `<tr>
         <td class="num">${i + 1}</td>
         <td class="desc"><strong>${esc(l.desc)}</strong>${l.sub ? '<small>' + esc(l.sub) + '</small>' : ''}</td>
         ${dep ? '' : `<td>${esc(SSUI.dimsLigne(l.dims || '—'))}</td>`}
@@ -141,9 +146,10 @@
           <tbody>${rows}</tbody>
         </table>
 
+        ${SSUI.bandeauRemiseHtml(R)}${SSUI.rappelRemiseHtml(f)}
         <div class="totals"><div class="box">
-          <div class="t-row"><span>Total HTVA</span><span class="v">${fmtEur(f.total_ht)}</span></div>
-          <div class="t-row t-sub"><span>TVA ${f.tva_pct} %</span><span class="v">${fmtEur(f.total_tva)}</span></div>
+          ${R ? '' : `<div class="t-row"><span>Total HTVA</span><span class="v">${fmtEur(f.total_ht)}</span></div>`}
+          <div class="t-row${R ? '' : ' t-sub'}"><span>TVA ${f.tva_pct} %</span><span class="v">${fmtEur(f.total_tva)}</span></div>
           <div class="t-ttc"><span class="k">Total TVAC</span><span class="v">${fmtEur(f.total_ttc)}</span></div>
         </div></div>
 
