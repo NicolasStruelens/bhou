@@ -93,6 +93,27 @@ body { background: var(--bg); }
 .totals .t-ttc .k { font-family: var(--font-display); text-transform: uppercase; font-size: var(--fs-sm); letter-spacing: 0.05em; }
 .totals .t-ttc .v { font-variant-numeric: tabular-nums; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.01em; }
 
+/* ═══ LE RÉCAPITULATIF DE LA REMISE : « PRIX DE BASE − VOTRE REMISE (x %) = TOTAL HTVA » (règle 65) ═══
+   Variante B « Bandeau », choisie par Nicolas sur maquette (vrais PDF, 11/11/2026) : « que le client se rende compte de
+   la remise, que ça flash le prix normal, le total de la remise, bien gras le total ». Toute la largeur, SOUS le tableau
+   et avant les totaux — il se lit comme le résultat du tableau, que les totaux continuent (TVA, TOTAL TVAC).
+   Gabarit unique : `SSUI.bandeauRemiseHtml` (ui.js), lu par les DEUX exemplaires (règle 7).
+   ⚠️ LA HAUTEUR : mesurée sur de vrais PDF, le bandeau coûte moins que les lignes vertes qu'il remplace dès qu'un devis
+   en a deux (matériel ET pose) — le cas le plus serré (2 volets + encadré, deux remises) garde 11 mm (32 pt). Deux lignes
+   par case (intitulé, montant), pas trois : ne pas lui rajouter de sous-titre « HTVA ».
+   ⚠️ `clear: both` : il passe sous un éventuel flottant précédent, et les totaux flottent à DROITE juste après lui. */
+.bandeau-remise { clear: both; display: flex; align-items: center; margin-top: var(--sp-4);
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--ok) 6%, transparent); }
+.br-c { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.45rem 0.6rem; }
+.br-k { font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-subtle); }
+.br-v { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.br-op { flex: none; font-size: 1.2rem; font-weight: 700; color: var(--text-subtle); }
+.br-rem .br-k, .br-rem .br-v { color: var(--ok); }
+.br-rem .br-k { font-weight: 700; }
+.br-rem .br-v, .br-tot .br-v { font-weight: 800; }
+.br-tot .br-v { color: var(--accent); }
+
 /* ═══ LE BLOC D'ARGENT : LES TOTAUX À DROITE, LE PAIEMENT À CÔTÉ ═══
    Les totaux occupent 320 px à droite et le rappel d'acompte s'écrivait DESSOUS, sur toute la
    largeur : il restait donc un quart de page vide à gauche des totaux, juste avant la zone la
@@ -228,6 +249,11 @@ body { background: var(--bg); }
     --bg: #fff; --surface: #fff; --surface-2: #f4f6fb; --border: #d8deea; --border-strong: #b9c3d6;
     --text: #1a2238; --text-muted: #4a5568; --text-subtle: #8390a6;
     --accent: #2e3b8f; --accent-2: #c98a00; --accent-2-ink: #8a6000; --on-accent: #fff;
+    /* ⚠️ LE VERT DE LA REMISE, FIXE À L'IMPRESSION (règle 65). Il n'était pas forcé ici : le PDF enregistré depuis un
+       écran en thème sombre écrivait la remise en #34d399 (contraste 1,9:1 sur blanc), en cyberpunk en #39ff88 (1,3:1,
+       presque invisible), pendant que l'exemplaire du client, toujours en thème clair, l'écrivait en #057a55 (5,4:1) —
+       deux documents différents pour le même client (règle 7). Mesuré dans de vrais PDF, 11/11/2026. */
+    --ok: #057a55;
     --shadow: none; --glow-soft: none; --glow-accent: none;
     --fx-scanlines: 0; --fx-grid: none; --font-display: 'Inter', sans-serif;
   }
@@ -292,7 +318,10 @@ body { background: var(--bg); }
      le navigateur le déplaçait ENTIER en page 2, laissant une page 1 quasi vide — une grande
      marge blanche sous l'en-tête. Un tableau de lignes doit pouvoir se poursuivre page suivante ;
      c'est la LIGNE (`tr`) qui ne doit jamais être coupée en deux. */
-  .signatures, .sig-box, .totals, .pay-note, tr, .photo-item { page-break-inside: avoid; }
+  .signatures, .sig-box, .totals, .pay-note, tr, .photo-item, .bandeau-remise { page-break-inside: avoid; break-inside: avoid; }
+  /* Le bandeau ne part pas seul en bas de page : il emmène les totaux qu'il annonce. */
+  .bandeau-remise { break-after: avoid; page-break-after: avoid; margin-top: 0.5rem; }
+  .br-c { padding: 0.3rem 0.5rem; }
   .doc-table { page-break-inside: auto; break-inside: auto; }
   /* Le tableau se poursuivant d'une page à l'autre, ses en-têtes de colonnes doivent se répéter :
      sinon la 2e page présente des chiffres sans savoir ce qu'ils désignent. */
