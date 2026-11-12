@@ -770,6 +770,137 @@
   function milliers(s) { return String(s == null ? '' : s).replace(/\d{4,}/g, (x) => x.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')); }
   function dimsLigne(s) { return milliers(s).replace(/ /g, '\u00a0').replace('\u00a0(l', ' (l'); }
   function dimsDoc(it) { return dimsLigne(dimsOf(it)); }
+
+  /* ── LE RÉCAPITULATIF DE LA REMISE — « Prix de base − Votre remise (x %) = Total HTVA » (règle 65) ──────────────
+     Demande de Nicolas (11/11/2026, réunion avec Yannick) : « que le client se rende compte de la remise et ne va pas
+     chercher les remises en vert que nous on connaît ; il faut que ça flash le prix normal, le total de la remise, bien
+     gras le total ». Variante B « Bandeau », choisie sur maquette (vrais PDF). Le devis portait la remise en lignes
+     vertes en italique, une par poste remisé, et les totaux ne disaient que « Total HTVA » : le prix avant remise
+     n'apparaissait NULLE PART. Les deux exemplaires du devis (règle 7) et la page du lien client lisent CETTE fonction.
+     • LE PRIX DE BASE EST LA SOMME DE CE QUE LE TABLEAU IMPRIME (ouvertures `prix × quantité`, installation brute,
+       suppléments, accès difficile) : le client doit pouvoir la refaire à la calculatrice depuis la feuille.
+     • ⚠️ LA REMISE AFFICHÉE EST « PRIX DE BASE − TOTAL HTVA », au centime (règle 30 octies) : additionner les trois
+       remises arrondies chacune peut s'écarter d'un centime du total (une remise en % qui tombe sur un demi-centime), et
+       une soustraction fausse d'un centime sur un devis, le client la voit.
+     • Toutes les remises que le client paie EN MOINS y sont : catalogue (y compris la part libre d'une répartition,
+       règle 64 — elle vit dans `remise_catalogue.amount`), installation, outillage. Jamais la remise projet Harol,
+       qui n'est pas dans `calculs` (règle 64).
+     • ⚠️ RIEN quand la décomposition ne retombe pas sur le total à deux centimes près (vieux devis sans
+       `install_total_brut`, calculs incomplets) : le document garde alors ses lignes de remise, comme avant. Un détail
+       qui ne retombe pas sur son total est pire que pas de détail. Rien non plus sans remise.
+     `c` : les `calculs` du devis, OU le bloc aplati du lien client (`remise_catalogue` y est un nombre,
+     `remise_installation` y comprend l'outillage). `surplus` : le supplément d'accès difficile (hors `calculs`). */
+  function recapRemise(c, items, surplus) {
+    if (!c || c.total_ht == null) return null;
+    const n = (x) => Number(x) || 0;
+    const montant = (v) => (v && typeof v === 'object') ? n(v.amount) : n(v);
+    const remises = montant(c.remise_catalogue) + montant(c.remise_installation) + montant(c.remise_outillage);
+    if (!(remises >= 0.01)) return null;
+    // Ligne par ligne, comme le tableau du document (`pu * qty`, quantité absente → 1).
+    const catalogue = (items || []).reduce(function (s, it) {
+      return s + (n(it && it.prix_catalogue_ht) * n((it && it.quantite) || 1));
+    }, 0);
+    const extras = (c.extra_lines || []).reduce(function (s, e) { return s + n(e && e.total_ht); }, 0);
+    const base = r2(catalogue + n(c.install_total_brut) + extras + n(surplus));
+    const ht = r2(c.total_ht);
+    const remise = r2(base - ht);
+    if (!(base > 0) || !(remise >= 0.01) || remise >= base || Math.abs(remise - r2(remises)) > 0.02) return null;
+    const p = remise / base * 100;
+    const pct = p < 0.1 ? '< 0,1' : (p < 0.95 ? p.toFixed(1).replace('.', ',') : String(Math.round(p)));
+    return { base: base, remise: remise, ht: ht, pct: p, pctTexte: pct + '\u00a0%' };
+  }
+  /** Le bandeau du récapitulatif, tel que les DEUX exemplaires l'impriment (règle 7) : un seul gabarit, ici — la copie
+   *  du gabarit de l'encadré de configuration dans `devis-review.html` avait déjà levé une ReferenceError (règle 31 septies).
+   *  Trois cases : le prix de base, la remise et son pourcentage, le total HTVA en gras. Sans `R`, rien. */
+  function bandeauRemiseHtml(R) {
+    if (!R) return '';
+    const v = function (x) { return fmtEurDoc(x); };
+    return '<div class="bandeau-remise">'
+      + '<div class="br-c br-base"><span class="br-k">Prix de base</span><span class="br-v">' + v(R.base) + '</span></div>'
+      + '<div class="br-op">\u2212</div>'
+      + '<div class="br-c br-rem"><span class="br-k">Votre remise (' + R.pctTexte + ')</span><span class="br-v">' + v(R.remise) + '</span></div>'
+      + '<div class="br-op">=</div>'
+      + '<div class="br-c br-tot"><span class="br-k">Total HTVA</span><span class="br-v">' + v(R.ht) + '</span></div>'
+      + '</div>';
+  }
+
+  /* ── CE QU'UN MAIL AU CLIENT DIT EN TÊTE ET EN PIED (règle 65) ─────────────────────────────────────────────────
+     • LA SALUTATION : la même que l'espace client et les relances. La FICHE client est la source de vérité (le
+       sélecteur « Amical / Professionnel » de la fiche devis écrit sur elle) : « amical » → le prénom ; sinon la
+       civilité et le nom ; sans civilité, le nom complet — jamais un « Madame » deviné. Elle vivait dans la fiche
+       devis seule ; l'envoi du devis en a besoin aussi.
+     • ⚠️ LA SIGNATURE lisait `SS_COMPANY.website`, qui n'existe pas (le champ s'appelle `web`) : aucune relance n'a
+       jamais porté l'adresse du site (fiche devis, demandes de RDV). Trouvé en préparant l'envoi du devis, 11/11/2026. */
+  function salutationMail(client, fiche) {
+    const cl = client || {}, f = fiche || {};
+    const prenom = String(cl.prenom || '').trim(), nom = String(cl.nom || '').trim();
+    const civ = String(f.civilite || '').trim();
+    if ((f.ton || 'pro') === 'amical' && prenom) return 'Bonjour ' + prenom + ',';
+    if (civ && nom) return 'Bonjour ' + civ + ' ' + nom + ',';
+    if (prenom || nom) return 'Bonjour ' + [prenom, nom].filter(Boolean).join(' ') + ',';
+    return 'Bonjour,';
+  }
+  function signatureMail(nom) {
+    const co = window.SS_COMPANY || {};
+    return [nom || '', co.name || 'SolariScreen', co.phone || '', co.web || ''].filter(Boolean).join('\n');
+  }
+  /** « 2 screens et 1 tente solaire » : ce que le devis contient, en mots de client. */
+  function produitsMail(items) {
+    const parType = new Map();
+    (items || []).forEach(function (it) {
+      const t = it && it.type;
+      if (t) parType.set(t, (parType.get(t) || 0) + (Number(it.quantite) || 1));
+    });
+    const parts = [...parType.entries()].map(function (e) {
+      const f = TYPE_FORMES[e[0]] || [e[0], e[0]];
+      return e[1] + ' ' + String(e[1] > 1 ? f[1] : f[0]).toLowerCase();
+    });
+    if (parts.length < 2) return parts[0] || '';
+    return parts.slice(0, -1).join(', ') + ' et ' + parts[parts.length - 1];
+  }
+  /* ── LE MAIL QUI ACCOMPAGNE L'ENVOI D'UN DEVIS (bouton « Envoyer au client », règle 65) ──
+     Objet et texte prêts, dans la salutation de la fiche, avec le LIEN de consultation (le client y lit le devis, l'imprime
+     et l'accepte). Une page web ne peut pas joindre un fichier à un message : le PDF, si on le joint, se glisse à la main —
+     d'où la phrase `PHRASE_PDF`, que la fenêtre ajoute ou retire selon la case « Joindre le PDF ». Le montant porte la
+     remise quand il y en a une (même règle que le bandeau du document : `recapRemise`). Rien d'interne : ni marge, ni
+     commission, ni remise projet. Dépannage : bon d'intervention (payable à réception) ou proposition — jamais d'acompte
+     (règle 7). */
+  const PHRASE_PDF = 'Le document est aussi joint en PDF.';
+  function mailEnvoiDevis(o) {
+    const d = (o && o.devis) || {}, c = (o && o.calc) || d.calculs || {};
+    const dep = d.type_document === 'depannage', fait = dep && (d.depannage_mode || 'realise') === 'realise';
+    const info = !dep && !!d.informatif;
+    const prods = produitsMail(d.items);
+    const projet = prods ? ' pour votre projet de ' + prods : '';
+    const id = String(d.id || '');
+    const objet = fait ? 'Votre bon d’intervention SolariScreen n° ' + id
+      : (dep ? 'Notre proposition de dépannage n° ' + id
+        : (info ? 'Votre devis informatif SolariScreen n° ' : 'Votre devis SolariScreen n° ') + id + (prods ? ' — ' + prods : ''));
+    const dateInt = dep && d.depannage && d.depannage.date_intervention ? fmtDate(d.depannage.date_intervention) : '';
+    const intro = fait ? 'Voici le bon d’intervention n° ' + id + (dateInt ? ' de notre passage du ' + dateInt : '') + '.'
+      : (dep ? 'Voici notre proposition d’intervention n° ' + id + '.'
+        : (info ? 'Comme suite à votre demande, voici une première estimation' + projet + ' (devis informatif n° ' + id + '). Elle repose sur des mesures approximatives : un devis définitif suivra la prise de mesures sur place.'
+          : (d.rdv_id ? 'Suite à ma visite, voici' : 'Voici') + ' votre devis n° ' + id + projet + '.'));
+    const R = recapRemise(c, d.items, d.pricing_v2 && d.pricing_v2.surplus_difficulte);
+    const ttc = fmtEurDoc(c.total_ttc);
+    const montant = fait ? 'Montant : ' + ttc + ' TVAC, payable à réception.'
+      : (dep ? 'Montant : ' + ttc + ' TVAC, payable en fin d’intervention.'
+        : 'Montant : ' + ttc + ' TVAC' + (R ? ' (remise de ' + fmtEurDoc(R.remise) + ' HTVA déjà déduite).' : '.'));
+    const consulter = fait ? 'Vous pouvez le consulter et l’imprimer en ligne :'
+      : (dep ? 'Vous pouvez la consulter et nous donner votre accord en ligne :'
+        : (info ? 'Vous pouvez la consulter et l’imprimer en ligne :' : 'Vous pouvez le consulter, l’imprimer et nous donner votre accord en ligne :'));
+    const lignes = [salutationMail(d.client, o && o.fiche), '', intro, '', montant, '', consulter, String((o && o.lien) || '')];
+    if (o && o.avecPdf) lignes.push(PHRASE_PDF);
+    lignes.push('', 'Je reste à votre disposition pour toute question.', '', 'Bien à vous,', signatureMail(o && o.qui));
+    return { objet: objet, texte: lignes.join('\n') };
+  }
+  /** L'adresse d'un brouillon de mail (`mailto:`) : destinataires « a@x.be, b@y.be » nettoyés (rien qui puisse glisser
+   *  un autre champ : ? & # < > guillemets), objet et texte encodés, retours à la ligne en CRLF (RFC 6068). */
+  function mailtoHref(a, objet, texte) {
+    const dest = String(a || '').split(/[,;]/).map(function (s) { return s.trim().replace(/[\s?&#<>"'%]/g, ''); }).filter(Boolean).join(',');
+    const enc = function (s) { return encodeURIComponent(String(s || '').replace(/\r?\n/g, '\r\n')); };
+    return 'mailto:' + dest + '?subject=' + enc(objet) + '&body=' + enc(texte);
+  }
   /* ── LES OPTIONS D'UNE TENTE SOLAIRE, en mots de client — les DEUX exemplaires (règle 7) ──
      01/11/2026, bac à sable : lambrequin, éclairage LED, détecteur, spots, chauffage se cochent au simulateur et
      se paient (le prix catalogue saisi les comprend), mais la ligne du devis n'en disait RIEN — le client signait
@@ -2333,6 +2464,9 @@
     questionRetirerPose: questionRetirerPose, REFUS_RETIRER_POSE: REFUS_RETIRER_POSE,
     isTenteSolaire: isTenteSolaire, dimsOf: dimsOf, dimsDoc: dimsDoc, dimsLigne: dimsLigne, milliers: milliers,
     resumeDevis: resumeDevis, SELLER_LABELS: SELLER_LABELS,
+    recapRemise: recapRemise, bandeauRemiseHtml: bandeauRemiseHtml,
+    salutationMail: salutationMail, signatureMail: signatureMail, produitsMail: produitsMail,
+    mailEnvoiDevis: mailEnvoiDevis, PHRASE_PDF: PHRASE_PDF, mailtoHref: mailtoHref,
     TYPE_LABEL: TYPE_LABEL, TYPE_FORMES: TYPE_FORMES,
     IDENTITE_LABEL: IDENTITE_LABEL, fmtDuree: fmtDuree,
     etageLisible: etageLisible,

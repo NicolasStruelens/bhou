@@ -687,6 +687,54 @@
       date_creation: maintenant, date_modification: maintenant };
   }
 
+  /* ── LES DEVIS À REMISE, EN FICTIF (règle 65) ─────────────────────────────────────────────────────────────────
+     Le jeu n'a AUCUN devis avec remise : le récapitulatif « Prix de base − Votre remise (x %) = Total HTVA » ne
+     pouvait se voir nulle part. Six cas, chacun pour une raison : une remise sur le matériel (REM-1, BROUILLON : c'est
+     lui que « Envoyer au client » fait passer en « Envoyé ») ; matériel ET pose sur deux volets à encadré, le devis le
+     plus serré de la page (REM-2) ; des remises en % et sur l'outillage, qui s'arrondissent chacune (REM-3) ; un
+     devis INFORMATIF (REM-4) ; la PART LIBRE d'une répartition devenue remise client (REM-5, règle 64) ; un grand
+     devis de deux pages (REM-6). Comme `exempleQuatreVolets`, PAS dans `remplir` : les comptes du jeu ne bougent pas ;
+     `documents.test`, `mails.test` et le banc d'impression (`exemple=remises`) les posent eux-mêmes. */
+  function exemplesRemises() {
+    const C = window.SSCalc;
+    const inst = { install_gross: 280, tech1_gross: 125, tech2_gross: 125, tools_gross: 30 };
+    const maintenant = new Date().toISOString();
+    const fait = function (n, cli, items, o) {
+      const q = items.reduce(function (s, it) { return s + (it.quantite || 1); }, 0);
+      const sellers = o.sellers || { principal: 'nicolas' };
+      const input = { items: items, tva_pct: 6, acompte_pct: 50, sellers: sellers,
+        installation: Object.assign({}, inst, { install_qty: q, tech1_qty: q, tech2_qty: q, tools_qty: q }), extras: [], surplus_difficulte: 0,
+        remise_catalogue: o.rc || { mode: 'eur', value: 0 }, remise_installation: o.ri || { mode: 'eur', value: 0 }, remise_outillage: o.ro || { mode: 'eur', value: 0 } };
+      const c = C ? C.computeDevis(input) : null;
+      return { id: PREFIXE + 'REM-' + n, client: cli, statut: o.statut || 'envoye_client', informatif: !!o.informatif, items: items, calculs: c,
+        pricing_v2: { tva_pct: 6, acompte_pct: 50, surplus_difficulte: 0, extras: [], material: { sellers: sellers },
+          remise_catalogue: input.remise_catalogue, remise_installation: input.remise_installation, remise_outillage: input.remise_outillage,
+          installation: { per_opening: inst, install_qty: q, tech1_qty: q, tech2_qty: q, tools_qty: q } },
+        date_creation: maintenant, date_modification: maintenant };
+    };
+    const cli = function (p, nm, ville, o) {
+      return Object.assign({ prenom: p, nom: nm, email: 'essai.rem.' + nm.toLowerCase().replace(/[^a-z]/g, '') + '@exemple.invalid', telephone: '0000 00 00 99',
+        adresse: { rue: "Rue de l'Essai", numero: '12', code_postal: '1400', ville: ville } }, o || {});
+    };
+    const sc = function (q, px, o) {
+      return Object.assign({ type: 'screen', modele: 'Coolscreen 8', variante: 'Standard', largeur: 2400, hauteur: 2200, quantite: q, prix_catalogue_ht: px,
+        collection: 'Collectie soltis 86', toile_couleur: 'Gris', couleur: '7016 — Gris anthracite', moteur_ref: '4114: Sunea 40 RTS', emplacement: 'Façade sud',
+        emetteur: true, photos: [] }, o || {});
+    };
+    const v4 = exempleQuatreVolets({ avecScreen: true }).items;
+    return [
+      fait(1, cli('Claire', 'Remise', 'Nivelles'), [sc(2, 2240.5)], { rc: { mode: 'eur', value: 655.33 }, statut: 'brouillon' }),
+      fait(2, cli('Paul', "D'Remise", 'Wavre'), [v4[0], v4[1]], { rc: { mode: 'eur', value: 150 }, ri: { mode: 'eur', value: 60 } }),
+      fait(3, cli('Marc', 'Pourcent', 'Rixensart'), [sc(3, 1450, { modele: 'SC 90' })], { rc: { mode: 'pct', value: 7 }, ri: { mode: 'pct', value: 5 }, ro: { mode: 'eur', value: 30 } }),
+      fait(4, cli('Anne', 'Estimation', 'Genval'), [{ type: 'tente_solaire', modele: 'BX270', largeur: 4000, projection: 3000, quantite: 1, prix_catalogue_ht: 3200,
+        manoeuvre: 'Moteur', moteur: 'IO (standard)', collection: 'Dickson Orchestra', toile_couleur: 'Écru', couleur: '7016 — Gris anthracite', telecommande: true, photos: [] }],
+        { rc: { mode: 'eur', value: 300 }, informatif: true }),
+      fait(5, cli('Lucie', 'Partlibre', 'Ottignies'), [sc(2, 1450, { modele: 'SC 90' })],
+        { sellers: { principal: 'autre', nicolas_pct: 10, yannick_pct: 10, part_libre: 'client' } }),
+      fait(6, cli('Gaston', 'Grandeur', 'Jodoigne'), v4, { rc: { mode: 'pct', value: 10 } }),
+    ];
+  }
+
   /** Le devis fictif à quatre volets ET sa fiche client : l'audit ouvre la fiche devis, qui lit la fiche client —
    *  sans elle, une requête refusée (404) que l'audit relevait à bon droit (règle 60 ter). */
   async function enregistrerExemple(SS, o) {
@@ -699,5 +747,5 @@
   }
 
   window.SSBacASable = { PREFIXE: PREFIXE, cleMarque: cleMarque, construire: construire, verifier: verifier, remplir: remplir, vider: vider,
-    exempleQuatreVolets: exempleQuatreVolets, enregistrerExemple: enregistrerExemple };
+    exempleQuatreVolets: exempleQuatreVolets, enregistrerExemple: enregistrerExemple, exemplesRemises: exemplesRemises };
 })();
