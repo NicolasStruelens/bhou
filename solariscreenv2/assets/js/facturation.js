@@ -192,7 +192,9 @@
   const RELANCE_ECART_J = 7;
   function relancesDe(f) {
     const l = ((f && f.relances) || []).slice().sort(function (a, b) { return String(a.le || '').localeCompare(String(b.le || '')); });
-    const derniere = l.length ? String(l[l.length - 1].le || '').slice(0, 10) : '';
+    // `le` est l'INSTANT écrit par le serveur : son jour LOCAL (règle 18). Coupé à 10 caractères, une
+    // relance de 0 h 30 s'affichait de la veille et la suivante était proposée un jour trop tôt.
+    const derniere = l.length ? U().jourLocal(l[l.length - 1].le) : '';
     return { n: l.length, derniere: derniere, prochaine: derniere ? plusJours(derniere, RELANCE_ECART_J) : '' };
   }
   function aRelancer(f, factures, ref) {

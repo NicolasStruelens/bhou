@@ -155,6 +155,19 @@
           [F.aRelancer(fr, [fr]), F.aRelancer(Object.assign({}, fr, { relances: [{ le: J(-3) + 'T10:00:00Z' }] }), []), F.aRelancer(Object.assign({}, fr, { relances: [{ le: J(-8) + 'T10:00:00Z' }] }), []),
             F.aRelancer(Object.assign({}, fr, { echeance: J(5) }), []), F.relancesDe(Object.assign({}, fr, { relances: [{ le: '2026-10-20T10:00:00Z' }, { le: '2026-10-25T10:00:00Z' }] }))],
           [true, false, true, false, { n: 2, derniere: '2026-10-25', prochaine: '2026-11-01' }]);
+        /* S8b / S8c — la date d'une relance est l'INSTANT écrit par le serveur (`le`). Coupée à 10 caractères, une relance
+           notée à 0 h 30 s'affichait de LA VEILLE (« relancée 1× · 16/11 ») et la suivante était réclamée un jour trop tôt
+           (règle 18, 13/11/2026). Instants en heure locale ; l'écran mis à l'heure pour « réclamée ou pas ». */
+        const NL = window.SSHorloge.instantLocal;
+        const relNuit = (le) => F.relancesDe(Object.assign({}, fr, { relances: [{ le: le }] }));
+        check('S8b Une relance notée à 0 h 30 compte pour CE jour-là (hiver et été) et la suivante vient 7 jours après, pas 6 ; 23 h 30 reste le même jour',
+          [relNuit(NL(2026, 11, 17, 0, 30)), relNuit(NL(2026, 11, 17, 23, 30)), relNuit(NL(2027, 4, 16, 0, 30)), relNuit(NL(2027, 4, 16, 23, 30))].map((r) => [r.derniere, r.prochaine]),
+          [['2026-11-17', '2026-11-24'], ['2026-11-17', '2026-11-24'], ['2027-04-16', '2027-04-23'], ['2027-04-16', '2027-04-23']]);
+        const aRelNuit = (le, maintenant) => window.SSHorloge.ecran(maintenant, () => F.aRelancer(Object.assign({}, fr, { relances: [{ le: le }] }), []));
+        check('S8c … donc à 23 h 30 la veille du 7e jour, pas encore à relancer ; le 7e jour dès 0 h 30, oui (hiver et été)',
+          [aRelNuit(NL(2026, 11, 17, 0, 30), NL(2026, 11, 23, 23, 30)), aRelNuit(NL(2026, 11, 17, 0, 30), NL(2026, 11, 24, 0, 30)),
+            aRelNuit(NL(2027, 4, 16, 0, 30), NL(2027, 4, 22, 23, 30)), aRelNuit(NL(2027, 4, 16, 0, 30), NL(2027, 4, 23, 0, 30))],
+          [false, true, false, true]);
         const fT = { id: 'F9', type: 'solde', total_ttc: 1000, paiements: [{ montant: 200 }], date: '2026-10-01', echeance: '2026-10-15', client: { prenom: 'Anne', nom: "L'Hoest" } };
         const tR = F.texteRelance(fT, [fT, { type: 'avoir', avoir_de: 'F9', total_ttc: -300 }], { iban: 'BE00 0000', name: 'SolariScreen' });
         check('S9 Le rappel réclame ce qui est DÛ (notes de crédit et paiements déduits), pas le total ; le second s’appelle « Nouveau rappel »',
