@@ -34,6 +34,7 @@
   <script src="../assets/js/api.js"></script>
   <script src="../assets/js/depenses.js"></script>
   <script src="banc-serveur.js"></script>
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -152,6 +153,22 @@
         const r9 = await SS.marquerDepenses(['T-1'], 'payé', AUJ), r9b = await SS.marquerDepenses(['nexistepas'], 'remis_le', AUJ);
         check('R9 La route refuse une date dans le futur, un geste inconnu, un ticket inconnu',
           [r.ok, r9.ok, r9b.ok, /introuvable/.test(r9b.error || '')], [false, false, false, true]);
+        /* R10 — Le serveur tourne en UTC (règle 18) : sa garde « dans le futur » compare à DEMAIN en UTC, une marge voulue. Elle
+           ne doit JAMAIS refuser le ticket du jour belge — à 0 h 30, l'UTC est encore la veille. Chaque nuit est posée par le cas
+           lui-même (SSHorloge, Date « comme Cloudflare ») : il se joue à toute heure. */
+        const H = window.SSHorloge;
+        const posterD = async (chemin, corps) => { const rr = await BANC.fetch(chemin, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) }); return rr.status; };
+        const r10 = [];
+        for (const [i, n] of H.NUITS.entries()) {
+          r10.push(n.nom + ' : ' + (await H.serveur(n.instant, async () => [
+            await posterD('/api/depenses', { id: 'N-' + i, qui: 'nicolas', date: n.jour, montant: 5, detail: 'Ticket de la nuit' }),
+            await posterD('/api/depenses/etat', { champ: 'remis_le', ids: ['N-' + i], date: n.jour }),
+            await posterD('/api/depenses', { id: 'N-' + i + '-f', qui: 'nicolas', date: H.plusJours(n.jour, 2), montant: 5 }),
+            await posterD('/api/depenses/etat', { champ: 'rembourse_le', ids: ['N-' + i], date: H.plusJours(n.jour, 2) }),
+          ])).join('/') + ' · ' + dep('N-' + i).remis_le);
+        }
+        check('R10 Le ticket du JOUR (belge), et sa remise le jour même, passent à 0 h 30 comme à 23 h 30, été comme hiver ; deux jours plus tard reste « dans le futur »',
+          r10, H.NUITS.map((n) => n.nom + ' : 200/200/400/400 · ' + n.jour));
 
         // ══════════ P — LA PAGE, AU BUREAU ══════════
         titre('P — La vraie page, au bureau (1500 px)');

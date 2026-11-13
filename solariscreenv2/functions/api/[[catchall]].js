@@ -96,11 +96,23 @@ function jourBelge(v) {
   const s = String(v == null ? '' : v).trim();
   const t = /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? new Date(s) : null;
   if (!t || isNaN(t)) return s.slice(0, 10);
-  const p = {};
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .formatToParts(t).forEach((x) => { p[x.type] = x.value; });
-  return p.year + '-' + p.month + '-' + p.day;
+  // Filet : si le runtime ne connaît pas le fuseau, on retombe sur l'UTC d'avant plutôt que de bloquer une facture
+  // (la numérotation et le lien de suivi passent par ici). Une réponse qui n'a pas la forme d'un jour retombe aussi.
+  try {
+    const p = {};
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(t).forEach((x) => { p[x.type] = x.value; });
+    const jour = p.year + '-' + p.month + '-' + p.day;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(jour)) return jour;
+  } catch (e) { /* fuseau inconnu : l'UTC ci-dessous */ }
+  return s.slice(0, 10);
 }
+// « AUJOURD'HUI » au sens de Nicolas, de Yannick et du client — pas de Cloudflare : le jour BELGE de l'instant présent
+// (règle 18). Toute route qui ÉCRIT un jour par défaut ou COMPARE une date à aujourd'hui passe par ici :
+// `new Date().toISOString().slice(0, 10)` y rendait LA VEILLE de minuit à 1 h (hiver) ou 2 h (été) — une photo du journal
+// datée de la veille, une facture du 1er janvier numérotée dans l'année close (13/11/2026). L'ANNÉE en cours en est tirée
+// aussi : `getFullYear()` lit l'année UTC sur le serveur.
+const aujourdhuiBelge = () => jourBelge(new Date().toISOString());
 function suiviPublic(d, token) {
   const masquees = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees.map(String) : []);
   const couv = (d.portfolio_couvertures && typeof d.portfolio_couvertures === 'object') ? d.portfolio_couvertures : {};
@@ -900,7 +912,8 @@ export async function onRequest(context) {
       const revoir = String(body.revoir_le || '').slice(0, 10);
       if (!motif) return json({ ok: false, error: 'Dis pourquoi tu mets ce devis en attente \u2014 sans ça, dans trois semaines, personne ne saura pourquoi il est gelé.' }, 400);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(revoir)) return json({ ok: false, error: 'Date de reprise manquante.' }, 400);
-      const aujourdhui = new Date().toISOString().slice(0, 10);
+      // Le jour BELGE (règle 18) : en UTC, de minuit à 1 h / 2 h, la garde laissait passer AUJOURD'HUI — une attente née échue.
+      const aujourdhui = aujourdhuiBelge();
       if (revoir <= aujourdhui) return json({ ok: false, error: 'La date de reprise doit être dans le futur \u2014 sinon l\u2019attente est échue dès sa création.' }, 400);
       const row = await env.DB.prepare('SELECT data FROM devis WHERE id = ?').bind(id).first();
       if (!row) return json({ ok: false, error: 'Devis introuvable' }, 404);
@@ -1026,7 +1039,9 @@ export async function onRequest(context) {
         url: url.slice(0, 2000000),   // borne de sûreté (cas du repli dataURL si R2 indisponible)
         note: String(body.note || '').slice(0, 2000),
         phase,
-        date: (body.date && String(body.date).slice(0, 10)) || (idx !== -1 ? entries[idx].date : now.slice(0, 10)),
+        // Sans date (champ vidé dans la fiche) : le jour BELGE, jamais celui de l'UTC — la photo d'une pose à 0 h 30 sortait
+        // datée de la veille dans le journal et sur le lien de suivi du client (règle 18).
+        date: (body.date && String(body.date).slice(0, 10)) || (idx !== -1 ? entries[idx].date : aujourdhuiBelge()),
         author: String(body.author || (idx !== -1 ? entries[idx].author : 'nicolas')).slice(0, 40),
         date_creation: (idx !== -1) ? entries[idx].date_creation : now,
       };
@@ -1469,7 +1484,7 @@ export async function onRequest(context) {
       const now = new Date().toISOString();
       const paiement = {
         id: crypto.randomUUID(),
-        date: String(body.date || now.slice(0, 10)).slice(0, 10),
+        date: String(body.date || aujourdhuiBelge()).slice(0, 10),   // jour BELGE par défaut (règle 18)
         montant: Math.round(montant * 100) / 100,
         moyen: String(body.moyen || '').slice(0, 40),
         saisi_le: now,
@@ -2162,7 +2177,9 @@ export async function onRequest(context) {
       };
       /* ⚠️ Une date dans le FUTUR est presque toujours une faute sur l'année (2027 pour 2026) : le
          ticket restait à « 0 j » et ne se signalait jamais — l'oubli que cet outil doit empêcher.
-         Un jour de marge : le serveur compte en UTC, la Belgique a une ou deux heures d'avance. */
+         Un jour de marge : le serveur compte en UTC, la Belgique a une ou deux heures d'avance.
+         Vérifié le 13/11/2026 (règle 18) : « demain » en UTC n'est JAMAIS avant le jour belge — un ticket du jour passe à toute
+         heure (depenses-page R10). Ne pas le resserrer en `aujourdhuiBelge()` sans garder la marge : le ticket du jour serait refusé. */
       const demain = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
       if (date > demain) return json({ ok: false, error: 'Date d’achat dans le futur (' + date + ') : une faute sur l’année ?' }, 400);
       const remisLe = dateOuVide(x.remis_le), rembourseLe = dateOuVide(x.rembourse_le);
@@ -2659,7 +2676,9 @@ function decrireChangements(avant, apres) {
  * F2026-001 et écraserait la facture d'acompte de l'école.
  */
 async function allouerNumeroFacture(db, serie) {
-  const prefixe = (serie === 'NC' ? 'NC' : 'F') + new Date().getFullYear() + '-';
+  // L'année BELGE (règle 18) : `getFullYear()` lit l'année UTC sur Cloudflare, et une facture faite le 1er janvier entre
+  // minuit et 1 h prenait un numéro de l'année CLOSE (F2026-… sur une facture datée de 2027).
+  const prefixe = (serie === 'NC' ? 'NC' : 'F') + aujourdhuiBelge().slice(0, 4) + '-';
   await db.prepare('CREATE TABLE IF NOT EXISTS compteurs (cle TEXT PRIMARY KEY, valeur INTEGER NOT NULL)').run();
   try {
     const existe = await db.prepare('SELECT valeur FROM compteurs WHERE cle = ?').bind(prefixe).first();
@@ -2852,7 +2871,7 @@ async function upsertFacture(db, f) {
       client_prenom=excluded.client_prenom, total_ttc=excluded.total_ttc, date=excluded.date,
       date_modification=excluded.date_modification, data=excluded.data
   `).bind(f.id, f.devis_id || '', (f.client && f.client.nom) || '', (f.client && f.client.prenom) || '',
-    f.total_ttc || 0, f.date || now.slice(0, 10), f.date_modification || now, JSON.stringify(f)).run();
+    f.total_ttc || 0, f.date || aujourdhuiBelge(), f.date_modification || now, JSON.stringify(f)).run();
 }
 
 /* ══════════ L'ASSISTANT (Claude) ══════════════════════════════════════════════════════════════
@@ -3068,7 +3087,9 @@ async function routeAssistant(request, env) {
   const messages = assistantMessages(corps.messages);
   if (!messages) return json({ ok: false, error: 'Conversation illisible — commence-en une nouvelle.' }, 400);
 
-  const jour = new Date().toISOString().slice(0, 10);
+  // Le plafond se compte par jour BELGE (règle 18) : en UTC, il retombait à 1 h ou 2 h du matin, et « il revient demain »
+  // se lisait à 0 h 30, quand demain était déjà là.
+  const jour = aujourdhuiBelge();
   const plafond = Number(env.ASSISTANT_PLAFOND_JOUR) > 0 ? Number(env.ASSISTANT_PLAFOND_JOUR) : ASSISTANT_PLAFOND_JOUR;
   if (env.DB) {
     await env.DB.prepare('CREATE TABLE IF NOT EXISTS assistant_usage (jour TEXT NOT NULL, qui TEXT NOT NULL, appels INTEGER NOT NULL DEFAULT 0, entree INTEGER NOT NULL DEFAULT 0, cache INTEGER NOT NULL DEFAULT 0, sortie INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (jour, qui))').run();
@@ -3254,7 +3275,7 @@ async function routeMailEnvoyer(request, env) {
   const cleClient = String(corps.client_key || '').slice(0, 200);
 
   const maintenant = new Date().toISOString();
-  const jour = maintenant.slice(0, 10);
+  const jour = aujourdhuiBelge();   // le plafond se compte par jour BELGE, comme celui de l'assistant (règle 18)
   const plafond = Number(env.MAIL_PLAFOND_JOUR) > 0 ? Number(env.MAIL_PLAFOND_JOUR) : MAIL_PLAFOND_JOUR;
   if (env.DB) {
     await env.DB.prepare('CREATE TABLE IF NOT EXISTS mail_journal (id TEXT PRIMARY KEY, date TEXT NOT NULL, jour TEXT NOT NULL, qui TEXT, a TEXT, objet TEXT, devis_id TEXT, client_key TEXT, statut TEXT, email_id TEXT, erreur TEXT)').run();

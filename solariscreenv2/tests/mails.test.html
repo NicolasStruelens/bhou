@@ -31,6 +31,7 @@
   <div id="summary">Exécution…</div>
   <div id="out"></div>
 
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -228,6 +229,16 @@
         check('S12 Message vide : 400', res.status, 400);
         res = await S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: fausseBase({ reglages: REG, envoyes: 60 }) }));
         check('S13 Plafond du jour atteint (60) : 429, rien n’est parti', [res.status, (await res.json()).code, FS.requetes.length], [429, 'plafond', 0]);
+        /* S13b — Le serveur tourne en UTC (règle 18) : le plafond se comptait sur le jour UTC, retombait à 1 h ou 2 h du matin,
+           et « il revient demain » se lisait à 0 h 30. Chaque nuit est posée par le cas (SSHorloge, Date « comme Cloudflare »). */
+        const H = window.SSHorloge, s13b = [];
+        for (const n of H.NUITS) {
+          const b = fausseBase({ reglages: REG, envoyes: 60 });
+          const r = await H.serveur(n.instant, () => S.routeMailEnvoyer(requete(MSG, NIC), envT({ DB: b })));
+          s13b.push(n.nom + ' : ' + r.status + ' · ' + b.binds[b.sql.findIndex((s) => /FROM mail_journal/.test(s))][0]);
+        }
+        check('S13b Le plafond des mails se compte par jour BELGE : à 0 h 30 et 23 h 30, été comme hiver (la veille, en UTC), et rien n’est parti',
+          [s13b, FS.requetes.length], [H.NUITS.map((n) => n.nom + ' : 429 · ' + n.jour), 0]);
 
         let base = fausseBase({ reglages: REG });
         FS.reponses.push(OK_SMTP());
