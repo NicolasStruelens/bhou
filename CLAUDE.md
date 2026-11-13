@@ -86,7 +86,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/vitrine.js` | **Ce que le portfolio montre** (règle 45) : couleurs lisibles par un client (sans référence fournisseur), une réalisation par ouverture photographiée, avant / après, diapositives, teintes, recherche sans accents, ce qui manque à la vitrine. Fonctions pures (`window.SSVitrine`). |
 | `tests/portfolio.test.html` | Les 47 tests du portfolio : module pur, puis la vraie page avec des positions SIMULÉES (couleurs sans référence, toile, photos masquées et couverture, avant / après, près d'un prospect ou d'une commune, mode présentation et « retour », PDF client sans nom et à couverture avec logo, filtre par teinte, ce qui manque, téléphone). **Par le serveur de test.** |
 | `assets/js/suivi.js` | **Le lien de suivi CLIENT** (`track.html`, règle 57) : saisons (≠ fêtes), avancement selon les règles de l'ERP (pose en deux fois comprise), rendez-vous de pose, galerie avant / pendant / terminé, produits en mots de client. Fonctions pures (`window.SSSuivi`) ; ce qui a le droit de SORTIR se décide au serveur (`suiviPublic`). |
-| `tests/suivi.test.html` | Les 64 tests du lien de suivi : règles pures, la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations. **Par le serveur de test.** |
+| `tests/suivi.test.html` | Les 68 tests du lien de suivi : règles pures (dont « aujourd'hui » et la saison joués à 0 h 30, règle 18), la ROUTE `/api/track` (ce qui ne sort jamais — prix, notes de photo, auteurs, équipe, signature du PV, référence Harol, photos « problème » / « réserve » / « autre » / masquées —, photos servies par le jeton et seulement elles, consultations comptées sans Nicolas ni Yannick, dossier refusé), la vraie page (terminé avec avant / après, photo à la une et couverture, dates sur les vignettes, diaporama, « Partager », réserves du PV, pose à venir, saison et thèmes, visionneuse et « retour », téléphone 320 et 375 px, aperçu interne) et le compteur de la fiche devis. Vérifié par 10 mutations, plus 7 pour l'heure (la date du PV en heure belge, ses dates comptées en jours de calendrier : verte sous une horloge simulée de 10 h à 1 h 30, été comme hiver, règle 18). **Par le serveur de test.** |
 | `tests/planning-page.test.html` | Les 59 tests de la PAGE Planning (règle 13 bis) : couloirs alignés, pose sans équipe « À attribuer », jour non travaillé signalé, « Caler ici », dates proposées, météo de pose (simulée), fenêtres qui ne perdent rien, vue Jour (appeler, y aller, itinéraire, agenda), téléphone et « retour », et le créneau reçu par la demande de RDV.  ⚠️ Ses dates partent du lundi PROCHAIN : un cas qui exigeait l'icône météo sur les trois dates proposées ne passait que le week-end (les deux dernières tombaient au-delà des 15 jours de prévision un mercredi) — C1b l'exige dans l'horizon et l'interdit au-delà (audit du 11/11/2026). Un test qui calcule ses dates doit tenir n'importe quel jour de la semaine. **Par le serveur de test.** |
 | `tests/attente.test.html` | Les 105 tests du « qui doit agir » **et de la mise en attente d'un devis** (règle 38). Même principe. |
 | `assets/js/theme.js` | **Les thèmes.** Table `THEMES` = source unique (`window.SSTheme`) |
@@ -483,6 +483,23 @@ d'été belge (1 h en hiver), c'est LA VEILLE. Un devis créé à 00h30 portait 
 et une date ÉCRITE en base reste fausse pour toujours. Restent justes, et ne doivent pas être
 « corrigés » : les calculs qui partent d'une chaîne ISO forcée en UTC (`… + 'T00:00:00Z'`) et y
 restent d'un bout à l'autre, puisque aucune heure locale n'y intervient.
+⚠️ **LE SERVEUR TOURNE EN UTC** (Cloudflare) : son « aujourd'hui » et le jour d'un INSTANT qu'il coupe à 10 caractères sont
+des jours UTC. Le PV de réception s'écrit en instant (`toISOString()`, `app/reception.html`) ; `/api/track` le coupait :
+un PV signé à 0 h 30 sortait daté de LA VEILLE sur le lien du client et, pose du jour, `poseAVenir` lui faisait lire « Une
+première partie est posée — la suite est prévue le » jour même, quand la fiche disait terminé (13/11/2026). Le jour d'un
+instant, côté serveur, se lit en heure belge en NOMMANT le fuseau : `jourBelge` (`Intl`, `Europe/Brussels`) ; une date nue
+passe telle quelle. Restent en UTC, à reprendre un jour : la mise en attente (`revoir <= aujourdhui`), la date par défaut
+d'un paiement et d'une photo du journal (`now.slice(0, 10)`), les plafonds du jour de l'assistant et des mails.
+⚠️ **UN TEST COMPTE SES JOURS EN JOURS DE CALENDRIER** (midi, puis `setDate`), jamais `Date.now() + n × 86 400 000` : 40 × 24 h
+ne font pas 40 jours quand un changement d'heure tombe entre les deux. `suivi.test.html` attendait le 8 octobre pour une
+photo du 7 à 23 h 30 en hiver (J(−40) retombe en heure d'été), à 0 h 30 en été, et le 25 octobre à 0 h 30 pour J(3) : les
+« ~4 rouges vers minuit » de l'audit du 11/11/2026. Ses dates partent du MÊME jour que le bac à sable (`remplir(SS, { base })`).
+Pour trouver ces cas : rejouer la suite sous une HORLOGE SIMULÉE — Chrome piloté par son protocole, fuseau
+`Europe/Brussels` (`Emulation.setTimezoneOverride`), une fausse `Date` à décalage FIXE posée dans chaque cadre par
+`Page.addScriptToEvaluateOnNewDocument` (elle atteint aussi les cadres écrits par le banc, et le banc serveur, qui tourne
+dans la page) — à 10 h, 22 h 30, 23 h 30, 0 h 30 et 1 h 30, en heure d'été et d'hiver, un lundi, un vendredi et un dimanche,
+plus les jours des changements d'heure. Et une règle « aujourd'hui » se garde à TOUTE heure par un cas qui pose lui-même
+l'heure de nuit (A2b, A9b, B4b, C14c de `suivi.test.html`) : sinon elle n'est vérifiée que la nuit, par hasard.
 
 **19. Une question se pose LÀ OÙ ELLE SE POSE.** Depuis une fiche devis ou une demande de RDV, le
 ⚠️ UNE SEULE PORTE PAR ÉCRAN. `app/rdv.html` est le seul à porter déjà un fil interne
@@ -3097,6 +3114,10 @@ en cours ou terminé »). Page `track.html`, règles dans `assets/js/suivi.js` (
   première partie est posée — la suite est prévue le … » (test A13, et P12 de `fiche.test.html` est passé sur une pose PASSÉE).
 • **Le rendez-vous ne s'annonce que s'il est À VENIR** : une date de pose passée sans pose enregistrée (reportée ? faite sans PV ?)
   ne dit rien de sûr, la page se tait. L'heure s'écrit « 8 h 30 », jamais « 08:30 ».
+• **LA DATE DU PV EST LE JOUR BELGE DE SA SIGNATURE** (13/11/2026, règle 18) : le PV est un instant UTC, la route le coupait au
+  jour UTC — signé à 0 h 30, le client lisait « signé le » de la veille et, pose du jour, « une première partie est posée ».
+  `jourBelge` (route `/api/track`) ; tests B4b (instants fixes, été et hiver) et C14c (la page). « Aujourd'hui » de la page et
+  la saison restent en heure LOCALE du visiteur (`SSUI.aujourdhui()`, `mmjj`), gardés à toute heure par A9b et A2b.
 • **Les consultations du client se comptent** (`track_views`, mêmes règles que `review_views` : 10 s d'anti-rebond, 50 dernières,
   `staff=1` pour Nicolas et Yannick — marqueur `ss_staff`, bandeau « Aperçu interne »), en écriture CIBLÉE, et `upsertDevis` les
   garde (règle 3). La fiche devis l'affiche sous « Copier le lien de suivi client ». Un dossier refusé ou annulé répond 410.
@@ -4051,7 +4072,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    Et dès qu'on touche à la page Clients, à `bilanDevis` ou au statut des factures :
    `tests/clients.test.html`, exiger « 98/98 », par le serveur.
    Et dès qu'on touche au lien de suivi client (`track.html`, `suivi.js`, la route `/api/track`) ou à la visionneuse partagée
-   (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 64/64 », par le serveur — ET `fiche.test.html`, `tactile.test.html`
+   (`SSUI.ouvrirPhotos`) : `tests/suivi.test.html`, exiger « 68/68 », par le serveur, à n'importe quelle heure (règle 18) — ET `fiche.test.html`, `tactile.test.html`
    et, pour la visionneuse, `outillage`, `sav`, `rdv` et `terrain`.
    Et dès qu'on touche aux Échanges (`app/echanges.html`, `echanges.js`, `/api/sujets`) : `tests/echanges.test.html`,
    exiger « 33/33 », par le serveur — ET `attente.test.html`, `dashboard.test.html` (le mot à l'autre) et
