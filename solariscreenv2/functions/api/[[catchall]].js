@@ -87,6 +87,20 @@ const sansCodeArticle = (v) => String(v == null ? '' : v).trim().replace(/^(?:A\
 // de calc.js et de `SSUI.qtePoste` (ce fichier ne charge pas ui.js). `qty || 1` faisait imprimer au client « 1 × 55,00 € = 0,00 € »
 // pour une heure offerte sous garantie, sous un exemplaire de l'ERP qui disait « 0 » (règles 7 et 62, 11/11/2026).
 const qtePoste = (q) => { const n = parseFloat(q); return isNaN(n) ? 1 : Math.max(0, n); };
+// Le JOUR (« AAAA-MM-JJ ») d'une date du dossier, en heure BELGE (règle 18). Le PV s'écrit en INSTANT (`toISOString()`,
+// donc en UTC) : couper à 10 caractères rendait LA VEILLE pour un PV signé entre minuit et 2 h du matin (1 h en hiver) —
+// le client lisait « signé le » de la veille et, pose du jour, « une première partie est posée — la suite est prévue
+// aujourd'hui », quand la fiche disait terminé (13/11/2026). Le serveur tourne en UTC : le fuseau se NOMME. Une date nue
+// (un champ date) ou un horodatage sans fuseau passent tels quels, coupés au jour.
+function jourBelge(v) {
+  const s = String(v == null ? '' : v).trim();
+  const t = /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? new Date(s) : null;
+  if (!t || isNaN(t)) return s.slice(0, 10);
+  const p = {};
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(t).forEach((x) => { p[x.type] = x.value; });
+  return p.year + '-' + p.month + '-' + p.day;
+}
 function suiviPublic(d, token) {
   const masquees = new Set(Array.isArray(d.portfolio_masquees) ? d.portfolio_masquees.map(String) : []);
   const couv = (d.portfolio_couvertures && typeof d.portfolio_couvertures === 'object') ? d.portfolio_couvertures : {};
@@ -202,8 +216,9 @@ export async function onRequest(context) {
           duree_h: Number(ch.duree_h) > 0 ? Number(ch.duree_h) : null },
         // Le PV : sa date, le fait qu'il est signé, et ses RÉSERVES — écrites AVEC le client, imprimées sur le PV
         // qu'il garde (règle 57 bis) ; enregistrées avec ou sans signature dans l'ERP. Jamais l'image de la signature.
-        reception: { date: String(rec.date || '').slice(0, 10), signe: !!rec.image, notes: String(rec.notes || '').slice(0, 2000) },
-        reception_date: String(d.reception_date || '').slice(0, 10),
+        // Le PV est un INSTANT : son jour se lit en heure belge (`jourBelge`), jamais coupé en UTC.
+        reception: { date: jourBelge(rec.date), signe: !!rec.image, notes: String(rec.notes || '').slice(0, 2000) },
+        reception_date: jourBelge(d.reception_date),
         statut: d.statut || 'brouillon',
       } });
     } catch (e) {

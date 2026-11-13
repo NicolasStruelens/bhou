@@ -64,7 +64,12 @@
     }
     const SS = window.SS, U = window.SSUI, SU = window.SSSuivi, BANC = window.SSBanc;
     const txt = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : null);
-    const J = (n) => U.isoDate(new Date(Date.now() + n * 86400000));
+    /* Les dates du jeu se comptent en JOURS DE CALENDRIER, depuis le même « aujourd'hui » que le bac à sable (passé à
+       `remplir`), et de la même façon que lui (`jour(base, n)` : midi, puis setDate). `Date.now() + n × 24 h` glissait d'un
+       jour dès qu'un changement d'heure tombait dans l'intervalle : J(-40) à 23 h en hiver (le 7 octobre attendu « 8 »), à
+       0 h en été, J(3) le 25 octobre à 0 h 30 — six cas rouges selon l'heure (audit du 11/11/2026, règle 18). */
+    const BASE = U.aujourdhui();
+    const J = (n) => { const d = new Date(BASE + 'T12:00:00'); d.setDate(d.getDate() + n); return U.isoDate(d); };
     const lire = (id) => BANC.donnee('devis', 'id', id) || {};
     const ecrireBase = (id, chemin, valeurJson) => {
       BANC.DB.exec("UPDATE devis SET data = json_set(data, '" + chemin + "', json('" + JSON.stringify(valeurJson).replace(/'/g, "''") + "')) WHERE id = '" + id + "'");
@@ -85,6 +90,11 @@
         let changements = 0, prec = sa('2026-01-01');
         for (let i = 1; i < 366; i++) { const k = sa(new Date(2026, 0, 1 + i)); if (k !== prec) changements++; prec = k; }
         check('A2 Sur une année entière : exactement quatre changements de saison (aucun trou, aucun chevauchement)', changements, 4);
+        // A2b — la page passe `new Date()` : à 0 h 30 heure belge, c'est encore la VEILLE en UTC (règle 18). La saison se lit
+        // en heure locale : le 21 décembre à 0 h 30 est l'hiver, quelle que soit l'heure où la suite tourne.
+        check('A2b Une saison change à MINUIT heure locale, pas à 1 h ou 2 h (UTC) : 20/03, 21/06, 22/09 et 21/12 à 0 h 30',
+          [new Date(2026, 2, 20, 0, 30), new Date(2026, 5, 21, 0, 30), new Date(2026, 8, 22, 0, 30), new Date(2026, 11, 21, 0, 30)].map(sa),
+          ['printemps', 'ete', 'automne', 'hiver']);
         check('A3 Chaque saison a ses teintes { sombre, clair } (règle 28 : calibrée pour les deux familles de thèmes) et ses dessins en currentColor',
           SU.SAISONS.map((s) => !!(s.teinte.sombre && s.teinte.clair && /currentColor/.test(s.embleme) && /currentColor/.test(s.motif))), [true, true, true, true]);
         const m1 = SU.motifs(14), m2 = SU.motifs(14);
@@ -115,6 +125,22 @@
            av({ commande: { statut: 'recu' }, chantier: { date_pose: AUJ, heure: '08:00' } }).rdv.heure,
            av({ commande: { statut: 'recu' }, chantier: { date_pose: AUJ, heure: 'matin' } }).rdv.heure],
           ['Demain', 'Aujourd’hui', 'Arrivée prévue vers 8 h', '']);
+        /* A9b — la PAGE ne passe pas de jour : `avancement` prend « aujourd'hui » lui-même. On le joue à 0 h 30 heure locale
+           (encore la veille en UTC) en remplaçant l'horloge le temps de trois appels : la garde de la règle 18 tient à toute
+           heure, au lieu de ne se jouer que la nuit (C12 la voyait par hasard, avant que ses dates soient comptées en jours). */
+        const VraieDate = window.Date, nuit = new VraieDate(2026, 10, 3, 0, 30).getTime();
+        function DateDeNuit(...a) { if (!new.target) return new VraieDate(nuit).toString(); return a.length ? new VraieDate(...a) : new VraieDate(nuit); }
+        DateDeNuit.prototype = VraieDate.prototype; DateDeNuit.now = () => nuit; DateDeNuit.parse = VraieDate.parse; DateDeNuit.UTC = VraieDate.UTC;
+        const rdvNuit = [];
+        window.Date = DateDeNuit;
+        try {
+          for (const p of ['2026-11-03', '2026-11-04', '2026-11-02']) {
+            const r = SU.avancement({ commande: { statut: 'recu' }, chantier: { date_pose: p, heure: '08:00' } }).rdv;
+            rdvNuit.push(r && r.quand);
+          }
+        } finally { window.Date = VraieDate; }
+        check('A9b Le 3 novembre à 0 h 30 (heure locale) : pose le 3 → « Aujourd’hui », le 4 → « Demain », le 2 → passée, pas de rendez-vous',
+          rdvNuit, ['Aujourd’hui', 'Demain', null]);
         A = av({ commande: { statut: 'recu' }, chantier: { date_pose: '2026-10-20' } });
         check('A10 Une date de pose PASSÉE sans pose enregistrée : pas de rendez-vous annoncé (reportée ? faite sans PV ?)',
           [A.rdv, A.termine, segs(A)], [null, false, 'Matériel reçu, la pose sera bientôt planifiée.']);
@@ -170,7 +196,7 @@
         await BANC.demarrer();
         BANC.installer(window);
         BANC.nouvelleBase(true); BANC.viderCaches(); BANC.ident = BANC.NICOLAS;
-        const rem = await window.SSBacASable.remplir(SS, {});
+        const rem = await window.SSBacASable.remplir(SS, { base: BASE });
         check('B0 Le bac à sable est rempli sur le banc', !!(rem && rem.ok !== false && lire('ESSAI-12').id), true);
         // Le dossier terminé reçoit ce que la page ne doit JAMAIS montrer, à côté de ce qu'elle montre.
         const e12 = lire('ESSAI-12');
@@ -214,6 +240,13 @@
           (d12.photos || []).filter((x) => x.couverture).map((x) => [x.phase, x.src === COUV]), [['apres', true]]);
         check('B4 Dates et PV : la date du PV, « signé » et ses RÉSERVES (écrites avec le client), jamais l’image de la signature ; commande en liste blanche',
           [d12.reception, Object.keys(d12.commande || {}).sort()], [{ date: J(-40), signe: true, notes: RESERVES }, ['date_commande', 'delai_semaines', 'recu_le', 'statut']]);
+        /* B4b — Le PV s'écrit en INSTANT (`toISOString()`, reception.html) : signé à 0 h 30 heure belge, c'est encore la veille
+           en UTC, et le serveur tourne en UTC. Instants FIXES : le cas se joue à toute heure, sur n'importe quelle machine. */
+        ecrireBase('ESSAI-11', '$.track_token', 'trk-11');
+        const jourPv = async (instant) => { ecrireBase('ESSAI-11', '$.reception', { date: instant, image: 'data:image/png;base64,U0lHTkFUVVJF' }); const r = await api('t=trk-11&staff=1'); return (((r.corps && r.corps.data) || {}).reception || {}).date; };
+        check('B4b Le jour du PV en heure BELGE : signé le 31/10 à 0 h 30 (hiver) et le 15/07 à 0 h 30 (été) — encore la veille en UTC —, le 14/07 à 23 h 30, une date nue telle quelle',
+          [await jourPv('2026-10-30T23:30:00.000Z'), await jourPv('2026-07-14T22:30:00.000Z'), await jourPv('2026-07-14T21:30:00.000Z'), await jourPv('2026-10-31')],
+          ['2026-10-31', '2026-07-15', '2026-07-14', '2026-10-31']);
         const statutPhoto = async (p) => (await api('t=trk-12&photo=' + encodeURIComponent(p))).statut;
         check('B5 Le service photo ne sert QUE ce que la page montre : terminé et ouverture (200) ; problème, ouverture masquée, journal masqué, « autre », inconnue, autre jeton (403)',
           [await statutPhoto('own/ph1'), await statutPhoto('own/ph3'), await statutPhoto('own/ph2'), await statutPhoto('own/ph4'), await statutPhoto('own/ph5'), await statutPhoto('own/ph6'), await statutPhoto('own/zzz'), (await api('t=trk-10&photo=' + encodeURIComponent('own/ph1'))).statut],
@@ -410,6 +443,16 @@
         const contact = [...doc.querySelectorAll('#contactActions a')].map((a) => a.getAttribute('href'));
         check('C15 « Une question ? » : de vrais boutons mail (44 px), sujet prérempli', [contact.length >= 1, contact.every((h) => /^mailto:.+\?subject=/.test(h)),
           [...doc.querySelectorAll('#contactActions a')].every((a) => a.getBoundingClientRect().height >= 44)], [true, true, true]);
+        f.remove();
+        /* C14c — LA pose du jour, PV signé dans la nuit à 0 h 30 (la veille en UTC) : le client lisait « Une première partie
+           est posée — la suite est prévue » aujourd'hui, et « signé le » de la veille, quand la fiche disait terminé. */
+        ecrireBase('ESSAI-11', '$.reception', { date: new Date(BASE + 'T00:30:00').toISOString(), image: 'data:image/png;base64,U0lHTkFUVVJF' });
+        ecrireBase('ESSAI-11', '$.reception_date', '');
+        ecrireBase('ESSAI-11', '$.chantier', { date_pose: BASE, heure_pose: '08:00', equipe: 'nicolas' });
+        f = await ouvrir('t=trk-11'); doc = f.contentDocument;
+        check('C14c Pose du jour, PV signé à 0 h 30 : « terminé » (jamais « une première partie »), signé AUJOURD’HUI, pas de rendez-vous',
+          [txt(doc.getElementById('intro')), txt(doc.getElementById('trackEta')), txt(doc.getElementById('pvDate')), txt(doc.querySelector('#trackSteps .tl-step:last-child .tl-date')), doc.getElementById('rdvCard').hidden],
+          ['Votre installation est terminée.', 'Installation terminée — merci de votre confiance !', 'Procès-verbal de réception signé le ' + SU.dateLongue(BASE) + '.', SU.dateLongue(BASE), true]);
         f.remove();
 
         // Téléphone : rien ne déborde.
