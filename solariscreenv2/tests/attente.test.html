@@ -22,6 +22,7 @@
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/planning.js"></script>
   <script src="../assets/js/attente.js"></script>
+  <script src="horloge-serveur.js"></script>
   <script>
     const A = window.SSAttente;
     const P = window.SSPlanning;
@@ -152,6 +153,22 @@
     // La preuve que le defaut etait reel : sur un fuseau en avance sur UTC, les deux divergent.
     const decalage = -new Date(2026, 6, 15).getTimezoneOffset();   // minutes a l'est de UTC
     check('U5 le defaut est bien evite', decalage > 0 ? (MINUIT30.toISOString().slice(0, 10) !== window.SSUI.isoDate(MINUIT30)) : true, true);
+    /* LE JOUR D'UN INSTANT (règle 18, 13/11/2026). La création, l'envoi, l'acceptation, la signature, le PV sont des
+       INSTANTS (toISOString). Coupés à 10 caractères, ils donnaient le jour UTC : un devis de 0 h 30 était « créé hier »,
+       et sa relance réclamée un jour trop tôt. `SSUI.jourLocal` les lit à l'heure LOCALE. Les instants sont construits
+       en heure locale (`SSHorloge.instantLocal`) : 0 h 30 = encore la veille en UTC sur un navigateur belge. */
+    const NL = window.SSHorloge.instantLocal;
+    const JL = (v) => (window.SSUI.jourLocal ? window.SSUI.jourLocal(v) : 'jourLocal absent');   // un rouge, pas une suite qui plante
+    check('U6 jourLocal : le jour LOCAL d’un instant, à 0 h 30 et 23 h 30, en hiver et en été (coupé, 0 h 30 donnait la veille)',
+      [JL(NL(2026, 11, 17, 0, 30)), JL(NL(2026, 11, 17, 23, 30)), JL(NL(2027, 4, 16, 0, 30)), JL(NL(2027, 4, 16, 23, 30))],
+      ['2026-11-17', '2026-11-17', '2027-04-16', '2027-04-16']);
+    check('U7 jourLocal : une date NUE et une heure locale SANS fuseau (un rendez-vous) se coupent telles quelles ; un objet Date ; rien d’illisible',
+      [JL('2026-11-17'), JL('2026-11-17T00:30'), JL(new Date(2026, 10, 17, 0, 30)), JL(''), JL(null), JL(undefined), JL('bientôt'), JL('2026-13')],
+      ['2026-11-17', '2026-11-17', '2026-11-17', '', '', '', '', '']);
+    check('U8 jourLocal : le même instant écrit en « Z » ou avec un décalage (+01:00, +02:00, −01:00) donne le même jour',
+      [JL('2026-11-17T00:30:00+01:00') === JL('2026-11-16T23:30:00.000Z'), JL('2027-04-16T00:30:00+02:00') === JL('2027-04-15T22:30:00Z'),
+        JL('2026-11-16T23:30:00-01:00') === JL('2026-11-17T00:30:00.000Z')],
+      [true, true, true]);
 
     // ══════════ 1 quater. GARANTIE d'un SAV ══════════
     // « Facturable ou pas ? » est la premiere question devant un ticket. Elle se repondait de tete,
@@ -183,6 +200,20 @@
     check('W13 pas sur un dossier archive', window.SSUI.savPossible({ statut: 'signe', archive: 1 }), false);
     check('W14 mais oui s il porte deja un ticket',
       window.SSUI.savPossible({ statut: 'brouillon', sav_tickets: [{ id: 't' }] }), true);
+    /* Sans date de pose, la garantie part du PV — un INSTANT (règle 18, 13/11/2026). Coupé à 10 caractères, un PV de
+       0 h 30 la finissait un jour trop tôt ; et l'instant entier, comparé à « aujourd'hui », passait APRÈS lui le jour
+       même : « Pose prévue le … — garantie non démarrée » pour un chantier réceptionné le matin. L'écran est mis à l'heure
+       (`SSHorloge.ecran`) pour que le cas dise la même chose à toute heure et pour toujours. */
+    const garNuit = (pv, maintenant) => window.SSHorloge.ecran(maintenant, () => {
+      const g = window.SSUI.garantieDe({ statut: 'termine', reception_date: pv }, R12);
+      return [g.connue, g.sous_garantie, g.debut, g.fin];
+    });
+    check('W15 PV signé à 0 h 30 (hiver puis été), sans date de pose : la garantie part de CE jour-là et finit un an après, jour pour jour',
+      [garNuit(NL(2026, 11, 17, 0, 30), NL(2026, 11, 17, 0, 45)), garNuit(NL(2027, 4, 16, 0, 30), NL(2027, 4, 16, 0, 45))],
+      [[true, true, '2026-11-17', '2027-11-17'], [true, true, '2027-04-16', '2028-04-16']]);
+    check('W16 PV signé ce matin, sans date de pose : sous garantie dès aujourd’hui — pas « Pose prévue … non démarrée »',
+      window.SSHorloge.ecran(NL(2026, 11, 17, 15, 0), () => window.SSUI.garantieDe({ statut: 'termine', reception_date: NL(2026, 11, 17, 10, 0) }, R12).texte),
+      'Sous garantie jusqu’au 17/11/2027');
 
     // ══════════ 2. SAV ══════════
     const devisSav = (t) => [{ id: 'D1', client: cli('Martin'), sav_tickets: [t] }];
@@ -373,6 +404,25 @@
     // Le libellé vit dans ui.js : quatre écrans l'affichent, quatre copies diraient quatre choses.
     check('D14 le libellé court est fourni par le moteur',
       /^En attente — à revoir le /.test(SSUI.attenteClient(devisVieux(ATT_ACTIVE)).texte), true);
+    /* ⚠️ LA DATE D'ENVOI SE DÉDUIT D'UN INSTANT (règle 18, 13/11/2026) : le passage à « envoyé » de l'historique, ou la
+       création. Coupée à 10 caractères, un devis envoyé à 0 h 30 l'était LA VEILLE : la relance était réclamée un jour
+       trop tôt — et « Annuler la relance » de la fiche ÉCRIVAIT ce jour-là dans date_envoi (fiche, cas N1). */
+    const envoyeA = (instant, plus) => Object.assign({ id: 'N', statut: 'envoye_client', relances: [],
+      statut_history: [{ statut: 'envoye_client', date: instant }] }, plus || {});
+    check('D16 la date d’envoi est le jour LOCAL du passage à « envoyé » (0 h 30 et 23 h 30, hiver et été), et de la création à défaut',
+      [SSUI.dateEnvoiOf(envoyeA(NL(2026, 11, 17, 0, 30))), SSUI.dateEnvoiOf(envoyeA(NL(2026, 11, 17, 23, 30))),
+       SSUI.dateEnvoiOf(envoyeA(NL(2027, 4, 16, 0, 30))), SSUI.dateEnvoiOf(envoyeA(NL(2027, 4, 16, 23, 30))),
+       SSUI.dateEnvoiOf({ statut: 'envoye_client', date_creation: NL(2026, 11, 17, 0, 30) })],
+      ['2026-11-17', '2026-11-17', '2027-04-16', '2027-04-16', '2026-11-17']);
+    check('D17 … donc la relance 1 (J+4 après une visite) tombe 4 jours après CE jour-là, pas 3',
+      [SSUI.relanceEtat(envoyeA(NL(2026, 11, 17, 0, 30))).due, SSUI.relanceEtat(envoyeA(NL(2027, 4, 16, 0, 30))).due],
+      ['2026-11-21', '2027-04-20']);
+    check('D18 la veille de l’échéance à 23 h 30, rien n’est dû ; le jour même dès 0 h 30, la relance l’est (hiver et été)',
+      [window.SSHorloge.ecran(NL(2026, 11, 20, 23, 30), () => SSUI.relanceEtat(envoyeA(NL(2026, 11, 17, 0, 30))).retard),
+       window.SSHorloge.ecran(NL(2026, 11, 21, 0, 30), () => SSUI.relanceEtat(envoyeA(NL(2026, 11, 17, 0, 30))).retard),
+       window.SSHorloge.ecran(NL(2027, 4, 19, 23, 30), () => SSUI.relanceEtat(envoyeA(NL(2027, 4, 16, 0, 30))).retard),
+       window.SSHorloge.ecran(NL(2027, 4, 20, 0, 30), () => SSUI.relanceEtat(envoyeA(NL(2027, 4, 16, 0, 30))).retard)],
+      [false, true, false, true]);
 
     /* ⚠️ OÙ LA MISE EN ATTENTE N'A PAS SA PLACE. Elle suspend ce qui POUSSE LE CLIENT À
        ACCEPTER, et seulement ça : un devis signé doit toujours être commandé, posé et encaissé,

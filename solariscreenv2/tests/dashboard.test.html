@@ -33,6 +33,7 @@
   <div id="summary">Exécution…</div>
   <div id="out"></div>
 
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -61,7 +62,8 @@
     }
 
     // ── Les données d'essai (FICTIVES) ─────────────────────────────────────────────────────────
-    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    // Le jour LOCAL (règle 18) : en UTC, à 0 h 30, J(−5) tombait un jour plus tôt et L10 lisait « envoyé il y a 6 j ».
+    const J = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
     const T = (n) => J(n) + 'T10:00:00.000Z';
     const cli = (prenom, nom, ville) => ({ prenom, nom, telephone: '0470 00 00 00', email: 'test@exemple.be', adresse: { rue: "Rue de l'Église 1", cp: '1400', ville } });
     const scr = (n, p) => Array.from({ length: n }, (_, i) => ({ _id: 'it' + i, type: 'screen', largeur: 2000, hauteur: 2000, quantite: 1, prix: p }));
@@ -160,6 +162,36 @@
         check('A5 signé, rien commandé → commander', P({}), ['Matériel à commander', 'chantier']);
         check('A6 commandé → la balle est chez le fournisseur', P({ commande: { statut: 'commande' } }), ['Chez le fournisseur — commandé', 'rien']);
         check('A7 matériel reçu → planifier la pose', P({ commande: { statut: 'recu' } }), ['Matériel reçu — pose à planifier', 'chantier']);
+
+        titre('Règle 18 — le jour d’un INSTANT se lit en heure locale (création, acceptation, signature, PV)');
+        /* La légende du fil (« créé hier », « accepté hier ») part d'instants (toISOString). Coupés à 10 caractères, ils
+           donnaient le jour UTC : un devis créé ou accepté à 0 h 30 était « créé hier » (13/11/2026). L'écran du CADRE est
+           mis à l'heure (`SSHorloge.ecran`) et les instants sont donnés en heure LOCALE : le cas se joue à toute heure. */
+        const NL = window.SSHorloge.instantLocal;
+        const aLHeure = (maintenant, fn) => window.SSHorloge.ecran(maintenant, fn, w);
+        const legendeDe = (o) => { const t = d.createElement('div'); t.innerHTML = w.eval('filAffaire')(N(o)); return t.querySelector('.mf-cap').textContent; };
+        check('H1 « créé » : 0 h 30 → aujourd’hui (hiver et été) ; 23 h 30 la veille → hier',
+          [aLHeure(NL(2026, 11, 17, 0, 45), () => w.eval('depuisJour')(NL(2026, 11, 17, 0, 30))),
+            aLHeure(NL(2026, 11, 17, 0, 45), () => w.eval('depuisJour')(NL(2026, 11, 16, 23, 30))),
+            aLHeure(NL(2027, 4, 16, 0, 45), () => w.eval('depuisJour')(NL(2027, 4, 16, 0, 30))),
+            aLHeure(NL(2027, 4, 16, 23, 45), () => w.eval('depuisJour')(NL(2027, 4, 16, 23, 30))),
+            aLHeure(NL(2026, 11, 17, 0, 45), () => w.eval('depuisJour')('2026-11-16'))],
+          ['aujourd’hui', 'hier', 'aujourd’hui', 'aujourd’hui', 'hier']);
+        check('H2 La légende du fil, à 0 h 45 : créé, accepté, signé, posé à 0 h 30 → « aujourd’hui », jamais « hier »',
+          aLHeure(NL(2026, 11, 17, 0, 45), () => [
+            legendeDe({ statut: 'brouillon', date_creation: NL(2026, 11, 17, 0, 30) }),
+            legendeDe({ statut: 'envoye_client', client_accepted: true, client_accepted_at: NL(2026, 11, 17, 0, 30), date_creation: NL(2026, 11, 1, 10, 0) }),
+            legendeDe({ statut: 'signe', statut_history: [{ statut: 'signe', date: NL(2026, 11, 17, 0, 30) }], date_creation: NL(2026, 11, 1, 10, 0) }),
+            legendeDe({ statut: 'signe', commande: { statut: 'pose' }, reception: { date: NL(2026, 11, 17, 0, 30), image: 'x' }, date_creation: NL(2026, 11, 1, 10, 0) })]),
+          ['créé aujourd’hui', 'accepté aujourd’hui', 'signé aujourd’hui', 'posé aujourd’hui']);
+        // Le filtre « Créé depuis le / jusqu'au » : un devis de 0 h 30 sortait du filtre de SON jour.
+        const advDu = d.getElementById('advDateFrom'), advAu = d.getElementById('advDateTo');
+        advDu.value = '2026-11-17'; advAu.value = '2026-11-17';
+        const filtres = w.eval('applyAdvFilters')([N({ id: 'NU1', date_creation: NL(2026, 11, 17, 0, 30) }), N({ id: 'NU2', date_creation: NL(2026, 11, 16, 23, 30) }),
+          N({ id: 'NU3', date_creation: NL(2026, 11, 17, 23, 30) }), N({ id: 'NU4', date_creation: NL(2026, 11, 18, 0, 30) })]).map((x) => x.id);
+        advDu.value = ''; advAu.value = '';
+        check('H3 Filtre « créé le 17/11 » : le devis de 0 h 30 et celui de 23 h 30 y sont ; ceux de la veille à 23 h 30 et du lendemain à 0 h 30, non',
+          filtres, ['NU1', 'NU3']);
         await w.rafraichir(); await attendre(200);
 
         titre('Les bandeaux, au détail près (retour de Nicolas sur la production, 25/10/2026)');
@@ -234,7 +266,12 @@
         check('R3 sa présence se lit dans le bandeau', d.getElementById('presence').textContent.trim(), 'Yannick en ligne');
         check('R3c au bureau, le bonjour annonce ce qu’il a avancé', /Yannick a avancé 3 choses/.test(d.getElementById('ckResume').textContent) && w.getComputedStyle(d.querySelector('#ckResume .ck-rel')).display !== 'none', true);
         // « vu 13/10/2026 » obligeait à compter les jours de tête : on dit depuis combien de temps.
-        check('R3b une absence se dit en jours', [w.texteVu({ enLigne: false, vu: iso(12 * 24 * 60) }), w.texteVu({ enLigne: false, vu: iso(26 * 60) })], ['vu il y a 12 j', 'vu hier']);
+        // En jours de CALENDRIER : « il y a 26 h » est hier à 10 h, mais l'avant-veille à 0 h 30 — l'écran est mis à l'heure par
+        // le cas (règle 18 ; le test supposait « 26 h = hier » et tombait la nuit, sur main aussi).
+        const vuA = (maintenant, vu) => window.SSHorloge.ecran(maintenant, () => w.texteVu({ enLigne: false, vu: vu }), w);
+        check('R3b une absence se dit en jours de calendrier : 12 j ; 26 h plus tôt = hier à 10 h, avant-hier à 0 h 30',
+          [vuA(NL(2026, 11, 17, 10, 0), NL(2026, 11, 5, 10, 0)), vuA(NL(2026, 11, 17, 10, 0), NL(2026, 11, 16, 8, 0)), vuA(NL(2026, 11, 17, 0, 30), NL(2026, 11, 15, 22, 30))],
+          ['vu il y a 12 j', 'vu hier', 'vu il y a 2 j']);
         d.querySelector('.rl-vu').click(); await attendre(60);
         check('R4 « Tout vu » avance le repère jusqu’à la dernière nouvelle, pas jusqu’à maintenant', w.localStorage.getItem('ss_activity_seen'), ACTIVITE[3 - 1].ts);
         check('R5 …et le relais se calme', d.querySelectorAll('#relaisNews .rl-ligne').length, 0);

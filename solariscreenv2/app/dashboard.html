@@ -1451,9 +1451,11 @@
        de la règle 33 bis). La légende garde ce qu'elle disait — les vues, « chaud », le lien jamais
        ouvert — sur UNE ligne de hauteur fixe, pour tous les devis. */
     /** « aujourd'hui », « hier », « il y a 26 j », « il y a 3 mois » — depuis un JOUR (AAAA-MM-JJ).
-     *  `relTime` part d'un instant : sur une date seule, il annonçait « il y a 10 h » pour aujourd'hui. */
+     *  `relTime` part d'un instant : sur une date seule, il annonçait « il y a 10 h » pour aujourd'hui.
+     *  Ce qu'on lui passe est souvent un INSTANT (création, acceptation, signature, PV) : son jour se lit
+     *  en heure LOCALE (règle 18) — coupé à 10 caractères, un devis de 0 h 30 était « créé hier ». */
     function depuisJour(j) {
-      const s = String(j || '').slice(0, 10);
+      const s = window.SSUI.jourLocal(j);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
       const n = window.SSUI.joursEntre(s, SSUI.aujourdhui());
       if (!isFinite(n) || n < 0) return '';
@@ -2084,8 +2086,9 @@
       let n = 0;
       if (!isNaN(min)) { rows = rows.filter(d => d.ttc >= min); n++; }
       if (!isNaN(max)) { rows = rows.filter(d => d.ttc <= max); n++; }
-      if (from) { rows = rows.filter(d => (d.date_creation || '').slice(0, 10) >= from); n++; }
-      if (to) { rows = rows.filter(d => (d.date_creation || '').slice(0, 10) <= to); n++; }
+      // La création est un INSTANT : son jour LOCAL (règle 18), sinon un devis de 0 h 30 sortait du filtre de son jour.
+      if (from) { rows = rows.filter(d => SSUI.jourLocal(d.date_creation) >= from); n++; }
+      if (to) { rows = rows.filter(d => SSUI.jourLocal(d.date_creation) <= to); n++; }
       if (chantier === 'planifie') { rows = rows.filter(d => d.chantier && d.chantier.date_pose); n++; }
       else if (chantier === 'non_planifie') { rows = rows.filter(d => ['signe', 'termine'].includes(d.statut) && !(d.chantier && d.chantier.date_pose)); n++; }
       // Le compte du bouton « Filtres » dit TOUT ce que le panneau applique — vendeur et produit

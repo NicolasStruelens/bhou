@@ -21,7 +21,9 @@
   function auj() { return U().aujourdhui(); }
   /** Nombre de jours entiers entre une date (ISO ou AAAA-MM-JJ) et aujourd'hui (heure LOCALE). */
   function joursDepuis(iso, ref) {
-    const d = String(iso || '').slice(0, 10);
+    // L'ouverture d'un ticket est un INSTANT : son jour LOCAL (règle 18) — coupé à 10 caractères, un
+    // ticket ouvert à 0 h 30 était « depuis 1 j » le jour même, et passait « gêne » un jour trop tôt.
+    const d = U().jourLocal(iso);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return 0;
     const a = new Date(d + 'T12:00:00'), b = new Date((ref || auj()) + 'T12:00:00');
     return Math.max(0, Math.round((b - a) / 86400000));
@@ -100,7 +102,7 @@
     const r = ref || auj();
     const d = new Date(r + 'T12:00:00'); d.setMonth(d.getMonth() - (mois || 12));
     const depuis = U().isoDate(d);
-    const dans = (tickets || []).filter(function (t) { return t && String(t.date_creation || '').slice(0, 10) >= depuis; });
+    const dans = (tickets || []).filter(function (t) { return t && U().jourLocal(t.date_creation) >= depuis; });
     const parNature = {}, parMoteur = {};
     dans.forEach(function (t) {
       const k = t.probleme || 'autre';

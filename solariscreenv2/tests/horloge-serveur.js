@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// SOLARISCREEN — L'HORLOGE DU SERVEUR DANS LES TESTS (window.SSHorloge)
+// SOLARISCREEN — L'HORLOGE DU SERVEUR (et de l'écran : `SSHorloge.ecran`) DANS LES TESTS (window.SSHorloge)
 // Pas du code de l'ERP : seules les suites de tests/ le chargent.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 //
@@ -56,6 +56,28 @@
       window.Date = fabriquer(avant, t);
       try { return await fn(); } finally { window.Date = avant; }
     },
+    /** L'ÉCRAN, lui, tourne dans le navigateur, à l'heure LOCALE (belge chez Nicolas et Yannick ; les relevés sous horloge
+     *  simulée règlent le fuseau sur Europe/Brussels). `ecran(instant, fn, fenetre)` joue `fn` avec `new Date()` et
+     *  `Date.now()` de `fenetre` (cette page par défaut, ou le contentWindow d'un cadre) FIGÉS à `instant` ; le fuseau reste
+     *  celui du navigateur. Synchrone ou non, la vraie horloge revient ensuite, même en cas d'erreur. Donner l'instant en
+     *  composantes LOCALES (`new Date(2026, 10, 17, 0, 30)`) : le cas dit la même chose sur toute machine, et ne PROUVE
+     *  quelque chose (la veille en UTC) que sur un navigateur à l'est de Greenwich — c'est le cas de l'ERP. Règle 18. */
+    ecran(instant, fn, fenetre) {
+      const W = fenetre || window, V = W.Date;
+      const t = new V(instant).getTime();
+      if (isNaN(t)) throw new Error('SSHorloge.ecran : instant illisible (' + instant + ')');
+      function DateEcran(...a) { if (!new.target) return new V(t).toString(); return a.length ? new V(...a) : new V(t); }
+      DateEcran.prototype = V.prototype; DateEcran.now = () => t; DateEcran.parse = V.parse; DateEcran.UTC = V.UTC;
+      W.Date = DateEcran;
+      let r;
+      try { r = fn(); } catch (e) { W.Date = V; throw e; }
+      if (r && typeof r.then === 'function') return r.finally(() => { W.Date = V; });
+      W.Date = V;
+      return r;
+    },
+    /** Un INSTANT écrit par l'ERP (`toISOString()`) à l'heure LOCALE donnée : `SSHorloge.instantLocal(2026, 11, 17, 0, 30)`
+     *  = « 2026-11-16T23:30:00.000Z » sur un navigateur belge en hiver. Le mois se donne de 1 à 12. */
+    instantLocal(a, m, j, h, mi) { return new window.Date(a, m - 1, j, h || 0, mi || 0).toISOString(); },
     /** Les quatre nuits de la règle 18, en UTC explicite : 0 h 30 et 23 h 30 heure belge, en hiver (UTC+1) et en été (UTC+2).
      *  `jour` = le jour BELGE à cet instant, celui que le serveur doit écrire ou comparer. */
     NUITS: [

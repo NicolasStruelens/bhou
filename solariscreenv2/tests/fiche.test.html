@@ -164,6 +164,37 @@
         const h2b = await H.serveur(H.NUITS[0].instant, () => poster('/api/devis/NUIT-1/chantier-photo', { url: '/api/photos/own/nuit-datee', phase: 'avant', date: '2026-11-03' }));
         check('H2 Photo du journal sans date : le jour BELGE à 0 h 30 et 23 h 30, hiver et été — en base et sur le lien de suivi (la veille, en UTC) ; une date donnée reste la sienne',
           [h2, (h2b.corps.entry || {}).date], [H.NUITS.map((n) => [n.nom, 200, n.jour, n.jour, n.jour]), '2026-11-03']);
+        /* H3 / H4 — L'ÉCRAN, lui, lit le jour d'un INSTANT à l'heure locale (`SSUI.jourLocal`, 13/11/2026). La date d'envoi se
+           déduit du passage à « envoyé » (un instant) : coupée à 10 caractères, un devis envoyé à 0 h 30 l'était la veille, et
+           « Annuler la relance » ÉCRIVAIT ce jour faux dans date_envoi — pour toujours (règle 1). Instants en heure LOCALE. */
+        const NL = H.instantLocal;
+        const insererNuit = (id, o) => BANC.DB.exec("INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data) VALUES ('"
+          + id + "', 'Nuit', 'Essai', '" + o.statut + "', 1000, '" + o.date_creation + "', '2026-11-12T10:00:00.000Z', '"
+          + JSON.stringify(Object.assign({ id: id, client: { prenom: 'Essai', nom: 'Nuit' }, items: [], calculs: { total_ttc: 1000 }, date_modification: '2026-11-12T10:00:00.000Z' }, o)).replace(/'/g, "''") + "')");
+        const h3 = [];
+        for (const [i, [a, m, j]] of [[2026, 11, 17], [2027, 4, 16]].entries()) {
+          const id = 'NUIT-R' + i;
+          insererNuit(id, { statut: 'relance_1', date_creation: NL(a, m, j - 3, 10, 0), relances: [{ n: 1, date: '2027-05-01', by: 'nicolas' }],
+            statut_history: [{ statut: 'envoye_client', date: NL(a, m, j, 0, 30) }, { statut: 'relance_1', date: NL(a, m, j + 4, 10, 0) }] });
+          const fR = await fiche(id);
+          fR.contentWindow.confirm = () => true;
+          await fR.contentWindow.undoRelance(1);
+          await attendreQue(() => lire(id).statut === 'envoye_client', 6000);
+          h3.push([lire(id).statut, lire(id).date_envoi]);
+          fR.remove();
+        }
+        check('H3 « Annuler la relance » fige la date d’envoi : le jour LOCAL du passage à « envoyé » à 0 h 30 (hiver et été) — pas la veille, écrite en base',
+          h3, [['envoye_client', '2026-11-17'], ['envoye_client', '2027-04-16']]);
+        // H4 : la réglette d'un brouillon avance sur les jours depuis sa création (« à envoyer » devient pressant à 3 jours).
+        insererNuit('NUIT-B', { statut: 'brouillon', date_creation: NL(2026, 11, 17, 0, 30) });
+        const fB = await fiche('NUIT-B');
+        const etatRegle = (maintenant) => H.ecran(maintenant, () => {
+          fB.contentWindow.eval('renderRuler')();
+          return fB.contentDocument.querySelectorAll('#rulerHost .rl-mile')[1].classList.contains('now') ? 'pressant' : 'attente';
+        }, fB.contentWindow);
+        check('H4 Réglette d’un brouillon créé à 0 h 30 : pas encore pressant le 19 à 23 h 30 (2 jours), pressant le 20 dès 0 h 30 (3 jours)',
+          [etatRegle(NL(2026, 11, 19, 23, 30)), etatRegle(NL(2026, 11, 20, 0, 30))], ['attente', 'pressant']);
+        fB.remove();
 
         // ══════════ P — LA FICHE ══════════
         titre('P — La prochaine action suit les règles du tableau de bord');
