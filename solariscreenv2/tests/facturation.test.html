@@ -38,6 +38,7 @@
   <script src="../assets/js/facturation.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -232,6 +233,35 @@
         const hors = await SS.deleteFacture(f5);
         window.fetch = vrai;
         check('R5 Hors-ligne, la suppression est refusée (seul le serveur sait si elle est permise)', [hors.ok, /Hors-ligne/.test(hors.error || ''), !!fac(f5).id], [false, true, true]);
+        /* R6-R7 — L'HEURE BELGE AU SERVEUR (règle 18). Le serveur tourne en UTC : de minuit à 1 h (hiver) ou 2 h (été), son jour
+           était LA VEILLE, et son année celle d'avant le 1er janvier. Chaque cas pose lui-même la nuit (SSHorloge, une Date
+           « comme Cloudflare ») : il se joue à toute heure, sur n'importe quelle machine. */
+        const H = window.SSHorloge;
+        const posterF = async (chemin, corps) => { const r = await BANC.fetch(chemin, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) }); return r.json().catch(() => ({})); };
+        const nouvelle = (serie, jour, sansDate) => posterF('/api/factures', Object.assign({ _serie: serie, type: serie === 'NC' ? 'avoir' : 'acompte', devis_id: 'RD-NUIT', client: {}, lines: [], total_ht: 100, total_tva: 6, total_ttc: 106, paiements: [] },
+          sansDate ? {} : { date: jour, echeance: jour }));
+        const NOUVEL_AN = [
+          { nom: '31/12 à 23 h 30', instant: '2026-12-31T22:30:00Z', jour: '2026-12-31' },
+          { nom: '1er janvier à 0 h 30', instant: '2026-12-31T23:30:00Z', jour: '2027-01-01' },
+        ];
+        const r6 = [];
+        for (const n of NOUVEL_AN.concat(H.NUITS)) {
+          const [rf, rn] = await H.serveur(n.instant, async () => [await nouvelle('F', n.jour), await nouvelle('NC', n.jour)]);
+          r6.push(n.nom + ' : ' + String(rf.id).slice(0, 6) + ' ' + String(rn.id).slice(0, 7) + ' · ' + fac(rf.id).date);
+        }
+        check('R6 Le numéro porte l’année BELGE : une facture (et une note de crédit) faite le 1er janvier à 0 h 30 est de 2027 — en UTC, F2026 dans l’année close —, à 23 h 30 le 31/12 de 2026 ; et à 0 h 30 / 23 h 30, été comme hiver',
+          r6, NOUVEL_AN.concat(H.NUITS).map((n) => n.nom + ' : F' + n.jour.slice(0, 4) + '- NC' + n.jour.slice(0, 4) + '- · ' + n.jour));
+        const r7 = [];
+        for (const n of H.NUITS) {
+          const id = (await nouvelle('F', n.jour)).id;
+          const [rp, rs] = await H.serveur(n.instant, async () => [
+            await posterF('/api/factures/' + encodeURIComponent(id) + '/paiement', { montant: 25, moyen: 'Virement' }),
+            await nouvelle('F', n.jour, true),
+          ]);
+          r7.push([n.nom, (rp.paiement || {}).date, ((fac(id).paiements || [])[0] || {}).date, BANC.sql1("SELECT date FROM factures WHERE id = '" + rs.id + "'")]);
+        }
+        check('R7 Sans date envoyée, un encaissement et une facture prennent le jour BELGE à 0 h 30 et 23 h 30, été comme hiver (la veille, en UTC)',
+          r7, H.NUITS.map((n) => [n.nom, n.jour, n.jour, n.jour]));
 
         // ══════════ P — LA PAGE ══════════
         titre('P — La page, remplie par le bac à sable, cliquée au bureau');
