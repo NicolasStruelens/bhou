@@ -39,6 +39,7 @@
   <script src="../assets/js/api.js"></script>
   <script src="bac-a-sable.js"></script>
   <script src="banc-serveur.js"></script>
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -129,6 +130,40 @@
         check('S6 SS.modifierClient : la formule posée, le téléphone corrigé ailleurs GARDÉ ; une fiche absente le dit sans rien créer',
           [rcl.ok, fc.ton, fc.telephone, absente.ok, absente.absente, BANC.sql1("SELECT COUNT(*) FROM clients WHERE key = 'personne|inconnue'")],
           [true, 'amical', '0000 99 99 99', false, true, 0]);
+
+        // ══════════ H — L'HEURE BELGE AU SERVEUR (règle 18) ══════════
+        /* Le serveur tourne en UTC : de minuit à 1 h (hiver) ou 2 h (été), son « aujourd'hui » était LA VEILLE. Chaque cas pose
+           lui-même la nuit (SSHorloge : 0 h 30 et 23 h 30, hiver et été, Date « comme Cloudflare ») : il se joue à toute heure. */
+        titre('H — Les routes de la fiche à l’heure BELGE (règle 18) : 0 h 30 et 23 h 30, hiver et été');
+        const H = window.SSHorloge;
+        BANC.DB.exec("INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data) VALUES ('NUIT-1', 'Nuit', 'Essai', 'signe', 0, '2026-10-01', '2026-10-01T10:00:00.000Z', '"
+          + JSON.stringify({ id: 'NUIT-1', statut: 'signe', client: { prenom: 'Essai', nom: 'Nuit' }, items: [], track_token: 'trk-nuit', date_modification: '2026-10-01T10:00:00.000Z' }) + "')");
+        const poster = async (chemin, corps) => { const r = await BANC.fetch(chemin, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) }); return { statut: r.status, corps: await r.json().catch(() => ({})) }; };
+        // H1 : la date de reprise d'une mise en attente doit être dans le FUTUR — aujourd'hui (belge) refusé, demain accepté.
+        const h1 = [];
+        for (const n of H.NUITS) {
+          const demainN = H.plusJours(n.jour, 1);
+          const r = await H.serveur(n.instant, async () => [
+            (await poster('/api/devis/NUIT-1/attente', { motif: 'Elle revient vers nous', revoir_le: n.jour })).statut,
+            (await poster('/api/devis/NUIT-1/attente', { motif: 'Elle revient vers nous', revoir_le: demainN })).statut,
+          ]);
+          const ouverte = (lire('NUIT-1').attentes || []).filter((a) => !a.levee_le);
+          h1.push(n.nom + ' : ' + r.join('/') + ' · ' + (ouverte.length === 1 && ouverte[0].revoir_le === demainN ? 'demain posé' : JSON.stringify(ouverte)));
+        }
+        check('H1 Mise en attente : reprise AUJOURD’HUI (jour belge) refusée — née échue —, DEMAIN acceptée, à 0 h 30 comme à 23 h 30 (en UTC, 0 h 30 laissait passer aujourd’hui)',
+          h1, H.NUITS.map((n) => n.nom + ' : 400/200 · demain posé'));
+        // H2 : une photo du journal envoyée SANS date (champ vidé dans la fiche) prend le jour belge — en base et sur le lien du client.
+        const h2 = [];
+        for (const [i, n] of H.NUITS.entries()) {
+          const r = await H.serveur(n.instant, () => poster('/api/devis/NUIT-1/chantier-photo', { url: '/api/photos/own/nuit-' + i, phase: 'pendant', note: '' }));
+          const enBase = (lire('NUIT-1').chantier_photos || []).find((e) => e.url === '/api/photos/own/nuit-' + i);
+          const suivi = await (await BANC.fetch('/api/track?t=trk-nuit&staff=1')).json();
+          const auClient = ((suivi.data || {}).photos || []).find((p) => /nuit-/.test(decodeURIComponent(p.src)) && decodeURIComponent(p.src).endsWith('nuit-' + i));
+          h2.push([n.nom, r.statut, (r.corps.entry || {}).date, enBase && enBase.date, auClient && auClient.date]);
+        }
+        const h2b = await H.serveur(H.NUITS[0].instant, () => poster('/api/devis/NUIT-1/chantier-photo', { url: '/api/photos/own/nuit-datee', phase: 'avant', date: '2026-11-03' }));
+        check('H2 Photo du journal sans date : le jour BELGE à 0 h 30 et 23 h 30, hiver et été — en base et sur le lien de suivi (la veille, en UTC) ; une date donnée reste la sienne',
+          [h2, (h2b.corps.entry || {}).date], [H.NUITS.map((n) => [n.nom, 200, n.jour, n.jour, n.jour]), '2026-11-03']);
 
         // ══════════ P — LA FICHE ══════════
         titre('P — La prochaine action suit les règles du tableau de bord');
