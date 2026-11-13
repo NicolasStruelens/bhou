@@ -35,6 +35,7 @@
   <script src="../assets/js/attente.js"></script>
   <script src="../assets/js/sav.js"></script>
   <script src="banc-serveur.js"></script>
+  <script src="horloge-serveur.js"></script>
   <script>
     let pass = 0, fail = 0;
     const rows = [];
@@ -128,6 +129,14 @@
         check('S3 L’ancienneté devient gênante à 3 jours et criante à 7 (mêmes seuils que le reste de l’ERP, règle 15)',
           [S.anciennete({ date_creation: '2026-10-25T09:00:00Z' }, REF), S.anciennete({ date_creation: '2026-10-24' }, REF), S.anciennete({ date_creation: '2026-10-20' }, REF)],
           [{ j: 2, niveau: 'ok' }, { j: 3, niveau: 'gene' }, { j: 7, niveau: 'criant' }]);
+        /* S3b — l'ouverture d'un ticket est un INSTANT (règle 18, 13/11/2026). Coupée à 10 caractères, un ticket ouvert à
+           0 h 30 était « depuis 1 j » le jour même et passait « gênant » un jour trop tôt. Instants en heure LOCALE. */
+        const NL = window.SSHorloge.instantLocal;
+        const anc = (instant, ref) => S.anciennete({ date_creation: instant }, ref);
+        check('S3b Un ticket ouvert à 0 h 30 compte de CE jour-là (hiver et été) : « 0 j » le jour même, pas encore gênant 2 jours après ; 23 h 30 la veille = 1 j',
+          [anc(NL(2026, 11, 17, 0, 30), '2026-11-17'), anc(NL(2026, 11, 15, 0, 30), '2026-11-17'), anc(NL(2026, 11, 16, 23, 30), '2026-11-17'),
+            anc(NL(2027, 4, 16, 0, 30), '2027-04-16'), anc(NL(2027, 4, 14, 0, 30), '2027-04-16')],
+          [{ j: 0, niveau: 'ok' }, { j: 2, niveau: 'ok' }, { j: 1, niveau: 'ok' }, { j: 0, niveau: 'ok' }, { j: 2, niveau: 'ok' }]);
         const TK = [
           { id: 'a', statut: 'en_cours', pour: 'nicolas', date_creation: '2026-10-01' },
           { id: 'b', statut: 'ouvert', pour: '', date_creation: '2026-10-20' },
@@ -153,6 +162,10 @@
         check('S6 « Ce qui casse le plus » : 12 mois glissants (le ticket de septembre 2025 sort), par nature, et un moteur à 2 pannes est À SIGNALER',
           [syn.total, syn.depuis, syn.parNature.map((n) => [n.label, n.n]), syn.moteurs.map((m) => [m.label, m.n]), syn.aSignaler.map((m) => m.label)],
           [4, '2025-10-27', [['Moteur', 3], ['Toile', 1]], [['4114: Sunea 40 RTS', 2], ['Secure (RF, standard)', 1]], ['4114: Sunea 40 RTS']]);
+        const synNuit = (instant, ref) => S.synthese([{ probleme: 'toile', date_creation: instant, devis: dv('4114: Sunea 40 RTS') }], ref).total;
+        check('S6b Un ticket ouvert à 0 h 30 le PREMIER jour des 12 mois en fait partie (hiver et été) ; celui de 23 h 30 la veille, non',
+          [synNuit(NL(2025, 10, 27, 0, 30), REF), synNuit(NL(2025, 10, 26, 23, 30), REF), synNuit(NL(2026, 4, 16, 0, 30), '2027-04-16')],
+          [1, 0, 1]);
         const LISTE = [{ id: 'B1', sav_origine_devis: 'D1', sav_origine_ticket: 'tA' }, { id: 'B2', sav_origine_devis: 'D1', sav_origine_ticket: 'tB' }];
         check('S7 Le bon d’intervention d’un ticket se retrouve par son origine (devis ET ticket), jamais par le seul devis',
           [(S.bonDe({ id: 'tB', devisId: 'D1' }, LISTE) || {}).id, S.bonDe({ id: 'tC', devisId: 'D1' }, LISTE)], ['B2', null]);

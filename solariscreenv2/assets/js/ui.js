@@ -1193,6 +1193,22 @@
     return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
   }
   function aujourdhui() { return isoDate(new Date()); }
+  /** Le JOUR (AAAA-MM-JJ) d'une date OU d'un instant, en heure LOCALE (règle 18).
+   *  Un INSTANT avec fuseau (« 2026-11-15T23:30:00.000Z » : date_creation, client_accepted_at,
+   *  statut_history[].date, le PV, une relance de facture…) se lit à l'heure locale : coupé à
+   *  10 caractères, il donnait le jour UTC, donc LA VEILLE entre minuit et 1 h (hiver) ou 2 h (été)
+   *  — « créé hier » pour un devis de 0 h 30, une relance réclamée un jour trop tôt (13/11/2026).
+   *  Une date NUE (« 2026-11-16 ») et une heure locale SANS fuseau (« 2026-11-16T10:00 », un
+   *  rendez-vous) se coupent telles quelles : les convertir les lirait en UTC. '' si illisible. */
+  const INSTANT_FUSEAU = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
+  function jourLocal(v) {
+    if (v == null || v === '') return '';
+    if (v instanceof Date || typeof v === 'number') return isoDate(v);
+    const s = String(v).trim();
+    if (INSTANT_FUSEAU.test(s)) { const j = isoDate(new Date(s)); if (j) return j; }
+    const j = s.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(j) ? j : '';
+  }
 
   /** Ajoute `n` mois à une date ISO, en restant sur une date locale valide.
    *  Le 31 janvier + 1 mois donnerait le 3 mars (février n'a pas de 31) : on recule alors au
@@ -1214,9 +1230,12 @@
    *  @returns { connue, sous_garantie, debut, fin, jours, texte } */
   function garantieDe(devis, reglages) {
     const d = devis || {};
-    const debut = (d.chantier && d.chantier.date_pose) || d.reception_date || '';
+    // Le PV (`reception_date`) est un INSTANT : son jour se lit en heure LOCALE (règle 18). Coupé à
+    // 10 caractères, un PV de 0 h 30 finissait la garantie un jour trop tôt ; et l'instant entier,
+    // comparé à « aujourd'hui », passait APRÈS lui le jour même (« Pose prévue … — non démarrée »).
+    const debut = jourLocal((d.chantier && d.chantier.date_pose) || d.reception_date || '');
     const mois = Number(reglages && reglages.prix && reglages.prix.garantie_mois) || 12;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(debut).slice(0, 10))) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(debut)) {
       // « Pas encore posé » et « on ne sait pas » sont deux situations différentes : la première
       // est normale (le chantier est en cours), la seconde signale une donnée manquante.
       const signe = d.statut === 'signe' && !isPoseDone(d);
@@ -2114,7 +2133,10 @@
   // noter, et l'ignorer faisait réclamer indéfiniment la même relance.
   const STATUT_RELANCE_N = { relance_1: 1, relance_2: 2 };
   const STATUT_RANK = { envoye_client: 0, relance_1: 1, relance_2: 2 };
-  const jour = iso => String(iso || '').slice(0, 10);
+  // Le jour LOCAL (règle 18) : la date d'envoi se déduit d'un INSTANT (statut_history, date_creation).
+  // Coupé à 10 caractères, un devis envoyé à 0 h 30 l'était « la veille » : relance réclamée un jour
+  // trop tôt, et « Annuler la relance » ÉCRIVAIT ce jour-là dans date_envoi (vue.html, undoRelance).
+  const jour = jourLocal;
   function joursEntre(de, a) { return Math.round((new Date(a + 'T00:00:00Z') - new Date(de + 'T00:00:00Z')) / 86400000); }
   function plusJours(d, n) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
   /**
@@ -2535,7 +2557,7 @@
     compressAndUploadPhoto: compressAndUploadPhoto, uploadPhotoDataUrl: uploadPhotoDataUrl,
     copyText: copyText, jsAttr: jsAttr, daysInCurrentStatus: daysInCurrentStatus,
     clientKeyOf: clientKeyOf, avatarClient: avatarClient, avatarsClients: avatarsClients,
-    ouvrirPhotos: ouvrirPhotos, fermerPhotos: fermerPhotos, isoDate: isoDate, aujourdhui: aujourdhui,
+    ouvrirPhotos: ouvrirPhotos, fermerPhotos: fermerPhotos, isoDate: isoDate, aujourdhui: aujourdhui, jourLocal: jourLocal,
     plusMois: plusMois, garantieDe: garantieDe,
     fetchWeather: fetchWeather, previsionJours: previsionJours,
     fetchCurrentWeather: fetchCurrentWeather,
