@@ -2238,8 +2238,9 @@ sortait en texte brut — et aucune mesure ne le signalait.
 
 **40. LE TABLEAU DE BORD : COCKPIT, RELAIS, FIL DE L'AFFAIRE** (25/10/2026 — variantes « haut A +
 relais B + bandeaux A » choisies par Nicolas sur maquettes). Protégé par `tests/dashboard.test.html`.
-De haut en bas : le **cockpit** (bonjour, résumé du jour, 4 chiffres), le **poste** (« à faire
-maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barre d'outils, la liste.
+De haut en bas (depuis le 13/11/2026, règle 67) : la **ligne du jour** (le bonjour, « à faire maintenant » et le **relais**
+avec l'autre, réduits au premier chargement), la barre d'outils, puis la **liste**, dont l'en-tête porte les **étapes** en
+pastilles cliquables et l'œil des **chiffres du mois** (en bande sous l'en-tête, masqués par défaut).
 • **« À faire maintenant » nomme des DOSSIERS, pas des compteurs.** L'ancienne bande disait « 2 devis
   à relancer » : il fallait cliquer, puis lire la liste filtrée. Les cartes portent le client, l'action
   et le bouton qui y mène. Tri : ce que PERSONNE n'a pris d'abord (règle 15), puis le poids
@@ -2270,8 +2271,8 @@ maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barr
   → menu « Plus » (la sauvegarde y est masquée sur téléphone) ; statut, vendeur, produit et les
   situations « à traiter » → panneau « Filtres », chaque rangée NOMMÉE, sans défilement de côté ;
   « + Nouveau devis » et « Terrain » du bandeau → masqués au-delà de 1400 px, le rail les porte
-  (règle 24) ; « En ligne » → le badge ne s'affiche plus que HORS LIGNE ; la pensée du jour → sous
-  le bonjour. ⚠️ Les raccourcis au survol de la maquette (Note · Appeler · → Yannick) n'ont PAS été
+  (règle 24) ; « En ligne » → le badge ne s'affiche plus que HORS LIGNE ; la pensée du jour → dans
+  le bandeau, à côté de la date (règle 67, entière ou absente). ⚠️ Les raccourcis au survol de la maquette (Note · Appeler · → Yannick) n'ont PAS été
   posés sur la ligne (règle 33 zero bis) : « Demander à … » vit dans le menu ⋯ (porte de la règle 19).
 • **SIX DÉFAUTS TROUVÉS EN ENQUÊTANT**, chacun tenu par un test :
   1. un DÉPANNAGE signé réclamait un acompte et une commande (règle 7) ;
@@ -2281,7 +2282,8 @@ maintenant » + le **relais** avec l'autre), les **étapes** cliquables, la barr
      les relances DUES et filtrait « 7 jours dans le statut ») → `SITUATIONS`, UN prédicat lu par le
      compte ET par le filtre ;
   4. trois réglages des Paramètres n'étaient lus par personne (`vue_defaut`, `densite`,
-     `kpi_replies`) — même famille que la règle 29 bis ; ordre appareil → société → repli ;
+     `kpi_replies`) — même famille que la règle 29 bis ; ordre appareil → société → repli (le repli des chiffres du
+     mois est « masqués » depuis le 13/11/2026, règle 67 ; seule une société qui a choisi « Dépliés » les montre) ;
   5. un mot de plus de 200 caractères perdait sa fin (titre borné, rien ne gardait le reste) ;
   6. sur téléphone le premier devis tombait à 1 147 px : la bande prenait tout le premier écran.
 • **TÉLÉPHONE** : le premier devis commence dans le premier écran (test T3). Les actions deviennent
@@ -3489,7 +3491,8 @@ pose le manifeste sur une page qui n'en a pas). **Toute nouvelle page le porte**
 Une ancienne icône posée AVANT le correctif garde son défaut : il faut la supprimer et installer à nouveau (le guide Android le dit).
 Pas de service worker ici, et c'est voulu (mémoire des pannes de juillet : voir le kill-switch `sw.js`) : depuis Chrome 108 (Android)
 et 112 (ordinateur), l'installation par le MENU n'en demande plus. Le niveau 2 (service worker sûr) reste à décider.
-**Le bouton « Installer l'app »** vit sous le bonjour du tableau de bord (`#btnInstaller`), la logique dans `nav.js`
+**Le bouton « Installer l'app »** vit à côté du bonjour, dans la ligne du jour du tableau de bord (`#btnInstaller`, règle 67 : tant que
+l'app n'est pas installée, le bonjour et lui ont leur rangée, au-dessus d'« À faire » et du relais), la logique dans `nav.js`
 (`SSNav.installation` : `etat`, `installer`, `ecouter`, `guide`) :
 • **`beforeinstallprompt` est écouté sur TOUTES les pages**, puis GARDÉ (`preventDefault`) pour le moment du clic : il part une seule
   fois, au chargement de la page où l'on arrive. Écouté sur le seul tableau de bord, il serait perdu en y arrivant d'ailleurs.
@@ -3617,12 +3620,14 @@ Protégé par `tests/fiche.test.html` (D1-D8, L1-L4, T1-T8), `tests/plan.test.ht
   plus « 12 % » — `Math.round` arrondissait les DEUX lignes, répartition personnalisée et mode fixe. Sans part enregistrée, celle du
   moteur (`calculs`) ; illisible, « — % » (test P19).
 
-**67. LE HAUT DU TABLEAU DE BORD SE RÉDUIT : UNE BANDE PAR ACTION, UN RELAIS RESSERRÉ, « RÉDUIRE » SUR CHACUN**
+**67. LE HAUT DU TABLEAU DE BORD SE RÉDUIT : UNE BANDE PAR ACTION, UN RELAIS RESSERRÉ, « RÉDUIRE » SUR CHACUN — ET DEPUIS LE
+13/11/2026, LES CLIENTS D'ABORD : UNE LIGNE POUR LA JOURNÉE, RÉDUITE AU PREMIER CHARGEMENT**
 (11/11/2026 — Nicolas, après la réunion avec Yannick : « pouvoir réduire les fenêtres "à faire maintenant", pouvoir le rendre discret
 et savoir voir facilement si on veut, ou des infos plus petites, et le relais avec [Yannick] aussi ça prend trop de place et on voit
 pas les devis client ». Maquette à quatre variantes ; il a choisi A « bandes fines » et les recommandations partout.)
 Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actions.js`). Protégé par `tests/dashboard.test.html`
-(P1-P21, les cas W à 1 250, 1 101, 1 000, 390 et 320 px, T12, R3c), vérifié par 20 mutations.
+(P0-P21, les cas W à 1 250, 1 101, 1 000, 390 et 320 px, T12, R3c), vérifié par 20 mutations ; la ligne du jour par J1-J15, T3b,
+G6 et la boucle W, vérifiés par 19 mutations (13/11/2026).
 • **MESURÉ AVANT D'ÊTRE TOUCHÉ** (vraie page, données fictives de la forme de sa capture, 1 650 × 1 012) : le premier devis tombait à
   **917 px**, un seul visible. Le relais (457 px) faisait la hauteur de la rangée et laissait 270 px de vide sous les deux cartes.
   Après : **653 px** tout ouvert (trois devis), **530 px** les deux réduits (quatre à cinq).
@@ -3633,9 +3638,10 @@ Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actio
   ça ne se plie pas) ; « Ça attend Yannick » = une ligne-bouton (combien, ses pastilles, le premier) qui déplie TOUTE la liste sur
   place (réponse de Nicolas) ; le mot sur une ligne, l'aide n'apparaît que pendant qu'on écrit.
 • **« RÉDUIRE » SUR CHACUN DES DEUX BLOCS** (réponse de Nicolas), un MOT avec la flèche (règle 33), retenu par l'APPAREIL
-  (`ss_dash_afaire`, `ss_dash_relais` = `reduit` | `ouvert`, même famille que `ss_dash_view`). **Au premier chargement, rien n'est
-  réduit** — choix de Claude, que Nicolas peut contester : réduire est un choix qu'on FAIT, pas un état qu'on découvre ; et ouvert, la
-  liste est déjà dans le premier écran.
+  (`ss_dash_afaire`, `ss_dash_relais` = `reduit` | `ouvert`, même famille que `ss_dash_view`). **Au premier chargement, TOUT EST
+  RÉDUIT — décision de Nicolas, 13/11/2026** (« il faut absolument régler que l'on voit les clients d'abord »). Le 11/11, Claude avait
+  choisi « rien n'est réduit » (« réduire est un choix qu'on fait ») ; Nicolas l'a contesté sur sa capture : un seul client visible.
+  `POSTE.lire` : rien de retenu = réduit ; seul `ouvert`, écrit par « Afficher », rouvre (J1, P0).
 • **RÉDUIT, « À FAIRE » DIT CE QU'ON CHERCHERAIT EN L'OUVRANT**, sur une ligne : combien, « N que personne n'a pris » en rouge et en
   mots (règle 15), « Critique » (le mot d'`URGENCE_LABEL`, règle 15 quater — l'action porte désormais son `urgence`), puis les NOMS des
   premiers dossiers avec leur pastille. Toute la ligne est le bouton « Afficher ». **Rien ne la rouvre toute seule** (règle 40 : un
@@ -3658,9 +3664,37 @@ Code : `app/dashboard.html` (et `urgence` dans `actionsDuJour`, `assets/js/actio
   passe avant les pastilles. Le champ du mot part à la ligne sous ~375 px de relais au lieu de tomber à 110 px (M16).
 • ⚠️ **AU DOIGT, LE PREMIER DEVIS SORTAIT DU PREMIER ÉCRAN — DÉJÀ SUR `main`** (T3 rouge en émulation tactile : champs à 16 px,
   cibles de 44 px ; 808 px pour 800 avec « Réduire »). Le bonjour y répétait « Yannick a avancé 3 choses depuis ta dernière visite »
-  sur deux lignes, que la barre repliée du relais, juste en dessous, dit déjà (« 3 nouveautés ») : sous 1 100 px, il se tait
-  (`.ck-rel`, règle 40 bis — chaque chose dite une fois). Au bureau, le bonjour le dit toujours (R3c).
-• **AUCUN MONTANT NE CHANGE**, et « Installer l'app » reste sous le bonjour (règle 63, N1-N15).
+  sur deux lignes, que la barre repliée du relais, juste en dessous, dit déjà (« 3 nouveautés ») : sous 1 100 px, il se taisait.
+  Depuis le 13/11/2026, il ne le dit plus nulle part : c'est le résumé du relais réduit, juste à côté (R3c, T12, J4).
+• **AUCUN MONTANT NE CHANGE**, et « Installer l'app » reste à côté du bonjour (règle 63, N1-N15).
+• **LA LIGNE DU JOUR (13/11/2026, variante A choisie par Nicolas sur maquette).** MESURÉ AVANT : sa capture (1 822 × 1 008) est en
+  pixels PHYSIQUES, Windows à 125 % — sa page voit **1 526 × 781 px CSS**. Le premier devis y tombait à **653 px** (781 au doigt sur
+  téléphone), UN seul devis entier. Après : **278 px** et quatre devis entiers (cinq à 1 822 × 1 008) ; 475 px au doigt sur 390 × 844.
+  - **Une rangée** : l'ancien `.poste` avec le bonjour en première colonne (`auto | 1fr | minmax(410px, .55fr)`, 54 px), les états
+    RÉDUITS ci-dessus tels quels ; dans la ligne, « À faire » prend son titre court.
+  - **Inventaire de l'ancienne carte du bonjour — rien n'a disparu, chaque chose dite une fois** : « Bonsoir Nicolas » et les poses des
+    7 jours → le bonjour de la ligne ; « N choses à faire » → le nombre d'« À faire », à côté ; « Yannick a avancé N choses » → le
+    résumé du relais (« N nouveautés ») ; la pensée du jour → le bandeau, à côté de la date ; « Installer l'app » → à côté du bonjour ;
+    l'œil → l'en-tête de la liste ; les quatre chiffres du mois (signé ce mois et son anneau, en jeu, à encaisser, bénéfices) → une
+    bande sous l'en-tête de la liste, derrière l'œil.
+  - **« ✉ Un mot »** sur le relais réduit : il le déplie, curseur dans le champ, SANS retenir l'ouverture (on vient écrire, pas
+    changer l'écran) ; « Réduire » le replie ; le formulaire n'est jamais réécrit (J5, J6). Une icône sous 420 px, absent sous
+    375 px (il coupait le résumé à 320 : « ▾ » déplie, le mot est dedans).
+  - ⚠️ **TANT QUE L'APP N'EST PAS INSTALLÉE**, le bonjour et « Installer l'app » prennent leur rangée, d'une ligne (+37 px) : à côté,
+    le bouton prenait 130 px à « À faire », qui coupait « 1 que personne n'a pris ». CSS seul (`:has(.ck-installer:not(.hidden))`,
+    règle 24) — installée, le bouton disparaît et le bonjour rejoint la ligne (J2, J12).
+  - **LES ÉTAPES EN PASTILLES DANS L'EN-TÊTE DE LA LISTE** (`#etapes`, `.et-seg` : clic qui filtre, état allumé, recliquer = actifs) :
+    « Brouillons 0 · Chez le client 4 · 19 264 € · Signés 1 · 3 360 € · Soldes 0 » — le montant n'est écrit que s'il pèse quelque
+    chose, « Soldes à encaisser » est dans l'infobulle. ≤ 1 100 px, elles prennent leur rangée (libellés courts ≤ 760, 40 px au doigt).
+  - ⚠️ **ENTIÈRE OU RIEN, SANS LARGEUR DEVINÉE** : la légende de la frise (après les pastilles) et la pensée du jour (après la date)
+    sont dans un bloc `flex-wrap` de hauteur fixe, `overflow: hidden` — si elle ne tient pas, elle passe sur la seconde ligne, cachée.
+    Ça tient compte de la police du thème et des montants du jour. La légende reste dans l'infobulle de « Devis », la pensée dans
+    celle de son bouton (J9, J11, boucle W).
+  - **LES CHIFFRES DU MOIS SONT MASQUÉS PAR DÉFAUT, au bureau aussi — décision de Nicolas, 13/11/2026.** L'œil de l'en-tête les
+    affiche, et le choix reste sur l'appareil (`ss_dash_kpis`). Ordre : appareil → société → masqués ; le réglage « Chiffres du mois
+    repliés » des Paramètres passe à « Repliés » par défaut (`config.js`) et reste LU : seule une société qui a choisi « Dépliés » les
+    montre sur un appareil neuf (J14, J15, G6). La branche `PETIT_ECRAN()` (une largeur lue en JS) a disparu.
+    ⚠️ Si la société a un jour ENREGISTRÉ « Dépliés », un appareil neuf les montre : c'est son choix, à revoir dans Paramètres.
 
 **68. LA PAGE CLIENTS SE TRIE TOUS AZIMUTS, « MODIFIÉ OU AJOUTÉ » EN TÊTE ; « ENREGISTRER LA FICHE » N'EFFACE PLUS RIEN**
 (11/11/2026 — Nicolas : « ajouter bouton trier par tous les azimuts sur client CRM et que les clients qui viennent d'être modifiés
@@ -4116,7 +4150,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
    `tests/sav.test.html`, exiger « 70/70 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
-   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 149/149 », par le serveur — au bureau ET en
+   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 182/182 », par le serveur — au bureau ET en
    émulation tactile (le premier devis dans le premier écran du téléphone ne se joue vraiment qu'avec des cibles de 44 px, T3).
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 131/131 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.
