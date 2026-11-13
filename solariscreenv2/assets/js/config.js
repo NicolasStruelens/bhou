@@ -52,7 +52,7 @@
       echeance_facture: 15,             // jours accordés par défaut sur une facture
       vue_defaut: 'actifs',             // vue du tableau de bord au premier chargement
       densite: 'confort',               // densité des lignes par défaut
-      kpi_replies: false,               // chiffres du haut repliés par défaut
+      kpi_replies: true,                // chiffres du mois repliés par défaut (décision de Nicolas, 13/11/2026, règle 67)
       /* Objectif de signature du MOIS, en € TVAC. 0 = pas d'objectif : le tableau de bord montre
          alors le signé du mois sans anneau, plutôt qu'un anneau mesuré contre un chiffre inventé.
          ⚠️ Doit exister ICI pour pouvoir être enregistré : `fusionner` est une liste blanche. */
