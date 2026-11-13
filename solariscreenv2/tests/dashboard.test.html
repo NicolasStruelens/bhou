@@ -264,7 +264,10 @@
         check('R1 le relais est là, au nom de l’autre', d.querySelector('.rl-nom').textContent, 'Le relais avec Yannick');
         check('R2 ses nouveautés, sans les miennes', d.querySelectorAll('#relaisNews .rl-ligne').length, 3);
         check('R3 sa présence se lit dans le bandeau', d.getElementById('presence').textContent.trim(), 'Yannick en ligne');
-        check('R3c au bureau, le bonjour annonce ce qu’il a avancé', /Yannick a avancé 3 choses/.test(d.getElementById('ckResume').textContent) && w.getComputedStyle(d.querySelector('#ckResume .ck-rel')).display !== 'none', true);
+        // Règle 67 (13/11/2026) : le bonjour tient dans la ligne du jour ; « Yannick a avancé 3 choses » est le résumé du relais
+        // réduit, juste à côté (« 3 nouveautés ») — dit UNE fois (règle 40 bis).
+        check('R3c au bureau, le relais réduit dit « 3 nouveautés », et le bonjour ne le répète plus',
+          [/3 nouveautés/.test(d.querySelector('.rl-resume').textContent), w.getComputedStyle(d.querySelector('.rl-resume')).display !== 'none', /avancé/.test(d.getElementById('ckResume').textContent)], [true, true, false]);
         // « vu 13/10/2026 » obligeait à compter les jours de tête : on dit depuis combien de temps.
         // En jours de CALENDRIER : « il y a 26 h » est hier à 10 h, mais l'avant-veille à 0 h 30 — l'écran est mis à l'heure par
         // le cas (règle 18 ; le test supposait « 26 h = hier » et tombait la nuit, sur main aussi).
@@ -295,7 +298,9 @@
         const filX = [...new Set([...d.querySelectorAll('.m-fil')].map(e => Math.round(e.getBoundingClientRect().left)))];
         check('B1 la frise tombe à la même abscisse sur toutes les lignes', filX.length, 1);
         check('B2 l’action et le paiement tiennent sur une ligne', [...d.querySelectorAll('.m-signal')].every(e => e.getBoundingClientRect().height <= 34), true);
-        check('B3 aucune tuile de chiffres ne déborde', [...d.querySelectorAll('.ck-t, .af-carte, .et-seg')].filter(e => e.scrollWidth > e.clientWidth + 1).length, 0);
+        w.toggleKpis(); w.basculerAfaireReduit(); await attendre(80);
+        check('B3 les tuiles à vérifier sont là (chiffres affichés, « À faire » ouvert)', [d.querySelectorAll('#kpis .ck-t').length > 0 && !d.getElementById('kpis').classList.contains('hidden'), d.querySelectorAll('.af-carte').length > 0], [true, true]);
+        check('B3b …aucune tuile de chiffres ne déborde', [...d.querySelectorAll('.ck-t, .af-carte, .et-seg')].filter(e => e.scrollWidth > e.clientWidth + 1).length, 0);
         check('B4 « Terrain » et « Nouveau devis » quittent le bandeau quand le rail les porte', [...d.querySelectorAll('.header-actions .dash-dup')].map(e => e.offsetWidth), [0, 0]);
         check('B5 aucun gestionnaire de la page ne casse à la compilation', [...d.querySelectorAll('*')].flatMap(e => [...e.attributes].filter(a => a.name.startsWith('on') && a.name.length > 2).map(a => { try { new Function(a.value); return null; } catch (err) { return a.value.slice(0, 60); } }).filter(Boolean)), []);
         // Une étape à 0 € tombait si étroite que son nom partait en points de suspension. On FORCE
@@ -310,6 +315,7 @@
         f = await ouvrir(1500, 900, null);
         d = f.contentDocument;
         check('I1 le relais se tait', d.getElementById('relais').classList.contains('hidden'), true);
+        f.contentWindow.basculerAfaireReduit(); await attendre(60);
         check('I2 les actions restent toutes visibles, avec leur nom', d.querySelectorAll('.af-carte').length > 0 && [...d.querySelectorAll('.af-carte .qui')].every(q => q.textContent.length > 0), true);
         f.remove();
 
@@ -321,18 +327,21 @@
         check('T2 aucun élément ne sort de l’écran à droite', [...d.querySelectorAll('main *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && b.right > w.innerWidth + 1; }).length, 0);
         /* ⚠️ L'ANCIENNE BANDE PRENAIT TOUT LE PREMIER ÉCRAN : le premier devis tombait à 1 147 px. */
         check('T3 le premier devis commence dans le premier écran', d.querySelector('.mrow').getBoundingClientRect().top < w.innerHeight, true);
+        /* Règle 67 (13/11/2026, « les clients d'abord ») : la ligne du jour réduite, les étapes dans l'en-tête de la liste.
+           Sur un gabarit 390 × 844 aux données de la capture de Nicolas, le premier devis tombait à 765 px (781 au doigt). */
+        check('T3b le premier devis remonte : 560 px au plus', Math.round(d.querySelector('.mrow').getBoundingClientRect().top) <= 560, true);
         check('T4 le relais est replié', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'none');
         d.querySelector('.rl-deplier').click(); await attendre(60);
         check('T5 …et se déplie d’un appui', w.getComputedStyle(d.querySelector('.rl-corps')).display, 'block');
         /* Règle 40 bis — chaque chose dite UNE fois : sous 1100 px la barre repliée du relais dit
            « 3 nouveautés » juste sous le bonjour ; le bonjour le répétait sur deux lignes, et au
            doigt le premier devis passait à 808 px pour 800 (T3 rouge en tactile, règle 67). */
-        const ckRel = d.querySelector('#ckResume .ck-rel');
         check('T12 le bonjour ne répète pas les nouvelles de l’autre : la barre du relais, juste dessous, les dit',
-          [!!ckRel && w.getComputedStyle(ckRel).display, /3 nouveautés/.test(d.querySelector('.rl-resume').textContent)], ['none', true]);
+          [/avancé/.test(d.getElementById('ckResume').textContent), /3 nouveautés/.test(d.querySelector('.rl-resume').textContent)], [false, true]);
         check('T6 les quatre étapes tiennent sur une rangée', new Set([...d.querySelectorAll('.et-seg')].map(e => Math.round(e.getBoundingClientRect().top))).size, 1);
-        check('T7 trois actions au repos', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, 3);
-        d.querySelector('.af-tout').click(); await attendre(60);
+        w.basculerAfaireReduit(); await attendre(60);
+        check('T7 trois actions au repos, une fois « À faire » affiché', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, 3);
+        (d.querySelector('.af-tout') || { click() {} }).click(); await attendre(60);   // absent = le cas échoue, la suite continue
         check('T8 « voir les N » les montre toutes, sans quitter la page', [...d.querySelectorAll('.af-carte')].filter(c => c.offsetHeight > 0).length, d.querySelectorAll('.af-carte').length);
         w.ouvrirPlus({ stopPropagation() {}, currentTarget: d.getElementById('btnPlus') }); await attendre(60);
         check('T9 la sauvegarde n’est pas proposée au doigt', [...d.querySelectorAll('.actions-menu .am-bureau')].every(e => e.offsetHeight === 0), true);
@@ -432,6 +441,10 @@
         w = f.contentWindow; d = f.contentDocument;
         const visibles = (sel) => [...d.querySelectorAll(sel)].filter(e => e.offsetHeight > 0);
         const mrow0 = () => Math.round(d.querySelector('.mrow').getBoundingClientRect().top);
+        // Réduits au premier chargement (13/11/2026) : « Afficher » les ouvre, et l'appareil retient « ouvert ».
+        (d.querySelector('#afaire .af-sommaire') || { click() {} }).click(); await attendre(60);
+        (d.querySelector('#relaisTete .poste-red') || { click() {} }).click(); await attendre(60);
+        check('P0 « Afficher » ouvre les deux blocs, et l’appareil retient « ouvert »', [d.querySelectorAll('.af-carte').length > 0, w.getComputedStyle(d.querySelector('.rl-corps')).display, w.localStorage.getItem('ss_dash_afaire'), w.localStorage.getItem('ss_dash_relais')], [true, 'block', 'ouvert', 'ouvert']);
         check('P1 une BANDE par action, pas une carte (≤ 50 px de haut)', visibles('.af-carte').filter(c => c.offsetHeight > 50).length, 0);
         check('P1b …quatre au plus au repos', visibles('.af-carte').length, Math.min(4, d.querySelectorAll('.af-carte').length));
         const ouvertTop = mrow0();
@@ -439,7 +452,7 @@
         const bRedA = d.querySelector('#afaire .af-tete .poste-red');
         check('P3 « Réduire » est un vrai bouton qui DIT son geste', [bRedA && bRedA.tagName, bRedA && bRedA.textContent.trim(), bRedA && bRedA.getAttribute('aria-expanded')], ['BUTTON', 'Réduire', 'true']);
         const nAct = d.querySelectorAll('.af-carte').length;
-        bRedA.click(); await attendre(60);
+        (bRedA || { click() {} }).click(); await attendre(60);
         const som = d.querySelector('#afaire .af-sommaire');
         check('P4 réduit : plus de bandes, une ligne, et l’appareil le retient', [d.querySelectorAll('.af-carte').length, !!som, w.localStorage.getItem('ss_dash_afaire')], [0, true, 'reduit']);
         check('P5 la ligne dit COMBIEN', som && som.querySelector('.af-nb').textContent, String(nAct));
@@ -484,12 +497,94 @@
         // La présence du bandeau mène au mot : le relais se rouvre (même réduit), le curseur est dans le champ.
         d.getElementById('presence').click(); await attendre(450);
         check('P19 « Yannick en ligne » rouvre le relais réduit et met le curseur dans le mot', [w.getComputedStyle(d.querySelector('.rl-corps')).display, d.activeElement && d.activeElement.id, w.localStorage.getItem('ss_dash_relais')], ['block', 'motAutre', 'ouvert']);
-        d.querySelector('#afaire .af-sommaire').click(); await attendre(60);
+        (d.querySelector('#afaire .af-sommaire') || { click() {} }).click(); await attendre(60);
         check('P20 « Afficher » rend les bandes, et l’appareil le retient', [d.querySelectorAll('.af-carte').length > 0, w.localStorage.getItem('ss_dash_afaire')], [true, 'ouvert']);
         // Rien à faire : la ligne réduite le DIT, au lieu d'un compteur vide.
         w.eval('DEVIS = []; SUJETS = []; RDV_LIST = []'); w.render(); await attendre(40);
-        d.querySelector('#afaire .af-tete .poste-red').click(); await attendre(40);
+        (d.querySelector('#afaire .af-tete .poste-red') || { click() {} }).click(); await attendre(40);
         check('P21 rien à faire : la ligne réduite dit 0 et « rien d’urgent »', [d.querySelector('#afaire .af-nb').textContent, /Rien d’urgent/.test(d.querySelector('#afaire .af-sommaire').textContent)], ['0', true]);
+        f.remove();
+
+        titre('La ligne du jour (variante A, choisie par Nicolas le 13/11/2026) : les clients d’abord');
+        /* « il faut absolument régler que l'on voit les clients d'abord » : à 1 822 × 1 008 (sa capture), le premier devis
+           tombait à ~800 px, un seul client visible. Le bonjour, « À faire » et le relais tiennent sur UNE ligne, réduite au
+           premier chargement ; les étapes passent en pastilles dans l'en-tête de la liste ; les chiffres du mois sont masqués. */
+        semer();
+        localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV_P));
+        // Un appareil NEUF, et une société qui n'a rien choisi pour les chiffres (le défaut de config.js).
+        const confJ = JSON.parse(SAUVE.ss_reglages || 'null') || {};
+        if (confJ.usage) delete confJ.usage.kpi_replies;
+        localStorage.setItem('ss_reglages', JSON.stringify(confJ));
+        f = await ouvrir(1822, 1008, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        const haut = (e) => Math.round(e.getBoundingClientRect().top), bas = (e) => Math.round(e.getBoundingClientRect().bottom);
+        const entiers = (fen) => [...fen.document.querySelectorAll('.mrow')].filter(r => r.getBoundingClientRect().bottom <= fen.innerHeight).length;
+        const persEntier = () => { const p = d.querySelector('#afaire .af-pers .long'); return !!p && p.offsetWidth > 0 && p.scrollWidth <= p.clientWidth + 1; };
+        const salutJ = d.getElementById('cockpit'), afJ = d.getElementById('afaire'), rlJ = d.getElementById('relais');
+        check('J1 premier chargement : « À faire » et le relais sont RÉDUITS, sans rien écrire sur l’appareil',
+          [!!d.querySelector('#afaire .af-sommaire'), d.querySelectorAll('.af-carte').length, w.getComputedStyle(d.querySelector('.rl-corps')).display, w.localStorage.getItem('ss_dash_afaire'), w.localStorage.getItem('ss_dash_relais')],
+          [true, 0, 'none', null, null]);
+        check('J7 une urgence change la LIGNE (« Critique », « personne ») et ne déplie rien toute seule',
+          [!!d.querySelector('#afaire .af-sommaire .af-urg'), !!d.querySelector('#afaire .af-sommaire .af-pers'), d.querySelectorAll('.af-carte').length], [true, true, 0]);
+        // Dans un navigateur (pas installée) : le bonjour et « Installer l'app » ont leur rangée, juste au-dessus.
+        check('J12 pas encore installée : le bonjour et « Installer l’app » ont leur rangée au-dessus, et « 1 que personne n’a pris » reste entier',
+          [d.getElementById('btnInstaller').offsetHeight > 0, bas(salutJ) <= haut(afJ), haut(afJ) === haut(rlJ), persEntier()], [true, true, true, true]);
+        check('J3b …le premier devis reste haut (350 px au plus) et au moins 4 devis sont entiers',
+          [haut(d.querySelector('.mrow')) <= 350, entiers(w) >= 4], [true, true]);
+        // Installée (le bouton se cache, comme le fait nav.js) : tout tient sur UNE ligne.
+        d.getElementById('btnInstaller').classList.add('hidden'); await attendre(80);
+        check('J2 installée : le bonjour, « À faire » et le relais sur UNE rangée de 60 px au plus',
+          [haut(salutJ) === haut(afJ) && haut(afJ) === haut(rlJ), d.getElementById('jour').offsetHeight <= 60], [true, true]);
+        check('J3 1 822 × 1 008 : le premier devis à 300 px au plus, et au moins 4 devis entiers', [haut(d.querySelector('.mrow')) <= 300, entiers(w) >= 4], [true, true]);
+        check('J12b …et « 1 que personne n’a pris » reste entier dans la ligne', persEntier(), true);
+        check('J4 chaque chose dite UNE fois : les poses sous le bonjour, « 3 nouveautés » dans le relais, plus de « a avancé »',
+          [(d.getElementById('jour').innerText.match(/poses? dans les 7 jours/g) || []).length, /2 poses/.test(d.getElementById('ckResume').textContent), /3 nouveautés/.test(d.querySelector('.rl-resume').textContent), /avancé/.test(d.body.innerText)],
+          [1, true, true, false]);
+        // Les étapes : des pastilles DANS l'en-tête de la liste — plus rien entre la ligne du jour et la barre d'outils.
+        const entreJ = []; for (let n = d.getElementById('jour').nextElementSibling; n && !n.classList.contains('toolbar'); n = n.nextElementSibling) if (n.offsetHeight) entreJ.push(n.className);
+        check('J8 les étapes sont des pastilles DANS l’en-tête de la liste, et rien ne s’intercale entre la ligne du jour et la barre',
+          [!!d.getElementById('etapes').closest('.section-head'), d.querySelectorAll('.section-head .et-seg').length, entreJ], [true, 4, []]);
+        const segJ = [...d.querySelectorAll('.et-seg')].map(bt => { const val = bt.querySelector('.et-val'); return { lib: bt.querySelector('.et-lib').textContent, n: bt.querySelector('b').textContent, val: val ? val.textContent.replace(/^·\s*/, '') : '', titre: bt.title }; });
+        check('J8b chaque pastille dit son nom, son nombre et son poids — les mêmes que son infobulle (aucun montant ne change)',
+          segJ.filter(x => !x.titre.startsWith((x.lib === 'Soldes' ? 'Soldes à encaisser' : x.lib) + ' : ' + x.n + ' · ' + (x.val || '0 €'))).map(x => x.lib), []);
+        const legJ = d.querySelector('.section-head .section-legende'), shJ = d.querySelector('.sh-centre');
+        check('J9 la légende de la frise : entière après les pastilles, et toujours dans l’infobulle de « Devis »',
+          [legJ.offsetWidth > 0 && haut(legJ) < bas(shJ), legJ.scrollWidth <= legJ.clientWidth + 1, /créé → envoyé → relances → signé → posé → payé/.test(d.querySelector('.section-head .section-title').title)], [true, true, true]);
+        const manJ = d.getElementById('mantra'), mtJ = d.getElementById('mantraText');
+        check('J11 la pensée du jour vit dans le bandeau, à côté de la date : entière, jamais coupée, son texte en infobulle',
+          [!!manJ.closest('.app-header'), manJ.offsetWidth > 0 && haut(manJ) < bas(d.querySelector('.dash-sous')), mtJ.scrollWidth <= mtJ.clientWidth + 1, manJ.title.indexOf(mtJ.textContent.trim()) >= 0], [true, true, true, true]);
+        // Les chiffres du MOIS (signé ce mois, en jeu, à encaisser, bénéfices) : masqués par défaut, l'œil dans l'en-tête.
+        const oeilJ = d.getElementById('kpiToggle');
+        check('J14 appareil neuf : les chiffres du mois sont MASQUÉS au bureau aussi (décision de Nicolas, 13/11/2026)',
+          [d.getElementById('kpis').classList.contains('hidden'), oeilJ.getAttribute('aria-label')], [true, 'Afficher les chiffres']);
+        check('J10 l’œil vit dans l’en-tête de la liste', !!oeilJ.closest('.section-head') && oeilJ.offsetWidth > 0, true);
+        oeilJ.click(); await attendre(80);
+        const kpJ = d.getElementById('kpis');
+        check('J15 un clic sur l’œil les affiche, en bande juste sous l’en-tête, et l’appareil le retient',
+          [!kpJ.classList.contains('hidden'), Math.abs(kpJ.getBoundingClientRect().top - d.querySelector('.filigrane-hote > .section-head').getBoundingClientRect().bottom) <= 1, w.localStorage.getItem('ss_dash_kpis')], [true, true, '1']);
+        // « ✉ Un mot » : le relais se déplie, le curseur va dans le champ — sans retenir l'ouverture, sans réécrire le formulaire.
+        const champJ = d.getElementById('motAutre');
+        champJ.value = 'pas fini';
+        d.querySelector('#relaisTete .rl-motbtn').click(); await attendre(80);
+        check('J5 « ✉ Un mot » déplie le relais, met le curseur dans le champ, ne retient rien, et c’est le MÊME formulaire',
+          [w.getComputedStyle(d.querySelector('.rl-corps')).display, d.activeElement && d.activeElement.id, w.localStorage.getItem('ss_dash_relais'), d.getElementById('motAutre') === champJ && champJ.value, d.querySelector('#relaisTete .rl-motbtn').offsetWidth],
+          ['block', 'motAutre', null, 'pas fini', 0]);
+        d.querySelector('#relaisTete .poste-red').click(); await attendre(60);
+        check('J6 …« Réduire » le replie, sans jamais avoir retenu d’ouverture', [w.getComputedStyle(d.querySelector('.rl-corps')).display, w.localStorage.getItem('ss_dash_relais'), champJ.value], ['none', 'reduit', 'pas fini']);
+        champJ.value = '';
+        f.remove();
+        f = await ouvrir(1822, 1008, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        check('J15b …un nouveau chargement garde les chiffres affichés (le choix de l’appareil passe devant)', d.getElementById('kpis').classList.contains('hidden'), false);
+        f.remove();
+        // La taille RÉELLE de sa page : sa capture est en pixels physiques, Windows à 125 % → 1 526 × 781 px CSS.
+        semer();
+        localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV_P));
+        f = await ouvrir(1526, 781, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        d.getElementById('btnInstaller').classList.add('hidden'); await attendre(80);
+        check('J3c 1 526 × 781 (sa fenêtre réelle, app installée) : le premier devis à 300 px au plus, et au moins 4 devis entiers',
+          [haut(d.querySelector('.mrow')) <= 300, entiers(w) >= 4], [true, true]);
         f.remove();
 
         titre('Le poste à toutes les largeurs (règle 67) : rien de coupé, rien hors de l’écran, 40 px au doigt');
@@ -497,17 +592,23 @@
           for (const reduit of [false, true]) {
             semer();
             localStorage.setItem('ss_rdv_cache', JSON.stringify(RDV_P));
-            if (reduit) { localStorage.setItem('ss_dash_afaire', 'reduit'); localStorage.setItem('ss_dash_relais', 'reduit'); }
+            // Le défaut est RÉDUIT depuis le 13/11/2026 : « ouvert » est un choix écrit par « Afficher ».
+            localStorage.setItem('ss_dash_afaire', reduit ? 'reduit' : 'ouvert'); localStorage.setItem('ss_dash_relais', reduit ? 'reduit' : 'ouvert');
             f = await ouvrir(L, H, 'nicolas');
             w = f.contentWindow; d = f.contentDocument;
             const tag = 'W ' + L + ' px ' + (reduit ? 'réduit' : 'ouvert');
             // `.af-noms` : ses noms passent à la ligne (cachée) au lieu d'être coupés — mais un nom
             // long rejeté seul sur la ligne cachée ne doit pas déborder de côté pour autant.
-            const coupes = [...d.querySelectorAll('.af-carte, .af-sommaire, .af-noms, .af-tete, .rl-tete, .rl-mot, .rl-attend, .poste-red, .af-pers, .af-pers span')].filter(e => e.offsetWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.className);
-            const dehors = [...d.querySelectorAll('.poste *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && (b.right > w.innerWidth + 1 || b.left < -1); }).map(e => e.className);
-            check(tag + ' : rien de coupé ni hors de l’écran dans le poste', [coupes, dehors, d.documentElement.scrollWidth <= w.innerWidth], [[], [], true]);
+            const coupes = [...d.querySelectorAll('.af-carte, .af-sommaire, .af-noms, .af-tete, .rl-tete, .rl-qui, .rl-nom, .rl-resume, .rl-mot, .rl-attend, .poste-red, .rl-motbtn, .af-pers, .af-pers span, .jr-salut, .ck-bonjour, .ck-resume, .ck-installer, .et-seg, .et-court, .section-head > *')].filter(e => e.offsetWidth && e.scrollWidth > e.clientWidth + 1).map(e => e.className);
+            const dehors = [...d.querySelectorAll('.poste *, .section-head *')].filter(e => { const b = e.getBoundingClientRect(); return b.width && (b.right > w.innerWidth + 1 || b.left < -1); }).map(e => e.className);
+            check(tag + ' : rien de coupé ni hors de l’écran dans la ligne du jour et l’en-tête de la liste', [coupes, dehors, d.documentElement.scrollWidth <= w.innerWidth], [[], [], true]);
+            // Entières ou absentes, jamais coupées : la légende de la frise (en-tête) et la pensée du jour (bandeau).
+            const legW = d.querySelector('.section-head .section-legende'), manW = d.getElementById('mantra'), mtW = d.getElementById('mantraText');
+            const vue = (e, boite) => e.offsetWidth > 0 && e.getBoundingClientRect().top < boite.getBoundingClientRect().bottom;
+            check(tag + ' : la légende de la frise et la pensée du jour sont entières ou absentes',
+              [!vue(legW, d.querySelector('.sh-centre')) || legW.scrollWidth <= legW.clientWidth + 1, !vue(manW, d.querySelector('.dash-sous')) || mtW.scrollWidth <= mtW.clientWidth + 1], [true, true]);
             if (L <= 760) {
-              check(tag + ' : chaque geste fait au moins 40 px au doigt', visibles('.poste .poste-red, .poste .af-sommaire, .poste .rl-deplier, .poste .af-btn').filter(e => e.offsetHeight < 40).map(e => e.className), []);
+              check(tag + ' : chaque geste fait au moins 40 px au doigt', visibles('.poste .poste-red, .poste .af-sommaire, .poste .rl-deplier, .poste .af-btn, .poste .rl-motbtn, .poste .ck-installer, .section-head .et-seg, .section-head .ck-oeil').filter(e => e.offsetHeight < 40).map(e => e.className), []);
               // 640 px de haut ne laisse pas la place (le bonjour et la barre en prennent déjà 560) :
               // la promesse du premier écran vaut pour un vrai téléphone (390 × 800, T3).
               if (H >= 800) check(tag + ' : le premier devis reste dans le premier écran', mrow0() < H, true);
@@ -540,6 +641,15 @@
         check('G4 l’objectif du mois dessine son anneau', !!d.querySelector('#kpis .ck-t .ck-ring'), true);
         w.toggleDense();
         check('G5 le choix de l’appareil passe devant', d.querySelector('.mix-list').classList.contains('dense'), false);
+        f.remove();
+        // Masqués par défaut (13/11/2026) — mais une société qui les veut DÉPLIÉS sur un appareil neuf est obéie : un réglage
+        // qu'on peut enregistrer dans Paramètres est un réglage LU (défaut 4 de la règle 40).
+        semer();
+        conf.usage.kpi_replies = false;
+        localStorage.setItem('ss_reglages', JSON.stringify(conf));
+        f = await ouvrir(1500, 900, 'nicolas');
+        w = f.contentWindow; d = f.contentDocument;
+        check('G6 société « Dépliés » : les chiffres s’affichent sur un appareil neuf', d.getElementById('kpis').classList.contains('hidden'), false);
         f.remove();
       } catch (e) {
         check('Erreur inattendue', String(e && e.message || e), '');
