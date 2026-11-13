@@ -262,6 +262,26 @@
         }
         check('R7 Sans date envoyée, un encaissement et une facture prennent le jour BELGE à 0 h 30 et 23 h 30, été comme hiver (la veille, en UTC)',
           r7, H.NUITS.map((n) => [n.nom, n.jour, n.jour, n.jour]));
+        /* R8 — LE FILET de `jourBelge` : les tests tournent dans Chrome, pas dans le runtime de Cloudflare. Si `Intl` n'y connaissait
+           pas le fuseau (RangeError), la numérotation renverrait 500 — plus aucune facture — et le lien de suivi tomberait. On le
+           simule : `Intl.DateTimeFormat` LÈVE, le temps de quatre appels, le 1er janvier à 0 h 30. Tout doit passer, au jour UTC d'avant. */
+        BANC.DB.exec("INSERT INTO devis (id, client_nom, client_prenom, statut, total_ttc, date_creation, date_modification, data) VALUES ('FILET-1', 'Filet', 'Essai', 'signe', 0, '2026-10-01', '2026-10-01T10:00:00.000Z', '"
+          + JSON.stringify({ id: 'FILET-1', statut: 'signe', client: { prenom: 'Essai', nom: 'Filet' }, items: [], track_token: 'trk-filet', reception: { date: '2026-12-31T23:30:00.000Z', image: 'data:image/png;base64,U0lH' }, date_modification: '2026-10-01T10:00:00.000Z' }) + "')");
+        const vraiDTF = Intl.DateTimeFormat;
+        let r8;
+        Intl.DateTimeFormat = function () { throw new RangeError('Invalid time zone specified: Europe/Brussels'); };
+        try {
+          r8 = await H.serveur('2026-12-31T23:30:00Z', async () => {
+            const rf = await nouvelle('F', '2027-01-01');
+            const rph = await BANC.fetch('/api/devis/FILET-1/chantier-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: '/api/photos/own/filet', phase: 'pendant' }) });
+            const rpa = rf.id ? await posterF('/api/factures/' + encodeURIComponent(rf.id) + '/paiement', { montant: 10, moyen: 'Virement' }) : {};
+            const rt = await BANC.fetch('/api/track?t=trk-filet&staff=1');
+            const jt = await rt.json().catch(() => ({}));
+            return [String(rf.id || rf.error).slice(0, 6), rph.status, ((await rph.json().catch(() => ({}))).entry || {}).date, (rpa.paiement || {}).date, rt.status, ((jt.data || {}).reception || {}).date];
+          });
+        } finally { Intl.DateTimeFormat = vraiDTF; }
+        check('R8 FILET : Intl qui ne connaît pas le fuseau (RangeError) ne bloque RIEN — facture numérotée, photo écrite, encaissement, lien de suivi servi —, au jour UTC d’avant (31/12, F2026) plutôt qu’un 500',
+          [r8, Intl.DateTimeFormat === vraiDTF], [['F2026-', 200, '2026-12-31', '2026-12-31', 200, '2026-12-31'], true]);
 
         // ══════════ P — LA PAGE ══════════
         titre('P — La page, remplie par le bac à sable, cliquée au bureau');

@@ -96,10 +96,16 @@ function jourBelge(v) {
   const s = String(v == null ? '' : v).trim();
   const t = /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? new Date(s) : null;
   if (!t || isNaN(t)) return s.slice(0, 10);
-  const p = {};
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .formatToParts(t).forEach((x) => { p[x.type] = x.value; });
-  return p.year + '-' + p.month + '-' + p.day;
+  // Filet : si le runtime ne connaît pas le fuseau, on retombe sur l'UTC d'avant plutôt que de bloquer une facture
+  // (la numérotation et le lien de suivi passent par ici). Une réponse qui n'a pas la forme d'un jour retombe aussi.
+  try {
+    const p = {};
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(t).forEach((x) => { p[x.type] = x.value; });
+    const jour = p.year + '-' + p.month + '-' + p.day;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(jour)) return jour;
+  } catch (e) { /* fuseau inconnu : l'UTC ci-dessous */ }
+  return s.slice(0, 10);
 }
 // « AUJOURD'HUI » au sens de Nicolas, de Yannick et du client — pas de Cloudflare : le jour BELGE de l'instant présent
 // (règle 18). Toute route qui ÉCRIT un jour par défaut ou COMPARE une date à aujourd'hui passe par ici :
