@@ -521,6 +521,44 @@
         [true, true, true]);
       f.remove();
 
+      // ══════════ S — SOLI NE SE POSE PAS SUR LA FIN D'UNE PAGE (14/11/2026, test complet) ══════════
+      /* Fixe en bas à droite, Soli restait sur la dernière ligne de vingt pages une fois tout défilé : au téléphone, le « ⋯ » de la
+         dernière facture ouvrait l'assistant. nav.js allonge la page de sa place (une cale en fin de <body>, à l'écran seulement).
+         Le cas ne dépend d'aucune donnée : une vraie page, allongée, avec un bouton calé tout en bas à droite. */
+      titre('Soli ne se pose pas sur la fin d’une page');
+      const finSousSoli = [];
+      for (const [lw, lh, enc] of [[390, 700, true], [1000, 800, false]]) {
+        const g = await cadre('../app/factures.html', lw, lh);
+        const dg = g.contentDocument, wg = g.contentWindow;
+        dg.documentElement.style.scrollBehavior = 'auto';
+        if (enc) encocher(dg);
+        const hote = dg.querySelector('main, .container') || dg.body;
+        const remplissage = dg.createElement('div'); remplissage.style.height = (lh * 2) + 'px';
+        const ligne = dg.createElement('div'); ligne.style.cssText = 'display:flex;justify-content:flex-end';
+        ligne.innerHTML = '<button type="button" id="dernierBouton" class="btn btn-ghost btn-sm">⋯</button>';
+        hote.appendChild(remplissage); hote.appendChild(ligne);
+        await attendre(80);
+        wg.scrollTo(0, 1e7); await attendre(60);
+        const fab = dg.querySelector('.ssfab'), b = dg.getElementById('dernierBouton');
+        if (!fab) { finSousSoli.push(lw + ':pas de Soli'); g.remove(); continue; }
+        const rf = fab.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        const touche = Math.min(rf.right, rb.right) - Math.max(rf.left, rb.left) > 0 && Math.min(rf.bottom, rb.bottom) - Math.max(rf.top, rb.top) > 0;
+        finSousSoli.push(lw + ':' + (touche ? 'sous Soli' : 'libre') + (rb.bottom <= rf.top - 4 || rb.right <= rf.left ? '' : ' (collé)'));
+        g.remove();
+      }
+      check('S1 tout défilé en bas, le dernier bouton de la page (calé à droite) n’est pas sous Soli : à 390 px (encoche) et à 1 000 px',
+        finSousSoli, ['390:libre', '1000:libre']);
+      const fv = await cadre('../app/vue.html?id=inconnu', 390, 700);
+      const dv = fv.contentDocument;
+      const caleVue = dv.querySelector('.ssfab') ? fv.contentWindow.getComputedStyle(dv.body, '::after').height : 'pas de Soli';
+      const aplatir = (l) => l.flatMap(r => [r, ...(r.cssRules ? aplatir([...r.cssRules]) : [])]);   // la règle vit DANS un @media
+      const regleCale = aplatir(regles(dv)).find(r => r.selectorText && /body:has\(>\s*\.ssfab\)::after/.test(r.selectorText));
+      check('S2 la fiche devis, qui réserve déjà sa place (règle 66, avec « Sommaire »), n’ajoute pas une seconde cale',
+        caleVue, '0px');
+      check('S3 la cale n’existe qu’à l’ÉCRAN (à l’impression, elle ajouterait une page)',
+        regleCale ? (regleCale.parentRule && regleCale.parentRule.media ? regleCale.parentRule.media.mediaText : 'toujours') : 'absente', 'screen');
+      fv.remove();
+
       try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}
       rendre();
     })().catch(function (e) {
