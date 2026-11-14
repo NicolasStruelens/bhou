@@ -74,7 +74,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `assets/js/attente.js` | **Qui doit agir.** Réunit demandes, planning, SAV et échanges. 80 des 113 tests de sa suite (`window.SSAttente`) |
 | `functions/api/[[catchall]].js` | **Tout le backend**, dans un seul fichier (Cloudflare Pages Function + base D1) |
 | `tests/calc.test.html` | Les 119 tests du moteur de prix (règle 64 : part libre figée, partage, remise projet, rappel ; vérifiés par mutations). À ouvrir dans un navigateur. |
-| `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements, fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). Sur téléphone, l'ENCOCHE d'un iPhone est simulée (59 px en haut, 34 en bas, règle 61) : « sous l'encoche », « sous la barre de gestes ». **Par le serveur de test.** |
+| `tests/audit.html` | **Pas une suite — l'AUDIT de toutes les pages** (règle 56) : chaque page, chaque fiche, chaque document et chaque lien client du bac à sable ouvert au bureau et sur téléphone ; erreurs, requêtes refusées, fichiers et liens morts, « undefined » affiché, gestionnaires qui ne compilent pas, débordements, textes coupés ou écrasés, chevauchements (entre commandes, et une commande posée sur du TEXTE — règle 40 bis), fenêtres trop larges, sans défilement ou sans sortie. `?seul=vue|rdv` filtre ; `?reel=1` le joue EN VRAI sur un aperçu (sa base d'essai, sans rien écrire). Sur téléphone, l'ENCOCHE d'un iPhone est simulée (59 px en haut, 34 en bas, règle 61) : « sous l'encoche », « sous la barre de gestes ». **Par le serveur de test.** |
 | `tests/audit-clics.html` | **Pas une suite — le ROBOT qui clique** (règle 56) : 37 écrans × 2 largeurs, chaque bouton cliqué sur une base remise à neuf, chaque fenêtre ouverte remplie de saisies PIÉGÉES puis enregistrée, puis refermée (Échap, puis son bouton). Rien ne sort du cadre (impression, fichier, plein écran, position, partage, téléchargement, « retour »). **Par le serveur de test, onglet au premier plan.** |
 | `tests/audit-outils.js` | Les outils des deux audits (`window.SSAudit`) : le cadre et ses témoins, l'attente, la relève de l'écran. |
 | `tests/impression.html` | **Pas une suite — le BANC D'IMPRESSION** (règle 56) : remplit le banc, écrit le document demandé dans la fenêtre et pose `window.__imprimable` ; un Chrome sans écran piloté par son protocole (`Page.printToPDF`) en tire le vrai PDF. Liste fermée de pages et d'actions (`client`, `bordereau`, `releve`, `portfolio`). Exemples FICTIFS hors jeu : `exemple=volets4`, `exemple=remises` (devis à remise ; avec `&factures=1`, leurs factures faites par la vraie règle, `facturerRemises`, règle 65). |
@@ -128,7 +128,7 @@ s'ouvrir en double-cliquant un fichier. Tout est exposé sur `window.*`.
 | `tests/outillage.test.html` | Les 58 tests de l'outillage : règles pures, les ROUTES (fusion, « à racheter » ciblé et signé, kits, refus hors-ligne), la vraie page remplie par le bac à sable et cliquée (recherche, liste de courses, deux fournisseurs, fiche et ses fenêtres, photos dans R2 et « Alléger », visionneuse, comptoir, kits, « à emporter »), le lien du planning, le téléphone et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
 | `assets/js/sav.js` | **La page SAV** (règle 47) : la file (personne dessus, en retard, ancien), les étapes, l'ancienneté, « ce qui casse le plus », le bon d'intervention. Fonctions pures (`window.SSSav`). |
 | `tests/sav.test.html` | Les 70 tests du SAV : règles pures, « qui doit agir », la ROUTE SERVEUR (passages signés, clôture refusée sans texte, pièce commandée, notes, anciens tickets, bon d'intervention), la vraie page cliquée au bureau (file, garantie, étapes, Je prends, pièce, note, réparé, rouvrir, photos, bon jusque dans le simulateur), la fenêtre « Nouveau ticket », la fiche devis (sa carte SAV atteinte par le sommaire, au portable comme au téléphone, règle 66), le téléphone (rien de coupé) et « retour ». Vérifié par 13 mutations. **Par le serveur de test, avec accès à cdnjs.** |
-| `tests/dashboard.test.html` | Les 149 tests du tableau de bord (règles 40, 40 bis et 67) : le haut qui se réduit (une bande par action, « Réduire » retenu par l'appareil, la ligne réduite qui nomme combien, « personne », « Critique » et les dossiers, le mot à l'autre jamais réécrit, « Ça attend » déplié sur place, la présence qui rouvre, chaque largeur de 1 250 à 320 px), prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
+| `tests/dashboard.test.html` | Les 200 tests du tableau de bord (règles 40, 40 bis et 67) : le haut qui se réduit (une bande par action, « Réduire » retenu par l'appareil, la ligne réduite qui nomme combien, « personne », « Critique » et les dossiers, le mot à l'autre jamais réécrit, « Ça attend » déplié sur place, la présence qui rouvre, chaque largeur de 1 250 à 320 px), la ligne du jour (règle 67), prochaine action (dépannage, commande, pose à venir, clôture), situations, étapes, relais, bandeaux au détail (rien de coupé, rien qui chevauche), les lignes de devis au téléphone (cas Q, de 320 à 760 px : le ⋯, le montant et le « reste » ne se posent sur rien, ⋯ de 40 px, nom entier à côté de sa pastille), bureau, tablette, téléphone, réglages de la société, et le bouton « Installer l'app » (règle 63 : invite gardée et servie une fois, étapes de l'appareil, fond, Échap, « retour », caché en app installée). Données FICTIVES, remises en état à la fin. **Par le serveur de test.** |
 | `assets/js/actions.js` | **La prochaine action**, « à faire maintenant », les chiffres du cockpit et « actif / clos / soldé », sortis du tableau de bord pour que l'écran et l'assistant suivent UNE règle (`window.SSActions`, règle 41). |
 | `assets/js/assistant.js` | **L'assistant (Claude)** : le panneau, la conversation, les outils exécutés dans le navigateur (`window.SSAssistant`, règle 41). Chargé par `nav.js` au premier clic. |
 | `tests/assistant.test.html` | Les 131 tests de l'assistant : module partagé comparé au tableau de bord, outils, écritures seulement après un clic, forme de la conversation envoyée à l'API, liens, la ROUTE SERVEUR (vrai fichier, faux serveur Anthropic : flux découpé, erreurs, nouveaux essais, plafond compté par jour belge), bureau et téléphone. Aucun appel réel à Claude. **Par le serveur de test.** |
@@ -2295,7 +2295,7 @@ pastilles cliquables et l'œil des **chiffres du mois** (en bande sous l'en-têt
 
 **40 bis. LES BANDEAUX, AU DÉTAIL PRÈS** (retour de Nicolas sur la production, 25/10/2026, capture
 à l'appui : « il faut qu'ils soient impeccables, précis dans le détail »). Chaque point ci-dessous
-est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test.html` (cas L, T, M).
+est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test.html` (cas L, T, M, Q).
 • **Chaque chose dite UNE fois, à SA place.** La pastille d'action dit QUOI faire (et QUAND pour
   une mise en attente : « En attente · revoir le 28/11 ») ; la légende de la frise dit DEPUIS
   QUAND (« envoyé il y a 26 j · non ouvert ») ou POURQUOI (« « Le client revient vers moi » »,
@@ -2323,6 +2323,30 @@ est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test
   capture d'écran étant réduite de moitié) ET par la mesure (`scrollWidth > clientWidth` pour ce
   qui est coupé, chevauchement des boîtes) — à 1560, 1250, 1100, 1000 et 375 px, sur des données
   qui ont la forme des vraies (motifs longs, chantiers en deux poses, liens jamais ouverts).
+• **Au téléphone, la colonne du montant ne se pose sur RIEN** (14/11/2026 — le « ⋯ » écrit sur la fin
+  de « Brigitte Essai-Waut… » à 390 × 844 au doigt, avant ET après la règle 67). Cause : un
+  `max-width: 42%` sur `.m-right` (bloc ≤ 560 px), resté du temps où un badge « Retard paiement »
+  vivait là. La colonne est `auto` — elle vaut la largeur de SON contenu — et un pourcentage de
+  `max-width` sur un élément de grille se calcule sur sa CASE : 42 % de 134 px = 56 px. Le ⋯ et le
+  montant ne rétrécissent pas, `flex-end` envoyait les 78 px de trop VERS LA GAUCHE : ⋯ et montant
+  sur le nom de 320 à 390 px, sur le badge « ⚠ N » à 430. **Jamais de pourcentage sur une case de
+  grille `auto`** ; et un contenu qui ne rétrécit pas, calé à droite, déborde à GAUCHE sans que
+  rien ne sorte de l'écran. Au même endroit, le « reste … » (en absolu sous le montant) tombait à
+  430 px sur la ligne « 2 Screens Coolscreen 8 · Chambre… » : au téléphone `.m-main` est dissous et
+  la rangée du montant n'est haute que du nom — il est donc DANS LE FLUX sous 560 px (une grille
+  ⋯ | montant, puis l'état de paiement), et la rangée grandit au lieu de recouvrir. Le nom passe à la
+  ligne au lieu d'être coupé (au doigt, pas d'infobulle pour lire la fin), interligne 1,25 ; `10ch`
+  est plafonné à la place laissée par la pastille (à 320 px elle restait seule sur sa ligne). Le ⋯ fait
+  40 × 40 px sous 760 px (38, et 30 à 760). Au-dessus de 760 px : rien ne bouge (empreinte de 1 012
+  éléments identique, souris et doigt, de 761 à 1 822 px). Tenu par les cas Q de `dashboard.test.html`
+  (320, 360, 375, 390, 430 et 760 px). ⚠️ L'audit disait « 0 », pour DEUX raisons (`audit-outils.js`) : il
+  ne comparait que des COMMANDES entre elles, et un nom est du texte — il relève désormais une « commande
+  sur du texte » (le texte mesuré ligne par ligne, rogné par sa boîte ; excusé seulement s'il est POSÉ
+  EXPRÈS, en absolu, à côté de la commande dans le même conteneur : l'unité « € » dans son champ, un badge
+  sur la photo d'une carte) ; et son `decor()` prenait pour un
+  décor tout ce qui est sous une classe commençant par « filigrane » — y compris `.filigrane-hote`, la
+  section qui PORTE le filigrane, c'est-à-dire toute la liste des devis, qui échappait depuis le 28/10 aux
+  contrôles « coupé au bord » et « rogné ». Il lit désormais les classes une à une, et l'hôte n'en est pas.
 
 **41. L'ASSISTANT (Claude) LIT AVEC LES RÈGLES DES ÉCRANS ET N'ÉCRIT QU'APRÈS UN CLIC** (25/10/2026 —
 choix de Nicolas : un panneau sur toutes les pages, lecture + actions confirmées, Claude Opus 5.5).
@@ -4150,7 +4174,7 @@ variante B « Bandeau » et, pour l'envoi, « le lien et le PDF à glisser », a
    `tests/outillage.test.html`, exiger « 58/58 », par le serveur — ET `bac-a-sable.test.html`.
    Et dès qu'on touche au SAV (`app/sav.html`, `sav.js`, la carte SAV de `vue.html`, la route `/api/devis/:id/sav`) :
    `tests/sav.test.html`, exiger « 70/70 », par le serveur — ET `attente.test.html` et `bac-a-sable.test.html`.
-   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 182/182 », par le serveur — au bureau ET en
+   Et dès qu'on touche au tableau de bord : `tests/dashboard.test.html`, exiger « 200/200 », par le serveur — au bureau ET en
    émulation tactile (le premier devis dans le premier écran du téléphone ne se joue vraiment qu'avec des cibles de 44 px, T3).
    Et dès qu'on touche à l'assistant, à `actions.js` ou à `/api/assistant` : `tests/assistant.test.html`,
    exiger « 131/131 », par le serveur — ET `dashboard.test.html`, puisque le module est partagé.

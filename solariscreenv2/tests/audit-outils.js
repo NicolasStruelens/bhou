@@ -169,7 +169,10 @@
     const rogneDedans = (e) => { for (let x = e.parentElement; x && x !== d.body && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().right <= W + 1) return true; } return false; };
     const rogneDedansG = (e) => { for (let x = e.parentElement; x && x !== d.body && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowX === 'hidden' || s.overflowX === 'clip') && x.getBoundingClientRect().left >= -1) return true; } return false; };
     // Un décor (filigrane, toile de fête) : posé exprès par-dessus ou au-delà, il ne se clique pas.
-    const decor = (e) => { for (let x = e; x && x !== d.body; x = x.parentElement) { if (x.getAttribute('aria-hidden') === 'true' || /\b(watermark|ssfete|filigrane)/.test(x.className && x.className.baseVal === undefined ? x.className : '')) return true; } return false; };
+    // ⚠️ Le décor, PAS SON HÔTE (14/11/2026) : « \bfiligrane » attrapait aussi `.filigrane-hote`, la section qui PORTE le filigrane
+    // du tableau de bord — c'est-à-dire toute la liste des devis. Elle échappait depuis toujours aux contrôles « coupé au bord »,
+    // « rogné » et à la commande posée sur du texte (le ⋯ sur le nom du client, règle 40 bis). On lit les classes une à une.
+    const decor = (e) => { for (let x = e; x && x !== d.body; x = x.parentElement) { if (x.getAttribute('aria-hidden') === 'true' || [...(x.classList || [])].some((c) => /^(watermark|ssfete|filigrane)/.test(c) && !/-hote$/.test(c))) return true; } return false; };
 
     // 1. La page déborde de côté.
     const sw = Math.max(d.documentElement.scrollWidth, d.body ? d.body.scrollWidth : 0);
@@ -316,6 +319,48 @@
       const menu = fa !== fb && [fa, fb].find((x) => x && x.classList.contains('status-menu'));
       if (pire && menu) { const t = d.elementFromPoint(pire[2], pire[3]); if (t && menu.contains(t)) continue; }
       if (pire) out.push(['chevauchement', chemin(a) + ' « ' + texte(a) + ' » ✕ ' + chemin(b) + ' « ' + texte(b) + ' » (' + Math.round(pire[0]) + '×' + Math.round(pire[1]) + ' px)']);
+    }
+
+    // 9 bis. Une commande posée sur du TEXTE (14/11/2026, règle 40 bis). Au téléphone, le « ⋯ » d'une ligne de devis s'écrivait
+    //    sur la fin du nom du client (« Brigitte Essai-Waut… ») et l'audit disait 0 : le contrôle 9 ne compare que des commandes
+    //    ENTRE ELLES, et le nom est du texte. Chaque commande visible est donc comparée aux morceaux de texte de la page — leurs
+    //    boîtes LIGNE PAR LIGNE (`Range`), rognées par leur propre boîte et ses ancêtres (un nom en points de suspension ne
+    //    s'étend pas au-delà de sa boîte) —, dans le même calque, hors son propre libellé. Le texte d'une AUTRE commande est
+    //    laissé au contrôle 9 (sauf celle qui contient les deux : une ligne cliquable n'excuse pas ce qui s'y recouvre).
+    //    POSÉ EXPRÈS, comme le bouton dans son champ du contrôle 9 : le texte vit dans un élément en ABSOLU, frère de la commande
+    //    (même conteneur) — l'unité « € » ou « % » dans son champ (`.input-unit .unit`, ~500 relevés au premier passage), les
+    //    badges « 2 » et « avant / après » sur la photo-bouton d'une carte du portfolio. Ce qui est dans le FLUX n'est jamais excusé.
+    const poseSur = (c, p) => { const o = c.parentElement && [...c.parentElement.children].find((x) => x !== c && x.contains(p)); return !!o && /^(absolute|fixed)$/.test(w.getComputedStyle(o).position); };
+    const SEL_CMD = 'a[href], button, input:not([type=hidden]), select, textarea, [onclick], [role=button]';
+    const textes = [];
+    const tw = d.createTreeWalker(d.body, w.NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const p = n.parentElement;
+      if (!p || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|OPTION|SELECT|TEXTAREA)$/.test(p.tagName) || !vis(p) || decor(p)) continue;
+      if (calques.length && !calques.some((c) => c.contains(p))) continue;
+      const rg = d.createRange(); rg.selectNodeContents(n);
+      const rs = [...rg.getClientRects()].map((q) => rogner({ parentElement: p }, q)).filter((q) => q.width > 3 && q.height > 3);
+      if (rs.length) textes.push({ n, p, rs, calque: calqueDe(p), cmd: p.closest(SEL_CMD) });
+    }
+    for (const c of cmd) {
+      const rc = [...c.getClientRects()].map((r) => rogner(c, r)).filter((r) => r.width > 0 && r.height > 0);
+      if (!rc.length) continue;
+      const fc = calqueDe(c);
+      const vus = new Set();
+      for (const t of textes) {
+        if (c.contains(t.p) || t.calque !== fc || vus.has(t.p)) continue;
+        if (t.cmd && !t.cmd.contains(c)) continue;   // le texte d'une autre commande : contrôle 9
+        if (poseSur(c, t.p)) continue;
+        let pire = null;
+        for (const ra of rc) for (const rb of t.rs) {
+          const ix = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), iy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+          if (ix > 3 && iy > 3 && (!pire || ix * iy > pire[0] * pire[1])) pire = [ix, iy];
+        }
+        if (!pire) continue;
+        vus.add(t.p);
+        out.push(['commande sur du texte', chemin(c) + ' « ' + (texte(c) || c.getAttribute('aria-label') || c.getAttribute('title') || '') + ' » sur ' + chemin(t.p) + ' « ' + t.n.textContent.replace(/\s+/g, ' ').trim().slice(0, 40) + ' » (' + Math.round(pire[0]) + '×' + Math.round(pire[1]) + ' px)']);
+      }
     }
 
     // 10. Au repos (rien défilé), le contenu ne commence pas SOUS le bandeau collé en haut.
