@@ -264,6 +264,14 @@
         html.ssa-ouvert .ssfab { visibility: hidden; }
       }
       @media print { .ssfab { display: none !important; } }
+      /* ⚠️ SOLI NE SE POSE JAMAIS SUR LA FIN D'UNE PAGE (14/11/2026, test complet). Fixe en bas à droite, il restait sur la
+         dernière ligne de vingt pages une fois tout défilé — au téléphone, toucher le « ⋯ » de la dernière facture ouvrait
+         l'assistant ; aussi le dernier « ⋯ » de l'Outillage, « Y aller » des RDV, la dernière ligne des Clients, de la Carte, des
+         Échanges… Les pages ne réservaient en bas que la barre de gestes. La page s'allonge donc de la place de Soli (60 px + son
+         retrait), pour que la fin remonte au-dessus de lui : une cale en fin de <body>, à l'ÉCRAN seulement — à l'impression elle
+         ajouterait une page. Une page qui réserve déjà sa place (la fiche devis, qui compte aussi « Sommaire », règle 66) pose
+         --ssfab-place: 0px. */
+      @media screen { body:has(> .ssfab)::after { content: ''; display: block; height: var(--ssfab-place, 76px); pointer-events: none; } }
       @media (prefers-reduced-motion: reduce) {
         .ssfab, .ssm-rayons { transition: none; } .ssm-reflet, .ssm-pense .ssm-rayons, .ssm-saut { animation: none; }
       }
