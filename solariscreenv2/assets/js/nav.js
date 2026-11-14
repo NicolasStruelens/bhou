@@ -1366,6 +1366,8 @@
       _plateformeDe: plateformeDe,
     },
     mount: mount, getIdentity: getIdentity, rafraichirCompteurs: rafraichirCompteurs, ouvrirAssistant: ouvrirAssistant, mascotte: mascotte,
+    // Les marges d'encoche en pixels, pour ce qu'une page pose elle-même en JS (menu « ⋯ » du tableau de bord, règle 61).
+    encoches: encoches,
     // exposés pour tests/nav.test.html : ils décident de tout et ne doivent pas dériver en silence
     _pageKey: pageKey, _pageCourante: pageCourante, _estActive: estActive, _chargerAttente: chargerAttente,
     _marquerBacASable: marquerBacASable, _placerMenu: placerMenu, _encoches: encoches,
