@@ -626,6 +626,54 @@
           }
         }
 
+        titre('Les lignes de devis au téléphone (règle 40 bis, 14/11/2026) : le « ⋯ » ne se pose plus sur le nom du client');
+        /* « Brigitte Essai-Waut… » avec le ⋯ écrit sur les derniers caractères, à 390 × 844 au doigt (avant ET après la règle 67).
+           Un `max-width: 42%` sur la colonne du montant se calculait sur la colonne ELLE-MÊME (auto, 134 px de contenu) : 56 px,
+           et `flex-end` envoyait les 78 px de trop sur le nom — le montant aussi (21 px sur le nom). À 430 px, le ⋯ tombait sur le
+           badge « ⚠ N » et le « reste … » (en absolu) sur la ligne du résumé. L'audit disait 0 : il ne comparait que des
+           commandes entre elles, et un nom est du texte. Des noms LONGS, comme en vrai (sur une copie : les autres cas comptent
+           les dossiers de DEVIS) ; trois états de paiement sous le montant (« en retard · reste », « reste », « soldé ✓ »). */
+        const LONGS = { 'T-SIG': ['Brigitte', 'Essai-Wauters'], 'T-POSE': ['École', 'du Bonheur (Primaire)'], 'T-REL': ['Martine', "L'Hoest-Vandenbroucke"] };
+        const DEVIS_Q = DEVIS.map(x => LONGS[x.id] ? Object.assign({}, x, { client: Object.assign({}, x.client, { prenom: LONGS[x.id][0], nom: LONGS[x.id][1] }) }) : x);
+        for (const [L, H] of [[320, 640], [360, 780], [375, 812], [390, 844], [430, 932], [760, 1000]]) {
+          semer();
+          localStorage.setItem('ss_devis_cache', JSON.stringify(DEVIS_Q));
+          f = await ouvrir(L, H, 'nicolas');
+          w = f.contentWindow; d = f.contentDocument;
+          const tag = 'Q ' + L + ' px';
+          const lignesQ = [...d.querySelectorAll('.mrow')].filter(r => r.offsetHeight);
+          const R = (e) => e.getBoundingClientRect();
+          const touche = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+          // Ce que porte la colonne du montant (le ⋯, le montant, l'état de paiement) contre TOUT ce qui est DESSINÉ ailleurs dans la
+          // ligne : le texte ligne par ligne (nom, résumé, méta, légende) et les éléments sans enfant (pastille de probabilité,
+          // nœuds de la frise, icônes). Pas les boîtes des conteneurs : `.m-sub` fait toute la largeur même quand ses pastilles
+          // s'arrêtent au milieu. Le texte d'une boîte qui coupe (un nom en points de suspension) est rogné par elle : sa fin
+          // masquée ne se dessine pas.
+          const rogne = (e, q) => {
+            if (w.getComputedStyle(e).overflowX === 'visible') return q;
+            const b = R(e), l = Math.max(q.left, b.left), rt = Math.min(q.right, b.right);
+            return rt - l > 0.5 ? { left: l, right: rt, top: q.top, bottom: q.bottom } : null;
+          };
+          const dessines = (r, droite) => [...r.querySelectorAll('*')].filter(e => !droite.contains(e) && !e.contains(droite) && e.getClientRects().length).flatMap(e => {
+            const txt = [...e.childNodes].filter(n => n.nodeType === 3 && n.textContent.trim());
+            if (txt.length) return txt.flatMap(n => { const rg = d.createRange(); rg.selectNodeContents(n); return [...rg.getClientRects()].map(q => rogne(e, q)).filter(Boolean).map(q => [e, q]); });
+            return !e.children.length && R(e).width && R(e).height ? [[e, R(e)]] : [];
+          });
+          const nomDe = (o) => String(o.className.baseVal === undefined ? o.className : o.className.baseVal).split(' ')[0] || o.tagName.toLowerCase();
+          const recouvre = lignesQ.flatMap(r => {
+            const droite = r.querySelector('.m-right'), autres = dessines(r, droite);
+            return [...droite.children].filter(e => R(e).width).flatMap(e => autres.filter(([o, q]) => touche(R(e), q)).map(([o]) => r.dataset.id + ' ' + e.className.split(' ')[0] + ' × ' + nomDe(o) + ' « ' + o.textContent.trim().slice(0, 20) + ' »'));
+          });
+          check(tag + ' : le ⋯, le montant et l’état de paiement ne se posent sur RIEN d’autre de la ligne (le nom d’abord)', [lignesQ.length > 0, recouvre], [true, []]);
+          check(tag + ' : le ⋯ fait au moins 40 × 40 px au doigt', lignesQ.filter(r => { const b = R(r.querySelector('.m-more')); return b.width < 40 || b.height < 40; }).map(r => r.dataset.id), []);
+          // Entier (au doigt, pas d'infobulle pour lire la fin) et À CÔTÉ de sa pastille, jamais dessous (règle 33 ter).
+          check(tag + ' : le nom du client se lit en entier, à côté de sa pastille', lignesQ.filter(r => {
+            const n = r.querySelector('.m-name'), a = r.querySelector('.m-ava');
+            return n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1 || R(a).bottom <= R(n).top + 1 || R(a).right > R(n).left;
+          }).map(r => r.querySelector('.m-name').textContent), []);
+          f.remove();
+        }
+
         titre('Réglages de la SOCIÉTÉ : enfin lus (appareil → société → repli)');
         /* ⚠️ « Vue du tableau de bord », « Densité » et « Chiffres repliés » étaient enregistrables
            dans Paramètres et sans aucun effet. */
