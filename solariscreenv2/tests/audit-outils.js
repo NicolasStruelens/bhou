@@ -375,6 +375,11 @@
     //    fixe posée sur la barre de gestes, ne se touche pas — toucher l'heure fait remonter la page, la barre de gestes
     //    change d'appli. Au repos pour ce qui défile (on ne remonte pas plus haut que le haut), toujours pour ce qui est fixe.
     //    Une fenêtre ouverte couvre la page : on ne regarde que ce qui est dedans (comme les chevauchements).
+    //    EN PARTIE sous l'heure aussi (plus de 4 px) : « Fermer » d'une fenêtre centrée allait de 51 à 95 px pour une heure
+    //    de 59 — sa moitié haute derrière l'heure, et le contrôle, qui ne voulait que le TOUT, n'en disait rien (test
+    //    complet du 14/11/2026 : SAV, « Relancer le client », menu « ⋯ » du tableau de bord). Seulement une commande qu'on
+    //    VOIT en son centre : la tête collante d'une carte poussée vers le haut par la fin de sa carte passe DERRIÈRE le
+    //    bandeau, comme tout ce qui défile — elle n'est pas posée sous l'heure (faux relevé du simulateur, même jour).
     const enc = { haut: parseFloat(w.getComputedStyle(d.documentElement).getPropertyValue('--encoche-haut')) || 0,
       bas: parseFloat(w.getComputedStyle(d.documentElement).getPropertyValue('--encoche-bas')) || 0 };
     if (enc.haut || enc.bas) {
@@ -382,16 +387,21 @@
       // Un ancêtre qui défile ENCORE dans ce sens : on éloigne l'élément du bord en faisant défiler, il n'y est pas posé
       // (le pied d'une fenêtre plus haute que l'écran, au bas d'une fenêtre qui défile : faux relevés du 11/11/2026).
       const defileVers = (e, bas) => { for (let x = e.parentElement; x && x !== d.documentElement; x = x.parentElement) { const s = w.getComputedStyle(x); if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && x.scrollHeight > x.clientHeight + 1 && (bas ? x.scrollTop < x.scrollHeight - x.clientHeight - 1 : x.scrollTop > 1)) return true; } return false; };
-      const sous = [], gestes = [];
+      const sous = [], partiel = [], gestes = [];
+      const vu = (e, r) => { const t = d.elementFromPoint(Math.min(Math.max((r.left + r.right) / 2, 0), W - 1), Math.min(Math.max((r.top + r.bottom) / 2, 0), H - 1)); return !!t && (t === e || e.contains(t)); };
       for (const e of cmd) {
         // La partie VISIBLE : un bouton défilé hors du corps d'une fenêtre est caché par ce corps, pas posé sur la barre.
         const r = rogner(e, e.getBoundingClientRect());
         if (r.width <= 0 || r.height <= 0 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
         const fixe = colle(e), libelle = texte(e) || e.getAttribute('aria-label') || e.getAttribute('title') || nom(e);
-        if (enc.haut && Math.min(r.bottom, H) <= enc.haut + 4 && (fixe || w.scrollY === 0) && !defileVers(e, false)) sous.push(libelle);
+        if (enc.haut && (fixe || w.scrollY === 0) && !defileVers(e, false)) {
+          if (Math.min(r.bottom, H) <= enc.haut + 4) sous.push(libelle);
+          else if (r.top < enc.haut - 4 && vu(e, r)) partiel.push(libelle + ' de ' + Math.round(r.top) + ' px à ' + Math.round(r.bottom) + ' px');
+        }
         if (enc.bas && fixe && r.top >= H - enc.bas - 2 && !defileVers(e, true)) gestes.push(libelle);
       }
       if (sous.length) out.push(['sous l’encoche', 'intouchable sous l’heure (' + enc.haut + ' px) : « ' + [...new Set(sous)].slice(0, 5).join(' », « ') + ' »']);
+      if (partiel.length) out.push(['sous l’encoche', 'en partie sous l’heure (' + enc.haut + ' px) : « ' + [...new Set(partiel)].slice(0, 5).join(' », « ') + ' »']);
       if (gestes.length) out.push(['sous la barre de gestes', 'barre fixe sur les ' + enc.bas + ' px du bas : « ' + [...new Set(gestes)].slice(0, 5).join(' », « ') + ' »']);
     }
 
