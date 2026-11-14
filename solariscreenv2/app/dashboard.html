@@ -820,6 +820,9 @@
       cursor: pointer; display: grid; place-items: center; flex: none; transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast); }
     .mrow:hover .m-more { border-color: var(--border); color: var(--text-muted); }
     .m-more:hover { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+    /* 40 px au doigt, comme les autres gestes du téléphone (règle 67) : il faisait 38 px jusqu'à 560 px
+       et 30 px à 760. Au-dessus de 760 px, rien ne change. */
+    @media (max-width: 760px) { .m-more { width: 40px; height: 40px; } }
     /* Menu d'actions flottant (mêmes codes visuels que le menu de statut) */
     .actions-menu { position: fixed; z-index: 1300; min-width: 210px; background: var(--surface); border: 1px solid var(--border-strong);
       border-radius: var(--r-md); box-shadow: var(--shadow); padding: 5px; display: none; flex-direction: column; }
@@ -883,9 +886,23 @@
          de type sont masqués, il ne resterait QUE le nom et le montant pour distinguer deux
          devis d'un même client. */
       .m-desc { grid-column: 1 / -1; }
-      /* Le montant partage la première ligne avec le nom : on lui donne un plafond de largeur
-         pour qu'un badge « Retard paiement » ne vienne pas rogner le nom du client. */
-      .m-right { grid-column: 2; grid-row: 1; align-items: flex-end; margin-top: 0; max-width: 42%; }
+      /* Le montant partage la première ligne avec le nom : ⋯ et montant côte à côte, l'état de
+         paiement (« reste … », `argentHtml`) en dessous, DANS LE FLUX.
+         ⚠️ JAMAIS DE PLAFOND EN POURCENTAGE ICI (« ⋯ » posé sur le nom, 14/11/2026, règle 40 bis).
+         Un `max-width: 42%` y vivait, du temps où un badge « Retard paiement » était dans cette
+         colonne. Mais la colonne est `auto` : elle vaut la largeur de SON contenu (⋯ + montant,
+         134 px), et le pourcentage se calcule sur elle — 42 % de 134 = 56 px. Le ⋯ et le montant
+         ne rétrécissent pas, et `flex-end` envoyait les 78 px de trop VERS LA GAUCHE : le ⋯ et la
+         fin du montant se posaient sur le nom du client (sur le badge « ⚠ N » à 430 px).
+         ⚠️ Et le « reste » n'est plus en absolu ici : au bureau la colonne de GAUCHE fixe la hauteur
+         de la rangée (nom, résumé, pastilles), mais au téléphone `.m-main` est dissous et la
+         rangée du montant n'est haute que du nom — à 430 px, « reste 1 359,80 € » tombait sur la
+         ligne « 2 Screens Coolscreen 8 · Chambre… ». Dans le flux, il agrandit la rangée au lieu
+         de recouvrir ; au téléphone les rangées sont calées en haut (`align-items: start`), le
+         montant ne bouge donc pas d'une ligne à l'autre (règle 33 bis). */
+      .m-right { grid-column: 2; grid-row: 1; margin-top: 0;
+        display: grid; grid-template-columns: auto auto; column-gap: 9px; row-gap: 1px; }
+      .m-reste { position: static; grid-column: 1 / -1; justify-self: end; margin-top: 0; }
       .m-pay { text-align: right; }
       /* Sur téléphone le signal passe pleine largeur : l'action et l'état se lisent de gauche. */
       .m-signal { justify-content: flex-start; }
@@ -919,15 +936,20 @@
          dépasse la place restante part à la ligne suivante AVANT de se rétrécir. Résultat vu à
          l'écran : la pastille d'initiales restait seule sur sa ligne et le nom tombait dessous.
          Avec une base à zéro, le nom reste toujours à côté de la pastille et c'est le BADGE qui
-         descend quand la place manque — ce qu'on voulait. */
-      .m-name { flex: 1 1 0; min-width: 10ch; }
+         descend quand la place manque — ce qu'on voulait.
+         ⚠️ (14/11/2026) Le NOM PASSE À LA LIGNE au lieu d'être coupé : au doigt, il n'y a pas
+         d'infobulle, « Brigitte Essai-Wau… » ne se lisait nulle part sur le tableau de bord.
+         Et `10ch` est plafonné à la place laissée par la pastille (21 px + 6 d'écart) : à 320 px
+         la colonne n'a que 110 px, et 27 + 10ch la dépassaient — la pastille restait seule sur
+         sa ligne, le nom dessous (le défaut même que `flex-basis: 0` corrigeait). Interligne
+         resserré : à 1,5 un nom sur deux lignes se lisait comme deux noms. */
+      .m-name { flex: 1 1 0; min-width: min(10ch, 100% - 27px); white-space: normal; overflow-wrap: break-word; line-height: 1.25; }
       .m-nb .badge-gold { display: none; }
       /* Commandes de ligne : elles mesuraient 24 à 30 px. On les remonte sans les gonfler —
          chaque pixel gagné ici est multiplié par le nombre de devis affichés. La pastille de
          probabilité reste petite à l'œil mais reçoit une zone de touche élargie, invisible :
          grossir le point aurait déséquilibré la ligne du nom. */
       .status-pill { min-height: 34px; }
-      .m-more { width: 38px; height: 38px; }
       .m-sub { gap: 8px; margin-top: 0; }
       .m-sub .id { display: none; }                                  /* n° de devis : illisible et inutile au doigt */
       /* ── LES DEUX GESTES DU TERRAIN ── Ici, et seulement ici : on est dans la camionnette,
