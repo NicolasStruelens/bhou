@@ -499,6 +499,59 @@
         }
         check('E10 encoche : les fenêtres des Notes de frais, de l’Outillage et de la Facturation commencent sous l’heure', hauts, [true, true, true]);
       }
+      // E12 : six autres fenêtres centrées n'avaient pas l'écart d'E10. Avec un contenu plus haut que l'écran, elles montaient à
+      // 28-51 px du haut : « Fermer » du nouveau ticket SAV et « ✕ » de « Relancer le client » à moitié sous l'heure, le titre des
+      // autres (test complet du 14/11/2026). Le cas ne dépend d'aucune donnée : on ouvre la fenêtre et on la remplit.
+      {
+        const bilan = [];
+        const FEN = [['sav.html', '#modalNew'], ['clients.html', '#modalClient'], ['dashboard.html', '#modalComments'], ['planning.html', '#mEvBg'],
+          ['simulateur.html', '#verifBg'], ['vue.html?id=inconnu', '#relanceModal']];
+        for (const [p, sel] of FEN) {
+          const fo = await cadre('../app/' + p, 390, 700);
+          const dO = fo.contentDocument, wO = fo.contentWindow;
+          encocher(dO); await attendre(60);
+          const ov = dO.querySelector(sel);
+          if (!ov) { bilan.push(p + ' : pas de ' + sel); fo.remove(); continue; }
+          ov.hidden = false; ov.classList.add('open');
+          const pan = ov.firstElementChild;
+          const defile = [...pan.querySelectorAll('*')].find((x) => /auto|scroll/.test(wO.getComputedStyle(x).overflowY)) || pan;
+          const cale = dO.createElement('div'); cale.style.cssText = 'height:2000px;flex:none'; defile.appendChild(cale);
+          await attendre(60);
+          const r = pan.getBoundingClientRect();
+          bilan.push(p + ' : ' + (r.top >= ENC.haut ? 'sous l’heure' : 'haut à ' + Math.round(r.top) + ' px') + ', '
+            + (r.bottom <= wO.innerHeight - ENC.bas + 0.5 ? 'au-dessus des gestes' : 'bas à ' + Math.round(r.bottom) + ' px'));
+          fo.remove();
+          rendre();   // un titre qui bouge : le lanceur sans écran attend 25 s de titre stable
+        }
+        check('E12 encoche, fenêtre plus haute que l’écran : SAV, Clients, tableau de bord, Planning, vérification du simulateur et fiche devis restent entre l’heure et la barre de gestes',
+          bilan, FEN.map(([p]) => p + ' : sous l’heure, au-dessus des gestes'));
+      }
+      // E13 : le menu « ⋯ » d'une ligne du tableau de bord, ouvert au MILIEU de l'écran (ni la place dessous, ni dessus), se
+      // collait à 8 px du haut : « Notes internes » et « Éditer le devis » sous l'heure (test complet du 14/11/2026). Un écran de
+      // 440 px de haut met un menu de 150 à 330 px dans ce cas sans dépendre des données. Au bureau, sa place ne change pas.
+      {
+        const res = [];
+        for (const [lw, enc] of [[390, true], [1200, false]]) {
+          const fm = await cadre('../app/dashboard.html', lw, 440);
+          const dm = fm.contentDocument, wm = fm.contentWindow;
+          if (enc) encocher(dm);
+          await attendre(60);
+          const bm = dm.createElement('button'); bm.type = 'button'; bm.className = 'm-more'; bm.textContent = '⋯';
+          bm.style.cssText = 'position:fixed;right:16px;width:40px;height:40px;z-index:5;top:' + Math.round(wm.innerHeight / 2 - 20) + 'px';
+          bm.addEventListener('click', (e) => wm.openActionsMenu(e, 'INCONNU'));
+          dm.body.appendChild(bm); bm.click(); await attendre(120);
+          const m = dm.querySelector('.actions-menu.open');
+          if (!m) { res.push('pas de menu'); fm.remove(); continue; }
+          const r = m.getBoundingClientRect(), rb = bm.getBoundingClientRect(), mh = m.offsetHeight;
+          const haut = (enc ? ENC.haut : 0) + 8, bas = wm.innerHeight - (enc ? ENC.bas : 0) - 8;
+          // La place d'avant, au bureau : sous le bouton, ou au-dessus, à 8 px du bord au plus près.
+          const avant = (rb.bottom + 6 + mh > wm.innerHeight - 8) ? Math.max(8, rb.top - mh - 6) : rb.bottom + 6;
+          res.push([enc ? r.top >= haut - 0.5 : Math.round(r.top) === Math.round(avant), r.bottom <= bas + 0.5, mh > 150 && mh <= 330 ? 'menu de 150 à 330 px' : 'menu de ' + mh + ' px']);
+          fm.remove();
+        }
+        check('E13 le menu « ⋯ » d’une ligne ouvert au milieu de l’écran : entre l’heure et la barre de gestes au téléphone, à sa place d’avant au bureau',
+          res, [[true, true, 'menu de 150 à 330 px'], [true, true, 'menu de 150 à 330 px']]);
+      }
       // E11 : la recherche (Ctrl K) ne se fermait qu'avec Échap — absente d'un clavier de téléphone — ou en touchant à côté.
       {
         const fr = [];

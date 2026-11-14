@@ -825,7 +825,7 @@
     @media (max-width: 760px) { .m-more { width: 40px; height: 40px; } }
     /* Menu d'actions flottant (mêmes codes visuels que le menu de statut) */
     .actions-menu { position: fixed; z-index: 1300; min-width: 210px; background: var(--surface); border: 1px solid var(--border-strong);
-      border-radius: var(--r-md); box-shadow: var(--shadow); padding: 5px; display: none; flex-direction: column; }
+      border-radius: var(--r-md); box-shadow: var(--shadow); padding: 5px; display: none; flex-direction: column; overflow-y: auto; }
     .actions-menu.open { display: flex; }
     .actions-menu button { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 8px 11px; border: 0;
       background: transparent; color: var(--text); font-size: var(--fs-sm); border-radius: var(--r-sm); cursor: pointer; }
@@ -1007,7 +1007,8 @@
     .proba-dot:hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc, var(--border-strong)) 25%, transparent); }
 
     /* ── Modale commentaires internes ── */
-    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: var(--sp-4); }
+    /* Écartée de l'heure et de la barre de gestes d'un iPhone (app de l'écran d'accueil, règle 61) : avec un contenu long, les notes internes et le journal montaient à 51 px du haut, leur titre sous l'heure (test complet du 14/11/2026). Le panneau s'arrête au bord de cet écart (`min(…, 100%)`). Au bureau, rien ne change. */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: none; align-items: center; justify-content: center; padding: max(var(--sp-4), calc(var(--encoche-haut) + var(--sp-2))) max(var(--sp-4), var(--encoche-droite)) max(var(--sp-4), calc(var(--encoche-bas) + var(--sp-2))) max(var(--sp-4), var(--encoche-gauche)); }
     .modal-bg.open { display: flex; }
     /* ── Journal d'activité / Quoi de neuf ── */
     .act-news-banner { padding: var(--sp-3) var(--sp-4); background: color-mix(in srgb, var(--accent-2) 10%, transparent); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
@@ -1034,7 +1035,7 @@
     .act-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-subtle); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
     @keyframes actIn { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { .act-row { animation: none; } }
-    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: 88vh; display: flex; flex-direction: column; --tick-color: var(--accent-2); }
+    .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow); width: 560px; max-width: 100%; max-height: min(88vh, 100%); display: flex; flex-direction: column; --tick-color: var(--accent-2); }
     .modal .mhead { font-family: var(--font-display); font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); color: var(--accent); display: flex; align-items: center; gap: var(--sp-2); }
     .modal .mhead .mid { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-subtle); margin-left: auto; }
     .modal .mbody { padding: var(--sp-4) var(--sp-5); overflow-y: auto; flex: 1; min-height: 120px; }
@@ -2747,6 +2748,18 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') amEl.classList.remove('open'); });
     }
     window.closeActionsMenu = () => { if (amEl) amEl.classList.remove('open'); };
+    /* Sous son bouton, ou au-dessus s'il n'y a pas la place : jamais sous l'heure ni sur la barre de gestes d'un iPhone
+       (app de l'écran d'accueil, règle 61). Posé à 8 px du haut de l'écran, le menu d'une ligne du milieu mettait
+       « Notes internes » et « Éditer le devis » sous l'heure (test complet du 14/11/2026). Plus haut que la place, il
+       défile. Au bureau (encoche nulle), les mêmes positions qu'avant. */
+    function poserActionsMenu(r) {
+      const enc = (window.SSNav && window.SSNav.encoches) ? window.SSNav.encoches() : { haut: 0, bas: 0, gauche: 0, droite: 0 };
+      const haut = 8 + enc.haut, bas = window.innerHeight - 8 - enc.bas;
+      amEl.style.maxHeight = Math.max(160, bas - haut) + 'px';
+      const mw = amEl.offsetWidth, mh = amEl.offsetHeight;
+      amEl.style.left = Math.max(8 + enc.gauche, Math.min(r.right - mw, window.innerWidth - mw - 8 - enc.droite)) + 'px';   // bord droit aligné sur le bouton
+      amEl.style.top = ((r.bottom + 6 + mh > bas) ? Math.max(haut, r.top - mh - 6) : r.bottom + 6) + 'px';   // bascule au-dessus si pas de place
+    }
     window.openActionsMenu = (e, id) => {
       e.stopPropagation();
       ensureActionsMenu();
@@ -2776,12 +2789,7 @@
       amEl.innerHTML = html;
       amEl.dataset.par = id;
       amEl.classList.add('open');   // ouvrir d'abord pour connaître les dimensions
-      const r = e.currentTarget.getBoundingClientRect();
-      const mw = amEl.offsetWidth, mh = amEl.offsetHeight;
-      let left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8));   // bord droit du menu aligné sur le bouton
-      let top = (r.bottom + 6 + mh > window.innerHeight - 8) ? Math.max(8, r.top - mh - 6) : r.bottom + 6;   // bascule au-dessus si pas de place
-      amEl.style.left = left + 'px';
-      amEl.style.top = top + 'px';
+      poserActionsMenu(e.currentTarget.getBoundingClientRect());
     };
     /* ── LE MENU « PLUS » de la barre d'outils ──────────────────────────────────────────────────
        Il range ce qui occupait quatre boutons et deux pastilles orphelines au-dessus de la liste :
@@ -2802,10 +2810,7 @@
         + it('upload', 'Restaurer une sauvegarde', "el('importFile').click()", 'am-bureau');
       amEl.dataset.par = 'plus';
       amEl.classList.add('open');
-      const r = e.currentTarget.getBoundingClientRect();
-      const mw = amEl.offsetWidth, mh = amEl.offsetHeight;
-      amEl.style.left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8)) + 'px';
-      amEl.style.top = ((r.bottom + 6 + mh > window.innerHeight - 8) ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + 'px';
+      poserActionsMenu(e.currentTarget.getBoundingClientRect());
     };
     // Le tri choisi est retenu sur l'appareil, comme la vue : on retrouve la liste comme on l'a laissée.
     window.choisirTri = (v) => { try { localStorage.setItem('ss_dash_tri', v); } catch (e) {} render(); };
