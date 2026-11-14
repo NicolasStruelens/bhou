@@ -406,6 +406,35 @@
       const mm = v.match(/['"`]([^'"`]*?\.html(?:[?#][^'"`]*)?)['"`]/g) || [];
       mm.forEach((x) => { const p = x.slice(1, -1); if (!/\$\{/.test(p)) { try { liens.add(new URL(p, w.location.href).href); } catch (er) {} } });
     }
+    // 13. EN FIN DE PAGE, RIEN SOUS UN BOUTON FLOTTANT (14/11/2026, test complet). Soli (et « Sommaire » sur la fiche) sont fixés en
+    //    bas : tant qu'on peut faire défiler, ce qui passe dessous n'est que de passage — mais TOUT EN BAS, ce qui reste dessous ne
+    //    se dégage plus (le « ⋯ » de la dernière facture ouvrait l'assistant au téléphone). Les contrôles d'avant ne regardaient
+    //    que l'écran au repos, en haut. On défile au bout, on compare, on revient. Une barre du bas pleine largeur (Mode Terrain,
+    //    enregistrement des Paramètres) n'est pas un bouton flottant : la page réserve déjà sa hauteur.
+    if (!calques.length) {
+      const colleOuFixe = (e) => { for (let x = e; x && x !== d.documentElement; x = x.parentElement) { const p = w.getComputedStyle(x).position; if (p === 'fixed' || p === 'sticky') return true; } return false; };
+      const flottants = visibles.filter((e) => w.getComputedStyle(e).position === 'fixed' && e.matches('button, a[href], [role=button]') && (() => { const r = e.getBoundingClientRect(); return r.width < W * 0.5 && r.height < H * 0.25 && r.top > H * 0.5; })());
+      if (flottants.length && d.documentElement.scrollHeight > H + 1) {
+        const sy0 = w.scrollY, sb0 = d.documentElement.style.scrollBehavior;
+        d.documentElement.style.scrollBehavior = 'auto';
+        w.scrollTo(0, 1e7);
+        const sous = [];
+        for (const f of flottants) {
+          const rf = f.getBoundingClientRect();
+          for (const e of d.body.querySelectorAll('*')) {
+            if (f.contains(e) || e.contains(f) || colleOuFixe(e) || decor(e) || !vis(e)) continue;
+            const estCmd = e.matches('a[href], button, input:not([type=hidden]), select, textarea, [role=button], summary');
+            if (!estCmd && ![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1)) continue;
+            const r = rogner(e, e.getBoundingClientRect());
+            if (Math.min(r.right, rf.right) - Math.max(r.left, rf.left) > 4 && Math.min(r.bottom, rf.bottom) - Math.max(r.top, rf.top) > 4)
+              sous.push((texte(e) || e.getAttribute('aria-label') || nom(e)).slice(0, 30) + ' (sous « ' + (f.getAttribute('aria-label') || texte(f) || nom(f)).slice(0, 20) + ' »)');
+          }
+        }
+        w.scrollTo(0, sy0); d.documentElement.style.scrollBehavior = sb0;
+        if (sous.length) out.push(['sous un bouton flottant', 'tout défilé en bas : « ' + [...new Set(sous)].slice(0, 4).join(' », « ') + ' »']);
+      }
+    }
+
     return { defauts: out, liens: [...liens], calques: calques.length };
   }
 
