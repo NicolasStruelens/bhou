@@ -2344,7 +2344,13 @@
       let infoTxt = 'Renseigne la date de pose pour la voir apparaître dans l’agenda.', retard = false;
       if (ch.date_pose) {
         const days = Math.round((new Date(ch.date_pose) - new Date(SSUI.aujourdhui())) / 86400000);
-        if (DEVIS.statut === 'termine') infoTxt = 'Pose effectuée.';
+        /* ⚠️ LA POSE EST FAITE DÈS QUE LE PV EST LÀ, PAS QUAND LE DEVIS EST « TERMINÉ » (14/11/2026, depuis le 04/07) : un
+           chantier posé reste « signé » tant que le solde n'est pas payé. Seul `termine` comptait : ESSAI-11, posé et PV signé
+           il y a 20 jours, s'affichait « Date de pose dépassée depuis 20 jour(s) » avec un badge rouge « EN RETARD » — sous la
+           frise du même écran qui disait « Posé ». La règle commune : `SSUI.isPoseDone` (PV, ou commande « posée »), sauf une
+           seconde pose encore à venir (`SSUI.poseAVenir`, chantier en deux fois). */
+        const poseFaite = DEVIS.statut === 'termine' || (window.SSUI.isPoseDone(DEVIS) && !window.SSUI.poseAVenir(DEVIS));
+        if (poseFaite) infoTxt = 'Pose effectuée.';
         else if (days === 0) infoTxt = "Pose prévue aujourd'hui.";
         else if (days > 0) infoTxt = `Pose prévue dans ${days} jour(s).`;
         else { infoTxt = `Date de pose dépassée depuis ${-days} jour(s).`; retard = true; }

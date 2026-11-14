@@ -607,6 +607,38 @@
            'Répartition personnalisée (— % / — %) — modifiable dans le simulateur',
            true]);
 
+        /* P20 (14/11/2026) : un chantier POSÉ (PV) dont le solde n'est pas payé reste « signé ». La carte « Planification de
+           pose » ne tenait la pose pour faite que si le devis était « terminé » : « Date de pose dépassée depuis 20 jour(s) »
+           et un badge rouge « EN RETARD » sur ESSAI-11 (posé, PV le jour même) et ESSAI-23. Témoin : une pose vraiment
+           manquée (date passée, matériel reçu, pas de PV) reste signalée. */
+        const carteChantier = async (id) => {
+          const fc = await fiche(id);
+          const dc = fc.contentDocument;
+          const r = [txt(dc.getElementById('chantierInfo')), !dc.getElementById('chantierRetard').classList.contains('hidden')];
+          fc.remove(); return r;
+        };
+        // Chaque situation est ÉCRITE ici (les cas précédents ont déjà touché ces dossiers), puis le dossier est remis.
+        const ilY = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return U.isoDate(x); };
+        const situation = async (id, champs) => {
+          const avant = lire(id), cles = Object.keys(champs);
+          cles.forEach((k) => ecrireBase(id, '$.' + k, champs[k]));
+          const r = await carteChantier(id);
+          cles.forEach((k) => ecrireBase(id, '$.' + k, avant[k] === undefined ? null : avant[k]));
+          return r;
+        };
+        const p20 = [
+          // Posé il y a 20 jours, PV le même jour, solde pas payé : toujours « signé ».
+          await situation('ESSAI-11', { statut: 'signe', commande: { statut: 'pose' }, chantier: { date_pose: ilY(20), equipe: 'nicolas' }, reception_date: ilY(20) }),
+          // Posé, PV signé, la commande jamais passée à « posé » à la main.
+          await situation('ESSAI-23', { statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: ilY(6), equipe: 'nicolas' }, reception_date: ilY(6) }),
+          // Témoin : la date est passée, le matériel est là, mais rien ne dit que la pose a eu lieu.
+          await situation('ESSAI-10', { statut: 'signe', commande: { statut: 'recu' }, chantier: { date_pose: ilY(3), equipe: 'nicolas' }, reception_date: null, reception: null }),
+          // Posé en DEUX fois : PV de la première pose il y a 10 jours, la seconde dans 5 jours — elle reste « prévue ».
+          await situation('ESSAI-10', { statut: 'signe', commande: { statut: 'pose' }, chantier: { date_pose: ilY(-5), equipe: 'nicolas' }, reception_date: ilY(10), reception: null }),
+        ];
+        check('P20 Chantier posé (PV) pas encore soldé : « Pose effectuée. », pas de badge « En retard » ; une pose vraiment manquée (date passée, pas de PV) le reste ; la seconde pose d’un chantier en deux fois reste « prévue »',
+          p20, [['Pose effectuée.', false], ['Pose effectuée.', false], ['Date de pose dépassée depuis 3 jour(s).', true], ['Pose prévue dans 5 jour(s).', false]]);
+
         // ══════════ D, L, T — RÈGLE 66 (11/11/2026, variantes 1A et 2A choisies par Nicolas sur maquette) ══════════
         titre('D — Les devis du même client : des onglets posés sur la réglette (règle 66)');
         const Jd = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return U.isoDate(x); };
