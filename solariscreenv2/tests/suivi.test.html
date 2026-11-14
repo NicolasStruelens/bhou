@@ -476,6 +476,30 @@
         f = await ouvrir('t=trk-12'); doc = f.contentDocument;
         check('C17 Nicolas ou Yannick (marqueur `ss_staff`) : bandeau « Aperçu interne », et sa visite ne compte pas', [doc.getElementById('staffBanner').hidden, vues() - avant], [false, 0]);
         f.remove();
+        /* C17b (14/11/2026) : le bouton de thème (`.topbar`, en absolu en haut à droite) se posait sur ce bandeau sous 860 px
+           de fenêtre — au téléphone, il cachait « n'est pas » et « verra ». Les lignes du bandeau se mesurent une à une (Range).
+           ⚠️ AU DOIGT SEULEMENT, ici : le bouton y fait 44 px de haut (34 à la souris) et descend jusqu'à la 1re ligne. Un cadre de
+           bureau n'est jamais tactile : on y bascule les blocs `(pointer: coarse)` à vrai, et le cas vérifie que la bascule a pris. */
+        const COARSE_S = /\(\s*pointer\s*:\s*coarse\s*\)/i;
+        const auDoigt = (dd) => { const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE_S.test(x.media.mediaText)) x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE_S.source, 'gi'), '(min-width: 0px)'); if (x.cssRules) parc(x.cssRules); } };
+          for (const sh of dd.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); } };
+        const sousTheme = [];
+        for (const l of [320, 375, 390, 600, 840, 1100]) {
+          const fs = await ouvrir('t=trk-12', l, 844);
+          // Le bouton de thème se monte APRÈS le contenu : mesuré trop tôt, `.topbar` est une boîte vide et rien ne la touche.
+          await attendreQue(() => fs.contentDocument.querySelector('.topbar button'), 8000);
+          const ds = fs.contentDocument;
+          const mesure = () => { const t = ds.querySelector('.topbar').getBoundingClientRect(); if (t.width < 20) return 'pas de bouton';
+            const rg = ds.createRange(); rg.selectNodeContents(ds.getElementById('staffBanner'));
+            return ds.getElementById('staffBanner').hidden ? 'caché' : [...rg.getClientRects()].filter((q) => q.width > 2 && Math.min(q.right, t.right) - Math.max(q.left, t.left) > 1 && Math.min(q.bottom, t.bottom) - Math.max(q.top, t.top) > 1).length; };
+          const souris = mesure();
+          auDoigt(ds); await attendre(80);
+          const h = Math.round(ds.querySelector('.topbar button').getBoundingClientRect().height);
+          sousTheme.push(l + ':' + souris + '/' + (h >= 44 ? mesure() : 'bascule ratée (' + h + ' px)'));
+          fs.remove();
+        }
+        check('C17b Vue équipe, de 320 à 1 100 px, à la souris puis au doigt (bouton de 44 px) : le bouton de thème ne se pose sur aucune ligne du bandeau « Aperçu interne »',
+          sousTheme, ['320:0/0', '375:0/0', '390:0/0', '600:0/0', '840:0/0', '1100:0/0']);
         staff(false);
         f = await ouvrir('t=trk-12'); doc = f.contentDocument;
         check('C18 Le client, lui : pas de bandeau, une visite de plus', [doc.getElementById('staffBanner').hidden, vues() - avant], [true, 1]);
