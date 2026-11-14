@@ -612,6 +612,75 @@
         regleCale ? (regleCale.parentRule && regleCale.parentRule.media ? regleCale.parentRule.media.mediaText : 'toujours') : 'absente', 'screen');
       fv.remove();
 
+      // ══════════ BD — AU-DESSUS DE 640 PX AUSSI, LE BANDEAU CÈDE AU LIEU DE DÉBORDER (14/11/2026, test complet) ══════════
+      /* Les règles du téléphone (le nom cède d'abord et se tait sous 56 px, le logo jamais, les pastilles passent à la ligne)
+         s'arrêtaient à 640 px. Sur la fiche la plus chargée (ESSAI-19 : n°, statut, « Informatif », probabilité ; ESSAI-12 :
+         historique, garantie), « Dashboard » sortait de l'écran à 700-768 px, le n° du devis se posait sur le logo écrasé à
+         0 px, et le nom se lisait « S… / FICH… » à 900-1 000 px. Le cas ne dépend d'aucune donnée : on pose les pastilles. */
+      titre('Le bandeau cède au lieu de déborder, au-dessus de 640 px aussi');
+      const poserPastilles = (dg) => {
+        const montrer = (id, txt) => { const e = dg.getElementById(id); e.classList.remove('hidden'); if (txt != null) e.textContent = txt; };
+        montrer('devisIdBadge', '#ESSAI-19'); montrer('statusBadge', '● Envoyé'); montrer('historyBtn'); montrer('informatifBadge');
+        montrer('garantieBadge', 'Garantie active'); montrer('probaBadge', '● Probabilité ?');
+        // Le badge « Nicolas » (production, derrière Cloudflare Access) : posé comme nav.js le pose.
+        const qn = dg.getElementById('quickNav');
+        if (!dg.querySelector('.ssnav-who')) { const w8 = dg.createElement('button'); w8.type = 'button'; w8.className = 'badge ssnav-who'; w8.textContent = 'Nicolas'; qn.parentNode.insertBefore(w8, qn); }
+      };
+      {
+        const LARG = [700, 768, 900, 1000, 1100];
+        const bilanBd = [];
+        for (const lw of LARG) {
+          const g = await cadre('../app/vue.html?id=inconnu', lw, 700);
+          const dg = g.contentDocument, wg = g.contentWindow;
+          poserPastilles(dg); await attendre(80);
+          const W = dg.documentElement.clientWidth, logo = dg.querySelector('.app-header .brand-logo').getBoundingClientRect();
+          const place = dg.querySelector('.app-header .brand').getBoundingClientRect().width;
+          const acts = [...dg.querySelectorAll('.app-header .header-actions > *')].filter((e) => e.getBoundingClientRect().width > 0 && wg.getComputedStyle(e).display !== 'none');
+          const hors = acts.filter((e) => { const r = e.getBoundingClientRect(); return r.right > W + 0.5 || r.left < -0.5; }).map(lib);
+          const surLogo = acts.filter((e) => { const r = e.getBoundingClientRect(); return r.left < logo.right - 0.5 && r.right > logo.left + 0.5 && r.top < logo.bottom && r.bottom > logo.top; }).map(lib);
+          const td = dg.querySelector('.app-header .brand > div'), tw = td.getBoundingClientRect().width;
+          const ecrase = tw > 0.5 && tw <= 56 && [...td.children].some((c) => wg.getComputedStyle(c).visibility !== 'hidden' && c.getBoundingClientRect().width > 0);
+          bilanBd.push(lw + ' : ' + [hors.length ? 'hors de l’écran : ' + hors.join(', ') : 'tout dans l’écran', surLogo.length ? 'sur le logo : ' + surLogo.join(', ') : 'logo libre',
+            Math.round(logo.width) >= 36 && place >= logo.width ? 'logo entier' : 'logo à ' + Math.round(Math.min(logo.width, place)) + ' px', ecrase ? 'nom écrasé à ' + Math.round(tw) + ' px' : 'nom lisible ou tu'].join(', '));
+          g.remove(); rendre();
+        }
+        check('BD1 fiche la plus chargée, de 700 à 1 100 px : tout le bandeau dans l’écran, rien sur le logo, le nom lisible ou tu (jamais « S… »)',
+          bilanBd, LARG.map((l) => l + ' : tout dans l’écran, logo libre, logo entier, nom lisible ou tu'));
+      }
+      {
+        // Quand tout tient, rien ne bouge : une rangée, 60 px, le nom en entier — au bureau comme sur une tablette.
+        const bilanBd2 = [];
+        for (const [p, lw] of [['dashboard.html', 1200], ['clients.html', 1000], ['factures.html', 768]]) {
+          const g = await cadre('../app/' + p, lw, 700);
+          const dg = g.contentDocument, wg = g.contentWindow;
+          const qn = dg.getElementById('quickNav');
+          if (qn && !dg.querySelector('.ssnav-who')) { const w8 = dg.createElement('button'); w8.type = 'button'; w8.className = 'badge ssnav-who'; w8.textContent = 'Nicolas'; qn.parentNode.insertBefore(w8, qn); }
+          await attendre(80);
+          const hdr = dg.querySelector('.app-header'), h1 = dg.querySelector('.app-header .brand h1'), mod = dg.querySelector('.app-header .brand .module');
+          const centres = [...dg.querySelectorAll('.app-header .header-actions > *')].filter((e) => e.getBoundingClientRect().width > 0 && wg.getComputedStyle(e).display !== 'none')
+            .map((e) => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; });
+          const complet = (e) => e && wg.getComputedStyle(e).visibility !== 'hidden' && e.scrollWidth <= e.clientWidth + 1;
+          bilanBd2.push(p + ' ' + lw + ' : ' + Math.round(hdr.getBoundingClientRect().height) + ' px, ' + (Math.max(...centres) - Math.min(...centres) < 3 ? 'une rangée' : 'plusieurs rangées')
+            + ', ' + (complet(h1) && complet(mod) ? 'nom entier' : 'nom coupé'));
+          g.remove(); rendre();
+        }
+        check('BD2 quand tout tient, rien ne bouge : une rangée de 60 px et le nom en entier (tableau de bord 1 200, Clients 1 000, Facturation 768)',
+          bilanBd2, ['dashboard.html 1200 : 60 px, une rangée, nom entier', 'clients.html 1000 : 60 px, une rangée, nom entier', 'factures.html 768 : 60 px, une rangée, nom entier']);
+      }
+      {
+        // Le nom se TAIT sous 56 px (règle 56) au lieu de s'écraser en « S… » : on serre la marque, puis on la desserre.
+        const g = await cadre('../app/dashboard.html', 1200, 700);
+        const dg = g.contentDocument, wg = g.contentWindow;
+        const br = dg.querySelector('.app-header .brand'), td = br.querySelector(':scope > div');
+        const places = [];
+        const etat = async (px) => { br.style.maxWidth = (br.getBoundingClientRect().width - td.getBoundingClientRect().width + px) + 'px'; await attendre(60);
+          places.push(Math.round(td.getBoundingClientRect().width));
+          return [...td.children].every((c) => wg.getComputedStyle(c).visibility === 'hidden') ? 'tu' : 'visible'; };
+        const serre = await etat(40), large = await etat(90);
+        check('BD3 le nom de la page se tait quand sa place tombe sous 56 px, et revient au-delà (places mesurées : ' + places.join(' et ') + ' px)', [serre, large], ['tu', 'visible']);
+        g.remove();
+      }
+
       try { if (ls == null) localStorage.removeItem('ss_rail'); else localStorage.setItem('ss_rail', ls); } catch (e) {}
       rendre();
     })().catch(function (e) {
