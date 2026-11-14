@@ -333,6 +333,37 @@
             [[[['Prix de base', '5 041,00 €'], ['Votre remise (13 %)', '− 655,33 €'], ['Total HTVA', '4 385,67 €'], ['TVA 6 %', '263,14 €']], false],
               ['Fournitures', 'Installation et pose', 'Total HTVA', 'TVA 6 %'], false]);
         }
+        {
+          /* R10 (14/11/2026) : la VUE ÉQUIPE (marqueur `ss_staff`) porte le bandeau « Aperçu interne ». Le bouton de thème
+             (`.topbar`, en absolu en haut à droite) s'y posait sous 720 px de fenêtre et cachait « n'est pas » et « verra » au
+             téléphone. Les lignes du bandeau se mesurent une à une (Range), contre la boîte du bouton. */
+          let staff0 = null;
+          try { staff0 = localStorage.getItem('ss_staff'); localStorage.setItem('ss_staff', '1'); } catch (e) {}
+          const tok = BANC.sql1("SELECT json_extract(data, '$.review_token') FROM devis WHERE id = 'ESSAI-01'");
+          // À la souris, puis AU DOIGT (blocs `pointer: coarse` basculés dans le cadre : le bouton y fait 44 px de haut et descend
+          // plus bas ; un cadre de bureau n'est jamais tactile — le cas vérifie que la bascule a pris).
+          const COARSE_R = /\(\s*pointer\s*:\s*coarse\s*\)/i;
+          const auDoigt = (dd) => { const parc = (l) => { for (const x of l) { if (x.type === 4 && COARSE_R.test(x.media.mediaText)) x.media.mediaText = x.media.mediaText.replace(new RegExp(COARSE_R.source, 'gi'), '(min-width: 0px)'); if (x.cssRules) parc(x.cssRules); } };
+            for (const sh of dd.styleSheets) { let l; try { l = sh.cssRules; } catch (e) { continue; } parc(l); } };
+          const sousTheme = [];
+          for (const l of [320, 375, 390, 560, 700, 1100]) {
+            const fr = await BANC.cadre('../devis-review.html?t=' + encodeURIComponent(tok), l, 844);
+            await attendreQue(() => { const b = fr.contentDocument.getElementById('staffBanner'); return b && !b.classList.contains('hidden') && fr.contentDocument.querySelector('.topbar button'); }, 10000);
+            await attendre(100);
+            const d = fr.contentDocument;
+            const mesure = () => { const t = d.querySelector('.topbar').getBoundingClientRect();
+              const rg = d.createRange(); rg.selectNodeContents(d.getElementById('staffBanner'));
+              return [...rg.getClientRects()].filter((q) => q.width > 2 && Math.min(q.right, t.right) - Math.max(q.left, t.left) > 1 && Math.min(q.bottom, t.bottom) - Math.max(q.top, t.top) > 1).length; };
+            const souris = mesure();
+            auDoigt(d); await attendre(80);
+            const h = Math.round(d.querySelector('.topbar button').getBoundingClientRect().height);
+            sousTheme.push(l + ':' + souris + '/' + (h >= 44 ? mesure() : 'bascule ratée (' + h + ' px)'));
+            fr.remove();
+          }
+          try { if (staff0 == null) localStorage.removeItem('ss_staff'); else localStorage.setItem('ss_staff', staff0); } catch (e) {}
+          check('R10 Vue équipe (« Aperçu interne »), de 320 à 1 100 px, à la souris puis au doigt : le bouton de thème ne se pose sur aucune ligne du bandeau (il cachait « n’est pas » et « verra » au téléphone)',
+            sousTheme, ['320:0/0', '375:0/0', '390:0/0', '560:0/0', '700:0/0', '1100:0/0']);
+        }
 
         titre('E — « Envoyer au client » : Zoho Mail prêt, le lien du devis, le PDF à glisser (règle 65)');
         /* ⚠️ Un cadre ÉCRIT par le banc n'a pas d'entrée d'historique à lui (banc-serveur.js) : le `history.back()` de la
