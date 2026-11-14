@@ -327,6 +327,10 @@
     //    boîtes LIGNE PAR LIGNE (`Range`), rognées par leur propre boîte et ses ancêtres (un nom en points de suspension ne
     //    s'étend pas au-delà de sa boîte) —, dans le même calque, hors son propre libellé. Le texte d'une AUTRE commande est
     //    laissé au contrôle 9 (sauf celle qui contient les deux : une ligne cliquable n'excuse pas ce qui s'y recouvre).
+    //    POSÉ EXPRÈS, comme le bouton dans son champ du contrôle 9 : le texte vit dans un élément en ABSOLU, frère de la commande
+    //    (même conteneur) — l'unité « € » ou « % » dans son champ (`.input-unit .unit`, ~500 relevés au premier passage), les
+    //    badges « 2 » et « avant / après » sur la photo-bouton d'une carte du portfolio. Ce qui est dans le FLUX n'est jamais excusé.
+    const poseSur = (c, p) => { const o = c.parentElement && [...c.parentElement.children].find((x) => x !== c && x.contains(p)); return !!o && /^(absolute|fixed)$/.test(w.getComputedStyle(o).position); };
     const SEL_CMD = 'a[href], button, input:not([type=hidden]), select, textarea, [onclick], [role=button]';
     const textes = [];
     const tw = d.createTreeWalker(d.body, w.NodeFilter.SHOW_TEXT);
@@ -347,6 +351,7 @@
       for (const t of textes) {
         if (c.contains(t.p) || t.calque !== fc || vus.has(t.p)) continue;
         if (t.cmd && !t.cmd.contains(c)) continue;   // le texte d'une autre commande : contrôle 9
+        if (poseSur(c, t.p)) continue;
         let pire = null;
         for (const ra of rc) for (const rb of t.rs) {
           const ix = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), iy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);

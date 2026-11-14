@@ -2341,7 +2341,9 @@ est un défaut VU sur de vraies données, et tenu par un test de `dashboard.test
   éléments identique, souris et doigt, de 761 à 1 822 px). Tenu par les cas Q de `dashboard.test.html`
   (320, 360, 375, 390, 430 et 760 px). ⚠️ L'audit disait « 0 », pour DEUX raisons (`audit-outils.js`) : il
   ne comparait que des COMMANDES entre elles, et un nom est du texte — il relève désormais une « commande
-  sur du texte » (le texte mesuré ligne par ligne, rogné par sa boîte) ; et son `decor()` prenait pour un
+  sur du texte » (le texte mesuré ligne par ligne, rogné par sa boîte ; excusé seulement s'il est POSÉ
+  EXPRÈS, en absolu, à côté de la commande dans le même conteneur : l'unité « € » dans son champ, un badge
+  sur la photo d'une carte) ; et son `decor()` prenait pour un
   décor tout ce qui est sous une classe commençant par « filigrane » — y compris `.filigrane-hote`, la
   section qui PORTE le filigrane, c'est-à-dire toute la liste des devis, qui échappait depuis le 28/10 aux
   contrôles « coupé au bord » et « rogné ». Il lit désormais les classes une à une, et l'hôte n'en est pas.
