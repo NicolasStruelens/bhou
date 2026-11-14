@@ -376,6 +376,27 @@
         check('T6 À 345 px, en 16 px, aucun menu ne coupe un de ses libellés, et rien ne dépasse',
           [[...d.querySelectorAll('.reg-champ select')].flatMap(coupes345), d.documentElement.scrollWidth <= 345], [[], true]);
         f.remove();
+
+        // ══════════ L — AUCUNE CASE SUR LE TEXTE DE SON RÉGLAGE (14/11/2026) ══════════
+        /* La cadence de relance (trois cases de 62 px, deux points et « j » : 241 px) vivait dans la colonne de 168 px des
+           autres réglages ; calée à droite, elle débordait de 73 px VERS LA GAUCHE, sur la fin de son texte d'aide
+           (« Le tableau de bo|rd »). Rien ne sortait de l'écran : seul un contrôle case-contre-texte le voit. Le texte se
+           mesure LIGNE PAR LIGNE (Range sur `.reg-txt`), les cases par leur boîte. */
+        const surTexte = (dd) => [...dd.querySelectorAll('#panSociete .reg, #panAppareil .reg')].filter((r) => r.getBoundingClientRect().width > 0).flatMap((r) => {
+          const txtR = r.querySelector('.reg-txt'); if (!txtR) return [];
+          const rg = dd.createRange(); rg.selectNodeContents(txtR);
+          const lignes = [...rg.getClientRects()].filter((q) => q.width > 2);
+          const cases = [...r.querySelectorAll('.reg-champ input, .reg-champ select, .reg-champ .sep, .reg-champ .reg-unite')].map((x) => x.getBoundingClientRect()).filter((b) => b.width > 0);
+          return cases.some((b) => lignes.some((q) => Math.min(b.right, q.right) - Math.max(b.left, q.left) > 1 && Math.min(b.bottom, q.bottom) - Math.max(b.top, q.top) > 1)) ? [r.dataset.reg || r.querySelector('.reg-nom').textContent.trim()] : [];
+        });
+        const posees = [];
+        for (const [lw, lh] of [[1500, 900], [1000, 800], [768, 1024]]) {
+          const fl = await ouvrirPage(lw, lh);
+          posees.push(lw + ':' + surTexte(fl.contentDocument).join(','));
+          fl.remove();
+        }
+        check('L1 À 1 500, 1 000 et 768 px, aucune case ne se pose sur le texte de son réglage (la cadence de relance débordait de 73 px sur son aide)',
+          posees, ['1500:', '1000:', '768:']);
       } catch (e) {
         check('EXCEPTION', String(e && (e.stack || e.message) || e), null);
       } finally {
